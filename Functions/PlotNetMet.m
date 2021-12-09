@@ -3,6 +3,16 @@ function [] = PlotNetMet(ExpName,Params,HomeDir)
 % plot network metrics for MEA data
 % author RCFeord July 2021
 
+%{
+Meaning of the variables: 
+
+
+cDiv1, cDiv2, ... : this is a 1 x 3 vector with the RGB values of the color to be used 
+
+
+%}
+
+
 %% colours
 
 % colour scheme for age groups DIV
@@ -227,7 +237,7 @@ end
 clear DatTemp TempStr
 
 %% GraphMetricsByLag plots
-
+% TODO: need to sort out why the misplacement of error shades here
 cd(HomeDir); cd(strcat('OutputData',Params.Date));
 cd('4_NetworkActivity'); cd('4B_GroupComparisons')
 cd('5_GraphMetricsByLag')
@@ -260,6 +270,13 @@ for n = 1:length(eMet)
                 DatTemp = zeros(1, length(Params.FuncConLagval));
             end 
             
+            % What is c again? What is cDiv1?
+            % TODO: what is expected dimensions of DatTemp 
+            % I think in here it is DatTemp in (m, n)
+            % where m is the number of recordings (for a single genoype????)
+            % and n is the number of time lags
+            % but currently DatTemp is just a 1 x n vector for me...
+            
             ValMean = nanmean(DatTemp,1);
             ValStd = std(DatTemp,1);
             UpperStd = ValMean+ValStd; % upper std line
@@ -273,14 +290,7 @@ for n = 1:length(eMet)
             % need to double it??? ie. why Xf goes from 1 2 3 3 2 1 ? But
             % my c only has 3 values?
             % TODO: What is Xf and Yf?
-            % Tim Sit 2021-12-02, let me just handle the case where c and
-            % Xf have different lengths for now 
-            
-            if length(c) == length(Xf)
-                h1 = fill(Xf,Yf,c,'edgecolor','none');  % This is the original 
-            elseif length(c) < length(Xf)
-                h1 = fill(Xf(1:length(c)),Yf(1:length(c)),c,'edgecolor','none'); % This is the hacky fix
-            end 
+            h1 = fill(Xf,Yf,c,'edgecolor','none'); 
             
             % Choose a number between 0 (invisible) and 1 (opaque) for facealpha.
             set(h1,'facealpha',0.3)
