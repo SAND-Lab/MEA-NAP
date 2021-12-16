@@ -18,7 +18,11 @@ addpath('Images')
 
 % data input from excel spreadheet, column 1: name of recording, column 2:
 % DIV/age of sample, column 3: group/cell line
-xlsfilename = 'mecp2RecordingsList.xlsx'; % name of excel spreadsheet
+spreadsheet_file_type = 'csv';
+% spread_sheet_filename = 'mecp2RecordingsList.xlsx'; % name of excel spreadsheet
+spreadsheet_filename = 'mecp2RecordingsList.csv'; % name of csv file
+
+% These options only apply if using excel spreadsheet
 sheet = 1; % specify excel sheet
 xlRange = 'A2:C7'; % specify range on the sheet
 
@@ -83,10 +87,18 @@ Params.showFig = 0;  % TODO: set(h1, 'Visible', 'off'); when h1 is the figure ha
 %% setup - additional setup
 
 % import metadata from spreadsheet
-[num,txt,~] = xlsread(xlsfilename,sheet,xlRange);
-ExpName = txt(:,1); % name of recording
-ExpGrp = txt(:,3); % name of experimental group
-ExpDIV = num(:,1); % DIV number
+if strcmp(spreadsheet_file_type, 'excel')
+    [num,txt,~] = xlsread(spreadsheet_filename,sheet,xlRange);
+    ExpName = txt(:,1); % name of recording
+    ExpGrp = txt(:,3); % name of experimental group
+    ExpDIV = num(:,1); % DIV number
+elseif strcmp(spreadsheet_file_type, 'csv')
+    csv_data = readtable(spreadsheet_filename);
+    ExpName =  csv_data{:, 1};
+    ExpGrp = csv_data{:, 3};
+    ExpDIV = csv_data{:, 2};
+end 
+
 [~,Params.GrpNm] = findgroups(ExpGrp);
 [~,Params.DivNm] = findgroups(ExpDIV);
 
