@@ -1,22 +1,23 @@
 function [Ephys] = firingRatesBursts(spikeMatrix,Params,Info)
-
-spikeCounts = full(sum(spikeMatrix))/Info.duration_s;
-%remove ref channel spikes:
-spikeCounts(Info.channels == 15) = 0;     
-active_chanIndex = spikeCounts>=0.1;
-ActiveSpikeCounts = spikeCounts(active_chanIndex);  %spikes of only active channels ('active'= >7)
-
+% set firing rate threshold in Hz
+FR_threshold = 0.01; % in Hz or spikes/s
+% get spike counts
+FiringRates = full(sum(spikeMatrix))/Info.duration_s;
 % calculate firing rates
-FiringRates = ActiveSpikeCounts/(length(spikeMatrix)/Params.fs); % firing rate in seconds
-Ephys.FR = FiringRates;
+%remove ref channel spikes:
+FiringRates(Info.channels == 15)    =  0;     
+active_chanIndex = FiringRates      >= FR_threshold;
+ActiveFiringRates = FiringRates(active_chanIndex);  %spikes of only active channels ('active'= >7)
 
+Ephys.FR = ActiveFiringRates;
+% currently calculates only on active channels (>=FR_threshold)
 % stats
-Ephys.FRmean = round(mean(FiringRates),3);
-Ephys.FRstd = round(std(FiringRates),3);
-Ephys.FRsem = round(std(FiringRates)/(sqrt(length(ActiveSpikeCounts))),3);
-Ephys.FRmedian = round(median(FiringRates),3);
-Ephys.FRiqr = round(iqr(FiringRates),3);
-Ephys.numActiveElec = length(ActiveSpikeCounts);
+Ephys.FRmean = round(mean(ActiveFiringRates),3);
+Ephys.FRstd = round(std(ActiveFiringRates),3);
+Ephys.FRsem = round(std(ActiveFiringRates)/(sqrt(length(ActiveFiringRates))),3);
+Ephys.FRmedian = round(median(ActiveFiringRates),3);
+Ephys.FRiqr = round(iqr(ActiveFiringRates),3);
+Ephys.numActiveElec = length(ActiveFiringRates);
 
 %get rid of NaNs where there are no spikes; change to 0
 if isnan(Ephys.FRmean)
@@ -33,10 +34,10 @@ method ='Bakkum';
 %function)
 %to change min channels change line 207 of burstDetect.m
 %to change N (min n spikes) see line 170 of burstDetect.m
-N = 30; minChan = 3;
+N = 10; minChan = 3;
 
 [burstMatrix, burstTimes, burstChannels] = burstDetect(spikeMatrix, method, Params.fs, N, minChan);
-nBursts = length(burstMatrix);
+nBursts = size(burstTimes,1);
 
 if ~isempty(burstMatrix)
     for Bst=1:length(burstMatrix)
@@ -71,7 +72,7 @@ if ~isempty(burstMatrix)
     
     % NOTE: these are based on the ISI across all channels!!!
     Ephys.meanNBstLengthS = mean(NBLength); % mean length burst in s
-    Ephys.numNbursts = length(burstTimes);
+    Ephys.numNbursts = size(burstTimes,1);
     Ephys.meanNumChansInvolvedInNbursts = mean(chans_involved);
     Ephys.meanISIWithinNbursts_ms = mean(mean_ISI_w);
     Ephys.meanISIoutsideNbursts_ms = round(mean(ISI_outside)/Params.fs*1000,3);
