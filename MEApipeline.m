@@ -18,6 +18,9 @@ addpath('Images')
 
 % data input from excel spreadheet, column 1: name of recording, column 2:
 % DIV/age of sample, column 3: group/cell line
+% spreadsheet_file_type: datatype of the spreadsheet 
+% option 1: csv (comma separated values)
+% option 2: excel (excel spreadsheet, eg. .xlsx)
 spreadsheet_file_type = 'csv';
 % spread_sheet_filename = 'mecp2RecordingsList.xlsx'; % name of excel spreadsheet
 spreadsheet_filename = 'mecp2RecordingsList.csv'; % name of csv file
@@ -49,16 +52,42 @@ rawData = '/home/timsit/AnalysisPipeline/rawFiles';
 % advanced settings are automatically set but can be modified by opening
 % the following function
 biAdvancedSettings
-% list of thresholds for spike detection
+% list of thresholds for spike detection, this is used for threshold-based 
+% spike detection, where thershold is mean(voltage) - Params.thresholds *
+% sem(voltage) (or std(voltage))
 Params.thresholds = {'4.5'}; % {'2.5', '3.5', '4.5'}
+
 % list of built in wavelets and associated cost parameters
+% For more information about wavelets, type `waveinfo` into matlab 
+% or see: https://uk.mathworks.com/help/wavelet/ref/waveinfo.html
+% The usual wavelest that we observe good results are the (bior1.5,
+% bior1.3, and 'db' wavelets
 Params.wnameList = {'bior1.5'}';
+
+% Specify the cost parameter used in spike detection, which controls 
+% the false positive / false negative tradeoff in spike detection 
+% more negative values leads to less false negative but more false
+% positives, recommended range is between -2 to 2, but usually we use 
+% -1 to 0. Note that this is in a log10 scale, meaning -1 will lead to 10
+% times more false positive compared to -0.1
+% For more details see 
+% Nenadic and Burdick 2005: Spike detection using the continuous wavelet
+% transform
 Params.costList = -0.12;
 % if spike detection has been run separately, specify the folder containing
 % the spike detected data
 spikeDetectedData = '/home/timsit/AnalysisPipeline/spikeFilesOutput';
 % set spike method to be used in downstream analysis, use 'merged if all
 % spike detection methods should be combined, otherwise specify method
+
+% Spike detection method 
+% 'thr3p0': means using a threshold-based method with a multiplier of 3.0
+% you can specify other thresholds by replacing the decimal place '.' with
+% 'p', eg. 'thr4p5' means a threhold multiplier of 4.5
+% 'mea': first detect putative spikes using the threshold method, then 
+% use them to construct a custom wavelet, then use wavelet spike detection 
+% 'merged': merge the spike detection results from the wavelets specified 
+% in Params.wnameList
 Params.SpikesMethod = 'merged'; % 'thr3p0','mea','merged'
 
 % set parameters for functional connectivity inference
