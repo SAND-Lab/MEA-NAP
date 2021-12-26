@@ -206,6 +206,9 @@ for e = 1:length(lagval)
     
     [On,adjMord] = reorder_mod(adjM,Ci);
     
+    % Define minimal edge threshold (currently set to basically 0)
+    edge_thresh = 0.00001;
+    
     try
         channels = Info.channels;
         channels(iN) = [];
@@ -217,24 +220,24 @@ for e = 1:length(lagval)
     coords(:,2) = channels - coords(:,1)*10;
     try
     % simple grid network plot
-    StandardisedNetworkPlot(adjM, coords, 0.00001, ND, 'MEA', char(Info.FN),'2',Params,lagval,e);
+    StandardisedNetworkPlot(adjM, coords, edge_thresh, ND, 'MEA', char(Info.FN),'2',Params,lagval,e);
    
     % grid network plot node degree betweeness centrality
-    StandardisedNetworkPlotNodeColourMap(adjM, coords, 0.00001, ND, 'Node degree', BC, 'Betweeness centrality', 'MEA', char(Info.FN), '3', Params, lagval,e)
+    StandardisedNetworkPlotNodeColourMap(adjM, coords, edge_thresh, ND, 'Node degree', BC, 'Betweeness centrality', 'MEA', char(Info.FN), '3', Params, lagval,e)
   
     % grid network plot node degree participation coefficient
-    StandardisedNetworkPlotNodeColourMap(adjM, coords, 0.00001, ND, 'Node degree', PC, 'Participation coefficient', 'MEA', char(Info.FN), '4', Params, lagval,e)
+    StandardisedNetworkPlotNodeColourMap(adjM, coords, edge_thresh, ND, 'Node degree', PC, 'Participation coefficient', 'MEA', char(Info.FN), '4', Params, lagval,e)
   
     % grid network plot node strength local efficiency
-    StandardisedNetworkPlotNodeColourMap(adjM, coords, 0.00001, NS, 'Node strength', Eloc, 'local connectivity', 'MEA', char(Info.FN), '5', Params, lagval,e)
+    StandardisedNetworkPlotNodeColourMap(adjM, coords, edge_thresh, NS, 'Node strength', Eloc, 'local connectivity', 'MEA', char(Info.FN), '5', Params, lagval,e)
   
     % simple circular network plot
     NDord = ND(On);
-    StandardisedNetworkPlot(adjMord, coords, 0.00001, NDord, 'circular', char(Info.FN),'6',Params,lagval,e);
+    StandardisedNetworkPlot(adjMord, coords, edge_thresh, NDord, 'circular', char(Info.FN),'6',Params,lagval,e);
     
     % node cartography
     NdCartDivOrd = NdCartDiv(On);
-    StandardisedNetworkPlotNodeCartography(adjMord, coords, 0.00001, NdCartDivOrd, 'circular', char(Info.FN), '7', Params, lagval, e)
+    StandardisedNetworkPlotNodeCartography(adjMord, coords, edge_thresh, NdCartDivOrd, 'circular', char(Info.FN), '7', Params, lagval, e)
     
    % colour map network plots where nodes are the same size
 %     StandardisedNetworkPlotNodeColourMap2(adjM, coords, 0.00001, PC, 'Participation coefficient', 'grid', char(Info.FN), Params)
