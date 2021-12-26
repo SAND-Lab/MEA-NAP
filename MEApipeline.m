@@ -48,7 +48,7 @@ Params.startAnalysisStep = 2;
 % run spike detection?
 detectSpikes = 1; % 1 = yes, 0 = no
 % specify folder with raw data files for spike detection
-rawData = '/home/timsit/AnalysisPipeline/rawFiles';
+rawData = '/media/timsit/timsitHD-2020-03/mecp2/rawFiles/';
 % advanced settings are automatically set but can be modified by opening
 % the following function
 biAdvancedSettings
@@ -337,7 +337,7 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
     end
 
     % create combined plots
-    PlotNetMet(ExpName,Params,HomeDir)
-    cd(HomeDir)
+    % PlotNetMet(ExpName,Params,HomeDir)
+    % cd(HomeDir)
 
 end
