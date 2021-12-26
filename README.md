@@ -3,7 +3,7 @@
 
 ## Getting started
 
-Open `MEApipelineV6.m` in matlab, read through the instructions in section 1
+Open `MEApipeline.m` in matlab, read through the instructions in section 1
 and modify the parameters (full documentation upcoming).
 
 
