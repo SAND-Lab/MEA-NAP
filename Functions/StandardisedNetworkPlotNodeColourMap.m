@@ -174,6 +174,9 @@ end
 
 mycolours = colormap;
 
+% TODO: What is this rectangle, I guess this is the individual nodes but
+% made into circles?
+
 if strcmp(plotType,'MEA')
     uniqueXc = sort(unique(xc));
     nodeScaleF = max(z)/(uniqueXc(2)-uniqueXc(1));
@@ -182,10 +185,13 @@ if strcmp(plotType,'MEA')
             pos = [xc(i)-(0.5*z(i)/nodeScaleF) yc(i)-(0.5*z(i)/nodeScaleF) z(i)/nodeScaleF z(i)/nodeScaleF];
             if z2(i)>0
                 try
-                    rectangle('Position',pos,'Curvature',[1 1],'FaceColor',mycolours(ceil(length(mycolours)*((z2(i)-min(z2))/(max(z2)-min(z2)))),1:3),'EdgeColor','w','LineWidth',0.1)
+                    rectangle('Position',pos,'Curvature',[1 1],'FaceColor', ... 
+                        mycolours(ceil(length(mycolours)*((z2(i)-min(z2))/(max(z2)-min(z2)))),1:3), ...
+                        'EdgeColor','w','LineWidth',0.1)
                     
                 catch
-                    rectangle('Position',pos,'Curvature',[1 1],'FaceColor',mycolours(ceil(length(mycolours)*((z2(i)-min(z2))/(max(z2)-min(z2)))+0.00001),1:3),'EdgeColor','w','LineWidth',0.1)
+                    rectangle('Position',pos,'Curvature',[1 1],'FaceColor', ...
+                        mycolours(ceil(length(mycolours)*((z2(i)-min(z2))/(max(z2)-min(z2)))+0.00001),1:3),'EdgeColor','w','LineWidth',0.1)
                 end
             else
                 rectangle('Position',pos,'Curvature',[1 1],'FaceColor',mycolours(1,1:3),'EdgeColor','w','LineWidth',0.1)
@@ -274,7 +280,24 @@ if strcmp(plotType,'MEA')
     
     cb = colorbar;
     cb.Ticks = [0 0.2 0.4 0.6 0.8 1];
-    cb.TickLabels = {num2str(min(z2)), num2str(round(1/5*max(z2),2)), num2str(round(2/5*max(z2),2)), num2str(round(3/5*max(z2),2)), num2str(round(4/5*max(z2),2)), num2str(round(max(z2),2))};
+    
+    % This is the line that specifies the cmap labels 
+
+    cbar_ticklabels = {};
+    num_ticks = length(cb.Ticks);
+    
+    % roughly estimate the appropriate rounding decimal places from the max
+    % - min difference, eg. max of 1 and min of 0 will result in -log(0) +
+    % 1 = 1 decimal place rounding, a max of 0.1 and min of 0 will result
+    % in 2 decimal place rounding, and a max of 0.1 and min of 0.01 will
+    % result in 3 decimal place (because of the ceil function)
+    round_decimal_places = ceil(-log10(max(z2) - min(z2))) + 1;
+    tickVals = linspace(min(z2), max(z2), num_ticks);
+    for tickIndex = 1:num_ticks
+        cbar_ticklabels{tickIndex} = num2str(round(tickVals(tickIndex), round_decimal_places));
+    end 
+    
+    cb.TickLabels = cbar_ticklabels;
     cb.Label.String = z2name;
 
 end
@@ -321,8 +344,17 @@ if strcmp(plotType,'circular')
     text(1.7,(0.9-0.25)-(12*str2num(legdata(3,:))/nodeScaleF),num2str(round(max(adjM(:)),4)))
     
     cb = colorbar;
-    cb.Ticks = [0 0.2 0.4 0.6 0.8 1];
-    cb.TickLabels = {num2str(min(z2)), num2str(round(1/5*max(z2),2)), num2str(round(2/5*max(z2),2)), num2str(round(3/5*max(z2),2)), num2str(round(4/5*max(z2),2)), num2str(round(max(z2),2))};
+    cb.Ticks = [0 0.2 0.4 0.6 0.8 1]; % Specify the tick location
+    
+    cbar_ticklabels = {};
+    num_ticks = length(cb.Ticks);
+    round_decimal_places = ceil(-log10(max(z2) - min(z2))) + 1;
+    tickVals = linspace(min(z2), max(z2), num_ticks);
+    for tickIndex = 1:num_ticks
+        cbar_ticklabels{tickIndex} = num2str(round(tickVals(tickIndex), round_decimal_places));
+    end 
+    
+    cb.TickLabels = cbar_ticklabels;
     cb.Label.String = z2name;
     
 end
