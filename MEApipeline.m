@@ -36,14 +36,14 @@ formatOut = 'ddmmmyyyy'; Params.Date = datestr(now,formatOut); clear formatOut
 Params.fs = 25000;
 
 % use previously analysed data?
-Params.priorAnalysis = 0; % 1 = yes, 0 = no
+Params.priorAnalysis = 1; % 1 = yes, 0 = no
 % path to previously analysed data
-Params.priorAnalysisPath = '/home/timsit/AnalysisPipeline/OutputData02Dec2021v3';
+Params.priorAnalysisPath = '/home/timsit/AnalysisPipeline/OutputData24Dec2021';
 % prior analysis date in format given in output data folder e.g '27Sep2021'
-Params.priorAnalysisDate = '02Dec2021';
+Params.priorAnalysisDate = '24Dec2021';
 % which section to start new analysis from? 2 = neuronal activity, 3 =
 % functional connectivity, 4 = network activity
-Params.startAnalysisStep = 2;
+Params.startAnalysisStep = 4;
 
 % run spike detection?
 detectSpikes = 1; % 1 = yes, 0 = no
@@ -112,6 +112,24 @@ Params.figEps = 0; % figures saved as .eps format, 1 = yes, 0 = no
 % Stop figures windows from popping up (steals windows focus on linux
 % machines at least)
 Params.showFig = 0;  % TODO: set(h1, 'Visible', 'off'); when h1 is the figure handle
+
+
+% Network plot colormap bounds 
+Params.use_theoretical_bounds = 1;
+Params.use_min_max_all_recording_bounds = 0;
+
+if Params.use_theoretical_bounds
+    network_plot_cmap_bounds = struct();
+    network_plot_cmap_bounds.CC = [0, 1];
+    network_plot_cmap_bounds.PC = [0, 1];
+    network_plot_cmap_bounds.Z = [-2, 2];
+    network_plot_cmap_bounds.BC = [0, 1];
+    network_plot_cmap_bounds.Eloc = [0, 1];
+    Params.network_plot_cmap_bounds = network_plot_cmap_bounds;
+end 
+
+
+
 
 %% setup - additional setup
 
