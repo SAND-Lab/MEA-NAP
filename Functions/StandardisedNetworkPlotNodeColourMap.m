@@ -286,16 +286,29 @@ if strcmp(plotType,'MEA')
     cbar_ticklabels = {};
     num_ticks = length(cb.Ticks);
     
-    % roughly estimate the appropriate rounding decimal places from the max
-    % - min difference, eg. max of 1 and min of 0 will result in -log(0) +
-    % 1 = 1 decimal place rounding, a max of 0.1 and min of 0 will result
-    % in 2 decimal place rounding, and a max of 0.1 and min of 0.01 will
-    % result in 3 decimal place (because of the ceil function)
-    round_decimal_places = ceil(-log10(max(z2) - min(z2))) + 1;
-    tickVals = linspace(min(z2), max(z2), num_ticks);
-    for tickIndex = 1:num_ticks
-        cbar_ticklabels{tickIndex} = num2str(round(tickVals(tickIndex), round_decimal_places));
+    
+    if Params.use_theoretical_bounds == 1
+        % Uses user-specified custom bounds (the min and max possible in
+        % theory for each metric)
+        cmap_bounds = Params.network_plot_cmap_bounds.(z2name);
+        tickVals = linspace(cmap_bounds(1), cmap_bounds(2), num_ticks);
+        round_decimal_places = ceil(-log10(cmap_bounds(2) - cmap_bounds(1))) + 1;
+    else
+        % Set cmap bounds from the min and max across nodes in this
+        % specific network
+        % roughly estimate the appropriate rounding decimal places from the max
+        % - min difference, eg. max of 1 and min of 0 will result in -log(0) +
+        % 1 = 1 decimal place rounding, a max of 0.1 and min of 0 will result
+        % in 2 decimal place rounding, and a max of 0.1 and min of 0.01 will
+        % result in 3 decimal place (because of the ceil function)
+        round_decimal_places = ceil(-log10(max(z2) - min(z2))) + 1;
+        tickVals = linspace(min(z2), max(z2), num_ticks);
+
     end 
+
+   for tickIndex = 1:num_ticks
+       cbar_ticklabels{tickIndex} = num2str(round(tickVals(tickIndex), round_decimal_places));
+   end 
     
     cb.TickLabels = cbar_ticklabels;
     cb.Label.String = z2name;
