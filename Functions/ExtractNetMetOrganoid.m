@@ -214,7 +214,9 @@ for e = 1:length(lagval)
         channels(iN) = [];
     catch
         fprintf(2,'\n  WARNING: channel order not saved in spike matrix \n used default in line 50 of batch_getHeatMaps_fcn \n \n')
-        channels = [47,48,46,45,38,37,28,36,27,17,26,16,35,25,15,14,24,34,13,23,12,22,33,21,32,31,44,43,41,42,52,51,53,54,61,62,71,63,72,82,73,83,64,74,84,85,75,65,86,76,87,77,66,78,67,68,55,56,58,57];
+        channels = [47,48,46,45,38,37,28,36,27,17,26,16,35,25,15,14,24,34,..., 
+            13,23,12,22,33,21,32,31,44,43,41,42,52,51,53,54,61,62,71,63, ..., 
+            72,82,73,83,64,74,84,85,75,65,86,76,87,77,66,78,67,68,55,56,58,57];
     end
     coords(:,1) = floor(channels/10);
     coords(:,2) = channels - coords(:,1)*10;
@@ -250,7 +252,9 @@ for e = 1:length(lagval)
     
     %% reassign to structures
     
-    Var = {'ND', 'EW', 'NS', 'aN', 'Dens', 'Ci', 'Q', 'nMod', 'Eglob', 'CC', 'PL' 'SW','SWw' 'Eloc', 'BC', 'PC' , 'Z', 'NCpn1','NCpn2','NCpn3','NCpn4','NCpn5','NCpn6','Hub4','Hub3'};
+    Var = {'ND', 'EW', 'NS', 'aN', 'Dens', 'Ci', 'Q', 'nMod', 'Eglob', ...,
+        'CC', 'PL' 'SW','SWw' 'Eloc', 'BC', 'PC' , 'Z', 'NCpn1', ...,
+        'NCpn2','NCpn3','NCpn4','NCpn5','NCpn6','Hub4','Hub3'};
     
     for i = 1:length(Var)
         VN = cell2mat(Var(i));
