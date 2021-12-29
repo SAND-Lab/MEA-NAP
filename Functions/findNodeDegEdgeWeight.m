@@ -1,7 +1,26 @@
 function [z,z2] = findNodeDegEdgeWeight(adjM, edge_thresh)
+%{ 
+find node degree and edge weight from adjacency matrix
+INPUT 
+------------------
+adjM : (matrix)
+    adjacency matrix of the network 
+edge_thresh : (float or vector)
+    this is a vector (list) of thresholds (between 0 and 1) to be
+    used for thresholding the edges of the network.
+    
 
-% find node degree and edge weight from adjacency matrix
+OUTPUT 
+------------------
+z : mean node degree (often referred to as ND), this is the degree of each node 
+    this is the mean degree of each node, rounded to the nearest integer.
+z2 : mean edge weight (often referred to as EW), this is the edge weight of each
+    this is not rounded, note that negative weights are thresholded to zero
+   
+node
 
+
+%}
 %% get node degree for each channel
 
 count = 1; %to track threshold iterations
