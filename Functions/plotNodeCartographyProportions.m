@@ -1,10 +1,26 @@
 function [] = plotNodeCartographyProportions(NetMet, lagval, FN, Params)
+%{
+
+INPUT
+----------
+
+
+OUTPUT
+----------
+
+
+%}
+
 
 %% figure
-
 p = [100 100 1200 600];
 set(0, 'DefaultFigurePosition', p)
-figure();
+
+if ~isfield(Params, 'oneFigure')
+    figure();
+else 
+    set(Params.oneFigure, 'Position', p);
+end 
 
 t = tiledlayout(1,2);
 t.TileSpacing = 'compact';
@@ -62,7 +78,12 @@ if Params.figEps == 1
     saveas(gcf,'NdCartographyProportions.eps');
 end
 
-close all
+if ~isfield(Params, 'oneFigure')
+    close all
+else 
+    set(0, 'CurrentFigure', Params.oneFigure);
+    clf reset
+end 
 
 end
 

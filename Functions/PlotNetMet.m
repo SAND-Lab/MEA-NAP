@@ -1,15 +1,24 @@
 function [] = PlotNetMet(ExpName,Params,HomeDir)
-
-% plot network metrics for MEA data
-% author RCFeord July 2021
-
 %{
+Plot network metrics for MEA data
+
+INPUTS 
+---------------
+ExpName : 
+Params : 
+HomeDir : 
+
+
+OUTPUTS
+---------------
+
+
 Meaning of the variables: 
 
 
 cDiv1, cDiv2, ... : this is a 1 x 3 vector with the RGB values of the color to be used 
 
-
+author RCFeord July 2021
 %}
 
 
@@ -258,11 +267,20 @@ for l = 1:length(Params.FuncConLagval)
     LagValLabels{l} = num2str(Params.FuncConLagval(l));
 end
 
+
+
 p = [100 100 1200 800]; % this can be ammended accordingly 
 set(0, 'DefaultFigurePosition', p)
 
+if isfield(Params, 'oneFigure')
+    set(Params.oneFigure, 'Position', p);
+end 
+
 for n = 1:length(eMet)
-    F1 = figure;
+    if ~isfield(Params, 'oneFigure')
+        F1 = figure;
+    end 
+
     eMeti = char(eMet(n));
     xt = 1:length(Params.FuncConLagval);
     for g = 1:length(Grps)
@@ -324,15 +342,22 @@ for n = 1:length(eMet)
     h(1).XLim = [min(xt)-0.5 max(xt)+0.5];
     set(findall(gcf,'-property','FontSize'),'FontSize',8)
     if Params.figMat == 1
-        saveas(F1,strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),'.fig'));
+        saveas(gcf,strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),'.fig'));
     end
     if Params.figPng == 1
-        saveas(F1,strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),'.png'));
+        saveas(gcf,strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),'.png'));
     end
     if Params.figEps == 1
-        saveas(F1,strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),'.eps'));
+        saveas(gcf,strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),'.eps'));
     end
-    close(F1)
+
+    % Close figure or clear the one shared figures
+    if ~isfield(Params, 'oneFigure')
+        close(gcf)
+    else
+        set(0, 'CurrentFigure', Params.oneFigure);
+        clf reset
+    end 
 end
 
 %% notBoxPlots - plots by group
@@ -353,11 +378,17 @@ eMetl = {'network size','density','clustering coefficient', ...
 p = [100 100 1300 600]; 
 set(0, 'DefaultFigurePosition', p)
 
+if isfield(Params, 'oneFigure')
+    set(Params.oneFigure, 'Position', p);
+end 
+
 for l = 1:length(Params.FuncConLagval)
     mkdir(strcat(num2str(Params.FuncConLagval(l)),'mslag'))
     cd(strcat(num2str(Params.FuncConLagval(l)),'mslag'))
     for n = 1:length(eMet)
-        F1 = figure;
+        if ~isfield(Params, 'oneFigure')
+            F1 = figure;
+        end 
         eMeti = char(eMet(n));
         xt = 1:0.5:1+(length(AgeDiv)-1)*0.5;
         for g = 1:length(Grps)
@@ -391,15 +422,21 @@ for l = 1:length(Params.FuncConLagval)
         h(1).XLim = [min(xt)-0.5 max(xt)+0.5];
         set(findall(gcf,'-property','FontSize'),'FontSize',9)
         if Params.figMat == 1
-            saveas(F1,strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),'.fig'));
+            saveas(gcf,strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),'.fig'));
         end
         if Params.figPng == 1
-            saveas(F1,strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),'.png'));
+            saveas(gcf,strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),'.png'));
         end
         if Params.figEps == 1
-            saveas(F1,strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),'.eps'));
+            saveas(gcf,strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),'.eps'));
         end
-        close(F1)
+        % Close figure or clear the one shared figures
+        if ~isfield(Params, 'oneFigure')
+            close(gcf)
+        else
+            set(0, 'CurrentFigure', Params.oneFigure);
+            clf reset
+        end 
     end
     cd(HomeDir); cd(strcat('OutputData',Params.Date));
     cd('4_NetworkActivity'); cd('4B_GroupComparisons')
@@ -418,11 +455,17 @@ eMetl = {'network size','density','clustering coefficient','number of modules','
 p = [100 100 1300 600]; 
 set(0, 'DefaultFigurePosition', p)
 
+if isfield(Params, 'oneFigure')
+    set(Params.oneFigure, 'Position', p);
+end 
+
 for l = 1:length(Params.FuncConLagval)
     mkdir(strcat(num2str(Params.FuncConLagval(l)),'mslag'))
     cd(strcat(num2str(Params.FuncConLagval(l)),'mslag'))
     for n = 1:length(eMet)
-        F1 = figure;
+        if ~isfield(Params, 'oneFigure')
+            F1 = figure;
+        end 
         eMeti = char(eMet(n));
         xt = 1:length(AgeDiv);
         for g = 1:length(Grps)
@@ -461,15 +504,21 @@ for l = 1:length(Params.FuncConLagval)
         h(1).XLim = [min(xt)-0.5 max(xt)+0.5];
         set(findall(gcf,'-property','FontSize'),'FontSize',9)
         if Params.figMat == 1
-            saveas(F1,strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),'.fig'));
+            saveas(gcf,strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),'.fig'));
         end
         if Params.figPng == 1
-            saveas(F1,strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),'.png'));
+            saveas(gcf,strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),'.png'));
         end
         if Params.figEps == 1
-            saveas(F1,strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),'.eps'));
+            saveas(gcf,strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),'.eps'));
         end
-        close(F1)
+        % Close figure or clear the one shared figures
+        if ~isfield(Params, 'oneFigure')
+            close(gcf)
+        else
+            set(0, 'CurrentFigure', Params.oneFigure);
+            clf reset
+        end 
     end
     cd(HomeDir); cd(strcat('OutputData',Params.Date));
     cd('4_NetworkActivity'); cd('4B_GroupComparisons')
@@ -487,12 +536,17 @@ eMetl = {'network size','density','clustering coefficient','number of modules','
 
 p = [100 100 1300 600]; 
 set(0, 'DefaultFigurePosition', p)
+if isfield(Params, 'oneFigure')
+    set(Params.oneFigure, 'Position', p);
+end 
 
 for l = 1:length(Params.FuncConLagval)
     mkdir(strcat(num2str(Params.FuncConLagval(l)),'mslag'))
     cd(strcat(num2str(Params.FuncConLagval(l)),'mslag'))
     for n = 1:length(eMet)
-        F1 = figure;
+        if ~isfield(Params, 'oneFigure')
+            F1 = figure;
+        end 
         eMeti = char(eMet(n));
         xt = 1:0.5:1+(length(Grps)-1)*0.5;
         for d = 1:length(AgeDiv)
@@ -524,15 +578,21 @@ for l = 1:length(Params.FuncConLagval)
         h(1).XLim = [min(xt)-0.5 max(xt)+0.5];
         set(findall(gcf,'-property','FontSize'),'FontSize',12)
         if Params.figMat == 1
-            saveas(F1,strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),'.fig'));
+            saveas(gcf,strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),'.fig'));
         end
         if Params.figPng == 1
-            saveas(F1,strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),'.png'));
+            saveas(gcf,strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),'.png'));
         end
         if Params.figEps == 1
-            saveas(F1,strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),'.eps'));
+            saveas(gcf,strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),'.eps'));
         end
-        close(F1)
+        % Close figure or clear the one shared figures
+        if ~isfield(Params, 'oneFigure')
+            close(gcf)
+        else
+            set(0, 'CurrentFigure', Params.oneFigure);
+            clf reset
+        end 
     end
     cd(HomeDir); cd(strcat('OutputData',Params.Date));
     cd('4_NetworkActivity'); cd('4B_GroupComparisons')
@@ -550,12 +610,17 @@ eMetl = {'network size','density','clustering coefficient','number of modules','
 
 p = [100 100 1300 600]; 
 set(0, 'DefaultFigurePosition', p)
+if isfield(Params, 'oneFigure')
+    set(Params.oneFigure, 'Position', p);
+end 
 
 for l = 1:length(Params.FuncConLagval)
     mkdir(strcat(num2str(Params.FuncConLagval(l)),'mslag'))
     cd(strcat(num2str(Params.FuncConLagval(l)),'mslag'))
     for n = 1:length(eMet)
-        F1 = figure;
+        if ~isfield(Params, 'oneFigure')
+            F1 = figure;
+        end 
         eMeti = char(eMet(n));
         xt = 1:length(Grps);
         for d = 1:length(AgeDiv)
@@ -592,15 +657,21 @@ for l = 1:length(Params.FuncConLagval)
         h(1).XLim = [min(xt)-0.5 max(xt)+0.5];
         set(findall(gcf,'-property','FontSize'),'FontSize',12)
         if Params.figMat == 1
-            saveas(F1,strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),'.fig'));
+            saveas(gcf,strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),'.fig'));
         end
         if Params.figPng == 1
-            saveas(F1,strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),'.png'));
+            saveas(gcf,strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),'.png'));
         end
         if Params.figEps == 1
-            saveas(F1,strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),'.eps'));
+            saveas(gcf,strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),'.eps'));
         end
-        close(F1)
+        % Close figure or clear the one shared figures
+        if ~isfield(Params, 'oneFigure')
+            close(gcf)
+        else
+            set(0, 'CurrentFigure', Params.oneFigure);
+            clf reset
+        end 
     end
     cd(HomeDir); cd(strcat('OutputData',Params.Date));
     cd('4_NetworkActivity'); cd('4B_GroupComparisons')
@@ -619,12 +690,17 @@ eMetl = {'node degree','edge weight','node strength','within-module degree z-sco
 
 p = [100 100 1300 600]; 
 set(0, 'DefaultFigurePosition', p)
+if isfield(Params, 'oneFigure')
+    set(Params.oneFigure, 'Position', p);
+end 
 
 for l = 1:length(Params.FuncConLagval)
     mkdir(strcat(num2str(Params.FuncConLagval(l)),'mslag'))
     cd(strcat(num2str(Params.FuncConLagval(l)),'mslag'))
     for n = 1:length(eMet)
-        F1 = figure;
+        if ~isfield(Params, 'oneFigure')
+            F1 = figure;
+        end 
         eMeti = char(eMet(n));
         xt = 1:length(AgeDiv);
         for g = 1:length(Grps)
@@ -660,15 +736,21 @@ for l = 1:length(Params.FuncConLagval)
         h(1).XLim = [min(xt)-0.5 max(xt)+0.5];
         set(findall(gcf,'-property','FontSize'),'FontSize',9)
         if Params.figMat == 1
-            saveas(F1,strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),'.fig'));
+            saveas(gcf,strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),'.fig'));
         end
         if Params.figPng == 1
-            saveas(F1,strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),'.png'));
+            saveas(gcf,strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),'.png'));
         end
         if Params.figEps == 1
-            saveas(F1,strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),'.eps'));
+            saveas(gcf,strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),'.eps'));
         end
-        close(F1)
+         % Close figure or clear the one shared figures
+        if ~isfield(Params, 'oneFigure')
+            close(gcf)
+        else
+            set(0, 'CurrentFigure', Params.oneFigure);
+            clf reset
+        end 
     end
     cd(HomeDir); cd(strcat('OutputData',Params.Date));
     cd('4_NetworkActivity'); cd('4B_GroupComparisons')
@@ -687,12 +769,17 @@ eMetl = {'node degree','edge weight','node strength','within-module degree z-sco
 
 p = [100 100 1300 600]; 
 set(0, 'DefaultFigurePosition', p)
+if isfield(Params, 'oneFigure')
+    set(Params.oneFigure, 'Position', p);
+end 
 
 for l = 1:length(Params.FuncConLagval)
     mkdir(strcat(num2str(Params.FuncConLagval(l)),'mslag'))
     cd(strcat(num2str(Params.FuncConLagval(l)),'mslag'))
     for n = 1:length(eMet)
-        F1 = figure;
+        if ~isfield(Params, 'oneFigure')
+            F1 = figure;
+        end 
         eMeti = char(eMet(n));
         xt = 1:length(Grps);
         for d = 1:length(AgeDiv)
@@ -729,15 +816,21 @@ for l = 1:length(Params.FuncConLagval)
         h(1).XLim = [min(xt)-0.5 max(xt)+0.5];
         set(findall(gcf,'-property','FontSize'),'FontSize',12)
         if Params.figMat == 1
-            saveas(F1,strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),'.fig'));
+            saveas(gcf,strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),'.fig'));
         end
         if Params.figPng == 1
-            saveas(F1,strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),'.png'));
+            saveas(gcf,strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),'.png'));
         end
         if Params.figEps == 1
-            saveas(F1,strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),'.eps'));
+            saveas(gcf,strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),'.eps'));
         end
-        close(F1)
+        % Close figure or clear the one shared figures
+        if ~isfield(Params, 'oneFigure')
+            close(gcf)
+        else
+            set(0, 'CurrentFigure', Params.oneFigure);
+            clf reset
+        end 
     end
     cd(HomeDir); cd(strcat('OutputData',Params.Date));
     cd('4_NetworkActivity'); cd('4B_GroupComparisons')
@@ -761,9 +854,14 @@ eMet = {'NCpn1','NCpn2','NCpn3','NCpn4','NCpn5','NCpn6'};
 
 p = [100 100 1200 800]; % this can be ammended accordingly
 set(0, 'DefaultFigurePosition', p)
+if isfield(Params, 'oneFigure')
+    set(Params.oneFigure, 'Position', p);
+end 
 
 for l = 1:length(Params.FuncConLagval)
-    F1 = figure;
+    if ~isfield(Params, 'oneFigure')
+        F1 = figure;
+    end 
     xt = 1:length(AgeDiv);
     for g = 1:length(Grps)
         h(g) = subplot(length(Grps),1,g);
@@ -807,15 +905,21 @@ for l = 1:length(Params.FuncConLagval)
         legend Box off
     end
     if Params.figMat == 1
-        saveas(F1,strcat('NodeCartography',num2str(Params.FuncConLagval(l)),'mslag.fig'));
+        saveas(gcf,strcat('NodeCartography',num2str(Params.FuncConLagval(l)),'mslag.fig'));
     end
     if Params.figPng == 1
-        saveas(F1,strcat('NodeCartography',num2str(Params.FuncConLagval(l)),'mslag.png'));
+        saveas(gcf,strcat('NodeCartography',num2str(Params.FuncConLagval(l)),'mslag.png'));
     end
     if Params.figEps == 1
-        saveas(F1,strcat('NodeCartography',num2str(Params.FuncConLagval(l)),'mslag.eps'));
+        saveas(gcf,strcat('NodeCartography',num2str(Params.FuncConLagval(l)),'mslag.eps'));
     end
-    close(F1)
+    % Close figure or clear the one shared figures
+    if ~isfield(Params, 'oneFigure')
+        close(gcf)
+    else
+        set(0, 'CurrentFigure', Params.oneFigure);
+        clf reset
+    end 
 end
 
 end

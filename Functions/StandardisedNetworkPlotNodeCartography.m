@@ -21,12 +21,20 @@ function [] = StandardisedNetworkPlotNodeCartography(adjM, coords, edge_thresh, 
 % author RCFeord August 2021
 
 %% plot
+if ~isfield(Params, 'oneFigure')
+    F1 = figure;
+    F1.OuterPosition = [50   100   700  550];
+else 
+    p =  [50   100   720  550];
+    % set(0, 'DefaultFigurePosition', p)
+    Params.oneFigure.OuterPosition = p;
+    set(Params.oneFigure, 'Position', p);
+end 
 
-F1 = figure;
-F1.OuterPosition = [50   100   700  550];
 aesthetics; axis off; hold on
 
-title(strcat(regexprep(FN,'_','','emptymatch'),{' '},num2str(lagval(e)),{' '},'ms',{' '},'lag'))
+title(strcat(regexprep(FN,'_','','emptymatch'),{' '}, ... 
+    num2str(lagval(e)),{' '},'ms',{' '},'lag'))
 
 %% coordinates
 
@@ -330,6 +338,11 @@ if Params.figEps == 1
     saveas(gcf,strcat(pNum,'_',plotType,'_NetworkPlotNodeCartography.eps'));
 end
 
-close all
+if ~isfield(Params, 'oneFigure')
+    close all
+else 
+    set(0, 'CurrentFigure', Params.oneFigure);
+    clf reset
+end 
 
 end

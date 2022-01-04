@@ -13,13 +13,23 @@ function [F1] = StandardisedNetworkPlot(adjM, coords, edge_thresh, z, plotType, 
 %       coordinates and 'circular' to plot nodes in a circle
 %   FN - name of file/recording
 %   pNum - number to precede name of figure when it is saved
-
+% OUTPUTs
+%   F1 - 
 % author RCFeord August 2021
 
 %% plot
 
-F1 = figure;
-F1.OuterPosition = [50   100   660  550];
+if ~isfield(Params, 'oneFigure')
+    F1 = figure;
+    F1.OuterPosition = [50   100   660  550];
+else 
+    p =  [50   100   660  550];
+    set(0, 'DefaultFigurePosition', p)
+    % Params.oneFigure.OuterPosition = [50   100   660  550];
+    set(Params.oneFigure, 'Position', p);
+end 
+
+
 aesthetics; axis off; hold on
 
 title(strcat(regexprep(FN,'_','','emptymatch'),{' '},num2str(lagval(e)),{' '},'ms',{' '},'lag'))
@@ -302,6 +312,11 @@ if Params.figEps == 1
     saveas(gcf,strcat(pNum,'_',plotType,'_NetworkPlot.eps'));
 end
 
-close all
+if ~isfield(Params, 'oneFigure')
+    close all
+else 
+    set(0, 'CurrentFigure', Params.oneFigure);
+    clf reset
+end 
 
 end

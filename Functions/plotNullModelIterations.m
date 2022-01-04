@@ -1,9 +1,22 @@
 function [] = plotNullModelIterations(met, met2, lagval, e, FN, Params)
+%{
+INPUT
+--------
+
+
+OUTPUT 
+---------
+
+%}
 
 p = [100 100 1000 600];
 set(0, 'DefaultFigurePosition', p)
 
-figure();
+if ~isfield(Params, 'oneFigure')
+    figure();
+else 
+    set(Params.oneFigure, 'Position', p);
+end 
 
 t = tiledlayout(2,1);
 t.Title.String = strcat(regexprep(FN,'_','','emptymatch'),{' '},num2str(lagval(e)),{' '},'ms',{' '},'lag');
@@ -37,7 +50,11 @@ if Params.figEps == 1
     saveas(gcf,strcat('10_adjM',num2str(lagval(e)),'msNullModels.eps'));
 end
 
-close all
-
+if ~isfield(Params, 'oneFigure')
+    close all
+else 
+    set(0, 'CurrentFigure', Params.oneFigure);
+    clf reset
+end 
     
 end

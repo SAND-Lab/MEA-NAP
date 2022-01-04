@@ -21,9 +21,16 @@ function [] = StandardisedNetworkPlotNodeColourMap(adjM, coords, edge_thresh, z,
 % author RCFeord August 2021
 
 %% plot
+if ~isfield(Params, 'oneFigure')
+    F1 = figure;
+    F1.OuterPosition = [50   100   720  550];
+else 
+    p =  [50   100   720  550];
+    set(0, 'DefaultFigurePosition', p)
+    % Params.oneFigure.OuterPosition = [50   100   660  550];
+    set(Params.oneFigure, 'Position', p);
+end 
 
-F1 = figure;
-F1.OuterPosition = [50   100   720  550];
 aesthetics; axis off; hold on
 
 title(strcat(regexprep(FN,'_','','emptymatch'),{' '},num2str(lagval(e)),{' '},'ms',{' '},'lag'))
@@ -384,6 +391,11 @@ if Params.figEps == 1
     saveas(gcf,strcat(pNum,'_',plotType,'_NetworkPlot',zname,z2name,'.eps'));
 end
 
-close all
+if ~isfield(Params, 'oneFigure')
+    close all
+else 
+    set(0, 'CurrentFigure', Params.oneFigure);
+    clf reset
+end 
 
 end

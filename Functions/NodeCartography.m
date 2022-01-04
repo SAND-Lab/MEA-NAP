@@ -1,16 +1,28 @@
 function [NdCartDiv,PopNumNC] = NodeCartography(Z,PC,lagval,e,FN,Params)
-    
+%{    
 % node cartography 
 % see Guimera and Amaral, 2005
 % 'Functional cartography of complex metabolic networks'
-
 % author RCFeord 2020
 
+INPUT 
+---------
+
+
+OUTPUT
+----------
+
+%}
 %% figure
 
 p = [50 50 600 700];
 set(0, 'DefaultFigurePosition', p)
-figure();
+
+if ~isfield(Params, 'oneFigure')
+    figure();
+else 
+    set(Params.oneFigure, 'Position', p);
+end 
 
 t = tiledlayout(2,1);
 t.Title.String = strcat(regexprep(FN,'_','','emptymatch'),{' '},num2str(lagval(e)),{' '},'ms',{' '},'lag');
@@ -124,6 +136,12 @@ if Params.figEps == 1
     saveas(gcf,strcat('9_adjM',num2str(lagval(e)),'msNodeCartography.eps'));
 end
 
-close all
+if ~isfield(Params, 'oneFigure')
+    close all
+else 
+    set(0, 'CurrentFigure', Params.oneFigure);
+    clf reset
+end 
+
 
 end

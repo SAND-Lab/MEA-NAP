@@ -1,7 +1,29 @@
 function [NetMet] = ExtractNetMetOrganoid(adjMs,lagval,Info,HomeDir,Params)
 
+%{
+% INPUTS 
+adjMs : 
+lagval : 
+Info : 
+HomeDir :
+Params : contains parameters for analysis and plotting, notably, the key
+ones use are
+    Params.oneFigure : one shared figure handle for all figures (so figurse don't pop
+    in and out whilst the code is running the background)
+
+% OUTPUTS
+
 % extract network metrics from adjacency matrices for organoid data
 % author RCFeord March 2021
+
+% List of plotting functions used in this script: 
+    - plotConnectivityProperties
+    - plotNullModelIterations
+    - electrodeSpecificMetrics
+    - NodeCartography
+    - StandardisedNetworkPlot
+
+%}
 
 % edge threshold for adjM
 edge_thresh = 0.0001;
@@ -183,13 +205,14 @@ for e = 1:length(lagval)
     end
     
     %% electrode specific half violin plots
-    
     try
-    electrodeSpecificMetrics(ND, NS, EW, Eloc, BC, PC, Z, lagval, e, char(Info.FN), Params)
+        electrodeSpecificMetrics(ND, NS, EW, Eloc, BC, PC, Z, lagval, ... 
+            e, char(Info.FN), Params)
     catch
+        fprintf('Warning: plotting of electrode specific metric failed \n')
     end
     
-    %% node cartography
+    %% node cartography (plot)
     
     [NdCartDiv, PopNumNC] = NodeCartography(Z,PC,lagval,e,char(Info.FN),Params); 
 
@@ -266,11 +289,13 @@ for e = 1:length(lagval)
     clear ND EW NS Dens Ci Q nMod CC PL SW SWw Eloc BC PC Z Var NCpn1 NCpn2 NCpn3 NCpn4 NCpn5 NCpn6 Hub3 Hub4
     
 
-cd(HomeDir); cd(strcat('OutputData',Params.Date)); cd('4_NetworkActivity'); cd('4A_IndividualNetworkAnalysis'); cd(char(Info.Grp)); cd(char(Info.FN))
+cd(HomeDir); cd(strcat('OutputData',Params.Date)); 
+cd('4_NetworkActivity'); cd('4A_IndividualNetworkAnalysis'); 
+cd(char(Info.Grp)); cd(char(Info.FN))
 
 end
 
-%% node cartography proportions
+%% plot node cartography proportions
 
 plotNodeCartographyProportions(NetMet, lagval, char(Info.FN), Params)
 

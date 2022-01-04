@@ -5,7 +5,12 @@ function [] = plotNetworkWideMetrics(NetMet, meanSTTC, maxSTTC, lagval, FN, Para
 p = [50 50 1400 700];
 set(0, 'DefaultFigurePosition', p)
 
-figure();
+if ~isfield(Params, 'oneFigure')
+    figure();
+else 
+    set(Params.oneFigure, 'Position', p);
+end 
+
 t = tiledlayout(4,5);
 t.TileSpacing = 'compact';
 t.Padding = 'compact';
@@ -159,6 +164,11 @@ if Params.figEps == 1
     saveas(gcf,'NetworkWideMetrics.eps');
 end
 
-close all
+if ~isfield(Params, 'oneFigure')
+    close all
+else 
+    set(0, 'CurrentFigure', Params.oneFigure);
+    clf reset
+end 
 
 end

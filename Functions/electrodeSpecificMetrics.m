@@ -1,11 +1,25 @@
 function [] = electrodeSpecificMetrics(ND, NS, EW, Eloc, BC, PC, Z, lagval, e, FN, Params)
+%{
+INPUT
+--------
+
+
+OUTPUT 
+---------
+
+%}
 
 %% figure
 
 p = [100 100 1400 550];
 set(0, 'DefaultFigurePosition', p)
 
-figure();
+if ~isfield(Params, 'oneFigure')
+    figure();
+else 
+    set(Params.oneFigure, 'Position', p);
+end 
+
 t = tiledlayout(4,7);
 t.Title.String = strcat(regexprep(FN,'_','','emptymatch'),{' '},num2str(lagval(e)),{' '},'ms',{' '},'lag');
 
@@ -119,6 +133,11 @@ if Params.figEps == 1
     saveas(gcf,strcat('8_adjM',num2str(lagval(e)),'msGraphMetricsByNode.eps'));
 end
 
-close all
+if ~isfield(Params, 'oneFigure')
+    close all
+else 
+    set(0, 'CurrentFigure', Params.oneFigure);
+    clf reset
+end 
 
 end

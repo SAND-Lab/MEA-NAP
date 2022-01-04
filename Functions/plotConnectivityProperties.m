@@ -2,7 +2,12 @@ function [] = plotConnectivityProperties(adjM, e, lagval, maxSTTC, meanSTTC, ND,
 
 p = [10 10 1100 600];
 set(0, 'DefaultFigurePosition', p)
-f1 = figure;
+
+if ~isfield(Params, 'oneFigure')
+    f1 = figure;
+else 
+    set(Params.oneFigure, 'Position', p);
+end 
 
 t = tiledlayout(6,6);
 t.Title.String = strcat(regexprep(FN,'_','','emptymatch'),{' '},num2str(lagval(e)),{' '},'ms',{' '},'lag');
@@ -66,7 +71,13 @@ if Params.figEps == 1
     saveas(gcf,strcat('1_adjM',num2str(lagval(e)),'msConnectivityStats.eps'));
 end
 
-close all
+if ~isfield(Params, 'oneFigure')
+    close all
+else 
+    % Reset the oneFigure figure handle shared by all plots
+    set(0, 'CurrentFigure', Params.oneFigure);
+    clf reset
+end
 
     
 end
