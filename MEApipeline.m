@@ -10,7 +10,7 @@
 % Set parameters
 
 % set analysis folder to home directory
-HomeDir = '/home/timsit/AnalysisPipeline/';
+HomeDir = '/Users/timothysit/AnalysisPipeline';
 % add all relevant folders to path
 cd(HomeDir)
 addpath(genpath('Functions'))
@@ -38,7 +38,7 @@ Params.fs = 25000;
 % use previously analysed data?
 Params.priorAnalysis = 1; % 1 = yes, 0 = no
 % path to previously analysed data
-Params.priorAnalysisPath = '/home/timsit/AnalysisPipeline/OutputData24Dec2021';
+Params.priorAnalysisPath = '/Users/timothysit/AnalysisPipeline/OutputData24Dec2021';
 % prior analysis date in format given in output data folder e.g '27Sep2021'
 Params.priorAnalysisDate = '24Dec2021';
 % which section to start new analysis from? 2 = neuronal activity, 3 =
@@ -105,14 +105,13 @@ Params.ProbThreshPlotChecksN = 5; % number of random checks to plot
 Params.adjMtype = 'weighted'; % 'weighted' or 'binary'
 
 % figure formats
-Params.figMat = 1; % figures saved as .mat format, 1 = yes, 0 = no
+Params.figMat = 0; % figures saved as .mat format, 1 = yes, 0 = no
 Params.figPng = 1; % figures saved as .png format, 1 = yes, 0 = no
 Params.figEps = 0; % figures saved as .eps format, 1 = yes, 0 = no
 
 % Stop figures windows from popping up (steals windows focus on linux
-% machines at least)
-Params.showFig = 0;  % TODO: set(h1, 'Visible', 'off'); when h1 is the figure handle
-
+% machines at least) when set to 1 (by only plotting on one figure handle)
+Params.showOneFig = 1;  
 
 % Network plot colormap bounds 
 Params.use_theoretical_bounds = 1;
@@ -127,8 +126,6 @@ if Params.use_theoretical_bounds
     network_plot_cmap_bounds.Eloc = [0, 1];
     Params.network_plot_cmap_bounds = network_plot_cmap_bounds;
 end 
-
-
 
 
 %% setup - additional setup
@@ -326,6 +323,11 @@ end
 
 %% Step 4 - network activity
 
+if Params.showOneFig
+    % TODO: do this for spike detection plots as well, and PlotNetMet
+    Params.oneFigure = figure;
+end 
+
 if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisStep<=4
 
     for  ExN = 1:length(ExpName)
@@ -355,7 +357,45 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
     end
 
     % create combined plots
-    % PlotNetMet(ExpName,Params,HomeDir)
-    % cd(HomeDir)
+    PlotNetMet(ExpName,Params,HomeDir)
+    cd(HomeDir)
 
 end
+
+%% Optional Step: compare pre-post TTX spike activity 
+
+% see find_best_spike_result.m for explanation of the parameters
+Params.prePostTTX.max_tolerable_spikes_in_TTX_abs = 100; 
+Params.prePostTTX.max_tolerable_spikes_in_grounded_abs = 100;
+Params.prePostTTX.max_tolerable_spikes_in_TTX_per_s = 1; 
+Params.prePostTTX.max_tolerable_spikes_in_grounded_per_s = 1;
+Params.prePostTTX.start_time = 0;
+Params.prePostTTX.default_end_time = 600;  
+Params.prePostTTX.sampling_rate = 1;  
+Params.prePostTTX.threshold_ground_electrode_name = 15;
+Params.prePostTTX.default_grounded_electrode_name = 15;
+Params.prePostTTX.min_spike_per_electrode_to_be_active = 0.5;
+Params.prePostTTX.wavelet_to_search = {'mea', 'bior1p5'};
+Params.prePostTTX.use_TTX_to_tune_L_param = 0;
+Params.prePostTTX.spike_time_unit = 'frame'; 
+Params.prePostTTX.custom_backup_param_to_use = []; 
+Params.prePostTTX.regularisation_param = 10;
+
+
+% Get spike detection result folder
+spike_folder = strcat(HomeDir,'/OutputData',Params.Date,'/1_SpikeDetection/1A_SpikeDetectedData/');
+spike_folder(strfind(spike_folder,'\'))='/';
+
+pre_post_ttx_plot_folder = fullfile(HomeDir, 'OutputData', ... 
+    Params.Date, '1_SpikeDetection', '1C_prePostTTXcomparison'); 
+
+find_best_spike_result(spike_folder, pre_post_ttx_plot_folder, Params)
+
+
+
+
+
+
+
+
+
