@@ -154,7 +154,7 @@ for l = 1:9
     set(gca,'xcolor','none');
     ylabel('Amplitude (\muV)');
     axis fill
-    title({["Electrode "+channel], [(st-bin_ms*25)/25000 + " - " + (st+bin_ms*25)/25000 + " s"]})
+    title({["Electrode "+channel], [(st-bin_ms*25)/Params.dSampF + " - " + (st+bin_ms*25)/Params.dSampF + " s"]})
     aesthetics
     set(gca,'TickDir','out');
 end
