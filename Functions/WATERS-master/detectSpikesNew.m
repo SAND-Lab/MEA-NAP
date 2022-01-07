@@ -59,9 +59,9 @@ classdef detectSpikes
                         
                         switch self.params.unit
                             case 's'
-                                spike_train = self.spike_train/25000;
+                                spike_train = self.spike_train/self.params.fs;
                             case 'ms'
-                                spike_train = self.spike_train/25;
+                                spike_train = self.spike_train/(self.params.fs/1000);
                             otherwise
                                 spike_train = self.spike_train;
                         end
