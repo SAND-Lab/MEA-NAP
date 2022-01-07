@@ -34,6 +34,8 @@ formatOut = 'ddmmmyyyy'; Params.Date = datestr(now,formatOut); clear formatOut
 
 % Sampling frequency of your recordings
 Params.fs = 25000;
+Params.dSampF = 25000; % down sampling factor for spike detection check, 
+% by default should be equal to your recording sampling frequency
 
 % use previously analysed data?
 Params.priorAnalysis = 1; % 1 = yes, 0 = no
@@ -116,6 +118,7 @@ Params.showOneFig = 1;
 % Network plot colormap bounds 
 Params.use_theoretical_bounds = 1;
 Params.use_min_max_all_recording_bounds = 0;
+Params.use_min_max_per_genotype_bounds = 0;
 
 if Params.use_theoretical_bounds
     network_plot_cmap_bounds = struct();
@@ -125,6 +128,13 @@ if Params.use_theoretical_bounds
     network_plot_cmap_bounds.BC = [0, 1];
     network_plot_cmap_bounds.Eloc = [0, 1];
     Params.network_plot_cmap_bounds = network_plot_cmap_bounds;
+else 
+    het_node_level_vals = 0;
+    if Params.use_min_max_all_recording_bounds
+        
+    elseif Params.use_min_max_per_genotype_bounds
+
+    end 
 end 
 
 

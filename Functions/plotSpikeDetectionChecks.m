@@ -1,4 +1,19 @@
 function plotSpikeDetectionChecks(spikeTimes,spikeDetectionResult,spikeWaveforms,Info,Params)
+%{
+
+INPUT 
+--------
+
+Params.dSampF : (int)
+    down-sampling factor for plotting spike detection check 
+    normally no down sampling is necessary, so set this to be equal 
+    to the sampling rate of your acquisition system
+
+
+OUTPUT 
+-------
+
+%}
 
 FN = char(Info.FN);
 
@@ -16,7 +31,7 @@ num_chan = size(dat,2);
 for ch = 1:num_chan
     lowpass = 600;
     highpass = 8000;
-    wn = [lowpass highpass] / (fs / 2);
+    wn = [lowpass highpass] / (fs / 2); % seems like the fs here comes from workspace???
     filterOrder = 3;
     [b, a] = butter(filterOrder, wn);
     filtered_data(:,ch) = filtfilt(b, a, dat(:,ch));
@@ -40,7 +55,7 @@ p = [100 100 1200 600];
 set(0, 'DefaultFigurePosition', p)
 F1 = figure;
 
-dSampF = 25000;
+dSampF = Params.dSampF;
 for i = 1:length(methods)
     spk_vec_all = zeros(1, duration_s*fs);
     spk_matrix = zeros(num_chan, duration_s*fs/dSampF);
