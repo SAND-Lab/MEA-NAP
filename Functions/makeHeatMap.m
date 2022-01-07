@@ -1,5 +1,4 @@
-function makeHeatMap(spikeMatrix,option,channels) 
-
+function makeHeatMap(spikeMatrix,option,channels, fs) 
     % outputs a heatmap figure handle for your spikes 
     % Assume numSamp x 60 matrix 
     
@@ -15,14 +14,19 @@ function makeHeatMap(spikeMatrix,option,channels)
             % instead 
             % note the current implementation assumes a sampling rate of
             % 25kHz
+        % fs : sampling frequency 
+            % defualts to 25000
     
     % Author: Tim Sit 
-    % Last Update: 20180607
+    % 2022-01-07 : added default fs and allow user to specify fs as
+    % argument
+    if ~exist('fs')
+        fs = 25000;
+    end 
     
     if ~exist('option')
         option = 'count'; 
     end  
-    
     
     spikeCount = sum(spikeMatrix); 
     
@@ -47,7 +51,7 @@ function makeHeatMap(spikeMatrix,option,channels)
 
     
     if strcmp(option,'rate')
-        spikeCount = spikeCount / (size(spikeMatrix, 1) / 25000);
+        spikeCount = spikeCount / (size(spikeMatrix, 1) / fs);
     end 
 
     if strcmp(option,'logc')
@@ -55,7 +59,7 @@ function makeHeatMap(spikeMatrix,option,channels)
     end 
     
     if strcmp(option,'logr')
-        spikeCount = log10( spikeCount / (size(spikeMatrix,1) / 25000) );
+        spikeCount = log10( spikeCount / (size(spikeMatrix,1) / fs) );
         spikeCount(find(spikeCount == log10(0))) = NaN; % log10(0) = -Inf so set to NaN if fire rate is 0
     end 
     
