@@ -4,10 +4,30 @@ Plot network metrics for MEA data
 
 INPUTS 
 ---------------
-ExpName : 
-Params : 
-HomeDir : 
+ExpName : (cell array)
+    cell array where each entry is the name of the recording to 
+    plot network metrics (file extension should NOT be included)
+Params : (struct)
+    structure object with key parameters for analysis, namely 
+    Params.output_spreadsheet_file_type : (str)
+        whether to output analysis results as excel spreadsheet (.xlsx), 
+        using 'excel' or comma-separated values (.csv) using 'csv'
 
+HomeDir : (str) 
+    main directory of the analysis 
+    ie. '/your/path/to/AnalysisPipeline'
+
+Other dependicies 
+    this code goes through the folder
+    .../AnalysisPipeline/OutputDataXXXXXXX/ExperimentMatFiles
+    and reads through the data contained there, each mat file 
+    in there should contain the following variables
+    Ephys : (struct)
+    Info : (struct)
+    NetMet : (struct)
+    Params : (struct)
+    adjMS : (struct)
+    spikeTimes : (struct)
 
 OUTPUTS
 ---------------
@@ -18,8 +38,19 @@ Meaning of the variables:
 
 cDiv1, cDiv2, ... : this is a 1 x 3 vector with the RGB values of the color to be used 
 
+Implicit dependencies 
+NetMet (structure)
+
+
 author RCFeord July 2021
 %}
+
+% specify output format (currently Params is loaded from the mat file, 
+% so it will override the settings), may need to find a better way 
+% to distinguish the two 
+output_spreadsheet_file_type = Params.output_spreadsheet_file_type;
+
+
 
 
 %% colours
@@ -70,7 +101,8 @@ end
 % names of metrics
 ExpInfoE = {'Grp','DIV'}; % info for both age and genotype
 % list of metrics 
-NetMetricsE = {'Dens','Q','nMod','Eglob','aN','CC','PL','SW','SWw','NCpn1','NCpn2','NCpn3','NCpn4','NCpn5','NCpn6','Hub3','Hub4'}; 
+NetMetricsE = {'Dens','Q','nMod','Eglob','aN','CC','PL','SW','SWw', ... 
+    'NCpn1','NCpn2','NCpn3','NCpn4','NCpn5','NCpn6','Hub3','Hub4'}; 
 
 % single cell/node metrics (1 value per cell/node)
 
@@ -106,7 +138,17 @@ end
 % allocate numbers to relevant matrices
 for i = 1:length(ExpName)
      Exp = strcat(char(ExpName(i)),'_',Params.Date,'.mat');
-     load(Exp)
+
+     % if previously used showOneFig, then this prevents saved oneFigure 
+     % handle from showing up when loading the matlab variable
+     if Params.showOneFig 
+         % Make it so figure handle in oneFigure don't appear
+         set(0, 'DefaultFigureVisible', 'off')
+     end 
+
+     load(Exp)  % what does this file contain? 
+     % filepath contains Info structure
+
      for g = 1:length(Grps)
          if strcmp(cell2mat(Grps(g)),cell2mat(Info.Grp))
              eGrp = cell2mat(Grps(g));
@@ -155,6 +197,12 @@ end
 % allocate numbers to relevant matrices
 for i = 1:length(ExpName)
      Exp = strcat(char(ExpName(i)),'_',Params.Date,'.mat');
+     % if previously used showOneFig, then this prevents saved oneFigure 
+     % handle from showing up when loading the matlab variable
+     if Params.showOneFig 
+         % Make it so figure handle in oneFigure don't appear
+         set(0, 'DefaultFigureVisible', 'off')
+     end 
      load(Exp)
      for g = 1:length(Grps)
          if strcmp(cell2mat(Grps(g)),cell2mat(Info.Grp))
@@ -188,9 +236,15 @@ for i = 1:length(ExpName)
      clear Info NetMet adjMs
 end
 
-%% export to excel
-
+%% export to spreadsheet (excel or csv)
 cd(HomeDir); cd(strcat('OutputData',Params.Date));
+
+if strcmp(output_spreadsheet_file_type, 'csv')
+    % make one main table for storing all data 
+    main_table = {};  
+    n_row = 1; 
+end 
+
 
 % network means
 for g = 1:length(Grps)
@@ -212,15 +266,49 @@ for g = 1:length(Grps)
                 % netMetricToGet = char(NetMetricsE(e));
                 % VNet.(netMetricToGet) = VNe.(netMetricToGet)
             end
-            eval(['DatTemp = ' VNet ';']);
-            writetable(struct2table(DatTemp), strcat('NetworkActivity_RecordingLevel_',eGrp,'.xlsx'),'FileType','spreadsheet','Sheet',strcat('Age',num2str(AgeDiv(d)),'Lag',num2str(Params.FuncConLagval(l)),'ms'));
+            eval(['DatTemp = ' VNet ';']); 
+            if strcmp(output_spreadsheet_file_type, 'csv')
+                numEntries = length(DatTemp.(NetMetricsE{1}));
+                DatTemp.eGrp = repmat(convertCharsToStrings(eGrp), numEntries, 1);
+                DatTemp.AgeDiv = repmat(AgeDiv(d), numEntries, 1);
+                DatTemp.Lag = repmat(Params.FuncConLagval(l), numEntries, 1);
+                table_obj = struct2table(DatTemp);
+                for table_row = 1:numEntries
+                    main_table{n_row} = table_obj(table_row, :);
+                    n_row = n_row + 1;
+                end 
+            else
+                table_obj = struct2table(DatTemp);
+            end 
+
+            if strcmp(output_spreadsheet_file_type, 'excel')
+                table_savepath = strcat('NetworkActivity_RecordingLevel_',eGrp,'.xlsx');
+                writetable(table_obj, table_savepath, ... 
+                    'FileType','spreadsheet','Sheet', ... 
+                    strcat('Age',num2str(AgeDiv(d)), ... 
+                    'Lag',num2str(Params.FuncConLagval(l)),'ms'));
+            end 
         end
     end
 end
 
+if strcmp(output_spreadsheet_file_type, 'csv')
+    combined_table = vertcat(main_table{:});
+    table_savepath = strcat('NetworkActivity_RecordingLevel.csv');
+    writetable(combined_table, table_savepath);
+end 
+
+
 clear DatTemp TempStr
 
-% electrode specific
+%% electrode specific
+if strcmp(output_spreadsheet_file_type, 'csv')
+    % make one main table for storing all data 
+    electrode_main_table = {};  
+    n_row = 1; 
+end 
+
+
 for g = 1:length(Grps)
     eGrp = cell2mat(Grps(g));
     for d = 1:length(AgeDiv)
@@ -238,14 +326,44 @@ for g = 1:length(Grps)
                 end 
             end
             eval(['DatTemp = ' VNet ';']);
-            writetable(struct2table(DatTemp), strcat('NetworkActivity_NodeLevel_',eGrp,'.xlsx'),'FileType','spreadsheet','Sheet',strcat('Age',num2str(AgeDiv(d)),'Lag',num2str(Params.FuncConLagval(l)),'ms'));
+            
+           if strcmp(output_spreadsheet_file_type, 'csv')
+                numEntries = length(DatTemp.(NetMetricsE{1}));
+                DatTemp.eGrp = repmat(convertCharsToStrings(eGrp), numEntries, 1);
+                DatTemp.AgeDiv = repmat(AgeDiv(d), numEntries, 1);
+                DatTemp.Lag = repmat(Params.FuncConLagval(l), numEntries, 1);
+                electrode_table_obj = struct2table(DatTemp);
+                for table_row = 1:numEntries
+                    electrode_main_table{n_row} = electrode_table_obj(table_row, :);
+                    n_row = n_row + 1;
+                end 
+            else
+                electrode_table_obj = struct2table(DatTemp);
+            end 
+
+
+            if strcmp(output_spreadsheet_file_type, 'excel')
+                writetable(electrode_table_obj, ... 
+                    strcat('NetworkActivity_NodeLevel_',eGrp,'.xlsx'),... 
+                    'FileType','spreadsheet','Sheet',strcat('Age',num2str(AgeDiv(d)), ...
+                    'Lag',num2str(Params.FuncConLagval(l)),'ms'));
+            end 
+
         end
     end
 end
 
+
+if strcmp(output_spreadsheet_file_type, 'csv')
+    electrode_combined_table = vertcat(electrode_main_table{:});
+    electrode_table_savepath = strcat('NetworkActivity_NodeLevel.csv');
+    writetable(electrode_combined_table, electrode_table_savepath);
+end 
+
 clear DatTemp TempStr
 
 %% GraphMetricsByLag plots
+% Tim 2022-01-08: This seems to be independent of the saved table object (?)
 cd(HomeDir); cd(strcat('OutputData',Params.Date));
 cd('4_NetworkActivity'); cd('4B_GroupComparisons')
 cd('5_GraphMetricsByLag')
@@ -266,8 +384,6 @@ assert(length(eMet) == length(eMetl), 'ERROR: eMet and eMetl have different leng
 for l = 1:length(Params.FuncConLagval)
     LagValLabels{l} = num2str(Params.FuncConLagval(l));
 end
-
-
 
 p = [100 100 1200 800]; % this can be ammended accordingly 
 set(0, 'DefaultFigurePosition', p)
