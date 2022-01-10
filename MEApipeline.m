@@ -32,39 +32,48 @@ xlRange = 'A2:C7'; % specify range on the sheet
 % get date
 formatOut = 'ddmmmyyyy'; Params.Date = datestr(now,formatOut); clear formatOut
 
+% specify analysis output format ('excel' for .xlsx files and 'csv' for
+% .csv files)
+Params.output_spreadsheet_file_type = 'csv';
+
+
 % Sampling frequency of your recordings
 Params.fs = 25000;
 Params.dSampF = 25000; % down sampling factor for spike detection check, 
 % by default should be equal to your recording sampling frequency
 
 % use previously analysed data?
-Params.priorAnalysis = 1; % 1 = yes, 0 = no
+Params.priorAnalysis = 0; % 1 = yes, 0 = no
 % path to previously analysed data
-Params.priorAnalysisPath = '/Users/timothysit/AnalysisPipeline/OutputData24Dec2021';
+Params.priorAnalysisPath = '/Users/timothysit/AnalysisPipeline/OutputData03Jan2022v2';
 % prior analysis date in format given in output data folder e.g '27Sep2021'
-Params.priorAnalysisDate = '24Dec2021';
+Params.priorAnalysisDate = '03Jan2022';
 % which section to start new analysis from? 2 = neuronal activity, 3 =
 % functional connectivity, 4 = network activity
-Params.startAnalysisStep = 4;
+Params.startAnalysisStep = 1;
 
 % run spike detection?
 detectSpikes = 1; % 1 = yes, 0 = no
 % specify folder with raw data files for spike detection
-rawData = '/media/timsit/timsitHD-2020-03/mecp2/rawFiles/';
+% currently does not accept path names with colon in them
+rawData = '/Volumes/T7/rawFiles';
 % advanced settings are automatically set but can be modified by opening
 % the following function
 biAdvancedSettings
 % list of thresholds for spike detection, this is used for threshold-based 
 % spike detection, where thershold is mean(voltage) - Params.thresholds *
-% sem(voltage) (or std(voltage))
-Params.thresholds = {'4.5'}; % {'2.5', '3.5', '4.5'}
-
+% sem(voltage) (or std(voltage)), list empty as {} if you don't want to do 
+% threshold spike detection
+Params.thresholds = {'2.5'}; % {'2.5', '3.5', '4.5'}
 % list of built in wavelets and associated cost parameters
 % For more information about wavelets, type `waveinfo` into matlab 
 % or see: https://uk.mathworks.com/help/wavelet/ref/waveinfo.html
 % The usual wavelest that we observe good results are the (bior1.5,
 % bior1.3, and 'db' wavelets
-Params.wnameList = {'bior1.5'}';
+% alternatively (but not recommended, you can also specify for example 
+% thr3p5 to do spike detection with threshold method with 3.5 multiplier)
+% set to empty {}' if you only want to run threshold spike detection
+Params.wnameList = {}';
 
 % Specify the cost parameter used in spike detection, which controls 
 % the false positive / false negative tradeoff in spike detection 
@@ -79,18 +88,19 @@ Params.costList = -0.12;
 % if spike detection has been run separately, specify the folder containing
 % the spike detected data
 spikeDetectedData = '/home/timsit/AnalysisPipeline/spikeFilesOutput';
-% set spike method to be used in downstream analysis, use 'merged if all
-% spike detection methods should be combined, otherwise specify method
 
-% Spike detection method 
+% set spike method to be used in downstream analysis, use 'merged if all
+% spike detection methods should be combined, otherwise specify method:
 % 'thr3p0': means using a threshold-based method with a multiplier of 3.0
 % you can specify other thresholds by replacing the decimal place '.' with
 % 'p', eg. 'thr4p5' means a threhold multiplier of 4.5
-% 'mea': first detect putative spikes using the threshold method, then 
-% use them to construct a custom wavelet, then use wavelet spike detection 
+% 'bio1p5': use spikes from the bior1.5 wavelet, you can also specify other
+% wavelet names
+% 'mea': use spikes from custom wavelet (adapted from putative spikes
+% detected using the theshold method)
 % 'merged': merge the spike detection results from the wavelets specified 
 % in Params.wnameList
-Params.SpikesMethod = 'merged'; % 'thr3p0','mea','merged'
+Params.SpikesMethod = 'merged'; % 'thr3p0','mea','merged', 'bior1.5' etc.
 
 % set parameters for functional connectivity inference
 Params.FuncConLagval = [10 15 25]; % set the different lag values (in ms)
@@ -359,6 +369,7 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
         NetMet = ExtractNetMetOrganoid(adjMs,Params.FuncConLagval,Info,HomeDir,Params);
 
         cd(HomeDir); cd(strcat('OutputData',Params.Date)); cd('ExperimentMatFiles')
+
         save(strcat(char(Info.FN),'_',Params.Date,'.mat'),'Info','Params','spikeTimes','Ephys','adjMs','NetMet')
         cd(HomeDir)
 
@@ -371,6 +382,18 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
     cd(HomeDir)
 
 end
+
+
+%% Optional step: just PlotNetMet 
+cd(HomeDir)
+Params.Date = '03Jan2022';
+PlotNetMet(ExpName,Params,HomeDir)
+cd(HomeDir)
+
+%% Optional step: statistics and classification of genotype / ages 
+
+
+
 
 %% Optional Step: compare pre-post TTX spike activity 
 
