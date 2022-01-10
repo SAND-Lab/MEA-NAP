@@ -19,11 +19,13 @@ function batchDetectSpikes(dataPath, savePath, option, files, params)
 %           otherwise, run setParams() first to set parameters
       % nSpikes : number of spikes use to make the custom threshold
       % template
+% OUTPUT: 
 
 % Author:
 %   Jeremy Chabros, University of Cambridge, 2020
 %   email: jjc80@cam.ac.uk
 %   github.com/jeremi-chabros/CWT
+
 
 arguments
     dataPath;
@@ -36,7 +38,15 @@ end
 if ~endsWith(dataPath, filesep)
     dataPath = [dataPath filesep];
 end
+
+% Check if specified folder exists 
+if ~exist(dataPath, 'dir')
+    error(sprintf('Specified dataPath does not exist: %s', dataPath))
+end 
+
+
 addpath(dataPath);
+
 
 %   Load parameters
 if ~exist('params', 'var')
@@ -282,8 +292,7 @@ for recording = 1:numel(files)
             
             toc
             
-            % Save results
-            
+          
             % Save results
             save_suffix = ['_' strrep(num2str(L), '.', 'p')];
             params.save_suffix = save_suffix;
