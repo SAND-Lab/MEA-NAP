@@ -1,6 +1,13 @@
 % Process data from MEA recordings of 2D and 3D cultures
-% author: RCFeord, May 2021
-
+%   2020-2022
+%   Rachael C Feord, CU
+%   Timothy Sit, UCL
+%   Alexander WE Dunn, CU
+%   Jeremi Chabros, CU
+% 
+%   Modification History:
+%   October 2021: Original (Rachael C Feord)
+%   January 2022: 
 
 %% USER INPUT REQUIRED FOR THIS SECTION
 % in this section all modifiable parameters of the analysis are defined, no
@@ -10,7 +17,7 @@
 % Set parameters
 
 % set analysis folder to home directory
-HomeDir = '/Users/timothysit/AnalysisPipeline';
+HomeDir = '\Users\alexd\OneDrive\Documents\GitHub\AnalysisPipeline';
 % add all relevant folders to path
 cd(HomeDir)
 addpath(genpath('Functions'))

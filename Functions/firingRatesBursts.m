@@ -1,4 +1,28 @@
 function [Ephys] = firingRatesBursts(spikeMatrix,Params,Info)
+% 	Calculate basic firing properties as well as network burst metrics on
+% 	MEA data. Note currently defaults to Bakkum (2014) method but
+% 	burstDetect function (written by Timothy Sit) utilised here has
+% 	functionality for other methods.
+% 
+%   2020-2022
+%   Alexander WE Dunn, CU
+%   Rachael C Feord, CU
+%   Timothy Sit, UCL
+% 
+%   Modification History:
+%   March 2020:     Original (Alexander WE Dunn) 
+%   October 2021:   Firing rate stats & network bursts merged into one
+%                   structural array output (Rachael C Feord)
+%   December 2021:  Correction to firing rate calculation and bug where
+%                   <2 bursts occur (Alexander WE Dunn) 
+% 
+%   Future updates: 
+%       Within-electrode burst metrics; firing regularity 
+% 
+%       Remove default to Bakkum (2014) method and add 
+%       params.networkBurstMethod into MEApipeline script once other burst
+%       detection methods have been tested 
+
 % set firing rate threshold in Hz
 FR_threshold = 0.01; % in Hz or spikes/s
 % get spike counts
@@ -80,7 +104,7 @@ if ~isempty(burstMatrix)
     Ephys.NBurstRate = round(60*(nBursts/(length(spikeMatrix(:,1))/Params.fs)),3);
     Ephys.fracInNburst = round(sp_in_bst/sum(sum(spikeMatrix)),3);
     
-    %need to go intro burst detect and edit as it is not deleting the bursts
+    %need to go into burst detect and edit as it is not deleting the bursts
     %with <5 channels from burstChannels and burstTimes hence they are longer
     %need this for easier plotting of burst
     

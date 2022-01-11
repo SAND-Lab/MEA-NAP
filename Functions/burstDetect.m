@@ -1,40 +1,43 @@
 function [burstMatrix, burstTimes, burstChannels] = burstDetect(spikeMatrix, method, samplingRate, N, minChannel)
-%script from: https://github.com/Timothysit/mecp2
-    %last edited by Alex Dunn: August 2019
-    
-% INPUT 
-    % spikeMatrix 
-    
-    % method 
-    % string input specifying the method to do burst detection 
-    % main ones are logISI o 
-    % defaults to Bakkum
-    
-    % samplingRate 
-    % sampling frequency, defaults to 25kHz (mecp2 project 2017-2018) 
-    
-    % N is the minimum  number of spike for detecting a burst
-    
-    % minChannel is the minimum number of channels required to participate
-    % in a burst
-
-% OUTPUT 
-    % burstMatrix
-    % nB x 1 cell. where nB is the number of burst 
-    % each cell contain the spike matrix during the burst duration 
-    
-    % burstTimes
-    % nB x 2 matrix, where nB is the number of burst
-    % the first column represent the start times (in frames) of the burst 
-    % the second column respresent the end times (in frames) of the burst
-    
-    % burstChannels 
-    % nB x 1 cell, each containing a vector listing which channels were
-    % active during that burst
-    
-    
-% Original author: Tim Sit 
-% Last update: 2020.04.03 bu Alex Dunn
+%   2018-2020
+%   Timothy Sit, UCL
+%   Alexander WE Dunn, CU
+%
+%   Modification History:
+%   March 2020:     Original (Timothy Sit)
+%   April 2020:     Remove redundant calculations from Bakkum method if minChannels set  (Alexander WE Dunn) 
+% 
+% INPUT
+%   spikeMatrix
+% n samples x n nodes matrix
+%   method
+% string input specifying the method to do burst detection
+% main ones are logISI o
+% defaults to Bakkum
+% 
+%   samplingRate
+% sampling frequency, defaults to 25kHz 
+% 
+%   N 
+% the minimum  number of spike for detecting a burst
+% 
+%   minChannel 
+% the minimum number of channels required to participate
+% in a burst
+%
+% OUTPUT
+%   burstMatrix
+% nB x 1 cell. where nB is the number of burst
+% each cell contain the spike matrix during the burst duration
+%
+%   burstTimes
+% nB x 2 matrix, where nB is the number of burst
+% the first column represent the start times (in frames) of the burst
+% the second column respresent the end times (in frames) of the burst
+%
+%   burstChannels
+% nB x 1 cell, each containing a vector listing which channels were
+% active during that burst
 
 switch nargin
     case 1 
