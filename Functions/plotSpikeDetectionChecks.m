@@ -3,7 +3,11 @@ function plotSpikeDetectionChecks(spikeTimes,spikeDetectionResult,spikeWaveforms
 
 INPUT 
 --------
-
+spikeTimes : 
+Info : (structure)
+    Info.FN : 
+    Info.raw_file_path : (str)
+        path to the folder including the raw matlab files
 Params.dSampF : (int)
     down-sampling factor for plotting spike detection check 
     normally no down sampling is necessary, so set this to be equal 
@@ -12,6 +16,10 @@ Params.dSampF : (int)
 
 OUTPUT 
 -------
+
+
+% TODO: how does line 32 work? (seem to assume some file structure 
+% where the raw file is located...
 
 %}
 
@@ -23,6 +31,11 @@ cd(FN)
 %% frequency plot
 
 raw_file_name = strcat(FN,'.mat');
+
+if isfield(Info, 'rawData')
+    raw_file_name = fullfile(Info.rawData, raw_file_name);
+end 
+
 load(raw_file_name);
 dat = double(dat);
 filtered_data = zeros(size(dat));
@@ -57,19 +70,21 @@ F1 = figure;
 
 dSampF = Params.dSampF;
 for i = 1:length(methods)
-    spk_vec_all = zeros(1, duration_s*fs);
-    spk_matrix = zeros(num_chan, duration_s*fs/dSampF);
+    num_samples = ceil(duration_s*fs);
+    spk_vec_all = zeros(1, num_samples);
+    spk_matrix = zeros(num_chan, ceil(num_samples/dSampF));
     method = methods{i};
     for j = 1:num_chan
         spk_times = round(spikeTimes{j}.(method)*fs);
         spike_times{j}.(method) = spk_times;
         spike_count(j) = length(spk_times);
-        spk_vec = zeros(1, duration_s*fs);
+        spk_vec = zeros(1, num_samples);
         %                 spk_vec = zeros(1, duration_s);
         spk_vec(spk_times) = 1;
-        spk_vec = spk_vec(1:duration_s*fs);
+        spk_vec = spk_vec(1:num_samples);
         spk_vec_all = spk_vec_all+spk_vec;
-        spk_matrix(j,:) = nansum(reshape([spk_vec(:); nan(mod(-numel(spk_vec),dSampF),1)],dSampF,[]));
+        spk_matrix(j,:) = nansum(reshape([spk_vec(:); ...
+            nan(mod(-numel(spk_vec),dSampF),1)],dSampF,[]));
     end
     spike_counts.(method) = spike_count;
     spike_freq.(method) = spike_count/duration_s;
