@@ -2,7 +2,8 @@ function [spikeTimes, spikeWaveforms, trace, threshold] = detectSpikesCWT(...
     data, fs, Wid, wname, L, Ns, multiplier, nSpikes, ttx, ...
     minPeakThrMultiplier, maxPeakThrMultiplier, posPeakThrMultiplier, ...
     multiple_templates, multi_template_method, channelInfo, plot_folder, ...
-    run_detection_in_chunks, chunk_length, threshold_calculation_window, absThreshold)
+    run_detection_in_chunks, chunk_length, threshold_calculation_window, ...
+    absThreshold, filterLowPass, filterHighPass)
 
 % Description:
 %
@@ -76,17 +77,17 @@ refPeriod = 2; % Only used by the threshold method,
 % wavelet
 
 % Filter signal
-try
-    lowpass = 600;
-    highpass = 8000;
-    wn = [lowpass highpass] / (fs / 2);
-    filterOrder = 3;
-    [b, a] = butter(filterOrder, wn);
-    trace = filtfilt(b, a, double(data));
-catch
-    % Will return this error in some other instances as well...
-    error('Signal Processing Toolbox not found');
-end
+
+lowpass = filterLowPass;  % 600;
+highpass = filterHighPass; % 8000;
+wn = [lowpass highpass] / (fs / 2);
+filterOrder = 3;
+[b, a] = butter(filterOrder, wn);
+trace = filtfilt(b, a, double(data));
+
+% Will return this error in some other instances as well...
+% error('Signal Processing Toolbox not found');
+
 
 win = 10;   % [frames]
 
@@ -218,6 +219,10 @@ try
         % Outputs a cell rather than the usual vector of spike times
         spikeTimes = mult_template_spike_times; 
         spikeWaveforms = mult_template_spike_waveforms;
+    
+    elseif strcmp(wname, 'swtteo')
+
+        spikeTimes = SWTTEO()
         
     else
         % Detect spikes with wavelet method

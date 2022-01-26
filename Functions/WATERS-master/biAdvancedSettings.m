@@ -26,6 +26,7 @@ Params.multiplier = 3; % multiplier to use  extracting spikes for wavelet (not f
 % currFolder = fileparts(currentScriptPath);
 % addpath(genpath([currFolder, filesep, 'HDBSCAN']));
 
+% Uncomment this if you want to use custom threshold from a particular file
 % params.custom_threshold_file = load(fullfile(dataPath, 'results', ...
 % 'Organoid 180518 slice 7 old MEA 3D stim recording 3_L_-0.3_spikes_threshold_ref.mat'));
 
@@ -37,5 +38,17 @@ Params.posPeakThrMultiplier = 15;
 Params.nSpikes = 10000;
 Params.multiple_templates = 0; % whether to get multiple templates to adapt (1: yes, 0: no)
 Params.multi_template_method = 'amplitudeAndWidthAndSymmetry';  % options are PCA, spikeWidthAndAmplitude, or amplitudeAndWidthAndSymmetry
+ 
+% Filtering low and high pass frequencies 
+Params.filterLowPass = 600;
+Params.filterHighPass = 8000;
+
+if Params.filterHighPass > Params.fs / 2
+    fprintf(['WARNING: high pass frequency specified is above \n ', ...
+        'nyquist frequency for given sampling rate, reducing it \n ' ...
+        sprintf('to a frequency of %.f \n', Params.fs/2-100)])
+    Params.filterHighPass = Params.fs/2-100;
+end 
+
 
 option = 'list';

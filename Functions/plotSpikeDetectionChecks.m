@@ -1,4 +1,5 @@
-function plotSpikeDetectionChecks(spikeTimes,spikeDetectionResult,spikeWaveforms,Info,Params)
+function plotSpikeDetectionChecks(spikeTimes,spikeDetectionResult,spikeWaveforms, ... 
+    Info,Params)
 %{
 
 INPUT 
@@ -42,8 +43,8 @@ filtered_data = zeros(size(dat));
 num_chan = size(dat,2);
 
 for ch = 1:num_chan
-    lowpass = 600;
-    highpass = 8000;
+    lowpass = Params.filterLowPass;
+    highpass = Params.filterHighPass;
     wn = [lowpass highpass] / (fs / 2); % seems like the fs here comes from workspace???
     filterOrder = 3;
     [b, a] = butter(filterOrder, wn);
@@ -124,9 +125,11 @@ p = [100 100 1400 800];
 set(0, 'DefaultFigurePosition', p)
 F1 = figure;
 tiledlayout(5,2,'TileSpacing','Compact');
+
+% l iterates through the 9 example traces?
 for l = 1:9
     
-    bin_ms = 30;
+    bin_ms = 30;  % What is this???
     channel = 15;
     while channel == 15
         channel = randi([1,num_chan],1);
@@ -150,11 +153,16 @@ for l = 1:9
             case 'frames'
         end
         color = parula(colors(m));
-        scatter(spike_train, repmat(5*std(trace)-m*(0.5*std(trace)), length(spike_train), 1), 15, 'v', 'filled','markerfacecolor',cmap(colors(m),:), 'markeredgecolor', cmap(colors(m),:), 'linewidth',0.1);
+        scatter(spike_train, repmat(5*std(trace)-m*(0.5*std(trace)), ...
+            length(spike_train), 1), 15, 'v', 'filled', ... 
+            'markerfacecolor',cmap(colors(m),:), ... 
+            'markeredgecolor', cmap(colors(m),:), 'linewidth',0.1);
     end
     methodsl = strrep(methods, 'p','.');
     
-    try
+    % Why is the try catch required here???
+    % st is a random spike train???
+    % try
     st = randi([1 length(spike_train)]);
     st = spike_train(st);
     if st+15*25 < length(trace)
@@ -162,8 +170,9 @@ for l = 1:9
     else
         xlim([st-bin_ms*25 inf]);
     end
-    catch
-    end
+    % catch
+    % end
+
     ylim([-6*std(trace) 5*std(trace)])
     box off
     set(gca,'xcolor','none');
