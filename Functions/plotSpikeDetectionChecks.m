@@ -165,6 +165,7 @@ for l = 1:9
 
     if isempty(spike_train)
         fprintf('WARNING: spike_train is empty, not going to plot example traces \n')
+        continue
     end 
 
     st = randi([1 length(spike_train)]);
