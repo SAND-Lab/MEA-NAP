@@ -162,7 +162,11 @@ for l = 1:9
     
     % Why is the try catch required here???
     % st is a random spike train???
-    % try
+
+    if isempty(spike_train)
+        fprintf('WARNING: spike_train is empty, not going to plot example traces \n')
+    end 
+
     st = randi([1 length(spike_train)]);
     st = spike_train(st);
     if st+15*25 < length(trace)
@@ -170,8 +174,6 @@ for l = 1:9
     else
         xlim([st-bin_ms*25 inf]);
     end
-    % catch
-    % end
 
     ylim([-6*std(trace) 5*std(trace)])
     box off
