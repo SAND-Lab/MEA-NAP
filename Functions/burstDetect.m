@@ -39,9 +39,6 @@ function [burstMatrix, burstTimes, burstChannels] = burstDetect(spikeMatrix, met
 switch nargin
     case 1 
         method = 'Bakkum'; 
-        samplingRate = 25000;
-    case 2
-        samplingRate = 25000;
 end 
 
 if strcmp(method, 'Manuel')
