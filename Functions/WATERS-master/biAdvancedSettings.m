@@ -7,6 +7,8 @@ for i = 1:length(FNames)
 end
 clear params
 
+% quick test change
+
 Params.plotDetectionResults = 0;
 
 Params.threshold_calculation_window = [0, 1.0];  % which part of the recording to do spike detection, 0 = start of recording, 0.5 = midway, 1 = end of recording
