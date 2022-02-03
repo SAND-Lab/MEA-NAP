@@ -3,7 +3,8 @@ function [spikeTimes, spikeWaveforms, trace, threshold] = detectSpikesCWT(...
     minPeakThrMultiplier, maxPeakThrMultiplier, posPeakThrMultiplier, ...
     multiple_templates, multi_template_method, channelInfo, plot_folder, ...
     run_detection_in_chunks, chunk_length, threshold_calculation_window, ...
-    absThreshold, filterLowPass, filterHighPass)
+    absThreshold, filterLowPass, filterHighPass, remove_artifacts, refPeriod, ...
+    getTemplateRefPeriod)
 
 % Description:
 %
@@ -53,6 +54,14 @@ function [spikeTimes, spikeWaveforms, trace, threshold] = detectSpikesCWT(...
 %   maxPeakThrMultiplier: [scalar] specifies the maximal spike amplitude
 %
 %   posPeakThrMultiplier: [scalar] specifies the maximal positive peak of the spike
+%   remove_artifacts: [0, 1, or boolean] set to 1 to remove artifacts based
+%   on some lower and upper bound in voltage 
+%   refPeriod : [float]
+%   refractory period to be imposed between detected spikes (ms) for
+%   spike detection 
+%   getTemplateRefPeriod : [float]
+%   refractory period to be imposed between detected spikes (ms) for
+%   adapting templates (to avoid compound spike waveforms)
 
 
 % OUTPUT:
@@ -72,12 +81,7 @@ function [spikeTimes, spikeWaveforms, trace, threshold] = detectSpikesCWT(...
 %   github.com/jeremi-chabros
 
 
-refPeriod = 2; % Only used by the threshold method,
-% here 2ms to avoid compound spike waveforms in adapting
-% wavelet
-
 % Filter signal
-
 lowpass = filterLowPass;  % 600;
 highpass = filterHighPass; % 8000;
 wn = [lowpass highpass] / (fs / 2);
@@ -87,8 +91,6 @@ trace = filtfilt(b, a, double(data));
 
 % Will return this error in some other instances as well...
 % error('Signal Processing Toolbox not found');
-
-
 win = 10;   % [frames]
 
 % Setting this to zero by default
@@ -103,7 +105,7 @@ if strcmp(wname, 'mea') && ~ttx
     %   Use threshold-based spike detection to obtain the median waveform
     %   from nSpikes
     try
-        [aveWaveform, ~] = getTemplate(trace, multiplier, refPeriod, fs, nSpikes, ...
+        [aveWaveform, ~] = getTemplate(trace, multiplier, getTemplateRefPeriod, fs, nSpikes, ...
             multiple_templates, multi_template_method, channelInfo, plot_folder);
         % TODO: may be better to specify why things failed (eg. threshold
         % too high and so no spikes detected with threshold?)
@@ -140,7 +142,6 @@ try
     spikeWaveforms = [];
     spikeTimes = [];
     % Some defaults set by Jeremi:
-    refPeriod = 0.2;
     filterFlag = 0;
     % Detect spikes with threshold method
     if startsWith(wname, 'thr')
@@ -153,7 +154,6 @@ try
         spikeTimes = find(spikeTrain == 1);  % (this is actually spike frames...)
         
         % Align spikes by negative peak & remove artifacts by amplitude
-        remove_artifacts = 1; % remove artifacts = 1, not remove = 0;
         [spikeTimes, spikeWaveforms] = alignPeaks(spikeTimes, trace, win, remove_artifacts,...
             minPeakThrMultiplier,...
             maxPeakThrMultiplier,...
@@ -174,7 +174,6 @@ try
         threshold = absThreshold;
         
         % Align spikes by negative peak & remove artifacts by amplitude
-        remove_artifacts = 1; % remove artifacts = 1, not remove = 0;
         [spikeTimes, spikeWaveforms] = alignPeaks(spikeTimes, trace, win, remove_artifacts,...
             minPeakThrMultiplier,...
             maxPeakThrMultiplier,...
@@ -206,7 +205,6 @@ try
                 spikeTimes = detectSpikesWavelet(trace, fs/1000, Wid, Ns, 'l', L, wavelet_name, 0, 0);
             end 
             % Align spikes by negative peak & remove artifacts by amplitude
-            remove_artifacts = 1; % remove artifacts = 1, not remove = 0;
             [spikeTimes, spikeWaveforms] = alignPeaks(spikeTimes, trace, win, remove_artifacts,...
                 minPeakThrMultiplier,...
                 maxPeakThrMultiplier,...
@@ -239,7 +237,6 @@ try
             j = j+(60*fs);
         end
         % Align spikes by negative peak & remove artifacts by amplitude
-        remove_artifacts = 1; % remove artifacts = 1, not remove = 0;
         [spikeTimes, spikeWaveforms] = alignPeaks(spikeTimes, trace, win, remove_artifacts,...
             minPeakThrMultiplier,...
             maxPeakThrMultiplier,...
