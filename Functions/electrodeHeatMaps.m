@@ -35,6 +35,11 @@ aesthetics; axis off; hold on
 
 %% coordinates
 
+% Perform transpose if not column vector 
+if size(channels, 1) == 1
+    channels = channels'; 
+end 
+
 coords(:,1) = floor(channels/10);
 coords(:,2) = channels - coords(:,1)*10;
 xc = coords(:,1);
