@@ -21,7 +21,7 @@ nColOpt = 10;
 % specify colours to use on the basis of the number of time points
 nDIV = length(Params.DivNm);
 if nDIV == 1
-    cDiv1 = colOpt5;
+    cDiv1 = ColOpt5;
 else
     for ii = 1:nDIV
         eval(['cDiv' num2str(ii) '= ColOpt' num2str(round(1+(nColOpt/nDIV)*(ii-1))) ';']);
