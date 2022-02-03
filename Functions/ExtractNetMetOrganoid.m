@@ -1,9 +1,11 @@
 function [NetMet] = ExtractNetMetOrganoid(adjMs,lagval,Info,HomeDir,Params)
 
 %{
-% INPUTS 
+INPUTS 
+-------------
 adjMs : 
-lagval : 
+lagval : (int)
+    lag for use in STTC calculation (in ms)
 Info : 
 HomeDir :
 Params : contains parameters for analysis and plotting, notably, the key
@@ -242,7 +244,11 @@ for e = 1:length(lagval)
             72,82,73,83,64,74,84,85,75,65,86,76,87,77,66,78,67,68,55,56,58,57];
     end
     coords(:,1) = floor(channels/10);
+    if size(channels, 1) == 1
+        channels = channels';
+    end 
     coords(:,2) = channels - coords(:,1)*10;
+    
     try
     % simple grid network plot
     StandardisedNetworkPlot(adjM, coords, edge_thresh, ND, 'MEA', char(Info.FN),'2',Params,lagval,e);
