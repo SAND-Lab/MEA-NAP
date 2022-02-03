@@ -71,7 +71,7 @@ nColOpt = 10;
 % specify colours to use on the basis of the number of time points
 nDIV = length(Params.DivNm);
 if nDIV == 1
-    cDiv1 = colOpt5;
+    cDiv1 = ColOpt5;
 else
     for ii = 1:nDIV
         eval(['cDiv' num2str(ii) '= ColOpt' num2str(round(1+(nColOpt/nDIV)*(ii-1))) ';']);
@@ -268,7 +268,9 @@ for g = 1:length(Grps)
             end
             eval(['DatTemp = ' VNet ';']); 
             if strcmp(output_spreadsheet_file_type, 'csv')
-                numEntries = length(DatTemp.(NetMetricsE{1}));
+                %numEntries = length(DatTemp.(NetMetricsE{1}));
+                DatTempFieldNames = fieldnames(DatTemp);
+                numEntries = length(DatTemp.(DatTempFieldNames{1}));
                 DatTemp.eGrp = repmat(convertCharsToStrings(eGrp), numEntries, 1);
                 DatTemp.AgeDiv = repmat(AgeDiv(d), numEntries, 1);
                 DatTemp.Lag = repmat(Params.FuncConLagval(l), numEntries, 1);
@@ -328,7 +330,8 @@ for g = 1:length(Grps)
             eval(['DatTemp = ' VNet ';']);
             
            if strcmp(output_spreadsheet_file_type, 'csv')
-                numEntries = length(DatTemp.(NetMetricsE{1}));
+                DatTempFieldNames = fieldnames(DatTemp);
+                numEntries = length(DatTemp.(DatTempFieldNames{1}));
                 DatTemp.eGrp = repmat(convertCharsToStrings(eGrp), numEntries, 1);
                 DatTemp.AgeDiv = repmat(AgeDiv(d), numEntries, 1);
                 DatTemp.Lag = repmat(Params.FuncConLagval(l), numEntries, 1);
