@@ -195,6 +195,14 @@ for recording = 1:numel(files)
             mad = zeros(1,60);
             variance = zeros(1,60);
             absThreshold = zeros(1, 60);
+
+            numChannelsInData = size(data, 2);
+            if numChannelsInData ~= length(channels) 
+                fprintf(['MAJOR WARNING: the provided list of channels has a different length than the number of channels in the data, ' ...
+                    'Please check that the data has been processed correctly. For now I will just run spike detection up to the number of' ...
+                    'available channels, assuming that the ordering of channels is still okay \n'])
+                channels = channels(1:numChannelsInData);
+            end 
             
             % Run spike detection
             for channel = 1:length(channels)
@@ -203,6 +211,7 @@ for recording = 1:numel(files)
                 
                 spikeStruct = struct();
                 waveStruct = struct();
+
                 trace = data(:, channel);
                 
                 for wname = 1:numel(wnameList)
