@@ -68,8 +68,17 @@ function spikeFrames = detectSpikesWavelet(...
 %admissible wavelet families (more wavelets could be added)
 wfam = {'bior1.5','bior1.3','sym2','db2','haar','mea'};
 
+
 if sum(contains(wname,wfam)) == 0  % orignally strcmp
-    error('unknown wavelet family')
+    supported_wavelet_str = '';
+    for nWfam = 1:length(wfam)
+        supported_wavelet_str = strcat(supported_wavelet_str, [wfam{nWfam} '\n']); 
+    end 
+    
+    fprintf(sprintf(['Unknown wavelet family specified, please run the code with supported wavelets. \n' ...
+        'These include: \n%s'], supported_wavelet_str))
+    error('Invalid wavelet family specified.')
+
 elseif CmtFlg == 1
     disp(['wavelet family: ' wname])
     to = clock;
