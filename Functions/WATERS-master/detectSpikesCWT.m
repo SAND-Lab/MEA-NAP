@@ -138,7 +138,7 @@ if strcmp(wname, 'mea') && ~ttx
     
 end
 
-try
+% try
     spikeWaveforms = [];
     spikeTimes = [];
     % Some defaults set by Jeremi:
@@ -243,8 +243,9 @@ try
             posPeakThrMultiplier);
     end
 
-catch
-    fprintf('Spike detection failed for some reason...\n')
-    spikeTimes = [];
-end
+%catch
+%    fprintf('Spike detection failed for some reason...\n')
+%    spikeTimes = [];
+%end
+
 end
