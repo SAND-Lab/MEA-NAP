@@ -23,7 +23,9 @@ addpath('Images')
 % option 2: excel (excel spreadsheet, eg. .xlsx)
 spreadsheet_file_type = 'csv';
 % spread_sheet_filename = 'mecp2RecordingsList.xlsx'; % name of excel spreadsheet
-spreadsheet_filename = 'mecp2RecordingsList.csv'; % name of csv file
+% spreadsheet_filename = 'mecp2RecordingsList.csv'; % name of csv file
+% spreadsheet_filename = 'hpc_dataset.csv';
+spreadsheet_filename = 'axiontest2.csv';
 
 % These options only apply if using excel spreadsheet
 sheet = 1; % specify excel sheet
@@ -38,25 +40,28 @@ Params.output_spreadsheet_file_type = 'csv';
 
 
 % Sampling frequency of your recordings
-Params.fs = 25000;
-Params.dSampF = 25000; % down sampling factor for spike detection check, 
+Params.fs = 12500;
+Params.dSampF = 12500; % down sampling factor for spike detection check, 
 % by default should be equal to your recording sampling frequency
 
 % use previously analysed data?
 Params.priorAnalysis = 0; % 1 = yes, 0 = no
 % path to previously analysed data
-Params.priorAnalysisPath = '/Users/timothysit/AnalysisPipeline/OutputData03Jan2022v2';
+Params.priorAnalysisPath = ['/Users/timothysit/AnalysisPipeline/OutputData20Jan2022v3'];
 % prior analysis date in format given in output data folder e.g '27Sep2021'
-Params.priorAnalysisDate = '03Jan2022';
-% which section to start new analysis from? 2 = neuronal activity, 3 =
-% functional connectivity, 4 = network activity
-Params.startAnalysisStep = 1;
+Params.priorAnalysisDate = '20Jan2022';
+% which section to start new analysis from:
+% 2 = neuronal activity
+% 3 = functional connectivity
+% 4 = network activity
+Params.startAnalysisStep = 2;
 
 % run spike detection?
 detectSpikes = 1; % 1 = yes, 0 = no
 % specify folder with raw data files for spike detection
 % currently does not accept path names with colon in them
-rawData = '/Volumes/T7/rawFiles';
+% rawData = '/Volumes/T7/schroter2015_mat';
+rawData = '/Users/timothysit/AnalysisPipeline/localRawData';
 % advanced settings are automatically set but can be modified by opening
 % the following function
 biAdvancedSettings
@@ -64,7 +69,7 @@ biAdvancedSettings
 % spike detection, where thershold is mean(voltage) - Params.thresholds *
 % sem(voltage) (or std(voltage)), list empty as {} if you don't want to do 
 % threshold spike detection
-Params.thresholds = {'2.5'}; % {'2.5', '3.5', '4.5'}
+Params.thresholds = {}; % {'2.5', '3.5', '4.5'}
 % list of built in wavelets and associated cost parameters
 % For more information about wavelets, type `waveinfo` into matlab 
 % or see: https://uk.mathworks.com/help/wavelet/ref/waveinfo.html
@@ -73,7 +78,9 @@ Params.thresholds = {'2.5'}; % {'2.5', '3.5', '4.5'}
 % alternatively (but not recommended, you can also specify for example 
 % thr3p5 to do spike detection with threshold method with 3.5 multiplier)
 % set to empty {}' if you only want to run threshold spike detection
-Params.wnameList = {}';
+% use 'mea' for custom wavelet
+% use : 'swtteo' for stationary wavelet transform
+Params.wnameList = {'bior1.5'}; % {'bior1.5', 'mea'}';
 
 % Specify the cost parameter used in spike detection, which controls 
 % the false positive / false negative tradeoff in spike detection 
@@ -87,7 +94,7 @@ Params.wnameList = {}';
 Params.costList = -0.12;
 % if spike detection has been run separately, specify the folder containing
 % the spike detected data
-spikeDetectedData = '/home/timsit/AnalysisPipeline/spikeFilesOutput';
+spikeDetectedData = '/Users/timothysit/AnalysisPipeline/OutputData20Jan2022v3';
 
 % set spike method to be used in downstream analysis, use 'merged if all
 % spike detection methods should be combined, otherwise specify method:
@@ -100,7 +107,8 @@ spikeDetectedData = '/home/timsit/AnalysisPipeline/spikeFilesOutput';
 % detected using the theshold method)
 % 'merged': merge the spike detection results from the wavelets specified 
 % in Params.wnameList
-Params.SpikesMethod = 'merged'; % 'thr3p0','mea','merged', 'bior1.5' etc.
+Params.SpikesMethod = 'bior1p5'; % 'thr3p0','mea','merged', 'bior1p5' etc.
+% TODO: make sure SpikesMethod is a subset of wnameList 
 
 % set parameters for functional connectivity inference
 Params.FuncConLagval = [10 15 25]; % set the different lag values (in ms)
@@ -206,9 +214,12 @@ if Params.priorAnalysis == 0
 
     savePath = strcat(HomeDir,'/OutputData',Params.Date,'/1_SpikeDetection/1A_SpikeDetectedData/');
     savePath(strfind(savePath,'\'))='/';
-
+    
+    % Run spike detectiond
     batchDetectSpikes(rawData, savePath, option, ExpName, Params);
     cd(HomeDir)
+
+    % Plot spike detection results 
 
     for  ExN = 1:length(ExpName)
 
@@ -220,6 +231,10 @@ if Params.priorAnalysis == 0
         cd(HomeDir); cd(strcat('OutputData',Params.Date))
         cd('1_SpikeDetection'); cd('1B_SpikeDetectionChecks'); cd(char(Info.Grp))
         plotSpikeDetectionChecks(spikeTimes,spikeDetectionResult,spikeWaveforms,Info,Params)
+        
+        % Check whether there are no spikes at all in recording 
+        checkIfAnySpikes(spikeTimes, ExpName{ExN});
+
         cd(HomeDir)
 
     end
@@ -319,7 +334,8 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
 
         if Params.priorAnalysis==1 && Params.startAnalysisStep==3
             path = strcat(Params.priorAnalysisPath,'/ExperimentMatFiles/');
-            path(strfind(savepath,'\'))='/'; cd(path)
+            path(strfind(savepath,'\'))='/'; 
+            cd(path)
             load(strcat(char(ExpName(ExN)),'_',Params.priorAnalysisDate,'.mat'),'spikeTimes','Ephys','Info')
          else
             cd(strcat('OutputData',Params.Date)); cd('ExperimentMatFiles')
@@ -425,9 +441,21 @@ pre_post_ttx_plot_folder = fullfile(HomeDir, 'OutputData', ...
 find_best_spike_result(spike_folder, pre_post_ttx_plot_folder, Params)
 
 
+%% Optional step : generate csv 
 
-
-
+folder_path = '/Volumes/T7/schroter2015_mat'; 
+mat_file_list = dir(fullfile(folder_path, '*mat'));
+name_list = {mat_file_list.name}';
+name_without_ext = {};
+div = {};
+for filenum = 1:length(name_list)
+    name_without_ext{filenum} = name_list{filenum}(1:end-4);
+    div{filenum} = name_list{filenum}((end-5):end-4);
+end 
+name = name_without_ext'; 
+div = div';
+name_table = table([name, div]);
+writetable(name_table, 'test.csv')
 
 
 
