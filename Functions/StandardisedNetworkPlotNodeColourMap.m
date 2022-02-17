@@ -40,6 +40,15 @@ title(strcat(regexprep(FN,'_','','emptymatch'),{' '},num2str(lagval(e)),{' '},'m
 xc = coords(:,1);
 yc = coords(:,2);
 
+%% Mapping to get theoretical bounds 
+% Used when theoretical bounds is set to True, this maps the z2name to
+% metric names
+z2nameToShortHand = containers.Map;
+z2nameToShortHand('Betweeness centrality') = 'BC';
+z2nameToShortHand('Participation coefficient') = 'PC';
+z2nameToShortHand('local connectivity') = 'Eloc';
+
+
 %% add edges
 
 threshMax = max(adjM(:));
@@ -297,7 +306,7 @@ if strcmp(plotType,'MEA')
     if Params.use_theoretical_bounds == 1
         % Uses user-specified custom bounds (the min and max possible in
         % theory for each metric)
-        cmap_bounds = Params.network_plot_cmap_bounds.(z2name);
+        cmap_bounds = Params.network_plot_cmap_bounds.(z2nameToShortHand(z2name));
         tickVals = linspace(cmap_bounds(1), cmap_bounds(2), num_ticks);
         round_decimal_places = ceil(-log10(cmap_bounds(2) - cmap_bounds(1))) + 1;
     else
