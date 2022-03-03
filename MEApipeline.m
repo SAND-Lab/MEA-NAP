@@ -25,7 +25,8 @@ spreadsheet_file_type = 'csv';
 % spread_sheet_filename = 'mecp2RecordingsList.xlsx'; % name of excel spreadsheet
 % spreadsheet_filename = 'mecp2RecordingsList.csv'; % name of csv file
 % spreadsheet_filename = 'hpc_dataset.csv';
-spreadsheet_filename = 'axiontest2.csv';
+% spreadsheet_filename = 'axiontest2.csv';
+spreadsheet_filename = 'batchtest.csv';
 
 % These options only apply if using excel spreadsheet
 sheet = 1; % specify excel sheet
@@ -40,16 +41,18 @@ Params.output_spreadsheet_file_type = 'csv';
 
 
 % Sampling frequency of your recordings
-Params.fs = 12500;
+Params.fs = 12500; % HPC: 25000, Axion: 12500;
 Params.dSampF = 12500; % down sampling factor for spike detection check, 
 % by default should be equal to your recording sampling frequency
 
 % use previously analysed data?
 Params.priorAnalysis = 0; % 1 = yes, 0 = no
 % path to previously analysed data
-Params.priorAnalysisPath = ['/Users/timothysit/AnalysisPipeline/OutputData20Jan2022v3'];
+%Params.priorAnalysisPath = ['/Users/timothysit/AnalysisPipeline/OutputData20Jan2022v3'];
+Params.priorAnalysisPath = ['/Users/timothysit/AnalysisPipeline/OutputData16Feb2022'];
 % prior analysis date in format given in output data folder e.g '27Sep2021'
-Params.priorAnalysisDate = '20Jan2022';
+%Params.priorAnalysisDate = '20Jan2022';
+Params.priorAnalysisDate = '16Feb2022';
 % which section to start new analysis from:
 % 2 = neuronal activity
 % 3 = functional connectivity
@@ -165,7 +168,7 @@ if strcmp(spreadsheet_file_type, 'excel')
     ExpGrp = txt(:,3); % name of experimental group
     ExpDIV = num(:,1); % DIV number
 elseif strcmp(spreadsheet_file_type, 'csv')
-    csv_data = readtable(spreadsheet_filename);
+    csv_data = readtable(spreadsheet_filename, 'Delimiter','comma');
     ExpName =  csv_data{:, 1};
     ExpGrp = csv_data{:, 3};
     ExpDIV = csv_data{:, 2};
@@ -324,6 +327,7 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
 
 end
 
+
 %% Step 3 - functional connectivity, generate adjacency matrices
 
 if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisStep<4
@@ -357,12 +361,22 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
 
 end
 
+%% TODO: check adjancies matrices generated in each foldedr 
+
+for  ExN = 1:length(ExpName) % length(ExpName)
+    path = strcat(Params.priorAnalysisPath,'/ExperimentMatFiles/');
+    path(strfind(savepath,'\'))='/'; cd(path)
+    data = load(strcat(char(ExpName(ExN)),'_',Params.priorAnalysisDate,'.mat'),'spikeTimes','Ephys','adjMs','Info');
+end 
+
 %% Step 4 - network activity
 
 if Params.showOneFig
     % TODO: do this for spike detection plots as well, and PlotNetMet
     Params.oneFigure = figure;
 end 
+
+% TODO: pretty sure something is failing siltently here... 
 
 if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisStep<=4
 
@@ -407,7 +421,14 @@ PlotNetMet(ExpName,Params,HomeDir)
 cd(HomeDir)
 
 %% Optional step: statistics and classification of genotype / ages 
+Params.priorAnalysisPath = '/Users/timothysit/AnalysisPipeline/OutputData24Feb2022';
+nodeLevelFile = fullfile(Params.priorAnalysisPath, 'NetworkActivity_NodeLevel.csv');
+nodeLevelData = readtable(nodeLevelFile);
 
+recordingLevelFile = fullfile(Params.priorAnalysisPath, 'NetworkActivity_RecordingLevel.csv');
+recordingLevelData = readtable(recordingLevelFile);
+
+featureCorrelation(nodeLevelData, recordingLevelData, Params);
 
 
 
