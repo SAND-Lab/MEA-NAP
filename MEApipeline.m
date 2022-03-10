@@ -413,6 +413,17 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
 
 end
 
+%% Optional step: Run density landscape to determine the boundaries for the node cartography 
+Params.priorAnalysisPath = '/Users/timothysit/AnalysisPipeline/OutputData24Feb2022';
+cd(fullfile(Params.priorAnalysisPath, 'ExperimentMatFiles'));
+
+fig_folder = fullfile(Params.priorAnalysisPath, '4_NetworkActivity/4B_GroupComparisons/7_DensityLandscape');
+if ~isdir(fig_folder)
+    mkdir(fig_folder)
+end 
+
+TrialLandscapeDensity
+
 
 %% Optional step: just PlotNetMet 
 cd(HomeDir)
