@@ -7,7 +7,11 @@ function [spikeTimes, spikeWaveforms] = alignPeaks(spikeTimes, trace, win,...
 % INPUT:
 %   spikeTimes: vector containing spike times
 %   trace: [n x 1] filtered voltage trace
-%   win: [scalar] window around the spike in [frames];
+%   win: [scalar] window around the spike in [frames]; 
+%        this is the width of the bin that is used to search for the peak 
+%        c.f. with waveform_width, which is the half width of the aligned
+%        spike (so the full width will be [-waveform_width peak
+%        +waveform_wdith])
 %   artifactFlg: [logical] flag for artifact removal; 1 to remove artifacts, 0 otherwise
 %
 % Optional arguments (only used in post-hoc artifact removal)
@@ -27,6 +31,7 @@ function [spikeTimes, spikeWaveforms] = alignPeaks(spikeTimes, trace, win,...
 % NOTE: currently 'win' refers to the width of the bin that is searched for
 % the peak, NOT to the width of the waveform (hard-coded to 25);
 % TODO: Pass it as an argument
+waveform_width = 25;
 
 % Obtain thresholds for artifact removal
 threshold = median(trace) - median(abs(trace - mean(trace)))/0.6745;
@@ -46,7 +51,7 @@ if artifactFlg
 end
 
 sFr = zeros(length(spikeTimes),1);
-spikeWaveforms = zeros(length(spikeTimes),51);
+spikeWaveforms = zeros(length(spikeTimes),waveform_width*2+1);
 
 for i = 1:length(spikeTimes)
     
@@ -63,16 +68,16 @@ for i = 1:length(spikeTimes)
         if artifactFlg
             if (negativePeak < minPeakThr) && (positivePeak < posPeakThr) && (negativePeak > maxPeakThr)
                 newSpikeTime = spikeTimes(i)+pos-win;
-                if newSpikeTime+25 < length(trace) && newSpikeTime-25 > 1
-                    waveform = trace(newSpikeTime-25:newSpikeTime+25);
+                if newSpikeTime+waveform_width < length(trace) && newSpikeTime-waveform_width > 1
+                    waveform = trace(newSpikeTime-waveform_width:newSpikeTime+waveform_width);
                     sFr(i) = newSpikeTime;
                     spikeWaveforms(i, :) = waveform;
                 end
             end
         else
             newSpikeTime = spikeTimes(i)+pos-win;
-            if newSpikeTime+25 < length(trace) && newSpikeTime-win > 1
-                waveform = trace(newSpikeTime-25:newSpikeTime+25);
+            if newSpikeTime+waveform_width < length(trace) && newSpikeTime-waveform_width > 1
+                waveform = trace(newSpikeTime-waveform_width:newSpikeTime+waveform_width);
                 sFr(i) = newSpikeTime;
                 spikeWaveforms(i, :) = waveform;
             end
