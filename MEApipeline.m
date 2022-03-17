@@ -21,12 +21,13 @@ addpath('Images')
 % spreadsheet_file_type: datatype of the spreadsheet 
 % option 1: csv (comma separated values)
 % option 2: excel (excel spreadsheet, eg. .xlsx)
-spreadsheet_file_type = 'csv';
+spreadsheet_file_type = 'csv'; % 'csv';
 % spread_sheet_filename = 'mecp2RecordingsList.xlsx'; % name of excel spreadsheet
 % spreadsheet_filename = 'mecp2RecordingsList.csv'; % name of csv file
-% spreadsheet_filename = 'hpc_dataset.csv';
+spreadsheet_filename = 'hpc_dataset.csv';
 % spreadsheet_filename = 'axiontest2.csv';
-spreadsheet_filename = 'batchtest.csv';
+% spreadsheet_filename = 'batchtest.csv';
+% spreadsheet_filename = 'Mahsa_Mono1_batchanalysis.csv';
 
 % These options only apply if using excel spreadsheet
 sheet = 1; % specify excel sheet
@@ -41,8 +42,8 @@ Params.output_spreadsheet_file_type = 'csv';
 
 
 % Sampling frequency of your recordings
-Params.fs = 12500; % HPC: 25000, Axion: 12500;
-Params.dSampF = 12500; % down sampling factor for spike detection check, 
+Params.fs = 25000; % HPC: 25000, Axion: 12500;
+Params.dSampF = 25000; % down sampling factor for spike detection check, 
 % by default should be equal to your recording sampling frequency
 
 % use previously analysed data?
@@ -64,7 +65,8 @@ detectSpikes = 1; % 1 = yes, 0 = no
 % specify folder with raw data files for spike detection
 % currently does not accept path names with colon in them
 % rawData = '/Volumes/T7/schroter2015_mat';
-rawData = '/Users/timothysit/AnalysisPipeline/localRawData';
+% rawData = '/Users/timothysit/AnalysisPipeline/localRawData';
+rawData = '/Users/timothysit/AnalysisPipeline/2022-03-16-test-raw-data';
 % advanced settings are automatically set but can be modified by opening
 % the following function
 biAdvancedSettings
@@ -361,14 +363,6 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
 
 end
 
-%% TODO: check adjancies matrices generated in each foldedr 
-
-for  ExN = 1:length(ExpName) % length(ExpName)
-    path = strcat(Params.priorAnalysisPath,'/ExperimentMatFiles/');
-    path(strfind(savepath,'\'))='/'; cd(path)
-    data = load(strcat(char(ExpName(ExN)),'_',Params.priorAnalysisDate,'.mat'),'spikeTimes','Ephys','adjMs','Info');
-end 
-
 %% Step 4 - network activity
 
 if Params.showOneFig
@@ -422,7 +416,16 @@ if ~isdir(fig_folder)
     mkdir(fig_folder)
 end 
 
-TrialLandscapeDensity
+
+% loop through multiple DIVs 
+
+for DIV = [14, 17, 21, 24, 28]
+    ExpList = dir(sprintf('*DIV%.f*.mat', DIV));
+    add_fig_info = strcat('DIV', num2str(DIV));
+    TrialLandscapeDensity;
+end 
+
+
 
 
 %% Optional step: just PlotNetMet 
