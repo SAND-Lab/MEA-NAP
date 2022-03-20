@@ -24,9 +24,9 @@ addpath('Images')
 spreadsheet_file_type = 'csv'; % 'csv';
 % spread_sheet_filename = 'mecp2RecordingsList.xlsx'; % name of excel spreadsheet
 % spreadsheet_filename = 'mecp2RecordingsList.csv'; % name of csv file
-spreadsheet_filename = 'hpc_dataset.csv';
+% spreadsheet_filename = 'hpc_dataset.csv';
 % spreadsheet_filename = 'axiontest2.csv';
-% spreadsheet_filename = 'batchtest.csv';
+spreadsheet_filename = 'axiontest_wExcludedElectrode.csv';
 % spreadsheet_filename = 'Mahsa_Mono1_batchanalysis.csv';
 
 % These options only apply if using excel spreadsheet
@@ -42,8 +42,8 @@ Params.output_spreadsheet_file_type = 'csv';
 
 
 % Sampling frequency of your recordings
-Params.fs = 25000; % HPC: 25000, Axion: 12500;
-Params.dSampF = 25000; % down sampling factor for spike detection check, 
+Params.fs = 12500; % HPC: 25000, Axion: 12500;
+Params.dSampF = 12500; % down sampling factor for spike detection check, 
 % by default should be equal to your recording sampling frequency
 
 % use previously analysed data?
@@ -174,6 +174,11 @@ elseif strcmp(spreadsheet_file_type, 'csv')
     ExpName =  csv_data{:, 1};
     ExpGrp = csv_data{:, 3};
     ExpDIV = csv_data{:, 2};
+    if sum(strcmp('Ground',csv_data.Properties.VariableNames))
+        Params.electrodesToGroundPerRecording = csv_data.('Ground');
+    else 
+        Params.electrodesToGroundPerRecording = [];
+    end 
 end 
 
 [~,Params.GrpNm] = findgroups(ExpGrp);
@@ -227,7 +232,7 @@ if Params.priorAnalysis == 0
     % Plot spike detection results 
 
     for  ExN = 1:length(ExpName)
-
+        
         cd(strcat(HomeDir,'/OutputData',Params.Date,'/1_SpikeDetection/1A_SpikeDetectedData/'))
         load(strcat(char(ExpName(ExN)),'_spikes.mat'),'spikeTimes','spikeDetectionResult','channels','spikeWaveforms')
         cd(HomeDir); cd(strcat('OutputData',Params.Date)); cd('ExperimentMatFiles')
@@ -369,8 +374,6 @@ if Params.showOneFig
     % TODO: do this for spike detection plots as well, and PlotNetMet
     Params.oneFigure = figure;
 end 
-
-% TODO: pretty sure something is failing siltently here... 
 
 if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisStep<=4
 

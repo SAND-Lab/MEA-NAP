@@ -155,6 +155,16 @@ for recording = 1:numel(files)
     else
         fileName = files(recording).name;
     end
+
+    % Set which electrodes to ground 
+    if isfield(params, 'electrodesToGroundPerRecording')
+        if ~isempty(params.('electrodesToGroundPerRecording'))
+            groundElectrodeStr = params.('electrodesToGroundPerRecording'){recording}; 
+            groundElectrodeCell = strsplit(groundElectrodeStr,', ');
+            groundElectrodeVec = str2double(groundElectrodeCell);
+            grd = groundElectrodeVec;
+        end 
+    end 
     
     % Load data
     disp(['Loading ' fileName ' ...']);
@@ -211,6 +221,7 @@ for recording = 1:numel(files)
                 
                 spikeStruct = struct();
                 waveStruct = struct();
+                thresholdStruct = struct();
 
                 trace = data(:, channel);
                 
@@ -277,7 +288,7 @@ for recording = 1:numel(files)
                     else
                         waveStruct.(valid_wname) = [];
                         spikeStruct.(valid_wname) = [];
-                        thresholds.(valid_wname) = [];
+                        thresholdStruct.(valid_wname) = [];
                     end
                 end
                 
