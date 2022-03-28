@@ -57,3 +57,10 @@ end
 
 
 option = 'list';
+
+%% Node cartography settings 
+Params.hubBoundaryWMdDeg = 2.5; % boundary that separates hub and non-hubs (default 2.5)
+Params.periPartCoef = 0.625; % boundary that separates peripheral node and none-hub connector (default: 0.625)
+Params.proHubpartCoef = 0.3; % boundary that separates provincial hub and connector hub (default: 0.3)
+Params.nonHubconnectorPartCoef = 0.8; % boundary that separates non-hub connector and non-hub kinless node (default: 0.8)
+Params.connectorHubPartCoef = 0.75;  % boundary that separates connector hub and kinless hub (default 0.75)
