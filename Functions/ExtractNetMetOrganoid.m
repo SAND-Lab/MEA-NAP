@@ -14,6 +14,9 @@ ones use are
     in and out whilst the code is running the background)
 
 % OUTPUTS
+------------
+
+NetMet : (structure)
 
 % extract network metrics from adjacency matrices for organoid data
 % author RCFeord March 2021
@@ -172,9 +175,8 @@ for e = 1:length(lagval)
     end
     
     %% Hub classification
-    
-    try
-    
+   
+    % try 
     sortND = sort(ND,'descend');
     sortND = sortND(1:round(aN/10));
     hubNDfind = ismember(ND, sortND);
@@ -200,11 +202,11 @@ for e = 1:length(lagval)
     Hub4 = length(find(GC==4))/aN;
     Hub3 = length(find(GC>=3))/aN;
     
-    catch
+   % catch
         
-        Hub4 = nan;
-        Hub3 = nan;
-    end
+   %     Hub4 = nan;
+    %    Hub3 = nan;
+   % end
     
     %% electrode specific half violin plots
     try
@@ -249,7 +251,6 @@ for e = 1:length(lagval)
     end 
     coords(:,2) = channels - coords(:,1)*10;
     
-    try
     % simple grid network plot
     StandardisedNetworkPlot(adjM, coords, edge_thresh, ND, 'MEA', char(Info.FN),'2',Params,lagval,e);
    
@@ -275,15 +276,14 @@ for e = 1:length(lagval)
 %     PCord = PC(On);
 %     StandardisedNetworkPlotNodeColourMap2(adjMord, coords, 0.00001, PC, 'Participation coefficient', 'circular', char(Info.FN), Params)
 %     
-     catch
-    end
+
     clear coords
     
     %% reassign to structures
     
     Var = {'ND', 'EW', 'NS', 'aN', 'Dens', 'Ci', 'Q', 'nMod', 'Eglob', ...,
         'CC', 'PL' 'SW','SWw' 'Eloc', 'BC', 'PC' , 'Z', 'NCpn1', ...,
-        'NCpn2','NCpn3','NCpn4','NCpn5','NCpn6','Hub4','Hub3'};
+        'NCpn2','NCpn3','NCpn4','NCpn5','NCpn6','Hub4','Hub3', 'NE'};
     
     for i = 1:length(Var)
         VN = cell2mat(Var(i));
@@ -292,7 +292,7 @@ for e = 1:length(lagval)
     end
     
     % clear variables
-    clear ND EW NS Dens Ci Q nMod CC PL SW SWw Eloc BC PC Z Var NCpn1 NCpn2 NCpn3 NCpn4 NCpn5 NCpn6 Hub3 Hub4
+    clear ND EW NS Dens Ci Q nMod CC PL SW SWw Eloc BC PC Z Var NCpn1 NCpn2 NCpn3 NCpn4 NCpn5 NCpn6 Hub3 Hub4 NE
     
 
 cd(HomeDir); cd(strcat('OutputData',Params.Date)); 
