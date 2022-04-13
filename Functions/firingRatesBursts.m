@@ -5,13 +5,14 @@ FR_threshold = 0.01; % in Hz or spikes/s
 FiringRates = full(sum(spikeMatrix))/Info.duration_s;
 % calculate firing rates
 %remove ref channel spikes:
-FiringRates(Info.channels == 15)    =  0;     
+% FiringRates(Info.channels == 15)    =  0;     
 active_chanIndex = FiringRates      >= FR_threshold;
 ActiveFiringRates = FiringRates(active_chanIndex);  %spikes of only active channels ('active'= >7)
 
 Ephys.FR = ActiveFiringRates;
 % currently calculates only on active channels (>=FR_threshold)
-% stats
+% stats  
+% TODO: Why is the rounding necessary ?
 Ephys.FRmean = round(mean(ActiveFiringRates),3);
 Ephys.FRstd = round(std(ActiveFiringRates),3);
 Ephys.FRsem = round(std(ActiveFiringRates)/(sqrt(length(ActiveFiringRates))),3);
@@ -29,12 +30,13 @@ end
 
 
 method ='Bakkum';
-%note, Set N = 30 (min number of bursts)
+%note, Set N = 30 (min number of spikes in a burst)
 %ensure bursts are excluded if fewer than 3 channels (see inside burstDetect
 %function)
 %to change min channels change line 207 of burstDetect.m
-%to change N (min n spikes) see line 170 of burstDetect.m
-N = 10; minChan = 3;
+%to change N (min number of spikes) see line 170 of burstDetect.m
+N = 10; 
+minChan = 3;
 
 [burstMatrix, burstTimes, burstChannels] = burstDetect(spikeMatrix, method, Params.fs, N, minChan);
 nBursts = size(burstTimes,1);
