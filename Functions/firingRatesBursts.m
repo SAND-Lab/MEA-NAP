@@ -3,9 +3,8 @@ function [Ephys] = firingRatesBursts(spikeMatrix,Params,Info)
 FR_threshold = 0.01; % in Hz or spikes/s
 % get spike counts
 FiringRates = full(sum(spikeMatrix))/Info.duration_s;
-% calculate firing rates
-%remove ref channel spikes:
-% FiringRates(Info.channels == 15)    =  0;     
+
+% calculate firing rates  
 active_chanIndex = FiringRates      >= FR_threshold;
 ActiveFiringRates = FiringRates(active_chanIndex);  %spikes of only active channels ('active'= >7)
 
