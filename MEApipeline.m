@@ -22,22 +22,22 @@ addpath('Images')
 %      column 2: DIV or age of sample (should whole numbers), 
 %      column 3: group, cell line, or condition (groups will be plotted in alphabetic order, 
 %                do not use numbers in group names) 
-%      column 4: any electrode numbers you wish to ground (check electrode naming for your MEA data files)
+%      column 4: any electrode numbers you wish to ground (check electrode naming for your MEA data files; 
+%                for MCS 60 channel data, electrode 15--the reference electrode should be included here)
 % 
 % spreadsheet_file_type: datatype of the spreadsheet 
 % option 1: csv (comma separated values)
 % option 2: excel (excel spreadsheet, eg. .xlsx)
 spreadsheet_file_type = 'csv'; % 'csv';
-% spread_sheet_filename = 'mecp2RecordingsList.xlsx'; % name of excel spreadsheet
-% spreadsheet_filename = 'mecp2RecordingsList.csv'; % name of csv file
-% spreadsheet_filename = 'hpc_dataset.csv';
+% spread_sheet_filename = 'myRecordingsList.xlsx'; % name of excel spreadsheet
+% spreadsheet_filename = 'myRecordingsList.csv'; % name of csv file
+% spreadsheet_filename = 'hpc_dataset.csv'; % other examples
 % spreadsheet_filename = 'axiontest2.csv';
 spreadsheet_filename = 'axiontest_wExcludedElectrode.csv';
-% spreadsheet_filename = 'Mahsa_Mono1_batchanalysis.csv';
 
 % These options only apply if using excel spreadsheet
 sheet = 1; % specify excel sheet
-xlRange = 'A2:C7'; % specify range on the sheet
+xlRange = 'A2:C7'; % specify range on the sheet (e.g., 'A2:C7' would analyse the first 6 files)
 
 % get date
 formatOut = 'ddmmmyyyy'; Params.Date = datestr(now,formatOut); clear formatOut
@@ -55,16 +55,16 @@ Params.dSampF = 12500; % down sampling factor for spike detection check,
 % use previously analysed data?
 Params.priorAnalysis = 0; % 1 = yes, 0 = no
 % path to previously analysed data
-%Params.priorAnalysisPath = ['/Users/timothysit/AnalysisPipeline/OutputData20Jan2022v3'];
+%Params.priorAnalysisPath = ['/Users/yourfolder/AnalysisPipeline/OutputData20Jan2022v3']; % example format
 Params.priorAnalysisPath = ['/Users/timothysit/AnalysisPipeline/OutputData16Feb2022'];
-% prior analysis date in format given in output data folder e.g '27Sep2021'
+% prior analysis date in format given in output data folder e.g., '27Sep2021'
 %Params.priorAnalysisDate = '20Jan2022';
 Params.priorAnalysisDate = '16Feb2022';
 % which section to start new analysis from:
-% 2 = neuronal activity
-% 3 = functional connectivity
-% 4 = network activity
-Params.startAnalysisStep = 2;
+% 2 = neuronal activity (uses spike detection from step 1)
+% 3 = functional connectivity (uses spike detection from step 1)
+% 4 = network activity (uses functional connectivity outputs from step 3)
+Params.startAnalysisStep = 2; % if Params.priorAnalysis=0 (line 56), default is to start with spike detection
 
 % run spike detection?
 detectSpikes = 1; % 1 = yes, 0 = no
@@ -76,45 +76,42 @@ rawData = '/Users/timothysit/AnalysisPipeline/2022-03-16-test-raw-data';
 % advanced settings are automatically set but can be modified by opening
 % the following function
 biAdvancedSettings
-% list of thresholds for spike detection, this is used for threshold-based 
-% spike detection, where thershold is mean(voltage) - Params.thresholds *
-% sem(voltage) (or std(voltage)), list empty as {} if you don't want to do 
-% threshold spike detection
+% To perform threshold-based spike detection, list the standard deviation multiplier threshold(s).  
+% the threshold is mean(voltage) - Params.thresholds * sem(voltage) (or std(voltage))
+% leave empty as {} if you don't want to perform threshold-based spike detection 
+% threshold-based spike detection
 Params.thresholds = {}; % {'2.5', '3.5', '4.5'}
-% list of built in wavelets and associated cost parameters
+% To perform template-based spike detection, list the built in wavelets 
 % For more information about wavelets, type `waveinfo` into matlab 
 % or see: https://uk.mathworks.com/help/wavelet/ref/waveinfo.html
-% The usual wavelest that we observe good results are the (bior1.5,
-% bior1.3, and 'db' wavelets
-% alternatively (but not recommended, you can also specify for example 
-% thr3p5 to do spike detection with threshold method with 3.5 multiplier)
-% set to empty {}' if you only want to run threshold spike detection
-% use 'mea' for custom wavelet
-% use : 'swtteo' for stationary wavelet transform
+% The usual wavelets that we observe good results with for detecting spikes 
+% are 'bior1.5', 'bior1.3', and 'db' wavelets.
+% To use custom electrode-specific wavelets based on the average waveform detected
+% with the threshold method, use 'mea' for .wnameList and select a SD multiplier .threshold (e.g., 4).
+% To perform the stationery wavelet transform method, enter 'swtteo' (we have not optimized this).
+% Set to empty {}' if you only want to run threshold spike detection
 Params.wnameList = {'bior1.5'}; % {'bior1.5', 'mea'}';
 
-% Specify the cost parameter used in spike detection, which controls 
-% the false positive / false negative tradeoff in spike detection 
+% Specify the cost parameter used in the template-based spike detection,  
+% which controls the false positive / false negative tradeoff in spike detection 
 % more negative values leads to less false negative but more false
 % positives, recommended range is between -2 to 2, but usually we use 
 % -1 to 0. Note that this is in a log10 scale, meaning -1 will lead to 10
 % times more false positive compared to -0.1
-% For more details see 
-% Nenadic and Burdick 2005: Spike detection using the continuous wavelet
-% transform
+% For more details see Nenadic and Burdick 2005: Spike detection using the continuous wavelet transform
 Params.costList = -0.12;
 % if spike detection has been run separately, specify the folder containing
-% the spike detected data
+% the spike detected data; e.g., '/Users/yourpath/AnalysisPipeline/OutputData20Jan2022v3';
 spikeDetectedData = '/Users/timothysit/AnalysisPipeline/OutputData20Jan2022v3';
 
-% set spike method to be used in downstream analysis, use 'merged if all
-% spike detection methods should be combined, otherwise specify method:
+% Set the spike method to be used in downstream analysis, use 'merged if all
+% wavelet-based spike detection methods should be combined, otherwise specify method.
 % 'thr3p0': means using a threshold-based method with a multiplier of 3.0
 % you can specify other thresholds by replacing the decimal place '.' with
 % 'p', eg. 'thr4p5' means a threhold multiplier of 4.5
 % 'bio1p5': use spikes from the bior1.5 wavelet, you can also specify other
 % wavelet names
-% 'mea': use spikes from custom wavelet (adapted from putative spikes
+% 'mea': use spikes from electrode-specific custom wavelets (adapted from putative spikes
 % detected using the theshold method)
 % 'merged': merge the spike detection results from the wavelets specified 
 % in Params.wnameList
@@ -127,8 +124,8 @@ Params.TruncRec = 0; % truncate recording? 1 = yes, 0 = no
 Params.TruncLength = 120; % length of truncated recordings (in seconds)
 
 % set parameters for connectivity matrix thresholding
-Params.ProbThreshRepNum = 200; % probabilistic thresholding number of repeats
-Params.ProbThreshTail = 0.10; % probabilistic thresholding percentile threshold
+Params.ProbThreshRepNum = 200; % probabilistic thresholding number of repeats 
+Params.ProbThreshTail = 0.05; % probabilistic thresholding percentile threshold 
 Params.ProbThreshPlotChecks = 1; % randomly sample recordings to plot probabilistic thresholding check, 1 = yes, 0 = no
 Params.ProbThreshPlotChecksN = 5; % number of random checks to plot
 
@@ -142,7 +139,11 @@ Params.figEps = 0; % figures saved as .eps format, 1 = yes, 0 = no
 
 % Stop figures windows from popping up (steals windows focus on linux
 % machines at least) when set to 1 (by only plotting on one figure handle)
-Params.showOneFig = 1;  
+Params.showOneFig = 1;  % otherwise, 0 = pipeline shows plots as it runs
+
+%% END OF USER REQUIRED INPUT SECTION
+% The rest of the MEApipeline.m runs automatically. Do not change after this line
+% unless you are an expert user.
 
 % Network plot colormap bounds 
 Params.use_theoretical_bounds = 1;
