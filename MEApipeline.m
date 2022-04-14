@@ -1,23 +1,29 @@
 % Process data from MEA recordings of 2D and 3D cultures
-% author: RCFeord, May 2021
+% created: RCFeord, May 2021
+% authors: T Sit, RC Feord, AWE Dunn, J Chabros and other members of the Synaptic and Network Development (SAND) Group
 
 
 %% USER INPUT REQUIRED FOR THIS SECTION
-% in this section all modifiable parameters of the analysis are defined, no
-% subsequent section requires user input
+% in this section all modifiable parameters of the analysis are defined,
+% no subsequent section requires user input
 % please refer to the documentation for guidance on parameter choice
 
 % Set parameters
 
-% set analysis folder to home directory
-HomeDir = '/Users/timothysit/AnalysisPipeline';
+% set analysis folder to home directory (folder with AnalysisPipeline scripts)
+HomeDir = '/Users/timothysit/AnalysisPipeline'; %for Mac '/yourpath' for PC '\yourpath'
 % add all relevant folders to path
 cd(HomeDir)
 addpath(genpath('Functions'))
 addpath('Images')
 
-% data input from excel spreadheet, column 1: name of recording, column 2:
-% DIV/age of sample, column 3: group/cell line
+% data input from excel spreadheet or csv file with the following structure
+%      column 1: filename of recording (omit .mat at the end of the filename), 
+%      column 2: DIV or age of sample (should whole numbers), 
+%      column 3: group, cell line, or condition (groups will be plotted in alphabetic order, 
+%                do not use numbers in group names) 
+%      column 4: any electrode numbers you wish to ground (check electrode naming for your MEA data files)
+% 
 % spreadsheet_file_type: datatype of the spreadsheet 
 % option 1: csv (comma separated values)
 % option 2: excel (excel spreadsheet, eg. .xlsx)
