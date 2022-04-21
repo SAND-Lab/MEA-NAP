@@ -39,6 +39,20 @@ end
 
 load(raw_file_name);
 dat = double(dat);
+
+% convert everything to be in uV for plotting
+if isstring(Params.potentialDifferenceUnit)
+    if strcmp(Params.potentialDifferenceUnit, 'V')
+        dat = dat * 10^6;
+    elseif strcmp(Params.potentialDifferenceUnit, 'mV')
+        dat = dat * 10^3;
+    end
+else 
+    % convert to V by provided multiplication factor, then convert to uV
+    % for plotting
+    dat = dat * Params.potentialDifferenceUnit * 10^6;
+end 
+
 filtered_data = zeros(size(dat));
 num_chan = size(dat,2);
 
@@ -130,7 +144,9 @@ tiledlayout(5,2,'TileSpacing','Compact');
 for l = 1:9
     
     bin_ms = 30;  % What is this???
-    channel = 15;
+    channel = 15;  % this seems to be some way to prevent plotting of channel 15? 
+                   % TODO: this can be removed / take account if which
+                   % electrode to exclude
     while channel == 15
         channel = randi([1,num_chan],1);
     end

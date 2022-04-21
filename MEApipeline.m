@@ -51,6 +51,9 @@ Params.output_spreadsheet_file_type = 'csv';
 Params.fs = 12500; % HPC: 25000, Axion: 12500;
 Params.dSampF = 12500; % down sampling factor for spike detection check, 
 % by default should be equal to your recording sampling frequency
+Params.potentialDifferenceUnit = 'uV';  % the unit which you are recording electrical signals 
+% if this is a number, then will multiply this number to get potential
+% difference in units of V
 
 % use previously analysed data?
 Params.priorAnalysis = 0; % 1 = yes, 0 = no
