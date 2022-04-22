@@ -68,6 +68,15 @@ Params.priorAnalysisDate = '16Feb2022';
 % 3 = functional connectivity (uses spike detection from step 1)
 % 4 = network activity (uses functional connectivity outputs from step 3)
 Params.startAnalysisStep = 2; % if Params.priorAnalysis=0 (line 56), default is to start with spike detection
+Params.optionalStepsToRun = {''};
+% Supported optional steps: 
+% getDensityLandscape : calculate and plot distribution of participation
+% coefficient and centrality 
+% runstats : calculates correlation of features across recording, and do 
+% classification of DIV and/or recording condition (eg. genotype) based 
+% on network metrics
+% generateCSV : generate CSV with file paths given folder containing mat files
+% comparePrePostTTX : compare pre/post TTX activity in data
 
 % run spike detection?
 detectSpikes = 1; % 1 = yes, 0 = no
@@ -421,90 +430,82 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
 end
 
 %% Optional step: Run density landscape to determine the boundaries for the node cartography 
-Params.priorAnalysisPath = '/Users/timothysit/AnalysisPipeline/OutputData24Feb2022';
-cd(fullfile(Params.priorAnalysisPath, 'ExperimentMatFiles'));
-
-fig_folder = fullfile(Params.priorAnalysisPath, '4_NetworkActivity/4B_GroupComparisons/7_DensityLandscape');
-if ~isdir(fig_folder)
-    mkdir(fig_folder)
+if ~any(strcmp(Params.optionalStepsToRun,'getDensityLandscape')) 
+    Params.priorAnalysisPath = '/Users/timothysit/AnalysisPipeline/OutputData24Feb2022';
+    cd(fullfile(Params.priorAnalysisPath, 'ExperimentMatFiles'));
+    
+    fig_folder = fullfile(Params.priorAnalysisPath, '4_NetworkActivity/4B_GroupComparisons/7_DensityLandscape');
+    if ~isdir(fig_folder)
+        mkdir(fig_folder)
+    end 
+    
+    % loop through multiple DIVs
+    for DIV = [14, 17, 21, 24, 28]
+        ExpList = dir(sprintf('*DIV%.f*.mat', DIV));
+        add_fig_info = strcat('DIV', num2str(DIV));
+        TrialLandscapeDensity;
+    end 
 end 
-
-
-% loop through multiple DIVs 
-
-for DIV = [14, 17, 21, 24, 28]
-    ExpList = dir(sprintf('*DIV%.f*.mat', DIV));
-    add_fig_info = strcat('DIV', num2str(DIV));
-    TrialLandscapeDensity;
-end 
-
-
-
-
-%% Optional step: just PlotNetMet 
-cd(HomeDir)
-Params.Date = '03Jan2022';
-PlotNetMet(ExpName,Params,HomeDir)
-cd(HomeDir)
 
 %% Optional step: statistics and classification of genotype / ages 
-Params.priorAnalysisPath = '/Users/timothysit/AnalysisPipeline/OutputData24Feb2022';
-nodeLevelFile = fullfile(Params.priorAnalysisPath, 'NetworkActivity_NodeLevel.csv');
-nodeLevelData = readtable(nodeLevelFile);
-
-recordingLevelFile = fullfile(Params.priorAnalysisPath, 'NetworkActivity_RecordingLevel.csv');
-recordingLevelData = readtable(recordingLevelFile);
-
-featureCorrelation(nodeLevelData, recordingLevelData, Params);
-
+if ~any(strcmp(Params.optionalStepsToRun,'runStats')) 
+    Params.priorAnalysisPath = '/Users/timothysit/AnalysisPipeline/OutputData24Feb2022';
+    nodeLevelFile = fullfile(Params.priorAnalysisPath, 'NetworkActivity_NodeLevel.csv');
+    nodeLevelData = readtable(nodeLevelFile);
+    
+    recordingLevelFile = fullfile(Params.priorAnalysisPath, 'NetworkActivity_RecordingLevel.csv');
+    recordingLevelData = readtable(recordingLevelFile);
+    
+    featureCorrelation(nodeLevelData, recordingLevelData, Params);
+end 
 
 
 %% Optional Step: compare pre-post TTX spike activity 
-
-% see find_best_spike_result.m for explanation of the parameters
-Params.prePostTTX.max_tolerable_spikes_in_TTX_abs = 100; 
-Params.prePostTTX.max_tolerable_spikes_in_grounded_abs = 100;
-Params.prePostTTX.max_tolerable_spikes_in_TTX_per_s = 1; 
-Params.prePostTTX.max_tolerable_spikes_in_grounded_per_s = 1;
-Params.prePostTTX.start_time = 0;
-Params.prePostTTX.default_end_time = 600;  
-Params.prePostTTX.sampling_rate = 1;  
-Params.prePostTTX.threshold_ground_electrode_name = 15;
-Params.prePostTTX.default_grounded_electrode_name = 15;
-Params.prePostTTX.min_spike_per_electrode_to_be_active = 0.5;
-Params.prePostTTX.wavelet_to_search = {'mea', 'bior1p5'};
-Params.prePostTTX.use_TTX_to_tune_L_param = 0;
-Params.prePostTTX.spike_time_unit = 'frame'; 
-Params.prePostTTX.custom_backup_param_to_use = []; 
-Params.prePostTTX.regularisation_param = 10;
-
-
-% Get spike detection result folder
-spike_folder = strcat(HomeDir,'/OutputData',Params.Date,'/1_SpikeDetection/1A_SpikeDetectedData/');
-spike_folder(strfind(spike_folder,'\'))='/';
-
-pre_post_ttx_plot_folder = fullfile(HomeDir, 'OutputData', ... 
-    Params.Date, '1_SpikeDetection', '1C_prePostTTXcomparison'); 
-
-find_best_spike_result(spike_folder, pre_post_ttx_plot_folder, Params)
-
+if ~any(strcmp(Params.optionalStepsToRun,'comparePrePostTTX')) 
+    % see find_best_spike_result.m for explanation of the parameters
+    Params.prePostTTX.max_tolerable_spikes_in_TTX_abs = 100; 
+    Params.prePostTTX.max_tolerable_spikes_in_grounded_abs = 100;
+    Params.prePostTTX.max_tolerable_spikes_in_TTX_per_s = 1; 
+    Params.prePostTTX.max_tolerable_spikes_in_grounded_per_s = 1;
+    Params.prePostTTX.start_time = 0;
+    Params.prePostTTX.default_end_time = 600;  
+    Params.prePostTTX.sampling_rate = 1;  
+    Params.prePostTTX.threshold_ground_electrode_name = 15;
+    Params.prePostTTX.default_grounded_electrode_name = 15;
+    Params.prePostTTX.min_spike_per_electrode_to_be_active = 0.5;
+    Params.prePostTTX.wavelet_to_search = {'mea', 'bior1p5'};
+    Params.prePostTTX.use_TTX_to_tune_L_param = 0;
+    Params.prePostTTX.spike_time_unit = 'frame'; 
+    Params.prePostTTX.custom_backup_param_to_use = []; 
+    Params.prePostTTX.regularisation_param = 10;
+    
+    
+    % Get spike detection result folder
+    spike_folder = strcat(HomeDir,'/OutputData',Params.Date,'/1_SpikeDetection/1A_SpikeDetectedData/');
+    spike_folder(strfind(spike_folder,'\'))='/';
+    
+    pre_post_ttx_plot_folder = fullfile(HomeDir, 'OutputData', ... 
+        Params.Date, '1_SpikeDetection', '1C_prePostTTXcomparison'); 
+    
+    find_best_spike_result(spike_folder, pre_post_ttx_plot_folder, Params)
+end 
 
 %% Optional step : generate csv 
-
-folder_path = '/Volumes/T7/schroter2015_mat'; 
-mat_file_list = dir(fullfile(folder_path, '*mat'));
-name_list = {mat_file_list.name}';
-name_without_ext = {};
-div = {};
-for filenum = 1:length(name_list)
-    name_without_ext{filenum} = name_list{filenum}(1:end-4);
-    div{filenum} = name_list{filenum}((end-5):end-4);
+if ~any(strcmp(Params.optionalStepsToRun,'generateCSV')) 
+    folder_path = '/Volumes/T7/schroter2015_mat'; 
+    mat_file_list = dir(fullfile(folder_path, '*mat'));
+    name_list = {mat_file_list.name}';
+    name_without_ext = {};
+    div = {};
+    for filenum = 1:length(name_list)
+        name_without_ext{filenum} = name_list{filenum}(1:end-4);
+        div{filenum} = name_list{filenum}((end-5):end-4);
+    end 
+    name = name_without_ext'; 
+    div = div';
+    name_table = table([name, div]);
+    writetable(name_table, 'test.csv')
 end 
-name = name_without_ext'; 
-div = div';
-name_table = table([name, div]);
-writetable(name_table, 'test.csv')
-
 
 
 
