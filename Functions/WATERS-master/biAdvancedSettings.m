@@ -7,11 +7,11 @@ for i = 1:length(FNames)
 end
 clear params
 
-% quick test change
-
+%% Spike detection settings
 Params.plotDetectionResults = 0;
 Params.threshold_calculation_window = [0, 1.0];  % which part of the recording to do spike detection, 0 = start of recording, 0.5 = midway, 1 = end of recording
-% params.absThresholds = {''};  % add absolute thresholds here
+% params.absThresholds = {''};  % add absolute thresholds here % TODO:
+% double check this works, and allow for this to be empty so it does not have to be commented out 
 % params.subsample_time = [1, 60];  % which part of the recording to subsample for spike detection (In seconds)
 % if unspecified, then uses the entire recording
 Params.run_detection_in_chunks = 0; % whether to run wavelet detection in chunks (0: no, 1:yes)
@@ -55,7 +55,6 @@ if Params.filterHighPass > Params.fs / 2
     Params.filterHighPass = Params.fs/2-100;
 end 
 
-
 option = 'list';
 
 %% Node cartography settings 
@@ -64,3 +63,19 @@ Params.periPartCoef = 0.625; % boundary that separates peripheral node and none-
 Params.proHubpartCoef = 0.3; % boundary that separates provincial hub and connector hub (default: 0.3)
 Params.nonHubconnectorPartCoef = 0.8; % boundary that separates non-hub connector and non-hub kinless node (default: 0.8)
 Params.connectorHubPartCoef = 0.75;  % boundary that separates connector hub and kinless hub (default 0.75)
+
+%% Plotting settings
+
+% colors to use for each group in group comparison plots
+% this should be an nGroup x 3 matrix where nGroup is the number of groups
+% you have, and each row is a RGB value (scaled from 0 to 1) denoting the
+% color
+Params.groupColors = [ ...
+   0.996, 0.670, 0.318; ...
+   0.780, 0.114, 0.114; ... 
+   0.459, 0.000, 0.376; ...  
+   0.027, 0.306, 0.659; ...
+   0.5, 0.5, 0.5; ...
+];
+
+
