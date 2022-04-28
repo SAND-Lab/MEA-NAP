@@ -12,7 +12,8 @@ Params : (struct)
     Params.output_spreadsheet_file_type : (str)
         whether to output analysis results as excel spreadsheet (.xlsx), 
         using 'excel' or comma-separated values (.csv) using 'csv'
-
+    Params.groupColors : (nGroup x 3 matrix)
+        RGB colors (scale from 0 to 1) to use for each group in plotting
 HomeDir : (str) 
     main directory of the analysis 
     ie. '/your/path/to/AnalysisPipeline'
@@ -28,7 +29,7 @@ Other dependicies
     Params : (struct)
     adjMS : (struct)
     spikeTimes : (struct)
-
+    
 OUTPUTS
 ---------------
 
@@ -77,12 +78,6 @@ else
         eval(['cDiv' num2str(ii) '= ColOpt' num2str(round(1+(nColOpt/nDIV)*(ii-1))) ';']);
     end
 end
-
-% colours for different groups (WT,HET,KO)
-cGrp1 = [0.996 0.670 0.318]; 
-cGrp2 = [0.780 0.114 0.114];
-cGrp3 = [0.459 0.000 0.376]; 
-cGrp4 = [0.027 0.306 0.659]; 
 
 %% groups and DIV
 
@@ -681,7 +676,7 @@ for l = 1:length(Params.FuncConLagval)
                     DatTemp = zeros(1, length(Params.FuncConLagval));
                 end 
                 PlotDat = DatTemp(:,l);
-                eval(['notBoxPlotRF(PlotDat,xt(g),cGrp' num2str(g) ',12)']);
+                notBoxPlotRF(PlotDat, xt(g), Params.groupColors(g, :), 12);
                 clear DatTemp ValMean ValStd UpperStd LowerStd
                 xtlabtext{g} = eGrp;
             end
@@ -759,7 +754,7 @@ for l = 1:length(Params.FuncConLagval)
                 if isempty(PlotDat)
                     continue
                 else
-                    eval(['HalfViolinPlot(PlotDat,xt(g),cGrp' num2str(g) ',0.3)']);
+                    HalfViolinPlot(PlotDat, xt(g), Params.groupColors(g, :), 0.3);
                 end
                 clear DatTemp ValMean ValStd UpperStd LowerStd
                 xtlabtext{g} = eGrp;
@@ -918,7 +913,7 @@ for l = 1:length(Params.FuncConLagval)
                 if isempty(PlotDat)
                     continue
                 else
-                    eval(['HalfViolinPlot(PlotDat,xt(g),cGrp' num2str(g) ',0.3)']);
+                    HalfViolinPlot(PlotDat, xt(g), params.groupColors(g, :), 0.3);
                 end
                 clear DatTemp ValMean ValStd UpperStd LowerStd
                 xtlabtext{g} = eGrp;
