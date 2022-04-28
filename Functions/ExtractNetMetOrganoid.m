@@ -1,9 +1,8 @@
 function [NetMet] = ExtractNetMetOrganoid(adjMs,lagval,Info,HomeDir,Params)
-
 %{
 INPUTS 
 -------------
-adjMs : 
+adjMs : (N x N matrix)
 lagval : (int)
     lag for use in STTC calculation (in ms)
 Info : 
@@ -27,6 +26,11 @@ NetMet : (structure)
     - electrodeSpecificMetrics
     - NodeCartography
     - StandardisedNetworkPlot
+
+Parameters defined in this function: 
+
+LatticeNetwork : (N x N matrix) 
+Ci : 
 
 %}
 
@@ -112,20 +116,21 @@ for e = 1:length(lagval)
     
     % Lattice-like model
     if length(adjM)>25
-    ITER = 10000;
-    Z = pdist(adjM);
-    D = squareform(Z);
-    [L,Rrp,ind_rp,eff,met] = latmio_und_v2(adjM,ITER,D,'SW');
+        ITER = 10000;
+        Z = pdist(adjM);
+        D = squareform(Z);
+        % TODO: rename L to Lattice to avoid confusion with path length
+        [LatticeNetwork,Rrp,ind_rp,eff,met] = latmio_und_v2(adjM,ITER,D,'SW');
     
-    % Random rewiring model (d)
-    ITER = 5000;
-    [R, ~,met2] = randmio_und_v2(adjM, ITER,'SW');
+        % Random rewiring model (d)
+        ITER = 5000;
+        [R, ~,met2] = randmio_und_v2(adjM, ITER,'SW');
     
-    plotNullModelIterations(met, met2, lagval, e, char(Info.FN), Params)
+        plotNullModelIterations(met, met2, lagval, e, char(Info.FN), Params)
     
     %% Calculate network metrics (+normalization).
     
-    [SW, SWw, CC, PL] = small_worldness_RL_wu(adjM,R,L);
+        [SW, SWw, CC, PL] = small_worldness_RL_wu(adjM,R,LatticeNetwork);
     
     % local efficiency
     %   For ease of interpretation of the local efficiency it may be
@@ -142,7 +147,9 @@ for e = 1:length(lagval)
     %   Note: Betweenness centrality may be normalised to the range [0,1] as
     %   BC/[(N-1)(N-2)], where N is the number of nodes in the network.
     if strcmp(Params.adjMtype,'weighted')
-        BC = betweenness_wei(L);
+        smallFactor = 0.01; % prevent division by zero
+        pathLengthNetwork = 1 ./ (adjM + smallFactor);   
+        BC = betweenness_wei(pathLengthNetwork);
     elseif strcmp(Params.adjMtype,'binary')
         BC = betweenness_bin(adjM);
     end
@@ -175,8 +182,6 @@ for e = 1:length(lagval)
     end
     
     %% Hub classification
-   
-    % try 
     sortND = sort(ND,'descend');
     sortND = sortND(1:round(aN/10));
     hubNDfind = ismember(ND, sortND);
@@ -201,12 +206,9 @@ for e = 1:length(lagval)
     [GC,~] = groupcounts(hubs);
     Hub4 = length(find(GC==4))/aN;
     Hub3 = length(find(GC>=3))/aN;
-    
-   % catch
-        
-   %     Hub4 = nan;
-    %    Hub3 = nan;
-   % end
+
+    %% TODO:Find hubs and plot raster sorted by hubs 
+    % [hub_peripheral_xy, hub_metrics, hub_score_index] = fcn_find_hubs_wu(channels,raster,adjM,fs)
     
     %% electrode specific half violin plots
     try
