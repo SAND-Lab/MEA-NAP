@@ -1,7 +1,23 @@
 function [] = PlotEphysStats(ExpName,Params,HomeDir)
-
 % plot ephys statistics for MEA data
 % author RCFeord July 2021
+%{
+
+INPUT 
+-----------
+ExpName : (str)
+Params : (structure)
+    The following fields are used
+    groupColors : (nGroup x 3 matrix)
+        the RGB colors to use for each group during plotting
+    
+HomeDir : (str)
+
+OUTPUT 
+--------
+
+
+%}
 
 %% colours
 
@@ -28,11 +44,6 @@ else
     end
 end
 
-% colours for different groups (WT,HET,KO)
-cGrp1 = [0.996 0.670 0.318]; 
-cGrp2 = [0.780 0.114 0.114];
-cGrp3 = [0.459 0.000 0.376]; 
-cGrp4 = [0.027 0.306 0.659]; 
 
 %% groups and DIV
 
@@ -51,7 +62,8 @@ end
 % names of metrics
 ExpInfoE = {'Grp','DIV'}; % info for both age and genotype
 % list of metrics 
-NetMetricsE = {'numActiveElec','FRmean','FRmedian','NBurstRate','meanNumChansInvolvedInNbursts','meanNBstLengthS','meanISIWithinNbursts_ms','meanISIoutsideNbursts_ms','CVofINBI','fracInNburst'}; 
+NetMetricsE = {'numActiveElec','FRmean','FRmedian','NBurstRate','meanNumChansInvolvedInNbursts', ... 
+               'meanNBstLengthS','meanISIWithinNbursts_ms','meanISIoutsideNbursts_ms','CVofINBI','fracInNburst'}; 
 
 % single cell/node metrics (1 value per cell/node)
 
@@ -158,7 +170,8 @@ for i = 1:length(ExpName)
 end
 
 
-%% export to excel
+%% export to excel / csv
+% TODO: export to csv as well
 
 cd(HomeDir); cd(strcat('OutputData',Params.Date));
 
@@ -194,7 +207,10 @@ for g = 1:length(Grps)
     end
 end
 
+
 clear DatTemp TempStr
+
+
 
 
 %% notBoxPlots - plots by group
@@ -204,7 +220,11 @@ cd('2_NeuronalActivity'); cd('2B_GroupComparisons');
 cd('3_RecordingsByGroup'); cd('NotBoxPlots');
 
 eMet = NetMetricsE; 
-eMetl = {'number of active electrodes','mean firing rate (Hz)','median firing rate (Hz)','network burst rate (per minute)','mean number of channels involved in network bursts','mean network burst length (s)','mean ISI within network burst (ms)','mean ISI outside network bursts (ms)','coefficient of variation of inter network burst intervals','fraction of in network bursts'}; 
+eMetl = {'number of active electrodes','mean firing rate (Hz)','median firing rate (Hz)', ... 
+    'network burst rate (per minute)','mean number of channels involved in network bursts', ...
+    'mean network burst length (s)','mean ISI within network burst (ms)', ... 
+    'mean ISI outside network bursts (ms)','coefficient of variation of inter network burst intervals', ... 
+    'fraction of in network bursts'}; 
 
 p = [100 100 1300 600]; 
 set(0, 'DefaultFigurePosition', p)
@@ -260,7 +280,11 @@ cd('2_NeuronalActivity'); cd('2B_GroupComparisons');
 cd('3_RecordingsByGroup'); cd('HalfViolinPlots');
 
 eMet = NetMetricsE; 
-eMetl = {'number of active electrodes','mean firing rate (Hz)','median firing rate (Hz)','network burst rate (per minute)','mean number of channels involved in network bursts','mean network burst length (s)','mean ISI within network burst (ms)','mean ISI outside network bursts (ms)','coefficient of variation of inter network burst intervals','fraction of in network bursts'}; 
+eMetl = {'number of active electrodes','mean firing rate (Hz)','median firing rate (Hz)', ...
+    'network burst rate (per minute)','mean number of channels involved in network bursts', ...
+    'mean network burst length (s)','mean ISI within network burst (ms)', ... 
+    'mean ISI outside network bursts (ms)','coefficient of variation of inter network burst intervals', ...
+    'fraction of in network bursts'}; 
 
 p = [100 100 1300 600]; 
 set(0, 'DefaultFigurePosition', p)
@@ -316,7 +340,11 @@ cd('2_NeuronalActivity'); cd('2B_GroupComparisons');
 cd('4_RecordingsByAge'); cd('NotBoxPlots')
 
 eMet = NetMetricsE; 
-eMetl = {'number of active electrodes','mean firing rate (Hz)','median firing rate (Hz)','network burst rate (per minute)','mean number of channels involved in network bursts','mean network burst length (s)','mean ISI within network burst (ms)','mean ISI outside network bursts (ms)','coefficient of variation of inter network burst intervals','fraction of in network bursts'}; 
+eMetl = {'number of active electrodes','mean firing rate (Hz)','median firing rate (Hz)', ... 
+    'network burst rate (per minute)','mean number of channels involved in network bursts', ... 
+    'mean network burst length (s)','mean ISI within network burst (ms)', ... 
+    'mean ISI outside network bursts (ms)','coefficient of variation of inter network burst intervals', ... 
+    'fraction of in network bursts'}; 
 
 p = [100 100 1300 600]; 
 set(0, 'DefaultFigurePosition', p)
@@ -338,7 +366,7 @@ for n = 1:length(eMet)
             if isempty(PlotDat)
                 continue
             else
-                eval(['notBoxPlotRF(PlotDat,xt(g),cGrp' num2str(g) ',7)']);
+                notBoxPlotRF(PlotDat,xt(g), Params.groupColors(g, :) , 7);
             end
             clear DatTemp ValMean ValStd UpperStd LowerStd
             xtlabtext{g} = eGrp;
@@ -397,7 +425,7 @@ for n = 1:length(eMet)
             if isempty(PlotDat)
                 continue
             else
-                eval(['HalfViolinPlot(PlotDat,xt(g),cGrp' num2str(g) ',0.3)']);
+                HalfViolinPlot(PlotDat,xt(g), Params.groupColors(g, :), 0.3);
             end
             clear DatTemp ValMean ValStd UpperStd LowerStd
             xtlabtext{g} = eGrp;
@@ -514,7 +542,7 @@ for n = 1:length(eMet)
             if isempty(PlotDat)
                 continue
             else
-                eval(['HalfViolinPlot(PlotDat,xt(g),cGrp' num2str(g) ',0.3)']);
+                HalfViolinPlot(PlotDat, xt(g), Params.groupColors(g, :), 0.3);
             end
             clear DatTemp ValMean ValStd UpperStd LowerStd
             xtlabtext{g} = eGrp;
