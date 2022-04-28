@@ -43,14 +43,16 @@ dat = double(dat);
 % convert everything to be in uV for plotting
 if isstring(Params.potentialDifferenceUnit)
     if strcmp(Params.potentialDifferenceUnit, 'V')
-        dat = dat * 10^6;
+        dat = dat .* 10^6;
     elseif strcmp(Params.potentialDifferenceUnit, 'mV')
-        dat = dat * 10^3;
+        dat = dat .* 10^3;
+    elseif strcmp(Params.potentialDifferenceUnit, 'uV')
+        dat = dat;
     end
 else 
     % convert to V by provided multiplication factor, then convert to uV
     % for plotting
-    dat = dat * Params.potentialDifferenceUnit * 10^6;
+    dat = dat .* Params.potentialDifferenceUnit .* 10^6;
 end 
 
 filtered_data = zeros(size(dat));
