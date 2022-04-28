@@ -1,4 +1,28 @@
 function [Ephys] = firingRatesBursts(spikeMatrix,Params,Info)
+%{
+firingRatesBursts detects burst in spike matrix 
+
+INPUT 
+------------
+spikeMatrix : (N x T matrix)
+    where N is the number of electrodes/units 
+    and T is the number of time samples 
+Params : (structure)
+    structure with the following required fields 
+        fs : (int)
+            sampling rate (Hz) of the recording
+Info : (structure)
+    structure with the following required fields 
+    duration_s : (float)
+        duration of the recording in seconds
+OUTPUT
+-----------
+
+
+
+%}
+
+
 % set firing rate threshold in Hz
 FR_threshold = 0.01; % in Hz or spikes/s
 % get spike counts
@@ -37,8 +61,12 @@ method ='Bakkum';
 N = 10; 
 minChan = 3;
 
+% Network burst detection
 [burstMatrix, burstTimes, burstChannels] = burstDetect(spikeMatrix, method, Params.fs, N, minChan);
 nBursts = size(burstTimes,1);
+
+% Single channel burst detection
+burstData = singleChannelBurstDetection(spikeMatrix, N, Params.fs); 
 
 if ~isempty(burstMatrix)
     for Bst=1:length(burstMatrix)
@@ -80,7 +108,19 @@ if ~isempty(burstMatrix)
     Ephys.CVofINBI = round((std(IBIs)/mean(IBIs)),3); %3 decimal places
     Ephys.NBurstRate = round(60*(nBursts/(length(spikeMatrix(:,1))/Params.fs)),3);
     Ephys.fracInNburst = round(sp_in_bst/sum(sum(spikeMatrix)),3);
-    
+    Ephys.channelBurstingUnits = burstData.bursting_units;
+    Ephys.channelAveBurstRate = burstData.array_burstRate;
+    Ephys.channelBurstRate = burstData.all_burstRates;
+    Ephys.channelWithinBurstFr = burstData.all_inBurstFRs;
+    Ephys.channelBurstDur = burstData.all_burstDurs;
+    Ephys.channelAveBurstDur = burstData.array_burstDur;
+    Ephys.channelISIwithinBurst = burstData.all_ISIs_within;
+    Ephys.channelAveISIwithinBurst = burstData.array_ISI_within;
+    Ephys.channeISIoutsideBurst = burstData.all_ISIs_outside;
+    Ephys.channelAveISIoutsideBurst = burstData.array_ISI_outside;
+    Ephys.channelFracSpikesInBursts = burstData.all_fracsInBursts;
+    Ephys.channelAveFracSpikesInBursts = burstData.array_fracInBursts;
+
     %need to go intro burst detect and edit as it is not deleting the bursts
     %with <5 channels from burstChannels and burstTimes hence they are longer
     %need this for easier plotting of burst
