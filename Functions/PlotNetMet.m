@@ -913,7 +913,7 @@ for l = 1:length(Params.FuncConLagval)
                 if isempty(PlotDat)
                     continue
                 else
-                    HalfViolinPlot(PlotDat, xt(g), params.groupColors(g, :), 0.3);
+                    HalfViolinPlot(PlotDat, xt(g), Params.groupColors(g, :), 0.3);
                 end
                 clear DatTemp ValMean ValStd UpperStd LowerStd
                 xtlabtext{g} = eGrp;
