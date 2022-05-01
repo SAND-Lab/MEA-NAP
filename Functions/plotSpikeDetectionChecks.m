@@ -41,6 +41,10 @@ load(raw_file_name);
 dat = double(dat);
 
 % convert everything to be in uV for plotting
+if isa(Params.potentialDifferenceUnit, 'char')
+    Params.potentialDifferenceUnit = convertCharsToStrings(Params.potentialDifferenceUnit);
+end 
+
 if isstring(Params.potentialDifferenceUnit)
     if strcmp(Params.potentialDifferenceUnit, 'V')
         dat = dat .* 10^6;
