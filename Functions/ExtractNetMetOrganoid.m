@@ -156,7 +156,8 @@ if length(adjM)> Params.minNumberOfNodesToCalNetMet
         end
         BC = BC/((length(adjM)-1)*(length(adjM)-2));
     
-     else
+else
+     fprintf('Not enough nodes to calculate network metrics! \n')
      SW = nan;
      SWw = nan;
      CC = nan;
