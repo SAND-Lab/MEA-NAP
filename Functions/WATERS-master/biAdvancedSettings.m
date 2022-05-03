@@ -57,6 +57,9 @@ end
 
 option = 'list';
 
+%% Netowrk analysis settings 
+Params.minNumberOfNodesToCalNetMet = 25;  % minimum number of nodes to calculate BC and other metrics
+
 %% Node cartography settings 
 Params.hubBoundaryWMdDeg = 2.5; % boundary that separates hub and non-hubs (default 2.5)
 Params.periPartCoef = 0.625; % boundary that separates peripheral node and none-hub connector (default: 0.625)

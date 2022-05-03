@@ -1,8 +1,9 @@
-function [NetMet] = ExtractNetMetOrganoid(adjMs,lagval,Info,HomeDir,Params)
+function [NetMet] = ExtractNetMetOrganoid(adjMs, spikeTimes, lagval,Info,HomeDir,Params)
 %{
 INPUTS 
 -------------
 adjMs : (N x N matrix)
+spikeTimes : 
 lagval : (int)
     lag for use in STTC calculation (in ms)
 Info : 
@@ -31,7 +32,7 @@ Parameters defined in this function:
 
 LatticeNetwork : (N x N matrix) 
 Ci : 
-
+aN : number of active nodes
 %}
 
 % edge threshold for adjM
@@ -114,8 +115,8 @@ for e = 1:length(lagval)
         Eglob = efficiency_bin(adjM);
     end
     
-    % Lattice-like model
-    if length(adjM)>25
+% Lattice-like model
+if length(adjM)> Params.minNumberOfNodesToCalNetMet
         ITER = 10000;
         Z = pdist(adjM);
         D = squareform(Z);
@@ -128,32 +129,32 @@ for e = 1:length(lagval)
     
         plotNullModelIterations(met, met2, lagval, e, char(Info.FN), Params)
     
-    %% Calculate network metrics (+normalization).
-    
-        [SW, SWw, CC, PL] = small_worldness_RL_wu(adjM,R,LatticeNetwork);
-    
-    % local efficiency
-    %   For ease of interpretation of the local efficiency it may be
-    %   advantageous to rescale all weights to lie between 0 and 1.
-    if strcmp(Params.adjMtype,'weighted')
-        adjM_nrm = weight_conversion(adjM, 'normalize');
-        Eloc = efficiency_wei(adjM_nrm,2);
-    elseif strcmp(Params.adjMtype,'binary')
-        adjM_nrm = weight_conversion(adjM, 'normalize');
-        Eloc = efficiency_bin(adjM_nrm,2);
-    end
+        %% Calculate network metrics (+normalization).
+        
+            [SW, SWw, CC, PL] = small_worldness_RL_wu(adjM,R,LatticeNetwork);
+        
+        % local efficiency
+        %   For ease of interpretation of the local efficiency it may be
+        %   advantageous to rescale all weights to lie between 0 and 1.
+        if strcmp(Params.adjMtype,'weighted')
+            adjM_nrm = weight_conversion(adjM, 'normalize');
+            Eloc = efficiency_wei(adjM_nrm,2);
+        elseif strcmp(Params.adjMtype,'binary')
+            adjM_nrm = weight_conversion(adjM, 'normalize');
+            Eloc = efficiency_bin(adjM_nrm,2);
+        end
    
-    % betweenness centrality
-    %   Note: Betweenness centrality may be normalised to the range [0,1] as
-    %   BC/[(N-1)(N-2)], where N is the number of nodes in the network.
-    if strcmp(Params.adjMtype,'weighted')
-        smallFactor = 0.01; % prevent division by zero
-        pathLengthNetwork = 1 ./ (adjM + smallFactor);   
-        BC = betweenness_wei(pathLengthNetwork);
-    elseif strcmp(Params.adjMtype,'binary')
-        BC = betweenness_bin(adjM);
-    end
-    BC = BC/((length(adjM)-1)*(length(adjM)-2));
+        % betweenness centrality
+        %   Note: Betweenness centrality may be normalised to the range [0,1] as
+        %   BC/[(N-1)(N-2)], where N is the number of nodes in the network.
+        if strcmp(Params.adjMtype,'weighted')
+            smallFactor = 0.01; % prevent division by zero
+            pathLengthNetwork = 1 ./ (adjM + smallFactor);   
+            BC = betweenness_wei(pathLengthNetwork);
+        elseif strcmp(Params.adjMtype,'binary')
+            BC = betweenness_bin(adjM);
+        end
+        BC = BC/((length(adjM)-1)*(length(adjM)-2));
     
      else
      SW = nan;
@@ -162,7 +163,7 @@ for e = 1:length(lagval)
      PL = nan;
      Eloc = nan;
      BC = nan;
-    end
+ end
     
     % participation coefficient
 %     PC = participation_coef(adjM,Ci,0);
@@ -208,7 +209,7 @@ for e = 1:length(lagval)
     Hub3 = length(find(GC>=3))/aN;
 
     %% TODO:Find hubs and plot raster sorted by hubs 
-    % [hub_peripheral_xy, hub_metrics, hub_score_index] = fcn_find_hubs_wu(channels,raster,adjM,fs)
+    [hub_peripheral_xy, hub_metrics, hub_score_index] = fcn_find_hubs_wu(channels,raster,adjM,Params.fs);
     
     %% electrode specific half violin plots
     try
