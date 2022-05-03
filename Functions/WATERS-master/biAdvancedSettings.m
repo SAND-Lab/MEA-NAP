@@ -57,7 +57,7 @@ end
 
 option = 'list';
 
-%% Netowrk analysis settings 
+%% Network analysis settings 
 Params.minNumberOfNodesToCalNetMet = 25;  % minimum number of nodes to calculate BC and other metrics
 
 %% Node cartography settings 
