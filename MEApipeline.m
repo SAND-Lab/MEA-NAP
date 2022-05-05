@@ -80,7 +80,7 @@ Params.optionalStepsToRun = {''};
 
 % run spike detection?
 detectSpikes = 0; % 1 = yes, 0 = no
-Params.runSpikeCheckOnPrevSpikeData = 1;  % whether to run spike detection check without spike deteciton 
+Params.runSpikeCheckOnPrevSpikeData = 0;  % whether to run spike detection check without spike deteciton 
 
 if Params.runSpikeCheckOnPrevSpikeData
     fprintf(['You specified to run spike detection check on previously extracted spikes, \n', ... 
@@ -161,7 +161,7 @@ Params.figEps = 0; % figures saved as .eps format, 1 = yes, 0 = no
 % machines at least) when set to 1 (by only plotting on one figure handle)
 Params.showOneFig = 1;  % otherwise, 0 = pipeline shows plots as it runs
 
-%% END OF USER REQUIRED INPUT SECTION
+%% END OF USER REQUIRED INm PUT SECTION
 % The rest of the MEApipeline.m runs automatically. Do not change after this line
 % unless you are an expert user.
 
