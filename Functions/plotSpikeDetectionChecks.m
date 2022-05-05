@@ -239,6 +239,22 @@ for i = 1:length(methods)
     if ~strcmp(method, 'all')
         spk_method = find(unique_idx == i);
         spk_waves_method = spikeWaveforms{channel}.(method);
+
+        % convert spike waveform to the appropriate units as well 
+        if isstring(Params.potentialDifferenceUnit)
+            if strcmp(Params.potentialDifferenceUnit, 'V')
+                spk_waves_method = spk_waves_method .* 10^6;
+            elseif strcmp(Params.potentialDifferenceUnit, 'mV')
+                spk_waves_method = spk_waves_method .* 10^3;
+            elseif strcmp(Params.potentialDifferenceUnit, 'uV')
+                spk_waves_method = spk_waves_method;
+            end
+        else 
+            % convert to V by provided multiplication factor, then convert to uV
+            % for plotting
+            spk_waves_method = spk_waves_method .* Params.potentialDifferenceUnit .* 10^6;
+        end 
+
         if size(spk_waves_method,2) > 1000
             spk_waves_method = spk_waves_method(:, round(linspace(1,length(spk_waves_method),1000)));
         end
