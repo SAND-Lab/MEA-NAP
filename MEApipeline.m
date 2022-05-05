@@ -31,9 +31,9 @@ addpath('Images')
 spreadsheet_file_type = 'csv'; % 'csv';
 % spread_sheet_filename = 'myRecordingsList.xlsx'; % name of excel spreadsheet
 % spreadsheet_filename = 'myRecordingsList.csv'; % name of csv file
-% spreadsheet_filename = 'hpc_dataset.csv'; % other examples
+spreadsheet_filename = 'hpc_dataset_subset.csv'; % other examples
 % spreadsheet_filename = 'axiontest2.csv';
-spreadsheet_filename = 'axiontest_wExcludedElectrode.csv';
+% spreadsheet_filename = 'axiontest_wExcludedElectrode.csv';
 
 % These options only apply if using excel spreadsheet
 sheet = 1; % specify excel sheet
@@ -48,26 +48,26 @@ Params.output_spreadsheet_file_type = 'csv';
 
 
 % Sampling frequency of your recordings
-Params.fs = 12500; % HPC: 25000, Axion: 12500;
-Params.dSampF = 12500; % down sampling factor for spike detection check, 
+Params.fs = 25000; % HPC: 25000, Axion: 12500;
+Params.dSampF = 25000; % down sampling factor for spike detection check, 
 % by default should be equal to your recording sampling frequency
 Params.potentialDifferenceUnit = 'uV';  % the unit which you are recording electrical signals 
 % if this is a number, then will multiply this number to get potential
 % difference in units of V
 
 % use previously analysed data?
-Params.priorAnalysis = 0; % 1 = yes, 0 = no
+Params.priorAnalysis = 1; % 1 = yes, 0 = no
 % path to previously analysed data
-%Params.priorAnalysisPath = ['/Users/yourfolder/AnalysisPipeline/OutputData20Jan2022v3']; % example format
-Params.priorAnalysisPath = ['/Users/timothysit/AnalysisPipeline/OutputData16Feb2022'];
+Params.priorAnalysisPath = ['/Users/timothysit/AnalysisPipeline/OutputData20Jan2022v3']; % example format
+% Params.priorAnalysisPath = ['/Users/timothysit/AnalysisPipeline/OutputData16Feb2022'];
 % prior analysis date in format given in output data folder e.g., '27Sep2021'
-%Params.priorAnalysisDate = '20Jan2022';
-Params.priorAnalysisDate = '16Feb2022';
+Params.priorAnalysisDate = '20Jan2022';
+%Params.priorAnalysisDate = '16Feb2022';
 % which section to start new analysis from:
 % 2 = neuronal activity (uses spike detection from step 1)
 % 3 = functional connectivity (uses spike detection from step 1)
 % 4 = network activity (uses functional connectivity outputs from step 3)
-Params.startAnalysisStep = 2; % if Params.priorAnalysis=0 (line 56), default is to start with spike detection
+Params.startAnalysisStep = 1; % if Params.priorAnalysis=0 (line 56), default is to start with spike detection
 Params.optionalStepsToRun = {''};
 % Supported optional steps: 
 % getDensityLandscape : calculate and plot distribution of participation
@@ -79,12 +79,20 @@ Params.optionalStepsToRun = {''};
 % comparePrePostTTX : compare pre/post TTX activity in data
 
 % run spike detection?
-detectSpikes = 1; % 1 = yes, 0 = no
+detectSpikes = 0; % 1 = yes, 0 = no
+Params.runSpikeCheckOnPrevSpikeData = 1;  % whether to run spike detection check without spike deteciton 
+
+if Params.runSpikeCheckOnPrevSpikeData
+    fprintf(['You specified to run spike detection check on previously extracted spikes, \n', ... 
+            'so I will skip over the spike detection step \n'])
+    detectSpikes = 0;
+end 
+
 % specify folder with raw data files for spike detection
 % currently does not accept path names with colon in them
-% rawData = '/Volumes/T7/schroter2015_mat';
+rawData = '/Volumes/T7/schroter2015_mat';
 % rawData = '/Users/timothysit/AnalysisPipeline/localRawData';
-rawData = '/Users/timothysit/AnalysisPipeline/2022-03-16-test-raw-data';
+% rawData = '/Users/timothysit/AnalysisPipeline/2022-03-16-test-raw-data';
 % advanced settings are automatically set but can be modified by opening
 % the following function
 biAdvancedSettings
@@ -233,9 +241,9 @@ end
 
 %% Step 1 - spike detection
 
-if Params.priorAnalysis == 0
+if (Params.priorAnalysis == 0) || (Params.runSpikeCheckOnPrevSpikeData)
 
-    if detectSpikes == 1
+    if (detectSpikes == 1) || (Params.runSpikeCheckOnPrevSpikeData)
         addpath(rawData)
     else
         addpath(spikeDetectedData)
@@ -244,15 +252,21 @@ if Params.priorAnalysis == 0
     savePath = strcat(HomeDir,'/OutputData',Params.Date,'/1_SpikeDetection/1A_SpikeDetectedData/');
     savePath(strfind(savePath,'\'))='/';
     
-    % Run spike detectiond
-    batchDetectSpikes(rawData, savePath, option, ExpName, Params);
-    cd(HomeDir)
+    % Run spike detection
+    if detectSpikes == 1
+        batchDetectSpikes(rawData, savePath, option, ExpName, Params);
+        cd(HomeDir)
+    end 
 
     % Plot spike detection results 
 
     for  ExN = 1:length(ExpName)
         
-        cd(strcat(HomeDir,'/OutputData',Params.Date,'/1_SpikeDetection/1A_SpikeDetectedData/'))
+        if Params.runSpikeCheckOnPrevSpikeData
+            cd(fullfile(spikeDetectedData, '1_SpikeDetection', '1A_SpikeDetectedData'))
+        else
+            cd(strcat(HomeDir,'/OutputData',Params.Date,'/1_SpikeDetection/1A_SpikeDetectedData/'))
+        end 
         load(strcat(char(ExpName(ExN)),'_spikes.mat'),'spikeTimes','spikeDetectionResult','channels','spikeWaveforms')
         cd(HomeDir); cd(strcat('OutputData',Params.Date)); cd('ExperimentMatFiles')
         load(strcat(char(ExpName(ExN)),'_',Params.Date,'.mat'),'Info')
@@ -275,10 +289,13 @@ end
 if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisStep<3
 
     % Format spike data
-
+    % TODO: deal with the case where spike data is already formatted...
     for  ExN = 1:length(ExpName)
-
+            
         cd(strcat('OutputData',Params.Date)); cd('ExperimentMatFiles')
+
+        % experimentMatFileData = load(strcat(char(ExpName(ExN)),'_',Params.Date,'.mat'));
+
         load(strcat(char(ExpName(ExN)),'_',Params.Date,'.mat'),'Info')
         cd(HomeDir)
 
@@ -412,7 +429,7 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
 
         cd(strcat('OutputData',Params.Date)); cd('4_NetworkActivity')
         cd('4A_IndividualNetworkAnalysis'); cd(char(Info.Grp))
-        NetMet = ExtractNetMetOrganoid(adjMs,Params.FuncConLagval,Info,HomeDir,Params);
+        NetMet =ExtractNetMetOrganoid(adjMs, spikeTimes, Params.FuncConLagval,Info,HomeDir,Params);
 
         cd(HomeDir); cd(strcat('OutputData',Params.Date)); cd('ExperimentMatFiles')
 
