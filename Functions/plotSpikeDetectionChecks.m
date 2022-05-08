@@ -1,11 +1,18 @@
 function plotSpikeDetectionChecks(spikeTimes,spikeDetectionResult,spikeWaveforms, ... 
     Info,Params)
 %{
+Make plots to check that spike detection worked properly, and plots
+spike-related statistics such as the firing rate of each unit / recorded
+from each electrode.
 
-INPUT 
---------
-spikeTimes : 
-Info : (structure)
+Parameters 
+----------
+spikeTimes : cell array of structures
+   1 X N cell array, where N is the number of electrodes / units 
+   each item in a cell should be a 1 x 1 struct
+   which contain fields corresponding to the spike detection methods used,
+   eg. bior1p5 [numSpikes x 1 double]
+Info : structure
     Info.FN : 
     Info.raw_file_path : (str)
         path to the folder including the raw matlab files
@@ -15,7 +22,7 @@ Params.dSampF : (int)
     to the sampling rate of your acquisition system
 
 
-OUTPUT 
+Returns 
 -------
 
 
@@ -29,8 +36,7 @@ FN = char(Info.FN);
 mkdir(FN)
 cd(FN)
 
-%% frequency plot
-
+%% load raw voltage trace data
 raw_file_name = strcat(FN,'.mat');
 
 if isfield(Info, 'rawData')
@@ -59,6 +65,8 @@ else
     dat = dat .* Params.potentialDifferenceUnit .* 10^6;
 end 
 
+%% filter voltage data 
+
 filtered_data = zeros(size(dat));
 num_chan = size(dat,2);
 
@@ -84,6 +92,7 @@ while channel == 15
 end
 trace = filtered_data(:, channel);
 
+%% firing rate plot
 
 p = [100 100 1200 600];
 set(0, 'DefaultFigurePosition', p)
@@ -150,12 +159,7 @@ tiledlayout(5,2,'TileSpacing','Compact');
 for l = 1:9
     
     bin_ms = 30;  % What is this???
-    channel = 15;  % this seems to be some way to prevent plotting of channel 15? 
-                   % TODO: this can be removed / take account if which
-                   % electrode to exclude
-    while channel == 15
-        channel = randi([1,num_chan],1);
-    end
+    channel = randi([1,num_chan],1);
     trace = filtered_data(:, channel);
     
     nexttile
