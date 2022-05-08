@@ -31,9 +31,9 @@ addpath('Images')
 spreadsheet_file_type = 'csv'; % 'csv';
 % spread_sheet_filename = 'myRecordingsList.xlsx'; % name of excel spreadsheet
 % spreadsheet_filename = 'myRecordingsList.csv'; % name of csv file
-spreadsheet_filename = 'hpc_dataset_subset.csv'; % other examples
+% spreadsheet_filename = 'hpc_dataset_subset.csv'; % other examples
 % spreadsheet_filename = 'axiontest2.csv';
-% spreadsheet_filename = 'axiontest_wExcludedElectrode.csv';
+spreadsheet_filename = 'axiontest_wExcludedElectrode.csv';
 
 % These options only apply if using excel spreadsheet
 sheet = 1; % specify excel sheet
@@ -48,26 +48,26 @@ Params.output_spreadsheet_file_type = 'csv';
 
 
 % Sampling frequency of your recordings
-Params.fs = 25000; % HPC: 25000, Axion: 12500;
-Params.dSampF = 25000; % down sampling factor for spike detection check, 
+Params.fs = 12500; % HPC: 25000, Axion: 12500;
+Params.dSampF = 12500; % down sampling factor for spike detection check, 
 % by default should be equal to your recording sampling frequency
-Params.potentialDifferenceUnit = 'uV';  % the unit which you are recording electrical signals 
+Params.potentialDifferenceUnit = 'V';  % the unit which you are recording electrical signals 
 % if this is a number, then will multiply this number to get potential
 % difference in units of V
 
 % use previously analysed data?
-Params.priorAnalysis = 1; % 1 = yes, 0 = no
+Params.priorAnalysis = 0; % 1 = yes, 0 = no
 % path to previously analysed data
 Params.priorAnalysisPath = ['/Users/timothysit/AnalysisPipeline/OutputData20Jan2022v3']; % example format
 % Params.priorAnalysisPath = ['/Users/timothysit/AnalysisPipeline/OutputData16Feb2022'];
 % prior analysis date in format given in output data folder e.g., '27Sep2021'
-Params.priorAnalysisDate = '20Jan2022';
-%Params.priorAnalysisDate = '16Feb2022';
+% Params.priorAnalysisDate = '20Jan2022';
+Params.priorAnalysisDate = '24Feb2022';
 % which section to start new analysis from:
 % 2 = neuronal activity (uses spike detection from step 1)
 % 3 = functional connectivity (uses spike detection from step 1)
 % 4 = network activity (uses functional connectivity outputs from step 3)
-Params.startAnalysisStep = 1; % if Params.priorAnalysis=0 (line 56), default is to start with spike detection
+Params.startAnalysisStep = 1; % if Params.priorAnalysis=0, default is to start with spike detection
 Params.optionalStepsToRun = {''};
 % Supported optional steps: 
 % getDensityLandscape : calculate and plot distribution of participation
@@ -79,8 +79,8 @@ Params.optionalStepsToRun = {''};
 % comparePrePostTTX : compare pre/post TTX activity in data
 
 % run spike detection?
-detectSpikes = 0; % 1 = yes, 0 = no
-Params.runSpikeCheckOnPrevSpikeData = 0;  % whether to run spike detection check without spike deteciton 
+detectSpikes = 1; % 1 = yes, 0 = no
+Params.runSpikeCheckOnPrevSpikeData = 0; % whether to run spike detection check without spike deteciton 
 
 if Params.runSpikeCheckOnPrevSpikeData
     fprintf(['You specified to run spike detection check on previously extracted spikes, \n', ... 
@@ -90,8 +90,8 @@ end
 
 % specify folder with raw data files for spike detection
 % currently does not accept path names with colon in them
-rawData = '/Volumes/T7/schroter2015_mat';
-% rawData = '/Users/timothysit/AnalysisPipeline/localRawData';
+% rawData = '/Volumes/T7/schroter2015_mat';
+rawData = '/Users/timothysit/AnalysisPipeline/localRawData';
 % rawData = '/Users/timothysit/AnalysisPipeline/2022-03-16-test-raw-data';
 % advanced settings are automatically set but can be modified by opening
 % the following function
@@ -161,7 +161,7 @@ Params.figEps = 0; % figures saved as .eps format, 1 = yes, 0 = no
 % machines at least) when set to 1 (by only plotting on one figure handle)
 Params.showOneFig = 1;  % otherwise, 0 = pipeline shows plots as it runs
 
-%% END OF USER REQUIRED INm PUT SECTION
+%% END OF USER REQUIRED INPUT SECTION
 % The rest of the MEApipeline.m runs automatically. Do not change after this line
 % unless you are an expert user.
 
@@ -429,7 +429,11 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
 
         cd(strcat('OutputData',Params.Date)); cd('4_NetworkActivity')
         cd('4A_IndividualNetworkAnalysis'); cd(char(Info.Grp))
-        NetMet =ExtractNetMetOrganoid(adjMs, spikeTimes, Params.FuncConLagval,Info,HomeDir,Params);
+        
+        addpath(fullfile(spikeDetectedData, '1_SpikeDetection', '1A_SpikeDetectedData'));
+        [spikeMatrix,spikeTimes,Params,Info] = formatSpikeTimes(char(Info.FN),Params,Info);
+        spikeMatirx = full(spikeMatrix);
+        NetMet = ExtractNetMetOrganoid(adjMs, spikeTimes, Params.FuncConLagval,Info,HomeDir,Params, spikeMatrix);
 
         cd(HomeDir); cd(strcat('OutputData',Params.Date)); cd('ExperimentMatFiles')
 
