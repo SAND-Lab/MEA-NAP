@@ -1,21 +1,33 @@
 function [F1] = StandardisedNetworkPlot(adjM, coords, edge_thresh, z, plotType, FN, pNum, Params, lagval, e)
+%{
+function to plot the graph network 
+Parameters
+----------
+adjM : N x N matrix
+    adjacency matrix 
+coords : N x 2 matrix 
+    the x and y coordinates of each node or electrode 
+    currently assumes that the value ranges from 1 - 8 on both x and y axis
+edge_thresh : float 
+    a value between 0 and 1 for the minimum correlation to plot
+z : N X 1 vector 
+    the network metric used to determine the size of the plotted nodes
+    eg: node degree or node strength
+plotType : str
+    'MEA' to plot nodes with their respective electrode
+    coordinates and 'circular' to plot nodes in a circle
+FN : str
+    name of file/recording
+pNum - number to precede name of figure when it is saved
 
-% script to plot the graph network 
-% 
-% INPUTS:
-%   adjM - adjacency matrix 
-%   coords - electrode/node coordinates (x and y, num nodes * 2)
-%   edge_thresh - a value between 0 and 1 for the minimum correlation to
-%       plot
-%   z - the network metric used to determine the size of the plotted nodes
-%       eg: node degree or node strength
-%   plotType - 'MEA' to plot nodes with their respective electrode
-%       coordinates and 'circular' to plot nodes in a circle
-%   FN - name of file/recording
-%   pNum - number to precede name of figure when it is saved
-% OUTPUTs
-%   F1 - 
-% author RCFeord August 2021
+Returns 
+-------
+   F1 - 
+author RCFeord August 2021
+edited by Tim Sit 
+%}
+
+num_nodes = size(adjM, 2);
 
 %% plot
 
@@ -44,7 +56,6 @@ yc = coords(:,2);
 
 threshMax = max(adjM(:));
 minNonZeroEdge = min(min(adjM(adjM>0))); 
-
 if strcmp(plotType,'MEA')
     
     max_ew = 4; % maximum edge width for plotting
@@ -52,8 +63,8 @@ if strcmp(plotType,'MEA')
     light_c = [0.8 0.8 0.8]; % lightest edge colour
     
     count = 0;
-    for elecA = 1:length(coords)
-        for elecB = 1:length(coords)
+    for elecA = 1:num_nodes
+        for elecB = 1:num_nodes
             if adjM(elecA,elecB) >= edge_thresh && elecA ~= elecB && ~isnan(adjM(elecA,elecB))
                 count = count +1;
                 xco(count,:) = [xc(elecA),xc(elecB)];
@@ -181,8 +192,13 @@ end
 %% add nodes
 
 if strcmp(plotType,'MEA')
-    uniqueXc = sort(unique(xc));
-    nodeScaleF = max(z)/(uniqueXc(2)-uniqueXc(1));
+    % What is nodeScaleF, and why is it calculated this way???
+    %uniqueXc = sort(unique(xc))
+    %nodeScaleF = max(z)/(uniqueXc(2)-uniqueXc(1));  % This line was
+    %originally meant to deal with scaling things but the minimum distance
+    %between electrodes, but this can lead to very small dots 
+    % TODO: perhaps add option to allow user to control this
+    nodeScaleF = max(z);
     for i = 1:length(adjM)
         if z(i)>0
             pos = [xc(i)-(0.5*z(i)/nodeScaleF) yc(i)-(0.5*z(i)/nodeScaleF) z(i)/nodeScaleF z(i)/nodeScaleF];

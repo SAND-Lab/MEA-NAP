@@ -50,7 +50,7 @@ z2nameToShortHand('local connectivity') = 'Eloc';
 
 
 %% add edges
-
+num_nodes = size(adjM, 2);
 threshMax = max(adjM(:));
 minNonZeroEdge = min(min(adjM(adjM>0))); 
 
@@ -61,8 +61,8 @@ if strcmp(plotType,'MEA')
     light_c = [0.8 0.8 0.8]; % lightest edge colour
     
     count = 0;
-    for elecA = 1:length(coords)
-        for elecB = 1:length(coords)
+    for elecA = 1:num_nodes
+        for elecB = 1:num_nodes
             if adjM(elecA,elecB) >= edge_thresh && elecA ~= elecB && ~isnan(adjM(elecA,elecB))
                 count = count +1;
                 xco(count,:) = [xc(elecA),xc(elecB)];
