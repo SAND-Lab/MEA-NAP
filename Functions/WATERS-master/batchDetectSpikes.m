@@ -1,31 +1,34 @@
 function batchDetectSpikes(dataPath, savePath, option, files, params)
+%{
+Master script for spike detection using CWT method. 
+Runs spike detection through recordings, cost parameters, electrodes, and wavelets.
 
-% Description:
-%	Master script for spike detection using CWT method. Runs spike
-%	detection through recordings, cost parameters, electrodes, and
-%	wavelets.
+Parameters:
+-----------
+dataPath : str or character
+    path (ending with '/') to the folder containing data to be analyzed
+savePath : str or character
+    path (ending with '/') to the folder where spike detection
+            output will be saved
+option: 
+    pass either path to files ('path') or list of files ('list');
 
-% INPUT:
-%
-%   dataPath: path (ending with '/') to the folder containing data to be
-%             analyzed
-%
-%   savePath: path (ending with '/') to the folder where spike detection
-%             output will be saved
-%
-%   option: pass either path to files ('path') or list of files ('list');
-%
-%   params: [optional] argument to pass structure containing parameters;
-%           otherwise, run setParams() first to set parameters
-      % nSpikes : number of spikes use to make the custom threshold
-      % template
-% OUTPUT: 
+params: structure
+    [optional] argument to pass structure containing parameters;
+      otherwise, run setParams() first to set parameters
+      nSpikes : number of spikes use to make the custom threshold
+      template
+
+Returns
+-------
+
 
 % Author:
 %   Jeremy Chabros, University of Cambridge, 2020
 %   email: jjc80@cam.ac.uk
 %   github.com/jeremi-chabros/CWT
-
+% Edited by Tim SIt
+%}
 
 arguments
     dataPath;
@@ -173,6 +176,7 @@ for recording = 1:numel(files)
     
     data = file.dat;
     channels = file.channels;
+    num_channels = length(channels);  
     fs = file.fs;
     ttx = contains(fileName, 'TTX');
     params.duration = length(data)/fs;
@@ -199,12 +203,12 @@ for recording = 1:numel(files)
             disp('Detecting spikes...');
             disp(['L = ' num2str(L)]);
             
-            % Pre-allocate for your own good
-            spikeTimes = cell(1,60);
-            spikeWaveforms = cell(1,60);
-            mad = zeros(1,60);
-            variance = zeros(1,60);
-            absThreshold = zeros(1, 60);
+            % Pre-allocate vectors for storing spike features
+            spikeTimes = cell(1,num_channels);
+            spikeWaveforms = cell(1,num_channels);
+            mad = zeros(1,num_channels);
+            variance = zeros(1,num_channels);
+            absThreshold = zeros(1, num_channels);
 
             numChannelsInData = size(data, 2);
             if numChannelsInData ~= length(channels) 
