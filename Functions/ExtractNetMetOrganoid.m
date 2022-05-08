@@ -1,4 +1,4 @@
-function [NetMet] = ExtractNetMetOrganoid(adjMs, spikeTimes, lagval,Info,HomeDir,Params)
+function [NetMet] = ExtractNetMetOrganoid(adjMs, spikeTimes, lagval,Info,HomeDir,Params, spikeMatrix)
 %{
 INPUTS 
 -------------
@@ -8,10 +8,15 @@ lagval : (int)
     lag for use in STTC calculation (in ms)
 Info : 
 HomeDir :
-Params : contains parameters for analysis and plotting, notably, the key
-ones use are
-    Params.oneFigure : one shared figure handle for all figures (so figurse don't pop
-    in and out whilst the code is running the background)
+Params : structure 
+    contains parameters for analysis and plotting, notably, the key
+    ones use are
+        Params.oneFigure : one shared figure handle for all figures (so figurse don't pop
+            in and out whilst the code is running the background)
+        coords : N X 2 matrix 
+           the coordinates of each network 
+
+spikeMatrix : (N x T sparse or full matrix)
 
 % OUTPUTS
 ------------
@@ -36,8 +41,8 @@ aN : number of active nodes
 %}
 
 % edge threshold for adjM
-edge_thresh = 0.0001;
 
+edge_thresh = 0.0001;
 mkdir(char(Info.FN))
 cd(char(Info.FN))
 
@@ -210,7 +215,9 @@ else
     Hub3 = length(find(GC>=3))/aN;
 
     %% TODO:Find hubs and plot raster sorted by hubs 
-    [hub_peripheral_xy, hub_metrics, hub_score_index] = fcn_find_hubs_wu(channels,raster,adjM,Params.fs);
+    % convert spike times to spike matrix 
+
+    [hub_peripheral_xy, hub_metrics, hub_score_index] = fcn_find_hubs_wu(Info.channels,spikeMatrix,adjM,Params.fs);
     
     %% electrode specific half violin plots
     try
@@ -249,31 +256,30 @@ else
             13,23,12,22,33,21,32,31,44,43,41,42,52,51,53,54,61,62,71,63, ..., 
             72,82,73,83,64,74,84,85,75,65,86,76,87,77,66,78,67,68,55,56,58,57];
     end
-    coords(:,1) = floor(channels/10);
-    if size(channels, 1) == 1
-        channels = channels';
-    end 
-    coords(:,2) = channels - coords(:,1)*10;
-    
-    % simple grid network plot
-    StandardisedNetworkPlot(adjM, coords, edge_thresh, ND, 'MEA', char(Info.FN),'2',Params,lagval,e);
+    %coords(:,1) = floor(channels/10);
+    %if size(channels, 1) == 1
+    %    channels = channels';
+    %end 
+    %coords(:,2) = channels - coords(:,1)*10;
+   
+    StandardisedNetworkPlot(adjM, Params.coords, edge_thresh, ND, 'MEA', char(Info.FN),'2',Params,lagval,e);
    
     % grid network plot node degree betweeness centrality
-    StandardisedNetworkPlotNodeColourMap(adjM, coords, edge_thresh, ND, 'Node degree', BC, 'Betweeness centrality', 'MEA', char(Info.FN), '3', Params, lagval,e)
+    StandardisedNetworkPlotNodeColourMap(adjM, Params.coords, edge_thresh, ND, 'Node degree', BC, 'Betweeness centrality', 'MEA', char(Info.FN), '3', Params, lagval,e)
   
     % grid network plot node degree participation coefficient
-    StandardisedNetworkPlotNodeColourMap(adjM, coords, edge_thresh, ND, 'Node degree', PC, 'Participation coefficient', 'MEA', char(Info.FN), '4', Params, lagval,e)
+    StandardisedNetworkPlotNodeColourMap(adjM, Params.coords, edge_thresh, ND, 'Node degree', PC, 'Participation coefficient', 'MEA', char(Info.FN), '4', Params, lagval,e)
   
     % grid network plot node strength local efficiency
-    StandardisedNetworkPlotNodeColourMap(adjM, coords, edge_thresh, NS, 'Node strength', Eloc, 'local connectivity', 'MEA', char(Info.FN), '5', Params, lagval,e)
+    StandardisedNetworkPlotNodeColourMap(adjM, Params.coords, edge_thresh, NS, 'Node strength', Eloc, 'local connectivity', 'MEA', char(Info.FN), '5', Params, lagval,e)
   
     % simple circular network plot
     NDord = ND(On);
-    StandardisedNetworkPlot(adjMord, coords, edge_thresh, NDord, 'circular', char(Info.FN),'6',Params,lagval,e);
+    StandardisedNetworkPlot(adjMord, Params.coords, edge_thresh, NDord, 'circular', char(Info.FN),'6',Params,lagval,e);
     
     % node cartography
     NdCartDivOrd = NdCartDiv(On);
-    StandardisedNetworkPlotNodeCartography(adjMord, coords, edge_thresh, NdCartDivOrd, 'circular', char(Info.FN), '7', Params, lagval, e)
+    StandardisedNetworkPlotNodeCartography(adjMord, Params.coords, edge_thresh, NdCartDivOrd, 'circular', char(Info.FN), '7', Params, lagval, e)
     
    % colour map network plots where nodes are the same size
 %     StandardisedNetworkPlotNodeColourMap2(adjM, coords, 0.00001, PC, 'Participation coefficient', 'grid', char(Info.FN), Params)
