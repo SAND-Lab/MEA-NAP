@@ -88,74 +88,22 @@ Params.groupColors = [ ...
 % for y : 0 (bottom) to 1 (top)
 % note that the coordinates will be multiplied by 8 for plotting purposes, 
 % please do not remove that line
-Params.coords = [
-     1     1
-     1     2
-     1     3
-     1     4
-     1     5
-     1     6
-     1     7
-     1     8
-     2     1
-     2     2
-     2     3
-     2     4
-     2     5
-     2     6
-     2     7
-     2     8
-     3     1
-     3     2
-     3     3
-     3     4
-     3     5
-     3     6
-     3     7
-     3     8
-     4     1
-     4     2
-     4     3
-     4     4
-     4     5
-     4     6
-     4     7
-     4     8
-     5     1
-     5     2
-     5     3
-     5     4
-     5     5
-     5     6
-     5     7
-     5     8
-     6     1
-     6     2
-     6     3
-     6     4
-     6     5
-     6     6
-     6     7
-     6     8
-     7     1
-     7     2
-     7     3
-     7     4
-     7     5
-     7     6
-     7     7
-     7     8
-     8     1
-     8     2
-     8     3
-     8     4
-     8     5
-     8     6
-     8     7
-     8     8
-] / 8;
 
+% Default mutichannel systems 8 x 8 layout
+%
+channels = [21 31 41 51 61 71 12 22 32 42 52 62 72 82 13 23 33 43 53 63 ... 
+            73 83 14 24 34 44 54 64 74 84 15 25 35 45 55 65 75 85 16 26 ...
+            36 46 56 66 76 86 17 27 37 47 57 67 77 87 28 38 48 58 68 78];
+if size(channels, 1) == 1
+    channels = channels';
+end 
+Params.coords(:,1) = floor(channels/10);
+Params.coords(:,2) = channels - Params.coords(:,1)*10;
+Params.coords = Params.coords ./ 8; % convert to 0 - 1 system
+%}
 
+% Random coordinates
+%{
 x_min = 0;
 x_max = 1;
 y_min = 0;
@@ -168,19 +116,13 @@ Params.coords = [rand_x_coord, rand_y_coord];
 
 
 Params.coords  = Params.coords * 8;
-% The above is based on the following rule
-%{
-coords(:,1) = floor(channels/10);
-if size(channels, 1) == 1
-    channels = channels';
-end 
-coords(:,2) = channels - coords(:,1)*10;
 %}
 
-
+Params.coords  = Params.coords * 8;  % Do not remove this line after specifying coordinate positions in (0 - 1 format)
 num_channels = size(Params.coords, 1);
 figure;
-title('Provided electrode layout')
+subplot(1, 2, 1)
+title('Provided electrode layout (channel index)')
 for n_channel = 1:num_channels
     txt_to_plot = sprintf('%.f', n_channel);
     text(Params.coords(n_channel, 1), Params.coords(n_channel, 2), txt_to_plot)
@@ -189,19 +131,17 @@ xlabel('X coordinates')
 ylabel('Y coordinates')
 xlim([min(Params.coords(:, 1)) - 1, max(Params.coords(:, 1) + 1)])
 ylim([min(Params.coords(:, 2)) - 1, max(Params.coords(:, 2) + 1)])
+
+subplot(1, 2, 2)
+title('Provided electrode layout (channel ID)')
+for n_channel = 1:num_channels
+    txt_to_plot = sprintf('%.f', channels(n_channel));
+    text(Params.coords(n_channel, 1), Params.coords(n_channel, 2), txt_to_plot)
+end 
+xlabel('X coordinates')
+ylabel('Y coordinates')
+xlim([min(Params.coords(:, 1)) - 1, max(Params.coords(:, 1) + 1)])
+ylim([min(Params.coords(:, 2)) - 1, max(Params.coords(:, 2) + 1)])
+
 set(gcf, 'color', 'w')
-
-% Random network 
-% simple grid network plot
-%x_min = 1;
-%x_max = 8;
-%y_min = 1;
-%y_max = 8;
-%num_nodes = size(adjM, 1);
-
-%rand_x_coord = (x_max - x_min) .* rand(num_nodes,1) + x_min;
-%rand_y_coord = (y_max - y_min) .* rand(num_nodes, 1) + y_min; 
-%randomCoords = [rand_x_coord, rand_y_coord];
-%StandardisedNetworkPlot(adjM, randomCoords, edge_thresh, ND, 'MEA', char(Info.FN),'2',Params,lagval,e);
-
 
