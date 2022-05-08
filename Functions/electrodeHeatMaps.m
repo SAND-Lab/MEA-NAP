@@ -1,21 +1,38 @@
 function electrodeHeatMaps(FN,spikeMatrix,channels,spikeFreqMax,Params)
 %{
+Plots the firing rate of each node / electrode with a circle representing 
+the spatial location of the electrode / node, and the color representing 
+the firing rate (spikes/s)
 
-INPUT
+Parameters
 -----------
+FN : char
+    name of the recording file (including extention)
+    eg. 'HP_tc165_DIV28_24Feb2022.mat'
+spikeMatrix : T x N matrix
+channels : 1 x N vector 
+    the integer ID of each channel 
+spikeFreqMax : float
+    the maximum mean firing rate to include in the heatmap that is scaled 
+    the same way across the entire batch of recordings, to allow for visual
+    comparison between recordings
+Params : struct
+    the following fields are used 
+    coords : N x 2 matrix 
+        the first column is the x-coordinate of each node 
+        the second column is the y-coordinate of each node
+    fs : int 
+        the sampling frequency of the recording
+    figMat : bool 
+        whether to save figure in .fig format
+    figPng : bool 
+        whether to save figure in .png format
+    figEps : bool 
+        whether to save figure in .eps format
 
-FN : ? 
-spikeMatrix : ? 
-channels : ? 
-spikeFreqMax : ? 
-Params : (struct)
-
-
-OUTPUT 
------------
-
-
-
+Returns 
+-------
+None 
 %}
 
 %% create channels variable if it doesn't exist
@@ -40,10 +57,8 @@ if size(channels, 1) == 1
     channels = channels'; 
 end 
 
-coords(:,1) = floor(channels/10);
-coords(:,2) = channels - coords(:,1)*10;
-xc = coords(:,1);
-yc = coords(:,2);
+xc = Params.coords(:,1);
+yc = Params.coords(:,2);
 
 %% calculate spiking frequency
 
@@ -56,7 +71,7 @@ mycolours = colormap;
 
 nexttile
 uniqueXc = sort(unique(xc));
-nodeScaleF = (uniqueXc(2)-uniqueXc(1))*2/3;
+nodeScaleF = 2/3; 
 for i = 1:length(spikeCount)
     pos = [xc(i)-(0.5*nodeScaleF) yc(i)-(0.5*nodeScaleF) nodeScaleF nodeScaleF];
         try
@@ -82,8 +97,6 @@ cb.Label.String = 'mean firing rate (Hz)';
 title({strcat(regexprep(FN,'_','','emptymatch'),' Electrode heatmap scaled to recording'),' '});
 
 nexttile
-uniqueXc = sort(unique(xc));
-nodeScaleF = (uniqueXc(2)-uniqueXc(1))*2/3;
 for i = 1:length(spikeCount)
     pos = [xc(i)-(0.5*nodeScaleF) yc(i)-(0.5*nodeScaleF) nodeScaleF nodeScaleF];
         try
