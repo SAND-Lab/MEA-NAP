@@ -33,7 +33,7 @@ spreadsheet_file_type = 'csv'; % 'csv';
 % spreadsheet_filename = 'myRecordingsList.csv'; % name of csv file
 % spreadsheet_filename = 'hpc_dataset_subset.csv'; % other examples
 % spreadsheet_filename = 'axiontest2.csv';
-spreadsheet_filename = 'axiontest_wExcludedElectrode.csv';
+spreadsheet_filename = 'axiontest_wExcludedElectrode3.csv';
 
 % These options only apply if using excel spreadsheet
 sheet = 1; % specify excel sheet
@@ -51,7 +51,7 @@ Params.output_spreadsheet_file_type = 'csv';
 Params.fs = 12500; % HPC: 25000, Axion: 12500;
 Params.dSampF = 12500; % down sampling factor for spike detection check, 
 % by default should be equal to your recording sampling frequency
-Params.potentialDifferenceUnit = 'V';  % the unit which you are recording electrical signals 
+Params.potentialDifferenceUnit = 'uV';  % the unit which you are recording electrical signals 
 % if this is a number, then will multiply this number to get potential
 % difference in units of V
 
@@ -67,12 +67,12 @@ Params.priorAnalysisDate = '24Feb2022';
 % 2 = neuronal activity (uses spike detection from step 1)
 % 3 = functional connectivity (uses spike detection from step 1)
 % 4 = network activity (uses functional connectivity outputs from step 3)
-Params.startAnalysisStep = 1; % if Params.priorAnalysis=0, default is to start with spike detection
-Params.optionalStepsToRun = {''};
+Params.startAnalysisStep = 0; % if Params.priorAnalysis=0, default is to start with spike detection
+Params.optionalStepsToRun = {'runstats'};
 % Supported optional steps: 
 % getDensityLandscape : calculate and plot distribution of participation
 % coefficient and centrality 
-% runstats : calculates correlation of features across recording, and do 
+% runStats : calculates correlation of features across recording, and do 
 % classification of DIV and/or recording condition (eg. genotype) based 
 % on network metrics
 % generateCSV : generate CSV with file paths given folder containing mat files
@@ -197,12 +197,19 @@ if strcmp(spreadsheet_file_type, 'excel')
     ExpGrp = txt(:,3); % name of experimental group
     ExpDIV = num(:,1); % DIV number
 elseif strcmp(spreadsheet_file_type, 'csv')
-    csv_data = readtable(spreadsheet_filename, 'Delimiter','comma');
+    opts = detectImportOptions(spreadsheet_filename);
+    opts.Delimiter = ',';
+    opts.VariableNamesLine = 1;
+    % csv_data = readtable(spreadsheet_filename, 'Delimiter','comma');
+    csv_data = readtable(spreadsheet_filename, opts);
     ExpName =  csv_data{:, 1};
     ExpGrp = csv_data{:, 3};
     ExpDIV = csv_data{:, 2};
     if sum(strcmp('Ground',csv_data.Properties.VariableNames))
-        Params.electrodesToGroundPerRecording = csv_data.('Ground');
+        Params.electrodesToGroundPerRecording = csv_data.('Ground'); % this should be a 1 x N cell array 
+        if ~iscell(Params.electrodesToGroundPerRecording)
+            Params.electrodesToGroundPerRecording = {Params.electrodesToGroundPerRecording};
+        end 
     else 
         Params.electrodesToGroundPerRecording = [];
     end 
@@ -477,7 +484,15 @@ if ~any(strcmp(Params.optionalStepsToRun,'runStats'))
     recordingLevelFile = fullfile(Params.priorAnalysisPath, 'NetworkActivity_RecordingLevel.csv');
     recordingLevelData = readtable(recordingLevelFile);
     
+    plotSaveFolder = fullfile(Params.priorAnalysisPath, '5_Stats');
+    if ~isfolder(plotSaveFolder)
+        mkdir(plotSaveFolder)
+    end 
+
     featureCorrelation(nodeLevelData, recordingLevelData, Params);
+
+    doClassification(recordingLevelData, Params, plotSaveFolder);
+
 end 
 
 
