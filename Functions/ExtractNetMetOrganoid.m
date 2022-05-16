@@ -186,6 +186,18 @@ else
         mDist = mean(DistM,1);
         NE = 1./mDist;
         NE = NE';
+    elseif strcmp(Params.adjMtype,'binary')
+        DistM = distance_bin(adjM);
+        % exclude infinite distances (beware this treats disconnected nodes
+        % as having distance of 0, which is counterintuitive)
+        DistM = weight_conversion(DistM,'autofix');
+        % correct distances of disconnected nodes to make minimum distance
+        % of 1 because if they were connected path length would have to be
+        % at least 1
+        DistM(DistM==0) = 1;
+        mDist = mean(DistM,1);        
+        NE = 1./mDist;
+        NE = NE';
     end
     
     %% Hub classification
