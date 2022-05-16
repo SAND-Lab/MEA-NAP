@@ -163,8 +163,12 @@ for recording = 1:numel(files)
     if isfield(params, 'electrodesToGroundPerRecording')
         if ~isempty(params.('electrodesToGroundPerRecording'))
             groundElectrodeStr = params.('electrodesToGroundPerRecording'){recording}; 
-            groundElectrodeCell = strsplit(groundElectrodeStr,', ');
-            groundElectrodeVec = str2double(groundElectrodeCell);
+            if isstr(groundElectrodeStr)
+                groundElectrodeCell = strsplit(groundElectrodeStr,', ');
+                groundElectrodeVec = str2double(groundElectrodeCell);
+            else
+                groundElectrodeVec = groundElectrodeStr;
+            end 
             grd = groundElectrodeVec;
         end 
     end 
