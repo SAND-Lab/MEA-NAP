@@ -4,8 +4,9 @@ function [NdCartDiv,PopNumNC] = NodeCartography(Z,PC,lagval,e,FN,Params)
 % see Guimera and Amaral, 2005
 % 'Functional cartography of complex metabolic networks'
 % author RCFeord 2020
+% Updated by Tim Sit
 
-INPUT 
+Parameters 
 ---------
 Params.hubBoundaryWMdDeg = 2.5; % boundary that separates hub and non-hubs
 Params.periPartCoef = 0.625; % boundary that separates peripheral node and none-hub connector
@@ -13,9 +14,10 @@ Params.proHubpartCoef = 0.3; % boundary that separates provincial hub and connec
 Params.nonHubconnectorPartCoef = 0.8; % boundary that separates non-hub connector and non-hub kinless node
 Params.connectorHubPartCoef = 0.75;  % boundary that separates connector hub and kinless hub
 
-OUTPUT
-----------
-
+Returns
+-------
+NdCartDiv : 
+PopNumNC : 
 %}
 %% figure
 
@@ -133,15 +135,10 @@ imshow('NodeCartographyDiagram.jpg')
 
 %% save figure
 
-if Params.figMat == 1
-    saveas(gcf,strcat('9_adjM',num2str(lagval(e)),'msNodeCartography.fig'));
-end
-if Params.figPng == 1
-    saveas(gcf,strcat('9_adjM',num2str(lagval(e)),'msNodeCartography.png'));
-end
-if Params.figEps == 1
-    saveas(gcf,strcat('9_adjM',num2str(lagval(e)),'msNodeCartography.eps'));
-end
+% Export figure
+for nFigExt = 1:length(Params.figExt)
+    saveas(gcf,strcat(['9_adjM',num2str(lagval(e)),'msNodeCartography', Params.figExt{nFigExt}]));
+end 
 
 if ~isfield(Params, 'oneFigure')
     close all
