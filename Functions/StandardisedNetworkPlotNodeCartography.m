@@ -1,8 +1,9 @@
 function [] = StandardisedNetworkPlotNodeCartography(adjM, coords, edge_thresh, NdCartDiv, plotType, FN, pNum, Params, lagval, e)
-
+%{
 % script to plot the graph network 
 % 
-% INPUTS:
+Parameters
+----------
 %   adjM - adjacency matrix 
 %   coords - electrode/node coordinates (x and y, num nodes * 2)
 %   edge_thresh - a value between 0 and 1 for the minimum correlation to
@@ -17,9 +18,11 @@ function [] = StandardisedNetworkPlotNodeCartography(adjM, coords, edge_thresh, 
 %       coordinates and 'circular' to plot nodes in a circle
 %   FN - name of file/recording
 %   pNum - number to precede name of figure when it is saved
+Returns 
+-------
 
 % author RCFeord August 2021
-
+%}
 %% plot
 if ~isfield(Params, 'oneFigure')
     F1 = figure;
@@ -327,16 +330,9 @@ if strcmp(plotType,'circular')
 end
 
 %% save figure
-
-if Params.figMat == 1
-    saveas(gcf,strcat(pNum,'_',plotType,'_NetworkPlotNodeCartography.fig'));
-end
-if Params.figPng == 1
-    saveas(gcf,strcat(pNum,'_',plotType,'_NetworkPlotNodeCartography.png'));
-end
-if Params.figEps == 1
-    saveas(gcf,strcat(pNum,'_',plotType,'_NetworkPlotNodeCartography.eps'));
-end
+for nFigExt = 1:length(Params.figExt)
+    saveas(gcf,strcat([pNum,'_', plotType, '_NetworkPlotNodeCartography', Params.figExt{nFigExt}]));
+end 
 
 if ~isfield(Params, 'oneFigure')
     close all

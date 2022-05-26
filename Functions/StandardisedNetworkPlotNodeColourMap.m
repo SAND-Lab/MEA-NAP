@@ -1,14 +1,18 @@
-function [] = StandardisedNetworkPlotNodeColourMap(adjM, coords, edge_thresh, z, zname, z2, z2name, plotType, FN, pNum, Params, lagval, e)
+function [] = StandardisedNetworkPlotNodeColourMap(adjM, coords, edge_thresh, z, zname, z2, z2name, plotType, ...
+                                                   FN, pNum, Params, lagval, e)
 
-% script to plot the graph network 
-% 
-% INPUTS:
-%   adjM - adjacency matrix 
-%   coords - electrode/node coordinates (x and y, num nodes * 2)
-%   edge_thresh - a value between 0 and 1 for the minimum correlation to
-%       plot
-%   z - the network metric used to determine the size of the plotted nodes
-%       eg: node degree or node strength
+%{ 
+script to plot the graph network 
+Parameters
+----------
+adjM : matrix 
+    adjacency matrix 
+coords : matrix 
+    electrode/node coordinates (x and y, num nodes * 2)
+edge_thresh : float 
+    a value between 0 and 1 for the minimum correlation to plot
+z :  the network metric used to determine the size of the plotted nodes
+      eg: node degree or node strength
 %   zname - name of the z network metric
 %   z2 - the network metric used to determine the colour of the plotted
 %       nodes, eg: betweeness centrality or participation coefficient
@@ -18,8 +22,11 @@ function [] = StandardisedNetworkPlotNodeColourMap(adjM, coords, edge_thresh, z,
 %   FN - name of file/recording
 %   pNum - number to precede name of figure when it is saved
 
-% author RCFeord August 2021
-
+Returns 
+-------
+author RCFeord August 2021
+Updated by Tim Sit
+%}
 %% plot
 if ~isfield(Params, 'oneFigure')
     F1 = figure;
@@ -390,15 +397,10 @@ end
 
 %% save figure
 
-if Params.figMat == 1
-    saveas(gcf,strcat(pNum,'_',plotType,'_NetworkPlot',zname,z2name,'.fig'));
-end
-if Params.figPng == 1
-    saveas(gcf,strcat(pNum,'_',plotType,'_NetworkPlot',zname,z2name,'.png'));
-end
-if Params.figEps == 1
-    saveas(gcf,strcat(pNum,'_',plotType,'_NetworkPlot',zname,z2name,'.eps'));
-end
+% Export figure
+for nFigExt = 1:length(Params.figExt)
+    saveas(gcf,strcat([pNum,'_',plotType,'_NetworkPlot',zname,z2name, Params.figExt{nFigExt}]));
+end 
 
 if ~isfield(Params, 'oneFigure')
     close all

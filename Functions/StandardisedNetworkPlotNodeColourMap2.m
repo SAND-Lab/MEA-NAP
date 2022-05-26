@@ -1,8 +1,9 @@
 function [] = StandardisedNetworkPlotNodeColourMap2(adjM, coords, edge_thresh, z2, z2name, plotType, FN, Params)
-
+%{
 % script to plot the graph network 
 % 
-% INPUTS:
+Parameters
+----------
 %   adjM - adjacency matrix 
 %   coords - electrode/node coordinates (x and y, num nodes * 2)
 %   edge_thresh - a value between 0 and 1 for the minimum correlation to
@@ -15,9 +16,11 @@ function [] = StandardisedNetworkPlotNodeColourMap2(adjM, coords, edge_thresh, z
 %   z2name - name of the z2 network metric
 %   plotType - 'grid' to plot nodes with their respective electrode
 %       coordinates and 'circular' to plot nodes in a circle
-
-% author RCFeord August 2021
-
+Returns 
+-------
+author RCFeord August 2021
+updated by Tim Sit
+%}
 %% plot
 
 F1 = figure;
@@ -286,15 +289,11 @@ end
 
 %% save figure
 
-if Params.figMat == 1
-    saveas(gcf,strcat(FN,'_',plotType,'_NetworkPlot',z2name,'.fig'));
-end
-if Params.figPng == 1
-    saveas(gcf,strcat(FN,'_',plotType,'_NetworkPlot',z2name,'.png'));
-end
-if Params.figEps == 1
-    saveas(gcf,strcat(FN,'_',plotType,'_NetworkPlot',z2name,'.eps'));
-end
+for nFigExt = 1:length(Params.figExt)
+    saveas(gcf,strcat([FN,'_',plotType,'_NetworkPlot',z2name, Params.figExt{nFigExt}]));
+end 
+
+
 
 close all
 
