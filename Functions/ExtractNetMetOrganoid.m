@@ -1,12 +1,12 @@
 function [NetMet] = ExtractNetMetOrganoid(adjMs, spikeTimes, lagval,Info,HomeDir,Params, spikeMatrix)
 %{
-INPUTS 
--------------
-adjMs : (N x N matrix)
+Parameters 
+----------
+adjMs : N x N matrix
 spikeTimes : 
-lagval : (int)
+lagval : int
     lag for use in STTC calculation (in ms)
-Info : 
+Info : structure 
 HomeDir :
 Params : structure 
     contains parameters for analysis and plotting, notably, the key
@@ -18,8 +18,8 @@ Params : structure
 
 spikeMatrix : (N x T sparse or full matrix)
 
-% OUTPUTS
-------------
+Returns
+---------
 
 NetMet : (structure)
 
@@ -30,7 +30,6 @@ NetMet : (structure)
     - plotConnectivityProperties
     - plotNullModelIterations
     - electrodeSpecificMetrics
-    - NodeCartography
     - StandardisedNetworkPlot
 
 Parameters defined in this function: 
@@ -120,8 +119,8 @@ for e = 1:length(lagval)
         Eglob = efficiency_bin(adjM);
     end
     
-% Lattice-like model
-if length(adjM)> Params.minNumberOfNodesToCalNetMet
+    % Lattice-like model
+    if length(adjM)> Params.minNumberOfNodesToCalNetMet
         ITER = 10000;
         Z = pdist(adjM);
         D = squareform(Z);
@@ -136,7 +135,7 @@ if length(adjM)> Params.minNumberOfNodesToCalNetMet
     
         %% Calculate network metrics (+normalization).
         
-            [SW, SWw, CC, PL] = small_worldness_RL_wu(adjM,R,LatticeNetwork);
+        [SW, SWw, CC, PL] = small_worldness_RL_wu(adjM,R,LatticeNetwork);
         
         % local efficiency
         %   For ease of interpretation of the local efficiency it may be
@@ -226,31 +225,19 @@ else
     Hub4 = length(find(GC==4))/aN;
     Hub3 = length(find(GC>=3))/aN;
 
-    %% TODO:Find hubs and plot raster sorted by hubs 
+    %% Find hubs and plot raster sorted by hubs 
     % convert spike times to spike matrix 
-
     [hub_peripheral_xy, hub_metrics, hub_score_index] = fcn_find_hubs_wu(Info.channels,spikeMatrix,adjM,Params.fs);
     
-    %% electrode specific half violin plots
-    try
-        electrodeSpecificMetrics(ND, NS, EW, Eloc, BC, PC, Z, lagval, ... 
-            e, char(Info.FN), Params)
-    catch
-        fprintf('Warning: plotting of electrode specific metric failed \n')
-    end
-    
-    %% node cartography (plot)
-    
-    [NdCartDiv, PopNumNC] = NodeCartography(Z,PC,lagval,e,char(Info.FN),Params); 
+    PC_raw_idx = find(contains(hub_metrics.metric_names, 'Participation coefficient'));
+    PC_raw = hub_metrics.metrics_unsorted(:, PC_raw_idx);
+    Cmcblty_idx = find(contains(hub_metrics.metric_names, 'Communicability'));
+    Cmcblty = hub_metrics.metrics_unsorted(:, Cmcblty_idx);
 
-    PopNumNCt(e,:) = PopNumNC;
-    
-    NCpn1 = PopNumNC(1)/aN;
-    NCpn2 = PopNumNC(2)/aN;
-    NCpn3 = PopNumNC(3)/aN;
-    NCpn4 = PopNumNC(4)/aN;
-    NCpn5 = PopNumNC(5)/aN;
-    NCpn6 = PopNumNC(6)/aN;
+    %% electrode specific half violin plots
+
+    electrodeSpecificMetrics(ND, NS, EW, Eloc, BC, PC, Z, lagval, ... 
+            e, char(Info.FN), Params)
     
     %% network plots
     
@@ -290,8 +277,8 @@ else
     StandardisedNetworkPlot(adjMord, Params.coords, edge_thresh, NDord, 'circular', char(Info.FN),'6',Params,lagval,e);
     
     % node cartography
-    NdCartDivOrd = NdCartDiv(On);
-    StandardisedNetworkPlotNodeCartography(adjMord, Params.coords, edge_thresh, NdCartDivOrd, 'circular', char(Info.FN), '7', Params, lagval, e)
+    % NdCartDivOrd = NdCartDiv(On);
+    % StandardisedNetworkPlotNodeCartography(adjMord, Params.coords, edge_thresh, NdCartDivOrd, 'circular', char(Info.FN), '7', Params, lagval, e)
     
    % colour map network plots where nodes are the same size
 %     StandardisedNetworkPlotNodeColourMap2(adjM, coords, 0.00001, PC, 'Participation coefficient', 'grid', char(Info.FN), Params)
@@ -304,8 +291,10 @@ else
     %% reassign to structures
     
     Var = {'ND', 'EW', 'NS', 'aN', 'Dens', 'Ci', 'Q', 'nMod', 'Eglob', ...,
-        'CC', 'PL' 'SW','SWw' 'Eloc', 'BC', 'PC' , 'Z', 'NCpn1', ...,
-        'NCpn2','NCpn3','NCpn4','NCpn5','NCpn6','Hub4','Hub3', 'NE'};
+        'CC', 'PL' 'SW','SWw' 'Eloc', 'BC', 'PC' , 'PC_raw', 'Cmcblty', 'Z', ...
+        'Hub4','Hub3', 'NE'};
+
+    % 'NCpn1', 'NCpn2','NCpn3','NCpn4','NCpn5','NCpn6' were moved
     
     for i = 1:length(Var)
         VN = cell2mat(Var(i));
@@ -314,7 +303,7 @@ else
     end
     
     % clear variables
-    clear ND EW NS Dens Ci Q nMod CC PL SW SWw Eloc BC PC Z Var NCpn1 NCpn2 NCpn3 NCpn4 NCpn5 NCpn6 Hub3 Hub4 NE
+    clear ND EW NS Dens Ci Q nMod CC PL SW SWw Eloc BC PC Z Var NCpn1 NCpn2 NCpn3 NCpn4 NCpn5 NCpn6 Hub3 Hub4 NE PC_raw Cmcblty
     
 
 cd(HomeDir); cd(strcat('OutputData',Params.Date)); 
@@ -325,7 +314,7 @@ end
 
 %% plot node cartography proportions
 
-plotNodeCartographyProportions(NetMet, lagval, char(Info.FN), Params)
+% plotNodeCartographyProportions(NetMet, lagval, char(Info.FN), Params)
 
 
 %% plot metrics for different lag times
