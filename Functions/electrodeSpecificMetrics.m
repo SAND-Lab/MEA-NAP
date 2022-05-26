@@ -128,7 +128,7 @@ end
 
 
 for nFigExt = 1:length(Params.figExt)
-    saveas(F1,strcat('8_adjM', num2str(lagval(e)),'msGraphMetricsByNode', Params.figExt{nFigExt}));
+    saveas(gcf,strcat('8_adjM', num2str(lagval(e)),'msGraphMetricsByNode', Params.figExt{nFigExt}));
 end 
 
 
