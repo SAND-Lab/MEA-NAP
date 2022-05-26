@@ -1,5 +1,10 @@
+%% TrialLandscapeDensity.m 
+%{
+This script calculates and plots the distribution 
+of Within-module Z-score (Z) and participation coefficient (PC)
+for each electrode across recordings.
 
-ExpList = dir('*.mat');
+%}
 
 PC = [];
 Z = [];
@@ -46,6 +51,105 @@ sortZ = sort(Z,'descend');
 
 % I guess this can be commented out?
 % 0.02*length(Z)
+
+%% Determine clusters 
+n_z_partitions = 2;
+z_cluster_idx = kmeans(Z, n_z_partitions);
+z_cluster_group_1 = Z(z_cluster_idx == 1);
+z_cluster_group_2 = Z(z_cluster_idx == 2);
+
+z_cluster_group_1_min = min(z_cluster_group_1);
+z_cluster_group_1_max = max(z_cluster_group_1);
+z_cluster_group_2_min = min(z_cluster_group_2);
+z_cluster_group_2_max = max(z_cluster_group_2);
+
+if z_cluster_group_1_max > z_cluster_group_2_max
+    z_boundary = (z_cluster_group_2_max + z_cluster_group_1_min) / 2;
+    else
+     z_boundary = (z_cluster_group_1_max + z_cluster_group_2_min) / 2;
+end 
+
+
+%{
+figure;
+histogram(z_cluster_group_1, 'FaceColor', 'blue');
+hold on
+histogram(z_cluster_group_2, 'FaceColor', 'red');
+xline(z_boundary)
+set(gcf, 'color', 'white')
+ylabel('Count')
+xlabel('Z')
+%} 
+
+num_hub_partitions = 3;
+num_non_hub_partitions = 3;
+
+% Compute the boundary values for the hubs
+hub_pc_vals = PC(Z >= z_boundary);
+hub_cluster_idx = kmeans(hub_pc_vals, num_hub_partitions);
+hub_group_pc_mins = zeros(num_hub_partitions, 1);
+hub_group_pc_maxs = zeros(num_hub_partitions, 1);
+for group_id = 1:num_hub_partitions
+    hub_group_pc_mins(group_id) = min(hub_pc_vals(hub_cluster_idx == group_id));
+    hub_group_pc_maxs(group_id) = max(hub_pc_vals(hub_cluster_idx == group_id));
+end 
+[hub_group_pc_maxs_sorted, sort_idx] = sort(hub_group_pc_maxs);
+hub_group_pc_mins_sorted = hub_group_pc_mins(sort_idx);
+hub_pc_boundaries = zeros(num_hub_partitions-1, 1);
+for n_boundary = 1:num_non_hub_partitions-1
+    % boundary set to be halfway between the max of the "left" group 
+    % and the min of the "right" group
+    hub_pc_boundaries(n_boundary) = (hub_group_pc_maxs_sorted(n_boundary) + hub_group_pc_mins_sorted(n_boundary+1)) / 2;
+end 
+
+% Compute the boundary vlaues for the non-hubs
+non_hub_pc_vals = PC(Z < z_boundary);
+non_hub_cluster_idx = kmeans(non_hub_pc_vals, num_non_hub_partitions);
+non_hub_group_pc_mins = zeros(num_non_hub_partitions, 1);
+non_hub_group_pc_maxs = zeros(num_non_hub_partitions, 1);
+for group_id = 1:num_non_hub_partitions
+    non_hub_group_pc_mins(group_id) = min(non_hub_pc_vals(non_hub_cluster_idx == group_id));
+    non_hub_group_pc_maxs(group_id) = max(non_hub_pc_vals(non_hub_cluster_idx == group_id));
+end 
+[non_hub_group_pc_maxs_sorted, non_hub_sort_idx] = sort(non_hub_group_pc_maxs);
+non_hub_group_pc_mins_sorted = non_hub_group_pc_mins(non_hub_sort_idx);
+non_hub_pc_boundaries = zeros(num_non_hub_partitions-1, 1);
+for n_boundary = 1:num_non_hub_partitions-1
+    % boundary set to be halfway between the max of the "left" group 
+    % and the min of the "right" group
+    non_hub_pc_boundaries(n_boundary) = (non_hub_group_pc_maxs_sorted(n_boundary) + non_hub_group_pc_mins_sorted(n_boundary+1)) / 2;
+end 
+
+
+% Plot the final automatically generated partitions 
+figure;
+scatter(PC, Z);
+hold on 
+yline(z_boundary)
+
+for n_boundary = 1:num_hub_partitions-1
+    plot([hub_pc_boundaries(n_boundary), hub_pc_boundaries(n_boundary)], ...
+        [z_boundary, Zmax])
+end 
+
+for n_boundary = 1:num_non_hub_partitions-1
+    plot([non_hub_pc_boundaries(n_boundary), non_hub_pc_boundaries(n_boundary)], ...
+        [-Zmax, z_boundary])
+end 
+
+
+xlabel('Participation Coefficient (PC)')
+ylabel('Within-module Z-score (Z)')
+set(gcf, 'color', 'white');
+fig_name = strcat(['ZandPC_scatter_with_kmeans_boundaries_', add_fig_info]); 
+fig_fullpath = fullfile(fig_folder, fig_name);
+% Export figure
+for nFigExt = 1:length(Params.figExt)
+    saveas(gcf,strcat([fig_fullpath, Params.figExt{nFigExt}]));
+end 
+
+close(gcf)
+
 
 %% Add gaussian distribution
 
@@ -145,22 +249,19 @@ for n = 1:length(sigma)
 
      % TODO: save the figure
     sigma_str = strrep(num2str(sigma(n)), '.', 'p');
-    fig_name = strcat(['ZandPCLandscape_sigma_', sigma_str]); 
+    fig_name = strcat(['ZandPCLandscape_sigma_', sigma_str, '_', add_fig_info]); 
     fig_fullpath = fullfile(fig_folder, fig_name);
-    if Params.figMat == 1
-        saveas(gcf,strcat([fig_fullpath, '.fig']));
-    end
-    if Params.figPng == 1
-        saveas(gcf,strcat([fig_fullpath, '.png']));
-    end
-    if Params.figEps == 1
-        saveas(gcf,strcat([fig_fullpath, '.eps']))
-    end
+
+    % Export figure
+    for nFigExt = 1:length(Params.figExt)
+        saveas(gcf,strcat([fig_fullpath, Params.figExt{nFigExt}]));
+    end 
 
     close gcf 
 
     % Find basins of attraction for given 'DensityLandcape' matrix
-    findBasinsOfAttraction(DensityLandcape, gridx1, PCmin, PCmax, sigma, Params, fig_folder)
+    findBasinsOfAttraction(DensityLandcape, gridx1, PCmin, PCmax, ...
+        sigma, Params, fig_folder, add_fig_info);
 
 
     % TODO: work on putting everything in one figure handle
@@ -175,10 +276,12 @@ end
 
 
 %% find basins of attraction
-function findBasinsOfAttraction(DensityLandcape, gridx1, PCmin, PCmax, sigma, Params, fig_folder)
+function findBasinsOfAttraction(DensityLandcape, gridx1, PCmin, PCmax, sigma, Params, fig_folder, add_fig_info)
 
-    DL1_Zmin = 0.55;  % got these from gridx1(70) using original spacing
-    DL1_Zmax = -1.45; % got these from gridx1(110) using original spacing
+    % DL1_Zmin = 0.55;  % got these from gridx1(70) using original spacing
+    % DL1_Zmax = -1.45; % got these from gridx1(110) using original spacing
+    DL1_Zmin = 4;
+    DL1_Zmax = -2;
     [~, DL1_index_start] = min(abs(gridx1 - DL1_Zmin));
     [~, DL1_index_end] = min(abs(gridx1 - DL1_Zmax));
     
@@ -203,17 +306,13 @@ function findBasinsOfAttraction(DensityLandcape, gridx1, PCmin, PCmax, sigma, Pa
     ylabel('Within-module Z-score (Z)')
     set(gcf, 'color', 'white')
     sigma_str = strrep(num2str(sigma), '.', 'p');
-    fig_name = strcat(['ZandPCLandscape_WaterShedGroup1_sigma_', sigma_str]); 
+    fig_name = strcat(['ZandPCLandscape_WaterShedGroup1_sigma_', sigma_str, '_', add_fig_info]); 
     fig_fullpath = fullfile(fig_folder, fig_name);
-    if Params.figMat == 1
-        saveas(gcf,strcat([fig_fullpath, '.fig']));
-    end
-    if Params.figPng == 1
-        saveas(gcf,strcat([fig_fullpath, '.png']));
-    end
-    if Params.figEps == 1
-        saveas(gcf,strcat([fig_fullpath, '.eps']))
-    end
+
+    % Export figure
+    for nFigExt = 1:length(Params.figExt)
+        saveas(gcf,strcat([fig_fullpath, Params.figExt{nFigExt}]));
+    end 
 
     close(gcf)
     
@@ -232,19 +331,45 @@ function findBasinsOfAttraction(DensityLandcape, gridx1, PCmin, PCmax, sigma, Pa
     ylabel('Within-module Z-score (Z)')
     
     set(gcf, 'color', 'white')
-    fig_name = strcat(['ZandPCLandscape_WaterShedGroup2_sigma_', sigma_str]); 
+    fig_name = strcat(['ZandPCLandscape_WaterShedGroup2_sigma_', sigma_str, '_', add_fig_info]); 
     fig_fullpath = fullfile(fig_folder, fig_name);
-    if Params.figMat == 1
-        saveas(gcf,strcat([fig_fullpath, '.fig']));
-    end
-    if Params.figPng == 1
-        saveas(gcf,strcat([fig_fullpath, '.png']));
-    end
-    if Params.figEps == 1
-        saveas(gcf,strcat([fig_fullpath, '.eps']))
-    end
+
+    % Export figure
+    for nFigExt = 1:length(Params.figExt)
+        saveas(gcf,strcat([fig_fullpath, Params.figExt{nFigExt}]));
+    end 
 
     close(gcf)
+
+    % Plot the watershed on the whole thing 
+    Zmin = -2;
+    Zmax = 4;
+    DL3 = DensityLandcape;
+    DL3 = DL3*-1;
+    
+    L3 = watershed(DL3);
+    % Lrgb = label2rgb(L1);
+    % imshow(Lrgb)
+    p = [20 100 600 600];
+    set(0, 'DefaultFigurePosition', p)
+    figure()
+    imagesc([PCmin, PCmax], [Zmin, Zmax], L3)
+    set(gca,'YDir','normal');
+    xlabel('Participation Coefficient (PC)')
+    ylabel('Within-module Z-score (Z)')
+    
+    set(gcf, 'color', 'white')
+    fig_name = strcat(['ZandPCLandscape_WaterShed_sigma_', sigma_str, '_', add_fig_info]); 
+    fig_fullpath = fullfile(fig_folder, fig_name);
+
+    
+    % Export figure
+    for nFigExt = 1:length(Params.figExt)
+        saveas(gcf,strcat([fig_fullpath, Params.figExt{nFigExt}]));
+    end 
+
+    close(gcf)
+
    
 end 
 
