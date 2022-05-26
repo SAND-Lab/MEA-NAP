@@ -1,9 +1,10 @@
 function [] = PlotEphysStats(ExpName,Params,HomeDir)
 % plot ephys statistics for MEA data
 % author RCFeord July 2021
+% Updated by Tim Sit 
 %{
 
-INPUT 
+Parameters 
 -----------
 ExpName : (str)
 Params : (structure)
@@ -13,8 +14,8 @@ Params : (structure)
     
 HomeDir : (str)
 
-OUTPUT 
---------
+Returns
+-------
 
 
 %}
@@ -560,15 +561,12 @@ for n = 1:length(eMet)
     aesthetics
     set(gca,'TickDir','out');
     set(findall(gcf,'-property','FontSize'),'FontSize',9)
-    if Params.figMat == 1
-        saveas(F1,strcat(num2str(n),'_',char(eMetl(n)),'.fig'));
-    end
-    if Params.figPng == 1
-        saveas(F1,strcat(num2str(n),'_',char(eMetl(n)),'.png'));
-    end
-    if Params.figEps == 1
-        saveas(F1,strcat(num2str(n),'_',char(eMetl(n)),'.eps'));
-    end
+
+    % Export figure
+    for nFigExt = 1:length(Params.figExt)
+        saveas(F1,strcat(num2str(n),'_',char(eMetl(n)),Params.figExt{nFigExt}));
+    end 
+
     close(F1)
 end
 
