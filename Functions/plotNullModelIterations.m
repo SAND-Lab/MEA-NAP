@@ -1,11 +1,19 @@
 function [] = plotNullModelIterations(met, met2, lagval, e, FN, Params)
 %{
-INPUT
---------
+
+Parameters
+----------
+
+met : 
+met2 : 
+lagval : int
+e : 
+FN : 
+Params : struct
 
 
-OUTPUT 
----------
+Returns 
+-------
 
 %}
 
@@ -40,15 +48,10 @@ set(gca,'TickDir','out');
 
 %% save figure
 
-if Params.figMat == 1
-    saveas(gcf,strcat('10_adjM',num2str(lagval(e)),'msNullModels.fig'));
-end
-if Params.figPng == 1
-    saveas(gcf,strcat('10_adjM',num2str(lagval(e)),'msNullModels.png'));
-end
-if Params.figEps == 1
-    saveas(gcf,strcat('10_adjM',num2str(lagval(e)),'msNullModels.eps'));
-end
+for nFigExt = 1:length(Params.figExt)
+    saveas(gcf,strcat(['10_adjM', num2str(lagval(e)), 'msNullModels', Params.figExt{nFigExt}]));
+end 
+
 
 if ~isfield(Params, 'oneFigure')
     close all

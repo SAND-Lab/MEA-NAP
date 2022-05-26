@@ -1,6 +1,17 @@
 function [adjMs] = generateAdjMs(spikeTimes,ExN,Params,Info,HomeDir)
+%{
+create AdjM for a series of lag values
 
-% create AdjM for a series of lag values
+Parameters
+----------
+
+
+Returns 
+-------
+
+
+%}
+
 
 for p = 1:length(Params.FuncConLagval)
     
@@ -24,15 +35,12 @@ for p = 1:length(Params.FuncConLagval)
             [F1, adjM, adjMci] = adjM_thr_checkreps(spikeTimes, Params.SpikesMethod, lag, Params.ProbThreshTail, Params.fs,...
                 Info.duration_s, Params.ProbThreshRepNum);
             cd('3_EdgeThresholdingCheck')
-            if Params.figMat == 1
-                saveas(gcf,strcat(char(Info.FN),num2str(lag),'msLagProbThreshCheck.fig'));
-            end
-            if Params.figPng == 1
-                saveas(gcf,strcat(char(Info.FN),num2str(lag),'msLagProbThreshCheck.png'));
-            end
-            if Params.figEps == 1
-                saveas(gcf,strcat(char(Info.FN),num2str(lag),'msLagProbThreshCheck.eps'));
-            end
+
+            % Export figure
+            for nFigExt = 1:length(Params.figExt)
+                saveas(gcf,strcat([char(Info.FN), num2str(lag), 'msLagProbThreshCheck', Params.figExt{nFigExt}]));
+            end 
+
             close all
             cd(HomeDir); cd(strcat('OutputData',Params.Date))
             

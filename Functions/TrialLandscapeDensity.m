@@ -1,5 +1,29 @@
+function [hubBoundaryWMdDeg, periPartCoef, proHubpartCoef, nonHubconnectorPartCoef, connectorHubPartCoef] = ...
+    TrialLandscapeDensity(ExpList, fig_folder, add_fig_info)
+%{
+This script calculates and plots the distribution 
+of Within-module Z-score (Z) and participation coefficient (PC)
+for each electrode across recordings.
 
-ExpList = dir('*.mat');
+Parameters
+-----------
+ExpList: struct 
+    structure containing names of files to analyse, this should be the
+    output of dir() command, so should contain the fields : name, folder,
+    date, bytes, isdir, datenum
+fig_folder : str
+    folder to save the plots
+Params : struct 
+    
+add_fig_info : str
+    optional str to add an extra name tag to the figure, set to '' if this
+    is not needed
+Returns
+-------
+hubBoundaryWMdDeg : float
+    boundary that separates hub and non-hubs
+
+%}
 
 PC = [];
 Z = [];
@@ -46,6 +70,111 @@ sortZ = sort(Z,'descend');
 
 % I guess this can be commented out?
 % 0.02*length(Z)
+
+%% Determine clusters 
+n_z_partitions = 2;
+z_cluster_idx = kmeans(Z, n_z_partitions);
+z_cluster_group_1 = Z(z_cluster_idx == 1);
+z_cluster_group_2 = Z(z_cluster_idx == 2);
+
+z_cluster_group_1_min = min(z_cluster_group_1);
+z_cluster_group_1_max = max(z_cluster_group_1);
+z_cluster_group_2_min = min(z_cluster_group_2);
+z_cluster_group_2_max = max(z_cluster_group_2);
+
+if z_cluster_group_1_max > z_cluster_group_2_max
+    z_boundary = (z_cluster_group_2_max + z_cluster_group_1_min) / 2;
+    else
+    z_boundary = (z_cluster_group_1_max + z_cluster_group_2_min) / 2;
+end 
+
+
+%{
+figure;
+histogram(z_cluster_group_1, 'FaceColor', 'blue');
+hold on
+histogram(z_cluster_group_2, 'FaceColor', 'red');
+xline(z_boundary)
+set(gcf, 'color', 'white')
+ylabel('Count')
+xlabel('Z')
+%} 
+
+num_hub_partitions = 3;
+num_non_hub_partitions = 3;
+
+% Compute the boundary values for the hubs
+hub_pc_vals = PC(Z >= z_boundary);
+hub_cluster_idx = kmeans(hub_pc_vals, num_hub_partitions);
+hub_group_pc_mins = zeros(num_hub_partitions, 1);
+hub_group_pc_maxs = zeros(num_hub_partitions, 1);
+for group_id = 1:num_hub_partitions
+    hub_group_pc_mins(group_id) = min(hub_pc_vals(hub_cluster_idx == group_id));
+    hub_group_pc_maxs(group_id) = max(hub_pc_vals(hub_cluster_idx == group_id));
+end 
+[hub_group_pc_maxs_sorted, sort_idx] = sort(hub_group_pc_maxs);
+hub_group_pc_mins_sorted = hub_group_pc_mins(sort_idx);
+hub_pc_boundaries = zeros(num_hub_partitions-1, 1);
+for n_boundary = 1:num_non_hub_partitions-1
+    % boundary set to be halfway between the max of the "left" group 
+    % and the min of the "right" group
+    hub_pc_boundaries(n_boundary) = (hub_group_pc_maxs_sorted(n_boundary) + hub_group_pc_mins_sorted(n_boundary+1)) / 2;
+end 
+
+% Compute the boundary vlaues for the non-hubs
+non_hub_pc_vals = PC(Z < z_boundary);
+non_hub_cluster_idx = kmeans(non_hub_pc_vals, num_non_hub_partitions);
+non_hub_group_pc_mins = zeros(num_non_hub_partitions, 1);
+non_hub_group_pc_maxs = zeros(num_non_hub_partitions, 1);
+for group_id = 1:num_non_hub_partitions
+    non_hub_group_pc_mins(group_id) = min(non_hub_pc_vals(non_hub_cluster_idx == group_id));
+    non_hub_group_pc_maxs(group_id) = max(non_hub_pc_vals(non_hub_cluster_idx == group_id));
+end 
+[non_hub_group_pc_maxs_sorted, non_hub_sort_idx] = sort(non_hub_group_pc_maxs);
+non_hub_group_pc_mins_sorted = non_hub_group_pc_mins(non_hub_sort_idx);
+non_hub_pc_boundaries = zeros(num_non_hub_partitions-1, 1);
+for n_boundary = 1:num_non_hub_partitions-1
+    % boundary set to be halfway between the max of the "left" group 
+    % and the min of the "right" group
+    non_hub_pc_boundaries(n_boundary) = (non_hub_group_pc_maxs_sorted(n_boundary) + non_hub_group_pc_mins_sorted(n_boundary+1)) / 2;
+end 
+
+
+% Plot the final automatically generated partitions 
+figure;
+scatter(PC, Z);
+hold on 
+yline(z_boundary)
+
+for n_boundary = 1:num_hub_partitions-1
+    plot([hub_pc_boundaries(n_boundary), hub_pc_boundaries(n_boundary)], ...
+        [z_boundary, Zmax])
+end 
+
+for n_boundary = 1:num_non_hub_partitions-1
+    plot([non_hub_pc_boundaries(n_boundary), non_hub_pc_boundaries(n_boundary)], ...
+        [-Zmax, z_boundary])
+end 
+
+
+xlabel('Participation Coefficient (PC)')
+ylabel('Within-module Z-score (Z)')
+set(gcf, 'color', 'white');
+fig_name = strcat(['ZandPC_scatter_with_kmeans_boundaries_', add_fig_info]); 
+fig_fullpath = fullfile(fig_folder, fig_name);
+% Export figure
+
+% temporary measure to make this backwards compatible
+if ~isfield(Params, 'figExt')
+    Params.figExt = {'.png'}; 
+end 
+
+for nFigExt = 1:length(Params.figExt)
+    saveas(gcf,strcat([fig_fullpath, Params.figExt{nFigExt}]));
+end 
+
+close(gcf)
+
 
 %% Add gaussian distribution
 
@@ -145,22 +274,19 @@ for n = 1:length(sigma)
 
      % TODO: save the figure
     sigma_str = strrep(num2str(sigma(n)), '.', 'p');
-    fig_name = strcat(['ZandPCLandscape_sigma_', sigma_str]); 
+    fig_name = strcat(['ZandPCLandscape_sigma_', sigma_str, '_', add_fig_info]); 
     fig_fullpath = fullfile(fig_folder, fig_name);
-    if Params.figMat == 1
-        saveas(gcf,strcat([fig_fullpath, '.fig']));
-    end
-    if Params.figPng == 1
-        saveas(gcf,strcat([fig_fullpath, '.png']));
-    end
-    if Params.figEps == 1
-        saveas(gcf,strcat([fig_fullpath, '.eps']))
-    end
+
+    % Export figure
+    for nFigExt = 1:length(Params.figExt)
+        saveas(gcf,strcat([fig_fullpath, Params.figExt{nFigExt}]));
+    end 
 
     close gcf 
 
     % Find basins of attraction for given 'DensityLandcape' matrix
-    findBasinsOfAttraction(DensityLandcape, gridx1, PCmin, PCmax, sigma, Params, fig_folder)
+    findBasinsOfAttraction(DensityLandcape, gridx1, PCmin, PCmax, ...
+        sigma, Params, fig_folder, add_fig_info);
 
 
     % TODO: work on putting everything in one figure handle
@@ -173,111 +299,13 @@ for n = 1:length(sigma)
 
 end
 
+% Assign boundaries
+hubBoundaryWMdDeg = z_boundary;
+periPartCoef = non_hub_pc_boundaries(1); % boundary that separates peripheral node and none-hub connector 
+nonHubconnectorPartCoef = non_hub_pc_boundaries(2); % boundary that separates non-hub connector and non-hub kinless node 
 
-%% find basins of attraction
-function findBasinsOfAttraction(DensityLandcape, gridx1, PCmin, PCmax, sigma, Params, fig_folder)
+proHubpartCoef = hub_pc_boundaries(1); % boundary that separates provincial hub and connector hub (default: 0.3)
+connectorHubPartCoef = hub_pc_boundaries(2);  % boundary that separates connector hub and kinless hub 
 
-    DL1_Zmin = 0.55;  % got these from gridx1(70) using original spacing
-    DL1_Zmax = -1.45; % got these from gridx1(110) using original spacing
-    [~, DL1_index_start] = min(abs(gridx1 - DL1_Zmin));
-    [~, DL1_index_end] = min(abs(gridx1 - DL1_Zmax));
-    
-    DL2_Zmin = 3.05; %  got these from gridx1(20) using original spacing
-    DL2_Zmax = 0.55; % got these from gridx1(70) using original spacing
-    [~, DL2_index_start] = min(abs(gridx1 - DL2_Zmin));
-    [~, DL2_index_end] = min(abs(gridx1 - DL2_Zmax));
-    
-    % What is 70 to 110???
-    DL1 = DensityLandcape(DL1_index_start:DL1_index_end, :);
-    DL1 = DL1*-1;
-    
-    L1 = watershed(DL1);
-    % Lrgb = label2rgb(L1);
-    % imshow(Lrgb)
-    p = [20 100 600 600];
-    set(0, 'DefaultFigurePosition', p)
-    figure()
-    imagesc([PCmin, PCmax], [DL1_Zmin, DL1_Zmax], L1)
-    set(gca,'YDir','normal');
-    xlabel('Participation Coefficient (PC)')
-    ylabel('Within-module Z-score (Z)')
-    set(gcf, 'color', 'white')
-    sigma_str = strrep(num2str(sigma), '.', 'p');
-    fig_name = strcat(['ZandPCLandscape_WaterShedGroup1_sigma_', sigma_str]); 
-    fig_fullpath = fullfile(fig_folder, fig_name);
-    if Params.figMat == 1
-        saveas(gcf,strcat([fig_fullpath, '.fig']));
-    end
-    if Params.figPng == 1
-        saveas(gcf,strcat([fig_fullpath, '.png']));
-    end
-    if Params.figEps == 1
-        saveas(gcf,strcat([fig_fullpath, '.eps']))
-    end
 
-    close(gcf)
-    
-    DL2 = DensityLandcape(DL2_index_start:DL2_index_end,:);
-    DL2 = DL2*-1;
-    
-    L2 = watershed(DL2);
-    % Lrgb = label2rgb(L1);
-    % imshow(Lrgb)
-    p = [20 100 600 600];
-    set(0, 'DefaultFigurePosition', p)
-    figure()
-    imagesc([PCmin, PCmax], [DL2_Zmin, DL2_Zmax], L2)
-    set(gca,'YDir','normal');
-    xlabel('Participation Coefficient (PC)')
-    ylabel('Within-module Z-score (Z)')
-    
-    set(gcf, 'color', 'white')
-    fig_name = strcat(['ZandPCLandscape_WaterShedGroup2_sigma_', sigma_str]); 
-    fig_fullpath = fullfile(fig_folder, fig_name);
-    if Params.figMat == 1
-        saveas(gcf,strcat([fig_fullpath, '.fig']));
-    end
-    if Params.figPng == 1
-        saveas(gcf,strcat([fig_fullpath, '.png']));
-    end
-    if Params.figEps == 1
-        saveas(gcf,strcat([fig_fullpath, '.eps']))
-    end
-
-    close(gcf)
-   
-end 
-
-%%
-
-% [N,C] = hist3(X,'Nbins',[100 100]);
-% 
-% 
-% 
-% if ~isempty(find(strcmpi(varargin,'edges'), 1))
-%   %Put values on the upper edges as if they were in the last
-%   %bin
-%   N(:,end-1)=N(:,end-1)+N(:,end);
-%   N(end-1,:)=N(end-1,:)+N(end,:);
-%   %Remove upper edge
-%   N(:,end)=[];
-%   N(end,:)=[];
-%   C{1}(end) = [];
-%   C{2}(end) = [];
-% end
-% %Get polygon half widths
-% wx=C{1}(:);
-% wy=C{2}(:);
-% % display
-% figure
-% H = pcolor(wx, wy, N');
-% box on
-% shading interp
-% set(H,'edgecolor','none');
-% colorbar
-% colormap jet
-% 
-% 
-% 
-% xlim([0 1])
-
+end

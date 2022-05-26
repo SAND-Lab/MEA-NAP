@@ -318,15 +318,9 @@ end
 
 %% save figure
 
-if Params.figMat == 1
-    saveas(gcf,strcat(pNum,'_',plotType,'_NetworkPlot.fig'));
-end
-if Params.figPng == 1
-    saveas(gcf,strcat(pNum,'_',plotType,'_NetworkPlot.png'));
-end
-if Params.figEps == 1
-    saveas(gcf,strcat(pNum,'_',plotType,'_NetworkPlot.eps'));
-end
+for nFigExt = 1:length(Params.figExt)
+    saveas(gcf,strcat([pNum, '_', plotType, '_NetworkPlot', Params.figExt{nFigExt}]));
+end 
 
 if ~isfield(Params, 'oneFigure')
     close all

@@ -1,12 +1,16 @@
 function [] = plotNodeCartographyProportions(NetMet, lagval, FN, Params)
 %{
 
-INPUT
+Parameters
 ----------
+NetMet : 
+lagval : int 
+FN : 
+Params : 
 
 
-OUTPUT
-----------
+Returns
+-------
 
 
 %}
@@ -67,16 +71,10 @@ set(gca,'TickDir','out');
 
 
 %% save figure
+for nFigExt = 1:length(Params.figExt)
+    saveas(gcf,strcat(['NdCartographyProportions', Params.figExt{nFigExt}]));
+end 
 
-if Params.figMat == 1
-    saveas(gcf,'NdCartographyProportions.fig');
-end
-if Params.figPng == 1
-    saveas(gcf,'NdCartographyProportions.png');
-end
-if Params.figEps == 1
-    saveas(gcf,'NdCartographyProportions.eps');
-end
 
 if ~isfield(Params, 'oneFigure')
     close all

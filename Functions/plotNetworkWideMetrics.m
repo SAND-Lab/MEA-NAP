@@ -1,4 +1,19 @@
 function [] = plotNetworkWideMetrics(NetMet, meanSTTC, maxSTTC, lagval, FN, Params)
+%{
+Parameters
+----------
+NetMet : struct
+meanSTTC : 
+maxSTTC : 
+lagval 
+FN : 
+Params : struct
+
+Returns
+-------
+
+
+%}
 
 %% figure
 
@@ -154,15 +169,9 @@ set(gca,'TickDir','out');
 
 %% save figure
 
-if Params.figMat == 1
-    saveas(gcf,'NetworkWideMetrics.fig');
-end
-if Params.figPng == 1
-    saveas(gcf,'NetworkWideMetrics.png');
-end
-if Params.figEps == 1
-    saveas(gcf,'NetworkWideMetrics.eps');
-end
+for nFigExt = 1:length(Params.figExt)
+    saveas(gcf,strcat(['NetworkWideMetrics', Params.figExt{nFigExt}]));
+end 
 
 if ~isfield(Params, 'oneFigure')
     close all

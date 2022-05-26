@@ -135,17 +135,11 @@ set(gca,'TickDir','out');
 title({strcat(regexprep(FN,'_','','emptymatch')),' '});
 legend boxoff
 
-if Params.figMat == 1
-    saveas(gcf,'SpikeFrequencies.fig');
-end
+% Export figure
+for nFigExt = 1:length(Params.figExt)
+    saveas(gcf,strcat(['SpikeFrequencies', Params.figExt{nFigExt}]));
+end 
 
-if Params.figPng == 1
-    saveas(gcf,'SpikeFrequencies.png');
-end
-
-if Params.figEps == 1
-    saveas(gcf,'SpikeFrequencies.eps');
-end
 
 close all
 
@@ -217,15 +211,11 @@ newUnits = 'normalized';
 set(hL,'Position', newPosition,'Units', newUnits,'Box','off');
 title({strcat(regexprep(FN,'_','','emptymatch')),' '});
 
-% if Params.figMat == 1
-%     saveas(gcf,strcat(FN,'_ExampleTraces.fig'));
-% end
-if Params.figPng == 1
-    saveas(gcf,'ExampleTraces.png');
-end
-if Params.figEps == 1
-    saveas(gcf,'ExampleTraces.eps');
-end
+
+% Export figure
+for nFigExt = 1:length(Params.figExt)
+    saveas(gcf,strcat(['ExampleTraces', Params.figExt{nFigExt}]));
+end 
 
 close all
 
@@ -277,17 +267,12 @@ for i = 1:length(methods)
     end
 end
 
-if Params.figMat == 1
-    saveas(gcf,'Waveforms.fig');
-end
 
-if Params.figPng == 1
-    saveas(gcf,'Waveforms.png');
-end
+% Export figure
+for nFigExt = 1:length(Params.figExt)
+    saveas(gcf,strcat(['Waveforms', Params.figExt{nFigExt}]));
+end 
 
-if Params.figEps == 1
-    saveas(gcf,'Waveforms.eps');
-end
 
 close all
 end

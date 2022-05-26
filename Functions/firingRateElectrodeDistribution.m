@@ -1,6 +1,17 @@
 function firingRateElectrodeDistribution(File,Ephys,Params,Info)
+%{
 
-% creata a half violin plot of the firing rate for individual electrodes
+Parameters
+----------
+
+
+Returns
+-------
+
+
+%}
+
+% create a half violin plot of the firing rate for individual electrodes
 
 p = [50 50 500 600];
 set(0, 'DefaultFigurePosition', p)
@@ -19,15 +30,11 @@ ylim([0 max(Ephys.FR)+max(Ephys.FR)*0.15])
 
 %% save the figure
 
-if Params.figMat == 1
-    saveas(gcf,'FiringRateByElectrode.fig');
-end
-if Params.figPng == 1
-    saveas(gcf,'FiringRateByElectrode.png');
-end
-if Params.figEps == 1
-    saveas(gcf,'FiringRateByElectrode.eps');
-end
+
+% Export figure
+for nFigExt = 1:length(Params.figExt)
+    saveas(gcf,strcat(['FiringRateByElectrode', Params.figExt{nFigExt}]));
+end 
 
 close(F1); 
 

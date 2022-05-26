@@ -1,11 +1,14 @@
 function [] = electrodeSpecificMetrics(ND, NS, EW, Eloc, BC, PC, Z, lagval, e, FN, Params)
 %{
-INPUT
---------
+% TODO: allow this to accept arbitrary number of parameters to plot, 
+this allows easier extensions in the future.
+
+Parameters
+----------
 
 
-OUTPUT 
----------
+Returns
+-------
 
 %}
 
@@ -123,15 +126,11 @@ end
 
 %% save figure
 
-if Params.figMat == 1
-    saveas(gcf,strcat('8_adjM',num2str(lagval(e)),'msGraphMetricsByNode.fig'));
-end
-if Params.figPng == 1
-    saveas(gcf,strcat('8_adjM',num2str(lagval(e)),'msGraphMetricsByNode.png'));
-end
-if Params.figEps == 1
-    saveas(gcf,strcat('8_adjM',num2str(lagval(e)),'msGraphMetricsByNode.eps'));
-end
+
+for nFigExt = 1:length(Params.figExt)
+    saveas(gcf,strcat('8_adjM', num2str(lagval(e)),'msGraphMetricsByNode', Params.figExt{nFigExt}));
+end 
+
 
 if ~isfield(Params, 'oneFigure')
     close all

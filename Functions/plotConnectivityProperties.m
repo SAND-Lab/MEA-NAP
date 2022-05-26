@@ -1,4 +1,14 @@
 function [] = plotConnectivityProperties(adjM, e, lagval, maxSTTC, meanSTTC, ND, NS, EW, FN, Params)
+%{
+
+Parameters
+----------
+
+Returns 
+-------
+
+
+%}
 
 p = [10 10 1100 600];
 set(0, 'DefaultFigurePosition', p)
@@ -61,15 +71,9 @@ set(gca,'TickDir','out');
    
 %% save figure
 
-if Params.figMat == 1
-    saveas(gcf,strcat('1_adjM',num2str(lagval(e)),'msConnectivityStats.fig'));
-end
-if Params.figPng == 1
-    saveas(gcf,strcat('1_adjM',num2str(lagval(e)),'msConnectivityStats.png'));
-end
-if Params.figEps == 1
-    saveas(gcf,strcat('1_adjM',num2str(lagval(e)),'msConnectivityStats.eps'));
-end
+for nFigExt = 1:length(Params.figExt)
+    saveas(gcf,strcat(['1_adjM', num2str(lagval(e)),'msConnectivityStats', Params.figExt{nFigExt}]));
+end 
 
 if ~isfield(Params, 'oneFigure')
     close all

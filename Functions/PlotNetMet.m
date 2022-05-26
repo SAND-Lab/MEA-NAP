@@ -30,8 +30,8 @@ Other dependicies
     adjMS : (struct)
     spikeTimes : (struct)
     
-OUTPUTS
----------------
+Returns
+-------
 
 
 Meaning of the variables: 
@@ -44,6 +44,7 @@ NetMet (structure)
 
 
 author RCFeord July 2021
+edited by Tim Sit
 %}
 
 % specify output format (currently Params is loaded from the mat file, 
@@ -455,15 +456,11 @@ for n = 1:length(eMet)
     linkaxes(h,'xy')
     h(1).XLim = [min(xt)-0.5 max(xt)+0.5];
     set(findall(gcf,'-property','FontSize'),'FontSize',8)
-    if Params.figMat == 1
-        saveas(gcf,strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),'.fig'));
-    end
-    if Params.figPng == 1
-        saveas(gcf,strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),'.png'));
-    end
-    if Params.figEps == 1
-        saveas(gcf,strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),'.eps'));
-    end
+
+    % Export figure
+    for nFigExt = 1:length(Params.figExt)
+        saveas(gcf,strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),Params.figExt{nFigExt}));
+    end 
 
     % Close figure or clear the one shared figures
     if ~isfield(Params, 'oneFigure')
@@ -535,15 +532,12 @@ for l = 1:length(Params.FuncConLagval)
         linkaxes(h,'xy')
         h(1).XLim = [min(xt)-0.5 max(xt)+0.5];
         set(findall(gcf,'-property','FontSize'),'FontSize',9)
-        if Params.figMat == 1
-            saveas(gcf,strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),'.fig'));
-        end
-        if Params.figPng == 1
-            saveas(gcf,strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),'.png'));
-        end
-        if Params.figEps == 1
-            saveas(gcf,strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),'.eps'));
-        end
+
+        % Export figure
+        for nFigExt = 1:length(Params.figExt)
+            saveas(gcf,strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),Params.figExt{nFigExt}));
+        end 
+
         % Close figure or clear the one shared figures
         if ~isfield(Params, 'oneFigure')
             close(gcf)
@@ -563,8 +557,13 @@ cd(HomeDir); cd(strcat('OutputData',Params.Date));
 cd('4_NetworkActivity'); cd('4B_GroupComparisons')
 cd('3_RecordingsByGroup'); cd('HalfViolinPlots')
 
-eMet = {'aN','Dens','CC','nMod','Q','PL','Eglob','SW','SWw','NCpn1','NCpn2','NCpn3','NCpn4','NCpn5','NCpn6','Hub3','Hub4'}; 
-eMetl = {'network size','density','clustering coefficient','number of modules','modularity score','path length','global efficiency','small worldness \sigma','small worldness \omega','proportion peripheral nodes','proportion non-hub connectors','proportion non-hub kinless nodes','proportion provincial hubs','proportion connector hubs','proportion kinless hubs','hub nodes 2','hub nodes 1'}; 
+eMet = {'aN','Dens','CC','nMod','Q','PL','Eglob','SW','SWw','NCpn1', ... 
+        'NCpn2','NCpn3','NCpn4','NCpn5','NCpn6','Hub3','Hub4'}; 
+eMetl = {'network size','density','clustering coefficient','number of modules', ... 
+    'modularity score','path length','global efficiency','small worldness \sigma', ... 
+    'small worldness \omega','proportion peripheral nodes','proportion non-hub connectors', ... 
+    'proportion non-hub kinless nodes','proportion provincial hubs','proportion connector hubs', ... 
+    'proportion kinless hubs','hub nodes 2','hub nodes 1'}; 
 
 p = [100 100 1300 600]; 
 set(0, 'DefaultFigurePosition', p)
@@ -617,15 +616,12 @@ for l = 1:length(Params.FuncConLagval)
         linkaxes(h,'xy')
         h(1).XLim = [min(xt)-0.5 max(xt)+0.5];
         set(findall(gcf,'-property','FontSize'),'FontSize',9)
-        if Params.figMat == 1
-            saveas(gcf,strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),'.fig'));
-        end
-        if Params.figPng == 1
-            saveas(gcf,strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),'.png'));
-        end
-        if Params.figEps == 1
-            saveas(gcf,strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),'.eps'));
-        end
+
+        % Export figure
+        for nFigExt = 1:length(Params.figExt)
+            saveas(gcf,strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),Params.figExt{nFigExt}));
+        end 
+
         % Close figure or clear the one shared figures
         if ~isfield(Params, 'oneFigure')
             close(gcf)
@@ -691,15 +687,12 @@ for l = 1:length(Params.FuncConLagval)
         linkaxes(h,'xy')
         h(1).XLim = [min(xt)-0.5 max(xt)+0.5];
         set(findall(gcf,'-property','FontSize'),'FontSize',12)
-        if Params.figMat == 1
-            saveas(gcf,strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),'.fig'));
-        end
-        if Params.figPng == 1
-            saveas(gcf,strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),'.png'));
-        end
-        if Params.figEps == 1
-            saveas(gcf,strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),'.eps'));
-        end
+
+        % Export figure
+        for nFigExt = 1:length(Params.figExt)
+            saveas(gcf,strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),Params.figExt{nFigExt}));
+        end 
+
         % Close figure or clear the one shared figures
         if ~isfield(Params, 'oneFigure')
             close(gcf)
@@ -770,15 +763,12 @@ for l = 1:length(Params.FuncConLagval)
         linkaxes(h,'xy')
         h(1).XLim = [min(xt)-0.5 max(xt)+0.5];
         set(findall(gcf,'-property','FontSize'),'FontSize',12)
-        if Params.figMat == 1
-            saveas(gcf,strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),'.fig'));
-        end
-        if Params.figPng == 1
-            saveas(gcf,strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),'.png'));
-        end
-        if Params.figEps == 1
-            saveas(gcf,strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),'.eps'));
-        end
+
+        % Export figure
+        for nFigExt = 1:length(Params.figExt)
+            saveas(gcf,strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),Params.figExt{nFigExt}));
+        end 
+
         % Close figure or clear the one shared figures
         if ~isfield(Params, 'oneFigure')
             close(gcf)
@@ -800,7 +790,9 @@ cd('4_NetworkActivity'); cd('4B_GroupComparisons')
 cd('1_NodeByGroup')
 
 eMet = {'ND','EW','NS','Z','Eloc','PC','BC'}; 
-eMetl = {'node degree','edge weight','node strength','within-module degree z-score','local efficiency','participation coefficient','betweeness centrality'}; 
+eMetl = {'node degree','edge weight','node strength', ... 
+    'within-module degree z-score','local efficiency', ... 
+    'participation coefficient','betweeness centrality'}; 
 
 p = [100 100 1300 600]; 
 set(0, 'DefaultFigurePosition', p)
@@ -849,15 +841,12 @@ for l = 1:length(Params.FuncConLagval)
         linkaxes(h,'xy')
         h(1).XLim = [min(xt)-0.5 max(xt)+0.5];
         set(findall(gcf,'-property','FontSize'),'FontSize',9)
-        if Params.figMat == 1
-            saveas(gcf,strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),'.fig'));
-        end
-        if Params.figPng == 1
-            saveas(gcf,strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),'.png'));
-        end
-        if Params.figEps == 1
-            saveas(gcf,strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),'.eps'));
-        end
+
+        % Export figure
+        for nFigExt = 1:length(Params.figExt)
+            saveas(gcf,strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),Params.figExt{nFigExt}));
+        end 
+
          % Close figure or clear the one shared figures
         if ~isfield(Params, 'oneFigure')
             close(gcf)
@@ -929,15 +918,13 @@ for l = 1:length(Params.FuncConLagval)
         linkaxes(h,'xy')
         h(1).XLim = [min(xt)-0.5 max(xt)+0.5];
         set(findall(gcf,'-property','FontSize'),'FontSize',12)
-        if Params.figMat == 1
-            saveas(gcf,strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),'.fig'));
-        end
-        if Params.figPng == 1
-            saveas(gcf,strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),'.png'));
-        end
-        if Params.figEps == 1
-            saveas(gcf,strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),'.eps'));
-        end
+        
+        % Export figure
+        for nFigExt = 1:length(Params.figExt)
+            saveas(gcf,strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),Params.figExt{nFigExt}));
+        end 
+            
+
         % Close figure or clear the one shared figures
         if ~isfield(Params, 'oneFigure')
             close(gcf)
@@ -1018,15 +1005,14 @@ for l = 1:length(Params.FuncConLagval)
         legend([y1 y2, y3, y4, y5, y6],'proportion peripheral nodes','proportion non-hub connectors','proportion non-hub kinless nodes','proportion provincial hubs','proportion connector hubs','proportion kinless hubs','Location','eastoutside')
         legend Box off
     end
-    if Params.figMat == 1
-        saveas(gcf,strcat('NodeCartography',num2str(Params.FuncConLagval(l)),'mslag.fig'));
-    end
-    if Params.figPng == 1
-        saveas(gcf,strcat('NodeCartography',num2str(Params.FuncConLagval(l)),'mslag.png'));
-    end
-    if Params.figEps == 1
-        saveas(gcf,strcat('NodeCartography',num2str(Params.FuncConLagval(l)),'mslag.eps'));
-    end
+
+    % Export figure
+    for nFigExt = 1:length(Params.figExt)
+        saveas(gcf,strcat(['NodeCartography', num2str(Params.FuncConLagval(l)), ...
+            'mslag', Params.figExt{nFigExt}]));
+    end 
+
+
     % Close figure or clear the one shared figures
     if ~isfield(Params, 'oneFigure')
         close(gcf)
