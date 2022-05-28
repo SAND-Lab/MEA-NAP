@@ -3,10 +3,12 @@ function [] = plotConnectivityProperties(adjM, e, lagval, maxSTTC, meanSTTC, ND,
 
 Parameters
 ----------
-
+adjM : 
+e : 
+lagval : 
 Returns 
 -------
-
+None
 
 %}
 
@@ -70,10 +72,8 @@ aesthetics
 set(gca,'TickDir','out');
    
 %% save figure
-
-for nFigExt = 1:length(Params.figExt)
-    saveas(gcf,strcat(['1_adjM', num2str(lagval(e)),'msConnectivityStats', Params.figExt{nFigExt}]));
-end 
+figName = strcat(['1_adjM', num2str(lagval(e)),'msConnectivityStats']);
+pipelineSaveFig(figName, Params.figExt, Params.fullSVG);
 
 if ~isfield(Params, 'oneFigure')
     close all
