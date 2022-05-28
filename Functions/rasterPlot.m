@@ -75,20 +75,9 @@ ax = gca;
 ax.TitleFontSizeMultiplier = 0.7;
 
 %% save the figure
-
-if Params.figMat == 1
-    saveas(gcf,'Raster.fig');
-end
-
-if Params.figPng == 1
-    saveas(gcf,'Raster.png');
-end
-
-if Params.figEps == 1
-    saveas(gcf,'Raster.eps');
-end
+figName = 'Raster';
+pipelineSaveFig(figName, Params.figExt, Params.fullSVG);
 
 close(F1); 
-
   
 end
