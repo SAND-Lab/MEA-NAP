@@ -71,9 +71,9 @@ set(gca,'TickDir','out');
 
 
 %% save figure
-for nFigExt = 1:length(Params.figExt)
-    saveas(gcf,strcat(['NdCartographyProportions', Params.figExt{nFigExt}]));
-end 
+
+figName = 'NdCartographyProportions';
+pipelineSaveFig(figName, Params.figExt, Params.fullSVG);
 
 
 if ~isfield(Params, 'oneFigure')

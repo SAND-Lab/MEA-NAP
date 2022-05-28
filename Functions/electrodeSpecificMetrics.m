@@ -125,12 +125,8 @@ end
 
 
 %% save figure
-
-
-for nFigExt = 1:length(Params.figExt)
-    saveas(gcf,strcat('8_adjM', num2str(lagval(e)),'msGraphMetricsByNode', Params.figExt{nFigExt}));
-end 
-
+figName = strcat('8_adjM', num2str(lagval(e)),'msGraphMetricsByNode');
+pipelineSaveFig(figName, Params.figExt, Params.fullSVG);
 
 if ~isfield(Params, 'oneFigure')
     close all

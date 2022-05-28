@@ -318,9 +318,8 @@ end
 
 %% save figure
 
-for nFigExt = 1:length(Params.figExt)
-    saveas(gcf,strcat([pNum, '_', plotType, '_NetworkPlot', Params.figExt{nFigExt}]));
-end 
+figName = strcat([pNum, '_', plotType, '_NetworkPlot']);
+pipelineSaveFig(figName, Params.figExt, Params.fullSVG);
 
 if ~isfield(Params, 'oneFigure')
     close all
