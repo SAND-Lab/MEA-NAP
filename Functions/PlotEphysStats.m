@@ -262,15 +262,10 @@ for n = 1:length(eMet)
     linkaxes(h,'xy')
     h(1).XLim = [min(xt)-0.5 max(xt)+0.5];
     set(findall(gcf,'-property','FontSize'),'FontSize',9)
-    if Params.figMat == 1
-        saveas(F1,strcat(num2str(n),'_',char(eMetl(n)),'.fig'));
-    end
-    if Params.figPng == 1
-        saveas(F1,strcat(num2str(n),'_',char(eMetl(n)),'.png'));
-    end
-    if Params.figEps == 1
-        saveas(F1,strcat(num2str(n),'_',char(eMetl(n)),'.eps'));
-    end
+    
+    figName = strcat(num2str(n),'_',char(eMetl(n)));
+    pipelineSaveFig(figName, Params.figExt, Params.fullSVG, F1);
+
     close(F1)
 end
 
@@ -322,15 +317,10 @@ for n = 1:length(eMet)
     linkaxes(h,'xy')
     h(1).XLim = [min(xt)-0.5 max(xt)+0.5];
     set(findall(gcf,'-property','FontSize'),'FontSize',9)
-    if Params.figMat == 1
-        saveas(F1,strcat(num2str(n),'_',char(eMetl(n)),'.fig'));
-    end
-    if Params.figPng == 1
-        saveas(F1,strcat(num2str(n),'_',char(eMetl(n)),'.png'));
-    end
-    if Params.figEps == 1
-        saveas(F1,strcat(num2str(n),'_',char(eMetl(n)),'.eps'));
-    end
+    
+    figName = strcat(num2str(n),'_',char(eMetl(n)));
+    pipelineSaveFig(figName, Params.figExt, Params.fullSVG, F1);
+
     close(F1)
 end
 
@@ -385,15 +375,10 @@ for n = 1:length(eMet)
     aesthetics
     set(gca,'TickDir','out');
     set(findall(gcf,'-property','FontSize'),'FontSize',9)
-    if Params.figMat == 1
-        saveas(F1,strcat(num2str(n),'_',char(eMetl(n)),'.fig'));
-    end
-    if Params.figPng == 1
-        saveas(F1,strcat(num2str(n),'_',char(eMetl(n)),'.png'));
-    end
-    if Params.figEps == 1
-        saveas(F1,strcat(num2str(n),'_',char(eMetl(n)),'.eps'));
-    end
+
+    figName = strcat(num2str(n),'_',char(eMetl(n)));
+    pipelineSaveFig(figName, Params.figExt, Params.fullSVG, F1);
+
     close(F1)
 end
 
@@ -444,15 +429,9 @@ for n = 1:length(eMet)
     aesthetics
     set(gca,'TickDir','out');
     set(findall(gcf,'-property','FontSize'),'FontSize',9)
-    if Params.figMat == 1
-        saveas(F1,strcat(num2str(n),'_',char(eMetl(n)),'.fig'));
-    end
-    if Params.figPng == 1
-        saveas(F1,strcat(num2str(n),'_',char(eMetl(n)),'.png'));
-    end
-    if Params.figEps == 1
-        saveas(F1,strcat(num2str(n),'_',char(eMetl(n)),'.eps'));
-    end
+
+    figName = strcat(num2str(n),'_',char(eMetl(n)));
+    pipelineSaveFig(figName, Params.figExt, Params.fullSVG, F1);
     close(F1)
 end
 
@@ -502,15 +481,9 @@ for n = 1:length(eMet)
     aesthetics
     set(gca,'TickDir','out');
     set(findall(gcf,'-property','FontSize'),'FontSize',9)
-    if Params.figMat == 1
-        saveas(F1,strcat(num2str(n),'_',char(eMetl(n)),'.fig'));
-    end
-    if Params.figPng == 1
-        saveas(F1,strcat(num2str(n),'_',char(eMetl(n)),'.png'));
-    end
-    if Params.figEps == 1
-        saveas(F1,strcat(num2str(n),'_',char(eMetl(n)),'.eps'));
-    end
+
+    figName = strcat(num2str(n),'_',char(eMetl(n)));
+    pipelineSaveFig(figName, Params.figExt, Params.fullSVG, F1);
     close(F1)
 end
 
@@ -563,9 +536,8 @@ for n = 1:length(eMet)
     set(findall(gcf,'-property','FontSize'),'FontSize',9)
 
     % Export figure
-    for nFigExt = 1:length(Params.figExt)
-        saveas(F1,strcat(num2str(n),'_',char(eMetl(n)),Params.figExt{nFigExt}));
-    end 
+    figName = strcat(num2str(n),'_',char(eMetl(n)));
+    pipelineSaveFig(figName, Params.figExt, Params.fullSVG, F1);
 
     close(F1)
 end
