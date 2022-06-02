@@ -1,4 +1,4 @@
-function nmfResults = calNMF(spikeMatrix, downsamplefreq, duration_s, minSpikeCount, includeRandomMatrix)
+function nmfResults = calNMF(spikeMatrix, fs, downsamplefreq, duration_s, minSpikeCount, includeRandomMatrix)
 %{
 calNMF calculates metrics related to non-negative matrix factorisation (NNMF) of
 the spike matrix 
@@ -16,6 +16,8 @@ minSpikeCount : int
 
 %}
 
+numUnits = size(spikeMatrix, 2);
+
 %% Initialise output 
 nmfResults = struct();
 
@@ -25,11 +27,27 @@ nmfResults = struct();
 
 % downsampled randomised spike matrix
 if includeRandomMatrix
-    asdf2 = rastertoasdf2(spikeMatrix',1000,'placeHolder','','placeHolder');  % does not really depend on Grp nor Info
-    randasdf2 = randomizeasdf2(asdf2,'wrap');
-    randSpikeMatrix = asdf2toraster(randasdf2)';
-    clear asdf2 randasdf2
+    
+    %tic
+    %asdf2 = rastertoasdf2(spikeMatrix',1000,'placeHolder','','placeHolder');  % does not really depend on Grp nor Info
+    %randasdf2 = randomizeasdf2(asdf2,'wrap');
+    %randSpikeMatrix = asdf2toraster(randasdf2)';
+    %toc 
+    %clear asdf2 randasdf2
+    %randSpikeMatrix = downSampleSum(randSpikeMatrix, downsamplefreq * duration_s);
+    
+    % tic
+    spikeTimes = spikeMatrixToSpikeTimes(spikeMatrix, fs);
+    randSpikeTimes = cell(numUnits, 1);
+    for unit = 1:numUnits
+        randSpikeTimes{unit} = randomiseSpikeTrain(spikeTimes{unit}, duration_s, 'wrap');
+    %end
+
+    randSpikeMatrix = spikeTimesToSpikeMatrix(randSpikeTimes, duration_s, fs); 
+    toc
+
     randSpikeMatrix = downSampleSum(randSpikeMatrix, downsamplefreq * duration_s);
+
 end 
 % downsampled original spike matrix
 fprintf('Downsampling spike matrix... \n')
