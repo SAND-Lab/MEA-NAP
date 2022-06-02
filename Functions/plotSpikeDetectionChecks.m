@@ -136,9 +136,8 @@ title({strcat(regexprep(FN,'_','','emptymatch')),' '});
 legend boxoff
 
 % Export figure
-for nFigExt = 1:length(Params.figExt)
-    saveas(gcf,strcat(['SpikeFrequencies', Params.figExt{nFigExt}]));
-end 
+figName = 'SpikeFrequencies';
+pipelineSaveFig(figName, Params.figExt, Params.fullSVG)
 
 
 close all
@@ -213,9 +212,8 @@ title({strcat(regexprep(FN,'_','','emptymatch')),' '});
 
 
 % Export figure
-for nFigExt = 1:length(Params.figExt)
-    saveas(gcf,strcat(['ExampleTraces', Params.figExt{nFigExt}]));
-end 
+figName = 'ExampleTraces';
+pipelineSaveFig(figName, Params.figExt, Params.fullSVG)
 
 close all
 
@@ -269,9 +267,8 @@ end
 
 
 % Export figure
-for nFigExt = 1:length(Params.figExt)
-    saveas(gcf,strcat(['Waveforms', Params.figExt{nFigExt}]));
-end 
+figName = 'Waveforms';
+pipelineSaveFig(figName, Params.figExt, Params.fullSVG)
 
 
 close all

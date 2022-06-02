@@ -47,11 +47,8 @@ set(gca,'TickDir','out');
 
 
 %% save figure
-
-for nFigExt = 1:length(Params.figExt)
-    saveas(gcf,strcat(['10_adjM', num2str(lagval(e)), 'msNullModels', Params.figExt{nFigExt}]));
-end 
-
+figName = strcat(['10_adjM', num2str(lagval(e)), 'msNullModels']);
+pipelineSaveFig(figName, Params.figExt, Params.fullSVG);
 
 if ~isfield(Params, 'oneFigure')
     close all

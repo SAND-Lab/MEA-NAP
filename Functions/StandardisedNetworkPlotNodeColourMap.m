@@ -396,11 +396,8 @@ if strcmp(plotType,'circular')
 end
 
 %% save figure
-
-% Export figure
-for nFigExt = 1:length(Params.figExt)
-    saveas(gcf,strcat([pNum,'_',plotType,'_NetworkPlot',zname,z2name, Params.figExt{nFigExt}]));
-end 
+figName = strcat([pNum,'_',plotType,'_NetworkPlot',zname,z2name]);
+pipelineSaveFig(figName, Params.figExt, Params.fullSVG);
 
 if ~isfield(Params, 'oneFigure')
     close all

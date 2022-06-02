@@ -3,11 +3,14 @@ function firingRateElectrodeDistribution(File,Ephys,Params,Info)
 
 Parameters
 ----------
-
+File : 
+Ephys : 
+Params : 
+Info : 
 
 Returns
 -------
-
+None
 
 %}
 
@@ -29,14 +32,9 @@ ax.TitleFontSizeMultiplier = 0.7;
 ylim([0 max(Ephys.FR)+max(Ephys.FR)*0.15])
 
 %% save the figure
-
-
-% Export figure
-for nFigExt = 1:length(Params.figExt)
-    saveas(gcf,strcat(['FiringRateByElectrode', Params.figExt{nFigExt}]));
-end 
+figName = 'FiringRateByElectrode';
+pipelineSaveFig(figName, Params.figExt, Params.fullSVG);
 
 close(F1); 
-
   
 end

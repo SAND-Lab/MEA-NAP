@@ -45,6 +45,10 @@ NetMet (structure)
 
 author RCFeord July 2021
 edited by Tim Sit
+
+% TODO: there is quite some reptition of the plotting code here, 
+% can be simplified
+
 %}
 
 % specify output format (currently Params is loaded from the mat file, 
@@ -95,15 +99,17 @@ end
 % whole experiment metrics (1 value per experiment)
 
 % names of metrics
-ExpInfoE = {'Grp','DIV'}; % info for both age and genotype
+ExpInfoE = {'Grp','DIV'}; % info for both age and genotype, TODO: this is not used
 % list of metrics 
 NetMetricsE = {'Dens','Q','nMod','Eglob','aN','CC','PL','SW','SWw', ... 
-    'NCpn1','NCpn2','NCpn3','NCpn4','NCpn5','NCpn6','Hub3','Hub4'}; 
+               'Hub3','Hub4'}; 
+
+% 'NCpn1','NCpn2','NCpn3','NCpn4','NCpn5','NCpn6' are moved
 
 % single cell/node metrics (1 value per cell/node)
 
 % names of metrics
-ExpInfoC = {'Grp','DIV'}; % info for both age and genotype
+ExpInfoC = {'Grp','DIV'}; % info for both age and genotype, TODO: this is not used
 % list of metrics 
 NetMetricsC = {'ND','EW','NS','Eloc','BC','PC','Z'};
 
@@ -368,15 +374,18 @@ cd('4_NetworkActivity'); cd('4B_GroupComparisons')
 cd('5_GraphMetricsByLag')
 
 eMet = {'aN','Dens','CC','nMod', ... 
-        'Q','PL','Eglob','SW','SWw','NCpn1','NCpn2','NCpn3','NCpn4','NCpn5', ...
-        'NCpn6','Hub3','Hub4'}; 
+        'Q','PL','Eglob','SW','SWw','Hub3','Hub4'}; 
 eMetl = {'network size','density','clustering coefficient','number of modules', ...
     'modularity score','path length','global efficiency', ... 
-    'small worldness \sigma','small worldness \omega', ... 
-    'proportion peripheral nodes','proportion non-hub connectors', ... 
-    'proportion non-hub kinless nodes', ... 
-    'proportion provincial hubs','proportion connector hubs', ... 
-    'proportion kinless hubs','hub nodes 2','hub nodes 1'}; 
+    'small worldness \sigma','small worldness \omega', 'hub nodes 2','hub nodes 1'}; 
+
+% moved:
+% 'NCpn1','NCpn2','NCpn3','NCpn4','NCpn5', 'NCpn6'
+%     'proportion peripheral nodes','proportion non-hub connectors', ... 
+%    'proportion non-hub kinless nodes', ... 
+%    'proportion provincial hubs','proportion connector hubs', ... 
+%    'proportion kinless hubs','
+
 
 assert(length(eMet) == length(eMetl), 'ERROR: eMet and eMetl have different lengths')
 
@@ -477,14 +486,15 @@ cd(HomeDir); cd(strcat('OutputData',Params.Date));
 cd('4_NetworkActivity'); cd('4B_GroupComparisons')
 cd('3_RecordingsByGroup'); cd('NotBoxPlots')
 
-eMet = {'aN','Dens','CC','nMod','Q','PL','Eglob','SW','SWw', ... 
-    'NCpn1','NCpn2','NCpn3','NCpn4','NCpn5','NCpn6','Hub3','Hub4'}; 
+eMet = {'aN','Dens','CC','nMod','Q','PL','Eglob','SW','SWw', 'Hub3','Hub4'}; 
 eMetl = {'network size','density','clustering coefficient', ... 
     'number of modules','modularity score','path length', ... 
-    'global efficiency','small worldness \sigma','small worldness \omega', ... 
-    'proportion peripheral nodes','proportion non-hub connectors', ... 
-    'proportion non-hub kinless nodes','proportion provincial hubs', ... 
-    'proportion connector hubs','proportion kinless hubs','hub nodes 2','hub nodes 1'}; 
+    'global efficiency','small worldness \sigma','small worldness \omega', 'hub nodes 2','hub nodes 1'}; 
+
+% moved:  'NCpn1','NCpn2','NCpn3','NCpn4','NCpn5','NCpn6',
+%    'proportion peripheral nodes','proportion non-hub connectors', ... 
+%    'proportion non-hub kinless nodes','proportion provincial hubs', ... 
+%    'proportion connector hubs','proportion kinless hubs',
 
 p = [100 100 1300 600]; 
 set(0, 'DefaultFigurePosition', p)
@@ -557,13 +567,15 @@ cd(HomeDir); cd(strcat('OutputData',Params.Date));
 cd('4_NetworkActivity'); cd('4B_GroupComparisons')
 cd('3_RecordingsByGroup'); cd('HalfViolinPlots')
 
-eMet = {'aN','Dens','CC','nMod','Q','PL','Eglob','SW','SWw','NCpn1', ... 
-        'NCpn2','NCpn3','NCpn4','NCpn5','NCpn6','Hub3','Hub4'}; 
+eMet = {'aN','Dens','CC','nMod','Q','PL','Eglob','SW','SWw','Hub3','Hub4'}; 
 eMetl = {'network size','density','clustering coefficient','number of modules', ... 
     'modularity score','path length','global efficiency','small worldness \sigma', ... 
-    'small worldness \omega','proportion peripheral nodes','proportion non-hub connectors', ... 
-    'proportion non-hub kinless nodes','proportion provincial hubs','proportion connector hubs', ... 
-    'proportion kinless hubs','hub nodes 2','hub nodes 1'}; 
+    'small worldness \omega', 'hub nodes 2','hub nodes 1'}; 
+
+% moved: 'NCpn1', 'NCpn2','NCpn3','NCpn4','NCpn5','NCpn6'
+% moved: 'proportion peripheral nodes','proportion non-hub connectors', ... 
+%    'proportion non-hub kinless nodes','proportion provincial hubs','proportion connector hubs', ... 
+%    'proportion kinless hubs',
 
 p = [100 100 1300 600]; 
 set(0, 'DefaultFigurePosition', p)
@@ -641,8 +653,13 @@ cd(HomeDir); cd(strcat('OutputData',Params.Date));
 cd('4_NetworkActivity'); cd('4B_GroupComparisons')
 cd('4_RecordingsByAge'); cd('NotBoxPlots')
 
-eMet = {'aN','Dens','CC','nMod','Q','PL','Eglob','SW','SWw','NCpn1','NCpn2','NCpn3','NCpn4','NCpn5','NCpn6','Hub3','Hub4'}; 
-eMetl = {'network size','density','clustering coefficient','number of modules','modularity score','path length','global efficiency','small worldness \sigma','small worldness \omega','proportion peripheral nodes','proportion non-hub connectors','proportion non-hub kinless nodes','proportion provincial hubs','proportion connector hubs','proportion kinless hubs','hub nodes 2','hub nodes 1'}; 
+eMet = {'aN','Dens','CC','nMod','Q','PL','Eglob','SW','SWw','Hub3','Hub4'}; 
+eMetl = {'network size','density','clustering coefficient','number of modules', ... 
+    'modularity score','path length','global efficiency','small worldness \sigma', ... 
+    'small worldness \omega', 'hub nodes 2','hub nodes 1'}; 
+
+% moved: 'NCpn1','NCpn2','NCpn3','NCpn4','NCpn5','NCpn6',
+% 'proportion peripheral nodes','proportion non-hub connectors','proportion non-hub kinless nodes','proportion provincial hubs','proportion connector hubs','proportion kinless hubs',
 
 p = [100 100 1300 600]; 
 set(0, 'DefaultFigurePosition', p)
@@ -712,8 +729,14 @@ cd(HomeDir); cd(strcat('OutputData',Params.Date));
 cd('4_NetworkActivity'); cd('4B_GroupComparisons')
 cd('4_RecordingsByAge'); cd('HalfViolinPlots')
 
-eMet = {'aN','Dens','CC','nMod','Q','PL','Eglob','SW','SWw','NCpn1','NCpn2','NCpn3','NCpn4','NCpn5','NCpn6','Hub3','Hub4'}; 
-eMetl = {'network size','density','clustering coefficient','number of modules','modularity score','path length','global efficiency','small worldness \sigma','small worldness \omega','proportion peripheral nodes','proportion non-hub connectors','proportion non-hub kinless nodes','proportion provincial hubs','proportion connector hubs','proportion kinless hubs','hub nodes 2','hub nodes 1'}; 
+eMet = {'aN','Dens','CC','nMod','Q','PL','Eglob','SW','SWw','Hub3','Hub4'}; 
+eMetl = {'network size','density','clustering coefficient','number of modules', ...
+    'modularity score','path length','global efficiency','small worldness \sigma','small worldness \omega', ... 
+    'hub nodes 2','hub nodes 1'}; 
+
+% moved: 'NCpn1','NCpn2','NCpn3','NCpn4','NCpn5','NCpn6'
+% 'proportion peripheral nodes','proportion non-hub connectors','proportion non-hub kinless nodes','proportion provincial hubs','proportion connector hubs','proportion kinless hubs',
+
 
 p = [100 100 1300 600]; 
 set(0, 'DefaultFigurePosition', p)
@@ -868,7 +891,8 @@ cd('4_NetworkActivity'); cd('4B_GroupComparisons')
 cd('2_NodeByAge')
 
 eMet = {'ND','EW','NS','Z','Eloc','PC','BC'}; 
-eMetl = {'node degree','edge weight','node strength','within-module degree z-score','local efficiency','participation coefficient','betweeness centrality'}; 
+eMetl = {'node degree','edge weight','node strength','within-module degree z-score', ... 
+    'local efficiency','participation coefficient','betweeness centrality'}; 
 
 p = [100 100 1300 600]; 
 set(0, 'DefaultFigurePosition', p)
@@ -939,7 +963,8 @@ for l = 1:length(Params.FuncConLagval)
 end
 
 %% Node cartography
-
+% TODO: move this 
+%{
 cd(HomeDir); cd(strcat('OutputData',Params.Date))
 cd('4_NetworkActivity'); cd('4B_GroupComparisons')
 cd('6_NodeCartographyByLag')
@@ -1021,5 +1046,6 @@ for l = 1:length(Params.FuncConLagval)
         clf reset
     end 
 end
+%}
 
 end

@@ -3,15 +3,21 @@ function [spikeMatrix,spikeTimes,Params,Info] = formatSpikeTimes(File,Params,Inf
 % this function loads in the spike detection result and creates a
 % spike matrix and spike times structure for the chosen spike detection
 % method and chosen length of recording
-%
-% INPUTS
-%   File:
-%   Params: here we will use Params.SpikesCostParam, Params.SpikesMethod,
-%            Params.TruncRec and Params.TruncLength
-%
-% OUTPUTS 
-%
+% This function assumes that the _spikes.mat files are in your path
+%{
+INPUTS
+-----------
+File : (character)
+    name of the recording, excluding file extensions
+Params : (structure)
+    here we will use Params.SpikesCostParam, Params.SpikesMethod,
+    Params.TruncRec and Params.TruncLength
+Info : (structure)
 
+OUTPUTS 
+-----------
+
+%}
 %% load spike detection result
 
 try

@@ -168,10 +168,8 @@ aesthetics
 set(gca,'TickDir','out');
 
 %% save figure
-
-for nFigExt = 1:length(Params.figExt)
-    saveas(gcf,strcat(['NetworkWideMetrics', Params.figExt{nFigExt}]));
-end 
+figName = 'NetworkWideMetrics';
+pipelineSaveFig(figName, Params.figExt, Params.fullSVG);
 
 if ~isfield(Params, 'oneFigure')
     close all
