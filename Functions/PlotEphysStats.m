@@ -1,4 +1,4 @@
-function [] = PlotEphysStats(ExpName,Params,HomeDir)
+function PlotEphysStats(ExpName,Params,HomeDir)
 % plot ephys statistics for MEA data
 % author RCFeord July 2021
 % Updated by Tim Sit 
@@ -6,18 +6,17 @@ function [] = PlotEphysStats(ExpName,Params,HomeDir)
 
 Parameters 
 -----------
-ExpName : (str)
-Params : (structure)
+ExpName : str
+Params : structure
     The following fields are used
     groupColors : (nGroup x 3 matrix)
         the RGB colors to use for each group during plotting
     
-HomeDir : (str)
+HomeDir : str
 
 Returns
 -------
-
-
+None
 %}
 
 %% colours
