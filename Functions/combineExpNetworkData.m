@@ -91,7 +91,7 @@ for i = 1:length(ExpName)
                 %eval(['DatTemp(l) =' VNs ';']);
                 lagValStr = strcat('adjM', num2str(Params.FuncConLagval(l)),'mslag');
                 % DatTemp(l) = NetMet.(lagValStr).(eMet);
-                groupTypeCounter = size(combinedData.(eGrp).(eDiv).(eMet), 1); 
+                groupTypeCounter = size(combinedData.(eGrp).(eDiv).(eMet), 1); % count occurences of a specific Grp-DIV
                 combinedData.(eGrp).(eDiv).(eMet)(groupTypeCounter+1, l) = ExpData.NetMet.(lagValStr).(eMet);
                 %clear VNs
             end
@@ -116,7 +116,7 @@ for g = 1:length(Grps)
         % add variable name
         for e = 1:length(NetMetricsC)
             VN3 = cell2mat(NetMetricsC(e));
-            %eval([VN1 '.' VN2 '.' VN3 '= [];']);
+            eval([VN1 '.' VN2 '.' VN3 '= [];']);
             combinedData.(VN1).(VN2).(VN3) = [];
             clear VN3
         end
@@ -148,27 +148,32 @@ for i = 1:length(ExpName)
      for e = 1:length(NetMetricsC)
             eMet = cell2mat(NetMetricsC(e));
             for l = 1:length(Params.FuncConLagval)
-                % VNs = strcat('NetMet.adjM',num2str(Params.FuncConLagval(l)),'mslag.',eMet);
+                VNs = strcat('NetMet.adjM',num2str(Params.FuncConLagval(l)),'mslag.',eMet);
                 lagValStr = strcat('adjM', num2str(Params.FuncConLagval(l)),'mslag');
-                DatTemp(l) = NetMet.(lagValStr).(eMet);
+                eval(['DatTemp' num2str(l) '= ' VNs ';']);
+                % DatTemp(l) = NetMet.(lagValStr).(eMet);
                 
-                %eval(['DatTemp' num2str(l) '= ' VNs ';']);
-                % eval(['mL(l) = length(DatTemp' num2str(l) ');']);
-                mL(l) = length(DatTemp(l));
+                eval(['DatTemp' num2str(l) '= ' VNs ';']);
+                eval(['mL(l) = length(DatTemp' num2str(l) ');']);
+                %mL(l) = length(DatTemp(l));
 
                 clear VNs
             end
+            % TODO: work out what is being assumed here and what it is
+            % doing
             for l = 1:length(Params.FuncConLagval)
-                %eval(['DatTempT = DatTemp' num2str(l) ';']);
-                DatTempT = DatTemp(l);
+                eval(['DatTempT = DatTemp' num2str(l) ';']);
+                % DatTempT = DatTemp(l);
                 if length(DatTempT) < max(mL)
                     DatTempT(length(DatTempT+1):max(mL)) = nan;
                 end
                 DatTemp(:,l) = DatTempT;
             end
-            % VNe = strcat(eGrp,'.',eDiv,'.',eMet);
-            % eval([VNe '= [' VNe '; DatTemp];']);
-            combinedData.(eGrp).(eDiv).(eMet) = DatTemp;
+            VNe = strcat(eGrp,'.',eDiv,'.',eMet);
+            eval([VNe '= [' VNe '; DatTemp];']);
+
+            % Append to vector in field 
+            combinedData.(eGrp).(eDiv).(eMet) = [combinedData.(eGrp).(eDiv).(eMet); DatTemp];
             clear DatTemp
      end
      clear Info NetMet adjMs
@@ -192,20 +197,24 @@ for g = 1:length(Grps)
         eDiv = strcat('TP',num2str(d));
         VNe = strcat(eGrp,'.',eDiv);
         % VNe = eGrp.(eDiv);
-        VNet = strcat('TempStr.',eDiv);
+        %VNet = strcat('TempStr.',eDiv);
         for l = 1:length(Params.FuncConLagval)
             for e = 1:length(NetMetricsE)
                 % Only do the asignment if metricVal is not empty
-                eval(['metricVal' '=' VNe '.' char(NetMetricsE(e)) ';'])
+                %eval(['metricVal' '=' VNe '.' char(NetMetricsE(e)) ';'])
+                metricVal = combinedData.(eGrp).(eDiv).(char(NetMetricsE(e)));
                 if length(metricVal) ~= 0
-                    eval([VNet '.' char(NetMetricsE(e)) '='  'metricVal(:,l);']);
+                    %eval([VNet '.' char(NetMetricsE(e)) '='  'metricVal(:,l);']);
+                    TempStr.(eDiv).(char(NetMetricsE(e))) = metricVal(:, l);
                 else 
-                    eval([VNet '.' char(NetMetricsE(e)) '='  '0;']);
+                    TempStr.(eDiv).(char(NetMetricsE(e))) = 0;
+                    % eval([VNet '.' char(NetMetricsE(e)) '='  '0;']);
                 end 
                 % netMetricToGet = char(NetMetricsE(e));
                 % VNet.(netMetricToGet) = VNe.(netMetricToGet)
             end
-            eval(['DatTemp = ' VNet ';']); 
+            % eval(['DatTemp = ' VNet ';']); 
+            DatTemp = TempStr.(eDiv);
             if strcmp(output_spreadsheet_file_type, 'csv')
                 %numEntries = length(DatTemp.(NetMetricsE{1}));
                 DatTempFieldNames = fieldnames(DatTemp);
@@ -254,19 +263,23 @@ for g = 1:length(Grps)
     eGrp = cell2mat(Grps(g));
     for d = 1:length(AgeDiv)
         eDiv = strcat('TP',num2str(d));
-        VNe = strcat(eGrp,'.',eDiv);
-        VNet = strcat('TempStr.',eDiv);
+        % VNe = strcat(eGrp,'.',eDiv);
+        % VNet = strcat('TempStr.',eDiv);
         for l = 1:length(Params.FuncConLagval)
             for e = 1:length(NetMetricsC)
                 % Only do the assignment if metricVal is not empty 
-                eval(['metricVal' '=' VNe '.' char(NetMetricsC(e)) ';'])
+                % eval(['metricVal' '=' VNe '.' char(NetMetricsC(e)) ';'])
+                metricVal = combinedData.(eGrp).(eDiv).(char(NetMetricsC(e)));
                 if length(metricVal) ~= 0
-                    eval([VNet '.' char(NetMetricsC(e)) '=' 'metricVal(:,l);']);
+                    % eval([VNet '.' char(NetMetricsC(e)) '=' 'metricVal(:,l);']);
+                    TempStr.(eDiv).(char(NetMetricsC(e))) = metricVal(:, l);
                 else 
-                    eval([VNet '.' char(NetMetricsC(e)) '=' '0']);
+                    % eval([VNet '.' char(NetMetricsC(e)) '=' '0']);
+                    TempStr.(eDiv).(char(NetMetricsC(e))) = 0;
                 end 
             end
-            eval(['DatTemp = ' VNet ';']);
+            % eval(['DatTemp = ' VNet ';']);
+            DatTemp = TempStr.(eDiv);
             
            if strcmp(output_spreadsheet_file_type, 'csv')
                 DatTempFieldNames = fieldnames(DatTemp);
