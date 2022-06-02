@@ -31,7 +31,7 @@ addpath('Images')
 spreadsheet_file_type = 'csv'; % 'csv';
 % spread_sheet_filename = 'myRecordingsList.xlsx'; % name of excel spreadsheet
 % spreadsheet_filename = 'myRecordingsList.csv'; % name of csv file
-spreadsheet_filename = 'hpc_dataset_subset.csv'; % other examples
+spreadsheet_filename = 'hpc_dataset.csv'; % other examples
 % spreadsheet_filename = 'axiontest2.csv';
 % spreadsheet_filename = 'axiontest_wExcludedElectrode3.csv';
 
@@ -60,16 +60,16 @@ Params.priorAnalysis = 1; % 1 = yes, 0 = no
 % path to previously analysed data
 % Params.priorAnalysisPath = ['/Users/timothysit/AnalysisPipeline/OutputData20Jan2022v3']; % example format
 Params.priorAnalysisPath = ['/Users/timothysit/AnalysisPipeline/OutputData16Feb2022'];
-% Params.priorAnalysisPath = ['/Users/timothysit/AnalysisPipeline/OutputData19Mayv122022'];
+% Params.priorAnalysisPath = ['/Users/timothysit/AnalysisPipeline/OutputData19May2022v12'];
 % prior analysis date in format given in output data folder e.g., '27Sep2021'
 % Params.priorAnalysisDate = '20Jan2022';
-% Params.priorAnalysisDate = '19May2022';
-Params.priorAnalysisDate = '16Feb2022';
+Params.priorAnalysisDate = '19May2022';
+% Params.priorAnalysisDate = '16Feb2022';
 % which section to start new analysis from:
 % 2 = neuronal activity (uses spike detection from step 1)
 % 3 = functional connectivity (uses spike detection from step 1)
 % 4 = network activity (uses functional connectivity outputs from step 3)
-Params.startAnalysisStep = 4; % if Params.priorAnalysis=0, default is to start with spike detection
+Params.startAnalysisStep = 4 ; % if Params.priorAnalysis=0, default is to start with spike detection
 Params.optionalStepsToRun = {'runstats'};
 % Supported optional steps: 
 % getDensityLandscape : calculate and plot distribution of participation
@@ -159,9 +159,7 @@ Params.autoSetCartographyBoundaries = 1;  % whether to automatically determine b
 
 % figure formats
 Params.figExt = {'.png', '.svg'};  % supported options are '.mat', '.png', and '.svg'
-% Params.figMat = 0; % figures saved as .mat format, 1 = yes, 0 = no
-% Params.figPng = 1; % figures saved as .png format, 1 = yes, 0 = no
-% Params.figEps = 1; % figures saved as .eps format, 1 = yes, 0 = no
+Params.fullSVG = 1;  % whether to insist svg even with plots with large number of elements
 
 % Stop figures windows from popping up (steals windows focus on linux
 % machines at least) when set to 1 (by only plotting on one figure handle)
@@ -418,7 +416,7 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
 end
 
 %% Step 4 - network activity
-Params.priorAnalysisPath = '/Users/timothysit/AnalysisPipeline/OutputData19May2022v12/';
+% Params.priorAnalysisPath = '/Users/timothysit/AnalysisPipeline/OutputData19May2022v12/';
 if Params.showOneFig
     % TODO: do this for spike detection plots as well, and PlotNetMet
     Params.oneFigure = figure;
@@ -429,7 +427,7 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
     for  ExN = 1:length(ExpName)
 
         if Params.priorAnalysis==1 && Params.startAnalysisStep==4
-            path = strcat(Paratms.priorAnalysisPath,'/ExperimentMatFiles/');
+            path = strcat(Params.priorAnalysisPath,'/ExperimentMatFiles/');
             path(strfind(savepath,'\'))='/'; cd(path)
             load(strcat(char(ExpName(ExN)),'_',Params.priorAnalysisDate,'.mat'), 'spikeTimes','Ephys','adjMs','Info')
         else
@@ -466,6 +464,10 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
     if Params.autoSetCartographyBoundaries
         cd(fullfile(Params.priorAnalysisPath, 'ExperimentMatFiles'));    
         fig_folder = fullfile(Params.priorAnalysisPath, '4_NetworkActivity/4B_GroupComparisons/7_DensityLandscape');
+        if ~isfolder(fig_folder)
+            mkdir(fig_folder)
+        end 
+
         ExpList = dir('*.mat');
         add_fig_info = '';
         [hubBoundaryWMdDeg, periPartCoef, proHubpartCoef, nonHubconnectorPartCoef, connectorHubPartCoef] = TrialLandscapeDensity(ExpList, fig_folder, add_fig_info);
@@ -504,10 +506,22 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
 
         cd(strcat('OutputData',Params.Date)); cd('4_NetworkActivity')
         cd('4A_IndividualNetworkAnalysis'); cd(char(Info.Grp))
-    
-        plotNodeCartography(adjMs, Params, NetMet, Info, HomeDir);
-    
+        
+        NetMet = plotNodeCartography(adjMs, Params, NetMet, Info, HomeDir);
+        % save NetMet now we node cartography data as well
+        cd(HomeDir); cd(strcat('OutputData',Params.Date)); cd('ExperimentMatFiles')
+        save(strcat(char(Info.FN),'_',Params.Date,'.mat'),'Info','Params','spikeTimes','Ephys','adjMs','NetMet')
+        cd(HomeDir)
     end 
+    
+    % Plot node cartography metrics across all reccordings 
+    cd(fullfile(HomeDir, strcat('OutputData', Params.Date), 'ExperimentMatFiles'))
+    NetMetricsE = {'Dens','Q','nMod','Eglob','aN','CC','PL','SW','SWw', ... 
+               'Hub3','Hub4', 'NCpn1','NCpn2','NCpn3','NCpn4','NCpn5','NCpn6'}; 
+    NetMetricsC = {'ND','EW','NS','Eloc','BC','PC','Z'};
+    combinedData = combineExpNetworkData(ExpName, Params, NetMetricsE, NetMetricsC, HomeDir);
+    plotNetMetNodeCartography(combinedData, ExpName,Params,HomeDir)
+
 
 end
 
