@@ -31,7 +31,8 @@ addpath('Images')
 spreadsheet_file_type = 'csv'; % 'csv';
 % spread_sheet_filename = 'myRecordingsList.xlsx'; % name of excel spreadsheet
 % spreadsheet_filename = 'myRecordingsList.csv'; % name of csv file
-spreadsheet_filename = 'hpc_dataset.csv'; % other examples
+% spreadsheet_filename = 'hpc_dataset.csv'; % other examples
+spreadsheet_filename = 'Mahsa_11_File_Dataset.csv'; 
 % spreadsheet_filename = 'axiontest2.csv';
 % spreadsheet_filename = 'axiontest_wExcludedElectrode3.csv';
 
@@ -81,8 +82,8 @@ Params.optionalStepsToRun = {'runstats'};
 % comparePrePostTTX : compare pre/post TTX activity in data
 
 % run spike detection?
-detectSpikes = 0; % 1 = yes, 0 = no
-Params.runSpikeCheckOnPrevSpikeData = 1; % whether to run spike detection check without spike deteciton 
+detectSpikes = 1; % 1 = yes, 0 = no
+Params.runSpikeCheckOnPrevSpikeData = 0; % whether to run spike detection check without spike deteciton 
 
 if Params.runSpikeCheckOnPrevSpikeData
     fprintf(['You specified to run spike detection check on previously extracted spikes, \n', ... 
@@ -204,6 +205,7 @@ elseif strcmp(spreadsheet_file_type, 'csv')
     opts = detectImportOptions(spreadsheet_filename);
     opts.Delimiter = ',';
     opts.VariableNamesLine = 1;
+    opts.VariableTypes{1} = 'char';
     % csv_data = readtable(spreadsheet_filename, 'Delimiter','comma');
     csv_data = readtable(spreadsheet_filename, opts);
     ExpName =  csv_data{:, 1};
