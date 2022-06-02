@@ -4,11 +4,15 @@ create AdjM for a series of lag values
 
 Parameters
 ----------
-
+spikeTimes : 
+ExN : 
+Params : struct
+Info : 
+HomeDir
 
 Returns 
 -------
-
+adjMs : 
 
 %}
 
