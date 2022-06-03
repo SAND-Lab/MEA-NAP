@@ -5,7 +5,7 @@ function [spikeMatrix,spikeTimes,Params,Info] = formatSpikeTimes(File,Params,Inf
 % method and chosen length of recording
 % This function assumes that the _spikes.mat files are in your path
 %{
-INPUTS
+Parameters
 -----------
 File : (character)
     name of the recording, excluding file extensions
