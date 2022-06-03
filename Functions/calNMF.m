@@ -1,20 +1,26 @@
 function nmfResults = calNMF(spikeMatrix, fs, downsamplefreq, duration_s, minSpikeCount, includeRandomMatrix)
-%{
-calNMF calculates metrics related to non-negative matrix factorisation (NNMF) of
-the spike matrix 
+% calNMF calculates metrics related to non-negative matrix factorisation (NNMF) of
+% the spike matrix 
+%
+% Parameters
+% ----------
+%
+% spikeMatrix : matrix 
+%     matrix of shape (numTimeSamples, numElectrodes)
+% Params : structure 
+% Info : structure 
+% minSpikeCount : int 
+%    minimum number of spike to count an electrode as active 
+% Returns
+% -------
+% nmfResults : struct 
+%   structure with the following fields 
+%   num_nnmf_components : number of significant components from NMF
+%   nComponentsRelNS : number of components relative to network size
 
-Parameters
-----------
-
-spikeMatrix : matrix 
-    matrix of shape (numTimeSamples, numElectrodes)
-Params : structure 
-Info : structure 
-    
-minSpikeCount : int 
-    minimum number of spike to count an electrode as active 
-
-%}
+if issparse(spikeMatrix)
+    spikeMatrix = full(spikeMatrix);
+end
 
 numUnits = size(spikeMatrix, 2);
 
@@ -35,16 +41,13 @@ if includeRandomMatrix
     %toc 
     %clear asdf2 randasdf2
     %randSpikeMatrix = downSampleSum(randSpikeMatrix, downsamplefreq * duration_s);
-    
-    % tic
     spikeTimes = spikeMatrixToSpikeTimes(spikeMatrix, fs);
     randSpikeTimes = cell(numUnits, 1);
     for unit = 1:numUnits
         randSpikeTimes{unit} = randomiseSpikeTrain(spikeTimes{unit}, duration_s, 'wrap');
-    %end
+    end
 
     randSpikeMatrix = spikeTimesToSpikeMatrix(randSpikeTimes, duration_s, fs); 
-    toc
 
     randSpikeMatrix = downSampleSum(randSpikeMatrix, downsamplefreq * duration_s);
 
