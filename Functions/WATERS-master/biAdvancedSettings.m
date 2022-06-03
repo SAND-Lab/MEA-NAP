@@ -58,7 +58,25 @@ end
 option = 'list';
 
 %% Network analysis settings 
+Params.netMetToCal = {'ND', 'EW', 'NS', 'aN', 'Dens', 'Ci', 'Q', 'nMod', 'Eglob', ...,
+        'CC', 'PL' 'SW','SWw' 'Eloc', 'BC', 'PC' , 'PC_raw', 'Cmcblty', 'Z', ...
+        'Hub4','Hub3', 'NE', 'effRank', 'num_nnmf_components', 'nComponentsRelNS'};
 Params.minNumberOfNodesToCalNetMet = 25;  % minimum number of nodes to calculate BC and other metrics
+Params.networkLevelNetMetToPlot = {'aN','Dens','CC','nMod','Q','PL','Eglob', ...
+    'SW','SWw','Hub3','Hub4', 'effRank', ...
+    'num_nnmf_components', 'nComponentsRelNS'};  % which network metric to plot at the network level 
+Params.networkLevelNetMetLabels = {'network size','density','clustering coefficient','number of modules', ... 
+    'modularity score','path length','global efficiency','small worldness \sigma', ... 
+    'small worldness \omega', 'hub nodes 2','hub nodes 1', 'Effective rank', ...
+    'Num_NMF_components', 'nNMF_div_network size'};
+
+Params.unitLevelNetMetToPlot = {'ND','EW','NS','Z','Eloc','PC','BC'};
+Params.unitLevelNetMetLabels = {'node degree','edge weight','node strength','within-module degree z-score', ... 
+    'local efficiency','participation coefficient','betweeness centrality'}; 
+
+%% Dimensionality calculation settings 
+Params.effRankCalMethod = 'covariance';
+Params.NMFdownsampleFreq = 10;   % how mucn to downsample the spike matrix to (Hz) before doing non-negative matrix factorisation
 
 %% Node cartography settings 
 Params.hubBoundaryWMdDeg = 0.25; % boundary that separates hub and non-hubs (default 2.5)
