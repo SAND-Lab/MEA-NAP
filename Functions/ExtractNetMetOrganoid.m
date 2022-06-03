@@ -1,5 +1,7 @@
 function [NetMet] = ExtractNetMetOrganoid(adjMs, spikeTimes, lagval,Info,HomeDir,Params, spikeMatrix)
 %{
+Extract network metrics from adjacency matrices for organoid data
+
 Parameters 
 ----------
 adjMs : N x N matrix
@@ -21,10 +23,31 @@ spikeMatrix : (N x T sparse or full matrix)
 Returns
 ---------
 
-NetMet : (structure)
+NetMet : structure
+    structure with network metrics 
+    'ND' : Node degree
+    'EW' : 
+    'NS' : 
+    'aN' : 
+    'Dens' : 
+    'Ci' :
+    'Q' :  
+    'nMod' : 
+    'Eglob' : 
+    'CC' :  
+    'PL' : 
+    'SW' : 
+    'SWw' :
+    'Eloc' :
+    'BC' : 
+    'PC' :  
+    'PC_raw' :
+    'Cmcblty' : 
+    'Z' : 
+    'Hub4' : 
+    'Hub3' : 
+    'NE' : 
 
-% extract network metrics from adjacency matrices for organoid data
-% author RCFeord March 2021
 
 % List of plotting functions used in this script: 
     - plotConnectivityProperties
@@ -37,10 +60,16 @@ Parameters defined in this function:
 LatticeNetwork : (N x N matrix) 
 Ci : 
 aN : number of active nodes
+
+Author : RCFeord March 2021
+Edited by Tim Sit
 %}
 
-% edge threshold for adjM
 
+% specify list of network metrics to calculate
+netMetToCal = Params.netMetToCal;
+
+% edge threshold for adjM
 edge_thresh = 0.0001;
 mkdir(char(Info.FN))
 cd(char(Info.FN))
@@ -48,13 +77,18 @@ cd(char(Info.FN))
 for e = 1:length(lagval)
     
     % load adjM
-    eval(['adjM = adjMs.adjM' num2str(lagval(e)) 'mslag;']);
+    % eval(['adjM = adjMs.adjM' num2str(lagval(e)) 'mslag;']);
+    lagValStr = strcat('adjM', num2str(lagval(e)), 'mslag');
+    adjM = adjMs.(lagValStr);
     adjM(adjM<0) = 0;
     adjM(isnan(adjM)) = 0;
     
     % create subfolder
-    mkdir(strcat(num2str(lagval(e)),'mslag'))
-    cd(strcat(num2str(lagval(e)),'mslag'))
+    lagFolderName = strcat(num2str(lagval(e)),'mslag');
+    if ~isfolder(lagFolderName)
+        mkdir(lagFolderName)
+    end 
+    cd(lagFolderName)
     
     %% connectivity measures
     
@@ -234,18 +268,33 @@ else
     Cmcblty_idx = find(contains(hub_metrics.metric_names, 'Communicability'));
     Cmcblty = hub_metrics.metrics_unsorted(:, Cmcblty_idx);
 
+    %% Calculate non-negative matrix factorisation components
+    if any(strcmp(netMetToCal, 'num_nnmf_components'))
+        fprintf('Calculating NMF \n')
+        minSpikeCount = 10;
+        includeRandomMatrix = 1;
+        nmfCalResults = calNMF(spikeMatrix, Params.fs, Params.NMFdownsampleFreq, ...
+                                Info.duration_s, minSpikeCount, includeRandomMatrix);
+        NetMet.(strcat('adjM',num2str(lagval(e)),'mslag')).num_nnmf_components = nmfCalResults.num_nnmf_components;
+        NetMet.(strcat('adjM',num2str(lagval(e)),'mslag')).nComponentsRelNS = nmfCalResults.nComponentsRelNS; 
+    end 
+
+    %% Calculate effective rank 
+    if any(strcmp(netMetToCal,'effRank'))
+        fprintf('Calculating effective rank \n')
+        NetMet.(strcat('adjM',num2str(lagval(e)),'mslag')).effRank = ...
+            calEffRank(spikeMatrix, Params.effRankCalMethod);
+    end 
+
     %% electrode specific half violin plots
+    % TODO: move the plotting to a separate function
 
     electrodeSpecificMetrics(ND, NS, EW, Eloc, BC, PC, Z, lagval, ... 
             e, char(Info.FN), Params)
     
     %% network plots
-    
     [On,adjMord] = reorder_mod(adjM,Ci);
-    
-    % Define minimal edge threshold (currently set to basically 0)
-    edge_thresh = 0.00001;
-    
+
     try
         channels = Info.channels;
         channels(iN) = [];
@@ -255,11 +304,6 @@ else
             13,23,12,22,33,21,32,31,44,43,41,42,52,51,53,54,61,62,71,63, ..., 
             72,82,73,83,64,74,84,85,75,65,86,76,87,77,66,78,67,68,55,56,58,57];
     end
-    %coords(:,1) = floor(channels/10);
-    %if size(channels, 1) == 1
-    %    channels = channels';
-    %end 
-    %coords(:,2) = channels - coords(:,1)*10;
    
     StandardisedNetworkPlot(adjM, Params.coords, edge_thresh, ND, 'MEA', char(Info.FN),'2',Params,lagval,e);
    
@@ -297,6 +341,7 @@ else
     % 'NCpn1', 'NCpn2','NCpn3','NCpn4','NCpn5','NCpn6' were moved
     
     for i = 1:length(Var)
+        % TODO: remove eval 
         VN = cell2mat(Var(i));
         VNs = strcat('NetMet.adjM',num2str(lagval(e)),'mslag.',VN);
         eval([VNs '=' VN ';']);
@@ -313,12 +358,10 @@ cd(char(Info.Grp)); cd(char(Info.FN))
 end
 
 %% plot node cartography proportions
-
 % plotNodeCartographyProportions(NetMet, lagval, char(Info.FN), Params)
 
-
 %% plot metrics for different lag times
-
+% TODO: move this
 plotNetworkWideMetrics(NetMet, meanSTTC, maxSTTC, lagval, char(Info.FN), Params)
 
 end
