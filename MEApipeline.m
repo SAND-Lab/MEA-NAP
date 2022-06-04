@@ -32,7 +32,7 @@ spreadsheet_file_type = 'csv'; % 'csv';
 % spread_sheet_filename = 'myRecordingsList.xlsx'; % name of excel spreadsheet
 % spreadsheet_filename = 'myRecordingsList.csv'; % name of csv file
 % spreadsheet_filename = 'hpc_dataset.csv'; % other examples
-spreadsheet_filename = 'Mahsa_11_File_Dataset.csv'; 
+% spreadsheet_filename = 'Mahsa_11_File_Dataset.csv'; 
 % spreadsheet_filename = 'axiontest2.csv';
 % spreadsheet_filename = 'axiontest_wExcludedElectrode3.csv';
 
@@ -82,7 +82,7 @@ Params.optionalStepsToRun = {'runstats'};
 % comparePrePostTTX : compare pre/post TTX activity in data
 
 % run spike detection?
-detectSpikes = 1; % 1 = yes, 0 = no
+detectSpikes = 0; % 1 = yes, 0 = no
 Params.runSpikeCheckOnPrevSpikeData = 0; % whether to run spike detection check without spike deteciton 
 
 if Params.runSpikeCheckOnPrevSpikeData
@@ -205,7 +205,8 @@ elseif strcmp(spreadsheet_file_type, 'csv')
     opts = detectImportOptions(spreadsheet_filename);
     opts.Delimiter = ',';
     opts.VariableNamesLine = 1;
-    opts.VariableTypes{1} = 'char';
+    opts.VariableTypes{1} = 'char';  % this should be the recoding file name
+    opts.VariableTypes{2} = 'double';  % this should be the DIV
     % csv_data = readtable(spreadsheet_filename, 'Delimiter','comma');
     csv_data = readtable(spreadsheet_filename, opts);
     ExpName =  csv_data{:, 1};
@@ -418,7 +419,7 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
 end
 
 %% Step 4 - network activity
-% Params.priorAnalysisPath = '/Users/timothysit/AnalysisPipeline/OutputData19May2022v12/';
+Params.priorAnalysisPath = '/Users/timothysit/AnalysisPipeline/OutputData19May2022v12/';
 if Params.showOneFig
     % TODO: do this for spike detection plots as well, and PlotNetMet
     Params.oneFigure = figure;
@@ -431,10 +432,10 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
         if Params.priorAnalysis==1 && Params.startAnalysisStep==4
             path = strcat(Params.priorAnalysisPath,'/ExperimentMatFiles/');
             path(strfind(savepath,'\'))='/'; cd(path)
-            load(strcat(char(ExpName(ExN)),'_',Params.priorAnalysisDate,'.mat'), 'spikeTimes','Ephys','adjMs','Info')
+            load(strcat(char(ExpName(ExN)),'_',Params.priorAnalysisDate,'.mat'), 'spikeTimes', 'Ephys','adjMs','Info')
         else
             cd(strcat('OutputData',Params.Date)); cd('ExperimentMatFiles')
-            load(strcat(char(ExpName(ExN)),'_',Params.Date,'.mat'),'Info','Params', 'spikeTimes','Ephys','adjMs')
+            load(strcat(char(ExpName(ExN)),'_',Params.Date,'.mat'),'Info','Params', 'spikeTimes', 'Ephys','adjMs')
         end
         cd(HomeDir)
 
@@ -612,6 +613,5 @@ if ~any(strcmp(Params.optionalStepsToRun,'generateCSV'))
     name_table = table([name, div]);
     writetable(name_table, 'test.csv')
 end 
-
 
 
