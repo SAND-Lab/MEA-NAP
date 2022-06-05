@@ -47,6 +47,6 @@ then navigate to the folder containing the documentation, which should be in `/y
 make html
 ```
 
-you can then open your website in `_build/index.html`, and read the "How to contribute" section of the website to learn more about editing the documentation.
+you can then open your website in `_build/html/index.html`, and read the "How to contribute" section of the website to learn more about editing the documentation.
 
 
