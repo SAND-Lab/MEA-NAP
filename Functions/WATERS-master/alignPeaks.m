@@ -36,6 +36,7 @@ waveform_width = 25;
 % Obtain thresholds for artifact removal
 threshold = median(trace) - median(abs(trace - mean(trace)))/0.6745;
 
+% TODO: should be a user option to use multiplier or absolute threshold
 % Comment out to use the multiplier
 % if artifactFlg
 %     minPeakThr = threshold * varargin{1};
