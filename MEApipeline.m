@@ -419,7 +419,6 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
 end
 
 %% Step 4 - network activity
-Params.priorAnalysisPath = '/Users/timothysit/AnalysisPipeline/OutputData19May2022v12/';
 if Params.showOneFig
     % TODO: do this for spike detection plots as well, and PlotNetMet
     Params.oneFigure = figure;
