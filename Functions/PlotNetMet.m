@@ -100,18 +100,16 @@ end
 
 % names of metrics
 ExpInfoE = {'Grp','DIV'}; % info for both age and genotype, TODO: this is not used
-% list of metrics 
-NetMetricsE = {'Dens','Q','nMod','Eglob','aN','CC','PL','SW','SWw', ... 
-               'Hub3','Hub4'}; 
-
+% list of metrics that are obtained at the network level
+NetMetricsE = Params.networkLevelNetMetToPlot;
 % 'NCpn1','NCpn2','NCpn3','NCpn4','NCpn5','NCpn6' are moved
-
 % single cell/node metrics (1 value per cell/node)
 
 % names of metrics
 ExpInfoC = {'Grp','DIV'}; % info for both age and genotype, TODO: this is not used
-% list of metrics 
-NetMetricsC = {'ND','EW','NS','Eloc','BC','PC','Z'};
+% list of metrics that are obtained at the electrode level
+NetMetricsC = Params.unitLevelNetMetToPlot;
+
 
 %% Import data from all experiments - whole experiment  
 
@@ -653,10 +651,17 @@ cd(HomeDir); cd(strcat('OutputData',Params.Date));
 cd('4_NetworkActivity'); cd('4B_GroupComparisons')
 cd('4_RecordingsByAge'); cd('NotBoxPlots')
 
-eMet = {'aN','Dens','CC','nMod','Q','PL','Eglob','SW','SWw','Hub3','Hub4'}; 
-eMetl = {'network size','density','clustering coefficient','number of modules', ... 
-    'modularity score','path length','global efficiency','small worldness \sigma', ... 
-    'small worldness \omega', 'hub nodes 2','hub nodes 1'}; 
+%eMet = {'aN','Dens','CC','nMod','Q','PL','Eglob','SW','SWw','Hub3','Hub4'}; 
+%eMetl = {'network size','density','clustering coefficient','number of modules', ... 
+%    'modularity score','path length','global efficiency','small worldness \sigma', ... 
+%    'small worldness \omega', 'hub nodes 2','hub nodes 1'}; 
+eMet = Params.networkLevelNetMetToPlot;
+eMetl = Params.networkLevelNetMetLabels;
+
+for n = 1:length(eMetl)
+    eMetl(n) = strrep(eMetl(n), '/', 'div');  % edge case where there is a division symbol in the label
+end 
+
 
 % moved: 'NCpn1','NCpn2','NCpn3','NCpn4','NCpn5','NCpn6',
 % 'proportion peripheral nodes','proportion non-hub connectors','proportion non-hub kinless nodes','proportion provincial hubs','proportion connector hubs','proportion kinless hubs',
@@ -707,6 +712,7 @@ for l = 1:length(Params.FuncConLagval)
 
         % Export figure
         for nFigExt = 1:length(Params.figExt)
+
             saveas(gcf,strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),Params.figExt{nFigExt}));
         end 
 
@@ -729,10 +735,17 @@ cd(HomeDir); cd(strcat('OutputData',Params.Date));
 cd('4_NetworkActivity'); cd('4B_GroupComparisons')
 cd('4_RecordingsByAge'); cd('HalfViolinPlots')
 
-eMet = {'aN','Dens','CC','nMod','Q','PL','Eglob','SW','SWw','Hub3','Hub4'}; 
-eMetl = {'network size','density','clustering coefficient','number of modules', ...
-    'modularity score','path length','global efficiency','small worldness \sigma','small worldness \omega', ... 
-    'hub nodes 2','hub nodes 1'}; 
+%eMet = {'aN','Dens','CC','nMod','Q','PL','Eglob','SW','SWw','Hub3','Hub4'}; 
+%eMetl = {'network size','density','clustering coefficient','number of modules', ...
+%    'modularity score','path length','global efficiency','small worldness \sigma','small worldness \omega', ... 
+%    'hub nodes 2','hub nodes 1'}; 
+eMet = Params.networkLevelNetMetToPlot;
+eMetl = Params.networkLevelNetMetLabels;
+
+for n = 1:length(eMetl)
+    eMetl(n) = strrep(eMetl(n), '/', 'div');  % edge case where there is a division symbol in the label
+end 
+
 
 % moved: 'NCpn1','NCpn2','NCpn3','NCpn4','NCpn5','NCpn6'
 % 'proportion peripheral nodes','proportion non-hub connectors','proportion non-hub kinless nodes','proportion provincial hubs','proportion connector hubs','proportion kinless hubs',
