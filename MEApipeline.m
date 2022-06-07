@@ -419,6 +419,7 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
 end
 
 %% Step 4 - network activity
+% % Params.priorAnalysisPath = '/Users/timothysit/AnalysisPipeline/OutputData19May2022v12/';
 if Params.showOneFig
     % TODO: do this for spike detection plots as well, and PlotNetMet
     Params.oneFigure = figure;
@@ -508,7 +509,7 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
 
         cd(strcat('OutputData',Params.Date)); cd('4_NetworkActivity')
         cd('4A_IndividualNetworkAnalysis'); cd(char(Info.Grp))
-        
+        Params.oneFigure = figure();
         NetMet = plotNodeCartography(adjMs, Params, NetMet, Info, HomeDir);
         % save NetMet now we node cartography data as well
         cd(HomeDir); cd(strcat('OutputData',Params.Date)); cd('ExperimentMatFiles')
