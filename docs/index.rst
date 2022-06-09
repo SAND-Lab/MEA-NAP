@@ -5,6 +5,8 @@
 
 Welcome to MEA pipeline's documentation!
 ========================================
+.. image:: ../imgs/MEApipelineSteps.svg
+  :width: 800
 
 .. toctree::
    :maxdepth: 2
@@ -13,6 +15,8 @@ Welcome to MEA pipeline's documentation!
    introduction
    pipeline-steps
    system-requirements
+   methods
+   how-to-contribute
 
 Indices and tables
 ==================

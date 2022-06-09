@@ -25,4 +25,30 @@ The input files required for the pipeline are:
 
 To use the pipeline, open ``MEApipeline.m`` in MATLAB.
 
+Before running the script, please enter/ensure the following variables are correct:
 
+Required user input in the first section
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The first section sets many of the parameters that instruct the pipeline where to find your data, select which parts of the analysis pipeline to run, and where to save the output. Follow the prompts to set-up the pipeline for analysing a single or multiple MEA recording files in the same experiment. All of the recordings to be compared should be saved in the same folder. Below line numbers requiring your input (red) or review.
+
+.. list-table:: 
+   :widths: 15 25 50
+   :header-rows: 1
+
+   * - Line
+     - Variable
+     - User input required
+   *  - 14
+      -  HomeDir
+      - Set the location of the folder with the AnalysisPipeline scripts.  N.B.  Best not to save in Program Files.
+   * - 31, 36
+     - spreadsheet  file type file name
+     - Input file with list of recordings with their age and genotype. Set as ``*.csv`` or ``*.xlsx``. Name with location for the spreadsheet.
+
+
+
+
+Options to start pipeline at different steps
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(e.g., save time by running functional connectivity for different time lags without having to rerun the spike detection). 
