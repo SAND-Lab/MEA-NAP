@@ -7,7 +7,6 @@
 % in this section all modifiable parameters of the analysis are defined,
 % no subsequent section requires user input
 % please refer to the documentation for guidance on parameter choice
-
 % Set parameters
 
 % set analysis folder to home directory (folder with AnalysisPipeline scripts)
@@ -191,6 +190,7 @@ else
 
     end 
 end 
+
 
 
 %% setup - additional setup
@@ -446,7 +446,9 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
         
         addpath(fullfile(spikeDetectedData, '1_SpikeDetection', '1A_SpikeDetectedData'));
         [spikeMatrix,spikeTimes,Params,Info] = formatSpikeTimes(char(Info.FN),Params,Info);
-        spikeMatirx = full(spikeMatrix);
+        % spikeMatirx = full(spikeMatrix);
+        Params.oneFigure = figure();  % NOTE: This is a temporary solution... need to find where it was clearing figures
+
         NetMet = ExtractNetMetOrganoid(adjMs, spikeTimes, Params.FuncConLagval, Info,HomeDir,Params, spikeMatrix);
 
         cd(HomeDir); cd(strcat('OutputData',Params.Date)); cd('ExperimentMatFiles')
@@ -465,7 +467,12 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
     % Aggregate all files and run density analysis to determine boundaries
     % for node cartography
     if Params.autoSetCartographyBoundaries
-        cd(fullfile(Params.priorAnalysisPath, 'ExperimentMatFiles'));    
+        if Params.priorAnalysis==1 
+            cd(fullfile(Params.priorAnalysisPath, 'ExperimentMatFiles'));   
+        else
+            cd(fullfile(strcat('OutputData', Params.Date), 'ExperimentMatFiles'));   
+        end 
+        
         fig_folder = fullfile(Params.priorAnalysisPath, '4_NetworkActivity/4B_GroupComparisons/7_DensityLandscape');
         if ~isfolder(fig_folder)
             mkdir(fig_folder)
@@ -473,7 +480,8 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
 
         ExpList = dir('*.mat');
         add_fig_info = '';
-        [hubBoundaryWMdDeg, periPartCoef, proHubpartCoef, nonHubconnectorPartCoef, connectorHubPartCoef] = TrialLandscapeDensity(ExpList, fig_folder, add_fig_info);
+        [hubBoundaryWMdDeg, periPartCoef, proHubpartCoef, nonHubconnectorPartCoef, connectorHubPartCoef] = ...
+            TrialLandscapeDensity(ExpList, fig_folder, add_fig_info);
         Params.hubBoundaryWMdDeg = hubBoundaryWMdDeg;
         Params.periPartCoef = periPartCoef;
         Params.proHubpartCoef = proHubpartCoef;
