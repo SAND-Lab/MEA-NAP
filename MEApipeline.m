@@ -30,7 +30,7 @@ addpath('Images')
 spreadsheet_file_type = 'csv'; % 'csv';
 % spread_sheet_filename = 'myRecordingsList.xlsx'; % name of excel spreadsheet
 % spreadsheet_filename = 'myRecordingsList.csv'; % name of csv file
-% spreadsheet_filename = 'hpc_dataset.csv'; % other examples
+spreadsheet_filename = 'hpc_dataset.csv'; % other examples
 % spreadsheet_filename = 'Mahsa_11_File_Dataset.csv'; 
 % spreadsheet_filename = 'axiontest2.csv';
 % spreadsheet_filename = 'axiontest_wExcludedElectrode3.csv';
@@ -59,8 +59,8 @@ Params.potentialDifferenceUnit = 'uV';  % the unit which you are recording elect
 Params.priorAnalysis = 1; % 1 = yes, 0 = no
 % path to previously analysed data
 % Params.priorAnalysisPath = ['/Users/timothysit/AnalysisPipeline/OutputData20Jan2022v3']; % example format
-Params.priorAnalysisPath = ['/Users/timothysit/AnalysisPipeline/OutputData16Feb2022'];
-% Params.priorAnalysisPath = ['/Users/timothysit/AnalysisPipeline/OutputData19May2022v12'];
+% Params.priorAnalysisPath = ['/Users/timothysit/AnalysisPipeline/OutputData16Feb2022'];
+Params.priorAnalysisPath = ['/Users/timothysit/AnalysisPipeline/OutputData19May2022v12'];
 % prior analysis date in format given in output data folder e.g., '27Sep2021'
 % Params.priorAnalysisDate = '20Jan2022';
 Params.priorAnalysisDate = '19May2022';
@@ -158,7 +158,7 @@ Params.adjMtype = 'weighted'; % 'weighted' or 'binary'
 Params.autoSetCartographyBoundaries = 1;  % whether to automatically determine bounds for hubs or use custom ones
 
 % figure formats
-Params.figExt = {'.png', '.svg'};  % supported options are '.mat', '.png', and '.svg'
+Params.figExt = {'.png', '.svg'};  % supported options are '.fig', '.png', and '.svg'
 Params.fullSVG = 1;  % whether to insist svg even with plots with large number of elements
 
 % Stop figures windows from popping up (steals windows focus on linux
@@ -207,6 +207,7 @@ elseif strcmp(spreadsheet_file_type, 'csv')
     opts.VariableNamesLine = 1;
     opts.VariableTypes{1} = 'char';  % this should be the recoding file name
     opts.VariableTypes{2} = 'double';  % this should be the DIV
+    opts.DataLines = [2 Inf];  % start reading data from row 2
     % csv_data = readtable(spreadsheet_filename, 'Delimiter','comma');
     csv_data = readtable(spreadsheet_filename, opts);
     ExpName =  csv_data{:, 1};
@@ -446,10 +447,11 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
         
         addpath(fullfile(spikeDetectedData, '1_SpikeDetection', '1A_SpikeDetectedData'));
         [spikeMatrix,spikeTimes,Params,Info] = formatSpikeTimes(char(Info.FN),Params,Info);
-        % spikeMatirx = full(spikeMatrix);
+        biAdvancedSettings
         Params.oneFigure = figure();  % NOTE: This is a temporary solution... need to find where it was clearing figures
 
-        NetMet = ExtractNetMetOrganoid(adjMs, spikeTimes, Params.FuncConLagval, Info,HomeDir,Params, spikeMatrix);
+        NetMet = ExtractNetMetOrganoid(adjMs, spikeTimes, ...
+            Params.FuncConLagval, Info,HomeDir,Params, spikeMatrix);
 
         cd(HomeDir); cd(strcat('OutputData',Params.Date)); cd('ExperimentMatFiles')
 
