@@ -66,7 +66,6 @@ spikeCount = sum(spikeMatrix);
 spikeCount = full(spikeCount / (size(spikeMatrix, 1) / Params.fs));
 
 %% plot electrodes
-
 mycolours = colormap;
 
 nexttile
@@ -75,7 +74,8 @@ nodeScaleF = 2/3;
 for i = 1:length(spikeCount)
     pos = [xc(i)-(0.5*nodeScaleF) yc(i)-(0.5*nodeScaleF) nodeScaleF nodeScaleF];
         try
-            rectangle('Position',pos,'Curvature',[1 1],'FaceColor',mycolours(ceil(length(mycolours)*((spikeCount(i)-min(spikeCount))/(prctile(spikeCount,99,'all')-min(spikeCount)))),1:3),'EdgeColor','w','LineWidth',0.1) 
+            colorToUse = mycolours(ceil(length(mycolours)*((spikeCount(i)-min(spikeCount))/(prctile(spikeCount,99,'all')-min(spikeCount)))),1:3);
+            rectangle('Position',pos,'Curvature',[1 1],'FaceColor',colorToUse,'EdgeColor','w','LineWidth',0.1) 
         catch
             if (spikeCount(i)-min(spikeCount))/(prctile(spikeCount,95,'all')-min(spikeCount)) == 0
                 rectangle('Position',pos,'Curvature',[1 1],'FaceColor',mycolours(ceil(length(mycolours)*((spikeCount(i)-min(spikeCount))/(prctile(spikeCount,99,'all')-min(spikeCount)))+0.00001),1:3),'EdgeColor','w','LineWidth',0.1)
@@ -83,6 +83,9 @@ for i = 1:length(spikeCount)
                  rectangle('Position',pos,'Curvature',[1 1],'FaceColor',mycolours(length(mycolours),1:3),'EdgeColor','w','LineWidth',0.1) 
             end
         end
+    if Params.includeChannelNumberInPlots 
+        text(pos(1) + 0.5 * nodeScaleF, pos(2) + 0.5 * nodeScaleF, sprintf('%.f', channels(i)), 'HorizontalAlignment','center')
+    end 
 end
 ylim([min(yc)-1 max(yc)+1])
 xlim([min(xc)-1 max(xc)+1])
