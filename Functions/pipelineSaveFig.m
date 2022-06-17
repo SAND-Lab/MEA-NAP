@@ -26,19 +26,25 @@ end
     
 for nFigExt = 1:length(figExts)
     figFileName = strcat([figName, figExts{nFigExt}]);
-    if strcmp(figExts{nFigExt}, '.svg') && fullSVG
-        if ispc
-            if isempty(figHandle)
-                fig2svg(figFileName)
-            else
-                fig2svg(figFileName, figHandle)
+    if ispc && strcmp(figExts{nFigExt}, '.svg')
+        if isempty(figHandle)
+            try
+                saveas(gcf, figFileName, 'Renderer', 'painters');
+            catch
+                saveas(gcf, figFileName, 'Renderer', 'opengl');
             end 
         else
-            if isempty(figHandle)
-                print('-painters', '-dsvg', figFileName); % note this saves gcf by default
-            else 
-                print(figHandle, '-painters', '-dsvg', figFileName)
+            try 
+                saveas(figHandle, figFileName,  'Renderer', 'painters');
+            catch
+                saveas(figHandle, figFileName, 'Renderer', 'opengl');
             end 
+        end 
+    elseif strcmp(figExts{nFigExt}, '.svg') && fullSVG
+        if isempty(figHandle)
+            print('-painters', '-dsvg', figFileName); % note this saves gcf by default
+        else 
+            print(figHandle, '-painters', '-dsvg', figFileName)
         end 
     else
         if isempty(figHandle)
