@@ -261,7 +261,8 @@ else
 
     %% Find hubs and plot raster sorted by hubs 
     % convert spike times to spike matrix 
-    [hub_peripheral_xy, hub_metrics, hub_score_index] = fcn_find_hubs_wu(Info.channels,spikeMatrix,adjM,Params.fs);
+    [hub_peripheral_xy, hub_metrics, hub_score_index] = ...
+        fcn_find_hubs_wu(Info.channels,spikeMatrix,adjM,Params.fs);
     
     PC_raw_idx = find(contains(hub_metrics.metric_names, 'Participation coefficient'));
     PC_raw = hub_metrics.metrics_unsorted(:, PC_raw_idx);
@@ -274,9 +275,16 @@ else
         minSpikeCount = 10;
         includeRandomMatrix = 1;
         nmfCalResults = calNMF(spikeMatrix, Params.fs, Params.NMFdownsampleFreq, ...
-                                Info.duration_s, minSpikeCount, includeRandomMatrix);
+                                Info.duration_s, minSpikeCount, includeRandomMatrix, ...
+                                Params.includeNMFcomponents);
         NetMet.(strcat('adjM',num2str(lagval(e)),'mslag')).num_nnmf_components = nmfCalResults.num_nnmf_components;
         NetMet.(strcat('adjM',num2str(lagval(e)),'mslag')).nComponentsRelNS = nmfCalResults.nComponentsRelNS; 
+        if Params.includeNMFcomponents
+            NetMet.(strcat('adjM',num2str(lagval(e)),'mslag')).nmfFactors = nmfCalResults.nmfFactors;
+            NetMet.(strcat('adjM',num2str(lagval(e)),'mslag')).nmfWeights = nmfCalResults.nmfWeights;
+            NetMet.(strcat('adjM',num2str(lagval(e)),'mslag')).downSampleSpikeMatrix = nmfCalResults.downSampleSpikeMatrix;
+        end 
+
     end 
 
     %% Calculate effective rank 
