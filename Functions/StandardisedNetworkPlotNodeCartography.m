@@ -1,27 +1,40 @@
-function [] = StandardisedNetworkPlotNodeCartography(adjM, coords, edge_thresh, NdCartDiv, plotType, FN, pNum, Params, lagval, e)
+function [] = StandardisedNetworkPlotNodeCartography(adjM, coords, edge_thresh, ...
+    NdCartDiv, plotType, FN, pNum, Params, lagval, e)
 %{
 % script to plot the graph network 
 % 
 Parameters
 ----------
-%   adjM - adjacency matrix 
-%   coords - electrode/node coordinates (x and y, num nodes * 2)
-%   edge_thresh - a value between 0 and 1 for the minimum correlation to
-%       plot
-%   z - the network metric used to determine the size of the plotted nodes
+%   adjM : double array 
+%          adjacency matrix 
+%   coords : double array 
+%          electrode/node coordinates (x and y, num nodes * 2)
+%   edge_thresh : float 
+%      a value between 0 and 1 for the minimum correlation to plot
+%   z : char 
+%       the network metric used to determine the size of the plotted nodes
 %       eg: node degree or node strength
-%   zname - name of the z network metric
-%   z2 - the network metric used to determine the colour of the plotted
+%   zname : char
+ %      name of the z network metric
+%   z2 : char
+%       the network metric used to determine the colour of the plotted
 %       nodes, eg: betweeness centrality or participation coefficient
 %   z2name - name of the z2 network metric
-%   plotType - 'MEA' to plot nodes with their respective electrode
-%       coordinates and 'circular' to plot nodes in a circle
-%   FN - name of file/recording
-%   pNum - number to precede name of figure when it is saved
+%   NdCartDiv : doubel array
+%   
+%   plotType : char 
+%        'MEA' to plot nodes with their respective electrode
+%       coordinates 
+%       'circular' to plot nodes in a circle
+%   FN : char 
+%        name of file/recording
+%   pNum : char
+%        number (in character or string format) to precede name of figure when it is saved
 Returns 
 -------
 
 % author RCFeord August 2021
+% Edited by Tim Sit 
 %}
 %% plot
 if ~isfield(Params, 'oneFigure')
@@ -48,6 +61,7 @@ yc = coords(:,2);
 
 threshMax = max(adjM(:));
 minNonZeroEdge = min(min(adjM(adjM>0))); 
+numNodes = size(adjM, 1);
 
 if strcmp(plotType,'MEA')
     
@@ -56,14 +70,14 @@ if strcmp(plotType,'MEA')
     light_c = [0.8 0.8 0.8]; % lightest edge colour
     
     count = 0;
-    for elecA = 1:length(coords)
-        for elecB = 1:length(coords)
+    for elecA = 1:numNodes
+        for elecB = 1:numNodes
             if adjM(elecA,elecB) >= edge_thresh && elecA ~= elecB && ~isnan(adjM(elecA,elecB))
-                count = count +1;
+                count = count + 1;
                 xco(count,:) = [xc(elecA),xc(elecB)];
                 yco(count,:) = [yc(elecA),yc(elecB)];
                 lineWidth(count) = min_ew + (max_ew-min_ew)*((adjM(elecA,elecB)-minNonZeroEdge)/(threshMax-minNonZeroEdge));
-                colour (count,:) = [1 1 1]-(light_c*((adjM(elecA,elecB)-minNonZeroEdge)/(threshMax-minNonZeroEdge)));
+                colour(count,:) = [1 1 1]-(light_c*((adjM(elecA,elecB)-minNonZeroEdge)/(threshMax-minNonZeroEdge)));
            end
         end
     end
@@ -182,19 +196,28 @@ if strcmp(plotType,'circular')
     end
 end
 %% add nodes
+% specify the colors of the different node types 
+nodeTypeColors = [0.8 0.902 0.310; ... % light green 
+                  0.580 0.706 0.278; ... % medium green 
+                  0.369 0.435 0.122; ... % dark green
+                  0.2 0.729 0.949; ... % light blue
+                  0.078 0.424 0.835; ... % medium blue
+                  0.016 0.235 0.498; ... % dark blue
+                  ];
 
-c1 = [0.8 0.902 0.310]; % light green
-c2 = [0.580 0.706 0.278]; % medium green
-c3 = [0.369 0.435 0.122]; % dark green
-c4 = [0.2 0.729 0.949]; % light blue
-c5 = [0.078 0.424 0.835]; % medium blue
-c6 = [0.016 0.235 0.498]; % dark blue
+%c1 = [0.8 0.902 0.310]; % light green
+%c2 = [0.580 0.706 0.278]; % medium green
+%c3 = [0.369 0.435 0.122]; % dark green
+%c4 = [0.2 0.729 0.949]; % light blue
+%c5 = [0.078 0.424 0.835]; % medium blue
+%c6 = [0.016 0.235 0.498]; % dark blue
 
 if strcmp(plotType,'MEA')
     uniqueXc = sort(unique(xc));
     nodeScaleF = (uniqueXc(2)-uniqueXc(1))/2;
     for i = 1:length(adjM)
-            eval(['Colour = c' num2str(NdCartDiv(i)) ';']);
+            % eval(['Colour = c' num2str(NdCartDiv(i)) ';']);
+            Colour = nodeTypeColors(NdCartDiv(i), :);
             pos = [xc(i)-(0.5*nodeScaleF) yc(i)-(0.5*nodeScaleF) nodeScaleF nodeScaleF];
             rectangle('Position',pos,'Curvature',[1 1],'FaceColor',Colour,'EdgeColor','w','LineWidth',0.1)
     end
@@ -207,8 +230,9 @@ if strcmp(plotType,'circular')
     nodeScaleF = 2/3*sqrt((abs(cos(t(1))-cos(t(2)))^2) + (abs(sin(t(1))-sin(t(2)))^2));
     
     for i = 1:length(adjM)
-        eval(['Colour = c' num2str(NdCartDiv(i)) ';']);
-         pos = [cos(t(i))-(0.5*nodeScaleF) sin(t(i))-(0.5*nodeScaleF) nodeScaleF nodeScaleF];
+        % eval(['Colour = c' num2str(NdCartDiv(i)) ';']);
+        Colour = nodeTypeColors(NdCartDiv(i), :);
+        pos = [cos(t(i))-(0.5*nodeScaleF) sin(t(i))-(0.5*nodeScaleF) nodeScaleF nodeScaleF];
         rectangle('Position',pos,'Curvature',[1 1],'FaceColor',Colour,'EdgeColor','w','LineWidth',0.1)
     end
     ylim([-1.1 1.1])
@@ -218,32 +242,36 @@ end
 set(gca,'color','none')
 
 
-%% format plot
+%% format plot : add legend
+
+nodeLabels = {'peripheral node', 'non-hub connector', 'non-hub kinless node', ...
+              'provincial hub', 'connector hub', 'kinless hub'};
+y_pos_multiplier = [1, 3, 5, 7, 9, 11];
 
 if strcmp(plotType,'MEA')
        
     pos = [(max(xc)+1.5) max(yc)-(nodeScaleF*2/3) nodeScaleF*2/3 nodeScaleF*2/3];
-    rectangle('Position',pos,'Curvature',[1 1],'FaceColor',c1,'EdgeColor','w','LineWidth',0.1);
+    rectangle('Position',pos,'Curvature',[1 1],'FaceColor',nodeTypeColors(1, :),'EdgeColor','w','LineWidth',0.1);
     text(max(xc)+2,max(yc)-(nodeScaleF*2/3-nodeScaleF*2/6),'peripheral node')
     
     pos = [(max(xc)+1.5) max(yc)-((nodeScaleF*2/3)*3) nodeScaleF*2/3 nodeScaleF*2/3];
-    rectangle('Position',pos,'Curvature',[1 1],'FaceColor',c2,'EdgeColor','w','LineWidth',0.1);
+    rectangle('Position',pos,'Curvature',[1 1],'FaceColor',nodeTypeColors(2, :),'EdgeColor','w','LineWidth',0.1);
     text(max(xc)+2,max(yc)-((nodeScaleF*2/3)*3-nodeScaleF*2/6),'non-hub connector')
    
     pos = [(max(xc)+1.5) max(yc)-((nodeScaleF*2/3)*5) nodeScaleF*2/3 nodeScaleF*2/3];
-    rectangle('Position',pos,'Curvature',[1 1],'FaceColor',c3,'EdgeColor','w','LineWidth',0.1);
+    rectangle('Position',pos,'Curvature',[1 1],'FaceColor',nodeTypeColors(3, :),'EdgeColor','w','LineWidth',0.1);
     text(max(xc)+2,max(yc)-((nodeScaleF*2/3)*5-nodeScaleF*2/6),'non-hub kinless node')
     
     pos = [(max(xc)+1.5) max(yc)-((nodeScaleF*2/3)*7) nodeScaleF*2/3 nodeScaleF*2/3];
-    rectangle('Position',pos,'Curvature',[1 1],'FaceColor',c4,'EdgeColor','w','LineWidth',0.1);
+    rectangle('Position',pos,'Curvature',[1 1],'FaceColor',nodeTypeColors(4, :),'EdgeColor','w','LineWidth',0.1);
     text(max(xc)+2,max(yc)-((nodeScaleF*2/3)*7-nodeScaleF*2/6),'provincial hub')
    
     pos = [(max(xc)+1.5) max(yc)-((nodeScaleF*2/3)*9) nodeScaleF*2/3 nodeScaleF*2/3];
-    rectangle('Position',pos,'Curvature',[1 1],'FaceColor',c5,'EdgeColor','w','LineWidth',0.1);
+    rectangle('Position',pos,'Curvature',[1 1],'FaceColor',nodeTypeColors(5, :),'EdgeColor','w','LineWidth',0.1);
     text(max(xc)+2,max(yc)-((nodeScaleF*2/3)*9-nodeScaleF*2/6),'connector hub')
    
     pos = [(max(xc)+1.5) max(yc)-((nodeScaleF*2/3)*11) nodeScaleF*2/3 nodeScaleF*2/3];
-    rectangle('Position',pos,'Curvature',[1 1],'FaceColor',c6,'EdgeColor','w','LineWidth',0.1);
+    rectangle('Position',pos,'Curvature',[1 1],'FaceColor',nodeTypeColors(6, :),'EdgeColor','w','LineWidth',0.1);
     text(max(xc)+2,max(yc)-((nodeScaleF*2/3)*11-nodeScaleF*2/6),'kinless hub')
     
     
@@ -277,27 +305,27 @@ end
 if strcmp(plotType,'circular')
     
     pos = [1.3 1-(nodeScaleF) nodeScaleF nodeScaleF];
-    rectangle('Position',pos,'Curvature',[1 1],'FaceColor',c1,'EdgeColor','w','LineWidth',0.1);
+    rectangle('Position',pos,'Curvature',[1 1],'FaceColor',nodeTypeColors(1, :),'EdgeColor','w','LineWidth',0.1);
     text(1.4,1-(nodeScaleF-nodeScaleF*1/2),'peripheral node')
     
     pos = [1.3 1-((nodeScaleF)*3) nodeScaleF nodeScaleF];
-    rectangle('Position',pos,'Curvature',[1 1],'FaceColor',c2,'EdgeColor','w','LineWidth',0.1);
+    rectangle('Position',pos,'Curvature',[1 1],'FaceColor',nodeTypeColors(2, :),'EdgeColor','w','LineWidth',0.1);
     text(1.4,1-((nodeScaleF)*3-nodeScaleF*1/2),'non-hub connector')
    
     pos = [1.3 1-((nodeScaleF)*5) nodeScaleF nodeScaleF];
-    rectangle('Position',pos,'Curvature',[1 1],'FaceColor',c3,'EdgeColor','w','LineWidth',0.1);
+    rectangle('Position',pos,'Curvature',[1 1],'FaceColor',nodeTypeColors(3, :),'EdgeColor','w','LineWidth',0.1);
     text(1.4,1-((nodeScaleF)*5-nodeScaleF*1/2),'non-hub kinless node')
     
     pos = [1.3 1-((nodeScaleF)*7) nodeScaleF nodeScaleF];
-    rectangle('Position',pos,'Curvature',[1 1],'FaceColor',c4,'EdgeColor','w','LineWidth',0.1);
+    rectangle('Position',pos,'Curvature',[1 1],'FaceColor',nodeTypeColors(4, :),'EdgeColor','w','LineWidth',0.1);
     text(1.4,1-((nodeScaleF)*7-nodeScaleF*1/2),'provincial hub')
    
     pos = [1.3 1-((nodeScaleF)*9) nodeScaleF nodeScaleF];
-    rectangle('Position',pos,'Curvature',[1 1],'FaceColor',c5,'EdgeColor','w','LineWidth',0.1);
+    rectangle('Position',pos,'Curvature',[1 1],'FaceColor',nodeTypeColors(5, :),'EdgeColor','w','LineWidth',0.1);
     text(1.4,1-((nodeScaleF)*9-nodeScaleF*1/2),'connector hub')
    
     pos = [1.3 1-((nodeScaleF)*11) nodeScaleF nodeScaleF];
-    rectangle('Position',pos,'Curvature',[1 1],'FaceColor',c6,'EdgeColor','w','LineWidth',0.1);
+    rectangle('Position',pos,'Curvature',[1 1],'FaceColor',nodeTypeColors(6, :),'EdgeColor','w','LineWidth',0.1);
     text(1.4,1-((nodeScaleF)*11-nodeScaleF*1/2),'kinless hub')
     
     
