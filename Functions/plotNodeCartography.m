@@ -50,6 +50,9 @@ for e = 1:length(lagval)
     % extract node cartography
     PC = NetMet.(strcat('adjM', num2str(lagval(e)), 'mslag')).PC;
     Z = NetMet.(strcat('adjM', num2str(lagval(e)), 'mslag')).Z;
+
+    % TODO Check if oneFigure object exists here, if not create it again 
+    % Params.oneFigure = figure();
     [NdCartDiv, PopNumNC] = NodeCartography(Z, PC, lagval, e, char(Info.FN), Params); 
 
     PopNumNCt(e,:) = PopNumNC;
@@ -61,10 +64,14 @@ for e = 1:length(lagval)
     NCpn5 = PopNumNC(5)/aN;
     NCpn6 = PopNumNC(6)/aN;
 
-    % node cartography
+    % node cartography in circular plot
     NdCartDivOrd = NdCartDiv(On);
     StandardisedNetworkPlotNodeCartography(adjMord, Params.coords, ... 
         edge_thresh, NdCartDivOrd, 'circular', char(Info.FN), '7', Params, lagval, e)
+
+    % node cartography in grid plot 
+    StandardisedNetworkPlotNodeCartography(adjMord, Params.coords, ... 
+        edge_thresh, NdCartDivOrd, 'MEA', char(Info.FN), '7', Params, lagval, e)
 
     % add node cartography results to existing experiment file 
     nodeCartVarsToSave = {'NCpn1', 'NCpn2','NCpn3','NCpn4','NCpn5','NCpn6'};
