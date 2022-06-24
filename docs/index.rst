@@ -17,6 +17,7 @@ Welcome to MEA pipeline's documentation!
    system-requirements
    methods
    how-to-contribute
+   sources
 
 Indices and tables
 ==================
