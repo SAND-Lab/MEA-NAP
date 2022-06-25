@@ -19,7 +19,7 @@
 
 project = 'MEA pipeline'
 copyright = '2022, Timothy Sit, Rachael Feord, Alexander Dunn, Jeremy Chabros'
-author = 'Timothy Sit, Rachael Feord, Alexander Dunn, Jeremy Chabros'
+author = 'Timothy Sit, Rachael Feord, Alexander Dunn, Jeremy Chabros, Chang E, Yuan Y, Oluigbo D, Nagy L, Smith HH, Hemberg E, Hemberg M, Lancaster M, Lakatos A, Hennequin G, Eglen SJ, Paulsen O, Mierau SB'
 
 # The full version, including alpha/beta/rc tags
 release = '0.0.0'
