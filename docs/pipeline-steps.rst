@@ -121,6 +121,7 @@ Functional connectivity settings
 .. list-table:: 
    :widths: 15 25 50
    :header-rows: 1
+                 
    * - Line
      - Variable
      - User input required
@@ -145,6 +146,7 @@ Pipeline output preferences
 .. list-table:: 
    :widths: 15 25 50
    :header-rows: 1
+                 
    * - Line
      - Variable
      - User input required
