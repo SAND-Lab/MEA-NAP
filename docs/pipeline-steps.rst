@@ -116,7 +116,8 @@ Spike detection settings (lines 69 - 121)
 
 
 Functional connectivity settings
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
 
 .. list-table:: 
    :widths: 15 25 50
@@ -128,15 +129,15 @@ Functional connectivity settings
    * - 122
      - Params.FuncConLagval
      - The pipeline uses the spike time tiling coefficient (STTC; Cutts & Eglen, 2014) to estimate pairwise correlations between spiking activity observed in electrodes. Select one or more lag values (in milliseconds) for detecting coincident activity.  For MCS-acquired data, 25 ms is a good starting point. Pipeline works best if you choose 2 or 3 different lags to compare (although the computational time is longer).
-  * - 123, 124
-    - Params. TrunRec, TrunLength
-    - Calculating the functional connectivity can be computationally intensive. If you wish to shorten (truncate) the recording change TrunRc to 1 and select a length in seconds. N.B. Shortening the recording can significantly change the connectivity estimates.
- * - 127, 128, 129, 130
-   - Params. ProbThres... RepNum, Tail, PlotChecks, PlotChecksN
-   - Probabilistic thresholding is a method for determining above-chance correlation between activity observed in the electrodes.  It works by shuffling the real data many times (RepNum default = 200) and then calculating the STTC. If the STTC value for the real data is greater than expected by chance for a given electrode pair from the shuffles (e.g., Tail 0.1, aka 90%-tile), that pair is functionally connected. Depending on the number of shuffles and STTC lag, we may use Tail=0.01 (aka 99%-tile). To determine whether the number of shuffles (RepNum) is sufficient in a sample of the recordings, set PlotChecks =1 (otherwise 0) and indicate the number of recordings to examine (PlotChecksN).
- * - 133
-   - Params.adjMtype
-   - We use weighted networks. The strength of the connectivity between two electrodes is determined by the STTC. Changing to binary would treat weak and strong connections the same. 
+   * - 123, 124
+     - Params. TrunRec, TrunLength
+     - Calculating the functional connectivity can be computationally intensive. If you wish to shorten (truncate) the recording change TrunRc to 1 and select a length in seconds. N.B. Shortening the recording can significantly change the connectivity estimates.
+   * - 127, 128, 129, 130
+     - Params. ProbThres... RepNum, Tail, PlotChecks, PlotChecksN
+     - Probabilistic thresholding is a method for determining above-chance correlation between activity observed in the electrodes.  It works by shuffling the real data many times (RepNum default = 200) and then calculating the STTC. If the STTC value for the real data is greater than expected by chance for a given electrode pair from the shuffles (e.g., Tail 0.1, aka 90%-tile), that pair is functionally connected. Depending on the number of shuffles and STTC lag, we may use Tail=0.01 (aka 99%-tile). To determine whether the number of shuffles (RepNum) is sufficient in a sample of the recordings, set PlotChecks =1 (otherwise 0) and indicate the number of recordings to examine (PlotChecksN).
+   * - 133
+     - Params.adjMtype
+     - We use weighted networks. The strength of the connectivity between two electrodes is determined by the STTC. Changing to binary would treat weak and strong connections the same. 
 
 
 
