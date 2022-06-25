@@ -45,10 +45,86 @@ The first section sets many of the parameters that instruct the pipeline where t
    * - 31, 36
      - spreadsheet  file type file name
      - Input file with list of recordings with their age and genotype. Set as ``*.csv`` or ``*.xlsx``. Name with location for the spreadsheet.
-
+   * - 39 - 40
+     - sheet xlRange (optional)
+     - If using an .xlsx file type, you can specify all or a subset of the filenames to analyse by changing the sheet number (if more than one sheet in spreadsheet) and/or xlRange (e.g., A2:C3 would analyze the first two files listed in the sheet).
+   * - 47
+     - Params.output_spreadsheet file_type
+     - Option to choose .csv or .xlsx as output file type for your data analysis from the pipeline.  Default is .csv
+   * - 51
+     - Params.fs
+     - Confirm the sampling frequency is correct for your recording.  We acquire data on the MCS 60 channel system at 25000 Hz and on the Axion Maestro at 12500 Hz.
 
 
 
 Options to start pipeline at different steps
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 (e.g., save time by running functional connectivity for different time lags without having to rerun the spike detection). 
+
+
+.. list-table:: 
+   :widths: 15 25 50
+   :header-rows: 1
+
+   * - Line
+     - Variable
+     - User input required
+   * - 56, 59, 62
+     - Params.priorAnalysis, …Path, …Date
+     - If you have already run the pipeline previously and wish to use some of the outputs from the earlier steps, set equal to 1 and give the location and date for the prior analysis (this format should match the folder name of the previous data analysis). N.B. If a previous OutputData folder for the Date already exists, the pipeline will prompt you when running to add a suffix to the previous version (e.g. “v1”). The pipeline will then rename the old folder and remove it from the path.
+   * - 67
+     - Params.startAnalysisStep
+     - If you would like to start running the pipeline at a later step than spike detection (step 1) using the prior data, change to the corresponding number (see lines 63-66).  See Section 3.1 for overview of pipeline functions.  N.B. Steps 2-4 all require spike detection to run.  Step 4 requires Step 3.
+       
+
+
+Spike detection settings (lines 69 - 121)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. list-table:: 
+   :widths: 15 25 50
+   :header-rows: 1
+
+   * - Line
+     - Variable
+     - User input required
+   * - 70
+     - detectSpikes
+     - If you are starting with a .mat file of a raw recording, set to “1” to run spike detection.  If starting with a .mat file of detected spikes, or have previously run spike detection, set to “0”.
+   * - 75
+     - rawData
+     - This is the folder where your recordings are (*.mat format). Mac uses / for filenames.  PC uses \ for file names.
+   * - 78
+     - biAdvancedSettings
+     - Experienced users can open this *.m file to change more parameters for the spike detection.  (Optional step)
+   * - 83
+     - Params.threshold
+     - Choose one or more standard deviations (SD) if running threshold-based spike detection. This method identifies negative voltage deflections that exceed the threshold set based on the SD of the mean voltage signal. This method is fast. It works well for electrodes with a high signal:noise ratio and for recordings with similar firing rates. Threshold-based methods can underestimate spikes in electrodes with high firing rates and are susceptible to counting large artifacts as spikes, as the spike waveform is not considered.  For 2D & 3D cultures recorded with the MCS 60 channel system, we recommend the 4.5 SD multiplier.  Axion recommends 5.0 for the data acquired on their system. The pipeline allows you to run multiple thresholds and compare the spike detection.
+   * - 93
+     - Params.wnameList
+     - Choose one or more of the MATLAB wavelets if running our template-based spike detection. This method identifies spikes based on the similarity of the spike waveform to the templates (wavelets). For 2D murine cortical cultures recorded with the MCS system, we recommend bior1.5 or running bior1.5, bior1.3, and db and merging the spikes detected for increased sensitivity. Note, these 3 templates do not work as well with 3D human cerebral organoid recordings.
+   * - 102
+     - Params.costList
+     - You have the option to choose one or more cost parameters to run for the templated-based method (line 65).  Lines 65-74 discuss range.  Recommend running for first time users at -0.12. If missing spikes make more negative (e.g., -0.2).  If false positives, make less negative (e.g., -0.10).
+   * - 105
+     - spikeDetectedData
+     - If you are using previous spike detection .mat files for the pipeline, put folder location here.  This allows you to run downstream parts of the pipeline again without having to redo spike detection (saves computational time). Spike detection files are also much smaller file size than raw so easier to share/run on less powerful computers.
+   * - 118
+     - Params.SpikeMethod
+     - Here you choose the spike detection method for the downstream analysis. For the threshold method, please use syntax described in lines 109-111. We have a custom method called “mea” that first uses the threshold method to select spikes to make electrode-specific wavelets for use with the template-based spike detection.  Select “merged” to combine spikes from all wavelets you select to improve sensitivity for detecting multi-unit activity with different waveforms.
+
+
+
+Functional connectivity settings
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
+
+Pipeline output preferences
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
+
+
+
+
