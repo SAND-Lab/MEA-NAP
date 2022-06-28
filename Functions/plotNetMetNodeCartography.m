@@ -1,7 +1,5 @@
-function plotNetMetNodeCartography(combinedData, ExpName,Params,HomeDir)
+function plotNetMetNodeCartography(combinedData, ExpName, Params,HomeDir)
 %{
-
-% TODO: where is the data loaded here???? 
 
 Parameters
 ----------
@@ -109,5 +107,8 @@ for l = 1:length(Params.FuncConLagval)
         clf reset
     end 
 end
+
+
+
 
 end 

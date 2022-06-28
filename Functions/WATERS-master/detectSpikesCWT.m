@@ -50,7 +50,8 @@ function [spikeTimes, spikeWaveforms, trace, threshold] = detectSpikesCWT(...
 %   ttx: [logical] flag for the recordings with TTX added: 1 = TTX, 0 = control
 %
 %   minPeakThrMultiplier: [scalar] specifies the minimal spike amplitude
-%
+%                          This is used for artifact removal
+%   
 %   maxPeakThrMultiplier: [scalar] specifies the maximal spike amplitude
 %
 %   posPeakThrMultiplier: [scalar] specifies the maximal positive peak of the spike
@@ -79,11 +80,13 @@ function [spikeTimes, spikeWaveforms, trace, threshold] = detectSpikesCWT(...
 %   Jeremy Chabros, University of Cambridge, 2020
 %   email: jjc80@cam.ac.uk
 %   github.com/jeremi-chabros
+%  Modified by Tim Sit 
+
 
 
 % Filter signal
-lowpass = filterLowPass;  % 600;
-highpass = filterHighPass; % 8000;
+lowpass = filterLowPass;  
+highpass = filterHighPass; 
 wn = [lowpass highpass] / (fs / 2);
 filterOrder = 3;
 [b, a] = butter(filterOrder, wn);
@@ -219,8 +222,9 @@ end
         spikeWaveforms = mult_template_spike_waveforms;
     
     elseif strcmp(wname, 'swtteo')
-
-        spikeTimes = SWTTEO()
+        
+        % TODO: SWTTEO implementation
+        spikeTimes = SWTTEO(); 
         
     else
         % Detect spikes with wavelet method

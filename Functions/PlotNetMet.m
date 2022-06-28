@@ -100,18 +100,16 @@ end
 
 % names of metrics
 ExpInfoE = {'Grp','DIV'}; % info for both age and genotype, TODO: this is not used
-% list of metrics 
-NetMetricsE = {'Dens','Q','nMod','Eglob','aN','CC','PL','SW','SWw', ... 
-               'Hub3','Hub4'}; 
-
+% list of metrics that are obtained at the network level
+NetMetricsE = Params.networkLevelNetMetToPlot;
 % 'NCpn1','NCpn2','NCpn3','NCpn4','NCpn5','NCpn6' are moved
-
 % single cell/node metrics (1 value per cell/node)
 
 % names of metrics
 ExpInfoC = {'Grp','DIV'}; % info for both age and genotype, TODO: this is not used
-% list of metrics 
-NetMetricsC = {'ND','EW','NS','Eloc','BC','PC','Z'};
+% list of metrics that are obtained at the electrode level
+NetMetricsC = Params.unitLevelNetMetToPlot;
+
 
 %% Import data from all experiments - whole experiment  
 
@@ -148,24 +146,25 @@ for i = 1:length(ExpName)
          set(0, 'DefaultFigureVisible', 'off')
      end 
 
-     load(Exp)  % what does this file contain? 
+     expFileData = load(Exp);  % what does this file contain? 
      % filepath contains Info structure
 
      for g = 1:length(Grps)
-         if strcmp(cell2mat(Grps(g)),cell2mat(Info.Grp))
+         if strcmp(cell2mat(Grps(g)),cell2mat(expFileData.Info.Grp))
              eGrp = cell2mat(Grps(g));
          end       
      end
      for d = 1:length(AgeDiv)
-         if cell2mat(Info.DIV) == AgeDiv(d)
+         if cell2mat(expFileData.Info.DIV) == AgeDiv(d)
              eDiv = strcat('TP',num2str(d));
          end    
      end
      for e = 1:length(NetMetricsE)
             eMet = cell2mat(NetMetricsE(e));
             for l = 1:length(Params.FuncConLagval)
-                VNs = strcat('NetMet.adjM',num2str(Params.FuncConLagval(l)),'mslag.',eMet);
-                eval(['DatTemp(l) =' VNs ';']);
+                % VNs = strcat('NetMet.adjM',num2str(Params.FuncConLagval(l)),'mslag.',eMet);
+                DatTemp(l) = expFileData.NetMet.(strcat('adjM', num2str(Params.FuncConLagval(l)), 'mslag')).(eMet);
+                % eval(['DatTemp(l) =' VNs ';']);
                 clear VNs
             end
             VNe = strcat(eGrp,'.',eDiv,'.',eMet);
@@ -205,21 +204,26 @@ for i = 1:length(ExpName)
          % Make it so figure handle in oneFigure don't appear
          set(0, 'DefaultFigureVisible', 'off')
      end 
-     load(Exp)
+     
+     % Load exp data to get which group and DIV it is from
+     % also load the netMet variable
+     expFileData = load(Exp);
+
      for g = 1:length(Grps)
-         if strcmp(cell2mat(Grps(g)),cell2mat(Info.Grp))
+         if strcmp(cell2mat(Grps(g)),cell2mat(expFileData.Info.Grp))
              eGrp = cell2mat(Grps(g));
          end       
      end
      for d = 1:length(AgeDiv)
-         if cell2mat(Info.DIV) == AgeDiv(d)
+         if cell2mat(expFileData.Info.DIV) == AgeDiv(d)
              eDiv = strcat('TP',num2str(d));
          end    
      end
      for e = 1:length(NetMetricsC)
             eMet = cell2mat(NetMetricsC(e));
             for l = 1:length(Params.FuncConLagval)
-                VNs = strcat('NetMet.adjM',num2str(Params.FuncConLagval(l)),'mslag.',eMet);
+                VNs = strcat('expFileData.NetMet.adjM',num2str(Params.FuncConLagval(l)),'mslag.',eMet);
+                % DatTemp(l) = expFileData.NetMet.(strcat('adjM', num2str(Params.FuncConLagval(l)), 'mslag')).(eMet);
                 eval(['DatTemp' num2str(l) '= ' VNs ';']);
                 eval(['mL(l) = length(DatTemp' num2str(l) ');']);
                 clear VNs
@@ -373,12 +377,8 @@ cd(HomeDir); cd(strcat('OutputData',Params.Date));
 cd('4_NetworkActivity'); cd('4B_GroupComparisons')
 cd('5_GraphMetricsByLag')
 
-eMet = {'aN','Dens','CC','nMod', ... 
-        'Q','PL','Eglob','SW','SWw','Hub3','Hub4'}; 
-eMetl = {'network size','density','clustering coefficient','number of modules', ...
-    'modularity score','path length','global efficiency', ... 
-    'small worldness \sigma','small worldness \omega', 'hub nodes 2','hub nodes 1'}; 
-
+eMet = Params.networkLevelNetMetToPlot;
+eMetl = Params.networkLevelNetMetLabels;
 % moved:
 % 'NCpn1','NCpn2','NCpn3','NCpn4','NCpn5', 'NCpn6'
 %     'proportion peripheral nodes','proportion non-hub connectors', ... 
@@ -486,10 +486,8 @@ cd(HomeDir); cd(strcat('OutputData',Params.Date));
 cd('4_NetworkActivity'); cd('4B_GroupComparisons')
 cd('3_RecordingsByGroup'); cd('NotBoxPlots')
 
-eMet = {'aN','Dens','CC','nMod','Q','PL','Eglob','SW','SWw', 'Hub3','Hub4'}; 
-eMetl = {'network size','density','clustering coefficient', ... 
-    'number of modules','modularity score','path length', ... 
-    'global efficiency','small worldness \sigma','small worldness \omega', 'hub nodes 2','hub nodes 1'}; 
+eMet = Params.networkLevelNetMetToPlot;
+eMetl = Params.networkLevelNetMetLabels;
 
 % moved:  'NCpn1','NCpn2','NCpn3','NCpn4','NCpn5','NCpn6',
 %    'proportion peripheral nodes','proportion non-hub connectors', ... 
@@ -541,6 +539,31 @@ for l = 1:length(Params.FuncConLagval)
         end
         linkaxes(h,'xy')
         h(1).XLim = [min(xt)-0.5 max(xt)+0.5];
+
+        % Set custom y axis 
+        if isfield(Params.networkLevelNetMetCustomBounds, eMeti) 
+
+            boundVector = Params.networkLevelNetMetCustomBounds.(eMeti);
+
+            if ~isnan(boundVector(1))
+                yLowerBound = boundVector(1);
+            else
+                yLowerBound = h(1).YLim(1);
+            end 
+            
+            if ~isnan(boundVector(2))
+                yUpperBound = boundVector(2);
+            else
+                yUpperBound = h(1).YLim(2);
+            end  
+
+        else 
+            yLowerBound = h(1).YLim(1);
+            yUpperBound = h(1).YLim(2);
+        end 
+        
+        ylim([yLowerBound, yUpperBound])
+
         set(findall(gcf,'-property','FontSize'),'FontSize',9)
 
         % Export figure
@@ -567,10 +590,8 @@ cd(HomeDir); cd(strcat('OutputData',Params.Date));
 cd('4_NetworkActivity'); cd('4B_GroupComparisons')
 cd('3_RecordingsByGroup'); cd('HalfViolinPlots')
 
-eMet = {'aN','Dens','CC','nMod','Q','PL','Eglob','SW','SWw','Hub3','Hub4'}; 
-eMetl = {'network size','density','clustering coefficient','number of modules', ... 
-    'modularity score','path length','global efficiency','small worldness \sigma', ... 
-    'small worldness \omega', 'hub nodes 2','hub nodes 1'}; 
+eMet = Params.networkLevelNetMetToPlot;
+eMetl = Params.networkLevelNetMetLabels;
 
 % moved: 'NCpn1', 'NCpn2','NCpn3','NCpn4','NCpn5','NCpn6'
 % moved: 'proportion peripheral nodes','proportion non-hub connectors', ... 
@@ -626,8 +647,34 @@ for l = 1:length(Params.FuncConLagval)
             set(gca,'TickDir','out');
         end
         linkaxes(h,'xy')
+
         h(1).XLim = [min(xt)-0.5 max(xt)+0.5];
         set(findall(gcf,'-property','FontSize'),'FontSize',9)
+
+
+        % Set custom y axis 
+        if isfield(Params.networkLevelNetMetCustomBounds, eMeti) 
+
+            boundVector = Params.networkLevelNetMetCustomBounds.(eMeti);
+
+            if ~isnan(boundVector(1))
+                yLowerBound = boundVector(1);
+            else
+                yLowerBound = h(1).YLim(1);
+            end 
+            
+            if ~isnan(boundVector(2))
+                yUpperBound = boundVector(2);
+            else
+                yUpperBound = h(1).YLim(2);
+            end  
+
+        else 
+            yLowerBound = h(1).YLim(1);
+            yUpperBound = h(1).YLim(2);
+        end 
+        
+        ylim([yLowerBound, yUpperBound])
 
         % Export figure
         for nFigExt = 1:length(Params.figExt)
@@ -653,10 +700,13 @@ cd(HomeDir); cd(strcat('OutputData',Params.Date));
 cd('4_NetworkActivity'); cd('4B_GroupComparisons')
 cd('4_RecordingsByAge'); cd('NotBoxPlots')
 
-eMet = {'aN','Dens','CC','nMod','Q','PL','Eglob','SW','SWw','Hub3','Hub4'}; 
-eMetl = {'network size','density','clustering coefficient','number of modules', ... 
-    'modularity score','path length','global efficiency','small worldness \sigma', ... 
-    'small worldness \omega', 'hub nodes 2','hub nodes 1'}; 
+eMet = Params.networkLevelNetMetToPlot;
+eMetl = Params.networkLevelNetMetLabels;
+
+for n = 1:length(eMetl)
+    eMetl(n) = strrep(eMetl(n), '/', 'div');  % edge case where there is a division symbol in the label
+end 
+
 
 % moved: 'NCpn1','NCpn2','NCpn3','NCpn4','NCpn5','NCpn6',
 % 'proportion peripheral nodes','proportion non-hub connectors','proportion non-hub kinless nodes','proportion provincial hubs','proportion connector hubs','proportion kinless hubs',
@@ -707,6 +757,7 @@ for l = 1:length(Params.FuncConLagval)
 
         % Export figure
         for nFigExt = 1:length(Params.figExt)
+
             saveas(gcf,strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),Params.figExt{nFigExt}));
         end 
 
@@ -729,10 +780,13 @@ cd(HomeDir); cd(strcat('OutputData',Params.Date));
 cd('4_NetworkActivity'); cd('4B_GroupComparisons')
 cd('4_RecordingsByAge'); cd('HalfViolinPlots')
 
-eMet = {'aN','Dens','CC','nMod','Q','PL','Eglob','SW','SWw','Hub3','Hub4'}; 
-eMetl = {'network size','density','clustering coefficient','number of modules', ...
-    'modularity score','path length','global efficiency','small worldness \sigma','small worldness \omega', ... 
-    'hub nodes 2','hub nodes 1'}; 
+eMet = Params.networkLevelNetMetToPlot;
+eMetl = Params.networkLevelNetMetLabels;
+
+for n = 1:length(eMetl)
+    eMetl(n) = strrep(eMetl(n), '/', 'div');  % edge case where there is a division symbol in the label
+end 
+
 
 % moved: 'NCpn1','NCpn2','NCpn3','NCpn4','NCpn5','NCpn6'
 % 'proportion peripheral nodes','proportion non-hub connectors','proportion non-hub kinless nodes','proportion provincial hubs','proportion connector hubs','proportion kinless hubs',
@@ -784,7 +838,35 @@ for l = 1:length(Params.FuncConLagval)
             set(gca,'TickDir','out');
         end
         linkaxes(h,'xy')
-        h(1).XLim = [min(xt)-0.5 max(xt)+0.5];
+
+        if isfield(Params.networkLevelNetMetCustomBounds, eMeti) 
+
+            boundVector = Params.networkLevelNetMetCustomBounds.(eMeti);
+
+            if ~isnan(boundVector(1))
+                yLowerBound = boundVector(1);
+            else
+                yLowerBound = h(1).YLim(1);
+            end 
+            
+            if ~isnan(boundVector(2))
+                yUpperBound = boundVector(2);
+            else
+                yUpperBound = h(1).YLim(2);
+            end  
+
+        else 
+            yLowerBound = h(1).YLim(1);
+            yUpperBound = h(1).YLim(2);
+        end 
+
+        ylim([yLowerBound, yUpperBound]);
+        
+        xLowerBound = min(xt) - 0.5;
+        xUpperBound = min(xt) + 0.5;
+        set(gca, 'YLim', [yLowerBound, yUpperBound])
+        % h(1).YLim = [yLowerBound, yUpperBound];
+        h(1).XLim = [xLowerBound xUpperBound];
         set(findall(gcf,'-property','FontSize'),'FontSize',12)
 
         % Export figure

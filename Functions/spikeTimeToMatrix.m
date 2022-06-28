@@ -1,5 +1,7 @@
 function spike_matrix = spikeTimeToMatrix(spikeTimesStruct, start_time, end_time, sampling_rate)
+%{
 
+%}
  
 channel_names = fieldnames(spikeTimesStruct);
 bin_edges = start_time:1/sampling_rate:end_time;

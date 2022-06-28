@@ -7,7 +7,6 @@
 % in this section all modifiable parameters of the analysis are defined,
 % no subsequent section requires user input
 % please refer to the documentation for guidance on parameter choice
-
 % Set parameters
 
 % set analysis folder to home directory (folder with AnalysisPipeline scripts)
@@ -32,6 +31,7 @@ spreadsheet_file_type = 'csv'; % 'csv';
 % spread_sheet_filename = 'myRecordingsList.xlsx'; % name of excel spreadsheet
 % spreadsheet_filename = 'myRecordingsList.csv'; % name of csv file
 spreadsheet_filename = 'hpc_dataset.csv'; % other examples
+% spreadsheet_filename = 'Mahsa_11_File_Dataset.csv'; 
 % spreadsheet_filename = 'axiontest2.csv';
 % spreadsheet_filename = 'axiontest_wExcludedElectrode3.csv';
 
@@ -59,8 +59,8 @@ Params.potentialDifferenceUnit = 'uV';  % the unit which you are recording elect
 Params.priorAnalysis = 1; % 1 = yes, 0 = no
 % path to previously analysed data
 % Params.priorAnalysisPath = ['/Users/timothysit/AnalysisPipeline/OutputData20Jan2022v3']; % example format
-Params.priorAnalysisPath = ['/Users/timothysit/AnalysisPipeline/OutputData16Feb2022'];
-% Params.priorAnalysisPath = ['/Users/timothysit/AnalysisPipeline/OutputData19May2022v12'];
+% Params.priorAnalysisPath = ['/Users/timothysit/AnalysisPipeline/OutputData16Feb2022'];
+Params.priorAnalysisPath = ['/Users/timothysit/AnalysisPipeline/OutputData19May2022v12'];
 % prior analysis date in format given in output data folder e.g., '27Sep2021'
 % Params.priorAnalysisDate = '20Jan2022';
 Params.priorAnalysisDate = '19May2022';
@@ -82,7 +82,7 @@ Params.optionalStepsToRun = {'runstats'};
 
 % run spike detection?
 detectSpikes = 0; % 1 = yes, 0 = no
-Params.runSpikeCheckOnPrevSpikeData = 1; % whether to run spike detection check without spike deteciton 
+Params.runSpikeCheckOnPrevSpikeData = 0; % whether to run spike detection check without spike deteciton 
 
 if Params.runSpikeCheckOnPrevSpikeData
     fprintf(['You specified to run spike detection check on previously extracted spikes, \n', ... 
@@ -158,7 +158,7 @@ Params.adjMtype = 'weighted'; % 'weighted' or 'binary'
 Params.autoSetCartographyBoundaries = 1;  % whether to automatically determine bounds for hubs or use custom ones
 
 % figure formats
-Params.figExt = {'.png', '.svg'};  % supported options are '.mat', '.png', and '.svg'
+Params.figExt = {'.png', '.svg'};  % supported options are '.fig', '.png', and '.svg'
 Params.fullSVG = 1;  % whether to insist svg even with plots with large number of elements
 
 % Stop figures windows from popping up (steals windows focus on linux
@@ -192,6 +192,7 @@ else
 end 
 
 
+
 %% setup - additional setup
 
 % import metadata from spreadsheet
@@ -204,6 +205,9 @@ elseif strcmp(spreadsheet_file_type, 'csv')
     opts = detectImportOptions(spreadsheet_filename);
     opts.Delimiter = ',';
     opts.VariableNamesLine = 1;
+    opts.VariableTypes{1} = 'char';  % this should be the recoding file name
+    opts.VariableTypes{2} = 'double';  % this should be the DIV
+    opts.DataLines = [2 Inf];  % start reading data from row 2
     % csv_data = readtable(spreadsheet_filename, 'Delimiter','comma');
     csv_data = readtable(spreadsheet_filename, opts);
     ExpName =  csv_data{:, 1};
@@ -416,7 +420,7 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
 end
 
 %% Step 4 - network activity
-% Params.priorAnalysisPath = '/Users/timothysit/AnalysisPipeline/OutputData19May2022v12/';
+% % Params.priorAnalysisPath = '/Users/timothysit/AnalysisPipeline/OutputData19May2022v12/';
 if Params.showOneFig
     % TODO: do this for spike detection plots as well, and PlotNetMet
     Params.oneFigure = figure;
@@ -429,10 +433,10 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
         if Params.priorAnalysis==1 && Params.startAnalysisStep==4
             path = strcat(Params.priorAnalysisPath,'/ExperimentMatFiles/');
             path(strfind(savepath,'\'))='/'; cd(path)
-            load(strcat(char(ExpName(ExN)),'_',Params.priorAnalysisDate,'.mat'), 'spikeTimes','Ephys','adjMs','Info')
+            load(strcat(char(ExpName(ExN)),'_',Params.priorAnalysisDate,'.mat'), 'spikeTimes', 'Ephys','adjMs','Info')
         else
             cd(strcat('OutputData',Params.Date)); cd('ExperimentMatFiles')
-            load(strcat(char(ExpName(ExN)),'_',Params.Date,'.mat'),'Info','Params', 'spikeTimes','Ephys','adjMs')
+            load(strcat(char(ExpName(ExN)),'_',Params.Date,'.mat'),'Info','Params', 'spikeTimes', 'Ephys','adjMs')
         end
         cd(HomeDir)
 
@@ -443,8 +447,11 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
         
         addpath(fullfile(spikeDetectedData, '1_SpikeDetection', '1A_SpikeDetectedData'));
         [spikeMatrix,spikeTimes,Params,Info] = formatSpikeTimes(char(Info.FN),Params,Info);
-        spikeMatirx = full(spikeMatrix);
-        NetMet = ExtractNetMetOrganoid(adjMs, spikeTimes, Params.FuncConLagval, Info,HomeDir,Params, spikeMatrix);
+        biAdvancedSettings
+        Params.oneFigure = figure();  % NOTE: This is a temporary solution... need to find where it was clearing figures
+
+        NetMet = ExtractNetMetOrganoid(adjMs, spikeTimes, ...
+            Params.FuncConLagval, Info,HomeDir,Params, spikeMatrix);
 
         cd(HomeDir); cd(strcat('OutputData',Params.Date)); cd('ExperimentMatFiles')
 
@@ -462,7 +469,12 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
     % Aggregate all files and run density analysis to determine boundaries
     % for node cartography
     if Params.autoSetCartographyBoundaries
-        cd(fullfile(Params.priorAnalysisPath, 'ExperimentMatFiles'));    
+        if Params.priorAnalysis==1 
+            cd(fullfile(Params.priorAnalysisPath, 'ExperimentMatFiles'));   
+        else
+            cd(fullfile(strcat('OutputData', Params.Date), 'ExperimentMatFiles'));   
+        end 
+        
         fig_folder = fullfile(Params.priorAnalysisPath, '4_NetworkActivity/4B_GroupComparisons/7_DensityLandscape');
         if ~isfolder(fig_folder)
             mkdir(fig_folder)
@@ -470,7 +482,8 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
 
         ExpList = dir('*.mat');
         add_fig_info = '';
-        [hubBoundaryWMdDeg, periPartCoef, proHubpartCoef, nonHubconnectorPartCoef, connectorHubPartCoef] = TrialLandscapeDensity(ExpList, fig_folder, add_fig_info);
+        [hubBoundaryWMdDeg, periPartCoef, proHubpartCoef, nonHubconnectorPartCoef, connectorHubPartCoef] = ...
+            TrialLandscapeDensity(ExpList, fig_folder, add_fig_info);
         Params.hubBoundaryWMdDeg = hubBoundaryWMdDeg;
         Params.periPartCoef = periPartCoef;
         Params.proHubpartCoef = proHubpartCoef;
@@ -506,7 +519,7 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
 
         cd(strcat('OutputData',Params.Date)); cd('4_NetworkActivity')
         cd('4A_IndividualNetworkAnalysis'); cd(char(Info.Grp))
-        
+        Params.oneFigure = figure();
         NetMet = plotNodeCartography(adjMs, Params, NetMet, Info, HomeDir);
         % save NetMet now we node cartography data as well
         cd(HomeDir); cd(strcat('OutputData',Params.Date)); cd('ExperimentMatFiles')
@@ -610,6 +623,5 @@ if ~any(strcmp(Params.optionalStepsToRun,'generateCSV'))
     name_table = table([name, div]);
     writetable(name_table, 'test.csv')
 end 
-
 
 

@@ -19,7 +19,7 @@
 
 project = 'MEA pipeline'
 copyright = '2022, Timothy Sit, Rachael Feord, Alexander Dunn, Jeremy Chabros'
-author = 'Timothy Sit, Rachael Feord, Alexander Dunn, Jeremy Chabros'
+author = 'Timothy Sit, Rachael Feord, Alexander Dunn, Jeremy Chabros, Chang E, Yuan Y, Oluigbo D, Nagy L, Smith HH, Hemberg E, Hemberg M, Lancaster M, Lakatos A, Hennequin G, Eglen SJ, Paulsen O, Mierau SB'
 
 # The full version, including alpha/beta/rc tags
 release = '0.0.0'
@@ -47,7 +47,7 @@ exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = 'alabaster'
+html_theme = 'furo'
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
