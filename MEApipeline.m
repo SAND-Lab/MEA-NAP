@@ -256,7 +256,7 @@ end
 
 %% Step 1 - spike detection
 
-if (Params.priorAnalysis == 0) || (Params.runSpikeCheckOnPrevSpikeData)
+if ((Params.priorAnalysis == 0) || (Params.runSpikeCheckOnPrevSpikeData)) && (Params.startAnalysisStep == 1) 
 
     if (detectSpikes == 1) || (Params.runSpikeCheckOnPrevSpikeData)
         addpath(rawData)
@@ -447,7 +447,7 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
         
         addpath(fullfile(spikeDetectedData, '1_SpikeDetection', '1A_SpikeDetectedData'));
         [spikeMatrix,spikeTimes,Params,Info] = formatSpikeTimes(char(Info.FN),Params,Info);
-        biAdvancedSettings
+        biAdvancedSettings  % Temp here to try out new NMF code 
         Params.oneFigure = figure();  % NOTE: This is a temporary solution... need to find where it was clearing figures
 
         NetMet = ExtractNetMetOrganoid(adjMs, spikeTimes, ...
@@ -464,6 +464,17 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
 
     % create combined plots
     PlotNetMet(ExpName,Params,HomeDir)
+    
+    if Params.includeNMFcomponents
+        % Plot NMF 
+        experimentMatFolder = fullfile(HomeDir, ...
+            strcat('OutputData',Params.Date), 'ExperimentMatFiles');
+        plotSaveFolder = fullfile(HomeDir, ...
+            strcat('OutputData',Params.Date), '4_NetworkActivity', ...
+            '4A_IndividualNetworkAnalysis');
+        plotNMF(experimentMatFolder, plotSaveFolder, Params)
+    end 
+
     cd(HomeDir)
 
     % Aggregate all files and run density analysis to determine boundaries
