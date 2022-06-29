@@ -57,6 +57,16 @@ end
 
 option = 'list';
 
+%% Spike detection plots settings 
+
+% Params.rasterPlotUpperPercentile determines the colorbar 
+% y axis upper percentile (spikes/s) 
+% 99 : prevent outliers dominating the plot, 100 : scale to the max (for
+% low firing rate)
+Params.rasterPlotUpperPercentile = 99;  
+
+
+
 %% Network analysis settings 
 Params.netMetToCal = {'ND', 'EW', 'NS', 'aN', 'Dens', 'Ci', 'Q', 'nMod', 'Eglob', ...,
         'CC', 'PL' 'SW','SWw' 'Eloc', 'BC', 'PC' , 'PC_raw', 'Cmcblty', 'Z', ...

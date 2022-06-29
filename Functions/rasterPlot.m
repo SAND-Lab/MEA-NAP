@@ -41,7 +41,7 @@ set(gca,'TickDir','out');
 cb.Location = 'Eastoutside';
 cb.Box = 'off';
 set(gca, 'FontSize', 14)
-ylimit_cbar = prctile(downSpikeMatrix(:),99,'all');
+ylimit_cbar = prctile(downSpikeMatrix(:),Params.rasterPlotUpperPercentile,'all');
 caxis([0,ylimit_cbar])
 yticks([1, 10:10:60])
 title({strcat(regexprep(File,'_','','emptymatch'),' raster scaled to recording'),' '});
