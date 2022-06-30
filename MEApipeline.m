@@ -90,6 +90,8 @@ if Params.runSpikeCheckOnPrevSpikeData
     detectSpikes = 0;
 end 
 
+Params.channelLayout = 'MCS60';
+
 % specify folder with raw data files for spike detection
 % currently does not accept path names with colon in them
 rawData = '/Volumes/T7/schroter2015_mat';
