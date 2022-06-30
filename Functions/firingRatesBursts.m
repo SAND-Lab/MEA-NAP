@@ -32,7 +32,8 @@ FiringRates = full(sum(spikeMatrix))/Info.duration_s;
 active_chanIndex = FiringRates      >= FR_threshold;
 ActiveFiringRates = FiringRates(active_chanIndex);  %spikes of only active channels ('active'= >7)
 
-Ephys.FR = ActiveFiringRates;
+% Ephys.FR = ActiveFiringRates;
+Ephys.FR = FiringRates;
 % currently calculates only on active channels (>=FR_threshold)
 % stats  
 % TODO: Why is the rounding necessary ?
