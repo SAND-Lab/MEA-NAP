@@ -32,9 +32,9 @@ function [adjM, adjMci] = adjM_thr_parallel(spikeTimes, method, lag_ms, tail, fs
 %   Re-written to use event times by JChabros, Feb 2021
 
 % Terminate previous and start new parallel computing pool 
-poolobj = gcp('nocreate');
-delete(poolobj);
-parpool(4); % change 4 to the number of cores
+% poolobj = gcp('nocreate');
+% delete(poolobj);
+% parpool(4); % change 4 to the number of cores
 % Note: If this function is run in a loop, start one parpool before the
 %       loop to avoid restarting at each iteration
 
