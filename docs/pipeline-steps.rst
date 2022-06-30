@@ -1,6 +1,8 @@
 Pipeline steps
 ==============
 
+.. _overview: 
+
 Overview of the network analysis pipeline
 ----------------------------------------------------------------
 
@@ -172,15 +174,17 @@ Overview
 
 Spike detection:
 
-:hoverxref:`Params.detectSpikes <hoverxref:Params.detectSpike>`
+:hoverxref:`Params.detectSpikes <hoverxref:overview>`
 
-
+Reference to `Params.detectSpikes`_
+Reference to `overview`_
+           
 
 Spike detection
 ^^^^^^^^^^^^^^^^^^^
 
 
-.. _Params.detectSpikes:
+.. _params.detectspikes:
 
 ``Params.detectSpikes``
 """"""""""""""""""""""""""""""
