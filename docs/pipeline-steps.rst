@@ -161,3 +161,32 @@ Run and wait
 
 
 After completing this list, no further changes are necessary to run the pipeline. Save your changes.  Press RUN and then wait!  The length of time will depend on the acquisition rate, length of recordings, number of files and processing power of the computer. Cluster computing when available is recommended for larger batch datasets.
+
+
+
+Pipeline settings
+------------------
+
+Overview
+^^^^^^^^^^
+
+Spike detection:
+
+ - :hoverxref: `Params.detectSpikes <hoverxref:Params.detectSpikes>`
+
+
+
+
+Spike detection
+^^^^^^^^^^^^^^^^^^^
+
+
+.. _Params.detectSpikes:
+
+``Params.detectSpikes``
+""""""""""""""""""""""""
+
+ * determines whether to run spike detection in the pipeline
+ * argument type: boolean 
+ * options: 0 : do not detect spikes, 1 : detect spikes
+ 
