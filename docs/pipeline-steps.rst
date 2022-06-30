@@ -174,12 +174,12 @@ Overview
 
 Spike detection:
 
-:ref:`Params.detectSpikes <params.detectspikes>`
-:ref:`Params.wnameList <Params.wnameList>`
-:ref:`Params.threshold_calculation_window <Params.threshold_calculation_window>`
-:ref:`Params.refPeriod <Params.refPeriod>`
-:ref:`Params.filterLowPass <Params.filterLowPass>`
-:ref:`Params.filterHighPass <Params.filterHighPass>`
+* :ref:`Params.detectSpikes <params.detectspikes>`
+* :ref:`Params.wnameList <Params.wnameList>`
+* :ref:`Params.threshold_calculation_window <Params.threshold_calculation_window>`
+* :ref:`Params.refPeriod <Params.refPeriod>`
+* :ref:`Params.filterLowPass <Params.filterLowPass>`
+* :ref:`Params.filterHighPass <Params.filterHighPass>`
            
 
 Spike detection
@@ -245,3 +245,4 @@ Spike detection
  * the high pass frequency (Hz) to use on the raw signal before spike detection
  * argument type : float
  * default value : 8000
+
