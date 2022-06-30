@@ -156,9 +156,9 @@ Pipeline output preferences
      - The pipeline output includes a large number of figures which allow you to look at network features within individual networks and to compare across multiple recordings.  You can have these figures in .fig (can edit in MATLAB), .png (standard image), and/or .svg (can edit colors, font sizes in graphics programs). Specify which extensions to include as a cell array in this line.  More file types selected increases pipeline run time.
 
 
+
 Run and wait
 ^^^^^^^^^^^^^^
-
 
 After completing this list, no further changes are necessary to run the pipeline. Save your changes.  Press RUN and then wait!  The length of time will depend on the acquisition rate, length of recordings, number of files and processing power of the computer. Cluster computing when available is recommended for larger batch datasets.
 
@@ -172,8 +172,7 @@ Overview
 
 Spike detection:
 
- * :hoverxref:`Params.detectSpikes <hoverxref:Params.detectSpikes>`
-
+:hoverxref:`Params.detectSpikes <hoverxref:Params.detectSpike>`
 
 
 
@@ -184,7 +183,7 @@ Spike detection
 .. _Params.detectSpikes:
 
 ``Params.detectSpikes``
-""""""""""""""""""""""""
+""""""""""""""""""""""""""""""
 
  * determines whether to run spike detection in the pipeline
  * argument type: boolean 
