@@ -1,88 +1,67 @@
 % Process data from MEA recordings of 2D and 3D cultures
 % created: RCFeord, May 2021
 % authors: T Sit, RC Feord, AWE Dunn, J Chabros and other members of the Synaptic and Network Development (SAND) Group
-
-
 %% USER INPUT REQUIRED FOR THIS SECTION
 % in this section all modifiable parameters of the analysis are defined,
 % no subsequent section requires user input
-% please refer to the documentation for guidance on parameter choice
-% Set parameters
+% Please refer to the documentation for guidance on parameter choice here:
+% https://analysis-pipeline.readthedocs.io/en/latest/pipeline-steps.html#pipeline-settings
 
-% set analysis folder to home directory (folder with AnalysisPipeline scripts)
-HomeDir = '/Users/timothysit/AnalysisPipeline'; %for Mac '/yourpath' for PC '\yourpath'
-% add all relevant folders to path
-cd(HomeDir)
-addpath(genpath('Functions'))
-addpath('Images')
+% Directories
+HomeDir = '/Users/timothysit/AnalysisPipeline'; % analysis folder to home directory
+rawData = '/Volumes/T7/schroter2015_mat';  % path to raw data .mat files
+Params.priorAnalysisPath = ['/Users/timothysit/AnalysisPipeline/OutputData19May2022v12'];  % path to prev analysis
+spikeDetectedData = '/Users/timothysit/AnalysisPipeline/OutputData20Jan2022v3'; % path to spike-detected data
 
-% data input from excel spreadheet or csv file with the following structure
-%      column 1: filename of recording (omit .mat at the end of the filename), 
-%      column 2: DIV or age of sample (should whole numbers), 
-%      column 3: group, cell line, or condition (groups will be plotted in alphabetic order, 
-%                do not use numbers in group names) 
-%      column 4: any electrode numbers you wish to ground (check electrode naming for your MEA data files; 
-%                for MCS 60 channel data, electrode 15--the reference electrode should be included here)
-% 
-% spreadsheet_file_type: datatype of the spreadsheet 
-% option 1: csv (comma separated values)
-% option 2: excel (excel spreadsheet, eg. .xlsx)
-spreadsheet_file_type = 'csv'; % 'csv';
-% spread_sheet_filename = 'myRecordingsList.xlsx'; % name of excel spreadsheet
-% spreadsheet_filename = 'myRecordingsList.csv'; % name of csv file
-spreadsheet_filename = 'hpc_dataset.csv'; % other examples
-% spreadsheet_filename = 'Mahsa_11_File_Dataset.csv'; 
-% spreadsheet_filename = 'axiontest2.csv';
-% spreadsheet_filename = 'axiontest_wExcludedElectrode3.csv';
-
-% These options only apply if using excel spreadsheet
+% Input and output filetype
+spreadsheet_file_type = 'csv'; % 'csv' or 'excel'
+spreadsheet_filename = 'hpc_dataset.csv'; 
 sheet = 1; % specify excel sheet
 xlRange = 'A2:C7'; % specify range on the sheet (e.g., 'A2:C7' would analyse the first 6 files)
+Params.output_spreadsheet_file_type = 'csv';  % .xlsx or .csv
 
-% get date
-formatOut = 'ddmmmyyyy'; Params.Date = datestr(now,formatOut); clear formatOut
-
-% specify analysis output format ('excel' for .xlsx files and 'csv' for
-% .csv files)
-Params.output_spreadsheet_file_type = 'csv';
-
-
-% Sampling frequency of your recordings
-Params.fs = 25000; % HPC: 25000, Axion: 12500;
-Params.dSampF = 25000; % down sampling factor for spike detection check, 
-% by default should be equal to your recording sampling frequency
-Params.potentialDifferenceUnit = 'uV';  % the unit which you are recording electrical signals 
-% if this is a number, then will multiply this number to get potential
-% difference in units of V
-
-% use previously analysed data?
-Params.priorAnalysis = 1; % 1 = yes, 0 = no
-% path to previously analysed data
-% Params.priorAnalysisPath = ['/Users/timothysit/AnalysisPipeline/OutputData20Jan2022v3']; % example format
-% Params.priorAnalysisPath = ['/Users/timothysit/AnalysisPipeline/OutputData16Feb2022'];
-Params.priorAnalysisPath = ['/Users/timothysit/AnalysisPipeline/OutputData19May2022v12'];
-% prior analysis date in format given in output data folder e.g., '27Sep2021'
-% Params.priorAnalysisDate = '20Jan2022';
-Params.priorAnalysisDate = '19May2022';
-% Params.priorAnalysisDate = '16Feb2022';
-% which section to start new analysis from:
-% 2 = neuronal activity (uses spike detection from step 1)
-% 3 = functional connectivity (uses spike detection from step 1)
-% 4 = network activity (uses functional connectivity outputs from step 3)
+% Analysis step settings
+Params.priorAnalysisDate = '19May2022'; % prior analysis date in format given in output data folder e.g., '27Sep2021'
+Params.priorAnalysis = 1; % use previously analysed data? 1 = yes, 0 = no
 Params.startAnalysisStep = 4 ; % if Params.priorAnalysis=0, default is to start with spike detection
 Params.optionalStepsToRun = {'runstats'};
-% Supported optional steps: 
-% getDensityLandscape : calculate and plot distribution of participation
-% coefficient and centrality 
-% runStats : calculates correlation of features across recording, and do 
-% classification of DIV and/or recording condition (eg. genotype) based 
-% on network metrics
-% generateCSV : generate CSV with file paths given folder containing mat files
-% comparePrePostTTX : compare pre/post TTX activity in data
 
-% run spike detection?
-detectSpikes = 0; % 1 = yes, 0 = no
-Params.runSpikeCheckOnPrevSpikeData = 0; % whether to run spike detection check without spike deteciton 
+% Spike detection settings
+detectSpikes = 0; % run spike detection? % 1 = yes, 0 = no
+Params.runSpikeCheckOnPrevSpikeData = 0; % whether to run spike detection check without spike detection 
+Params.fs = 25000; % Sampling frequency, HPC: 25000, Axion: 12500;
+Params.dSampF = 25000; % down sampling factor for spike detection check
+Params.potentialDifferenceUnit = 'uV';  % the unit which you are recording electrical signals 
+Params.channelLayout = 'MCS60';
+Params.thresholds = {}; % standard deviation multiplier threshold(s), eg. {'2.5', '3.5', '4.5'}
+Params.wnameList = {'bior1.5'}; % wavelet methods to use {'bior1.5', 'mea'}';
+Params.costList = -0.12;
+Params.SpikesMethod = 'bior1p5'; 
+
+% Functional connectivity inference settings
+Params.FuncConLagval = [15]; % set the different lag values (in ms), default to [10, 15, 25]
+Params.TruncRec = 0; % truncate recording? 1 = yes, 0 = no
+Params.TruncLength = 120; % length of truncated recordings (in seconds)
+Params.adjMtype = 'weighted'; % 'weighted' or 'binary'
+
+% Connectivity matrix thresholding settings
+Params.ProbThreshRepNum = 200; % probabilistic thresholding number of repeats 
+Params.ProbThreshTail = 0.05; % probabilistic thresholding percentile threshold 
+Params.ProbThreshPlotChecks = 1; % randomly sample recordings to plot probabilistic thresholding check, 1 = yes, 0 = no
+Params.ProbThreshPlotChecksN = 5; % number of random checks to plot
+
+% Node cartography settings 
+Params.autoSetCartographyBoundaries = 1;  % whether to automatically determine bounds for hubs or use custom ones
+
+% Plot settings
+Params.figExt = {'.png', '.svg'};  % supported options are '.fig', '.png', and '.svg'
+Params.fullSVG = 1;  % whether to insist svg even with plots with large number of elements
+Params.showOneFig = 1;  % otherwise, 0 = pipeline shows plots as it runs, 1: supress plots
+
+%% END OF USER REQUIRED INPUT SECTION
+% The rest of the MEApipeline.m runs automatically. Do not change after this line
+% unless you are an expert user.
+biAdvancedSettings
 
 if Params.runSpikeCheckOnPrevSpikeData
     fprintf(['You specified to run spike detection check on previously extracted spikes, \n', ... 
@@ -90,86 +69,15 @@ if Params.runSpikeCheckOnPrevSpikeData
     detectSpikes = 0;
 end 
 
-Params.channelLayout = 'MCS60';
+% Define output folder names
+formatOut = 'ddmmmyyyy'; 
+Params.Date = datestr(now,formatOut); 
+clear formatOut
 
-% specify folder with raw data files for spike detection
-% currently does not accept path names with colon in them
-rawData = '/Volumes/T7/schroter2015_mat';
-% rawData = '/Users/timothysit/AnalysisPipeline/localRawData';
-% rawData = '/Users/timothysit/AnalysisPipeline/2022-03-16-test-raw-data';
-% advanced settings are automatically set but can be modified by opening
-% the following function
-biAdvancedSettings
-% To perform threshold-based spike detection, list the standard deviation multiplier threshold(s).  
-% the threshold is mean(voltage) - Params.thresholds * sem(voltage) (or std(voltage))
-% leave empty as {} if you don't want to perform threshold-based spike detection 
-% threshold-based spike detection
-Params.thresholds = {}; % {'2.5', '3.5', '4.5'}
-% To perform template-based spike detection, list the built in wavelets 
-% For more information about wavelets, type `waveinfo` into matlab 
-% or see: https://uk.mathworks.com/help/wavelet/ref/waveinfo.html
-% The usual wavelets that we observe good results with for detecting spikes 
-% are 'bior1.5', 'bior1.3', and 'db' wavelets.
-% To use custom electrode-specific wavelets based on the average waveform detected
-% with the threshold method, use 'mea' for .wnameList and select a SD multiplier .threshold (e.g., 4).
-% To perform the stationery wavelet transform method, enter 'swtteo' (we have not optimized this).
-% Set to empty {}' if you only want to run threshold spike detection
-Params.wnameList = {'bior1.5'}; % {'bior1.5', 'mea'}';
-
-% Specify the cost parameter used in the template-based spike detection,  
-% which controls the false positive / false negative tradeoff in spike detection 
-% more negative values leads to less false negative but more false
-% positives, recommended range is between -2 to 2, but usually we use 
-% -1 to 0. Note that this is in a log10 scale, meaning -1 will lead to 10
-% times more false positive compared to -0.1
-% For more details see Nenadic and Burdick 2005: Spike detection using the continuous wavelet transform
-Params.costList = -0.12;
-% if spike detection has been run separately, specify the folder containing
-% the spike detected data; e.g., '/Users/yourpath/AnalysisPipeline/OutputData20Jan2022v3';
-spikeDetectedData = '/Users/timothysit/AnalysisPipeline/OutputData20Jan2022v3';
-
-% Set the spike method to be used in downstream analysis, use 'merged if all
-% wavelet-based spike detection methods should be combined, otherwise specify method.
-% 'thr3p0': means using a threshold-based method with a multiplier of 3.0
-% you can specify other thresholds by replacing the decimal place '.' with
-% 'p', eg. 'thr4p5' means a threhold multiplier of 4.5
-% 'bio1p5': use spikes from the bior1.5 wavelet, you can also specify other
-% wavelet names
-% 'mea': use spikes from electrode-specific custom wavelets (adapted from putative spikes
-% detected using the theshold method)
-% 'merged': merge the spike detection results from the wavelets specified 
-% in Params.wnameList
-Params.SpikesMethod = 'bior1p5'; % 'thr3p0','mea','merged', 'bior1p5' etc.
-% TODO: make sure SpikesMethod is a subset of wnameList 
-
-% set parameters for functional connectivity inference
-Params.FuncConLagval = [15]; % set the different lag values (in ms), default to [10, 15, 25]
-Params.TruncRec = 0; % truncate recording? 1 = yes, 0 = no
-Params.TruncLength = 120; % length of truncated recordings (in seconds)
-
-% set parameters for connectivity matrix thresholding
-Params.ProbThreshRepNum = 200; % probabilistic thresholding number of repeats 
-Params.ProbThreshTail = 0.05; % probabilistic thresholding percentile threshold 
-Params.ProbThreshPlotChecks = 1; % randomly sample recordings to plot probabilistic thresholding check, 1 = yes, 0 = no
-Params.ProbThreshPlotChecksN = 5; % number of random checks to plot
-
-% set parameters for graph theory
-Params.adjMtype = 'weighted'; % 'weighted' or 'binary'
-
-% Node cartography settings 
-Params.autoSetCartographyBoundaries = 1;  % whether to automatically determine bounds for hubs or use custom ones
-
-% figure formats
-Params.figExt = {'.png', '.svg'};  % supported options are '.fig', '.png', and '.svg'
-Params.fullSVG = 1;  % whether to insist svg even with plots with large number of elements
-
-% Stop figures windows from popping up (steals windows focus on linux
-% machines at least) when set to 1 (by only plotting on one figure handle)
-Params.showOneFig = 1;  % otherwise, 0 = pipeline shows plots as it runs
-
-%% END OF USER REQUIRED INPUT SECTION
-% The rest of the MEApipeline.m runs automatically. Do not change after this line
-% unless you are an expert user.
+% add all relevant folders to path
+cd(HomeDir)
+addpath(genpath('Functions'))
+addpath('Images')
 
 % Network plot colormap bounds 
 Params.use_theoretical_bounds = 1;
@@ -192,8 +100,6 @@ else
 
     end 
 end 
-
-
 
 %% setup - additional setup
 
