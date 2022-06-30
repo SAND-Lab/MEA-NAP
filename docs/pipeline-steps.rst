@@ -180,8 +180,13 @@ Spike detection:
 * :ref:`Params.refPeriod <Params.refPeriod>`
 * :ref:`Params.filterLowPass <Params.filterLowPass>`
 * :ref:`Params.filterHighPass <Params.filterHighPass>`
-           
 
+Network analysis:
+
+* :ref:`Params.netMetToCal <Params.netMetToCal>`
+* :ref:`Params.minNumberOfNodesToCalNetMet <Params.minNumberOfNodesToCalNetMet>`
+
+  
 Spike detection
 ^^^^^^^^^^^^^^^^^^^
 
@@ -246,3 +251,26 @@ Spike detection
  * argument type : float
  * default value : 8000
 
+   
+Network analysis
+^^^^^^^^^^^^^^^^^^^^^
+
+.. _Params.netMetToCal:
+
+``Params.netMetToCal``
+"""""""""""""""""""""""""""
+
+ * list of network metrics to calculate
+ * argument type : cell containing strings
+ * options : ND, EW, NS, aN, etc.
+
+.. _Params.minNumberOfNodesToCalNetMet:
+
+``Params.minNumberOfNodesToCalNetMet``
+""""""""""""""""""""""""""""""""""""""""
+
+ * minimum number of nodes required to calculate network metrics
+ * argument type : int
+ * options : any integer value from 2 to the maximum number of nodes in your network
+ * default value : 25
+   
