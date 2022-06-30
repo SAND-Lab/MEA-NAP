@@ -1,6 +1,8 @@
 Pipeline steps
 ==============
 
+.. _overview: 
+
 Overview of the network analysis pipeline
 ----------------------------------------------------------------
 
@@ -156,8 +158,119 @@ Pipeline output preferences
      - The pipeline output includes a large number of figures which allow you to look at network features within individual networks and to compare across multiple recordings.  You can have these figures in .fig (can edit in MATLAB), .png (standard image), and/or .svg (can edit colors, font sizes in graphics programs). Specify which extensions to include as a cell array in this line.  More file types selected increases pipeline run time.
 
 
+
 Run and wait
 ^^^^^^^^^^^^^^
 
-
 After completing this list, no further changes are necessary to run the pipeline. Save your changes.  Press RUN and then wait!  The length of time will depend on the acquisition rate, length of recordings, number of files and processing power of the computer. Cluster computing when available is recommended for larger batch datasets.
+
+
+
+Pipeline settings
+------------------
+
+Overview
+^^^^^^^^^^
+
+Spike detection:
+
+* :ref:`Params.detectSpikes <params.detectspikes>`
+* :ref:`Params.wnameList <Params.wnameList>`
+* :ref:`Params.threshold_calculation_window <Params.threshold_calculation_window>`
+* :ref:`Params.refPeriod <Params.refPeriod>`
+* :ref:`Params.filterLowPass <Params.filterLowPass>`
+* :ref:`Params.filterHighPass <Params.filterHighPass>`
+
+Network analysis:
+
+* :ref:`Params.netMetToCal <Params.netMetToCal>`
+* :ref:`Params.minNumberOfNodesToCalNetMet <Params.minNumberOfNodesToCalNetMet>`
+
+  
+Spike detection
+^^^^^^^^^^^^^^^^^^^
+
+
+.. _params.detectspikes:
+
+``Params.detectSpikes``
+""""""""""""""""""""""""""""""
+
+ * determines whether to run spike detection in the pipeline
+ * argument type: boolean 
+ * options: 0 : do not detect spikes, 1 : detect spikes
+ 
+
+.. _Params.wnameList:
+
+``Params.wnameList``
+""""""""""""""""""""""""""""""
+
+ * determines which wavelets to run the spike detection with 
+ * argument type: either string or a cell array of strings
+ * options: bior1p5, bior1p3, db2, mea,
+
+
+.. _Params.threshold_calculation_window:
+
+``Params.threshold_calculation_window``
+"""""""""""""""""""""""""""""""""""""""""""
+
+ * which part of the recording to do spike detection
+ * 0 : start of recording, 0.5 : middle of recording, 1 : end of recording
+ * argument type : a matlab double with 2 elements 
+
+
+.. _Params.refPeriod:
+   
+``Params.refPeriod``
+"""""""""""""""""""""""
+
+ * the refractory period of spikes in milliseconds
+ * spikes that are smaller than this time period apart will be excluded
+ * argument type : float
+ * default value : 0.2 
+
+
+.. _Params.filterLowPass:
+
+``Params.filterLowPass``
+"""""""""""""""""""""""""""
+
+ * the low pass frequency (Hz) to use on the raw signal before spike detection
+ * argument type : float
+ * default value : 600
+
+
+.. _Params.filterHighPass:
+
+``Params.filterHighPass``
+"""""""""""""""""""""""""""
+
+ * the high pass frequency (Hz) to use on the raw signal before spike detection
+ * argument type : float
+ * default value : 8000
+
+   
+Network analysis
+^^^^^^^^^^^^^^^^^^^^^
+
+.. _Params.netMetToCal:
+
+``Params.netMetToCal``
+"""""""""""""""""""""""""""
+
+ * list of network metrics to calculate
+ * argument type : cell containing strings
+ * options : ND, EW, NS, aN, etc.
+
+.. _Params.minNumberOfNodesToCalNetMet:
+
+``Params.minNumberOfNodesToCalNetMet``
+""""""""""""""""""""""""""""""""""""""""
+
+ * minimum number of nodes required to calculate network metrics
+ * argument type : int
+ * options : any integer value from 2 to the maximum number of nodes in your network
+ * default value : 25
+   

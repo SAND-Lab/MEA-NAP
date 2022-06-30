@@ -26,6 +26,7 @@ end
     
 for nFigExt = 1:length(figExts)
     figFileName = strcat([figName, figExts{nFigExt}]);
+    %{
     if ispc && strcmp(figExts{nFigExt}, '.svg')
         if isempty(figHandle)
             try
@@ -40,7 +41,8 @@ for nFigExt = 1:length(figExts)
                 saveas(figHandle, figFileName, 'Renderer', 'opengl');
             end 
         end 
-    elseif strcmp(figExts{nFigExt}, '.svg') && fullSVG
+    %}
+    if strcmp(figExts{nFigExt}, '.svg') && fullSVG
         if isempty(figHandle)
             print('-painters', '-dsvg', figFileName); % note this saves gcf by default
         else 

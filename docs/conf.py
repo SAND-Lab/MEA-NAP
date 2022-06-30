@@ -18,8 +18,8 @@
 # -- Project information -----------------------------------------------------
 
 project = 'MEA pipeline'
-copyright = '2022, Timothy Sit, Rachael Feord, Alexander Dunn, Jeremy Chabros'
-author = 'Timothy Sit, Rachael Feord, Alexander Dunn, Jeremy Chabros, Chang E, Yuan Y, Oluigbo D, Nagy L, Smith HH, Hemberg E, Hemberg M, Lancaster M, Lakatos A, Hennequin G, Eglen SJ, Paulsen O, Mierau SB'
+copyright = '2022, Timothy Sit, Rachael Feord, Alexander Dunn, Jeremy Chabros, Mierau SB and SAND group members'
+author = 'Timothy Sit, Rachael Feord, Alexander Dunn, Jeremy Chabros, Mierau SB, and SAND group members'
 
 # The full version, including alpha/beta/rc tags
 release = '0.0.0'
@@ -31,6 +31,7 @@ release = '0.0.0'
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
+    'hoverxref.extension',
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -53,3 +54,6 @@ html_theme = 'furo'
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ['_static']
+
+# -- hoverxref --
+hoverxref_auto_ref = True
