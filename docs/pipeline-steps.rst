@@ -172,7 +172,7 @@ Overview
 
 Spike detection:
 
- - :hoverxref: `Params.detectSpikes <hoverxref:Params.detectSpikes>`
+ * :hoverxref:`Params.detectSpikes <hoverxref:Params.detectSpikes>`
 
 
 
