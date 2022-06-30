@@ -24,7 +24,9 @@ function [adjM, adjMci] = adjM_thr_parallel(spikeTimes, method, lag_ms, tail, fs
 %                          dataset
 %----------
 % OUTPUTS:
-%   adjMci = real adjacency matrix thresholded at specidied confidence interval
+%   adjM : 
+%   adjMci : 
+%   real adjacency matrix thresholded at specidied confidence interval
 %            of probabilistic edge weights
 %----------
 % Author: RCFeord
@@ -75,6 +77,8 @@ parfor i = 1:num_nodes
     for j = 1:num_nodes
         Eu = sort(adjMi(i,j,:),'ascend');
         if Eu(cutoff_point) > adjM(i,j)
+            % TODO: may need to change this to compare absolute in the case of 
+            % significant negative correlation 
             adjMci(i,j) = 0;
         end
     end
