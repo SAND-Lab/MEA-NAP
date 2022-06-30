@@ -175,11 +175,11 @@ Overview
 Spike detection:
 
 :ref:`Params.detectSpikes <params.detectspikes>`
-
-Reference to `Params.detectSpikes`_
-Reference to `overview`_
-
-Reference to :ref:`overview`
+:ref:`Params.wnameList <Params.wnameList>`
+:ref:`Params.threshold_calculation_window <Params.threshold_calculation_window>`
+:ref:`Params.refPeriod <Params.refPeriod>`
+:ref:`Params.filterLowPass <Params.filterLowPass>`
+:ref:`Params.filterHighPass <Params.filterHighPass>`
            
 
 Spike detection
@@ -195,3 +195,53 @@ Spike detection
  * argument type: boolean 
  * options: 0 : do not detect spikes, 1 : detect spikes
  
+
+.. _Params.wnameList:
+
+``Params.wnameList``
+""""""""""""""""""""""""""""""
+
+ * determines which wavelets to run the spike detection with 
+ * argument type: either string or a cell array of strings
+ * options: bior1p5, bior1p3, db2, mea,
+
+
+.. _Params.threshold_calculation_window:
+
+``Params.threshold_calculation_window``
+"""""""""""""""""""""""""""""""""""""""""""
+
+ * which part of the recording to do spike detection
+ * 0 : start of recording, 0.5 : middle of recording, 1 : end of recording
+ * argument type : a matlab double with 2 elements 
+
+
+.. _Params.refPeriod:
+   
+``Params.refPeriod``
+"""""""""""""""""""""""
+
+ * the refractory period of spikes in milliseconds
+ * spikes that are smaller than this time period apart will be excluded
+ * argument type : float
+ * default value : 0.2 
+
+
+.. _Params.filterLowPass:
+
+``Params.filterLowPass``
+"""""""""""""""""""""""""""
+
+ * the low pass frequency (Hz) to use on the raw signal before spike detection
+ * argument type : float
+ * default value : 600
+
+
+.. _Params.filterHighPass:
+
+``Params.filterHighPass``
+"""""""""""""""""""""""""""
+
+ * the high pass frequency (Hz) to use on the raw signal before spike detection
+ * argument type : float
+ * default value : 8000
