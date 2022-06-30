@@ -20,6 +20,15 @@ The MEA pipeline is a streamlined diagnostic and analytic tool for data obtained
 
 ## Installation
 
+To install, the pipeline, clone the github repository to a location of your choice (eg. your desktop folder):
+
+```
+git clone https://github.com/SAND-Lab/AnalysisPipeline
+```
+
+Then read through the instructions [here](https://analysis-pipeline.readthedocs.io/en/latest/system-requirements.html) to check you have the appropriate version of Matlab and Matlab toolboxes installed.
+
+
 ## How to use the pipeline
 
 To quickly get started, open `MEApipeline.m` in matlab, read through the instructions in section 1
