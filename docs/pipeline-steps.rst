@@ -174,10 +174,12 @@ Overview
 
 Spike detection:
 
-:hoverxref:`Params.detectSpikes <hoverxref:overview>`
+:ref:`Params.detectSpikes <params.detectspikes>`
 
 Reference to `Params.detectSpikes`_
 Reference to `overview`_
+
+Reference to :ref:`overview`
            
 
 Spike detection
