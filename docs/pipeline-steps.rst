@@ -172,10 +172,18 @@ Pipeline settings
 Overview
 ^^^^^^^^^^
 
+Folder paths:
+
+* :ref:`HomeDir <HomeDir>`
+* :ref:`rawData <rawData>`
+* :ref:`Params.priorAnalysisPath <Params.priorAnalysisPath>`
+* :ref:`spikeDetectedData <spikeDetectedData>`
+
 Spike detection:
 
 * :ref:`Params.detectSpikes <params.detectspikes>`
 * :ref:`Params.wnameList <Params.wnameList>`
+* :ref:`Params.costList <Params.costList>`
 * :ref:`Params.threshold_calculation_window <Params.threshold_calculation_window>`
 * :ref:`Params.refPeriod <Params.refPeriod>`
 * :ref:`Params.filterLowPass <Params.filterLowPass>`
@@ -186,6 +194,48 @@ Network analysis:
 * :ref:`Params.netMetToCal <Params.netMetToCal>`
 * :ref:`Params.minNumberOfNodesToCalNetMet <Params.minNumberOfNodesToCalNetMet>`
 
+
+Folder paths
+^^^^^^^^^^^^^^^^^^^
+
+.. _HomeDir:
+
+``HomeDir``
+""""""""""""""""""""
+
+ * Argument type : char 
+ * The location of the folder with the AnalysisPipeline scripts
+ * This will also be the default location in which the analysis pipeline outputs will be saved
+
+.. _rawData:
+
+``rawData``
+""""""""""""""""""""
+
+ * Argument type : char
+ * The location of the folder with the raw .mat files to be analyzed
+
+
+.. _Params.priorAnalysisPath:
+
+
+``Params.priorAnalysisPath``
+""""""""""""""""""""""""""""""""
+
+ * Optional (can leave as empty string)
+ * Argument type : char
+ * Path to previous network pipeline analysis folder
+
+
+.. _spikeDetectedData:
+
+``spikeDetectedData``
+"""""""""""""""""""""""""""
+
+ * Optional (can leave as empty string)
+ * Argument type : char
+ * Path to previously spike-detected data
+   
   
 Spike detection
 ^^^^^^^^^^^^^^^^^^^
@@ -209,6 +259,18 @@ Spike detection
  * determines which wavelets to run the spike detection with 
  * argument type: either string or a cell array of strings
  * options: bior1p5, bior1p3, db2, mea,
+
+
+.. _Params.costList: 
+
+``Params.costList``
+""""""""""""""""""""""""""""
+
+ * the false positive / false negative tradeoff for wavelet spike detection
+ * argument type : float value between -2 to 2
+ * default value : -0.12
+
+More negative values leads to less false negative but more false positives, recommended range is between -2 to 2, but usually we use -1 to 0. Note that this is in a log10 scale, meaning -1 will lead to 10 times more false positive compared to -0.1
 
 
 .. _Params.threshold_calculation_window:
