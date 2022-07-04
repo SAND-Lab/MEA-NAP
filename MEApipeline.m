@@ -280,7 +280,7 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
         cd(HomeDir)
 
         cd(strcat('OutputData',Params.Date)); cd('ExperimentMatFiles')
-        save(strcat(char(Info.FN),'_',Params.Date,'.mat'),'Info','Params','spikeTimes','Ephys')
+        save(strcat(char(Info.FN),'_',Params.Date,'.mat'),'Info','Params','spikeTimes','Ephys', '-v7.3')
         cd(HomeDir)
 
         clear spikeTimes spikeMatrix
