@@ -179,15 +179,30 @@ Folder paths:
 * :ref:`Params.priorAnalysisPath <Params.priorAnalysisPath>`
 * :ref:`spikeDetectedData <spikeDetectedData>`
 
+Input and output filetypes:
+
+* :ref:`spreadsheet_file_type <spreadsheet_file_type>`
+* :ref:`Params.output_spreadsheet_file_type <Params.output_spreadsheet_file_type>`  
+
+Analysis step settings:
+
+* :ref:`Params.priorAnalysisDate <Params.priorAnalysisDate>`
+* :ref:`Params.priorAnalysis <Params.priorAnalysis>`
+* :ref:`Params.priorAnalysisStep <Params.priorAnalysisStep>`
+* :ref:`Params.optionalStepsToRun <Params.optionalStepsToRun>`
+
 Spike detection:
 
 * :ref:`Params.detectSpikes <params.detectspikes>`
 * :ref:`Params.wnameList <Params.wnameList>`
+* :ref:`Params.SpikesMethod <Params.SpikesMethod>`
 * :ref:`Params.costList <Params.costList>`
 * :ref:`Params.threshold_calculation_window <Params.threshold_calculation_window>`
 * :ref:`Params.refPeriod <Params.refPeriod>`
 * :ref:`Params.filterLowPass <Params.filterLowPass>`
 * :ref:`Params.filterHighPass <Params.filterHighPass>`
+* :ref:`Params.runSpikeCheckOnPrevSpikeData <Params.runSpikeCheckOnPrevSpikeData>`
+
 
 Network analysis:
 
@@ -235,7 +250,69 @@ Folder paths
  * Optional (can leave as empty string)
  * Argument type : char
  * Path to previously spike-detected data
-   
+
+Input and output filetypes
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. _spreadsheet_file_type:
+
+``spreadsheet_file_type``
+"""""""""""""""""""""""""""
+
+ * Filetype of file which contains a table of recording data
+ * Options: 'csv' or 'excel'
+ * Default: 'csv'
+
+.. _Params.output_spreadsheet_file_type:
+
+``Params.output_spreadsheet_file_type``
+"""""""""""""""""""""""""""""""""""""""""
+
+ * Filetype of output file to create which contains a table of calculated features
+ * Options: 'csv' or 'xlsx'
+ * Default: 'csv'
+
+Analysis step settings
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. _Params.priorAnalysisDate:
+
+``Params.priorAnalysisDate``
+""""""""""""""""""""""""""""""
+
+ * Date of prior analysis, can leave empty or ignore this line if no prior analysis was performed
+ * Format: 'DDMonthYYYY', eg. '27Sep2021'
+
+
+.. _Params.priorAnalysis:
+
+``Params.priorAnalysis``
+""""""""""""""""""""""""""""""
+
+ * Whether to use previously analysed data
+ * Options : 1 = yes, 0 = no
+
+
+.. _Params.startAnalysisStep:
+
+``Params.startAnalysisStep``
+""""""""""""""""""""""""""""""
+
+ * Which step to start analysis 
+ * Options : 1 = spike detection, 2 = neuronal activity, 3 = functional connectivity, 4 = network activity
+ * Default : 1
+
+
+.. _Params.optionalStepsToRun:
+
+``Params.optionalStepsToRun``
+"""""""""""""""""""""""""""""
+
+ * Which optional steps to run (after the main steps are performed)
+ * Argument type : cell array with strings / characters
+ * Options : 'runstats' = obtained feature correlations and do classification, 'getDensityLandscape' = get density landscape plot of participation coefficient and within module z-score
+ * Default : {}
+
   
 Spike detection
 ^^^^^^^^^^^^^^^^^^^
@@ -259,6 +336,20 @@ Spike detection
  * determines which wavelets to run the spike detection with 
  * argument type: either string or a cell array of strings
  * options: bior1p5, bior1p3, db2, mea,
+
+
+.. _Params.SpikesMethod:
+
+``Params.SpikesMethod``
+""""""""""""""""""""""""""""""
+
+ * the spike method to used in downstream analysis
+ * argument type : char
+ * options : 'bior1p5', 'bior1p3', 'merged', 'thr3p0', or other available wavelet names
+
+ If 'merged' is used, then all wavelet-based spike detection methods are combined.
+ 'mea' uses spikes from electrode-specific custom wavelets (adapted from putative spikes detected using the threshold method)
+ 'thr3p0' means using a threshold-based method with a multiplier of 3.0, you can specify other thresholds by replacing the decimal place '.' with 'p', eg. 'thr4p5' means a threhold multiplier of 4.5.
 
 
 .. _Params.costList: 
@@ -312,6 +403,18 @@ More negative values leads to less false negative but more false positives, reco
  * the high pass frequency (Hz) to use on the raw signal before spike detection
  * argument type : float
  * default value : 8000
+
+.. _Params.runSpikeCheckOnPrevSpikeData:
+
+``Params.runSpikeCheckOnPrevSpikeData``
+""""""""""""""""""""""""""""""""""""""""""
+
+ * Whether to run spike detection check without spike detection 
+ * argument type : bool
+ * default value : 0
+ * options : 0 or 1
+
+Note that setting this to 1 automatically sets `detectSpikes` to 0.
 
    
 Network analysis
