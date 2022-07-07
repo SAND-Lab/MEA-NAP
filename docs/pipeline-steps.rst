@@ -215,6 +215,8 @@ Network analysis:
 
 * :ref:`Params.netMetToCal <Params.netMetToCal>`
 * :ref:`Params.minNumberOfNodesToCalNetMet <Params.minNumberOfNodesToCalNetMet>`
+* :ref:`Params.autoSetCartographyBoundaries <Params.autoSetCartographyBoundaries>`
+  
 
 
 Folder paths
@@ -378,7 +380,9 @@ More negative values leads to less false negative but more false positives, reco
 
  * which part of the recording to do spike detection
  * 0 : start of recording, 0.5 : middle of recording, 1 : end of recording
- * argument type : a matlab double with 2 elements 
+ * argument type : a matlab double with 2 elements
+ * This is an advanced setting, modify this in biAdvancedSettings.m
+ 
 
 
 .. _Params.refPeriod:
@@ -389,7 +393,8 @@ More negative values leads to less false negative but more false positives, reco
  * the refractory period of spikes in milliseconds
  * spikes that are smaller than this time period apart will be excluded
  * argument type : float
- * default value : 0.2 
+ * default value : 0.2
+ * This is an advanced setting, modify this in biAdvancedSettings.m
 
 
 .. _Params.filterLowPass:
@@ -422,17 +427,6 @@ More negative values leads to less false negative but more false positives, reco
  * options : 0 or 1
 
 Note that setting this to 1 automatically sets `detectSpikes` to 0.
-
-.. _Params.threshold_calculation_window:
-
-``Params.threshold_calculation_window``
-""""""""""""""""""""""""""""""""""""""""""""
-
-* Which part of the recording to use to calculate threshold for spike detection, which 0 being  the start of the recording and 1.0 being the end of the recording
-* Argument type : vector with two entries which are bounded between 0 and 1
-* This is an advanced setting, modify this in biAdvancedSettings.m
- 
- 
 
 
 Functional connectivity
@@ -494,4 +488,12 @@ Network analysis
  * argument type : int
  * options : any integer value from 2 to the maximum number of nodes in your network
  * default value : 25
+   
+.. _`Params.autoSetCartographyBoundaries:
+
+```Params.autoSetCartographyBoundaries``
+"""""""""""""""""""""""""""""""""""""""""""""""
+
+ * Whether or not to automatically determine bounds in the participation coefficient vs. within module z-score space to classify different nodes (eg. hubs versus non-hubs)
+ * Options : 1 = yes, 0 = no, use either default or custom coded boundary values
    
