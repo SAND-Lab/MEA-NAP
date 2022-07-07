@@ -226,6 +226,9 @@ Network analysis:
   
 Plot settings
 
+* :ref:`Params.figExt <Params.figExt>`
+* :ref:`Params.fullSVG <Params.fullSVG>`
+* :ref:`Params.showOneFig <Params.showOneFig>`
 
   
 
@@ -532,6 +535,16 @@ Functional connectivity
  * The percentile threshold to use for probabilistic thresholding
  * Argument type: float between 0 and 1
  * Default : 0.05
+
+.. _ProbThreshPlotChecks:
+
+``ProbThreshPlotChecks``
+""""""""""""""""""""""""""""""""""""
+
+ * Whether or not to plot probabilistic thresholding check
+ * Options : 1 = yes, 0 = no
+ * Default : 1
+ 
 
 ``Params.ProbThreshPlotChecks``
 """"""""""""""""""""""""""""""""""""
