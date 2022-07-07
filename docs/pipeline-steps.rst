@@ -202,6 +202,10 @@ Spike detection:
 * :ref:`Params.filterHighPass <Params.filterHighPass>`
 * :ref:`Params.runSpikeCheckOnPrevSpikeData <Params.runSpikeCheckOnPrevSpikeData>`
 * :ref:`Params.threshold_calculation_window <Params.threshold_calculation_window>`
+* :ref:`Params.remove_artifacts <Params.remove_artifacts>`
+* :ref:`Params.minPeakThrMultiplier <Params.minPeakThrMultiplier>`
+* :ref:`Params.maxPeakThrMultiplier <Params.maxPeakThrMultiplier>`
+* :ref:`Params.posPeakThrMultiplier <Params.posPeakThrMultiplier>`
 
 Functional connectivity:
 
@@ -209,6 +213,10 @@ Functional connectivity:
 * :ref:`Params.TruncRec <Params.TruncRec>`
 * :ref:`Params.TruncLength <Params.TruncLength>`
 * :ref:`Params.adjMtype <Params.adjMtype>`
+* :ref:`Params.ProbThreshRepNum <Params.ProbThreshRepNum>`
+* :ref:`Params.ProbThreshTail <Params.ProbThreshTail>`
+* :ref:`Params.ProbThreshPlotChecks <Params.ProbThreshPlotChecks>`
+* :ref:`Params.ProbThreshPlotChecksN <Params.ProbThreshPlotChecksN>`
   
 Network analysis:
 
@@ -216,7 +224,10 @@ Network analysis:
 * :ref:`Params.minNumberOfNodesToCalNetMet <Params.minNumberOfNodesToCalNetMet>`
 * :ref:`Params.autoSetCartographyBoundaries <Params.autoSetCartographyBoundaries>`
   
+Plot settings
 
+
+  
 
 Folder paths
 ^^^^^^^^^^^^^^^^^^^
@@ -427,6 +438,46 @@ More negative values leads to less false negative but more false positives, reco
 
 Note that setting this to 1 automatically sets `detectSpikes` to 0.
 
+.. _Params.remove_artifacts:
+
+``Params.remove_artifacts``
+""""""""""""""""""""""""""""""
+
+ * whether to run process to remove artifacts from recording
+ * argument type : bool
+ * options : 1 = yes, 0 = no
+ * default : 0
+
+.. _Params.minPeakThrMultiplier:
+
+``Params.minPeakThrMultiplier``
+""""""""""""""""""""""""""""""""""
+
+ * The minimal spike amplitude that is used for artifact removal
+ * After spike detection, spikes with an amplitude smaller than `Params.minPeakThrMultiplier` will be removed 
+ * This is used in `alignPeaks.m`
+ * This is only used if `Params.remove_artifacts = 1`
+
+.. _Params.maxPeakThrMultiplier:
+
+``Params.maxPeakThrMultiplier``
+""""""""""""""""""""""""""""""""""""
+
+ * The maximal spike amplitude in terms of negative peak that is used for artifact removal
+ * After spike detection, spikes with a negative peak greater than `Params.maxPeakThrMultiplier` will be removed
+ * This is used in `alignPeaks.m`
+ * This is only used if `Params.remove_artifacts = 1`
+
+.. _Params.posPeakThrMultiplier:
+
+``Params.posPeakThrMultiplier``
+"""""""""""""""""""""""""""""""""""""
+
+ * The maximal spike amplitude in terms of positive peak that is used for artifact removal
+ * After spike detection, spikes with a positive peak lower than this value will be removed
+ * This is used in `alignPeaks.m`
+ * This is only used if `Params.remove_artifacts = 1`
+
 
 Functional connectivity
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -465,6 +516,41 @@ Functional connectivity
  * Options: 'weighted' or 'binary'
  * Default : 'weighted'
 
+.. _Params.ProbThreshRepNum:
+
+``Params.ProbThreshRepNum``
+""""""""""""""""""""""""""""""
+
+ * Number of random shuffles to obtain for probabilistic thresholding
+ * Default : 200
+
+.. _Params.ProbThreshTail:
+
+``Params.ProbThreshTail``
+""""""""""""""""""""""""""""""
+
+ * The percentile threshold to use for probabilistic thresholding
+ * Argument type: float between 0 and 1
+ * Default : 0.05
+
+``Params.ProbThreshPlotChecks``
+""""""""""""""""""""""""""""""""""""
+
+ * Whether to randomly sample recordings to plot probabilistic thresholding check
+ * Options : 1 = yes, 0 = no
+ * Default : 1
+
+.. _Params.ProbThreshPlotChecksN:
+
+``Params.ProbThreshPlotChecksN``
+""""""""""""""""""""""""""""""""""""""
+
+ * Number of recordings to check (selected randomly) for probabilistic thresholding
+ * Argument type : integer value greater than or equal to 1
+ * Default : 5
+
+
+
  
 Network analysis
 ^^^^^^^^^^^^^^^^^^^^^
@@ -496,3 +582,35 @@ Network analysis
  * Whether or not to automatically determine bounds in the participation coefficient vs. within module z-score space to classify different nodes (eg. hubs versus non-hubs)
  * Options : 1 = yes, 0 = no, use either default or custom coded boundary values
    
+
+Plot settings
+^^^^^^^^^^^^^^^^^
+
+.. _Params.figExt:
+
+``Params.figExt``
+""""""""""""""""""""""""""
+
+ * Which file formats to export figures as
+ * Argument type : cell array for string / character arrays
+ * Default : {'.png'}
+ * Options : '.png', '.svg', '.fig'
+
+.. _Params.fullSVG:
+
+``Params.fullSVG``
+""""""""""""""""""""""""""
+
+ * Whether to insist matlab to export to SVG in plots with large number of elements, otherwise matlab will compress figure as an image before saving to an SVG file
+ * Options : 1 = yes, 0 = no
+ * Default : 1
+
+.. _Params.showOneFig:
+
+``Params.showOneFig``
+""""""""""""""""""""""""""""""
+
+ * Whether to do all the plotting in the pipeline in one figure handle, this prevents multiple figure from popping out as the code runs, which may interrupt the user using the computer
+ * Options : 0 = pipeline show plots as it runs, 1 = only one plot, so pipeline runs in the background
+ * Default : 1
+  
