@@ -188,7 +188,7 @@ Analysis step settings:
 
 * :ref:`Params.priorAnalysisDate <Params.priorAnalysisDate>`
 * :ref:`Params.priorAnalysis <Params.priorAnalysis>`
-* :ref:`Params.priorAnalysisStep <Params.priorAnalysisStep>`
+* :ref:`Params.startAnalysisStep <Params.startAnalysisStep>`
 * :ref:`Params.optionalStepsToRun <Params.optionalStepsToRun>`
 
 Spike detection:
@@ -202,8 +202,15 @@ Spike detection:
 * :ref:`Params.filterLowPass <Params.filterLowPass>`
 * :ref:`Params.filterHighPass <Params.filterHighPass>`
 * :ref:`Params.runSpikeCheckOnPrevSpikeData <Params.runSpikeCheckOnPrevSpikeData>`
+* :ref:`Params.threshold_calculation_window <Params.threshold_calculation_window>`
 
+Functional connectivity:
 
+* :ref:`Params.FuncConLagval <Params.FuncConLagval>`
+* :ref:`Params.TruncRec <Params.TruncRec>`
+* :ref:`Params.TruncLength <Params.TruncLength>`
+* :ref:`Params.adjMtype <Params.adjMtype>`
+  
 Network analysis:
 
 * :ref:`Params.netMetToCal <Params.netMetToCal>`
@@ -416,7 +423,56 @@ More negative values leads to less false negative but more false positives, reco
 
 Note that setting this to 1 automatically sets `detectSpikes` to 0.
 
-   
+.. _Params.threshold_calculation_window:
+
+``Params.threshold_calculation_window``
+""""""""""""""""""""""""""""""""""""""""""""
+
+* Which part of the recording to use to calculate threshold for spike detection, which 0 being  the start of the recording and 1.0 being the end of the recording
+* Argument type : vector with two entries which are bounded between 0 and 1
+* This is an advanced setting, modify this in biAdvancedSettings.m
+ 
+ 
+
+
+Functional connectivity
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. _Params.FuncConLagval:
+
+``Params.FuncConLagval``
+""""""""""""""""""""""""""
+
+ * List of lag values (in ms) to use to infer correlation of spike trains
+ * Default : [10, 15, 25]
+
+.. _Params.TruncRec:
+
+``Params.TruncRec``
+""""""""""""""""""""""""""
+
+ * Whether or not to truncate the recording
+ * Options: 1 = yes, 0 = no
+ * Default: 0
+
+.. _Params.TruncLength:
+
+``Params.TruncLength``
+""""""""""""""""""""""""""
+
+ * The duration (in seconds) of the recording to truncate 
+ * Default: 120, but not applied since Params.TruncRec = 0
+
+.. _Params.adjMtype:
+
+``Params.adjMtype``
+""""""""""""""""""""""""""
+
+ * The type of adjacency matrix to obtain
+ * Options: 'weighted' or 'binary'
+ * Default : 'weighted'
+
+ 
 Network analysis
 ^^^^^^^^^^^^^^^^^^^^^
 
