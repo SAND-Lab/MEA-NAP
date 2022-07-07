@@ -197,7 +197,6 @@ Spike detection:
 * :ref:`Params.wnameList <Params.wnameList>`
 * :ref:`Params.SpikesMethod <Params.SpikesMethod>`
 * :ref:`Params.costList <Params.costList>`
-* :ref:`Params.threshold_calculation_window <Params.threshold_calculation_window>`
 * :ref:`Params.refPeriod <Params.refPeriod>`
 * :ref:`Params.filterLowPass <Params.filterLowPass>`
 * :ref:`Params.filterHighPass <Params.filterHighPass>`
@@ -489,9 +488,9 @@ Network analysis
  * options : any integer value from 2 to the maximum number of nodes in your network
  * default value : 25
    
-.. _`Params.autoSetCartographyBoundaries:
+.. _Params.autoSetCartographyBoundaries:
 
-```Params.autoSetCartographyBoundaries``
+``Params.autoSetCartographyBoundaries``
 """""""""""""""""""""""""""""""""""""""""""""""
 
  * Whether or not to automatically determine bounds in the participation coefficient vs. within module z-score space to classify different nodes (eg. hubs versus non-hubs)
