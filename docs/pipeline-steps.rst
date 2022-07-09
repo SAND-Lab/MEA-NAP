@@ -200,6 +200,7 @@ Spike detection:
 * :ref:`Params.dSampF <Params.dSampF>`
 * :ref:`Params.potentialDifferenceUnit <Params.potentialDifferenceUnit>`
 * :ref:`Params.channelLayout <Params.channelLayout>`
+* :ref:`Params.coords <Params.coords>`
 * :ref:`Params.wnameList <Params.wnameList>`
 * :ref:`Params.SpikesMethod <Params.SpikesMethod>`
 * :ref:`Params.costList <Params.costList>`
@@ -248,7 +249,7 @@ Plot settings
 * :ref:`Params.figExt <Params.figExt>`
 * :ref:`Params.fullSVG <Params.fullSVG>`
 * :ref:`Params.showOneFig <Params.showOneFig>`
-* ;ref:`Params.groupColors <Params.groupColors>`
+* :ref:`Params.groupColors <Params.groupColors>`
 
   
 
@@ -428,6 +429,15 @@ Spike detection
  * which channel layout to use for plotting firing rate heatmaps, and other plots related to the layout of the electrodes
  * options: 'MCS60' = multichannel systems layout with 59 recording electrodes + 1 grounding electrode, 'Axion64' = axion recording layout in a 8 x 8 grid with 64 electrodes, 'Custom' = provide own custom layout by specifying the coordinate of each electrode in biAdvantedSettings.m, you will need to edit the block of code under strcmp(Params.channelLayout, 'Custom')
 
+.. _Params.coords:
+
+``Params.coords``
+""""""""""""""""""""""""""""""
+
+ * the x and y coordinates of each electrode to be used for visualisation purposes
+ * this is automatically set of Params.channelLayout is one of the provided options 'MCS60' or 'Axion64', but will require to be set by the user if the option chosen the 'Custom' option
+ * argument type : nUnit x 2 matrix where nUnit is the number of recorded units, such that each row contains the x and y coordinate of the corresponding recorded unit
+ 
 
 .. _Params.wnameList:
 
@@ -560,6 +570,7 @@ Note that setting this to 1 automatically sets `detectSpikes` to 0.
  * This is used in `alignPeaks.m`
  * This is only used if `Params.remove_artifacts = 1`
 
+.. _Params.multiplier:
    
 ``Params.multiplier``
 """""""""""""""""""""""""""""
@@ -632,7 +643,9 @@ Functional connectivity
  * Whether or not to plot probabilistic thresholding check
  * Options : 1 = yes, 0 = no
  * Default : 1
- 
+
+
+.. _Params.ProbThreshPlotChecks:
 
 ``Params.ProbThreshPlotChecks``
 """"""""""""""""""""""""""""""""""""
@@ -775,7 +788,7 @@ Network analysis
 .. _Params.connectorHubPartCoef:
 
 ``Params.connectorHubPartCoef``
-"""""""""""""""""""""""""""""""""""""""'
+"""""""""""""""""""""""""""""""""""""""
 
  * boundary that separates connector hub and kinless hub
  * default value: 0.75
