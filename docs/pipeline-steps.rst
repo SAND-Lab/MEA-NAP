@@ -178,11 +178,12 @@ Folder paths:
 * :ref:`rawData <rawData>`
 * :ref:`Params.priorAnalysisPath <Params.priorAnalysisPath>`
 * :ref:`spikeDetectedData <spikeDetectedData>`
+* :ref:`spreadsheet_filename <spreadsheet_filename>`
 
 Input and output filetypes:
 
 * :ref:`spreadsheet_file_type <spreadsheet_file_type>`
-* :ref:`Params.output_spreadsheet_file_type <Params.output_spreadsheet_file_type>`  
+* :ref:`Params.output_spreadsheet_file_type <Params.output_spreadsheet_file_type>`
 
 Analysis step settings:
 
@@ -190,10 +191,15 @@ Analysis step settings:
 * :ref:`Params.priorAnalysis <Params.priorAnalysis>`
 * :ref:`Params.startAnalysisStep <Params.startAnalysisStep>`
 * :ref:`Params.optionalStepsToRun <Params.optionalStepsToRun>`
+* :ref:`Params.Date <Params.Date>`
 
 Spike detection:
 
 * :ref:`Params.detectSpikes <params.detectspikes>`
+* :ref:`Params.fs <Params.fs>`
+* :ref:`Params.dSampF <Params.dSampF>`
+* :ref:`Params.potentialDifferenceUnit <Params.potentialDifferenceUnit>`
+* :ref:`Params.channelLayout <Params.channelLayout>`
 * :ref:`Params.wnameList <Params.wnameList>`
 * :ref:`Params.SpikesMethod <Params.SpikesMethod>`
 * :ref:`Params.costList <Params.costList>`
@@ -206,6 +212,8 @@ Spike detection:
 * :ref:`Params.minPeakThrMultiplier <Params.minPeakThrMultiplier>`
 * :ref:`Params.maxPeakThrMultiplier <Params.maxPeakThrMultiplier>`
 * :ref:`Params.posPeakThrMultiplier <Params.posPeakThrMultiplier>`
+* :ref:`Params.multiplier <Params.multiplier>`
+
 
 Functional connectivity:
 
@@ -223,12 +231,24 @@ Network analysis:
 * :ref:`Params.netMetToCal <Params.netMetToCal>`
 * :ref:`Params.minNumberOfNodesToCalNetMet <Params.minNumberOfNodesToCalNetMet>`
 * :ref:`Params.autoSetCartographyBoundaries <Params.autoSetCartographyBoundaries>`
+* :ref:`Params.networkLevelNetMetToPlot <Params.networkLevelNetMetToPlot>`
+* :ref:`Params.networkLevelNetMetLabels <Params.networkLevelNetMetLabels>`
+* :ref:`Params.includeNMFcomponents <Params.includeNMFcomponents>`
+* :ref:`Params.effRankCalMethod <Params.effRankCalMethod>`
+* :ref:`Params.NMFdownsampleFreq <Params.NMFdownsampleFreq>`
+* :ref:`Params.hubBoundaryWMdDeg <Params.hubBoundaryWMdDeg>`
+* :ref:`Params.periPartCoef <Params.periPartCoef>`
+* :ref:`Params.proHubpartCoef <Params.proHubpartCoef>`
+* :ref:`Params.nonHubconnectorPartCoef <Params.nonHubconnectorPartCoef>`
+* :ref:`Params.connectorHubPartCoef <Params.connectorHubPartCoef>`
+
   
 Plot settings
 
 * :ref:`Params.figExt <Params.figExt>`
 * :ref:`Params.fullSVG <Params.fullSVG>`
 * :ref:`Params.showOneFig <Params.showOneFig>`
+* ;ref:`Params.groupColors <Params.groupColors>`
 
   
 
@@ -273,6 +293,16 @@ Folder paths
  * Argument type : char
  * Path to previously spike-detected data
 
+.. _spreadsheet_filename:
+
+``spreadsheet_filename``
+"""""""""""""""""""""""""""""""
+
+ * the name of spreadsheet containing information about the data to be analysed, including the file extension, usually in the form of 'spreadhsheet.csv' or 'spreadsheet.xlsx'
+ * this spreadsheet file is assumed to be located in the main analysis pipeline folder
+ * argument type: string or character array
+
+   
 Input and output filetypes
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -335,6 +365,16 @@ Analysis step settings
  * Options : 'runstats' = obtained feature correlations and do classification, 'getDensityLandscape' = get density landscape plot of participation coefficient and within module z-score
  * Default : {}
 
+
+.. _Params.Date:
+
+``Params.Date``
+""""""""""""""""""""
+
+ * This specifies the date in which the analysis was performed
+ * Normally, no user input is required for this parameter, it is automatically set to the date detected on the computer's system clock
+ * This also informs what to name the output folder of the pipeline, which will be of the form 'OutputDataDDMonthYYYY'
+
   
 Spike detection
 ^^^^^^^^^^^^^^^^^^^
@@ -348,7 +388,46 @@ Spike detection
  * determines whether to run spike detection in the pipeline
  * argument type: boolean 
  * options: 0 : do not detect spikes, 1 : detect spikes
+
+.. _Params.fs:
+
+``Params.fs``
+""""""""""""""""""""""""""""""""'
+
+ * the sampling rate of the recording electrodes, in samples per second (Hz)
+ * argument type: int
+ * default : 25000
+
+
+.. _Params.dSampF:
+
+``Params.dSampF``
+""""""""""""""""""""""""""""""""""
+
+ * the down sample frequency for spike detection check
+ * normally, this should be kept as the same value as `Params.fs`
+ * argument type: int 
+ * default: 25000
+
+
+.. _Params.potentialDifferenceUnit:
+
+``Params.potentialDifferenceUnit``
+"""""""""""""""""""""""""""""""""""""""
+
+ * the unit of potential difference in which you are recording electrical signals
+ * options: 'mV' for millivolt, 'uV' for microvolt
+ * default : 'uV'
  
+
+.. _Params.channelLayout:
+
+``Params.channelLayout``
+"""""""""""""""""""""""""""""""
+
+ * which channel layout to use for plotting firing rate heatmaps, and other plots related to the layout of the electrodes
+ * options: 'MCS60' = multichannel systems layout with 59 recording electrodes + 1 grounding electrode, 'Axion64' = axion recording layout in a 8 x 8 grid with 64 electrodes, 'Custom' = provide own custom layout by specifying the coordinate of each electrode in biAdvantedSettings.m, you will need to edit the block of code under strcmp(Params.channelLayout, 'Custom')
+
 
 .. _Params.wnameList:
 
@@ -481,6 +560,15 @@ Note that setting this to 1 automatically sets `detectSpikes` to 0.
  * This is used in `alignPeaks.m`
  * This is only used if `Params.remove_artifacts = 1`
 
+   
+``Params.multiplier``
+"""""""""""""""""""""""""""""
+
+ * the multiplier to use for extracting spikes for wavelet adaptation method (not for the spike detection itself)
+ * this is an advanced setting, and can be found in biAdvancedSettings.m
+ * argument type: float
+ * default: 3
+
 
 Functional connectivity
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -586,7 +674,56 @@ Network analysis
  * argument type : int
  * options : any integer value from 2 to the maximum number of nodes in your network
  * default value : 25
+
+.. _Params.networkLevelNetMetToPlot:
+
+``Params.networkLevelNetMetToPlot``
+"""""""""""""""""""""""""""""""""""""""""""
+
+ * list of network metrics to plot, this should be the same or a subset as the list of network metrics to calculate, which is specified in Params.netMetToCal
+ * argument type: cell array of strings / characters
+ * eg. {'aN', 'Dens', 'effRank'}
+
+.. _Params.networkLevelNetMetLabels:
+
+``Params.networkLevelNetMetLabels``
+""""""""""""""""""""""""""""""""""""""""""""
+
+ * list of labels corresponding to the network level metrics to plot
+ * eg. 'aN' denotes network size and so the label given is 'network size'
+ * argument type: cell array of strings / characters with the same length as `Params.networkLevelNetMetToPlot`
    
+.. _Params.includeNMFcomponents:
+
+``Params.includeNMFcomponents``
+""""""""""""""""""""""""""""""""""""
+
+ * whether to include the components as output when performing non-negative matrix factorisation on the spike rate matrix, which outputs a matrix of size (num_components, num_time_samples) and a matrix of size (num_components, num_units)
+ * argument type : bool
+ * options : 0 = no, 1 = yes
+ * default : 0
+
+.. _Params.NMFdownsampleFreq:
+
+``Params.NMFdownSampleFreq``
+"""""""""""""""""""""""""""""""""""""
+
+ * how mcuh to downsample the spike rate matrix before performing non-negative matrix factorisation
+ * eg. 10 will mean downsampling from 25000 Hz to 2500 Hz
+ * argument type : int 
+ * default : 10 
+
+.. _Params.effRankCalMethod:
+
+``Params.effRankCalMethod``
+"""""""""""""""""""""""""""""""
+
+ * whether to use the covariance or correlation matrix for effective rank calculation
+ * options: 'covariance' or 'correlation'
+ * default: 'covariance'
+ * this is an advanced setting and is located in biAdvancedSettings.m
+ 
+  
 .. _Params.autoSetCartographyBoundaries:
 
 ``Params.autoSetCartographyBoundaries``
@@ -594,7 +731,57 @@ Network analysis
 
  * Whether or not to automatically determine bounds in the participation coefficient vs. within module z-score space to classify different nodes (eg. hubs versus non-hubs)
  * Options : 1 = yes, 0 = no, use either default or custom coded boundary values
-   
+
+.. _Params.hubBoundaryWMdDeg:
+
+``Params.hubBoundaryWMdDeg``
+""""""""""""""""""""""""""""""""""
+
+ * boundary that separtes hub and non-hubs 
+ * default value: 0.25
+ * argument type: float
+ * this argument has no effect if Params.autoSetCartographyBoundaries = 1
+
+.. _Params.periPartCoef:
+
+``Params.periPartCoef``
+"""""""""""""""""""""""""""""
+
+ * boundary (in terms of participation coefficient) that separates peripheral node and non-hub connector
+ * default value: 0.525
+ * argument type : float
+ * this argument has no effect if Params.autoSetCartographyBoundaries = 1
+
+.. _Params.proHubPartCoef:
+
+``Params.proHubPartCoef``
+""""""""""""""""""""""""""""""
+
+ * boundary (in terms of participation coefficient) that separates provincial hub and connector hub
+ * default value: 0.45
+ * argument type: float
+ * this argument has no effect if Params.autoSetCartographyBoundaries = 1
+
+.. _Params.nonHubConnectorPartCoef:
+
+``Params.nonHubConnectorPartCoef``
+""""""""""""""""""""""""""""""""""""""
+
+ * boundary (in terms of participation coefficient) that separates non-hub connector and non-hub kinless node
+ * default value: 0.8
+ * argument type: float
+ * this argument has no effect if Params.autoSetCartographyBoundaries = 1
+
+.. _Params.connectorHubPartCoef:
+
+``Params.connectorHubPartCoef``
+"""""""""""""""""""""""""""""""""""""""'
+
+ * boundary that separates connector hub and kinless hub
+ * default value: 0.75
+ * argument type : float
+ * this argument has no effect if Params.autoSetCartographyBoundaries = 1
+
 
 Plot settings
 ^^^^^^^^^^^^^^^^^
@@ -627,3 +814,11 @@ Plot settings
  * Options : 0 = pipeline show plots as it runs, 1 = only one plot, so pipeline runs in the background
  * Default : 1
   
+.. _Params.groupColors:
+
+``Params.groupColors``
+""""""""""""""""""""""""""""""""
+
+ * colors to use for each group in group comparison plots
+ * this should be an nGroup x 3 matrix where nGroup is the number of groups you have, and each row is a RGB value (scaled from 0 to 1) denoting the color
+   
