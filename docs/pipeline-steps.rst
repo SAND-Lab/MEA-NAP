@@ -250,7 +250,9 @@ Plot settings
 * :ref:`Params.fullSVG <Params.fullSVG>`
 * :ref:`Params.showOneFig <Params.showOneFig>`
 * :ref:`Params.groupColors <Params.groupColors>`
-
+* :ref:`Params.GrpNm <Params.GrpNm>`
+* :ref:`Params.DivNm <Params.DivNm>`
+ 
   
 
 Folder paths
@@ -835,3 +837,21 @@ Plot settings
  * colors to use for each group in group comparison plots
  * this should be an nGroup x 3 matrix where nGroup is the number of groups you have, and each row is a RGB value (scaled from 0 to 1) denoting the color
    
+.. _Params.GrpNm:
+
+``Params.GrpNm``
+""""""""""""""""""""""""
+
+ * list of names corresponding to the different groups
+ * this is automatically generated through the provided spreadsheet and requires no user input in most cases
+ * argument type : cell array of string / characters with number of entries equal to the number of unique groups
+
+   
+.. _Params.DivNm:
+
+``Params.DivNm``
+""""""""""""""""""""""""""
+
+ * list of numbers corresponding to the days in vitro (or any quantification of development time point)
+ * this is automatically generated through the provided spreadsheet and requires no user input in most cases
+ * argument type : cell array of integers or float with number of entries equal to the number of unique developmental time points 
