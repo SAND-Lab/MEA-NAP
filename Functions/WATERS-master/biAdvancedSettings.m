@@ -182,8 +182,8 @@ elseif strcmp(Params.channelLayout, 'Axion64')
             71, 72, 73, 74, 75, 76, 77, 78, ...,
             81, 82, 83, 84, 85, 86, 87, 88];
     Params.coords = zeros(length(channels), 2);
-    Params.coords(:, 1) = repmat(linspace(0, 1, 8), 1, 8);
-    Params.coords(:, 2) = repelem(linspace(0, 1, 8), 1, 8);
+    Params.coords(:, 2) = repmat(linspace(0, 1, 8), 1, 8);
+    Params.coords(:, 1) = repelem(linspace(0, 1, 8), 1, 8);
 
 elseif strcmp(Params.channelLayout, 'Custom')
 
