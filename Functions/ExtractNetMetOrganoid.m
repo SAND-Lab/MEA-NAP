@@ -26,7 +26,7 @@ Returns
 NetMet : structure
     structure with network metrics 
     'ND' : Node degree
-    'EW' : 
+    'EW' : mean edge weight of each node
     'NS' : 
     'aN' : 
     'Dens' : 
