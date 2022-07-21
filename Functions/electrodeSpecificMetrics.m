@@ -18,7 +18,7 @@ p = [100 100 1400 550];
 set(0, 'DefaultFigurePosition', p)
 
 if ~isfield(Params, 'oneFigure')
-    figure();
+    F1 = figure;
 else 
     set(Params.oneFigure, 'Position', p);
 end 
@@ -126,7 +126,12 @@ end
 
 %% save figure
 figName = strcat('8_adjM', num2str(lagval(e)),'msGraphMetricsByNode');
-pipelineSaveFig(figName, Params.figExt, Params.fullSVG);
+
+if ~isfield(Params, 'oneFigure')
+    pipelineSaveFig(figName, Params.figExt, Params.fullSVG, F1);
+else 
+    pipelineSaveFig(figName, Params.figExt, Params.fullSVG, Params.oneFigure);
+end 
 
 if ~isfield(Params, 'oneFigure')
     close all
