@@ -66,14 +66,19 @@ set(gca,'TickDir','out');
 
 nexttile(28,[2 3]);
 histogram(EW,50)
-xlabel('edge weight')
+xlabel('mean edge weight')
 ylabel('frequency')
 aesthetics
 set(gca,'TickDir','out');
    
 %% save figure
 figName = strcat(['1_adjM', num2str(lagval(e)),'msConnectivityStats']);
-pipelineSaveFig(figName, Params.figExt, Params.fullSVG);
+
+if ~isfield(Params, 'oneFigure')
+    pipelineSaveFig(figName, Params.figExt, Params.fullSVG);
+else 
+    pipelineSaveFig(figName, Params.figExt, Params.fullSVG, Params.oneFigure);
+end 
 
 if ~isfield(Params, 'oneFigure')
     close all
