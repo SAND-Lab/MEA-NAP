@@ -294,6 +294,17 @@ else
             calEffRank(spikeMatrix, Params.effRankCalMethod);
     end 
 
+    %% Calculate average and modal controllability 
+    if any(strcmp(netMetToCal, 'aveControl'))
+        aveControl = ave_control(adjM);
+        NetMet.(strcat('adjM',num2str(lagval(e)),'mslag')).aveControl = aveControl;
+    end 
+
+    if any(strcmp(netMetToCal, 'modalControl'))
+        modalControl = modal_control(adjM);
+        NetMet.(strcat('adjM',num2str(lagval(e)),'mslag')).modalControl = modalControl;
+    end 
+
     %% electrode specific half violin plots
     % TODO: move the plotting to a separate function
 
@@ -328,6 +339,18 @@ else
     NDord = ND(On);
     StandardisedNetworkPlot(adjMord, Params.coords, edge_thresh, NDord, 'circular', char(Info.FN),'6',Params,lagval,e);
     
+    
+    % grid network plot for controllability metrics
+    if any(strcmp(Params.unitLevelNetMetToPlot , 'aveControl'))
+         StandardisedNetworkPlotNodeColourMap(adjM, Params.coords, edge_thresh, ND, 'Node degree', ...
+             aveControl, 'Average controllability', 'MEA', char(Info.FN), '3', Params, lagval,e)
+    end 
+
+    if any(strcmp(Params.unitLevelNetMetToPlot , 'modalControl'))
+         StandardisedNetworkPlotNodeColourMap(adjM, Params.coords, edge_thresh, ND, 'Node degree', ...
+             modalControl, 'Modal controllability', 'MEA', char(Info.FN), '3', Params, lagval,e)
+    end 
+
     % node cartography
     % NdCartDivOrd = NdCartDiv(On);
     % StandardisedNetworkPlotNodeCartography(adjMord, Params.coords, edge_thresh, NdCartDivOrd, 'circular', char(Info.FN), '7', Params, lagval, e)
