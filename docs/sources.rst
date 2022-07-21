@@ -14,6 +14,6 @@ Network Analysis:
  - `Brain Connectivity Toolbox <https://sites.google.com/site/bctnet/>`_
  - Coded based on description in `Node cartograpy <https://www.nature.com/articles/nature03288?report=reader>`_
  - Coded based on description in `Effective rank <https://ieeexplore.ieee.org/abstract/document/7098875/>`_
-
+ - Code for calculating average and modal controllability: https://complexsystemsupenn.com/codedata
    
    
