@@ -70,7 +70,9 @@ Params.rasterPlotUpperPercentile = 99;
 %% Network analysis settings 
 Params.netMetToCal = {'ND', 'EW', 'NS', 'aN', 'Dens', 'Ci', 'Q', 'nMod', 'Eglob', ...,
         'CC', 'PL' 'SW','SWw' 'Eloc', 'BC', 'PC' , 'PC_raw', 'Cmcblty', 'Z', ...
-        'Hub4','Hub3', 'NE', 'effRank', 'num_nnmf_components', 'nComponentsRelNS'};
+        'Hub4','Hub3', 'NE', 'effRank', 'num_nnmf_components', 'nComponentsRelNS', ...
+        'aveControl', 'modalControl'};
+
 Params.minNumberOfNodesToCalNetMet = 25;  % minimum number of nodes to calculate BC and other metrics
 Params.networkLevelNetMetToPlot = {'aN','Dens','CC','nMod','Q','PL','Eglob', ...
     'SW','SWw','Hub3','Hub4', 'effRank', ...
@@ -89,10 +91,10 @@ Params.networkLevelNetMetLabels = {
 Params.networkLevelNetMetCustomBounds = struct();
 Params.networkLevelNetMetCustomBounds.('effRank') = [1, nan];
 
-Params.unitLevelNetMetToPlot = {'ND','EW','NS','Z','Eloc','PC','BC'};
+Params.unitLevelNetMetToPlot = {'ND','EW','NS','Z','Eloc','PC','BC', 'aveControl', 'modalControl'};
 Params.unitLevelNetMetLabels = {'node degree','edge weight','node strength', ... 
     'within-module degree z-score', ... 
-    'local efficiency','participation coefficient','betweeness centrality'}; 
+    'local efficiency','participation coefficient','betweeness centrality', 'average controllability', 'modal controllability'}; 
 
 Params.includeNMFcomponents = 0;  % whether to save extracted components and original downsampled data
 
