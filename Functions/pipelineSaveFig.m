@@ -21,6 +21,7 @@ Returns
 None
 %}
 if ~exist('figHandle','var')
+    fprintf('Figure handle does not exist'); 
     figHandle = [];
 end 
     
@@ -52,7 +53,8 @@ for nFigExt = 1:length(figExts)
         if isempty(figHandle)
             saveas(gcf, figFileName);
         else
-            saveas(figHandle, figFileName);
+            %saveas(figHandle, figFileName);
+            print(figHandle, '-dpng', '-r300', figFileName);
         end 
     end 
 end 
