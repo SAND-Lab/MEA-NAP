@@ -319,7 +319,12 @@ end
 %% save figure
 
 figName = strcat([pNum, '_', plotType, '_NetworkPlot']);
-pipelineSaveFig(figName, Params.figExt, Params.fullSVG);
+
+if ~isfield(Params, 'oneFigure')
+    pipelineSaveFig(figName, Params.figExt, Params.fullSVG, F1);
+else 
+    pipelineSaveFig(figName, Params.figExt, Params.fullSVG, Params.oneFigure);
+end 
 
 if ~isfield(Params, 'oneFigure')
     close all
