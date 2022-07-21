@@ -1,32 +1,42 @@
 function [] = StandardisedNetworkPlotNodeColourMap(adjM, coords, edge_thresh, z, zname, z2, z2name, plotType, ...
                                                    FN, pNum, Params, lagval, e)
 
-%{ 
-script to plot the graph network 
-Parameters
-----------
-adjM : matrix 
-    adjacency matrix 
-coords : matrix 
-    electrode/node coordinates (x and y, num nodes * 2)
-edge_thresh : float 
-    a value between 0 and 1 for the minimum correlation to plot
-z :  the network metric used to determine the size of the plotted nodes
-      eg: node degree or node strength
-%   zname - name of the z network metric
-%   z2 - the network metric used to determine the colour of the plotted
-%       nodes, eg: betweeness centrality or participation coefficient
-%   z2name - name of the z2 network metric
-%   plotType - 'MEA' to plot nodes with their respective electrode
+% 
+% Plots graph network with node size proportional to some node-level variable of
+% choice and color-mapped based on some other node-level variable of choice
+% 
+% Parameters
+% ----------
+% adjM : matrix 
+%    adjacency matrix 
+% coords : matrix 
+%    electrode/node coordinates (x and y, num nodes * 2)
+% edge_thresh : float 
+%    a value between 0 and 1 for the minimum correlation to plot
+% z : str
+%    the network metric used to determine the size of the plotted nodes
+%     eg: node degree or node strength
+%  zname : str
+%     name of the z network metric
+%   z2 : str
+%     the network metric used to determine the colour of the plotted
+%      nodes, eg: betweeness centrality or participation coefficient
+%   z2name : str
+%     name of the z2 network metric
+%   plotType : str
+%       'MEA' to plot nodes with their respective electrode
 %       coordinates and 'circular' to plot nodes in a circle
-%   FN - name of file/recording
-%   pNum - number to precede name of figure when it is saved
+%   FN : str
+%       name of file/recording
+%   pNum : int
+%       number to precede name of figure when it is saved
+% Returns 
+% -------
+% None 
+%
+% author RCFeord August 2021
+% Updated by Tim Sit
 
-Returns 
--------
-author RCFeord August 2021
-Updated by Tim Sit
-%}
 %% plot
 if ~isfield(Params, 'oneFigure')
     F1 = figure;
@@ -50,10 +60,13 @@ yc = coords(:,2);
 %% Mapping to get theoretical bounds 
 % Used when theoretical bounds is set to True, this maps the z2name to
 % metric names
+% TODO: find a moer streamlined way to do this
 z2nameToShortHand = containers.Map;
 z2nameToShortHand('Betweeness centrality') = 'BC';
 z2nameToShortHand('Participation coefficient') = 'PC';
 z2nameToShortHand('local connectivity') = 'Eloc';
+z2nameToShortHand('Average controllability') = 'aveControl';
+z2nameToShortHand('Modal controllability') = 'modalControl';
 
 
 %% add edges
@@ -397,7 +410,12 @@ end
 
 %% save figure
 figName = strcat([pNum,'_',plotType,'_NetworkPlot',zname,z2name]);
-pipelineSaveFig(figName, Params.figExt, Params.fullSVG);
+
+if ~isfield(Params, 'oneFigure')
+    pipelineSaveFig(figName, Params.figExt, Params.fullSVG, F1);
+else 
+    pipelineSaveFig(figName, Params.figExt, Params.fullSVG, Params.oneFigure);
+end 
 
 if ~isfield(Params, 'oneFigure')
     close all
