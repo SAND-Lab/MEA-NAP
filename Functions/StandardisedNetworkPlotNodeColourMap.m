@@ -60,7 +60,7 @@ yc = coords(:,2);
 %% Mapping to get theoretical bounds 
 % Used when theoretical bounds is set to True, this maps the z2name to
 % metric names
-% TODO: find a moer streamlined way to do this
+% TODO: find a more streamlined way to do this
 z2nameToShortHand = containers.Map;
 z2nameToShortHand('Betweeness centrality') = 'BC';
 z2nameToShortHand('Participation coefficient') = 'PC';
@@ -206,12 +206,21 @@ if strcmp(plotType,'circular')
         hold on
     end
 end
-%% add nodes
+%% add nodes (and color them)
 
 mycolours = colormap;
 
 % TODO: What is this rectangle, I guess this is the individual nodes but
 % made into circles?
+
+if Params.use_theoretical_bounds
+    cmap_bounds = Params.network_plot_cmap_bounds.(z2nameToShortHand(z2name));
+    z2_min = cmap_bounds(1);
+    z2_max = cmap_bounds(end);
+else 
+    z2_max = max(z2);
+    z2_min = min(z2);
+end 
 
 if strcmp(plotType,'MEA')
     uniqueXc = sort(unique(xc));
@@ -222,12 +231,12 @@ if strcmp(plotType,'MEA')
             if z2(i)>0
                 try
                     rectangle('Position',pos,'Curvature',[1 1],'FaceColor', ... 
-                        mycolours(ceil(length(mycolours)*((z2(i)-min(z2))/(max(z2)-min(z2)))),1:3), ...
+                        mycolours(ceil(length(mycolours)*((z2(i)-z2_min)/(z2_max-z2_min))),1:3), ...
                         'EdgeColor','w','LineWidth',0.1)
                     
                 catch
                     rectangle('Position',pos,'Curvature',[1 1],'FaceColor', ...
-                        mycolours(ceil(length(mycolours)*((z2(i)-min(z2))/(max(z2)-min(z2)))+0.00001),1:3),'EdgeColor','w','LineWidth',0.1)
+                        mycolours(ceil(length(mycolours)*((z2(i)-z2_min)/(z2_max-z2_min))+0.00001),1:3),'EdgeColor','w','LineWidth',0.1)
                 end
             else
                 rectangle('Position',pos,'Curvature',[1 1],'FaceColor',mycolours(1,1:3),'EdgeColor','w','LineWidth',0.1)
@@ -247,10 +256,10 @@ if strcmp(plotType,'circular')
             pos = [cos(t(i))-(0.5*z(i)/nodeScaleF) sin(t(i))-(0.5*z(i)/nodeScaleF) z(i)/nodeScaleF z(i)/nodeScaleF];
             if z2(i)>0
                 try
-                    rectangle('Position',pos,'Curvature',[1 1],'FaceColor',mycolours(ceil(length(mycolours)*((z2(i)-min(z2))/(max(z2)-min(z2)))),1:3),'EdgeColor','w','LineWidth',0.1)
+                    rectangle('Position',pos,'Curvature',[1 1],'FaceColor',mycolours(ceil(length(mycolours)*((z2(i)-z2_min)/(z2_max-z2_min))),1:3),'EdgeColor','w','LineWidth',0.1)
                     
                 catch
-                    rectangle('Position',pos,'Curvature',[1 1],'FaceColor',mycolours(ceil(length(mycolours)*((z2(i)-min(z2))/(max(z2)-min(z2)))+0.00001),1:3),'EdgeColor','w','LineWidth',0.1)
+                    rectangle('Position',pos,'Curvature',[1 1],'FaceColor',mycolours(ceil(length(mycolours)*((z2(i)-z2_min)/(z2_max-z2_min))+0.00001),1:3),'EdgeColor','w','LineWidth',0.1)
                 end
             else
                 rectangle('Position',pos,'Curvature',[1 1],'FaceColor',mycolours(1,1:3),'EdgeColor','w','LineWidth',0.1)
