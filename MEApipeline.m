@@ -15,7 +15,7 @@ spikeDetectedData = '/Users/timothysit/AnalysisPipeline/OutputData20Jan2022v3'; 
 
 % Input and output filetype
 spreadsheet_file_type = 'csv'; % 'csv' or 'excel'
-spreadsheet_filename = 'hpc_dataset.csv'; 
+spreadsheet_filename = 'hpc_dataset_subset.csv'; 
 sheet = 1; % specify excel sheet
 xlRange = 'A2:C7'; % specify range on the sheet (e.g., 'A2:C7' would analyse the first 6 files)
 Params.output_spreadsheet_file_type = 'csv';  % .xlsx or .csv
@@ -91,6 +91,8 @@ if Params.use_theoretical_bounds
     network_plot_cmap_bounds.Z = [-2, 2];
     network_plot_cmap_bounds.BC = [0, 1];
     network_plot_cmap_bounds.Eloc = [0, 1];
+    network_plot_cmap_bounds.aveControl = [0, 2];
+    network_plot_cmap_bounds.modalControl = [0, 1]; 
     Params.network_plot_cmap_bounds = network_plot_cmap_bounds;
 else 
     het_node_level_vals = 0;
@@ -357,8 +359,7 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
         addpath(fullfile(spikeDetectedData, '1_SpikeDetection', '1A_SpikeDetectedData'));
         [spikeMatrix,spikeTimes,Params,Info] = formatSpikeTimes(char(Info.FN),Params,Info);
         biAdvancedSettings  % Temp here to try out new NMF code 
-        Params.oneFigure = figure();  % NOTE: This is a temporary solution... need to find where it was clearing figures
-
+        
         NetMet = ExtractNetMetOrganoid(adjMs, spikeTimes, ...
             Params.FuncConLagval, Info,HomeDir,Params, spikeMatrix);
 
