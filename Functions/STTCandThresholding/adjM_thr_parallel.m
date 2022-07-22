@@ -45,42 +45,91 @@ num_nodes = length(spikeTimes);
 
 adjM = get_sttc(spikeTimes, lag_ms, duration_s, method);
 
+matlabInstallation = ver;
+toolboxNames = {matlabInstallation.Name};
+parallelToolboxInstalled = any(strcmp(toolboxNames, 'Parallel Computing Toolbox'));
 
-parfor i = 1:rep_num
-    
-    synth_spk = spikeTimes;
-    
-    for n = 1:num_nodes
+if parallelToolboxInstalled
+
+    parfor i = 1:rep_num
         
-        k = randi(round(num_frames),1); % padding used in circshift
+        synth_spk = spikeTimes;
         
-        % Fast circshift: logical indexing and basic operations used
-        spk_vec = synth_spk{n}.(method)*fs + k;
-        overhang = spk_vec > num_frames;
-        spk_vec(overhang) = spk_vec(overhang)-num_frames;
-        spk_vec = sort(spk_vec);
+        for n = 1:num_nodes
+            
+            k = randi(round(num_frames),1); % padding used in circshift
+            
+            % Fast circshift: logical indexing and basic operations used
+            spk_vec = synth_spk{n}.(method)*fs + k;
+            overhang = spk_vec > num_frames;
+            spk_vec(overhang) = spk_vec(overhang)-num_frames;
+            spk_vec = sort(spk_vec);
+            
+            synth_spk{n}.(method) = spk_vec/fs;
+            % NOTE: could probably rewrite it to default to times in 's'
+            %       just swap 'num_frames' with 'duration_s' and remove the
+            %       multiplication/division by 'fs' in lines 48 & 53
+        end
         
-        synth_spk{n}.(method) = spk_vec/fs;
-        % NOTE: could probably rewrite it to default to times in 's'
-        %       just swap 'num_frames' with 'duration_s' and remove the
-        %       multiplication/division by 'fs' in lines 48 & 53
+        adjMs = get_sttc(synth_spk, lag_ms, duration_s, method);
+        adjMs(1:num_nodes+1:end) = 0; % Faster than removing from adjMi
+        adjMi(:,:,i) = adjMs;
     end
     
-    adjMs = get_sttc(synth_spk, lag_ms, duration_s, method);
-    adjMs(1:num_nodes+1:end) = 0; % Faster than removing from adjMi
-    adjMi(:,:,i) = adjMs;
-end
-
-adjMci = adjM;
-cutoff_point = ceil((1 - tail) * rep_num);
-parfor i = 1:num_nodes
-    for j = 1:num_nodes
-        Eu = sort(adjMi(i,j,:),'ascend');
-        if Eu(cutoff_point) > adjM(i,j)
-            % TODO: may need to change this to compare absolute in the case of 
-            % significant negative correlation 
-            adjMci(i,j) = 0;
+    adjMci = adjM;
+    cutoff_point = ceil((1 - tail) * rep_num);
+    parfor i = 1:num_nodes
+        for j = 1:num_nodes
+            Eu = sort(adjMi(i,j,:),'ascend');
+            if Eu(cutoff_point) > adjM(i,j)
+                % TODO: may need to change this to compare absolute in the case of 
+                % significant negative correlation 
+                adjMci(i,j) = 0;
+            end
         end
     end
-end
+
+else 
+  fprintf('Parallel computing toolbox not installed, running regular for loops \n')
+  for i = 1:rep_num
+        
+        synth_spk = spikeTimes;
+        
+        for n = 1:num_nodes
+            
+            k = randi(round(num_frames),1); % padding used in circshift
+            
+            % Fast circshift: logical indexing and basic operations used
+            spk_vec = synth_spk{n}.(method)*fs + k;
+            overhang = spk_vec > num_frames;
+            spk_vec(overhang) = spk_vec(overhang)-num_frames;
+            spk_vec = sort(spk_vec);
+            
+            synth_spk{n}.(method) = spk_vec/fs;
+            % NOTE: could probably rewrite it to default to times in 's'
+            %       just swap 'num_frames' with 'duration_s' and remove the
+            %       multiplication/division by 'fs' in lines 48 & 53
+        end
+        
+        adjMs = get_sttc(synth_spk, lag_ms, duration_s, method);
+        adjMs(1:num_nodes+1:end) = 0; % Faster than removing from adjMi
+        adjMi(:,:,i) = adjMs;
+  end
+    
+    adjMci = adjM;
+    cutoff_point = ceil((1 - tail) * rep_num);
+    for i = 1:num_nodes
+        for j = 1:num_nodes
+            Eu = sort(adjMi(i,j,:),'ascend');
+            if Eu(cutoff_point) > adjM(i,j)
+                % TODO: may need to change this to compare absolute in the case of 
+                % significant negative correlation 
+                adjMci(i,j) = 0;
+            end
+        end
+    end
+
+end 
+
+
 end
