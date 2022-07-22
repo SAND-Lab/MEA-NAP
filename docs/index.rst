@@ -16,6 +16,7 @@ Welcome to MEA pipeline's documentation!
    pipeline-steps
    system-requirements
    methods
+   frequently-asked-questions
    how-to-contribute
    sources
 
