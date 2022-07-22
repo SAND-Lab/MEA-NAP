@@ -54,6 +54,25 @@ Converting raw files acquired from MEA system to MATLAB
 - N.B. All of the ``*.mat`` files (raw or spikes detected) that will be analyzed and compared in the pipeline should be saved in the same folder. 
 
 
+
+Step-by-step guide to convert files from multichannel acquisition system to .mat files 
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+1. Open MC_DataTool
+2. Select File - Open Multiple
+3. Select files of interest
+4. Click "bin"
+5. Click "All"
+6. Make sure "Write header" and "Signed 16bit" are checked in lower right
+7. Click save
+8. When done, click close
+9. Open matlab
+10. Add analysis pipeline code to path
+11. Navigate in matlab to the folder containing the '.mcd' files you want to convert
+12. In the matlab command window, type ``MEAbatchConvert`` and press return to run 
+
+  
+
 Converting spike detection files from other sources to a spike matrix for input to this pipeline
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
