@@ -24,7 +24,7 @@ Params.output_spreadsheet_file_type = 'csv';  % .xlsx or .csv
 Params.priorAnalysisDate = '19May2022'; % prior analysis date in format given in output data folder e.g., '27Sep2021'
 Params.priorAnalysis = 1; % use previously analysed data? 1 = yes, 0 = no
 Params.startAnalysisStep = 4 ; % if Params.priorAnalysis=0, default is to start with spike detection
-Params.optionalStepsToRun = {'runstats'};
+Params.optionalStepsToRun = {'runstats'}; % include 'generateCSV' to generate csv for rawData folder
 
 % Spike detection settings
 detectSpikes = 0; % run spike detection? % 1 = yes, 0 = no
@@ -101,6 +101,22 @@ else
     elseif Params.use_min_max_per_genotype_bounds
 
     end 
+end 
+
+%% Optional step : generate csv 
+if ~any(strcmp(Params.optionalStepsToRun,'generateCSV')) 
+    mat_file_list = dir(fullfile(rawData, '*mat'));
+    name_list = {mat_file_list.name}';
+    name_without_ext = {};
+    div = {};
+    for filenum = 1:length(name_list)
+        name_without_ext{filenum} = name_list{filenum}(1:end-4);
+        div{filenum} = name_list{filenum}((end-5):end-4);
+    end 
+    name = name_without_ext'; 
+    div = div';
+    name_table = table([name, div]);
+    writetable(name_table, spreadsheet_filename)
 end 
 
 %% setup - additional setup
@@ -528,21 +544,6 @@ if ~any(strcmp(Params.optionalStepsToRun,'comparePrePostTTX'))
     find_best_spike_result(spike_folder, pre_post_ttx_plot_folder, Params)
 end 
 
-%% Optional step : generate csv 
-if ~any(strcmp(Params.optionalStepsToRun,'generateCSV')) 
-    folder_path = '/Volumes/T7/schroter2015_mat'; 
-    mat_file_list = dir(fullfile(folder_path, '*mat'));
-    name_list = {mat_file_list.name}';
-    name_without_ext = {};
-    div = {};
-    for filenum = 1:length(name_list)
-        name_without_ext{filenum} = name_list{filenum}(1:end-4);
-        div{filenum} = name_list{filenum}((end-5):end-4);
-    end 
-    name = name_without_ext'; 
-    div = div';
-    name_table = table([name, div]);
-    writetable(name_table, 'test.csv')
-end 
+
 
 
