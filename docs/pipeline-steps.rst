@@ -23,7 +23,8 @@ The input files required for the pipeline are:
 
 1.  ``*.mat`` files converted from the raw acquisition files from the MEA recordings. 
 
- - Each file should have three variables: ``fs`` : an integer which specifies the sampling rate, ``channel`` : a 1 x nChannel vector which gives an integer ID for each channel, and ``dat`` : a nSample x nChannel matrix which contains the potential difference (voltage) of each channel over time samples 
+ - Each file should have three variables: ``fs`` : an integer which specifies the sampling rate, ``channel`` : a 1 x nChannel vector which gives an integer ID for each channel, and ``dat`` : a nSample x nChannel matrix which contains the potential difference (voltage) of each channel over time samples
+ - For details about how to convert your raw data into this format, see:  :ref:`this section <preparing_data_for_pipeline>`
  - For data acquired with Multi-channel Systems MCRack, use the MCTool to convert to ``.mat``.
  - For data acquired with Axion Maestro, please use our custom conversion script with the AxIS MATLAB files functions (also available from Axion).
  - N.B. it is also possible to use ``*.mat`` files with spike times instead of raw data for the network analysis (steps 2-4 in the pipeline)

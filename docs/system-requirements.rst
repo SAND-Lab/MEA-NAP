@@ -39,6 +39,9 @@ Brain Connectivity Toolbox - This toolbox must be saved to the same folder as th
 
 For assistance, please see our new MATLAB users help guide.
 
+
+.. _preparing_data_for_pipeline:
+
 Preparing MEA data for the pipeline
 ----------------------------------------------------------
 
@@ -71,8 +74,7 @@ Step-by-step guide to convert files from multichannel acquisition system to .mat
 11. Navigate in matlab to the folder containing the '.mcd' files you want to convert
 12. In the matlab command window, type ``MEAbatchConvert`` and press return to run 
 
-  
-
+ 
 Converting spike detection files from other sources to a spike matrix for input to this pipeline
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -94,3 +96,18 @@ Spike times are processed to create a spike matrix.
      - binary matrix with length equal to the total number of recording frames representing detected spike events across all electrodes
 
 The ``spikeTimes`` variable for each recording is stored in the ‘ExperimentMatFiles’ folder (in the OutputData folder of the pipeline for each recording). Spike matrices are large arrays, even for short recording durations, due to the high sampling frequency of MEA systems. Thus, the spike matrices are not stored as outputs of the pipeline, nor are they visible as Workspace variables.  The spike matrix can easily be visualised as a raster plot (see for individual recording folders in the OutputData folder \2_NeuronalActivity\2A_Individual…\). Spike counts are binned per second and plotted as firing rates (Hz) in a heatmap.
+
+
+
+
+Beginner's guide to MATLAB
+-----------------------------------------
+
+Desktop layout
+^^^^^^^^^^^^^^^^^^^
+
+
+The default desktop layout looks like this:
+
+
+Current folder toolbar: The pathway to the current folder is displayed in the “Current Folder” toolbar (pink arrow). The folders and files contained in this folder are displayed on the left-hand side in the Current Folder panel (pink arrow). Select the “Pipeline x.x” folder (see figure below).
