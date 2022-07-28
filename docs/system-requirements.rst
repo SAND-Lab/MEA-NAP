@@ -74,6 +74,12 @@ Step-by-step guide to convert files from multichannel acquisition system to .mat
 11. Navigate in matlab to the folder containing the '.mcd' files you want to convert
 12. In the matlab command window, type ``MEAbatchConvert`` and press return to run 
 
+
+Temporary Axion section to be written 
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
+
  
 Converting spike detection files from other sources to a spike matrix for input to this pipeline
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
