@@ -104,7 +104,8 @@ else
 end 
 
 %% Optional step : generate csv 
-if ~any(strcmp(Params.optionalStepsToRun,'generateCSV')) 
+if any(strcmp(Params.optionalStepsToRun,'generateCSV')) 
+    fprintf('Generating CSV with given rawData folder \n')
     mat_file_list = dir(fullfile(rawData, '*mat'));
     name_list = {mat_file_list.name}';
     name_without_ext = {};
