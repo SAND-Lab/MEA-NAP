@@ -21,13 +21,31 @@ The Analysis Pipeline folder must be downloaded from our GitHub repository, open
 
 The input files required for the pipeline are:
 
--  ``*.mat`` files converted from the raw acquisition files from the MEA recordings.  For data acquired with Multi-channel Systems MCRack, use the MCTool to convert to ``.mat``.  For data acquired with Axion Maestro, please use our custom conversion script with the AxIS MATLAB files functions (also available from Axion). N.B. it is also possible to use ``*.mat`` files with spike times (see line 79) instead of raw data (see line 51) for the network analysis (steps 2-4 in the pipeline)
+1.  ``*.mat`` files converted from the raw acquisition files from the MEA recordings. 
 
-- ``*.csv`` or ``*.xlsx`` file with the first column containing the filenames of the raw ``*.mat`` files for analysis, second column the age (this should be a number), third column genotype (e.g., WT or KO, do not put numbers in your names), and fourth column including any electrodes that should be grounded (for MCS 60 channel data, electrode 15 should be included here as it is the reference electrode). See lines 20-36. 
+ - Each file should have three variables: ``fs`` : an integer which specifies the sampling rate, ``channel`` : a 1 x nChannel vector which gives an integer ID for each channel, and ``dat`` : a nSample x nChannel matrix which contains the potential difference (voltage) of each channel over time samples 
+ - For data acquired with Multi-channel Systems MCRack, use the MCTool to convert to ``.mat``.
+ - For data acquired with Axion Maestro, please use our custom conversion script with the AxIS MATLAB files functions (also available from Axion).
+ - N.B. it is also possible to use ``*.mat`` files with spike times instead of raw data for the network analysis (steps 2-4 in the pipeline)
+
+Here is an example of the variables you should see in matlab for an input .mat file with 64 channels, recorded at with a sampling frequency of 12500 Hz. 
+
+.. image:: ../imgs/example-input-file-workspace.png
+   :width: 800
+      
+   
+2. ``*.csv`` or ``*.xlsx`` file with the first column containing the filenames of the raw ``*.mat`` files for analysis, second column the age (this should be a number), third column genotype (e.g., WT or KO, do not put numbers in your names), and fourth column including any electrodes that should be grounded (for MCS 60 channel data, electrode 15 should be included here as it is the reference electrode).
+
+Here is an example spreadsheet csv file opened in Microsoft excel: 
+ 
+.. image:: ../imgs/example-spreadsheet-input.png
+   :width: 800
+
 
 To use the pipeline, open ``MEApipeline.m`` in MATLAB.
 
 Before running the script, please enter/ensure the following variables are correct:
+
 
 Required user input in the first section
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
