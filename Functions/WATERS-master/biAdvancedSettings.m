@@ -28,6 +28,7 @@ Params.remove_artifacts = 0;
 Params.nScales = 5;
 Params.wid = [0.4000 0.8000];
 Params.grd = [];
+Params.unit = 's';
 Params.minPeakThrMultiplier = -5;
 Params.maxPeakThrMultiplier = -100;
 Params.posPeakThrMultiplier = 15;
