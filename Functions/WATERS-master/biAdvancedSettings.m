@@ -25,6 +25,7 @@ Params.multiplier = 3; % multiplier to use extracting spikes for wavelet (not fo
 
 Params.custom_threshold_method_name = {'thr4p5'};
 Params.remove_artifacts = 0;
+Params.nScales = 5;
 Params.minPeakThrMultiplier = -5;
 Params.maxPeakThrMultiplier = -100;
 Params.posPeakThrMultiplier = 15;
