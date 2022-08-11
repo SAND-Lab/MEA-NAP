@@ -1,5 +1,5 @@
 function [hubBoundaryWMdDeg, periPartCoef, proHubpartCoef, nonHubconnectorPartCoef, connectorHubPartCoef] = ...
-    TrialLandscapeDensity(ExpList, fig_folder, add_fig_info)
+    TrialLandscapeDensity(ExpList, fig_folder, add_fig_info, cartographyLagVal)
 %{
 This script calculates and plots the distribution 
 of Within-module Z-score (Z) and participation coefficient (PC)
@@ -13,11 +13,11 @@ ExpList: struct
     date, bytes, isdir, datenum
 fig_folder : str
     folder to save the plots
-Params : struct 
-    
 add_fig_info : str
     optional str to add an extra name tag to the figure, set to '' if this
     is not needed
+cartographyLagVal : int 
+    lag value in ms
 Returns
 -------
 hubBoundaryWMdDeg : float
@@ -53,7 +53,7 @@ for n = 1:length(ExpList)
     
     for i = 1:length(Var)
         VN = cell2mat(Var(i));
-        VNs = strcat('NetMet.adjM15mslag.',VN);
+        VNs = strcat(sprintf('NetMet.adjM%.fmslag.', cartographyLagVal), VN);
         eval([VN '= [' VN ';' VNs '];']);
     end
     

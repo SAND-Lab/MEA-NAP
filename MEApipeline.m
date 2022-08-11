@@ -22,18 +22,18 @@ Params.output_spreadsheet_file_type = 'csv';  % .xlsx or .csv
 
 % Analysis step settings
 Params.priorAnalysisDate = '19May2022'; % prior analysis date in format given in output data folder e.g., '27Sep2021'
-Params.priorAnalysis = 1; % use previously analysed data? 1 = yes, 0 = no
-Params.startAnalysisStep = 4 ; % if Params.priorAnalysis=0, default is to start with spike detection
-Params.optionalStepsToRun = {'runstats'}; % include 'generateCSV' to generate csv for rawData folder
+Params.priorAnalysis = 0; % use previously analysed data? 1 = yes, 0 = no
+Params.startAnalysisStep = 1; % if Params.priorAnalysis=0, default is to start with spike detection
+Params.optionalStepsToRun = {'runStats'}; % include 'generateCSV' to generate csv for rawData folder
 
 % Spike detection settings
-detectSpikes = 0; % run spike detection? % 1 = yes, 0 = no
+detectSpikes = 1; % run spike detection? % 1 = yes, 0 = no
 Params.runSpikeCheckOnPrevSpikeData = 0; % whether to run spike detection check without spike detection 
 Params.fs = 25000; % Sampling frequency, HPC: 25000, Axion: 12500;
 Params.dSampF = 25000; % down sampling factor for spike detection check
 Params.potentialDifferenceUnit = 'uV';  % the unit which you are recording electrical signals 
 Params.channelLayout = 'MCS60';
-Params.thresholds = {}; % standard deviation multiplier threshold(s), eg. {'2.5', '3.5', '4.5'}
+Params.thresholds = {'2.5', '3.5', '4.5'}; % standard deviation multiplier threshold(s), eg. {'2.5', '3.5', '4.5'}
 Params.wnameList = {'bior1.5'}; % wavelet methods to use {'bior1.5', 'mea'}';
 Params.costList = -0.12;
 Params.SpikesMethod = 'bior1p5'; 
@@ -51,6 +51,7 @@ Params.ProbThreshPlotChecks = 1; % randomly sample recordings to plot probabilis
 Params.ProbThreshPlotChecksN = 5; % number of random checks to plot
 
 % Node cartography settings 
+Params.cartographyLagVal = 15; % lag value (ms) to use to calculate PC-Z distribution
 Params.autoSetCartographyBoundaries = 1;  % whether to automatically determine bounds for hubs or use custom ones
 
 % Plot settings
@@ -61,6 +62,11 @@ Params.showOneFig = 1;  % otherwise, 0 = pipeline shows plots as it runs, 1: sup
 %% END OF USER REQUIRED INPUT SECTION
 % The rest of the MEApipeline.m runs automatically. Do not change after this line
 % unless you are an expert user.
+% Define output folder names
+formatOut = 'ddmmmyyyy'; 
+Params.Date = datestr(now,formatOut); 
+clear formatOut
+
 biAdvancedSettings
 
 if Params.runSpikeCheckOnPrevSpikeData
@@ -68,11 +74,6 @@ if Params.runSpikeCheckOnPrevSpikeData
             'so I will skip over the spike detection step \n'])
     detectSpikes = 0;
 end 
-
-% Define output folder names
-formatOut = 'ddmmmyyyy'; 
-Params.Date = datestr(now,formatOut); 
-clear formatOut
 
 % add all relevant folders to path
 cd(HomeDir)
@@ -351,7 +352,9 @@ end
 % % Params.priorAnalysisPath = '/Users/timothysit/AnalysisPipeline/OutputData19May2022v12/';
 if Params.showOneFig
     % TODO: do this for spike detection plots as well, and PlotNetMet
-    Params.oneFigure = figure;
+    if ~isfield(Params, 'oneFigure')
+        Params.oneFigure = figure;
+    end 
 end 
 
 if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisStep<=4
@@ -421,7 +424,7 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
         ExpList = dir('*.mat');
         add_fig_info = '';
         [hubBoundaryWMdDeg, periPartCoef, proHubpartCoef, nonHubconnectorPartCoef, connectorHubPartCoef] = ...
-            TrialLandscapeDensity(ExpList, fig_folder, add_fig_info);
+            TrialLandscapeDensity(ExpList, fig_folder, add_fig_info, Params.cartographyLagVal);
         Params.hubBoundaryWMdDeg = hubBoundaryWMdDeg;
         Params.periPartCoef = periPartCoef;
         Params.proHubpartCoef = proHubpartCoef;
@@ -477,8 +480,7 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
 end
 
 %% Optional step: Run density landscape to determine the boundaries for the node cartography 
-if ~any(strcmp(Params.optionalStepsToRun,'getDensityLandscape')) 
-    Params.priorAnalysisPath = '/Users/timothysit/AnalysisPipeline/OutputData24Feb2022';
+if any(strcmp(Params.optionalStepsToRun,'getDensityLandscape')) 
     cd(fullfile(Params.priorAnalysisPath, 'ExperimentMatFiles'));
     
     fig_folder = fullfile(Params.priorAnalysisPath, '4_NetworkActivity/4B_GroupComparisons/7_DensityLandscape');
@@ -495,8 +497,13 @@ if ~any(strcmp(Params.optionalStepsToRun,'getDensityLandscape'))
 end 
 
 %% Optional step: statistics and classification of genotype / ages 
-if ~any(strcmp(Params.optionalStepsToRun,'runStats')) 
-    Params.priorAnalysisPath = '/Users/timothysit/AnalysisPipeline/OutputData24Feb2022';
+if any(strcmp(Params.optionalStepsToRun,'runStats'))
+    if Params.showOneFig
+        if ~isfield(Params, 'oneFigure')
+            Params.oneFigure = figure;
+        end 
+    end 
+
     nodeLevelFile = fullfile(Params.priorAnalysisPath, 'NetworkActivity_NodeLevel.csv');
     nodeLevelData = readtable(nodeLevelFile);
     
@@ -516,7 +523,7 @@ end
 
 
 %% Optional Step: compare pre-post TTX spike activity 
-if ~any(strcmp(Params.optionalStepsToRun,'comparePrePostTTX')) 
+if any(strcmp(Params.optionalStepsToRun,'comparePrePostTTX')) 
     % see find_best_spike_result.m for explanation of the parameters
     Params.prePostTTX.max_tolerable_spikes_in_TTX_abs = 100; 
     Params.prePostTTX.max_tolerable_spikes_in_grounded_abs = 100;
