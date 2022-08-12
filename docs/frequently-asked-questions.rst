@@ -22,6 +22,16 @@ What this does is to obtain the latest changes of the pipeline from the github r
 
 Sometimes, you may encounter an error when running this because some of your local changes (eg. your edits to the main ``MEApipeline.m``) scripts are in conflict with the version of the web, and github doesn't want to overwrite the changes you have made. In this case, rename the script you have changed, eg. ``MEApipeline_MyName.m``, and then run the command again. You can then copy back the changes you have made into the new script.
 
+I encountered an error whilst running the pipeline and am not sure what it means / what to do, how do I ask for help?
+------------------------------------------------------------------------------------------------------------------------
+
+The best way to ask for help with the pipeline is via the github issues page here: https://github.com/SAND-Lab/AnalysisPipeline/issues, this ensures that the issue is recorded and other people who encountered the same issue can also contribute. You can see an example issue here: https://github.com/SAND-Lab/AnalysisPipeline/issues/1.
+
+
+
+
+
+
 
 
 
