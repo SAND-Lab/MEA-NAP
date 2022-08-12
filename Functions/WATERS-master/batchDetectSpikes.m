@@ -127,8 +127,8 @@ end
 
 % Note that this adds a new dimensions, you should get Nx2 cell array
 % 2021-06-09: TS: but why not just do vertcat???
-% wnameList = horzcat(wnameList, thrList);
-wnameList = vertcat(wnameList, thrList);
+wnameList = horzcat(wnameList, thrList);
+% wnameList = vertcat(wnameList, thrList);
 
 % check if custom threshold file is provided
 if isfield(params, 'custom_threshold_file')
