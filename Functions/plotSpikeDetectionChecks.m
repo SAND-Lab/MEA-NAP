@@ -96,7 +96,10 @@ trace = filtered_data(:, channel);
 
 p = [100 100 1200 600];
 set(0, 'DefaultFigurePosition', p)
-F1 = figure;
+
+if ~isfield(Params, 'oneFigure')
+     F1 = figure;
+end 
 
 dSampF = Params.dSampF;
 for i = 1:length(methods)
@@ -137,15 +140,28 @@ legend boxoff
 
 % Export figure
 figName = 'SpikeFrequencies';
-pipelineSaveFig(figName, Params.figExt, Params.fullSVG)
 
+if ~isfield(Params, 'oneFigure')
+    pipelineSaveFig(figName, Params.figExt, Params.fullSVG, F1);
+else 
+    pipelineSaveFig(figName, Params.figExt, Params.fullSVG, Params.oneFigure);
+end 
 
-close all
+if ~isfield(Params, 'oneFigure')
+    close all
+else 
+    set(0, 'CurrentFigure', Params.oneFigure);
+    clf reset
+end 
 
 %% examples traces
 p = [100 100 1400 800];
 set(0, 'DefaultFigurePosition', p)
-F1 = figure;
+
+if ~isfield(Params, 'oneFigure')
+    F1 = figure;
+end 
+
 tiledlayout(5,2,'TileSpacing','Compact');
 
 % l iterates through the 9 example traces?
@@ -213,16 +229,31 @@ title({strcat(regexprep(FN,'_','','emptymatch')),' '});
 
 % Export figure
 figName = 'ExampleTraces';
-pipelineSaveFig(figName, Params.figExt, Params.fullSVG)
 
-close all
+if ~isfield(Params, 'oneFigure')
+    pipelineSaveFig(figName, Params.figExt, Params.fullSVG, F1);
+else 
+    pipelineSaveFig(figName, Params.figExt, Params.fullSVG, Params.oneFigure);
+end 
+
+if ~isfield(Params, 'oneFigure')
+    close all
+else 
+    set(0, 'CurrentFigure', Params.oneFigure);
+    clf reset
+end 
+
 
 %% waveforms
 [~, unique_idx, ~] = mergeSpikes(spike_times{channel},'all');
 
 p = [100 100 600 700];
+
 set(0, 'DefaultFigurePosition', p)
-F1 = figure;
+
+if ~isfield(Params, 'oneFigure')
+        F1 = figure;
+end 
 
 t = tiledlayout(2, ceil(length(methods)/2), 'tilespacing','none','padding','none');
 t.Title.String = {strcat(regexprep(FN,'_','','emptymatch')),' ',["Unique spikes by method from electrode " + channel]};
@@ -268,8 +299,18 @@ end
 
 % Export figure
 figName = 'Waveforms';
-pipelineSaveFig(figName, Params.figExt, Params.fullSVG)
 
+if ~isfield(Params, 'oneFigure')
+    pipelineSaveFig(figName, Params.figExt, Params.fullSVG, F1);
+else 
+    pipelineSaveFig(figName, Params.figExt, Params.fullSVG, Params.oneFigure);
+end 
 
-close all
+if ~isfield(Params, 'oneFigure')
+    close all
+else 
+    set(0, 'CurrentFigure', Params.oneFigure);
+    clf reset
+end 
+
 end
