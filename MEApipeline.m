@@ -135,7 +135,8 @@ elseif strcmp(spreadsheet_file_type, 'csv')
     opts.VariableNamesLine = 1;
     opts.VariableTypes{1} = 'char';  % this should be the recoding file name
     opts.VariableTypes{2} = 'double';  % this should be the DIV
-    opts.VariableTypes{3} = 'char';
+    opts.VariableTypes{3} = 'char'; % this should be Group 
+    opts.VariableTypes{4} = 'char'; % this should be Ground
     opts.DataLines = [2 Inf];  % start reading data from row 2
     % csv_data = readtable(spreadsheet_filename, 'Delimiter','comma');
     csv_data = readtable(spreadsheet_filename, opts);
