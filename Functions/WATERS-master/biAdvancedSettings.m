@@ -85,6 +85,7 @@ Params.networkLevelNetMetLabels = {
     'Num_NMF_components', 'nNMF_div_network size'};
 Params.networkLevelNetMetCustomBounds = struct();
 Params.networkLevelNetMetCustomBounds.('effRank') = [1, nan];
+Params.networkLevelNetMetCustomBounds.('aveControl') = [1, 1.5];
 
 Params.unitLevelNetMetToPlot = {'ND','EW','NS','Z','Eloc','PC','BC', 'aveControl', 'modalControl'};
 Params.unitLevelNetMetLabels = {'node degree','edge weight','node strength', ... 
