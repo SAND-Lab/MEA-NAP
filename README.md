@@ -59,6 +59,12 @@ The documentation of this toolbox is managed using read-the-docs and sphinx. To 
 pip install sphinx
 ```
 
+and some extra packages used in this documentation
+
+```
+pip install sphinx-hoverxref
+```
+
 and also install the theme used for the documentation website:
 
 ```
