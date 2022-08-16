@@ -59,6 +59,12 @@ The documentation of this toolbox is managed using read-the-docs and sphinx. To 
 pip install sphinx
 ```
 
+and also install the theme used for the documentation website:
+
+```
+pip install furo
+```
+
 then navigate to the folder containing the documentation, which should be in `/your/path/to/AnalysisPipeline/docs/`, then do:
 
 ```
