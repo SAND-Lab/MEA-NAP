@@ -50,12 +50,6 @@ end
 
 addpath(dataPath);
 
-
-%   Load parameters
-if ~exist('params', 'var')
-    load('params.mat');
-end
-
 multiplier = params.multiplier;
 nSpikes = params.nSpikes;
 nScales = params.nScales;
@@ -109,8 +103,7 @@ else
 end
 thresholds = params.thresholds;
 thrList = strcat( 'thr', thresholds);
-thrList = strrep(thrList, '.', 'p')';
-
+thrList = strrep(thrList, '.', 'p');
 
 % 2021-06-07: adding absolute thresholds 
 if isfield(params, 'absThresholds')
