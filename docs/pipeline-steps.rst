@@ -13,6 +13,7 @@ The pipeline has the following steps:
 3. Inferring the functional connectivity
 4. Comparison of the network activity (i.e., graph theoretical metric)
 
+
    
 Starting the pipeline
 --------------------------------
