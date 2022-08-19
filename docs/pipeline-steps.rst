@@ -33,7 +33,7 @@ The input files required for the pipeline are:
 Here is an example of the variables you should see in matlab for an input .mat file with 64 channels, recorded at with a sampling frequency of 12500 Hz. 
 
 .. image:: ../imgs/example-input-file-workspace.png
-   :width: 600
+   :width: 500
       
    
 2. ``*.csv`` or ``*.xlsx`` file with the first column containing the filenames of the raw ``*.mat`` files for analysis, second column the age (this should be a number), third column genotype (e.g., WT or KO, do not put numbers in your names), and fourth column including any electrodes that should be grounded (for MCS 60 channel data, electrode 15 should be included here as it is the reference electrode).
@@ -41,7 +41,7 @@ Here is an example of the variables you should see in matlab for an input .mat f
 Here is an example spreadsheet csv file opened in Microsoft excel: 
  
 .. image:: ../imgs/example-spreadsheet-input.png
-   :width: 600
+   :width: 500
 
 
 To use the pipeline, open ``MEApipeline.m`` in MATLAB.
