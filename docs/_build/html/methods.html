@@ -3,12 +3,20 @@
   <head><meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width,initial-scale=1"/>
     <meta name="color-scheme" content="light dark"><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
-<link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Contributing to the project" href="how-to-contribute.html" /><link rel="prev" title="System Requirements" href="system-requirements.html" />
+<link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Frequently asked questions" href="frequently-asked-questions.html" /><link rel="prev" title="System Requirements" href="system-requirements.html" />
 
-    <meta name="generator" content="sphinx-4.2.0, furo 2022.04.07"/>
-        <title>Methods for Network Activity Analysis - MEA pipeline 0.0.0 documentation</title>
+    <meta name="generator" content="sphinx-4.2.0, furo 2022.06.21"/>
+        <title>Methods for Network Activity Analysis - MEA pipeline 1.0.0 documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
-    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?digest=68f4518137b9aefe99b631505a2064c3c42c9852" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?digest=40978830699223671f4072448e654b5958f38b89" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster.custom.css" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster.bundle.min.css" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-shadow.min.css" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-punk.min.css" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-noir.min.css" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-light.min.css" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-borderless.min.css" />
+    <link rel="stylesheet" type="text/css" href="_static/css/micromodal.css" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?digest=30d1aed668e5c3a91c3e3bf6a60b675221979f0e" />
     
     
@@ -123,7 +131,7 @@
       </label>
     </div>
     <div class="header-center">
-      <a href="index.html"><div class="brand">MEA pipeline 0.0.0 documentation</div></a>
+      <a href="index.html"><div class="brand">MEA pipeline 1.0.0 documentation</div></a>
     </div>
     <div class="header-right">
       <div class="theme-toggle-container theme-toggle-header">
@@ -146,7 +154,7 @@
       <div class="sidebar-sticky"><a class="sidebar-brand" href="index.html">
   
   
-  <span class="sidebar-brand-text">MEA pipeline 0.0.0 documentation</span>
+  <span class="sidebar-brand-text">MEA pipeline 1.0.0 documentation</span>
   
 </a><form class="sidebar-search-container" method="get" action="search.html" role="search">
   <input class="sidebar-search" placeholder=Search name="q" aria-label="Search">
@@ -160,7 +168,9 @@
 <li class="toctree-l1"><a class="reference internal" href="pipeline-steps.html">Pipeline steps</a></li>
 <li class="toctree-l1"><a class="reference internal" href="system-requirements.html">System Requirements</a></li>
 <li class="toctree-l1 current current-page"><a class="current reference internal" href="#">Methods for Network Activity Analysis</a></li>
+<li class="toctree-l1"><a class="reference internal" href="frequently-asked-questions.html">Frequently asked questions</a></li>
 <li class="toctree-l1"><a class="reference internal" href="how-to-contribute.html">Contributing to the project</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sources.html">Code sources</a></li>
 </ul>
 
 </div>
@@ -179,7 +189,8 @@
           </svg>
           <span>Back to top</span>
         </a>
-        <div class="content-icon-container"><div class="theme-toggle-container theme-toggle-content">
+        <div class="content-icon-container">
+          <div class="theme-toggle-container theme-toggle-content">
             <button class="theme-toggle">
               <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
               <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
@@ -198,16 +209,25 @@
 <section id="spike-detection">
 <h2>Spike detection<a class="headerlink" href="#spike-detection" title="Permalink to this headline">#</a></h2>
 <p>Microelectrode array (MEA) recordings offer the temporal resolution to identify individual action potentials from multi-unit activity detected at individual electrodes.  There are many different methods available for detecting action potentials from extracellular voltage recordings. The choice of methods and parameters need to be optimized for each data set, as type of tissue, level of activity, and level of electrical noise will affect the accuracy.  The gold standard for tuning spike detection is comparing MEA recordings from the same network before and after tetrodotoxin (TTX) administration (if your neuronal population is sensitive to action potential blockade by TTX, Figure 4.1). TTX inhibition is use-dependent, thus depending how frequently the neurons fire action potentials, it may take a few minutes before all neuronal firing stops in the presence of TTX.</p>
+<a class="reference internal image-reference" href="_images/spike_detection.png"><img alt="_images/spike_detection.png" class="align-center" src="_images/spike_detection.png" style="width: 320px;" /></a>
+<p><strong>Figure 4.1. Effect of tetrodotoxin (TTX) on spikes detected by MEA.</strong> Histogram (upper) of spiked detected and raster plot for three electrodes before TTX (left) and after TTX was added (to the right of the dashed line) abolishing all action potentials.</p>
 <section id="spike-detection-methods-in-the-pipeline">
 <h3>Spike detection methods in the pipeline<a class="headerlink" href="#spike-detection-methods-in-the-pipeline" title="Permalink to this headline">#</a></h3>
 <p>The pipeline offers multiple options for spike detection including template-based and threshold-based methods (Figure 4.1.1). The template-based method uses a continuous wavelet transform to identify action potentials by their waveform. In our 2D primary murine cortical cultures, the template-based method outperforms threshold-based methods in both sensitivity and specificity (Dunn et al., FENS 2020, poster). However, depending on the signal-to-noise ratio and/or the fit of the template to action potentials in a recording, the template method may not perform well on all data.  In this case we recommend using a threshold-based method. The user selects the standard deviation multiplier for detecting spikes. Minimum and maximum spike amplitudes are included to remove noise and large electrical artifacts.</p>
+<a class="reference internal image-reference" href="_images/spike_detection_methods.png"><img alt="_images/spike_detection_methods.png" class="align-center" src="_images/spike_detection_methods.png" style="width: 400px;" /></a>
 <p><strong>Threshold-based options</strong></p>
+<a class="reference internal image-reference" href="_images/threshold_based_options.png"><img alt="_images/threshold_based_options.png" class="align-center" src="_images/threshold_based_options.png" style="width: 100px;" /></a>
 <p>For each electrode in an MEA recording, the mean or median standard deviation of the voltage signal is calculated.  In the threshold-based method used for this pipeline the user can set the standard deviation (SD) multiplier (e.g., 4.5, 5) as a threshold for detecting negative voltage deflections that exceed this threshold.  As the spike detection is based on the amplitude, it does not distinguish between changes in voltage that have a waveform consistent with action potentials versus electrical noise. Maximum absolute threshold values are added to avoid counting large electrical artifacts as spikes.  Minimum absolute thresholds can also be set by advanced users.</p>
 <p>At a biological level, the threshold method also has a challenge when comparing activity between electrodes within a recording, or comparing recordings, where there is a low level of activity versus a very high level of activity.  If there are infrequent spikes with a low noise level, the threshold multiplier based on the standard deviation will set the threshold for spike detection at a smaller absolute amplitude for detecting spikes. If there is a high firing rate of action potentials, or dense firing within the recording sensitivity of the electrode (increasing the background variation in voltage signal), this can increase the absolute amplitude for detecting spikes for the same standard deviation multiplier. This leads to action potentials that are the same absolute amplitude as those detected as spikes in electrodes, or recordings, with lower firing rates not being detected as action potentials in the electrodes, or recordings, with higher firing rate. To address this, the pipeline saves the absolute voltage for each electrode based on the standard deviation multiplier. If a TTX recording has been performed for the same culture, the absolute voltage for the standard deviation multiplier for each electrode can be used on the pre-TTX recordings to set a threshold based on the actual amplitude (rather than the SD).</p>
-<p>The pipeline also produces plots of the voltage traces with spikes detected marked with arrows from a random selection of electrodes. These plots allow one to quickly visually inspect the quality of the spike detection (Figure 4.1.1.1).  Sample waveforms from single electrodes for the different methods are also plotted in the pipeline. Plots with comparison of the number of spikes detected over time are also produced. The pipeline allows multiple threshold multipliers to be run and these plots facilitate comparison and selection of the threshold for spike detection for downstream analysis.  These plots are in the OutputData subfolder 1B_SpikeDetectionChecks organized by group and recording.</p>
+<p>The pipeline also produces plots of the voltage traces with spikes detected marked with arrows from a random selection of electrodes. These plots allow one to quickly visually inspect the quality of the spike detection <strong>(Figure 4.1.1.1)</strong>.  Sample waveforms from single electrodes for the different methods are also plotted in the pipeline. Plots with comparison of the number of spikes detected over time are also produced. The pipeline allows multiple threshold multipliers to be run and these plots facilitate comparison and selection of the threshold for spike detection for downstream analysis.  These plots are in the OutputData subfolder 1B_SpikeDetectionChecks organized by group and recording.</p>
+<a class="reference internal image-reference" href="_images/threshold_based_options_2.png"><img alt="_images/threshold_based_options_2.png" class="align-center" src="_images/threshold_based_options_2.png" style="width: 700px;" /></a>
+<p><strong>Figure 4.1.1.1.</strong> Evaluating spike detection at action potential scale in the pipeline. Sample 60 ms-long traces from 8 electrodes show individual spikes detected by a SD 3.5 threshold (red arrows).</p>
 <p><strong>Template-based options</strong></p>
+<a class="reference internal image-reference" href="_images/template_based_options.png"><img alt="_images/template_based_options.png" class="align-center" src="_images/template_based_options.png" style="width: 100px;" /></a>
 <p>The pipeline uses a continuous wavelet transform to identify spikes based on their similarity to selected wavelets. The user can select from built-in MATLAB wavelets (e.g., bior1.5, bior1.3, db) or custom electrode-specific wavelets created by the pipeline to detect the specific spike waveform(s) in the acquired data.  The MATLAB bior1.5 wavelet had the highest sensitivity for action potentials in our 2D primary murine cortical cultures. Bior1.3 is similar and detects many of the same spikes as well as additional unique spikes.  Although the wavelet db itself does not have a spike-like waveform, it is reasonable at detecting an additional small number of spikes with a waveform consistent with action potentials.</p>
 <p>For the custom electrode-specific wavelet method created for our pipeline, first the threshold method is run (e.g., SD 4.5). The waveforms of a random selection of 50 action potentials detected from an electrode are averaged to create a wavelet for that electrode. This electrode-specific custom wavelet is then used with the continuous wavelet transform to identify spikes in that electrode.  This method has the advantage of identifying spike waveforms for action potentials based on the characteristics of the neurons firing near the electrode and the specific properties of the individual electrodes that may affect the voltage reading. This can increase the sensitivity and specificity of the spike detection.  One essential assumption for this method is that there must be true action potentials detected with the threshold method in order for the wavelet to be based on action potentials and not detecting noise.  To address this, a minimum absolute amplitude is set for spikes to avoid creating a custom template for detecting noise.  Confirmation of spike detection with TTX is the gold standard.</p>
+<a class="reference internal image-reference" href="_images/template_based_options_2.png"><img alt="_images/template_based_options_2.png" class="align-center" src="_images/template_based_options_2.png" style="width: 600px;" /></a>
+<p><strong>Figure 4.1.1.2. Comparison of spike detection in 2D murine cortical culture before and after application of tetrodotoxin (TTX)</strong>. Left panel, Heatmap of spike frequency (spikes per second) by electrode in the spatial organization of the MEA grid show spiking by electrode before and after TTX application. Right panel, scatter plots of spike rates by electrode shows higher specificity for the template method (blue) than threshold (red) based on few false spikes detected in the presence of TTX. (Figure adapted from Dunn et al.)</p>
 <p><strong>Multi-unit spike detection</strong></p>
 <p>Microelectrode arrays detect action potentials from multiple neurons on or within a 5-10 um radius of each electrode.  The action potentials detected by the electrode from different neurons in the “multiunit” activity are likely to have different waveforms. Action potential kinetics vary due to cell-type and the distance from and orientation relative to the electrode. For example, the amplitude of action potentials from a neuron growing directly on the electrode is likely to be larger than the amplitude of a neuron growing 5 um away from the electrode.  To increase the sensitivity of spike detection for multi-unit activity, the pipeline allows the spikes detected by multiple templates to be merged.  This method identifies the peak negative amplitude for each spike and uses this to determine which spikes have been detected by multiple templates and which are unique spikes in order to avoid counting the same action potential multiple times when the spike detection is merged.  The merged method increases the sensitivity of the spike detection and accounts for the multiunit activity.</p>
 </section>
@@ -220,12 +240,18 @@
 <h2>Comparison of neuronal activity<a class="headerlink" href="#comparison-of-neuronal-activity" title="Permalink to this headline">#</a></h2>
 <section id="firing-rates">
 <h3>Firing rates<a class="headerlink" href="#firing-rates" title="Permalink to this headline">#</a></h3>
-<p>One of the most common forms of analysis performed on MEA recordings from neuronal networks are estimates of the firing rate of action potentials detected at each electrode.  The pipeline facilitates these comparisons between electrodes within each recording and between recordings by age and genotype.  The figure outputs of the pipeline include heatmaps of the firing rate in the spatial organization of the electrodes as well as raster plots showing the temporal changes in firing rates (averaged in 1 second time bins) by electrodes.  In the figures the heat maps and rasters are plotted twice, the first plot is scaled to the minimum and maximum values in that recording and the plot (below or to the right) is scaled for all recordings in the batch analysis (Figure 4.2.1).  The former allows the investigator to see the variation clearly within each recording. The latter facilitates comparison of firing rates across the whole dataset.</p>
+<p>One of the most common forms of analysis performed on MEA recordings from neuronal networks are estimates of the firing rate of action potentials detected at each electrode.  The pipeline facilitates these comparisons between electrodes within each recording and between recordings by age and genotype.  The figure outputs of the pipeline include heatmaps of the firing rate in the spatial organization of the electrodes as well as raster plots showing the temporal changes in firing rates (averaged in 1 second time bins) by electrodes.  In the figures the heat maps and rasters are plotted twice, the first plot is scaled to the minimum and maximum values in that recording and the plot (below or to the right) is scaled for all recordings in the batch analysis <strong>(Figure 4.2.1)</strong>.  The former allows the investigator to see the variation clearly within each recording. The latter facilitates comparison of firing rates across the whole dataset.</p>
+<p><strong>A.</strong></p>
+<a class="reference internal image-reference" href="_images/firing_rates.png"><img alt="_images/firing_rates.png" class="align-center" src="_images/firing_rates.png" style="width: 450px;" /></a>
+<p><strong>B.</strong></p>
+<a class="reference internal image-reference" href="_images/firing_rates_2.png"><img alt="_images/firing_rates_2.png" class="align-center" src="_images/firing_rates_2.png" style="width: 450px;" /></a>
+<p><strong>Figure 4.2.1. Firing rates for 12-minute recording plotted twice. A.</strong> Raster plots scaled for this recording (top) and the entire dataset (bottom). <strong>B.</strong> Heat map of firing rates by electrode in spatial layout of MEA grid scaled for recording (left) and entire dataset (right). The plots are in the OutputData folder in 2_NeuronalActivity2A_IndividualNetworkAnalysis.</p>
 </section>
 <section id="burst-detection">
 <h3>Burst detection<a class="headerlink" href="#burst-detection" title="Permalink to this headline">#</a></h3>
 <p>The term “burst” is used in multiple contexts within electrophysiology and within this pipeline.  Here we are concerned with two types of bursting activity in the MEA recordings.  As neurons develop in cultures, their action potential firing not only increases in frequency, but the timing of the action potentials comes in bursts.  Here burst is defined by a minimum number of action potentials occurring within a short inter-spike interval (ISI).  We do not currently have functions integrated into the pipeline for comparing bursting within individual electrodes. Instead, the pipeline currently analyzes “network bursts.” As neurons develop in culture, they not only change their pattern of firing over development, but they also fire more often when other neurons in the network are firing.  These network bursts are defined as a minimum number of action potentials occurring within a short ISI observed in a minimum number of electrodes.  Like the burst patterns observed in individual electrodes, the parameters for the network burst are chosen by the user and need to be optimized and validated to capture the temporally correlated spiking across multiple nodes in the network. There are many methods for network burst detection available.  For this pipeline, the scripts are based on the [insert] method (insert reference).</p>
 <p>Metrics included in the pipeline for group comparison of network bursts include:</p>
+<a class="reference internal image-reference" href="_images/burst_detection.png"><img alt="_images/burst_detection.png" class="align-center" src="_images/burst_detection.png" style="width: 650px;" /></a>
 </section>
 </section>
 <section id="inferring-functional-connectivity">
@@ -238,7 +264,9 @@
 </section>
 <section id="probabilistic-thresholding">
 <h3>Probabilistic thresholding<a class="headerlink" href="#probabilistic-thresholding" title="Permalink to this headline">#</a></h3>
-<p>Determining where an edge (i.e., the functional connection between neurons near two electrodes) exists is key to all downstream network analysis. While the STTC provides an estimate of the strength of connectivity, we apply probabilistic thresholding to eliminate at-chance level correlations.  To do this, circular shifts are made in the spike trains for each electrode and the STTC is calculated for multiple iterations. A threshold is set (e.g., 95th percentile of edge values for this pair of electrodes from the set of synthetic matrices). Only the pairwise correlations that are above this threshold for each putative edge are included in the adjacency matrix.  The user has the option to set the number of iterations of circular shifts (MEApipeline.m, line 99). To check that the number of iterations for the circular shifts was sufficient, a validation step is included in the second output folder titled “Edge Threshold Check”</p>
+<p>Determining where an edge (i.e., the functional connection between neurons near two electrodes) exists is key to all downstream network analysis. While the STTC provides an estimate of the strength of connectivity, we apply probabilistic thresholding to eliminate at-chance level correlations.  To do this, circular shifts are made in the spike trains for each electrode and the STTC is calculated for multiple iterations. A threshold is set (e.g., 95th percentile of edge values for this pair of electrodes from the set of synthetic matrices). Only the pairwise correlations that are above this threshold for each putative edge are included in the adjacency matrix.  The user has the option to set the number of iterations of circular shifts (MEApipeline.m, line 99). To check that the number of iterations for the circular shifts was sufficient, a validation step is included in the second output folder titled “Edge Threshold Check” <strong>(Figure 4.3.2)</strong>.</p>
+<a class="reference internal image-reference" href="_images/probabilistic_thresholding.png"><img alt="_images/probabilistic_thresholding.png" class="align-center" src="_images/probabilistic_thresholding.png" style="width: 600px;" /></a>
+<p><strong>Figure 4.3.2. Edge Threshold Check.</strong>  Example of an output figure from the pipeline run with 200 repeats of the circular shifts. The top panel showed the average threshold value (green) and coefficient of variance (black) as a function of increasing number of repeats.  Individual examples of the threshold values are shown in the middle panel. Here most of the values stabilize after 20 repeats, while 3 stabilize between 100 to 180 repeats.  The bottom panel shows the edges that will be discarded as the number of repeats increase.</p>
 </section>
 </section>
 <section id="comparison-of-network-activity">
@@ -248,11 +276,12 @@
 <section id="graph-theory-and-other-network-metrics">
 <h3>Graph theory and other network metrics<a class="headerlink" href="#graph-theory-and-other-network-metrics" title="Permalink to this headline">#</a></h3>
 <p>Graph theoretical approaches are commonly used at the whole brain level, and less commonly at the cellular scale, to characterise network pathology, as well as uncover systems-level changes associated with developmental processes (Bassett &amp; Bullmore, 2009). The following network features are currently included in the pipeline. Metrics which describe individual nodes (yellow) and entire network (white boxes).</p>
-<div class="table-wrapper"><table class="colwidths-given docutils align-default" id="id1">
+<div class="table-wrapper colwidths-given docutils container" id="id1">
+<table class="colwidths-given docutils align-default" id="id1">
 <caption><span class="caption-text"><strong>Basic features of the network topology</strong></span><a class="headerlink" href="#id1" title="Permalink to this table">#</a></caption>
 <colgroup>
-<col style="width: 33%"/>
-<col style="width: 67%"/>
+<col style="width: 33%" />
+<col style="width: 67%" />
 </colgroup>
 <thead>
 <tr class="row-odd"><th class="head"><p>Feature</p></th>
@@ -261,7 +290,7 @@
 </thead>
 <tbody>
 <tr class="row-even"><td><figure class="align-default" id="id2">
-<img alt="_images/ND.png" src="_images/ND.png"/>
+<img alt="_images/ND.png" src="_images/ND.png" />
 <figcaption>
 <p><span class="caption-text">Node degree</span><a class="headerlink" href="#id2" title="Permalink to this image">#</a></p>
 </figcaption>
@@ -270,7 +299,7 @@
 <td><p>Number of connections (edges) with other nodes in the network.  Highly connected nodes may have more influence on network activity depending on their strength of connectivity and their placement in the network.</p></td>
 </tr>
 <tr class="row-odd"><td><figure class="align-default" id="id3">
-<img alt="_images/EW.png" src="_images/EW.png"/>
+<img alt="_images/EW.png" src="_images/EW.png" />
 <figcaption>
 <p><span class="caption-text">Edge weight</span><a class="headerlink" href="#id3" title="Permalink to this image">#</a></p>
 </figcaption>
@@ -285,7 +314,7 @@
 <td><p>Number of active electrodes (where activity is defined by a minimum number or frequency of spikes detected).</p></td>
 </tr>
 <tr class="row-even"><td><figure class="align-default" id="id4">
-<img alt="_images/Dens.png" src="_images/Dens.png"/>
+<img alt="_images/Dens.png" src="_images/Dens.png" />
 <figcaption>
 <p><span class="caption-text">Network density</span><a class="headerlink" href="#id4" title="Permalink to this image">#</a></p>
 </figcaption>
@@ -294,12 +323,14 @@
 <td><p>Number of edges as a proportion (%) of the total possible edges that can be formed in the network.</p></td>
 </tr>
 </tbody>
-</table></div>
-<div class="table-wrapper"><table class="colwidths-given docutils align-default" id="id5">
+</table>
+</div>
+<div class="table-wrapper colwidths-given docutils container" id="id5">
+<table class="colwidths-given docutils align-default" id="id5">
 <caption><span class="caption-text"><strong>Local processing in the network</strong></span><a class="headerlink" href="#id5" title="Permalink to this table">#</a></caption>
 <colgroup>
-<col style="width: 33%"/>
-<col style="width: 67%"/>
+<col style="width: 33%" />
+<col style="width: 67%" />
 </colgroup>
 <thead>
 <tr class="row-odd"><th class="head"><p>Feature</p></th>
@@ -308,7 +339,7 @@
 </thead>
 <tbody>
 <tr class="row-even"><td><figure class="align-default" id="id6">
-<img alt="_images/CC.png" src="_images/CC.png"/>
+<img alt="_images/CC.png" src="_images/CC.png" />
 <figcaption>
 <p><span class="caption-text">Clustering coefficient</span><a class="headerlink" href="#id6" title="Permalink to this image">#</a></p>
 </figcaption>
@@ -317,7 +348,7 @@
 <td><p>Probability that two nodes each directly connected to a third node will also be directly linked to each other</p></td>
 </tr>
 <tr class="row-odd"><td><figure class="align-default" id="id7">
-<img alt="_images/nMod.png" src="_images/nMod.png"/>
+<img alt="_images/nMod.png" src="_images/nMod.png" />
 <figcaption>
 <p><span class="caption-text">Number of modules</span><a class="headerlink" href="#id7" title="Permalink to this image">#</a></p>
 </figcaption>
@@ -338,12 +369,14 @@
 <td><p>Efficiency defined at the level of individual nodes. The inverse of path length of the sub-graph generated by removing the index node and all its incident edges. See Latora &amp; Marchiori, 2001.N.B. To aid in the interpretation of this metric, it is labeled “Local connectivity” in the pipeline.</p></td>
 </tr>
 </tbody>
-</table></div>
-<div class="table-wrapper"><table class="colwidths-given docutils align-default" id="id8">
+</table>
+</div>
+<div class="table-wrapper colwidths-given docutils container" id="id8">
+<table class="colwidths-given docutils align-default" id="id8">
 <caption><span class="caption-text"><strong>Global processing in the network</strong></span><a class="headerlink" href="#id8" title="Permalink to this table">#</a></caption>
 <colgroup>
-<col style="width: 33%"/>
-<col style="width: 67%"/>
+<col style="width: 33%" />
+<col style="width: 67%" />
 </colgroup>
 <thead>
 <tr class="row-odd"><th class="head"><p>Feature</p></th>
@@ -367,12 +400,14 @@
 <td><p>Network topology with clusters of nodes connected to other clusters via hub nodes that promotes both local and global information processing.  Calculated as the midpoint (0) between a lattice (-1) and random (1) network structure.</p></td>
 </tr>
 </tbody>
-</table></div>
-<div class="table-wrapper"><table class="colwidths-given docutils align-default" id="id9">
+</table>
+</div>
+<div class="table-wrapper colwidths-given docutils container" id="id9">
+<table class="colwidths-given docutils align-default" id="id9">
 <caption><span class="caption-text"><strong>Role for individual nodes in the network</strong></span><a class="headerlink" href="#id9" title="Permalink to this table">#</a></caption>
 <colgroup>
-<col style="width: 33%"/>
-<col style="width: 67%"/>
+<col style="width: 33%" />
+<col style="width: 67%" />
 </colgroup>
 <thead>
 <tr class="row-odd"><th class="head"><p>Feature</p></th>
@@ -387,11 +422,17 @@
 <td><p>Hubs are nodes with high centrality in the network. Nodes are ranked based on: node strength, betweenness centrality, local efficiency, and participation coefficient. Hubs rank in the top 10% of nodes in 3 or 4 of these features. See Schroeter et al., 2015.</p></td>
 </tr>
 </tbody>
-</table></div>
+</table>
+</div>
 </section>
 <section id="node-cartography">
 <h3>Node cartography<a class="headerlink" href="#node-cartography" title="Permalink to this headline">#</a></h3>
-<p>To our knowledge, this is the first application of node cartography (Guimerà &amp; Nunes Amaral, 2005) to the analysis of brain networks. These cartographic representations enable comparison of nodal roles, assigned according to their intra- and inter-module connectivity, over development and between different networks. These roles are determined to a large extent by two key metrics: within-module degree z-score (z) and participation coefficient (P) (Figure 4.4.2A). Together, these describe connectivity of a node within and outside of its module. Six roles are defined according to the region occupied in the z, P parameter space (Figure 4.4.2B).</p>
+<p>To our knowledge, this is the first application of node cartography (Guimerà &amp; Nunes Amaral, 2005) to the analysis of brain networks. These cartographic representations enable comparison of nodal roles, assigned according to their intra- and inter-module connectivity, over development and between different networks. These roles are determined to a large extent by two key metrics: within-module degree z-score (z) and participation coefficient (P) <strong>(Figure 4.4.2A)</strong>. Together, these describe connectivity of a node within and outside of its module. Six roles are defined according to the region occupied in the z, P parameter space <strong>(Figure 4.4.2B)</strong>.</p>
+<p><strong>A.</strong></p>
+<a class="reference internal image-reference" href="_images/node_cartography_2.png"><img alt="_images/node_cartography_2.png" class="align-center" src="_images/node_cartography_2.png" style="width: 500px;" /></a>
+<p><strong>B.</strong></p>
+<a class="reference internal image-reference" href="_images/node_cartography_3.png"><img alt="_images/node_cartography_3.png" class="align-center" src="_images/node_cartography_3.png" style="width: 500px;" /></a>
+<p><strong>Figure 4.4.2. Node cartography for neuronal networks.  A.</strong> Roles for individual nodes in the network are determined based on the within-module degree z-score and participation coefficient based on node cartography previously applied to metabolic and whole-brain networks.  The boundary line for the within-in module degree z-score is automatically scaled for each dataset based on the landscape density analysis.  <strong>B.</strong> Diagram illustrating the 7 types of node roles.</p>
 </section>
 <section id="comparing-across-ages-and-groups">
 <h3>Comparing across ages and groups<a class="headerlink" href="#comparing-across-ages-and-groups" title="Permalink to this headline">#</a></h3>
@@ -404,23 +445,29 @@
 <h3>Mean node degree<a class="headerlink" href="#mean-node-degree" title="Permalink to this headline">#</a></h3>
 <p>The code to calculate this is in <code class="docutils literal notranslate"><span class="pre">findNodeDegEdgeWeight.m</span></code>. Referred to in code as <code class="docutils literal notranslate"><span class="pre">ND</span></code></p>
 <p>Let <span class="math notranslate nohighlight">\(\mathbf{A} \in \mathbb{R}^{n \times n}\)</span> be the adjacency matrix of the network (we assume including self connections) and let <span class="math notranslate nohighlight">\(\mathbf{I}\)</span> be the identity matrix. Let <span class="math notranslate nohighlight">\(T \in [0, 1]\)</span> be the edge threshold we have chosen. We first remove the self-connections by subtracting the identity matrix</p>
-<div class="math-wrapper"><div class="math notranslate nohighlight">
+<div class="math-wrapper docutils container">
+<div class="math notranslate nohighlight">
 \[\begin{equation}
 \mathbf{A}^{(e)} = \mathbf{A} - \mathbf{I}
-\end{equation}\]</div></div>
+\end{equation}\]</div>
+</div>
 <p>We then use the threshold to create a binarized adjacency matrix <span class="math notranslate nohighlight">\(\mathbf{B}\)</span></p>
-<div class="math-wrapper"><div class="math notranslate nohighlight">
+<div class="math-wrapper docutils container">
+<div class="math notranslate nohighlight">
 \[\begin{split}\begin{equation}
 \mathbf{B}_{i, j} \begin{cases}
 0 &amp;  \mathbf{B}_{i, j} &lt; T \\
 1 &amp;  \mathbf{B}_{i, j} \geq T
 \end{cases}
-\end{equation}\end{split}\]</div></div>
+\end{equation}\end{split}\]</div>
+</div>
 <p>The mean node degree is the mean of the values in the binarized adjacency matrix</p>
-<div class="math-wrapper"><div class="math notranslate nohighlight">
+<div class="math-wrapper docutils container">
+<div class="math notranslate nohighlight">
 \[\begin{equation}
 N_D = \frac{1}{(n \times n)}\sum_{i, j} \mathbf{B}_{i, j}
-\end{equation}\]</div></div>
+\end{equation}\]</div>
+</div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>Currently this thresholding uses the raw adjancency metric values, which can range
@@ -435,12 +482,12 @@ from -1 to 1, so negative weights (correlations) are ignored.</p>
       <footer>
         
         <div class="related-pages">
-          <a class="next-page" href="how-to-contribute.html">
+          <a class="next-page" href="frequently-asked-questions.html">
               <div class="page-info">
                 <div class="context">
                   <span>Next</span>
                 </div>
-                <div class="title">Contributing to the project</div>
+                <div class="title">Frequently asked questions</div>
               </div>
               <svg><use href="#svg-arrow-right"></use></svg>
             </a>
@@ -459,7 +506,7 @@ from -1 to 1, so negative weights (correlations) are ignored.</p>
         <div class="bottom-of-page">
           <div class="left-details">
             <div class="copyright">
-                Copyright &#169; 2022, Timothy Sit, Rachael Feord, Alexander Dunn, Jeremy Chabros
+                Copyright &#169; 2022, Timothy Sit, Rachael Feord, Alexander Dunn, Jeremy Chabros, Mierau SB and SAND group members
             </div>
             Made with <a href="https://www.sphinx-doc.org/">Sphinx</a> and <a class="muted-link" href="https://pradyunsg.me">@pradyunsg</a>'s
             
@@ -529,6 +576,9 @@ from -1 to 1, so negative weights (correlations) are ignored.</p>
     <script src="_static/underscore.js"></script>
     <script src="_static/doctools.js"></script>
     <script src="_static/scripts/furo.js"></script>
+    <script src="_static/js/hoverxref.js"></script>
+    <script src="_static/js/tooltipster.bundle.min.js"></script>
+    <script src="_static/js/micromodal.min.js"></script>
     <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     </body>
 </html>

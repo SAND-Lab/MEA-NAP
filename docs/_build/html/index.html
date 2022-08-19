@@ -5,10 +5,18 @@
     <meta name="color-scheme" content="light dark"><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
 <link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Introduction" href="introduction.html" />
 
-    <meta name="generator" content="sphinx-4.2.0, furo 2022.04.07"/>
-        <title>MEA pipeline 0.0.0 documentation</title>
+    <meta name="generator" content="sphinx-4.2.0, furo 2022.06.21"/>
+        <title>MEA pipeline 1.0.0 documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
-    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?digest=68f4518137b9aefe99b631505a2064c3c42c9852" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?digest=40978830699223671f4072448e654b5958f38b89" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster.custom.css" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster.bundle.min.css" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-shadow.min.css" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-punk.min.css" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-noir.min.css" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-light.min.css" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-borderless.min.css" />
+    <link rel="stylesheet" type="text/css" href="_static/css/micromodal.css" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?digest=30d1aed668e5c3a91c3e3bf6a60b675221979f0e" />
     
     
@@ -123,7 +131,7 @@
       </label>
     </div>
     <div class="header-center">
-      <a href="#"><div class="brand">MEA pipeline 0.0.0 documentation</div></a>
+      <a href="#"><div class="brand">MEA pipeline 1.0.0 documentation</div></a>
     </div>
     <div class="header-right">
       <div class="theme-toggle-container theme-toggle-header">
@@ -134,7 +142,7 @@
           <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
         </button>
       </div>
-      <label class="toc-overlay-icon toc-header-icon" for="__toc">
+      <label class="toc-overlay-icon toc-header-icon no-toc" for="__toc">
         <div class="visually-hidden">Toggle table of contents sidebar</div>
         <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
       </label>
@@ -146,7 +154,7 @@
       <div class="sidebar-sticky"><a class="sidebar-brand" href="#">
   
   
-  <span class="sidebar-brand-text">MEA pipeline 0.0.0 documentation</span>
+  <span class="sidebar-brand-text">MEA pipeline 1.0.0 documentation</span>
   
 </a><form class="sidebar-search-container" method="get" action="search.html" role="search">
   <input class="sidebar-search" placeholder=Search name="q" aria-label="Search">
@@ -160,7 +168,9 @@
 <li class="toctree-l1"><a class="reference internal" href="pipeline-steps.html">Pipeline steps</a></li>
 <li class="toctree-l1"><a class="reference internal" href="system-requirements.html">System Requirements</a></li>
 <li class="toctree-l1"><a class="reference internal" href="methods.html">Methods for Network Activity Analysis</a></li>
+<li class="toctree-l1"><a class="reference internal" href="frequently-asked-questions.html">Frequently asked questions</a></li>
 <li class="toctree-l1"><a class="reference internal" href="how-to-contribute.html">Contributing to the project</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sources.html">Code sources</a></li>
 </ul>
 
 </div>
@@ -179,7 +189,8 @@
           </svg>
           <span>Back to top</span>
         </a>
-        <div class="content-icon-container"><div class="theme-toggle-container theme-toggle-content">
+        <div class="content-icon-container">
+          <div class="theme-toggle-container theme-toggle-content">
             <button class="theme-toggle">
               <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
               <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
@@ -187,7 +198,7 @@
               <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
             </button>
           </div>
-          <label class="toc-overlay-icon toc-content-icon" for="__toc">
+          <label class="toc-overlay-icon toc-content-icon no-toc" for="__toc">
             <div class="visually-hidden">Toggle table of contents sidebar</div>
             <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
           </label>
@@ -195,7 +206,7 @@
         <article role="main">
           <section id="welcome-to-mea-pipeline-s-documentation">
 <h1>Welcome to MEA pipeline’s documentation!<a class="headerlink" href="#welcome-to-mea-pipeline-s-documentation" title="Permalink to this headline">#</a></h1>
-<a class="reference internal image-reference" href="_images/MEApipelineSteps.svg"><img alt="_images/MEApipelineSteps.svg" src="_images/MEApipelineSteps.svg" width="800"/></a>
+<a class="reference internal image-reference" href="_images/MEApipelineSteps.svg"><img alt="_images/MEApipelineSteps.svg" src="_images/MEApipelineSteps.svg" width="800" /></a>
 <div class="toctree-wrapper compound">
 <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
 <ul>
@@ -208,11 +219,13 @@
 <li class="toctree-l1"><a class="reference internal" href="pipeline-steps.html">Pipeline steps</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="pipeline-steps.html#overview-of-the-network-analysis-pipeline">Overview of the network analysis pipeline</a></li>
 <li class="toctree-l2"><a class="reference internal" href="pipeline-steps.html#starting-the-pipeline">Starting the pipeline</a></li>
+<li class="toctree-l2"><a class="reference internal" href="pipeline-steps.html#pipeline-settings">Pipeline settings</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="system-requirements.html">System Requirements</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="system-requirements.html#system-requirements-and-installing-matlab">System requirements and installing MATLAB</a></li>
 <li class="toctree-l2"><a class="reference internal" href="system-requirements.html#preparing-mea-data-for-the-pipeline">Preparing MEA data for the pipeline</a></li>
+<li class="toctree-l2"><a class="reference internal" href="system-requirements.html#beginner-s-guide-to-matlab">Beginner’s guide to MATLAB</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="methods.html">Methods for Network Activity Analysis</a><ul>
@@ -223,12 +236,17 @@
 <li class="toctree-l2"><a class="reference internal" href="methods.html#network-metrics-details">Network metrics details</a></li>
 </ul>
 </li>
+<li class="toctree-l1"><a class="reference internal" href="frequently-asked-questions.html">Frequently asked questions</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="frequently-asked-questions.html#how-do-i-make-sure-i-have-the-correct-latest-version-of-the-pipeline">How do I make sure I have the correct / latest version of the pipeline?</a></li>
+</ul>
+</li>
 <li class="toctree-l1"><a class="reference internal" href="how-to-contribute.html">Contributing to the project</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="how-to-contribute.html#documentation">Documentation</a></li>
 <li class="toctree-l2"><a class="reference internal" href="how-to-contribute.html#code">Code</a></li>
 <li class="toctree-l2"><a class="reference internal" href="how-to-contribute.html#suggestions-troubleshooting">Suggestions / Troubleshooting</a></li>
 </ul>
 </li>
+<li class="toctree-l1"><a class="reference internal" href="sources.html">Code sources</a></li>
 </ul>
 </div>
 </section>
@@ -260,7 +278,7 @@
         <div class="bottom-of-page">
           <div class="left-details">
             <div class="copyright">
-                Copyright &#169; 2022, Timothy Sit, Rachael Feord, Alexander Dunn, Jeremy Chabros
+                Copyright &#169; 2022, Timothy Sit, Rachael Feord, Alexander Dunn, Jeremy Chabros, Mierau SB and SAND group members
             </div>
             Made with <a href="https://www.sphinx-doc.org/">Sphinx</a> and <a class="muted-link" href="https://pradyunsg.me">@pradyunsg</a>'s
             
@@ -276,25 +294,8 @@
         
       </footer>
     </div>
-    <aside class="toc-drawer">
+    <aside class="toc-drawer no-toc">
       
-      
-      <div class="toc-sticky toc-scroll">
-        <div class="toc-title-container">
-          <span class="toc-title">
-            Contents
-          </span>
-        </div>
-        <div class="toc-tree-container">
-          <div class="toc-tree">
-            <ul>
-<li><a class="reference internal" href="#">Welcome to MEA pipeline’s documentation!</a></li>
-<li><a class="reference internal" href="#indices-and-tables">Indices and tables</a></li>
-</ul>
-
-          </div>
-        </div>
-      </div>
       
       
     </aside>
@@ -304,5 +305,9 @@
     <script src="_static/underscore.js"></script>
     <script src="_static/doctools.js"></script>
     <script src="_static/scripts/furo.js"></script>
+    <script src="_static/js/hoverxref.js"></script>
+    <script src="_static/js/tooltipster.bundle.min.js"></script>
+    <script src="_static/js/micromodal.min.js"></script>
+    <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     </body>
 </html>
