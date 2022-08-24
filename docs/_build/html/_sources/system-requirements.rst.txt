@@ -39,6 +39,9 @@ Brain Connectivity Toolbox - This toolbox must be saved to the same folder as th
 
 For assistance, please see our new MATLAB users help guide.
 
+
+.. _preparing_data_for_pipeline:
+
 Preparing MEA data for the pipeline
 ----------------------------------------------------------
 
@@ -52,6 +55,37 @@ Converting raw files acquired from MEA system to MATLAB
 - For Multi-channel Systems (MCS) MEA2100 recordings made with MCRack, we use the MC_DataTool software (MCS) to convert the ``*.mcd`` files to ``*.raw`` and the ``*.raw`` files to ``*.mat`` files.  The network analysis pipeline was created to first use on these ``*.mat`` files. 
 - For Axion Maestro recordings from multiwell MEA plates, we use the AxIS MATLAB functions provided by Axion to convert the ``*.raw`` files for the whole plates into ``*.mat`` files and a custom MATLAB function (provided here) to create ``*.mat`` files for each MEA in the plate (e.g., 6, 48). The well is indicated by the suffix (e.g., “..._A1”, “..._A2”)
 - N.B. All of the ``*.mat`` files (raw or spikes detected) that will be analyzed and compared in the pipeline should be saved in the same folder. 
+
+
+
+Step-by-step guide to convert files from multichannel acquisition system to .mat files 
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+1. Open MC_DataTool
+2. Select File - Open Multiple
+3. Select files of interest
+4. Click "bin"
+5. Click "All"
+6. Make sure "Write header" and "Signed 16bit" are checked in lower right
+7. Click save
+8. When done, click close
+9. Open matlab
+10. Add analysis pipeline code to path
+11. Navigate in matlab to the folder containing the '.mcd' files you want to convert
+12. In the matlab command window, type ``MEAbatchConvert`` and press return to run 
+
+
+Step-by-step guide to convert files from MEA Axion Maestro acquisition system to .mat files (rawConvert.m to be released)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+1. Save .raw files from MEA Axion Maeastro system to one folder
+2. Copy directory path of folder containing .raw files
+3. Check that rawConvert.m and fillBatchFile.m are installed and saved in same folder as AxIS MATLAB Files
+4. Open rawConvert.m
+5. Fill out user parameters in Rawconvert.m according to instructions provided in rawConvert.m
+6. Click run
+7. When Rawconvert.m has successfully run, open folder where .raw files were intially stored
+8. Navigate through folder to check that all .mat files have been successfully created and saved
 
 
 Converting spike detection files from other sources to a spike matrix for input to this pipeline
@@ -75,3 +109,18 @@ Spike times are processed to create a spike matrix.
      - binary matrix with length equal to the total number of recording frames representing detected spike events across all electrodes
 
 The ``spikeTimes`` variable for each recording is stored in the ‘ExperimentMatFiles’ folder (in the OutputData folder of the pipeline for each recording). Spike matrices are large arrays, even for short recording durations, due to the high sampling frequency of MEA systems. Thus, the spike matrices are not stored as outputs of the pipeline, nor are they visible as Workspace variables.  The spike matrix can easily be visualised as a raster plot (see for individual recording folders in the OutputData folder \2_NeuronalActivity\2A_Individual…\). Spike counts are binned per second and plotted as firing rates (Hz) in a heatmap.
+
+
+
+
+Beginner's guide to MATLAB
+-----------------------------------------
+
+Desktop layout
+^^^^^^^^^^^^^^^^^^^
+
+
+The default desktop layout looks like this:
+
+
+Current folder toolbar: The pathway to the current folder is displayed in the “Current Folder” toolbar (pink arrow). The folders and files contained in this folder are displayed on the left-hand side in the Current Folder panel (pink arrow). Select the “Pipeline x.x” folder (see figure below).

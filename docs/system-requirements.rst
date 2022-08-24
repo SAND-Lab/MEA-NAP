@@ -75,12 +75,19 @@ Step-by-step guide to convert files from multichannel acquisition system to .mat
 12. In the matlab command window, type ``MEAbatchConvert`` and press return to run 
 
 
-Temporary Axion section to be written 
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Step-by-step guide to convert files from MEA Axion Maestro acquisition system to .mat files (rawConvert.m to be released)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+1. Save .raw files from MEA Axion Maeastro system to one folder
+2. Copy directory path of folder containing .raw files
+3. Check that rawConvert.m and fillBatchFile.m are installed and saved in same folder as AxIS MATLAB Files
+4. Open rawConvert.m
+5. Fill out user parameters in Rawconvert.m according to instructions provided in rawConvert.m
+6. Click run
+7. When Rawconvert.m has successfully run, open folder where .raw files were intially stored
+8. Navigate through folder to check that all .mat files have been successfully created and saved
 
 
-
- 
 Converting spike detection files from other sources to a spike matrix for input to this pipeline
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 

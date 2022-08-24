@@ -3,12 +3,20 @@
   <head><meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width,initial-scale=1"/>
     <meta name="color-scheme" content="light dark"><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
-<link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="prev" title="Pipeline steps" href="pipeline-steps.html" />
+<link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Methods for Network Activity Analysis" href="methods.html" /><link rel="prev" title="Pipeline steps" href="pipeline-steps.html" />
 
-    <meta name="generator" content="sphinx-4.2.0, furo 2022.04.07"/>
-        <title>System Requirements - MEA pipeline 0.0.0 documentation</title>
+    <meta name="generator" content="sphinx-4.2.0, furo 2022.06.21"/>
+        <title>System Requirements - MEA pipeline 1.0.0 documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
-    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?digest=68f4518137b9aefe99b631505a2064c3c42c9852" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?digest=40978830699223671f4072448e654b5958f38b89" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster.custom.css" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster.bundle.min.css" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-shadow.min.css" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-punk.min.css" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-noir.min.css" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-light.min.css" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-borderless.min.css" />
+    <link rel="stylesheet" type="text/css" href="_static/css/micromodal.css" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?digest=30d1aed668e5c3a91c3e3bf6a60b675221979f0e" />
     
     
@@ -123,7 +131,7 @@
       </label>
     </div>
     <div class="header-center">
-      <a href="index.html"><div class="brand">MEA pipeline 0.0.0 documentation</div></a>
+      <a href="index.html"><div class="brand">MEA pipeline 1.0.0 documentation</div></a>
     </div>
     <div class="header-right">
       <div class="theme-toggle-container theme-toggle-header">
@@ -146,7 +154,7 @@
       <div class="sidebar-sticky"><a class="sidebar-brand" href="index.html">
   
   
-  <span class="sidebar-brand-text">MEA pipeline 0.0.0 documentation</span>
+  <span class="sidebar-brand-text">MEA pipeline 1.0.0 documentation</span>
   
 </a><form class="sidebar-search-container" method="get" action="search.html" role="search">
   <input class="sidebar-search" placeholder=Search name="q" aria-label="Search">
@@ -159,6 +167,10 @@
 <li class="toctree-l1"><a class="reference internal" href="introduction.html">Introduction</a></li>
 <li class="toctree-l1"><a class="reference internal" href="pipeline-steps.html">Pipeline steps</a></li>
 <li class="toctree-l1 current current-page"><a class="current reference internal" href="#">System Requirements</a></li>
+<li class="toctree-l1"><a class="reference internal" href="methods.html">Methods for Network Activity Analysis</a></li>
+<li class="toctree-l1"><a class="reference internal" href="frequently-asked-questions.html">Frequently asked questions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="how-to-contribute.html">Contributing to the project</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sources.html">Code sources</a></li>
 </ul>
 
 </div>
@@ -177,7 +189,8 @@
           </svg>
           <span>Back to top</span>
         </a>
-        <div class="content-icon-container"><div class="theme-toggle-container theme-toggle-content">
+        <div class="content-icon-container">
+          <div class="theme-toggle-container theme-toggle-content">
             <button class="theme-toggle">
               <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
               <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
@@ -222,7 +235,7 @@ Curve Fitting Toolbox (for the calcium imaging pipeline)</p>
 </section>
 </section>
 <section id="preparing-mea-data-for-the-pipeline">
-<h2>Preparing MEA data for the pipeline<a class="headerlink" href="#preparing-mea-data-for-the-pipeline" title="Permalink to this headline">#</a></h2>
+<span id="preparing-data-for-pipeline"></span><h2>Preparing MEA data for the pipeline<a class="headerlink" href="#preparing-mea-data-for-the-pipeline" title="Permalink to this headline">#</a></h2>
 <p>This pipeline currently has been tuned for single MEA recordings made on the Multi-channel Systems MEA2100 60-channel MEA system and for multi-well plates using the Axion Maestro MEA System.  Users wishing to adapt data recordings acquired with other MEA systems may find the more extensive documentation for more experienced MATLAB users helpful.</p>
 <section id="converting-raw-files-acquired-from-mea-system-to-matlab">
 <h3>Converting raw files acquired from MEA system to MATLAB<a class="headerlink" href="#converting-raw-files-acquired-from-mea-system-to-matlab" title="Permalink to this headline">#</a></h3>
@@ -232,14 +245,45 @@ Curve Fitting Toolbox (for the calcium imaging pipeline)</p>
 <li><p>N.B. All of the <code class="docutils literal notranslate"><span class="pre">*.mat</span></code> files (raw or spikes detected) that will be analyzed and compared in the pipeline should be saved in the same folder.</p></li>
 </ul>
 </section>
+<section id="step-by-step-guide-to-convert-files-from-multichannel-acquisition-system-to-mat-files">
+<h3>Step-by-step guide to convert files from multichannel acquisition system to .mat files<a class="headerlink" href="#step-by-step-guide-to-convert-files-from-multichannel-acquisition-system-to-mat-files" title="Permalink to this headline">#</a></h3>
+<ol class="arabic simple">
+<li><p>Open MC_DataTool</p></li>
+<li><p>Select File - Open Multiple</p></li>
+<li><p>Select files of interest</p></li>
+<li><p>Click “bin”</p></li>
+<li><p>Click “All”</p></li>
+<li><p>Make sure “Write header” and “Signed 16bit” are checked in lower right</p></li>
+<li><p>Click save</p></li>
+<li><p>When done, click close</p></li>
+<li><p>Open matlab</p></li>
+<li><p>Add analysis pipeline code to path</p></li>
+<li><p>Navigate in matlab to the folder containing the ‘.mcd’ files you want to convert</p></li>
+<li><p>In the matlab command window, type <code class="docutils literal notranslate"><span class="pre">MEAbatchConvert</span></code> and press return to run</p></li>
+</ol>
+</section>
+<section id="step-by-step-guide-to-convert-files-from-mea-axion-maestro-acquisition-system-to-mat-files-rawconvert-m-to-be-released">
+<h3>Step-by-step guide to convert files from MEA Axion Maestro acquisition system to .mat files (rawConvert.m to be released)<a class="headerlink" href="#step-by-step-guide-to-convert-files-from-mea-axion-maestro-acquisition-system-to-mat-files-rawconvert-m-to-be-released" title="Permalink to this headline">#</a></h3>
+<ol class="arabic simple">
+<li><p>Save .raw files from MEA Axion Maeastro system to one folder</p></li>
+<li><p>Copy directory path of folder containing .raw files</p></li>
+<li><p>Check that rawConvert.m and fillBatchFile.m are installed and saved in same folder as AxIS MATLAB Files</p></li>
+<li><p>Open rawConvert.m</p></li>
+<li><p>Fill out user parameters in Rawconvert.m according to instructions provided in rawConvert.m</p></li>
+<li><p>Click run</p></li>
+<li><p>When Rawconvert.m has successfully run, open folder where .raw files were intially stored</p></li>
+<li><p>Navigate through folder to check that all .mat files have been successfully created and saved</p></li>
+</ol>
+</section>
 <section id="converting-spike-detection-files-from-other-sources-to-a-spike-matrix-for-input-to-this-pipeline">
 <h3>Converting spike detection files from other sources to a spike matrix for input to this pipeline<a class="headerlink" href="#converting-spike-detection-files-from-other-sources-to-a-spike-matrix-for-input-to-this-pipeline" title="Permalink to this headline">#</a></h3>
 <p>When microelectrode array (MEA) time series data are directly inputted into the pipeline, they are handled on the assumption each column represents the voltage difference (in microvolts) from a single electrode and each row represents the frames of recording (frame number can be converted to time based on the data acquisition rate of the recording).</p>
 <p>Spike times are processed to create a spike matrix.</p>
-<div class="table-wrapper"><table class="colwidths-given docutils align-default">
+<div class="table-wrapper colwidths-given docutils container">
+<table class="colwidths-given docutils align-default">
 <colgroup>
-<col style="width: 33%"/>
-<col style="width: 67%"/>
+<col style="width: 33%" />
+<col style="width: 67%" />
 </colgroup>
 <thead>
 <tr class="row-odd"><th class="head"><p>Variable</p></th>
@@ -254,8 +298,17 @@ Curve Fitting Toolbox (for the calcium imaging pipeline)</p>
 <td><p>binary matrix with length equal to the total number of recording frames representing detected spike events across all electrodes</p></td>
 </tr>
 </tbody>
-</table></div>
+</table>
+</div>
 <p>The <code class="docutils literal notranslate"><span class="pre">spikeTimes</span></code> variable for each recording is stored in the ‘ExperimentMatFiles’ folder (in the OutputData folder of the pipeline for each recording). Spike matrices are large arrays, even for short recording durations, due to the high sampling frequency of MEA systems. Thus, the spike matrices are not stored as outputs of the pipeline, nor are they visible as Workspace variables.  The spike matrix can easily be visualised as a raster plot (see for individual recording folders in the OutputData folder 2_NeuronalActivity2A_Individual…). Spike counts are binned per second and plotted as firing rates (Hz) in a heatmap.</p>
+</section>
+</section>
+<section id="beginner-s-guide-to-matlab">
+<h2>Beginner’s guide to MATLAB<a class="headerlink" href="#beginner-s-guide-to-matlab" title="Permalink to this headline">#</a></h2>
+<section id="desktop-layout">
+<h3>Desktop layout<a class="headerlink" href="#desktop-layout" title="Permalink to this headline">#</a></h3>
+<p>The default desktop layout looks like this:</p>
+<p>Current folder toolbar: The pathway to the current folder is displayed in the “Current Folder” toolbar (pink arrow). The folders and files contained in this folder are displayed on the left-hand side in the Current Folder panel (pink arrow). Select the “Pipeline x.x” folder (see figure below).</p>
 </section>
 </section>
 </section>
@@ -265,7 +318,15 @@ Curve Fitting Toolbox (for the calcium imaging pipeline)</p>
       <footer>
         
         <div class="related-pages">
-          
+          <a class="next-page" href="methods.html">
+              <div class="page-info">
+                <div class="context">
+                  <span>Next</span>
+                </div>
+                <div class="title">Methods for Network Activity Analysis</div>
+              </div>
+              <svg><use href="#svg-arrow-right"></use></svg>
+            </a>
           <a class="prev-page" href="pipeline-steps.html">
               <svg><use href="#svg-arrow-right"></use></svg>
               <div class="page-info">
@@ -281,7 +342,7 @@ Curve Fitting Toolbox (for the calcium imaging pipeline)</p>
         <div class="bottom-of-page">
           <div class="left-details">
             <div class="copyright">
-                Copyright &#169; 2022, Timothy Sit, Rachael Feord, Alexander Dunn, Jeremy Chabros
+                Copyright &#169; 2022, Timothy Sit, Rachael Feord, Alexander Dunn, Jeremy Chabros, Mierau SB and SAND group members
             </div>
             Made with <a href="https://www.sphinx-doc.org/">Sphinx</a> and <a class="muted-link" href="https://pradyunsg.me">@pradyunsg</a>'s
             
@@ -318,7 +379,13 @@ Curve Fitting Toolbox (for the calcium imaging pipeline)</p>
 </li>
 <li><a class="reference internal" href="#preparing-mea-data-for-the-pipeline">Preparing MEA data for the pipeline</a><ul>
 <li><a class="reference internal" href="#converting-raw-files-acquired-from-mea-system-to-matlab">Converting raw files acquired from MEA system to MATLAB</a></li>
+<li><a class="reference internal" href="#step-by-step-guide-to-convert-files-from-multichannel-acquisition-system-to-mat-files">Step-by-step guide to convert files from multichannel acquisition system to .mat files</a></li>
+<li><a class="reference internal" href="#step-by-step-guide-to-convert-files-from-mea-axion-maestro-acquisition-system-to-mat-files-rawconvert-m-to-be-released">Step-by-step guide to convert files from MEA Axion Maestro acquisition system to .mat files (rawConvert.m to be released)</a></li>
 <li><a class="reference internal" href="#converting-spike-detection-files-from-other-sources-to-a-spike-matrix-for-input-to-this-pipeline">Converting spike detection files from other sources to a spike matrix for input to this pipeline</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#beginner-s-guide-to-matlab">Beginner’s guide to MATLAB</a><ul>
+<li><a class="reference internal" href="#desktop-layout">Desktop layout</a></li>
 </ul>
 </li>
 </ul>
@@ -337,5 +404,9 @@ Curve Fitting Toolbox (for the calcium imaging pipeline)</p>
     <script src="_static/underscore.js"></script>
     <script src="_static/doctools.js"></script>
     <script src="_static/scripts/furo.js"></script>
+    <script src="_static/js/hoverxref.js"></script>
+    <script src="_static/js/tooltipster.bundle.min.js"></script>
+    <script src="_static/js/micromodal.min.js"></script>
+    <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     </body>
 </html>
