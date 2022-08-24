@@ -131,7 +131,7 @@ xticks((duration_s)/(duration_s/60):(duration_s)/(duration_s/60):duration_s)
 xticklabels({'1','2','3','4','5','6','7','8','9','10','11','12','13','14','15','16','17'})
 xlim([0 duration_s])
 legend(strrep(methods, 'p','.'), 'location','northeastoutside');
-xlabel('Time (s)');
+xlabel('Time (minutes)');
 ylabel('Spiking frequency (Hz)');
 aesthetics
 set(gca,'TickDir','out');
