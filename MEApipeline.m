@@ -15,19 +15,19 @@ spikeDetectedData = '/Users/timothysit/AnalysisPipeline/OutputData20Jan2022v3'; 
 
 % Input and output filetype
 spreadsheet_file_type = 'csv'; % 'csv' or 'excel'
-spreadsheet_filename = 'hpc_dataset_subset.csv'; 
+spreadsheet_filename = 'hpc_dataset.csv'; 
 sheet = 1; % specify excel sheet
 xlRange = 'A2:C7'; % specify range on the sheet (e.g., 'A2:C7' would analyse the first 6 files)
 Params.output_spreadsheet_file_type = 'csv';  % .xlsx or .csv
 
 % Analysis step settings
 Params.priorAnalysisDate = '19May2022'; % prior analysis date in format given in output data folder e.g., '27Sep2021'
-Params.priorAnalysis = 1; % use previously analysed data? 1 = yes, 0 = no
-Params.startAnalysisStep = 10; % if Params.priorAnalysis=0, default is to start with spike detection
+Params.priorAnalysis = 0; % use previously analysed data? 1 = yes, 0 = no
+Params.startAnalysisStep = 1; % if Params.priorAnalysis=0, default is to start with spike detection
 Params.optionalStepsToRun = {'runStats'}; % include 'generateCSV' to generate csv for rawData folder
 
 % Spike detection settings
-detectSpikes = 0; % run spike detection? % 1 = yes, 0 = no
+detectSpikes = 1; % run spike detection? % 1 = yes, 0 = no
 Params.runSpikeCheckOnPrevSpikeData = 0; % whether to run spike detection check without spike detection 
 Params.fs = 25000; % Sampling frequency, HPC: 25000, Axion: 12500;
 Params.dSampF = 25000; % down sampling factor for spike detection check
@@ -51,6 +51,7 @@ Params.ProbThreshPlotChecks = 1; % randomly sample recordings to plot probabilis
 Params.ProbThreshPlotChecksN = 5; % number of random checks to plot
 
 % Node cartography settings 
+Params.autoSetCartographyBoudariesPerLag = 0;  % whether to fit separate boundaries per lag value
 Params.cartographyLagVal = 15; % lag value (ms) to use to calculate PC-Z distribution
 Params.autoSetCartographyBoundaries = 1;  % whether to automatically determine bounds for hubs or use custom ones
 
@@ -136,7 +137,9 @@ elseif strcmp(spreadsheet_file_type, 'csv')
     opts.VariableTypes{1} = 'char';  % this should be the recoding file name
     opts.VariableTypes{2} = 'double';  % this should be the DIV
     opts.VariableTypes{3} = 'char'; % this should be Group 
-    opts.VariableTypes{4} = 'char'; % this should be Ground
+    if length(opts.VariableNames) > 3
+        opts.VariableTypes{4} = 'char'; % this should be Ground
+    end 
     opts.DataLines = [2 Inf];  % start reading data from row 2
     % csv_data = readtable(spreadsheet_filename, 'Delimiter','comma');
     csv_data = readtable(spreadsheet_filename, opts);
@@ -374,7 +377,6 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
         
         addpath(fullfile(spikeDetectedData, '1_SpikeDetection', '1A_SpikeDetectedData'));
         [spikeMatrix,spikeTimes,Params,Info] = formatSpikeTimes(char(Info.FN),Params,Info);
-        biAdvancedSettings  % Temp here to try out new NMF code 
         
         NetMet = ExtractNetMetOrganoid(adjMs, spikeTimes, ...
             Params.FuncConLagval, Info,HomeDir,Params, spikeMatrix);
@@ -419,13 +421,27 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
 
         ExpList = dir('*.mat');
         add_fig_info = '';
-        [hubBoundaryWMdDeg, periPartCoef, proHubpartCoef, nonHubconnectorPartCoef, connectorHubPartCoef] = ...
-            TrialLandscapeDensity(ExpList, fig_folder, add_fig_info, Params.cartographyLagVal);
-        Params.hubBoundaryWMdDeg = hubBoundaryWMdDeg;
-        Params.periPartCoef = periPartCoef;
-        Params.proHubpartCoef = proHubpartCoef;
-        Params.nonHubconnectorPartCoef = nonHubconnectorPartCoef;
-        Params.connectorHubPartCoef = connectorHubPartCoef;
+
+        if Params.autoSetCartographyBoudariesPerLag
+            for lag_val = FuncConLagval
+                [hubBoundaryWMdDeg, periPartCoef, proHubpartCoef, nonHubconnectorPartCoef, connectorHubPartCoef] = ...
+                TrialLandscapeDensity(ExpList, fig_folder, add_fig_info, Params.cartographyLagVal);
+                Params.(strcat('hubBoundaryWMdDeg', sprintf('_%.fmsLag', lag_val))) = hubBoundaryWMdDeg;
+                Params.(strcat('periPartCoef', sprintf('_%.fmsLag', lag_val))) = periPartCoef;
+                Params.(strcat('proHubpartCoef', sprintf('_%.fmsLag', lag_val))) = proHubpartCoef;
+                Params.(strcat('nonHubconnectorPartCoef', sprintf('_%.fmsLag', lag_val))) = nonHubconnectorPartCoef;
+                Params.(strcat('connectorHubPartCoef', sprintf('_%.fmsLag', lag_val))) = connectorHubPartCoef;
+            end 
+
+        else 
+            [hubBoundaryWMdDeg, periPartCoef, proHubpartCoef, nonHubconnectorPartCoef, connectorHubPartCoef] = ...
+                TrialLandscapeDensity(ExpList, fig_folder, add_fig_info, Params.cartographyLagVal);
+            Params.hubBoundaryWMdDeg = hubBoundaryWMdDeg;
+            Params.periPartCoef = periPartCoef;
+            Params.proHubpartCoef = proHubpartCoef;
+            Params.nonHubconnectorPartCoef = nonHubconnectorPartCoef;
+            Params.connectorHubPartCoef = connectorHubPartCoef;
+        end 
 
         % save the newly set boundaries to the Params struct
         for nFile = 1:length(ExpList)
@@ -456,7 +472,7 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
 
         cd(strcat('OutputData',Params.Date)); cd('4_NetworkActivity')
         cd('4A_IndividualNetworkAnalysis'); cd(char(Info.Grp))
-        Params.oneFigure = figure();
+        Params = checkOneFigureHandle(Params);
         NetMet = plotNodeCartography(adjMs, Params, NetMet, Info, HomeDir);
         % save NetMet now we node cartography data as well
         cd(HomeDir); cd(strcat('OutputData',Params.Date)); cd('ExperimentMatFiles')
@@ -471,7 +487,6 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
     NetMetricsC = {'ND','EW','NS','Eloc','BC','PC','Z'};
     combinedData = combineExpNetworkData(ExpName, Params, NetMetricsE, NetMetricsC, HomeDir);
     plotNetMetNodeCartography(combinedData, ExpName,Params,HomeDir)
-
 
 end
 
@@ -488,7 +503,8 @@ if any(strcmp(Params.optionalStepsToRun,'getDensityLandscape'))
     for DIV = [14, 17, 21, 24, 28]
         ExpList = dir(sprintf('*DIV%.f*.mat', DIV));
         add_fig_info = strcat('DIV', num2str(DIV));
-        [hubBoundaryWMdDeg, periPartCoef, proHubpartCoef, nonHubconnectorPartCoef, connectorHubPartCoef] = TrialLandscapeDensity(ExpList, fig_folder, add_fig_info);
+        [hubBoundaryWMdDeg, periPartCoef, proHubpartCoef, nonHubconnectorPartCoef, connectorHubPartCoef] ...
+            = TrialLandscapeDensity(ExpList, fig_folder, add_fig_info, Params.cartographyLagVal);
     end 
 end 
 
@@ -506,14 +522,14 @@ if any(strcmp(Params.optionalStepsToRun,'runStats'))
     recordingLevelFile = fullfile(Params.priorAnalysisPath, 'NetworkActivity_RecordingLevel.csv');
     recordingLevelData = readtable(recordingLevelFile);
     
-    plotSaveFolder = fullfile(Params.priorAnalysisPath, '5_Stats');
-    if ~isfolder(plotSaveFolder)
-        mkdir(plotSaveFolder)
+    for lag_val = Params.FuncConLagval
+        plotSaveFolder = fullfile(Params.priorAnalysisPath, '5_Stats', sprintf('%.fmsLag', lag_val));
+        if ~isfolder(plotSaveFolder)
+            mkdir(plotSaveFolder)
+        end 
+        featureCorrelation(nodeLevelData, recordingLevelData, Params, lag_val, plotSaveFolder);
+        doClassification(recordingLevelData, Params, lag_val, plotSaveFolder);
     end 
-
-    featureCorrelation(nodeLevelData, recordingLevelData, Params);
-    doClassification(recordingLevelData, Params, plotSaveFolder);
-
 end 
 
 
