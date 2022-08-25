@@ -1,18 +1,18 @@
 function NetMet = plotNodeCartography(adjMs, Params, NetMet, Info, HomeDir)
-%{
-Parameters
-----------
-adjMs : struct 
-    structure where each field contains a cell, which represents the
-    collection of adjacency matrices obtained from a particular time lag
-
-Params : struct 
-Info : struct
-HomeDir : str
-    path to the home directory
-
-Returns 
--------
+%
+% Parameters
+% ----------
+% adjMs : struct 
+%     structure where each field contains a cell, which represents the
+%     collection of adjacency matrices obtained from a particular time lag
+% 
+% Params : struct 
+% Info : struct
+% HomeDir : str
+%     path to the home directory
+% 
+% Returns 
+% -------
 
 
 %}
