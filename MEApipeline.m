@@ -52,8 +52,13 @@ Params.ProbThreshPlotChecksN = 5; % number of random checks to plot
 
 % Node cartography settings 
 Params.autoSetCartographyBoudariesPerLag = 0;  % whether to fit separate boundaries per lag value
-Params.cartographyLagVal = 15; % lag value (ms) to use to calculate PC-Z distribution
+Params.cartographyLagVal = 15; % lag value (ms) to use to calculate PC-Z distribution (only applies if Params.autoSetCartographyBoudariesPerLag = 0)
 Params.autoSetCartographyBoundaries = 1;  % whether to automatically determine bounds for hubs or use custom ones
+
+% Statistics and machine learning settings 
+Params.classificationTarget = 'AgeDiv';  % which property of the recordings to classify 
+Params.classification_models = {'linearSVM', 'kNN', 'fforwardNN', 'decisionTree', 'LDA'};
+Params.regression_models = {'svmRegressor', 'regressionTree', 'ridgeRegression', 'fforwardNN'};
 
 % Plot settings
 Params.figExt = {'.png', '.svg'};  % supported options are '.fig', '.png', and '.svg'

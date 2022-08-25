@@ -19,13 +19,13 @@ clf_num_kfold_repeat = 5;  % number of repeats of kfold validation to do for cla
 reg_num_kfold_repeat = 5;  % number of repeats of kfold validation to do for regression
 nestedClassification = 0;
 nestedClassificationGroup = 'eGrp';
-classificationTarget = 'AgeDiv';
+classificationTarget = Params.classificationTarget;
 feature_preprocessing_steps = {'removeZeroVariance', 'zScore'};
 
 
 % TODO: allow multiple classification and regression models
-classification_models = {'linearSVM', 'kNN', 'fforwardNN', 'decisionTree', 'LDA'};
-regression_models = {'svmRegressor', 'regressionTree', 'ridgeRegression', 'fforwardNN'};
+classification_models = Params.classification_models;
+regression_models = Params.regression_models;
 
 if Params.showOneFig 
     Params.oneFigure = figure();
