@@ -1,24 +1,27 @@
 function [NdCartDiv,PopNumNC] = NodeCartography(Z,PC,lagval,e,FN,Params)
-%{    
+%   
 % node cartography 
 % see Guimera and Amaral, 2005
 % 'Functional cartography of complex metabolic networks'
 % author RCFeord 2020
 % Updated by Tim Sit
+% 
+% Parameters 
+% ---------
+% Params.autoSetCartographyBoudariesPerLag : boolean 
+%     whether to use a specific set of boundaries for each lag value
+% Params.hubBoundaryWMdDeg : float 
+%     default value : 2.5; boundary that separates hub and non-hubs
+% Params.periPartCoef = 0.625; % boundary that separates peripheral node and none-hub connector
+% Params.proHubpartCoef = 0.3; % boundary that separates provincial hub and connector hub
+% Params.nonHubconnectorPartCoef = 0.8; % boundary that separates non-hub connector and non-hub kinless node
+% Params.connectorHubPartCoef = 0.75;  % boundary that separates connector hub and kinless hub
+% 
+% Returns
+% -------
+% NdCartDiv : 
+% PopNumNC : 
 
-Parameters 
----------
-Params.hubBoundaryWMdDeg = 2.5; % boundary that separates hub and non-hubs
-Params.periPartCoef = 0.625; % boundary that separates peripheral node and none-hub connector
-Params.proHubpartCoef = 0.3; % boundary that separates provincial hub and connector hub
-Params.nonHubconnectorPartCoef = 0.8; % boundary that separates non-hub connector and non-hub kinless node
-Params.connectorHubPartCoef = 0.75;  % boundary that separates connector hub and kinless hub
-
-Returns
--------
-NdCartDiv : 
-PopNumNC : 
-%}
 %% figure
 
 p = [50 50 600 700];
@@ -44,17 +47,33 @@ c6 = [0.016 0.235 0.498]; % dark blue
 
 %% create cartography boundaries
 
+% Determine whether we need a specific boundary per lag 
+if Params.autoSetCartographyBoudariesPerLag
+    hubBoundaryWMdDeg = Params.(strcat('hubBoundaryWMdDeg', sprintf('_%.fmsLag', lagval)));
+    periPartCoef = Params.(strcat('periPartCoef', sprintf('_%.fmsLag', lagval)));
+    proHubpartCoef = Params.(strcat('proHubpartCoef', sprintf('_%.fmsLag', lagval)));
+    nonHubconnectorPartCoef = Params.(strcat('nonHubconnectorPartCoef', sprintf('_%.fmsLag', lagval)));
+    connectorHubPartCoef = Params.(strcat('connectorHubPartCoef', sprintf('_%.fmsLag', lagval)));
+else
+    hubBoundaryWMdDeg = Params.hubBoundaryWMdDeg;
+    periPartCoef = Params.periPartCoef;
+    proHubpartCoef = Params.proHubpartCoef;
+    nonHubconnectorPartCoef = Params.nonHubconnectorPartCoef;
+    connectorHubPartCoef = Params.connectorHubPartCoef;
+end 
+
+
 nexttile
 
 partCoefRange = [0, 1];  % range of participation coefficient
 wMdDegRange = [-2, 4]; % range of within-module degree (z-score)
 
-plot(partCoefRange,[Params.hubBoundaryWMdDeg  Params.hubBoundaryWMdDeg ],'--k')
+plot(partCoefRange,[hubBoundaryWMdDeg  hubBoundaryWMdDeg ],'--k')
 hold on
-plot([Params.periPartCoef Params.periPartCoef],[-5 Params.hubBoundaryWMdDeg ],'--k')
-plot([Params.nonHubconnectorPartCoef Params.nonHubconnectorPartCoef],[-5 Params.hubBoundaryWMdDeg ],'--k')
-plot([Params.proHubpartCoef  Params.proHubpartCoef ],[Params.hubBoundaryWMdDeg  wMdDegRange(2)],'--k')
-plot([Params.connectorHubPartCoef Params.connectorHubPartCoef],[Params.hubBoundaryWMdDeg  wMdDegRange(2)],'--k')
+plot([periPartCoef periPartCoef],[-5 hubBoundaryWMdDeg ],'--k')
+plot([nonHubconnectorPartCoef nonHubconnectorPartCoef],[-5 hubBoundaryWMdDeg ],'--k')
+plot([proHubpartCoef  proHubpartCoef ],[hubBoundaryWMdDeg  wMdDegRange(2)],'--k')
+plot([connectorHubPartCoef connectorHubPartCoef],[hubBoundaryWMdDeg  wMdDegRange(2)],'--k')
 xlim(partCoefRange)
 ylim(wMdDegRange)
 
@@ -64,8 +83,8 @@ set(gca,'TickDir','out');
 %% Find node identities
 
 NdCartDiv = zeros(length(PC),1);
-PCdivNonHub = [0, Params.periPartCoef, Params.nonHubconnectorPartCoef  1];
-PCdivHub = [0, Params.proHubpartCoef, Params.connectorHubPartCoef, 1];
+PCdivNonHub = [0, periPartCoef, nonHubconnectorPartCoef  1];
+PCdivHub = [0, proHubpartCoef, connectorHubPartCoef, 1];
 PCp1 = [];
 PCp2 = [];
 PCp3 = [];
@@ -78,28 +97,29 @@ Zp3 = [];
 Zc1 = [];
 Zc2 = [];
 Zc3 = [];
+
 for j = 1:length(PC)
-    if (Z(j)<Params.hubBoundaryWMdDeg)&&(PC(j)<Params.periPartCoef)
+    if (Z(j) < hubBoundaryWMdDeg) && (PC(j) < periPartCoef)
         NdCartDiv(j) = 1;
         PCp1 = [PCp1 PC(j)];
         Zp1 = [Zp1 Z(j)];
-    elseif (Z(j)<Params.hubBoundaryWMdDeg)&&(PC(j)>=Params.periPartCoef)&&(PC(j)<Params.nonHubconnectorPartCoef)
+    elseif (Z(j) < hubBoundaryWMdDeg) && (PC(j) >= periPartCoef) && (PC(j) < nonHubconnectorPartCoef)
         NdCartDiv(j) = 2;
         PCp2 = [PCp2 PC(j)];
         Zp2 = [Zp2 Z(j)];
-    elseif (Z(j)<Params.hubBoundaryWMdDeg)&&(PC(j)>=Params.nonHubconnectorPartCoef)
+    elseif (Z(j) < hubBoundaryWMdDeg) && (PC(j) >= nonHubconnectorPartCoef)
         NdCartDiv(j) = 3;
         PCp3 = [PCp3 PC(j)];
         Zp3 = [Zp3 Z(j)];
-    elseif (Z(j)>=Params.hubBoundaryWMdDeg)&&(PC(j)<Params.proHubpartCoef)
+    elseif (Z(j) >= hubBoundaryWMdDeg) && (PC(j) < proHubpartCoef)
         NdCartDiv(j) = 4;
         PCc1 = [PCc1 PC(j)];
         Zc1 = [Zc1 Z(j)];
-    elseif (Z(j)>=Params.hubBoundaryWMdDeg)&&(PC(j)>=Params.proHubpartCoef)&&(PC(j)<Params.connectorHubPartCoef)
+    elseif (Z(j) >= hubBoundaryWMdDeg) && (PC(j) >= proHubpartCoef) && (PC(j) < connectorHubPartCoef)
         NdCartDiv(j) = 5;
         PCc2 = [PCc2 PC(j)];
         Zc2 = [Zc2 Z(j)];
-    elseif (Z(j)>Params.hubBoundaryWMdDeg)&&(PC(j)>=Params.connectorHubPartCoef)
+    elseif (Z(j) > hubBoundaryWMdDeg) && (PC(j) >= connectorHubPartCoef)
         NdCartDiv(j) = 6;
         PCc3 = [PCc3 PC(j)];
         Zc3 = [Zc3 Z(j)];
