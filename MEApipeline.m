@@ -10,8 +10,8 @@
 % Directories
 HomeDir = '/Users/timothysit/AnalysisPipeline'; % analysis folder to home directory
 rawData = '/Volumes/T7/schroter2015_mat';  % path to raw data .mat files
-Params.priorAnalysisPath = ['/Users/timothysit/AnalysisPipeline/OutputData19May2022'];  % path to prev analysis
-spikeDetectedData = '/Users/timothysit/AnalysisPipeline/OutputData20Jan2022v3'; % path to spike-detected data
+Params.priorAnalysisPath = ['/Users/timothysit/AnalysisPipeline/OutputData25Aug2022'];  % path to prev analysis
+spikeDetectedData = '/Users/timothysit/AnalysisPipeline/OutputData25Aug2022'; % path to spike-detected data
 
 % Input and output filetype
 spreadsheet_file_type = 'csv'; % 'csv' or 'excel'
@@ -22,21 +22,21 @@ Params.output_spreadsheet_file_type = 'csv';  % .xlsx or .csv
 
 % Analysis step settings
 Params.priorAnalysisDate = '19May2022'; % prior analysis date in format given in output data folder e.g., '27Sep2021'
-Params.priorAnalysis = 0; % use previously analysed data? 1 = yes, 0 = no
-Params.startAnalysisStep = 1; % if Params.priorAnalysis=0, default is to start with spike detection
+Params.priorAnalysis = 1; % use previously analysed data? 1 = yes, 0 = no
+Params.startAnalysisStep = 4; % if Params.priorAnalysis=0, default is to start with spike detection
 Params.optionalStepsToRun = {'runStats'}; % include 'generateCSV' to generate csv for rawData folder
 
 % Spike detection settings
-detectSpikes = 1; % run spike detection? % 1 = yes, 0 = no
+detectSpikes = 0; % run spike detection? % 1 = yes, 0 = no
 Params.runSpikeCheckOnPrevSpikeData = 0; % whether to run spike detection check without spike detection 
 Params.fs = 25000; % Sampling frequency, HPC: 25000, Axion: 12500;
 Params.dSampF = 25000; % down sampling factor for spike detection check
 Params.potentialDifferenceUnit = 'uV';  % the unit which you are recording electrical signals 
-Params.channelLayout = 'MCS60';
+Params.channelLayout = 'MCS60';  % 'MCS60' or 'Axion64'
 Params.thresholds = {'2.5', '3.5', '4.5'}; % standard deviation multiplier threshold(s), eg. {'2.5', '3.5', '4.5'}
-Params.wnameList = {'bior1.5'}; % wavelet methods to use {'bior1.5', 'mea'};
+Params.wnameList = {'bior1.5'}; % wavelet methods to use {'bior1.5', 'mea'}; 
 Params.costList = -0.12;
-Params.SpikesMethod = 'bior1p5'; 
+Params.SpikesMethod = 'bior1p5';  % wavelet methods, eg. 'bior1p5', or 'mergedAll', or 'mergedWavelet'
 
 % Functional connectivity inference settings
 Params.FuncConLagval = [15]; % set the different lag values (in ms), default to [10, 15, 25]
@@ -51,7 +51,7 @@ Params.ProbThreshPlotChecks = 1; % randomly sample recordings to plot probabilis
 Params.ProbThreshPlotChecksN = 5; % number of random checks to plot
 
 % Node cartography settings 
-Params.autoSetCartographyBoudariesPerLag = 0;  % whether to fit separate boundaries per lag value
+Params.autoSetCartographyBoudariesPerLag = 1;  % whether to fit separate boundaries per lag value
 Params.cartographyLagVal = 15; % lag value (ms) to use to calculate PC-Z distribution (only applies if Params.autoSetCartographyBoudariesPerLag = 0)
 Params.autoSetCartographyBoundaries = 1;  % whether to automatically determine bounds for hubs or use custom ones
 
@@ -64,6 +64,31 @@ Params.regression_models = {'svmRegressor', 'regressionTree', 'ridgeRegression',
 Params.figExt = {'.png', '.svg'};  % supported options are '.fig', '.png', and '.svg'
 Params.fullSVG = 1;  % whether to insist svg even with plots with large number of elements
 Params.showOneFig = 1;  % otherwise, 0 = pipeline shows plots as it runs, 1: supress plots
+
+% GUI / Tutorial mode settings 
+Params.guiMode = 0;
+if Params.guiMode
+    CreateStruct.Interpreter = 'tex';
+    CreateStruct.WindowStyle = 'modal';
+    helloBox = msgbox("\fontsize{20} Hello! Welcome to the MEA network analysis pipeline toolbox!", CreateStruct);
+    uiwait(helloBox);
+    clear helloBox
+
+    selectHomeDir = msgbox("\fontsize{20} First, please select the folder where your MEApieline.m script is in", CreateStruct);
+    uiwait(selectHomeDir);
+    clear selectHomeDir
+
+    homeDirUiGet = uigetdir(pwd, 'Please select the folder where the MEApipeline.m script is in');
+    % uiwait(homeDirUiGet)
+    Params.HomeDir = homeDirUiGet;
+    
+    opts = struct(); 
+    opts.Default = 'Yes';
+    opts.Interpreter = 'tex';
+    runningPipelineFirstTime = questdlg('\fontsize{20} Are you running this pipeline for the first time on raw data?', ...
+	'Pipeline step question', 'Yes', 'No', opts);
+
+end 
 
 %% END OF USER REQUIRED INPUT SECTION
 % The rest of the MEApipeline.m runs automatically. Do not change after this line
