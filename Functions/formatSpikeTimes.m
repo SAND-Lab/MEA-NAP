@@ -4,20 +4,20 @@ function [spikeMatrix,spikeTimes,Params,Info] = formatSpikeTimes(File,Params,Inf
 % spike matrix and spike times structure for the chosen spike detection
 % method and chosen length of recording
 % This function assumes that the _spikes.mat files are in your path
-%{
-Parameters
------------
-File : (character)
-    name of the recording, excluding file extensions
-Params : (structure)
-    here we will use Params.SpikesCostParam, Params.SpikesMethod,
-    Params.TruncRec and Params.TruncLength
-Info : (structure)
-
-OUTPUTS 
------------
-
-%}
+%
+% Parameters
+% -----------
+% File : character
+%    name of the recording, excluding file extensions
+% Params : structure
+%    here we will use Params.SpikesCostParam, Params.SpikesMethod,
+%    Params.TruncRec and Params.TruncLength
+% Info : structure
+%
+% Returns 
+% -------
+%  
+%
 %% load spike detection result
 
 try
@@ -34,9 +34,15 @@ Info.channels = channels;
 
 %% merge spikes if using multiple spike detection methods
 
-if strcmp(Params.SpikesMethod,'merged')
+if strcmp(Params.SpikesMethod,'merged') || strcmp(Params.SpikesMethod,'mergedAll')
     for uu = 1:length(spikeTimes)
         [spike_times{uu}.merged,~, ~] = mergeSpikes(spikeTimes{uu}, 'all');
+    end
+    clear spikeTimes
+    spikeTimes = spike_times;
+elseif strcmp(Params.SpikesMethod,'mergedWavelet')
+    for uu = 1:length(spikeTimes)
+            [spike_times{uu}.merged,~, ~] = mergeSpikes(spikeTimes{uu}, 'wavelets');
     end
     clear spikeTimes
     spikeTimes = spike_times;
