@@ -453,7 +453,7 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
         add_fig_info = '';
 
         if Params.autoSetCartographyBoudariesPerLag
-            for lag_val = FuncConLagval
+            for lag_val = Params.FuncConLagval
                 [hubBoundaryWMdDeg, periPartCoef, proHubpartCoef, nonHubconnectorPartCoef, connectorHubPartCoef] = ...
                 TrialLandscapeDensity(ExpList, fig_folder, add_fig_info, Params.cartographyLagVal);
                 Params.(strcat('hubBoundaryWMdDeg', sprintf('_%.fmsLag', lag_val))) = hubBoundaryWMdDeg;
