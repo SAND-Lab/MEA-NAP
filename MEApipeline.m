@@ -192,6 +192,9 @@ end
 % create output data folder if doesn't exist
 CreateOutputFolders(HomeDir,Params.Date,Params.GrpNm)
 
+% plot electrode layout 
+plotElectrodeLayout(HomeDir, Params)
+
 % export parameters to csv file
 cd(strcat('OutputData',Params.Date))
 writetable(struct2table(Params,'AsArray',true), strcat('Parameters_',Params.Date,'.csv'))
