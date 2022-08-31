@@ -49,11 +49,11 @@ c6 = [0.016 0.235 0.498]; % dark blue
 
 % Determine whether we need a specific boundary per lag 
 if Params.autoSetCartographyBoudariesPerLag
-    hubBoundaryWMdDeg = Params.(strcat('hubBoundaryWMdDeg', sprintf('_%.fmsLag', lagval)));
-    periPartCoef = Params.(strcat('periPartCoef', sprintf('_%.fmsLag', lagval)));
-    proHubpartCoef = Params.(strcat('proHubpartCoef', sprintf('_%.fmsLag', lagval)));
-    nonHubconnectorPartCoef = Params.(strcat('nonHubconnectorPartCoef', sprintf('_%.fmsLag', lagval)));
-    connectorHubPartCoef = Params.(strcat('connectorHubPartCoef', sprintf('_%.fmsLag', lagval)));
+    hubBoundaryWMdDeg = Params.(strcat('hubBoundaryWMdDeg', sprintf('_%.fmsLag', lagval(e))));
+    periPartCoef = Params.(strcat('periPartCoef', sprintf('_%.fmsLag', lagval(e))));
+    proHubpartCoef = Params.(strcat('proHubpartCoef', sprintf('_%.fmsLag', lagval(e))));
+    nonHubconnectorPartCoef = Params.(strcat('nonHubconnectorPartCoef', sprintf('_%.fmsLag', lagval(e))));
+    connectorHubPartCoef = Params.(strcat('connectorHubPartCoef', sprintf('_%.fmsLag', lagval(e))));
 else
     hubBoundaryWMdDeg = Params.hubBoundaryWMdDeg;
     periPartCoef = Params.periPartCoef;
