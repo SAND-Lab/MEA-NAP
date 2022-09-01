@@ -38,8 +38,8 @@ end
 cd(HomeDir); cd(strcat('OutputData',Date));
 mkdir('2_NeuronalActivity')
 cd('2_NeuronalActivity')
-mkdir('2A_IndividualNetworkAnalysis')
-cd('2A_IndividualNetworkAnalysis')
+mkdir('2A_IndividualNeuronalAnalysis')
+cd('2A_IndividualNeuronalAnalysis')
 for i = 1:length(GrpNm)
     mkdir(char(GrpNm{i}))
 end

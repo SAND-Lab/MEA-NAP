@@ -66,7 +66,7 @@ Params.fullSVG = 1;  % whether to insist svg even with plots with large number o
 Params.showOneFig = 1;  % otherwise, 0 = pipeline shows plots as it runs, 1: supress plots
 
 % GUI / Tutorial mode settings 
-Params.guiMode = 0;
+Params.guiMode = 1;
 if Params.guiMode
     CreateStruct.Interpreter = 'tex';
     CreateStruct.WindowStyle = 'modal';
@@ -324,7 +324,7 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
         Ephys = firingRatesBursts(spikeMatrix,Params,Info);
 
         cd(strcat('OutputData',Params.Date)); cd('2_NeuronalActivity')
-        cd('2A_IndividualNetworkAnalysis'); cd(char(Info.Grp))
+        cd('2A_IndividualNeuronalAnalysis'); cd(char(Info.Grp))
         mkdir(char(Info.FN))
         cd(char(Info.FN))
 
