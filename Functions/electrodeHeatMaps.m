@@ -125,7 +125,7 @@ cb.Label.String = 'mean firing rate (Hz)';
 title({strcat(regexprep(FN,'_','','emptymatch'),' Electrode heatmap scaled to entire data batch'),' '});
 
 % save figure
-figName = 'heatmap';
+figName = 'Heatmap';
 pipelineSaveFig(figName, Params.figExt, Params.fullSVG);
 
 close all;
