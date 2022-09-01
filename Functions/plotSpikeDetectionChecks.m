@@ -1,31 +1,29 @@
 function plotSpikeDetectionChecks(spikeTimes,spikeDetectionResult,spikeWaveforms, ... 
     Info,Params)
-%{
-Make plots to check that spike detection worked properly, and plots
-spike-related statistics such as the firing rate of each unit / recorded
-from each electrode.
-
-Parameters 
-----------
-spikeTimes : cell array of structures
-   1 X N cell array, where N is the number of electrodes / units 
-   each item in a cell should be a 1 x 1 struct
-   which contain fields corresponding to the spike detection methods used,
-   eg. bior1p5 [numSpikes x 1 double]
-Info : structure
-    Info.FN : 
-    Info.raw_file_path : (str)
-        path to the folder including the raw matlab files
-Params.dSampF : (int)
-    down-sampling factor for plotting spike detection check 
-    normally no down sampling is necessary, so set this to be equal 
-    to the sampling rate of your acquisition system
-
-
-Returns 
--------
-
-
+%
+% Make plots to check that spike detection worked properly, and plots
+% spike-related statistics such as the firing rate of each unit / recorded
+% from each electrode.
+% 
+% Parameters 
+% ----------
+% spikeTimes : cell array of structures
+%    1 X N cell array, where N is the number of electrodes / units 
+%    each item in a cell should be a 1 x 1 struct
+%    which contain fields corresponding to the spike detection methods used,
+%    eg. bior1p5 [numSpikes x 1 double]
+% Info : structure
+%     Info.FN : 
+%     Info.raw_file_path : (str)
+%         path to the folder including the raw matlab files
+% Params.dSampF : (int)
+%     down-sampling factor for plotting spike detection check 
+%     normally no down sampling is necessary, so set this to be equal 
+%     to the sampling rate of your acquisition system
+% 
+% 
+% Returns 
+% -------
 % TODO: how does line 32 work? (seem to assume some file structure 
 % where the raw file is located...
 
@@ -33,6 +31,8 @@ Returns
 
 FN = char(Info.FN);
 
+% TOOD: directory create and save to folder rather than changing
+% directories
 mkdir(FN)
 cd(FN)
 
@@ -43,6 +43,7 @@ if isfield(Info, 'rawData')
     raw_file_name = fullfile(Info.rawData, raw_file_name);
 end 
 
+% TODO: load to variable
 load(raw_file_name);
 dat = double(dat);
 
@@ -99,6 +100,8 @@ set(0, 'DefaultFigurePosition', p)
 
 if ~isfield(Params, 'oneFigure')
      F1 = figure;
+else
+    Params.oneFigure.Position = p;
 end 
 
 dSampF = Params.dSampF;
@@ -160,6 +163,8 @@ set(0, 'DefaultFigurePosition', p)
 
 if ~isfield(Params, 'oneFigure')
     F1 = figure;
+else
+    Params.oneFigure.Position = p;
 end 
 
 tiledlayout(5,2,'TileSpacing','Compact');
@@ -248,11 +253,12 @@ end
 [~, unique_idx, ~] = mergeSpikes(spike_times{channel},'all');
 
 p = [100 100 600 700];
-
 set(0, 'DefaultFigurePosition', p)
 
 if ~isfield(Params, 'oneFigure')
-        F1 = figure;
+    F1 = figure;
+else
+    Params.oneFigure.Position = p;
 end 
 
 t = tiledlayout(2, ceil(length(methods)/2), 'tilespacing','none','padding','none');
