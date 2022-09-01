@@ -21,14 +21,14 @@ xlRange = 'A2:C7'; % specify range on the sheet (e.g., 'A2:C7' would analyse the
 Params.output_spreadsheet_file_type = 'csv';  % .xlsx or .csv
 
 % Analysis step settings
-Params.priorAnalysisDate = '19May2022'; % prior analysis date in format given in output data folder e.g., '27Sep2021'
+Params.priorAnalysisDate = '25Aug2022'; % prior analysis date in format given in output data folder e.g., '27Sep2021'
 Params.priorAnalysis = 1; % use previously analysed data? 1 = yes, 0 = no
-Params.startAnalysisStep = 4; % if Params.priorAnalysis=0, default is to start with spike detection
+Params.startAnalysisStep = 1; % if Params.priorAnalysis=0, default is to start with spike detection
 Params.optionalStepsToRun = {'runStats'}; % include 'generateCSV' to generate csv for rawData folder
 
 % Spike detection settings
 detectSpikes = 0; % run spike detection? % 1 = yes, 0 = no
-Params.runSpikeCheckOnPrevSpikeData = 0; % whether to run spike detection check without spike detection 
+Params.runSpikeCheckOnPrevSpikeData = 1; % whether to run spike detection check without spike detection 
 Params.fs = 25000; % Sampling frequency, HPC: 25000, Axion: 12500;
 Params.dSampF = 25000; % down sampling factor for spike detection check
 Params.potentialDifferenceUnit = 'uV';  % the unit which you are recording electrical signals 
@@ -66,7 +66,7 @@ Params.fullSVG = 1;  % whether to insist svg even with plots with large number o
 Params.showOneFig = 1;  % otherwise, 0 = pipeline shows plots as it runs, 1: supress plots
 
 % GUI / Tutorial mode settings 
-Params.guiMode = 1;
+Params.guiMode = 0;
 if Params.guiMode
     CreateStruct.Interpreter = 'tex';
     CreateStruct.WindowStyle = 'modal';
