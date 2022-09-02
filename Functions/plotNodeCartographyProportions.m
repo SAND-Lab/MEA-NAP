@@ -1,19 +1,18 @@
 function [] = plotNodeCartographyProportions(NetMet, lagval, FN, Params)
-%{
-
-Parameters
-----------
-NetMet : 
-lagval : int 
-FN : 
-Params : 
-
-
-Returns
--------
-
-
-%}
+% Plot proportion of nodes belonging to each node cartography group
+% Parameters
+% ----------
+% NetMet : structure 
+% lagval : int 
+% FN : 
+% Params : structure 
+% 
+% 
+% Returns
+% -------
+% 
+% 
+%
 
 
 %% figure
@@ -72,7 +71,7 @@ set(gca,'TickDir','out');
 
 %% save figure
 
-figName = 'NdCartographyProportions';
+figName = 'NodeCartographyProportions';
 pipelineSaveFig(figName, Params.figExt, Params.fullSVG);
 
 
