@@ -64,7 +64,7 @@ yc = coords(:,2);
 z2nameToShortHand = containers.Map;
 z2nameToShortHand('Betweeness centrality') = 'BC';
 z2nameToShortHand('Participation coefficient') = 'PC';
-z2nameToShortHand('local connectivity') = 'Eloc';
+z2nameToShortHand('Local efficiency') = 'Eloc';
 z2nameToShortHand('Average controllability') = 'aveControl';
 z2nameToShortHand('Modal controllability') = 'modalControl';
 
