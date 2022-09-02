@@ -333,7 +333,7 @@ else
     StandardisedNetworkPlotNodeColourMap(adjM, Params.coords, edge_thresh, ND, 'Node degree', PC, 'Participation coefficient', 'MEA', char(Info.FN), '4', Params, lagval,e)
   
     % grid network plot node strength local efficiency
-    StandardisedNetworkPlotNodeColourMap(adjM, Params.coords, edge_thresh, NS, 'Node strength', Eloc, 'local connectivity', 'MEA', char(Info.FN), '5', Params, lagval,e)
+    StandardisedNetworkPlotNodeColourMap(adjM, Params.coords, edge_thresh, NS, 'Node strength', Eloc, 'Local efficiency', 'MEA', char(Info.FN), '5', Params, lagval,e)
   
     % simple circular network plot
     NDord = ND(On);
