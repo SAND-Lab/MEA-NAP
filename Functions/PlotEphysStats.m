@@ -44,6 +44,19 @@ else
     end
 end
 
+%% Custom bounds for y axis 
+
+eMetCustomBounds = { ...
+'mean firing rate (Hz)', [0, nan]; ...
+'median firing rate (Hz)', [0, nan]; ...
+'network burst rate (per minute)', [0, nan]; ... 
+'mean network burst length (s)', [0, nan]; ...
+'mean ISI within network burst (ms)', [0, nan]; ...
+'mean ISI outside network bursts (ms)', [0, nan]; ...
+'coefficient of variation of inter network burst intervals', [0, nan]; ...
+'fraction of in network bursts', [0, 1]};
+
+metricsWCustomBounds = eMetCustomBounds(:, 1);
 
 %% groups and DIV
 
@@ -285,6 +298,7 @@ p = [100 100 1300 600];
 set(0, 'DefaultFigurePosition', p)
 
 for n = 1:length(eMet)
+    all_group_eMet_vals = [];
     F1 = figure;
     eMeti = char(eMet(n));
     xt = 1:length(AgeDiv);
@@ -297,6 +311,7 @@ for n = 1:length(eMet)
             eval(['DatTemp = ' VNe ';']);
             PlotDat = DatTemp;
             PlotDat(isnan(PlotDat)) = [];
+            all_group_eMet_vals = [all_group_eMet_vals; PlotDat];
             if isempty(PlotDat)
                 continue
             else
@@ -315,6 +330,22 @@ for n = 1:length(eMet)
     end
     linkaxes(h,'xy')
     h(1).XLim = [min(xt)-0.5 max(xt)+0.5];
+
+    customBoundMatchVec = strcmp(eMetl(n), metricsWCustomBounds);
+    if sum(customBoundMatchVec) == 1
+        bound_idx = find(customBoundMatchVec);
+        custom_bound_vec = eMetCustomBounds{bound_idx, 2};
+
+        if isnan(custom_bound_vec(1))
+            custom_bound_vec(1) = min(all_group_eMet_vals);
+        end 
+   
+        if isnan(custom_bound_vec(2))
+            custom_bound_vec(2) = max(all_group_eMet_vals);
+        end 
+        h(1).YLim = custom_bound_vec;
+    end 
+
     set(findall(gcf,'-property','FontSize'),'FontSize',9)
     
     figName = strcat(num2str(n),'_',char(eMetl(n)));
@@ -340,6 +371,9 @@ p = [100 100 1300 600];
 set(0, 'DefaultFigurePosition', p)
 
 for n = 1:length(eMet)
+
+    all_group_eMet_vals = [];
+
     F1 = figure;
     eMeti = char(eMet(n));
     xt = 1:0.5:1+(length(Grps)-1)*0.5;
@@ -353,6 +387,9 @@ for n = 1:length(eMet)
             eval(['DatTemp = ' VNe ';']);
             PlotDat = DatTemp;
             PlotDat(isnan(PlotDat)) = [];
+
+            all_group_eMet_vals = [all_group_eMet_vals; PlotDat];
+
             if isempty(PlotDat)
                 continue
             else
@@ -371,6 +408,22 @@ for n = 1:length(eMet)
     end
     linkaxes(h,'xy')
     h(1).XLim = [min(xt)-0.5 max(xt)+0.5];
+    
+    customBoundMatchVec = strcmp(eMetl(n), metricsWCustomBounds);
+    if sum(customBoundMatchVec) == 1
+        bound_idx = find(customBoundMatchVec);
+        custom_bound_vec = eMetCustomBounds{bound_idx, 2};
+
+        if isnan(custom_bound_vec(1))
+            custom_bound_vec(1) = min(all_group_eMet_vals);
+        end 
+   
+        if isnan(custom_bound_vec(2))
+            custom_bound_vec(2) = max(all_group_eMet_vals);
+        end 
+        h(1).YLim = custom_bound_vec;
+    end 
+
     aesthetics
     set(gca,'TickDir','out');
     set(findall(gcf,'-property','FontSize'),'FontSize',9)
@@ -396,6 +449,7 @@ set(0, 'DefaultFigurePosition', p)
 for n = 1:length(eMet)
     F1 = figure;
     eMeti = char(eMet(n));
+    all_group_eMet_vals = [];
     xt = 1:length(Grps);
     for d = 1:length(AgeDiv)
         h(d) = subplot(1,length(AgeDiv),d);
@@ -407,6 +461,7 @@ for n = 1:length(eMet)
             eval(['DatTemp = ' VNe ';']);
             PlotDat = DatTemp;
             PlotDat(isnan(PlotDat)) = [];
+            all_group_eMet_vals = [all_group_eMet_vals; PlotDat];
             if isempty(PlotDat)
                 continue
             else
@@ -425,6 +480,22 @@ for n = 1:length(eMet)
     end
     linkaxes(h,'xy')
     h(1).XLim = [min(xt)-0.5 max(xt)+0.5];
+
+    customBoundMatchVec = strcmp(eMetl(n), metricsWCustomBounds);
+    if sum(customBoundMatchVec) == 1
+        bound_idx = find(customBoundMatchVec);
+        custom_bound_vec = eMetCustomBounds{bound_idx, 2};
+
+        if isnan(custom_bound_vec(1))
+            custom_bound_vec(1) = min(all_group_eMet_vals);
+        end 
+   
+        if isnan(custom_bound_vec(2))
+            custom_bound_vec(2) = max(all_group_eMet_vals);
+        end 
+        h(1).YLim = custom_bound_vec;
+    end 
+
     aesthetics
     set(gca,'TickDir','out');
     set(findall(gcf,'-property','FontSize'),'FontSize',9)
@@ -486,7 +557,7 @@ for n = 1:length(eMet)
     close(F1)
 end
 
-%% halfViolinPlots - plots by DIV
+%% halfViolinPlots - plots by DIV : mean firing rate per electrode 
 
 cd(HomeDir); cd(strcat('OutputData',Params.Date));
 cd('2_NeuronalActivity'); cd('2B_GroupComparisons'); 
@@ -498,6 +569,8 @@ eMetl = {'mean firing rate per electrode (Hz)'};
 p = [100 100 1300 600]; 
 set(0, 'DefaultFigurePosition', p)
 
+all_eMet_vals = [];
+
 for n = 1:length(eMet)
     F1 = figure;
     eMeti = char(eMet(n));
@@ -508,10 +581,15 @@ for n = 1:length(eMet)
         for g = 1:length(Grps)
             eGrp = cell2mat(Grps(g));
             eDivTP = strcat('TP',num2str(d));
+            % TODO: fix this
             VNe = strcat(eGrp,'.',eDivTP,'.',eMeti);
             eval(['DatTemp = ' VNe ';']);
             PlotDat = DatTemp;
             PlotDat(isnan(PlotDat)) = [];
+            
+            % concateenate to a store to get ylim 
+            all_eMet_vals = [all_eMet_vals; PlotDat];
+
             if isempty(PlotDat)
                 continue
             else
@@ -530,6 +608,7 @@ for n = 1:length(eMet)
     end
     linkaxes(h,'xy')
     h(1).XLim = [min(xt)-0.5 max(xt)+0.5];
+    h(2).YLim = [0, max(all_eMet_vals)];
     aesthetics
     set(gca,'TickDir','out');
     set(findall(gcf,'-property','FontSize'),'FontSize',9)
