@@ -23,12 +23,12 @@ Params.output_spreadsheet_file_type = 'csv';  % .xlsx or .csv
 % Analysis step settings
 Params.priorAnalysisDate = '25Aug2022'; % prior analysis date in format given in output data folder e.g., '27Sep2021'
 Params.priorAnalysis = 1; % use previously analysed data? 1 = yes, 0 = no
-Params.startAnalysisStep = 1; % if Params.priorAnalysis=0, default is to start with spike detection
+Params.startAnalysisStep = 4; % if Params.priorAnalysis=0, default is to start with spike detection
 Params.optionalStepsToRun = {'runStats'}; % include 'generateCSV' to generate csv for rawData folder
 
 % Spike detection settings
 detectSpikes = 0; % run spike detection? % 1 = yes, 0 = no
-Params.runSpikeCheckOnPrevSpikeData = 1; % whether to run spike detection check without spike detection 
+Params.runSpikeCheckOnPrevSpikeData = 0; % whether to run spike detection check without spike detection 
 Params.fs = 25000; % Sampling frequency, HPC: 25000, Axion: 12500;
 Params.dSampF = 25000; % down sampling factor for spike detection check
 Params.potentialDifferenceUnit = 'uV';  % the unit which you are recording electrical signals 
@@ -68,25 +68,90 @@ Params.showOneFig = 1;  % otherwise, 0 = pipeline shows plots as it runs, 1: sup
 % GUI / Tutorial mode settings 
 Params.guiMode = 0;
 if Params.guiMode
-    CreateStruct.Interpreter = 'tex';
-    CreateStruct.WindowStyle = 'modal';
-    helloBox = msgbox("\fontsize{20} Hello! Welcome to the MEA network analysis pipeline toolbox!", CreateStruct);
-    uiwait(helloBox);
+    % CreateStruct.Interpreter = 'tex';
+    % CreateStruct.WindowStyle = 'modal';
+    opts = struct(); 
+    opts.Default = 'Okay';
+    opts.Interpreter = 'tex';
+    helloBox = questdlg("\fontsize{20} Hello! Welcome to the MEA network analysis pipeline toolbox!", ...
+     'Welcome!', 'Okay', opts);
     clear helloBox
-
-    selectHomeDir = msgbox("\fontsize{20} First, please select the folder where your MEApieline.m script is in", CreateStruct);
-    uiwait(selectHomeDir);
+    
+    opts = struct(); 
+    opts.Default = 'Okay';
+    opts.Interpreter = 'tex';
+    selectHomeDir = questdlg("\fontsize{20} First, please select the folder where your MEApieline.m script is in", ...
+        'Home directory selection', 'Okay', opts);
+    % uiwait(selectHomeDir);
     clear selectHomeDir
 
     homeDirUiGet = uigetdir(pwd, 'Please select the folder where the MEApipeline.m script is in');
     % uiwait(homeDirUiGet)
     Params.HomeDir = homeDirUiGet;
+
+    % Ask user for raw data directory 
+
+    rawDataAnswer = questdlg("\fontsize{20} Please select the folder containing your raw data", ...
+        'Raw data folder', 'Okay', opts);
+    clear rawDataAnswer
     
+    rawDataUIGet = uigetdir(pwd, 'Please select the folder where the raw data is in');
+    rawData = rawDataUIGet;
+    clear rawDataUIGet
+
+    % Please select the spreadsheet containing the set of 
+    
+
+    % Asking user if they are running pipeline the first time on raw data
     opts = struct(); 
     opts.Default = 'Yes';
     opts.Interpreter = 'tex';
+    drawnow; pause(0.1);
     runningPipelineFirstTime = questdlg('\fontsize{20} Are you running this pipeline for the first time on raw data?', ...
 	'Pipeline step question', 'Yes', 'No', opts);
+    drawnow; pause(0.1);
+
+    if strcmp(runningPipelineFirstTime, 'Yes')
+        Params.priorAnalysis = 0; 
+        Params.startAnalysisStep = 1;
+        detectSpikes = 1;
+
+    elseif strcmp(runningPipelineFirstTime, 'No')
+         Params.priorAnalysis = 1; 
+
+    end 
+    
+    % Channel layout 
+    % opts = struct(); 
+    % opts.Default = 'MCS60';
+    % opts.Interpreter = 'tex';
+    % For some reason using opts here makes matlab unresponsive
+    drawnow; pause(1);
+    channelLayout = questdlg('Which channel layout are you using?', ...
+	'Channel layout', 'MCS60', 'Axion64', 'Custom', 'MCS60');
+    drawnow; pause(1);
+    Params.channelLayout = channelLayout;
+    clear channelLayout
+
+
+
+
+    % Sampling rate of recording 
+    % opts = struct();
+    % opts.Interpreter = 'tex';
+    % samplingRateAnswer = inputdlg('Please specify the sampling rate of your recording (Hz)', ...
+    %     'Sampling Rate (Hz)', [1, 40], {'25000'}, opts);
+    
+    % Ready to start pipeline 
+    opts = struct();
+    opts.Default = 'Run pipeline!';
+    opts.Interpreter = 'tex';
+    pause(0.1);
+    readyBox = questdlg("\fontsize{20} We are all set!", ...
+     'Ready!', 'Run pipeline!', opts);
+    drawnow; pause(0.1);
+
+    clear readyBox
 
 end 
 
@@ -397,6 +462,9 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
             path = strcat(Params.priorAnalysisPath,'/ExperimentMatFiles/');
             path(strfind(savepath,'\'))='/'; cd(path)
             load(strcat(char(ExpName(ExN)),'_',Params.priorAnalysisDate,'.mat'), 'spikeTimes', 'Ephys','adjMs','Info')
+            % close saved figure handles
+            close all
+            Params = checkOneFigureHandle(Params);
         else
             cd(strcat('OutputData',Params.Date)); cd('ExperimentMatFiles')
             load(strcat(char(ExpName(ExN)),'_',Params.Date,'.mat'),'Info','Params', 'spikeTimes', 'Ephys','adjMs')
@@ -514,7 +582,7 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
         cd(HomeDir)
     end 
     
-    % Plot node cartography metrics across all reccordings 
+    % Plot node cartography metrics across all recordings 
     cd(fullfile(HomeDir, strcat('OutputData', Params.Date), 'ExperimentMatFiles'))
     NetMetricsE = {'Dens','Q','nMod','Eglob','aN','CC','PL','SW','SWw', ... 
                'Hub3','Hub4', 'NCpn1','NCpn2','NCpn3','NCpn4','NCpn5','NCpn6'}; 
