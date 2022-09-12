@@ -608,7 +608,7 @@ for n = 1:length(eMet)
     end
     linkaxes(h,'xy')
     h(1).XLim = [min(xt)-0.5 max(xt)+0.5];
-    h(2).YLim = [0, max(all_eMet_vals)];
+    h(1).YLim = [0, max(all_eMet_vals)];
     aesthetics
     set(gca,'TickDir','out');
     set(findall(gcf,'-property','FontSize'),'FontSize',9)
