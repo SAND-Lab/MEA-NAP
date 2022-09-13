@@ -10,7 +10,7 @@ Params.threshold_calculation_window = [0, 1.0];  % which part of the recording t
 Params.run_detection_in_chunks = 0; % whether to run wavelet detection in chunks (0: no, 1:yes)
 Params.chunk_length = 60;  % in seconds, will be ignored if run_detection_in_chunks = 0
 
-Params.multiplier = 3; % multiplier to use extracting spikes for wavelet (not for detection)
+Params.multiplier = 3.5; % multiplier to use extracting spikes for wavelet (not for detection)
 
 % HSBSCAN is currently not used (and multiple_templates is not used to
 % simplify things)
@@ -165,6 +165,7 @@ if strcmp(Params.channelLayout, 'MCS60')
     % Re-order the channel IDs and coordinates to match the original
     % ordering
     channels = channels(reorderingIdx);
+    Params.channels = channels; 
     Params.coords = Params.coords(reorderingIdx, :);
 
 elseif strcmp(Params.channelLayout, 'Axion64')
@@ -198,65 +199,4 @@ elseif strcmp(Params.channelLayout, 'Custom')
 end 
 
 Params.coords  = Params.coords * 8;  % Do not remove this line after specifying coordinate positions in (0 - 1 format)
-num_channels = size(Params.coords, 1);
-
-%% Plot electrode layout
-p = [100 100 1400 550];
-if Params.showOneFig 
-    if ~isfield(Params, 'oneFigure')
-        Params.oneFigure = figure;
-    end 
-    set(0, 'DefaultFigurePosition', p)
-    set(Params.oneFigure, 'Position', p);
-else
-    F1 = figure;
-    set(0, 'DefaultFigurePosition', p)
-    set(F1, 'Position', p);
-end 
-
-
-subplot(1, 2, 1)
-title('Provided electrode layout (channel index)')
-for n_channel = 1:num_channels
-    txt_to_plot = sprintf('%.f', n_channel);
-    text(Params.coords(n_channel, 1), Params.coords(n_channel, 2), txt_to_plot)
-end 
-xlabel('X coordinates')
-ylabel('Y coordinates')
-xlim([min(Params.coords(:, 1)) - 1, max(Params.coords(:, 1) + 1)])
-ylim([min(Params.coords(:, 2)) - 1, max(Params.coords(:, 2) + 1)])
-
-subplot(1, 2, 2)
-title('Provided electrode layout (channel ID)')
-for n_channel = 1:num_channels
-    txt_to_plot = sprintf('%.f', channels(n_channel));
-    text(Params.coords(n_channel, 1), Params.coords(n_channel, 2), txt_to_plot)
-end 
-xlabel('X coordinates')
-ylabel('Y coordinates')
-xlim([min(Params.coords(:, 1)) - 1, max(Params.coords(:, 1) + 1)])
-ylim([min(Params.coords(:, 2)) - 1, max(Params.coords(:, 2) + 1)])
-
-set(gcf, 'color', 'w')
-
-% save figure
-figFolder = fullfile(HomeDir, strcat(['OutputData', Params.Date]));
-if ~isfolder(figFolder)
-    mkdir(figFolder)
-end 
-figName = 'channel_layout';
-figSavePath = fullfile(figFolder, figName);
-
-if ~isfield(Params, 'oneFigure')
-    pipelineSaveFig(figSavePath, Params.figExt, Params.fullSVG, F1);
-else 
-    pipelineSaveFig(figSavePath, Params.figExt, Params.fullSVG, Params.oneFigure);
-end 
-
-if ~isfield(Params, 'oneFigure')
-    close all
-else 
-    set(0, 'CurrentFigure', Params.oneFigure);
-    clf reset
-end 
 
