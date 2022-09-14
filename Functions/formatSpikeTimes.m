@@ -16,8 +16,12 @@ function [spikeMatrix,spikeTimes,Params,Info] = formatSpikeTimes(File,Params,Inf
 %
 % Returns 
 % -------
-%  
-%
+% spikeMatrix : matrix 
+% spikeTimes : struct 
+% Params : struct 
+% Info : struct 
+
+
 %% load spike detection result
 
 try
@@ -36,13 +40,13 @@ Info.channels = channels;
 
 if strcmp(Params.SpikesMethod,'merged') || strcmp(Params.SpikesMethod,'mergedAll')
     for uu = 1:length(spikeTimes)
-        [spike_times{uu}.merged,~, ~] = mergeSpikes(spikeTimes{uu}, 'all');
+        [spike_times{uu}.('mergedAll'),~, ~] = mergeSpikes(spikeTimes{uu}, 'all');
     end
     clear spikeTimes
     spikeTimes = spike_times;
 elseif strcmp(Params.SpikesMethod,'mergedWavelet')
     for uu = 1:length(spikeTimes)
-            [spike_times{uu}.merged,~, ~] = mergeSpikes(spikeTimes{uu}, 'wavelets');
+            [spike_times{uu}.('mergedWavelet'),~, ~] = mergeSpikes(spikeTimes{uu}, 'wavelets');
     end
     clear spikeTimes
     spikeTimes = spike_times;
