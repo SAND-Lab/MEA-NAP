@@ -27,7 +27,7 @@ Params.startAnalysisStep = 4; % if Params.priorAnalysis=0, default is to start w
 Params.optionalStepsToRun = {'runStats'}; % include 'generateCSV' to generate csv for rawData folder
 
 % Spike detection settings
-detectSpikes = 0; % run spike detection? % 1 = yes, 0 = no
+detectSpikes = 1; % run spike detection? % 1 = yes, 0 = no
 Params.runSpikeCheckOnPrevSpikeData = 0; % whether to run spike detection check without spike detection 
 Params.fs = 25000; % Sampling frequency, HPC: 25000, Axion: 12500;
 Params.dSampF = 25000; % down sampling factor for spike detection check
@@ -65,8 +65,8 @@ Params.figExt = {'.png', '.svg'};  % supported options are '.fig', '.png', and '
 Params.fullSVG = 1;  % whether to insist svg even with plots with large number of elements
 Params.showOneFig = 1;  % otherwise, 0 = pipeline shows plots as it runs, 1: supress plots
 
-% GUI / Tutorial mode settings 
-Params.guiMode = 0;
+%% GUI / Tutorial mode settings 
+Params.guiMode = 1;
 if Params.guiMode
     % CreateStruct.Interpreter = 'tex';
     % CreateStruct.WindowStyle = 'modal';
@@ -80,7 +80,7 @@ if Params.guiMode
     opts = struct(); 
     opts.Default = 'Okay';
     opts.Interpreter = 'tex';
-    selectHomeDir = questdlg("\fontsize{20} First, please select the folder where your MEApieline.m script is in", ...
+    selectHomeDir = questdlg("\fontsize{20} First, please select the folder where your MEApieline.m script is located", ...
         'Home directory selection', 'Okay', opts);
     % uiwait(selectHomeDir);
     clear selectHomeDir
@@ -99,17 +99,18 @@ if Params.guiMode
     rawData = rawDataUIGet;
     clear rawDataUIGet
 
-    % Please select the spreadsheet containing the set of 
-    
+    % Please select the spreadsheet containing the set of recordings 
+    spreadSheetAnswer = questdlg("\fontsize{20} Please select the spreadsheet containing a list of files you want to run the pipeline", ...
+        'Spreadsheet file', 'Okay', opts);
+    spreadsheet_filename = uigetfile(pwd, 'Please select the spreadsheet');
 
     % Asking user if they are running pipeline the first time on raw data
-    opts = struct(); 
-    opts.Default = 'Yes';
-    opts.Interpreter = 'tex';
-    drawnow; pause(0.1);
-    runningPipelineFirstTime = questdlg('\fontsize{20} Are you running this pipeline for the first time on raw data?', ...
-	'Pipeline step question', 'Yes', 'No', opts);
-    drawnow; pause(0.1);
+    firstTimeOrNo = {'Yes', 'No'};
+    [indx,tf] = listdlg('PromptString',{'Are you running this pipeline for' ...
+        'the first time on raw data?'}, ...
+             'ListString',firstTimeOrNo);
+
+    runningPipelineFirstTime = firstTimeOrNo{indx};
 
     if strcmp(runningPipelineFirstTime, 'Yes')
         Params.priorAnalysis = 0; 
@@ -117,30 +118,32 @@ if Params.guiMode
         detectSpikes = 1;
 
     elseif strcmp(runningPipelineFirstTime, 'No')
-         Params.priorAnalysis = 1; 
+         Params.priorAnalysis = 1;
+         % ask user which step they want to start the pipeline on 
+         availStartAnalysisSteps = {'1 : Spike detection', '2 : neuronal activity', ...
+             '3 : functional connectivity', '4 : network activity', '5 : stats and classification'};
+         [indx, tf] = listdlg('PromptString',{'Please select which step you want' ...
+             'to start the pipeline'}, ...
+             'ListString',availStartAnalysisSteps);
+         Params.startAnalysisStep = str2num(availStartAnalysisSteps{indx}(1));
 
     end 
     
     % Channel layout 
-    % opts = struct(); 
-    % opts.Default = 'MCS60';
-    % opts.Interpreter = 'tex';
-    % For some reason using opts here makes matlab unresponsive
+    drawnow; pause(0.1);
+    availChanellLayout = {'MCS60', 'Axion64', 'Custom'};
+    [indx,tf] = listdlg('PromptString',{'Please select which electrode',  'layout you are using'}, ...
+        'ListString',availChanellLayout);
     drawnow; pause(1);
-    channelLayout = questdlg('Which channel layout are you using?', ...
-	'Channel layout', 'MCS60', 'Axion64', 'Custom', 'MCS60');
-    drawnow; pause(1);
-    Params.channelLayout = channelLayout;
-    clear channelLayout
-
-
+    Params.channelLayout = availChanellLayout{indx};
 
 
     % Sampling rate of recording 
-    % opts = struct();
-    % opts.Interpreter = 'tex';
-    % samplingRateAnswer = inputdlg('Please specify the sampling rate of your recording (Hz)', ...
-    %     'Sampling Rate (Hz)', [1, 40], {'25000'}, opts);
+    if strcmp(Params.channelLayout, 'MCS60')
+        Params.fs = 25000;
+    else
+        Params.fs = 12500;
+    end 
     
     % Ready to start pipeline 
     opts = struct();
