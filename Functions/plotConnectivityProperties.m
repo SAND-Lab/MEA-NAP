@@ -1,9 +1,10 @@
-function [] = plotConnectivityProperties(adjM, e, lagval, maxSTTC, meanSTTC, ND, NS, EW, FN, Params)
+function [] = plotConnectivityProperties(adjM, e, lagval, maxSTTC, meanSTTC, ... 
+    ND, NS, EW, FN, Params)
 %{
-
+Plots connectivity properties given the adjacency matrix (adjM)
 Parameters
 ----------
-adjM : 
+adjM : a
 e : 
 lagval : 
 Returns 
@@ -13,18 +14,21 @@ None
 %}
 
 p = [10 10 1100 600];
-set(0, 'DefaultFigurePosition', p)
 
 if ~isfield(Params, 'oneFigure')
-    f1 = figure;
+    F1 = figure;
+    F1.OuterPosition = p;
+    t = tiledlayout(6,6);
+    t.Title.String = strcat(regexprep(FN,'_','','emptymatch'),{' '},num2str(lagval(e)),{' '},'ms',{' '},'lag');
 else 
+    set(0, 'DefaultFigurePosition', p)
     set(Params.oneFigure, 'Position', p);
+    t = tiledlayout(Params.oneFigure, 6,6);
+    t.Title.String = strcat(regexprep(FN,'_','','emptymatch'),{' '},num2str(lagval(e)),{' '},'ms',{' '},'lag');
+    %title(strcat(regexprep(FN,'_','','emptymatch'),{' '},num2str(lagval(e)),{' '},'ms',{' '},'lag'));
 end 
 
-t = tiledlayout(6,6);
-t.Title.String = strcat(regexprep(FN,'_','','emptymatch'),{' '},num2str(lagval(e)),{' '},'ms',{' '},'lag');
-
-nexttile(1,[3 2]);
+nexttile(t, 1,[3 2]);
 imagesc(adjM)
 xlabel('nodes')
 ylabel('nodes')
@@ -34,7 +38,7 @@ c.Label.String = 'correlation coefficient';
 aesthetics
 set(gca,'TickDir','out');
 
-nexttile(19,[3 1]);
+nexttile(t, 19,[3 1]);
 bar(maxSTTC(e))
 ylim([0 max(adjM(:))+0.15*max(adjM(:))])
 title('max corr. value')
@@ -42,7 +46,7 @@ aesthetics
 set(gca,'TickDir','out');
 set(gca,'xtick',[])
 
-nexttile(20,[3 1]);
+nexttile(t, 20,[3 1]);
 bar(meanSTTC(e))
 ylim([0 max(adjM(:))+0.15*max(adjM(:))])
 title('mean corr. value')
@@ -50,23 +54,24 @@ aesthetics
 set(gca,'TickDir','out');
 set(gca,'xtick',[])
 
-nexttile(4,[2 3]);
+nexttile(t, 4,[2 3]);
 histogram(ND,50)
 xlabel('node degree')
 ylabel('frequency')
 aesthetics
 set(gca,'TickDir','out');
 
-nexttile(16,[2 3]);
+nexttile(t, 16,[2 3]);
 histogram(NS,50)
 xlabel('node strength')
 ylabel('frequency')
 aesthetics
 set(gca,'TickDir','out');
 
-nexttile(28,[2 3]);
-histogram(EW,50)
-xlabel('mean edge weight')
+nexttile(t, 28,[2 3]);
+% histogram(EW,50)
+histogram(adjM(:));
+xlabel('edge weight')
 ylabel('frequency')
 aesthetics
 set(gca,'TickDir','out');
