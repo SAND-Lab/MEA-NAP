@@ -42,7 +42,7 @@ git clone https://github.com/SAND-Lab/AnalysisPipeline
 
 ## How to use the pipeline
 
-To quickly get started, open `MEApipeline.m` in matlab, read through the instructions in section 1
+To quickly get started, open `MEApipeline.m` in matlab, and read through the instructions in section 1
 and modify the parameters. You can find the [full documentation on our MEA-NAP read-the-docs website](https://analysis-pipeline.readthedocs.io/en/latest/).
 
 
