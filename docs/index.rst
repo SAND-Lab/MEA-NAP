@@ -1,11 +1,11 @@
-.. MEA pipeline documentation master file, created by
+.. MEA network analysis pipeline (MEA-NAP)  documentation master file, created by
    sphinx-quickstart on Fri May 27 16:30:07 2022.
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Welcome to MEA pipeline's documentation!
+Welcome to the MEA network analysis pipeline (MEA-NAP) documentation!
 ========================================
-.. image:: ../imgs/MEApipelineSteps.svg
+.. image:: ../imgs/MEANAPoverview.png
   :width: 800
 
 .. toctree::
