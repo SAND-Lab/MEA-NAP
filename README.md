@@ -1,7 +1,7 @@
 ![Visitors](https://api.visitorbadge.io/api/visitors?path=https%3A%2F%2Fgithub.com%2FSAND-Lab%2FAnalysisPipeline&label=Visitors&countColor=%23263759)
 [![Documentation Status](https://readthedocs.org/projects/analysis-pipeline/badge/?version=latest)](https://analysis-pipeline.readthedocs.io/en/latest/?badge=latest)
 
-# MEA pipeline
+# MEA Network Analysis Pipeline (MEA-NAP)
 
 [**What is MEA pipeline?**](#mea-pipeline)
 | [**Features**](#features)
