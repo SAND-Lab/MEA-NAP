@@ -3,16 +3,16 @@
 
 # MEA Network Analysis Pipeline (MEA-NAP)
 
-[**What is MEA pipeline?**](#mea-pipeline)
+[**What is MEA-NAP?**](#mea-pipeline)
 | [**Features**](#features)
 | [**Installation**](#installation)
 | [**How to use the pipeline**](#how-to-use-the-pipeline)
 | [**Troubleshooting**](#troubleshooting)
 
 
-## What is the MEA pipeline?
+## What is the MEA-NAP?
 
-The MEA pipeline is a streamlined diagnostic and analytic tool for data obtained using microelectrode arrays, it provides a straightforward way for the user to quickly perform spike detection, firing rate analysis, burst detection, network analysis and makes summary plots and performs statistics on these features so that the user can identify developmental or genotypic trends and differences. The pipeline is written in `MATLAB` and is targeted at experimentalists who want have a convinient way to analyze their data without too much user input. Learn more about it [here](https://analysis-pipeline.readthedocs.io/en/latest/).
+The MEA network analysis pipeline (MEA-NAP) is a streamlined diagnostic and analytic tool for cellular scale network activity data obtained using microelectrode arrays (MEAs). MEA-NAP provides a straight forward way for new and experienced MATLAB users to quickly compare spike detection methods, neuronal activity (including firing rate and burst detection), and functional connectivity (including network metrics from graph and control theories). MEA-NAP performs batch analysis of an experimental dataset (e.g., MEA recordings from wild-type and knock-out cultures at multiple developmental time points). MEA-NAP produces summary plots and performs statistics on these features and organizes the output figures in a convenient file structure. The user can then identify network-level developmental or genotypic differences in their MEA dataset. The pipeline is written in `MATLAB` and was designed for experimentalists with little or no experience with network analysis.  Experienced users will find the batch analysis and automatic figure generation convenient for examining both individual network and group comparisons. Learn more about it [here](https://analysis-pipeline.readthedocs.io/en/latest/).
 
 
 ## Features
