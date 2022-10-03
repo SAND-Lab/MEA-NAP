@@ -20,7 +20,7 @@ Please see our [detailed documentation for MEA-NAP users at our read-the-docs pa
 ## Features
 
 
-![Network pipeline steps](/imgs/MEApipelineSteps.svg)
+![Network pipeline steps](/imgs/MEANAPoverview.png)
 
 
 ## Installation
