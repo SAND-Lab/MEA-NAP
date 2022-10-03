@@ -51,7 +51,7 @@ and modify the parameters. You can find the [full documentation on our MEA-NAP r
 For most issues, please use the Issues tab on github and open a new issue,
 e.g., see an example issue [here](https://github.com/SAND-Lab/AnalysisPipeline/issues/1).
 
-For SAND Lab users or collaborators (if it is urgent or requires long discussion with multiple lab members), you can also send a message on Slack or email.
+For SAND Lab users or collaborators: If it is urgent or requires long discussion with multiple lab members, you can also send a message on Slack or email.
 
 ## Contributing
 
