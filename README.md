@@ -55,6 +55,10 @@ For SAND Lab users or collaborators (if it is urgent or requires long discussion
 
 ## Contributing
 
+### Code
+
+We are always keen to have collaborators who are interested in contributing to the application of network metrics and/or code in MEA-NAP.  Please let us know if you are interested.  For current SAND users and collaborators, please see contributing code instructions in the MEA-NAP documentation.
+
 ### Documentation: How to build read-the-docs website locally
 
 The documentation of this toolbox is managed using read-the-docs and sphinx. To build and test the website on your local computer, you first need a python environment (eg. see [anaconda](https://www.anaconda.com/products/distribution)), then you want to install sphinx
