@@ -8,6 +8,7 @@
 | [**Installation**](#installation)
 | [**How to use the pipeline**](#how-to-use-the-pipeline)
 | [**Troubleshooting**](#troubleshooting)
+| [**Contributing**](#contributing)
 
 
 ## What is the MEA-NAP?
@@ -25,13 +26,13 @@ Please see our [detailed documentation for MEA-NAP users at our read-the-docs pa
 
 ## Installation
 
-To install, the pipeline, clone the github repository to a location of your choice (eg. your desktop folder):
+To install MEA-NAP, clone the github repository to a location of your choice (e.g., your desktop folder):
 
 ```
 git clone https://github.com/SAND-Lab/AnalysisPipeline -b v1.1.0
 ```
 
-Then read through the instructions [here](https://analysis-pipeline.readthedocs.io/en/latest/system-requirements.html) to check you have the appropriate version of Matlab and Matlab toolboxes installed.
+To confirm you have the appropriate version of Matlab and Matlab toolboxes installed, please [see the MEA-NAP systems requirments](https://analysis-pipeline.readthedocs.io/en/latest/system-requirements.html). Our [detailed documentation for MEA-NAP](https://analysis-pipeline.readthedocs.io/en/latest/) provides step-by-step instructions for formatting your data and running MEA-NAP.
 
 To get the cutting edge of the pipeline, which includes the latest features / bug fixes but may introduce new errors, do:
 
@@ -42,14 +43,14 @@ git clone https://github.com/SAND-Lab/AnalysisPipeline
 ## How to use the pipeline
 
 To quickly get started, open `MEApipeline.m` in matlab, read through the instructions in section 1
-and modify the parameters. You can find the full documentation [here](https://analysis-pipeline.readthedocs.io/en/latest/).
+and modify the parameters. You can find the [full documentation on our MEA-NAP read-the-docs website](https://analysis-pipeline.readthedocs.io/en/latest/).
 
 
 ## Troubleshooting
 
 For most issues, please use the Issues tab on github and open a new issue,
-eg. see an example issue [here](https://github.com/SAND-Lab/AnalysisPipeline/issues/1).
-In other cases (if it is urgent / require long discussion with multiple lab members), you can also send a message on Slack / email.
+e.g.. see an example issue [here](https://github.com/SAND-Lab/AnalysisPipeline/issues/1).
+For SAND Lab users or collaborators (if it is urgent / requires long discussion with multiple lab members), you can also send a message on Slack / email.
 
 ## Contributing
 
