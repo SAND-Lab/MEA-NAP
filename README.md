@@ -57,7 +57,7 @@ For SAND Lab users or collaborators (if it is urgent or requires long discussion
 
 ### Code
 
-We are always keen to have collaborators who are interested in contributing to the application of network metrics and/or code in MEA-NAP.  Please let us know if you are interested.  For current SAND users and collaborators, please see contributing code instructions in the MEA-NAP documentation.
+We are always keen to have collaborators who are interested in contributing to the application of network metrics and/or code in MEA-NAP.  Please let us know if you are interested.  For current SAND users and collaborators, please see [contributing code instructions](https://analysis-pipeline.readthedocs.io/en/latest/how-to-contribute.html) in the MEA-NAP documentation.
 
 ### Documentation: How to build read-the-docs website locally
 
