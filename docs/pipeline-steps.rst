@@ -22,7 +22,9 @@ The MEA-NAP Analysis Pipeline folder must be downloaded from our GitHub reposito
 
 The input files required for the pipeline are:
 
-1.  ``*.mat`` files converted from the raw acquisition files from the MEA recordings. 
+1.  Your MEA data 
+
+``*.mat`` files converted from the raw acquisition files from the MEA recordings. 
 
  - Each file should have three variables: ``fs`` : an integer which specifies the sampling rate, ``channel`` : a 1 x nChannel vector which gives an integer ID for each channel, and ``dat`` : a nSample x nChannel matrix which contains the potential difference (voltage) of each channel over time samples
  - For details about how to convert your raw data into this format, see:  :ref:`this section <preparing_data_for_pipeline>`
@@ -36,7 +38,9 @@ Here is an example of the variables you should see in matlab for an input .mat f
    :width: 500
       
    
-2. ``*.csv`` or ``*.xlsx`` file with the first column containing the filenames of the raw ``*.mat`` files for analysis, second column the age (this should be a number), third column genotype (e.g., WT or KO, do not put numbers in your names), and fourth column including any electrodes that should be grounded (for MCS 60 channel data, electrode 15 should be included here as it is the reference electrode).
+2. Table with your data filenames for batch analysis with age and group identifiers
+
+``*.csv`` or ``*.xlsx`` file with the first column containing the filenames of the raw ``*.mat`` files for analysis, second column the age (this should be a number), third column genotype (e.g., WT or KO, do not put numbers in your names), and fourth column including any electrodes that should be grounded (for MCS 60 channel data, electrode 15 should be included here as it is the reference electrode).
 
 Here is an example spreadsheet csv file opened in Microsoft excel: 
  
