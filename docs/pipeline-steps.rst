@@ -64,6 +64,8 @@ If you would like to modify the parameters, you can easily read through the firs
 
 The first section sets many of the parameters that instruct the pipeline where to find your data, select which parts of the analysis pipeline to run, and where to save the output. Follow the prompts to set-up the pipeline for analysing a single or multiple MEA recording files in the same experiment. All of the recordings to be compared should be saved in the same folder. If you choose not to use the GUI to start the pipeline, below line numbers requiring your input (red) or review.
 
+N.B. As we continue to update and improve MEA-NAP, some of the line numbers in the ``MEApipeline.m`` may change. There may be a lag before we update those line numbers in this documentation.  If the line numbers do not match, you can search for the function in the ``MEApipeline.m`` file in matlab to find the new line number.
+
 .. list-table:: 
    :widths: 15 25 50
    :header-rows: 1
