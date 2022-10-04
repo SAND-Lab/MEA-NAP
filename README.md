@@ -11,7 +11,9 @@
 | [**Contributing**](#contributing)
 
 
-## What is the MEA-NAP?
+## What is MEA-NAP?
+
+Alterations in synaptic function, and other cellular processes that affect neuronal communication, can alter the trajectory of network development. However, currently there is a gap for tools for studying network function at the cellular-scale accessible to cellular neuro- and stem cell biologists working with 2D and 3D rodent and human neuronal cultures. MEA-NAP combines methods for studying network function using graph theoretical and other network metrics that are commonly used at the whole brain level (e.g., fMRI data) and in other fields of network science. The aim of the pipeline is to facilitate comparisons in network function at the cellular scale from MEA recordings. Network function at the cellular scale can provide a platform for testing new therapeutic strategies including pharmacologic therapies and stimulating specific nodes in the network to modulate network function.
 
 The microelectrode array network analysis pipeline (MEA-NAP) is a streamlined diagnostic and analytic tool for cellular scale network activity data obtained using microelectrode arrays (MEAs). MEA-NAP provides a straight forward way for new and experienced MATLAB users to quickly compare spike detection methods, neuronal activity (including firing rate and burst detection), and functional connectivity (including network metrics from graph and control theories). MEA-NAP performs batch analysis of an experimental dataset (e.g., MEA recordings from wild-type and knock-out cultures at multiple developmental time points). MEA-NAP produces summary plots and performs statistics on these features and organizes the output figures in a convenient file structure. The user can then identify network-level developmental or genotypic differences in their MEA dataset. The pipeline is written in `MATLAB` and was designed for experimentalists with little or no experience with network analysis.  Experienced users will find the batch analysis and automatic figure generation convenient for examining both individual network and group comparisons. 
 
@@ -20,10 +22,7 @@ Please see our [detailed documentation for MEA-NAP users at our read-the-docs pa
 
 ## Features
 
-
 ![Network pipeline steps](/imgs/MEANAPoverview.png)
-
-Alterations in synaptic function, and other cellular processes that affect neuronal communication, can alter the trajectory of network development. However, currently there is a gap for tools for studying network function at the cellular-scale accessible to cellular neuro- and stem cell biologists working with 2D and 3D rodent and human neuronal cultures. MEA-NAP combines methods for studying network function using graph theoretical and other network metrics that are commonly used at the whole brain level (e.g., fMRI data) and in other fields of network science. The aim of the pipeline is to facilitate comparisons in network function at the cellular scale from MEA recordings. Network function at the cellular scale can provide a platform for testing new therapeutic strategies including pharmacologic therapies and stimulating specific nodes in the network to modulate network function.
 
 Features include implementation of graph theoretical metrics from the Brain Connectivity Toolbox (commonly applied to study networks at the whole brain macro scale) to cellular-scale functional networks from MEA recordings of neuronal cultures or brain slices. The pipeline also includes new network features applied at the cellular-scale including node cartography for classifying nodal roles within the network and effective rank for calculating the number of subcommunities within the cellular-scale networks based on their activity patterns.  New features also include control theoretical metrics to identify nodes that can drive network activity and dimensionality reduction using non-negative matrix factorization to characterize patterns of activity observed in the network.  Expected new features to come include feature selection.
 
