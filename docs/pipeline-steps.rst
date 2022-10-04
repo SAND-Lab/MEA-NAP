@@ -3,7 +3,7 @@ Pipeline steps
 
 .. _overview: 
 
-Overview of the network analysis pipeline
+Overview of MEA-NAP: our MEA network analysis pipeline
 ----------------------------------------------------------------
 
 The pipeline has the following steps:
