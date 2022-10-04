@@ -29,6 +29,8 @@ Features include implementation of graph theoretical metrics from the Brain Conn
 
 Importantly, MEA-NAP analyses the MEA experiments through batch analysis automatically adjusting scaling and production of comparison plots to the whole dataset.  This allows users new to network neuroscience to identify the most interesting network-level features in their dataset to explore further.  The plots can also be exported as png (for adding to presentations or posters) or svg (for adjusting font, color, etc) in Illustrator or Affinity Designer.
 
+See more about the network features and validation tools in MEA-NAP in [the full documentation](https://analysis-pipeline.readthedocs.io/en/latest/methods.html).
+
 ## Installation
 
 To install MEA-NAP, clone the github repository to a location of your choice (e.g., your desktop folder):
