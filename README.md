@@ -30,7 +30,7 @@ Importantly, MEA-NAP analyses the MEA experiments through batch analysis automat
 
 See more about the network features and validation tools in MEA-NAP in [the full documentation](https://analysis-pipeline.readthedocs.io/en/latest/methods.html).
 
-Our download our poster from the Federation of European Neuroscience Societies (FENS) Forum by [right-click here](https://github.com/SAND-Lab/AnalysisPipeline/blob/main/imgs/SAND_FENS_Poster_2022_06_29.pdf).
+See the pipeline features and applications by downloading our poster from the 2022 Federation of European Neuroscience Societies (FENS) Forum by [right-click here](https://github.com/SAND-Lab/AnalysisPipeline/blob/main/imgs/SAND_FENS_Poster_2022_06_29.pdf).
 
 ## Installation
 
