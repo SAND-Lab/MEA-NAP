@@ -33,7 +33,7 @@ The input files required for the pipeline are:
  - For data acquired with Axion Maestro, please use our custom conversion script with the AxIS MATLAB files functions (also available from Axion).
  - N.B. it is also possible to use ``*.mat`` files with spike times instead of raw data for the network analysis (steps 2-4 in the pipeline)
 
-Here is an example of the variables you should see in matlab for an input .mat file with 64 channels, recorded at with a sampling frequency of 12500 Hz. 
+Here is an example of the variables you should see in matlab for an Axion input .mat file with 64 channels, recorded at with a sampling frequency of 12500 Hz. 
 
 .. image:: ../imgs/example-input-file-workspace.png
    :width: 500
