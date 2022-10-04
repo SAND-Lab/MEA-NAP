@@ -30,7 +30,7 @@ Importantly, MEA-NAP analyses the MEA experiments through batch analysis automat
 
 See more about the network features and validation tools in MEA-NAP in [the full documentation](https://analysis-pipeline.readthedocs.io/en/latest/methods.html).
 
-Or [download our MEA-NAP poster](https://github.com/SAND-Lab/AnalysisPipeline/blob/main/imgs/SAND_FENS_Poster_2022_06_29.p) we presented at the 2022 Federation of European Neuroscience Societies (FENS) Forum.  (Right click on link and select "Save Link As...").
+You can [download our MEA-NAP FENS poster](https://github.com/SAND-Lab/AnalysisPipeline/blob/main/imgs/SAND_FENS_Poster_2022_06_29.p) we presented at the 2022 Federation of European Neuroscience Societies (FENS) Forum.  (Right click on link and select "Save Link As...").
 
 ## Installation
 
@@ -50,8 +50,15 @@ git clone https://github.com/SAND-Lab/AnalysisPipeline
 
 ## How to use the pipeline
 
-To quickly get started, open `MEApipeline.m` in matlab, and read through the instructions in section 1
-and modify the parameters. You can find the [full documentation on our MEA-NAP read-the-docs website](https://analysis-pipeline.readthedocs.io/en/latest/).
+To quickly get started, open `MEApipeline.m` in matlab.
+
+You will first need to ensure that [your data has been converted to mat files](https://analysis-pipeline.readthedocs.io/en/latest/system-requirements.html#preparing-mea-data-for-the-pipeline) with the appropriate variables and that you have [created a spreadsheet](https://analysis-pipeline.readthedocs.io/en/latest/pipeline-steps.html) (csv or xlsx file) with the names of your mat files for each recording and their group and ages to guide the batch analysis.
+
+If your data is in the right format, you can then press run in `MEApipeline.m`.  The guided user interface (GUI) will prompt you to select the location of the folder where you downloaded MEA-NAP, the folder with your data, and the name and location of the batch analysis csv or xlsx file.  Then the batch analysis will run autonomously. 
+
+Alternatively, in `MEApipeline.m` in matlab, you can read through the instructions in Section 1 to [customize your choice of parameters](https://analysis-pipeline.readthedocs.io/en/latest/pipeline-steps.html#required-user-input-in-the-first-section). 
+
+You can find the [full documentation on our MEA-NAP read-the-docs website](https://analysis-pipeline.readthedocs.io/en/latest/).
 
 
 ## Troubleshooting
