@@ -18,7 +18,7 @@ The pipeline has the following steps:
 Starting the pipeline
 --------------------------------
 
-The Analysis Pipeline folder must be downloaded from our GitHub repository, opened in MATLAB and added with its subfolders to the path. 
+The MEA-NAP Analysis Pipeline folder must be downloaded from our GitHub repository, opened in MATLAB and added with its subfolders to the path. 
 
 The input files required for the pipeline are:
 
