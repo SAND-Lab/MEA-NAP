@@ -58,7 +58,11 @@ Before running the script, please enter/ensure the following variables are corre
 Required user input in the first section
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The first section sets many of the parameters that instruct the pipeline where to find your data, select which parts of the analysis pipeline to run, and where to save the output. Follow the prompts to set-up the pipeline for analysing a single or multiple MEA recording files in the same experiment. All of the recordings to be compared should be saved in the same folder. Below line numbers requiring your input (red) or review.
+If you are happy to use the pre-set parameters, you can use the GUI (guided user interface) by pressing run in ``MEApipeline.m``.  The GUI will guide you through selecting the folder locations of the MEA-NAP folder, your MEA data, your batch analysis file (.csv or .xlsx), and indicating what type of MEA data (i.e., Multi channel systems 60 channel or Axion Biosystems 64 channel) you acquired.  Once complete, you can run the pipeline and it does the analysis and produces the figures and tables on its own.
+
+If you would like to modify the parameters, you can easily read through the first section of ``MEApipeline.m`` and edit the lines relevant to your experiment.  This section is well annotated and does not require understanding of MATLAB in order to edit.  Save your edits and run.
+
+The first section sets many of the parameters that instruct the pipeline where to find your data, select which parts of the analysis pipeline to run, and where to save the output. Follow the prompts to set-up the pipeline for analysing a single or multiple MEA recording files in the same experiment. All of the recordings to be compared should be saved in the same folder. If you choose not to use the GUI to start the pipeline, below line numbers requiring your input (red) or review.
 
 .. list-table:: 
    :widths: 15 25 50
