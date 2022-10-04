@@ -28,9 +28,9 @@ Features include implementation of graph theoretical metrics from the Brain Conn
 
 Importantly, MEA-NAP analyses the MEA experiments through batch analysis automatically adjusting scaling and production of comparison plots to the whole dataset.  This allows users new to network neuroscience to identify the most interesting network-level features in their dataset to explore further.  The plots can also be exported as png (e.g., for adding to presentations or posters) or svg (e.g., for adjusting font or color in Illustrator or Affinity Designer).
 
-See more about the network features and validation tools in MEA-NAP in [the full documentation](https://analysis-pipeline.readthedocs.io/en/latest/methods.html).
+Learn more about the network features and validation tools in MEA-NAP in [the full documentation](https://analysis-pipeline.readthedocs.io/en/latest/methods.html).
 
-You can [download our MEA-NAP FENS poster](https://github.com/SAND-Lab/AnalysisPipeline/blob/main/imgs/SAND_FENS_Poster_2022_06_29.p) we presented at the 2022 Federation of European Neuroscience Societies (FENS) Forum.  (Right click on link and select "Save Link As...").
+You can see our [MEA-NAP FENS poster](https://www.dropbox.com/s/by23wlgch4oyygm/SAND_FENS_Poster_2022_06_29.pdf?dl=0) we presented at the 2022 Federation of European Neuroscience Societies (FENS) Forum.  
 
 ## Installation
 
