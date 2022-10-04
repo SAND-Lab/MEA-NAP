@@ -1,7 +1,7 @@
 Code sources
 ==============
 
-The network analysis pipeline is both built on code and packages written by other users in the spike detection and network analysis community, and by our authors. In the methods section we cited packages used for corresponding analysis, but here we want to make sure to reinforce the help provided by the work we built upon:
+The network analysis pipeline is both built on code and packages written by other users in the spike detection and network analysis community, and by our authors. In the methods section we cite packages used for corresponding analysis. Here are links to the sources for code and/or methods utilized in the pipeline.
 
 
 Spike detection:
