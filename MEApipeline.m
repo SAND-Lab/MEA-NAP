@@ -18,6 +18,7 @@ spreadsheet_file_type = 'csv'; % 'csv' or 'excel'
 spreadsheet_filename = 'hpc_dataset.csv'; 
 sheet = 1; % specify excel sheet
 xlRange = 'A2:C7'; % specify range on the sheet (e.g., 'A2:C7' would analyse the first 6 files)
+xlRange_cvs = [5, 5]; % read the data in the range [StartRow EndRow], e.g. [2 Inf] means start reading data from row 2
 Params.output_spreadsheet_file_type = 'csv';  % .xlsx or .csv
 
 % Analysis step settings
@@ -238,7 +239,7 @@ elseif strcmp(spreadsheet_file_type, 'csv')
     if length(opts.VariableNames) > 3
         opts.VariableTypes{4} = 'char'; % this should be Ground
     end 
-    opts.DataLines = [2 Inf];  % start reading data from row 2
+    opts.DataLines = xlRange_cvs; % read the data in the range [StartRow EndRow]
     % csv_data = readtable(spreadsheet_filename, 'Delimiter','comma');
     csv_data = readtable(spreadsheet_filename, opts);
     ExpName =  csv_data{:, 1};
