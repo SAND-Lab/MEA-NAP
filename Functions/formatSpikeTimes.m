@@ -20,6 +20,9 @@ function [spikeMatrix,spikeTimes,Params,Info] = formatSpikeTimes(File,Params,Inf
 % spikeTimes : struct 
 % Params : struct 
 % Info : struct 
+%   Info.channels : vector 
+%       list of electrode names
+%    
 
 
 %% load spike detection result
@@ -35,6 +38,17 @@ catch
 end
 
 Info.channels = channels;
+
+% 2022-10-07 : Temp hack to remove electrode 82 if 59 electrodes were used
+% with the MCS60 layout, in the future there should be manual specification
+% of which electrodes as "missing" from the standard layout, or ideally
+% none at all 
+
+if strcmp(Params.layout, 'MCS60') && length(spikeTimes) == 59
+    fprintf('Detected 59 electrodes with MCS60 layout, removing electrode 82 \n')
+    Info.channels = channels(channels ~= 82);
+end 
+
 
 %% merge spikes if using multiple spike detection methods
 
