@@ -44,7 +44,7 @@ Info.channels = channels;
 % of which electrodes as "missing" from the standard layout, or ideally
 % none at all 
 
-if strcmp(Params.layout, 'MCS60') && length(spikeTimes) == 59
+if strcmp(Params.channelLayout, 'MCS60') && length(spikeTimes) == 59
     fprintf('Detected 59 electrodes with MCS60 layout, removing electrode 82 \n')
     Info.channels = channels(channels ~= 82);
 end 
