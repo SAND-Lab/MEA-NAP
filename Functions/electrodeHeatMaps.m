@@ -157,7 +157,7 @@ title({strcat(regexprep(FN,'_','','emptymatch'),' Electrode heatmap scaled to en
 
 % save figure
 figName = 'Heatmap';
-pipelineSaveFig(fignamer, Params.figExt, Params.fullSVG);
+pipelineSaveFig(figName, Params.figExt, Params.fullSVG);
 
 close all;
 
