@@ -45,7 +45,7 @@ To confirm you have the appropriate version of Matlab and Matlab toolboxes insta
 To get the cutting edge of the pipeline, which includes the latest features / bug fixes but may introduce new errors, do:
 
 ```
-git clone https://github.com/SAND-Lab/AnalysisPipeline 
+git clone https://github.com/SAND-Lab/MEA-NAP
 ```
 
 ## How to use the pipeline
