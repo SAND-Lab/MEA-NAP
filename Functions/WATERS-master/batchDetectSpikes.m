@@ -170,6 +170,7 @@ for recording = 1:numel(files)
                 new_grd = zeros(length(grd), 1);
                 for grd_idx = 1:length(grd)
                     new_grd(grd_idx) = find(params.channels == grd(grd_idx));
+
                 end 
                 grd = new_grd;
             end 

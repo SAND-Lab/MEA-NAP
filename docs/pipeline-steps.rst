@@ -3,7 +3,7 @@ Pipeline steps
 
 .. _overview: 
 
-Overview of the network analysis pipeline
+Overview of MEA-NAP
 ----------------------------------------------------------------
 
 The pipeline has the following steps:
@@ -18,11 +18,14 @@ The pipeline has the following steps:
 Starting the pipeline
 --------------------------------
 
-The Analysis Pipeline folder must be downloaded from our GitHub repository, opened in MATLAB and added with its subfolders to the path. 
+The MEA-NAP Analysis Pipeline folder must be downloaded from our GitHub repository, opened in MATLAB and added with its subfolders to the path. 
 
 The input files required for the pipeline are:
 
-1.  ``*.mat`` files converted from the raw acquisition files from the MEA recordings. 
+1.  Your MEA data 
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+``*.mat`` files converted from the raw acquisition files from the MEA recordings. 
 
  - Each file should have three variables: ``fs`` : an integer which specifies the sampling rate, ``channel`` : a 1 x nChannel vector which gives an integer ID for each channel, and ``dat`` : a nSample x nChannel matrix which contains the potential difference (voltage) of each channel over time samples
  - For details about how to convert your raw data into this format, see:  :ref:`this section <preparing_data_for_pipeline>`
@@ -30,13 +33,16 @@ The input files required for the pipeline are:
  - For data acquired with Axion Maestro, please use our custom conversion script with the AxIS MATLAB files functions (also available from Axion).
  - N.B. it is also possible to use ``*.mat`` files with spike times instead of raw data for the network analysis (steps 2-4 in the pipeline)
 
-Here is an example of the variables you should see in matlab for an input .mat file with 64 channels, recorded at with a sampling frequency of 12500 Hz. 
+Here is an example of the variables you should see in matlab for an Axion input .mat file with 64 channels, recorded at with a sampling frequency of 12500 Hz. 
 
 .. image:: ../imgs/example-input-file-workspace.png
    :width: 500
       
    
-2. ``*.csv`` or ``*.xlsx`` file with the first column containing the filenames of the raw ``*.mat`` files for analysis, second column the age (this should be a number), third column genotype (e.g., WT or KO, do not put numbers in your names), and fourth column including any electrodes that should be grounded (for MCS 60 channel data, electrode 15 should be included here as it is the reference electrode).
+2. Table with your data filenames for batch analysis with age and group identifiers
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+``*.csv`` or ``*.xlsx`` file with the first column containing the filenames of the raw ``*.mat`` files for analysis, second column the age (this should be a number), third column genotype (e.g., WT or KO, do not put numbers in your names), and fourth column including any electrodes that should be grounded (for MCS 60 channel data, electrode 15 should be included here as it is the reference electrode).
 
 Here is an example spreadsheet csv file opened in Microsoft excel: 
  
@@ -52,7 +58,13 @@ Before running the script, please enter/ensure the following variables are corre
 Required user input in the first section
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The first section sets many of the parameters that instruct the pipeline where to find your data, select which parts of the analysis pipeline to run, and where to save the output. Follow the prompts to set-up the pipeline for analysing a single or multiple MEA recording files in the same experiment. All of the recordings to be compared should be saved in the same folder. Below line numbers requiring your input (red) or review.
+If you are happy to use the pre-set parameters, you can use the GUI (guided user interface) by pressing run in ``MEApipeline.m``.  The GUI will guide you through selecting the folder locations of the MEA-NAP folder, your MEA data, your batch analysis file (.csv or .xlsx), and indicating what type of MEA data (i.e., Multi channel systems 60 channel or Axion Biosystems 64 channel) you acquired.  Once complete, you can run the pipeline and it does the analysis and produces the figures and tables on its own.
+
+If you would like to modify the parameters, you can easily read through the first section of ``MEApipeline.m`` and edit the lines relevant to your experiment.  This section is well annotated and does not require understanding of MATLAB in order to edit.  Save your edits and run.
+
+The first section sets many of the parameters that instruct the pipeline where to find your data, select which parts of the analysis pipeline to run, and where to save the output. Follow the prompts to set-up the pipeline for analysing a single or multiple MEA recording files in the same experiment. All of the recordings to be compared should be saved in the same folder. If you choose not to use the GUI to start the pipeline, below line numbers requiring your input (red) or review.
+
+N.B. As we continue to update and improve MEA-NAP, some of the line numbers in the ``MEApipeline.m`` may change. There may be a lag before we update those line numbers in this documentation.  If the line numbers do not match, you can search for the function in the ``MEApipeline.m`` file in matlab to find the new line number.
 
 .. list-table:: 
    :widths: 15 25 50

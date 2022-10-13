@@ -26,16 +26,22 @@ MATLAB Versions and Required Packages
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This pipeline was written for the current  MATLAB version 2021b.  
+
 The following packages provided by MATLAB need to be installed in order for the pipeline scripts to run:
-Signal Processing Toolbox
-Parallel Computing Toolbox
-Statistics and Machine Learning Toolbox
-Curve Fitting Toolbox (for the calcium imaging pipeline)
+
+- Signal Processing Toolbox
+
+- Parallel Computing Toolbox
+
+- Statistics and Machine Learning Toolbox
+
+- Curve Fitting Toolbox (for the calcium imaging pipeline)
+
 
 The following package must also be downloaded from the Brain Connectivity Toolbox (Rubinov & Sporns, 2010) website: https://sites.google.com/site/bctnet/ 
 
 
-Brain Connectivity Toolbox - This toolbox must be saved to the same folder as the network analysis pipeline folder, typically the user path folder, and added to the search path.
+- Brain Connectivity Toolbox - This toolbox must be saved to the same folder as the network analysis pipeline folder, typically the user path folder, and added to the search path.
 
 For assistance, please see our new MATLAB users help guide.
 

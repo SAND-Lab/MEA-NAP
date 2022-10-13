@@ -1,4 +1,4 @@
-Methods for Network Activity Analysis
+Methods for Cellular-scale Network Analysis of MEA recordings
 ======================================
 
 
