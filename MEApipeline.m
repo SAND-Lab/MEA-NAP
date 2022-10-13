@@ -9,22 +9,22 @@
 
 % Directories
 HomeDir = '/Users/timothysit/AnalysisPipeline'; % analysis folder to home directory
-rawData = '/Volumes/T7/schroter2015_mat';  % path to raw data .mat files
+rawData = '/Volumes/Macintosh HD/Users/timothysit/AnalysisPipeline/localRawData/testElectrodeLayout';  % path to raw data .mat files
 Params.priorAnalysisPath = ['/Users/timothysit/AnalysisPipeline/OutputData25Aug2022'];  % path to prev analysis
 spikeDetectedData = '/Users/timothysit/AnalysisPipeline/OutputData25Aug2022'; % path to spike-detected data
 
 % Input and output filetype
 spreadsheet_file_type = 'csv'; % 'csv' or 'excel'
-spreadsheet_filename = 'hpc_dataset.csv'; 
+spreadsheet_filename = 'layoutTest.csv'; 
 sheet = 1; % specify excel sheet
 xlRange = 'A2:C7'; % specify range on the sheet (e.g., 'A2:C7' would analyse the first 6 files)
-xlRange_cvs = [5, 5]; % read the data in the range [StartRow EndRow], e.g. [2 Inf] means start reading data from row 2
+csvRange = [2, Inf]; % read the data in the range [StartRow EndRow], e.g. [2 Inf] means start reading data from row 2
 Params.output_spreadsheet_file_type = 'csv';  % .xlsx or .csv
 
 % Analysis step settings
 Params.priorAnalysisDate = '25Aug2022'; % prior analysis date in format given in output data folder e.g., '27Sep2021'
-Params.priorAnalysis = 1; % use previously analysed data? 1 = yes, 0 = no
-Params.startAnalysisStep = 4; % if Params.priorAnalysis=0, default is to start with spike detection
+Params.priorAnalysis = 0; % use previously analysed data? 1 = yes, 0 = no
+Params.startAnalysisStep = 1; % if Params.priorAnalysis=0, default is to start with spike detection
 Params.optionalStepsToRun = {'runStats'}; % include 'generateCSV' to generate csv for rawData folder
 
 % Spike detection settings
@@ -33,7 +33,7 @@ Params.runSpikeCheckOnPrevSpikeData = 0; % whether to run spike detection check 
 Params.fs = 25000; % Sampling frequency, HPC: 25000, Axion: 12500;
 Params.dSampF = 25000; % down sampling factor for spike detection check
 Params.potentialDifferenceUnit = 'uV';  % the unit which you are recording electrical signals 
-Params.channelLayout = 'MCS60';  % 'MCS60' or 'Axion64'
+Params.channelLayout = 'MCS60';  % 'MCS60' or 'Axion64' or 'MCS60old'
 Params.thresholds = {'2.5', '3.5', '4.5'}; % standard deviation multiplier threshold(s), eg. {'2.5', '3.5', '4.5'}
 Params.wnameList = {'bior1.5'}; % wavelet methods to use {'bior1.5', 'mea'}; 
 Params.costList = -0.12;
@@ -67,7 +67,7 @@ Params.fullSVG = 1;  % whether to insist svg even with plots with large number o
 Params.showOneFig = 1;  % otherwise, 0 = pipeline shows plots as it runs, 1: supress plots
 
 %% GUI / Tutorial mode settings 
-Params.guiMode = 1;
+Params.guiMode = 0;
 if Params.guiMode
     % CreateStruct.Interpreter = 'tex';
     % CreateStruct.WindowStyle = 'modal';
@@ -239,12 +239,15 @@ elseif strcmp(spreadsheet_file_type, 'csv')
     if length(opts.VariableNames) > 3
         opts.VariableTypes{4} = 'char'; % this should be Ground
     end 
-    opts.DataLines = xlRange_cvs; % read the data in the range [StartRow EndRow]
+    opts.DataLines = csvRange; % read the data in the range [StartRow EndRow]
     % csv_data = readtable(spreadsheet_filename, 'Delimiter','comma');
     csv_data = readtable(spreadsheet_filename, opts);
     ExpName =  csv_data{:, 1};
     ExpGrp = csv_data{:, 3};
     ExpDIV = csv_data{:, 2};
+
+    Params.electrodesToGroundPerRecordingUseName = 1;  % use name (instead of index) to ground electrodes
+
     if sum(strcmp('Ground',csv_data.Properties.VariableNames))
         Params.electrodesToGroundPerRecording = csv_data.('Ground'); % this should be a 1 x N cell array 
         if ~iscell(Params.electrodesToGroundPerRecording)
@@ -299,7 +302,6 @@ if ((Params.priorAnalysis == 0) || (Params.runSpikeCheckOnPrevSpikeData)) && (Pa
         addpath(spikeDetectedData)
     end
 
-    
     savePath = strcat(HomeDir,'/OutputData',Params.Date,'/1_SpikeDetection/1A_SpikeDetectedData/');
     savePath(strfind(savePath,'\'))='/';
     
