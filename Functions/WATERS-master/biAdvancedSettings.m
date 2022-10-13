@@ -204,6 +204,7 @@ elseif strcmp(Params.channelLayout, 'MCS60')
     channels = channels(reorderingIdx);
     Params.channels = channels; 
     Params.coords = Params.coords(reorderingIdx, :);
+    Params.reorderingIdx = reorderingIdx;
 
 elseif strcmp(Params.channelLayout, 'MCS59')
 
@@ -241,6 +242,7 @@ elseif strcmp(Params.channelLayout, 'MCS59')
     channels = channels(reorderingIdx);
     Params.channels = channels; 
     Params.coords = Params.coords(reorderingIdx, :);
+    Params.reorderingIdx = reorderingIdx;
 
     inclusionIndex = find(channelsOrdering ~= 82);
     Params.channels = channels(inclusionIndex);
