@@ -1,31 +1,30 @@
-function [F1] = StandardisedNetworkPlot(adjM, coords, edge_thresh, z, plotType, FN, pNum, Params, lagval, e)
-%{
-function to plot the graph network 
-Parameters
-----------
-adjM : N x N matrix
-    adjacency matrix 
-coords : N x 2 matrix 
-    the x and y coordinates of each node or electrode 
-    currently assumes that the value ranges from 1 - 8 on both x and y axis
-edge_thresh : float 
-    a value between 0 and 1 for the minimum correlation to plot
-z : N X 1 vector 
-    the network metric used to determine the size of the plotted nodes
-    eg: node degree or node strength
-plotType : str
-    'MEA' to plot nodes with their respective electrode
-    coordinates and 'circular' to plot nodes in a circle
-FN : str
-    name of file/recording
-pNum - number to precede name of figure when it is saved
-
-Returns 
--------
-   F1 - 
-author RCFeord August 2021
-edited by Tim Sit 
-%}
+function [F1] = StandardisedNetworkPlot(adjM, coords, edge_thresh, z, plotType, FN, pNum, ...
+    Params, lagval, e)
+% Plot the graph network 
+% Parameters
+% ----------
+% adjM : N x N matrix
+%     adjacency matrix 
+% coords : N x 2 matrix 
+%     the x and y coordinates of each node or electrode 
+%     currently assumes that the value ranges from 1 - 8 on both x and y axis
+% edge_thresh : float 
+%     a value between 0 and 1 for the minimum correlation to plot
+% z : N X 1 vector 
+%     the network metric used to determine the size of the plotted nodes
+%     eg: node degree or node strength
+% plotType : str
+%     'MEA' to plot nodes with their respective electrode
+%     coordinates and 'circular' to plot nodes in a circle
+% FN : str
+%     name of file/recording
+% pNum - number to precede name of figure when it is saved
+% 
+% Returns 
+% -------
+%    F1 - 
+% author RCFeord August 2021
+% edited by Tim Sit 
 
 num_nodes = size(adjM, 2);
 
@@ -204,7 +203,16 @@ if strcmp(plotType,'MEA')
             pos = [xc(i)-(0.5*z(i)/nodeScaleF) yc(i)-(0.5*z(i)/nodeScaleF) z(i)/nodeScaleF z(i)/nodeScaleF];
             rectangle('Position',pos,'Curvature',[1 1],'FaceColor',[0.020 0.729 0.859],'EdgeColor','w','LineWidth',0.1)
         end
+
+        % Add channel numbers on top of the nodes
+        if Params.includeChannelNumberInPlots 
+            pos = [xc(i)  yc(i)];
+            text(pos(1), pos(2), sprintf('%.f', Params.netSubsetChannels(i)), ...
+                'HorizontalAlignment','center')
+        end 
+
     end
+
     ylim([min(yc)-1 max(yc)+1])
     xlim([min(xc)-1 max(xc)+3.75])
 end

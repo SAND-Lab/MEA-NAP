@@ -1,69 +1,68 @@
 function [NetMet] = ExtractNetMetOrganoid(adjMs, spikeTimes, lagval,Info,HomeDir,Params, spikeMatrix)
-%{
-Extract network metrics from adjacency matrices for organoid data
-
-Parameters 
-----------
-adjMs : N x N matrix
-spikeTimes : 
-lagval : int
-    lag for use in STTC calculation (in ms)
-Info : structure 
-HomeDir :
-Params : structure 
-    contains parameters for analysis and plotting, notably, the key
-    ones use are
-        Params.oneFigure : one shared figure handle for all figures (so figurse don't pop
-            in and out whilst the code is running the background)
-        coords : N X 2 matrix 
-           the coordinates of each network 
-
-spikeMatrix : (N x T sparse or full matrix)
-
-Returns
----------
-
-NetMet : structure
-    structure with network metrics 
-    'ND' : Node degree
-    'EW' : mean edge weight of each node
-    'NS' : 
-    'aN' : 
-    'Dens' : 
-    'Ci' :
-    'Q' :  
-    'nMod' : 
-    'Eglob' : 
-    'CC' :  
-    'PL' : 
-    'SW' : 
-    'SWw' :
-    'Eloc' :
-    'BC' : 
-    'PC' :  
-    'PC_raw' :
-    'Cmcblty' : 
-    'Z' : 
-    'Hub4' : 
-    'Hub3' : 
-    'NE' : 
-
-
-% List of plotting functions used in this script: 
-    - plotConnectivityProperties
-    - plotNullModelIterations
-    - electrodeSpecificMetrics
-    - StandardisedNetworkPlot
-
-Parameters defined in this function: 
-
-LatticeNetwork : (N x N matrix) 
-Ci : 
-aN : number of active nodes
-
-Author : RCFeord March 2021
-Edited by Tim Sit
-%}
+%
+% Extract network metrics from adjacency matrices for organoid data
+% 
+% Parameters 
+% ----------
+% adjMs : N x N matrix
+% spikeTimes : 
+% lagval : int
+%     lag for use in STTC calculation (in ms)
+% Info : structure 
+% HomeDir :
+% Params : structure 
+%     contains parameters for analysis and plotting, notably, the key
+%     ones use are
+%         Params.oneFigure : one shared figure handle for all figures (so figurse don't pop
+%             in and out whilst the code is running the background)
+%         coords : N X 2 matrix 
+%            the coordinates of each network 
+% 
+% spikeMatrix : (N x T sparse or full matrix)
+% 
+% Returns
+% ---------
+% 
+% NetMet : structure
+%     structure with network metrics 
+%     'ND' : Node degree
+%     'EW' : mean edge weight of each node
+%     'NS' : Node strength
+%     'aN' : 
+%     'Dens' : 
+%     'Ci' :
+%     'Q' :  
+%     'nMod' : 
+%     'Eglob' : 
+%     'CC' :  
+%     'PL' : 
+%     'SW' : 
+%     'SWw' :
+%     'Eloc' :
+%     'BC' : 
+%     'PC' :  
+%     'PC_raw' :
+%     'Cmcblty' : 
+%     'Z' : 
+%     'Hub4' : 
+%     'Hub3' : 
+%     'NE' : 
+% 
+% 
+% % List of plotting functions used in this script: 
+%     - plotConnectivityProperties
+%     - plotNullModelIterations
+%     - electrodeSpecificMetrics
+%     - StandardisedNetworkPlot
+% 
+% Parameters defined in this function: 
+% 
+% LatticeNetwork : (N x N matrix) 
+% Ci : 
+% aN : number of active nodes
+% 
+% Author : RCFeord March 2021
+% Edited by Tim Sit
 
 
 % specify list of network metrics to calculate
@@ -103,13 +102,21 @@ for e = 1:length(lagval)
     
     aNtemp = sum(adjM,1);
     iN = find(aNtemp==0);
-    aNtemp(aNtemp==0) = [];
+    aNtemp(aNtemp==0) = [];  % ??? why remove the zeros?
     aN = length(aNtemp);
+    
+    nodeStrength = sum(adjM, 1);
+    inclusionIndex = find(nodeStrength ~= 0);
     
     clear aNtemp
     
-    adjM(iN,:) = [];
-    adjM(:,iN) = [];
+    %adjM(iN,:) = [];
+    % adjM(:,iN) = [];
+
+    % Tim 2022-10-14 fix
+    adjM = adjM(inclusionIndex, inclusionIndex);
+    coords = Params.coords(inclusionIndex, :);
+    Params.netSubsetChannels = Params.channels(inclusionIndex);
     
     %% node degree, edge weight, node strength
     
@@ -324,30 +331,30 @@ else
             72,82,73,83,64,74,84,85,75,65,86,76,87,77,66,78,67,68,55,56,58,57];
     end
    
-    StandardisedNetworkPlot(adjM, Params.coords, edge_thresh, ND, 'MEA', char(Info.FN),'2',Params,lagval,e);
+    StandardisedNetworkPlot(adjM, coords, edge_thresh, ND, 'MEA', char(Info.FN),'2',Params,lagval,e);
    
     % grid network plot node degree betweeness centrality
-    StandardisedNetworkPlotNodeColourMap(adjM, Params.coords, edge_thresh, ND, 'Node degree', BC, 'Betweeness centrality', 'MEA', char(Info.FN), '3', Params, lagval,e)
+    StandardisedNetworkPlotNodeColourMap(adjM, coords, edge_thresh, ND, 'Node degree', BC, 'Betweeness centrality', 'MEA', char(Info.FN), '3', Params, lagval,e)
   
     % grid network plot node degree participation coefficient
-    StandardisedNetworkPlotNodeColourMap(adjM, Params.coords, edge_thresh, ND, 'Node degree', PC, 'Participation coefficient', 'MEA', char(Info.FN), '4', Params, lagval,e)
+    StandardisedNetworkPlotNodeColourMap(adjM, coords, edge_thresh, ND, 'Node degree', PC, 'Participation coefficient', 'MEA', char(Info.FN), '4', Params, lagval,e)
   
     % grid network plot node strength local efficiency
-    StandardisedNetworkPlotNodeColourMap(adjM, Params.coords, edge_thresh, NS, 'Node strength', Eloc, 'Local efficiency', 'MEA', char(Info.FN), '5', Params, lagval,e)
+    StandardisedNetworkPlotNodeColourMap(adjM, coords, edge_thresh, NS, 'Node strength', Eloc, 'Local efficiency', 'MEA', char(Info.FN), '5', Params, lagval,e)
   
     % simple circular network plot
     NDord = ND(On);
-    StandardisedNetworkPlot(adjMord, Params.coords, edge_thresh, NDord, 'circular', char(Info.FN),'6',Params,lagval,e);
+    StandardisedNetworkPlot(adjMord, coords, edge_thresh, NDord, 'circular', char(Info.FN),'6',Params,lagval,e);
     
     
     % grid network plot for controllability metrics
     if any(strcmp(Params.unitLevelNetMetToPlot , 'aveControl'))
-         StandardisedNetworkPlotNodeColourMap(adjM, Params.coords, edge_thresh, ND, 'Node degree', ...
+         StandardisedNetworkPlotNodeColourMap(adjM, coords, edge_thresh, ND, 'Node degree', ...
              aveControl, 'Average controllability', 'MEA', char(Info.FN), '3', Params, lagval,e)
     end 
 
     if any(strcmp(Params.unitLevelNetMetToPlot , 'modalControl'))
-         StandardisedNetworkPlotNodeColourMap(adjM, Params.coords, edge_thresh, ND, 'Node degree', ...
+         StandardisedNetworkPlotNodeColourMap(adjM, coords, edge_thresh, ND, 'Node degree', ...
              modalControl, 'Modal controllability', 'MEA', char(Info.FN), '3', Params, lagval,e)
     end 
 
