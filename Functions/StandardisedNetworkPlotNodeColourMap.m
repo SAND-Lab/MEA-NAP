@@ -242,6 +242,14 @@ if strcmp(plotType,'MEA')
                 rectangle('Position',pos,'Curvature',[1 1],'FaceColor',mycolours(1,1:3),'EdgeColor','w','LineWidth',0.1)
             end
         end
+        
+        % Add channel numbers on top of the nodes
+        if Params.includeChannelNumberInPlots 
+            pos = [xc(i)  yc(i)];
+            text(pos(1), pos(2), sprintf('%.f', Params.netSubsetChannels(i)), ...
+                'HorizontalAlignment','center')
+        end 
+
     end
     ylim([min(yc)-1 max(yc)+1])
     xlim([min(xc)-1 max(xc)+4.25])
