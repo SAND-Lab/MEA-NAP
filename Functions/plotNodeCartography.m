@@ -41,8 +41,16 @@ for e = 1:length(lagval)
     aNtemp(aNtemp==0) = [];
     aN = length(aNtemp);
     
-    adjM(iN,:) = [];
-    adjM(:,iN) = [];
+    % adjM(iN,:) = [];
+    % adjM(:,iN) = [];
+
+    % Tim 2022-10-14 fix
+    nodeStrength = sum(adjM, 1);
+    inclusionIndex = find(nodeStrength ~= 0);
+    adjM = adjM(inclusionIndex, inclusionIndex);
+    coords = Params.coords(inclusionIndex, :);
+    Params.netSubsetChannels = Params.channels(inclusionIndex);
+
 
     [Ci,Q,~] = mod_consensus_cluster_iterate(adjM,0.4,50);
     [On,adjMord] = reorder_mod(adjM,Ci);
@@ -66,11 +74,11 @@ for e = 1:length(lagval)
 
     % node cartography in circular plot
     NdCartDivOrd = NdCartDiv(On);
-    StandardisedNetworkPlotNodeCartography(adjMord, Params.coords, ... 
+    StandardisedNetworkPlotNodeCartography(adjM, coords, ... 
         edge_thresh, NdCartDivOrd, 'circular', char(Info.FN), '7', Params, lagval, e)
 
     % node cartography in grid plot 
-    StandardisedNetworkPlotNodeCartography(adjMord, Params.coords, ... 
+    StandardisedNetworkPlotNodeCartography(adjM, coords, ... 
         edge_thresh, NdCartDivOrd, 'MEA', char(Info.FN), '7', Params, lagval, e)
 
     % add node cartography results to existing experiment file 
