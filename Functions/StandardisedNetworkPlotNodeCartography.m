@@ -220,6 +220,14 @@ if strcmp(plotType,'MEA')
             Colour = nodeTypeColors(NdCartDiv(i), :);
             pos = [xc(i)-(0.5*nodeScaleF) yc(i)-(0.5*nodeScaleF) nodeScaleF nodeScaleF];
             rectangle('Position',pos,'Curvature',[1 1],'FaceColor',Colour,'EdgeColor','w','LineWidth',0.1)
+
+        % Add channel numbers on top of the nodes
+        if Params.includeChannelNumberInPlots 
+            pos = [xc(i)  yc(i)];
+            text(pos(1), pos(2), sprintf('%.f', Params.netSubsetChannels(i)), ...
+                'HorizontalAlignment','center')
+        end 
+
     end
     ylim([min(yc)-1 max(yc)+1])
     xlim([min(xc)-1 max(xc)+3.75])
