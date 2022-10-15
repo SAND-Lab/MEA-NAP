@@ -105,15 +105,14 @@ for e = 1:length(lagval)
     aNtemp(aNtemp==0) = [];  % ??? why remove the zeros?
     aN = length(aNtemp);
     
-    nodeStrength = sum(adjM, 1);
-    inclusionIndex = find(nodeStrength ~= 0);
-    
     clear aNtemp
     
     %adjM(iN,:) = [];
     % adjM(:,iN) = [];
 
     % Tim 2022-10-14 fix
+    nodeStrength = sum(adjM, 1);
+    inclusionIndex = find(nodeStrength ~= 0);
     adjM = adjM(inclusionIndex, inclusionIndex);
     coords = Params.coords(inclusionIndex, :);
     Params.netSubsetChannels = Params.channels(inclusionIndex);
