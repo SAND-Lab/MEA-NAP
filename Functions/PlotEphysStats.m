@@ -330,7 +330,8 @@ for n = 1:length(eMet)
     end
     linkaxes(h,'xy')
     h(1).XLim = [min(xt)-0.5 max(xt)+0.5];
-
+    fprintf('n is')
+    n
     customBoundMatchVec = strcmp(eMetl(n), metricsWCustomBounds);
     if sum(customBoundMatchVec) == 1
         bound_idx = find(customBoundMatchVec);
@@ -341,7 +342,13 @@ for n = 1:length(eMet)
         end 
    
         if isnan(custom_bound_vec(2))
-            custom_bound_vec(2) = max(all_group_eMet_vals);
+            if isempty(all_group_eMet_vals)
+                fprintf('WARNING: all_group_eMet_vals is empty, setting arbitrary bounds \n')
+                custom_bound_vec(2) = 1;  % temp fix in rare case where all_group_eMet_vals is empty
+            else
+                custom_bound_vec(2) = max(all_group_eMet_vals);
+            end 
+            
         end 
         h(1).YLim = custom_bound_vec;
     end 
@@ -419,7 +426,12 @@ for n = 1:length(eMet)
         end 
    
         if isnan(custom_bound_vec(2))
-            custom_bound_vec(2) = max(all_group_eMet_vals);
+            if isempty(all_group_eMet_vals)
+                fprintf('WARNING: all_group_eMet_vals is empty, setting arbitrary bounds \n')
+                custom_bound_vec(2) = 1;
+            else
+                custom_bound_vec(2) = max(all_group_eMet_vals);
+            end 
         end 
         h(1).YLim = custom_bound_vec;
     end 
@@ -491,7 +503,12 @@ for n = 1:length(eMet)
         end 
    
         if isnan(custom_bound_vec(2))
-            custom_bound_vec(2) = max(all_group_eMet_vals);
+            if isempty(all_group_eMet_vals)
+                fprintf('WARNING: all_group_eMet_vals is empty, setting arbitrary bounds \n')
+                custom_bound_vec(2) = 1;
+            else 
+                custom_bound_vec(2) = max(all_group_eMet_vals);
+            end 
         end 
         h(1).YLim = custom_bound_vec;
     end 
