@@ -239,31 +239,36 @@ else
         NE = NE';
     end
     
-    %% Hub classification
-    sortND = sort(ND,'descend');
-    sortND = sortND(1:round(aN/10));
-    hubNDfind = ismember(ND, sortND);
-    [hubND, ~] = find(hubNDfind==1);
-    
-    sortPC = sort(PC,'descend');
-    sortPC = sortPC(1:round(aN/10));
-    hubPCfind = ismember(PC, sortPC);
-    [hubPC, ~] = find(hubPCfind==1);
-    
-    sortBC = sort(BC,'descend');
-    sortBC = sortBC(1:round(aN/10));
-    hubBCfind = ismember(BC, sortBC);
-    [hubBC, ~] = find(hubBCfind==1);
-    
-    sortNE = sort(NE,'descend');
-    sortNE = sortNE(1:round(aN/10));
-    hubNEfind = ismember(NE, sortNE);
-    [hubNE, ~] = find(hubNEfind==1);
-    
-    hubs = [hubND; hubPC; hubBC; hubNE];
-    [GC,~] = groupcounts(hubs);
-    Hub4 = length(find(GC==4))/aN;
-    Hub3 = length(find(GC>=3))/aN;
+    %% Hub classification (only works when number of nodes exeed criteria)
+    if aN >= Params.minNumberOfNodesToCalNetMet
+        sortND = sort(ND,'descend');
+        sortND = sortND(1:round(aN/10));
+        hubNDfind = ismember(ND, sortND);
+        [hubND, ~] = find(hubNDfind==1);
+        
+        sortPC = sort(PC,'descend');
+        sortPC = sortPC(1:round(aN/10));
+        hubPCfind = ismember(PC, sortPC);
+        [hubPC, ~] = find(hubPCfind==1);
+        
+        sortBC = sort(BC,'descend');
+        sortBC = sortBC(1:round(aN/10));
+        hubBCfind = ismember(BC, sortBC);
+        [hubBC, ~] = find(hubBCfind==1);
+        
+        sortNE = sort(NE,'descend');
+        sortNE = sortNE(1:round(aN/10));
+        hubNEfind = ismember(NE, sortNE);
+        [hubNE, ~] = find(hubNEfind==1);
+        
+        hubs = [hubND; hubPC; hubBC; hubNE];
+        [GC,~] = groupcounts(hubs);
+        Hub4 = length(find(GC==4))/aN;
+        Hub3 = length(find(GC>=3))/aN;
+    else
+        Hub4 = nan;
+        Hub3 = nan;
+    end 
 
     %% Find hubs and plot raster sorted by hubs 
     % convert spike times to spike matrix 
