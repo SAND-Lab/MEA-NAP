@@ -1,17 +1,19 @@
 function [] = plotConnectivityProperties(adjM, e, lagval, maxSTTC, meanSTTC, ... 
-    ND, NS, EW, FN, Params)
-%{
-Plots connectivity properties given the adjacency matrix (adjM)
-Parameters
-----------
-adjM : a
-e : 
-lagval : 
-Returns 
--------
-None
+    ND, NS, MEW, FN, Params)
+%
+% Plots connectivity properties given the adjacency matrix (adjM)
+% Parameters
+% ----------
+% adjM : a
+% e : 
+% lagval :
+% MEW : 
+%   mean edge weight of each node
+% Returns 
+% -------
+% None
 
-%}
+%
 
 p = [10 10 1100 600];
 

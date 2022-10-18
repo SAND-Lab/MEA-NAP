@@ -1,16 +1,14 @@
-function [] = electrodeSpecificMetrics(ND, NS, EW, Eloc, BC, PC, Z, lagval, e, FN, Params)
-%{
+function [] = electrodeSpecificMetrics(ND, NS, MEW, Eloc, BC, PC, Z, lagval, e, FN, Params)
+% Plots electrode-level metrics for individual recordings
 % TODO: allow this to accept arbitrary number of parameters to plot, 
-this allows easier extensions in the future.
-
-Parameters
-----------
-
-
-Returns
--------
-
-%}
+% this allows easier extensions in the future.
+% 
+% Parameters
+% ----------
+% MEW : mean edge weight
+% Returns
+% -------
+%
 
 %% figure
 
@@ -32,7 +30,7 @@ nexttile
 imshow('ND.png')
 
 nexttile
-imshow('EW.png')
+imshow('MEW.png')
 
 nexttile
 imshow('NS.png')
@@ -60,12 +58,12 @@ ylabel('node degree')
 ylim([0 max(ND)+0.2*max(ND)])
 
 nexttile(9,[3,1])
-HalfViolinPlot(EW,1,[0.3 0.3 0.3],0.3)
+HalfViolinPlot(MEW,1,[0.3 0.3 0.3],0.3)
 aesthetics
 set(gca,'TickDir','out');
 set(gca,'xtick',[])
-ylabel('edge weight')
-ylim([0 max(EW)+0.2*max(EW)])
+ylabel('mean edge weight')
+ylim([0 max(MEW)+0.2*max(MEW)])
 
 nexttile(10,[3,1])
 HalfViolinPlot(NS,1,[0.3 0.3 0.3],0.3)
