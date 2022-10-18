@@ -119,7 +119,7 @@ for e = 1:length(lagval)
     
     %% node degree, edge weight, node strength
     
-    [ND,EW] = findNodeDegEdgeWeight(adjM,edge_thresh);
+    [ND,MEW] = findNodeDegEdgeWeight(adjM,edge_thresh);
     
     % Node strength
     NS = strengths_und(adjM)';
@@ -129,7 +129,7 @@ for e = 1:length(lagval)
     % NS = sum(adjM)'; 
     
     % plot properties
-    plotConnectivityProperties(adjM, e, lagval, maxSTTC, meanSTTC, ND, NS, EW, char(Info.FN),Params)
+    plotConnectivityProperties(adjM, e, lagval, maxSTTC, meanSTTC, ND, NS, MEW, char(Info.FN),Params)
   
     
     %% if option stipulates binary adjM, binarise the matrix
@@ -239,31 +239,36 @@ else
         NE = NE';
     end
     
-    %% Hub classification
-    sortND = sort(ND,'descend');
-    sortND = sortND(1:round(aN/10));
-    hubNDfind = ismember(ND, sortND);
-    [hubND, ~] = find(hubNDfind==1);
-    
-    sortPC = sort(PC,'descend');
-    sortPC = sortPC(1:round(aN/10));
-    hubPCfind = ismember(PC, sortPC);
-    [hubPC, ~] = find(hubPCfind==1);
-    
-    sortBC = sort(BC,'descend');
-    sortBC = sortBC(1:round(aN/10));
-    hubBCfind = ismember(BC, sortBC);
-    [hubBC, ~] = find(hubBCfind==1);
-    
-    sortNE = sort(NE,'descend');
-    sortNE = sortNE(1:round(aN/10));
-    hubNEfind = ismember(NE, sortNE);
-    [hubNE, ~] = find(hubNEfind==1);
-    
-    hubs = [hubND; hubPC; hubBC; hubNE];
-    [GC,~] = groupcounts(hubs);
-    Hub4 = length(find(GC==4))/aN;
-    Hub3 = length(find(GC>=3))/aN;
+    %% Hub classification (only works when number of nodes exeed criteria)
+    if aN >= Params.minNumberOfNodesToCalNetMet
+        sortND = sort(ND,'descend');
+        sortND = sortND(1:round(aN/10));
+        hubNDfind = ismember(ND, sortND);
+        [hubND, ~] = find(hubNDfind==1);
+        
+        sortPC = sort(PC,'descend');
+        sortPC = sortPC(1:round(aN/10));
+        hubPCfind = ismember(PC, sortPC);
+        [hubPC, ~] = find(hubPCfind==1);
+        
+        sortBC = sort(BC,'descend');
+        sortBC = sortBC(1:round(aN/10));
+        hubBCfind = ismember(BC, sortBC);
+        [hubBC, ~] = find(hubBCfind==1);
+        
+        sortNE = sort(NE,'descend');
+        sortNE = sortNE(1:round(aN/10));
+        hubNEfind = ismember(NE, sortNE);
+        [hubNE, ~] = find(hubNEfind==1);
+        
+        hubs = [hubND; hubPC; hubBC; hubNE];
+        [GC,~] = groupcounts(hubs);
+        Hub4 = length(find(GC==4))/aN;
+        Hub3 = length(find(GC>=3))/aN;
+    else
+        Hub4 = nan;
+        Hub3 = nan;
+    end 
 
     %% Find hubs and plot raster sorted by hubs 
     % convert spike times to spike matrix 
@@ -314,7 +319,7 @@ else
     %% electrode specific half violin plots
     % TODO: move the plotting to a separate function
 
-    electrodeSpecificMetrics(ND, NS, EW, Eloc, BC, PC, Z, lagval, ... 
+    electrodeSpecificMetrics(ND, NS, MEW, Eloc, BC, PC, Z, lagval, ... 
             e, char(Info.FN), Params)
     
     %% network plots
@@ -371,7 +376,7 @@ else
     
     %% reassign to structures
     
-    Var = {'ND', 'EW', 'NS', 'aN', 'Dens', 'Ci', 'Q', 'nMod', 'Eglob', ...,
+    Var = {'ND', 'MEW', 'NS', 'aN', 'Dens', 'Ci', 'Q', 'nMod', 'Eglob', ...,
         'CC', 'PL' 'SW','SWw' 'Eloc', 'BC', 'PC' , 'PC_raw', 'Cmcblty', 'Z', ...
         'Hub4','Hub3', 'NE'};
 
@@ -385,7 +390,7 @@ else
     end
     
     % clear variables
-    clear ND EW NS Dens Ci Q nMod CC PL SW SWw Eloc BC PC Z Var NCpn1 NCpn2 NCpn3 NCpn4 NCpn5 NCpn6 Hub3 Hub4 NE PC_raw Cmcblty
+    clear ND MEW NS Dens Ci Q nMod CC PL SW SWw Eloc BC PC Z Var NCpn1 NCpn2 NCpn3 NCpn4 NCpn5 NCpn6 Hub3 Hub4 NE PC_raw Cmcblty
     
 
 cd(HomeDir); cd(strcat('OutputData',Params.Date)); 

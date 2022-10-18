@@ -51,10 +51,10 @@ end
 %% start plotting
 
 nexttile
-imshow('EW.png')
+imshow('MEW.png')
 
 nexttile
-imshow('EW.png')
+imshow('MEW.png')
 
 nexttile
 imshow('Dens.png')
