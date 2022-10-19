@@ -70,24 +70,31 @@ N.B. As we continue to update and improve MEA-NAP, some of the line numbers in t
    :widths: 15 25 50
    :header-rows: 1
 
-   * - Line
+  * - Line
      - Variable
      - User input required
-   *  - 14
-      -  HomeDir
-      - Set the location of the folder with the AnalysisPipeline scripts.  N.B.  Best not to save in Program Files.
-   * - 31, 36
+   * - 11
+     - HomeDir
+     - Set the location of the folder with the AnalysisPipeline scripts.  N.B.  Best not to save in Program Files.
+   * - 12
+     - rawData 
+     - Set the location of the folder with the raw data .mat files.
+   * - 17
      - spreadsheet  file type file name
      - Input file with list of recordings with their age and genotype. Set as ``*.csv`` or ``*.xlsx``. Name with location for the spreadsheet.
-   * - 39 - 40
+   * - 20
      - sheet xlRange (optional)
      - If using an .xlsx file type, you can specify all or a subset of the filenames to analyse by changing the sheet number (if more than one sheet in spreadsheet) and/or xlRange (e.g., A2:C3 would analyze the first two files listed in the sheet).
-   * - 47
+   * - 22
      - Params.output_spreadsheet file_type
      - Option to choose .csv or .xlsx as output file type for your data analysis from the pipeline.  Default is .csv
-   * - 51
+   * - 33
      - Params.fs
      - Confirm the sampling frequency is correct for your recording.  We acquire data on the MCS 60 channel system at 25000 Hz and on the Axion Maestro at 12500 Hz.
+   * - 36 
+     - Params.channelLayout 
+     - Confirm the correct channel layout for your recording. Options: MCS60, Axion64, MCS60old
+
 
 
 
