@@ -719,7 +719,7 @@ Network analysis
 
  * list of network metrics to calculate
  * argument type : cell containing strings
- * options : ND, EW, NS, aN, etc.
+ * options : ND, MEW, NS, aN, etc.
 
 .. _Params.minNumberOfNodesToCalNetMet:
 
