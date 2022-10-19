@@ -97,6 +97,9 @@ N.B. As we continue to update and improve MEA-NAP, some of the line numbers in t
    * - 36 
      - Params.channelLayout 
      - Confirm the correct channel layout for your recording. Options: ``MCS60``, ``Axion64``, ``MCS60old``
+   * - 70 
+     - Params.guiMode
+     - Set ``Params.guiMode`` equal to 1 if you wish to use interactive, tutorial GUI for MEANAP pipeline. Otherwise, set ``Params.guiMode`` equal to 0 if you wish to run non-interactive default version of the MEANAP pipeline, which does not include the tutorial GUI. 
 
 
 
@@ -187,18 +190,13 @@ Functional connectivity settings
 
 Pipeline output preferences
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-.. list-table:: 
-   :widths: 15 25 50
-   :header-rows: 1
-                 
+                
    * - Line
      - Variable
      - User input required
    * - 65
      - Params.figExt
      - The pipeline output includes a large number of figures which allow you to look at network features within individual networks and to compare across multiple recordings.  You can have these figures in .fig (can edit in MATLAB), .png (standard image), and/or .svg (can edit colors, font sizes in graphics programs). Specify which extensions to include as a cell array in this line.  More file types selected increases pipeline run time.
-
 
 
 
