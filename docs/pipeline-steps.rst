@@ -100,13 +100,13 @@ Options to start pipeline at different steps
    :widths: 15 25 50
    :header-rows: 1
 
-   * - Line
+  * - Line
      - Variable
      - User input required
-   * - 56, 59, 62
-     - Params.priorAnalysis, …Path, …Date
+   * - 13, 25, 26
+     - Params.prior AnalysisPath, …AnalysisDate, …Analysis
      - If you have already run the pipeline previously and wish to use some of the outputs from the earlier steps, set equal to 1 and give the location and date for the prior analysis (this format should match the folder name of the previous data analysis). N.B. If a previous OutputData folder for the Date already exists, the pipeline will prompt you when running to add a suffix to the previous version (e.g. “v1”). The pipeline will then rename the old folder and remove it from the path.
-   * - 67
+   * - 27
      - Params.startAnalysisStep
      - If you would like to start running the pipeline at a later step than spike detection (step 1) using the prior data, change to the corresponding number (see lines 63-66).  See Section 3.1 for overview of pipeline functions.  N.B. Steps 2-4 all require spike detection to run.  Step 4 requires Step 3.
        
