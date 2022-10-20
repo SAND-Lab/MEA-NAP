@@ -29,10 +29,6 @@ The pipeline offers multiple options for spike detection including template-base
 
 **Threshold-based options**
 
-.. image:: ../imgs/threshold_based_options.png
-    :width: 100
-    :align: center
-
 For each electrode in an MEA recording, the mean or median standard deviation of the voltage signal is calculated.  In the threshold-based method used for this pipeline the user can set the standard deviation (SD) multiplier (e.g., 4.5, 5) as a threshold for detecting negative voltage deflections that exceed this threshold.  As the spike detection is based on the amplitude, it does not distinguish between changes in voltage that have a waveform consistent with action potentials versus electrical noise. Maximum absolute threshold values are added to avoid counting large electrical artifacts as spikes.  Minimum absolute thresholds can also be set by advanced users.
 
 
@@ -50,9 +46,6 @@ The pipeline also produces plots of the voltage traces with spikes detected mark
 
 **Template-based options**
 
-.. image:: ../imgs/template_based_options.png
-    :width: 100
-    :align: center
 
 The pipeline uses a continuous wavelet transform to identify spikes based on their similarity to selected wavelets. The user can select from built-in MATLAB wavelets (e.g., bior1.5, bior1.3, db) or custom electrode-specific wavelets created by the pipeline to detect the specific spike waveform(s) in the acquired data.  The MATLAB bior1.5 wavelet had the highest sensitivity for action potentials in our 2D primary murine cortical cultures. Bior1.3 is similar and detects many of the same spikes as well as additional unique spikes.  Although the wavelet db itself does not have a spike-like waveform, it is reasonable at detecting an additional small number of spikes with a waveform consistent with action potentials.
 
