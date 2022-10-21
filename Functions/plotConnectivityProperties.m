@@ -4,16 +4,25 @@ function [] = plotConnectivityProperties(adjM, e, lagval, maxSTTC, meanSTTC, ...
 % Plots connectivity properties given the adjacency matrix (adjM)
 % Parameters
 % ----------
-% adjM : a
-% e : 
-% lagval :
+% adjM : matrix 
+%    adjacency matrix
+% e : int
+%    index of the lagvals variable 
+% lagval : int
+%    lag value used in spike-tile timing coefficient (STTC)
+% maxSTTC : float 
+% meanSTTC : float 
+%    mean value of STTC values (can be thresholded or not)
 % MEW : 
-%   mean edge weight of each node
+%   mean edge weight of each node (currently unused, but kept for
+%   historical reasons)
+% Params : struct
 % Returns 
 % -------
 % None
-
-%
+% 
+% Figures generated 
+% -----------------
 
 p = [10 10 1100 600];
 
@@ -72,7 +81,8 @@ set(gca,'TickDir','out');
 
 nexttile(t, 28,[2 3]);
 % histogram(EW,50)
-histogram(adjM(:));
+significantEdges = adjM(adjM > 0);
+histogram(significantEdges);
 xlabel('edge weight')
 ylabel('frequency')
 aesthetics

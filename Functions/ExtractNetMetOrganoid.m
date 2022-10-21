@@ -73,6 +73,10 @@ edge_thresh = 0.0001;
 mkdir(char(Info.FN))
 cd(char(Info.FN))
 
+% Preallocate 
+meanSTTC = zeros(length(lagval), 1);
+maxSTTC = zeros(length(lagval), 1);
+
 for e = 1:length(lagval)
     
     % load adjM
@@ -92,9 +96,15 @@ for e = 1:length(lagval)
     %% connectivity measures
     
     % mean and max STTC
-    meanSTTC(e) = nanmean(adjM(:));
-    maxSTTC(e) = max(adjM(:));
-    
+    if Params.excludeEdgesBelowThreshold 
+        edge_weights = adjM(adjM > 0);
+    else
+        edge_weights = adjM(:);
+    end 
+
+    meanSTTC(e) = nanmean(edge_weights);
+    maxSTTC(e) = max(edge_weights);
+
     % create list of channel IDs
     ChannelID = 1:size(adjM,1);
     

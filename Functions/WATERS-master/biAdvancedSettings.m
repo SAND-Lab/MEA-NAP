@@ -67,7 +67,7 @@ Params.netMetToCal = {'ND', 'EW', 'NS', 'aN', 'Dens', 'Ci', 'Q', 'nMod', 'Eglob'
         'CC', 'PL' 'SW','SWw' 'Eloc', 'BC', 'PC' , 'PC_raw', 'Cmcblty', 'Z', ...
         'Hub4','Hub3', 'NE', 'effRank', 'num_nnmf_components', 'nComponentsRelNS', ...
         'aveControl', 'modalControl'};
-
+Params.excludeEdgesBelowThreshold = 1;
 Params.minNumberOfNodesToCalNetMet = 25;  % minimum number of nodes to calculate BC and other metrics
 Params.networkLevelNetMetToPlot = {'aN','Dens','CC','nMod','Q','PL','Eglob', ...
     'SW','SWw','Hub3','Hub4', 'effRank', ...
@@ -246,7 +246,7 @@ elseif strcmp(Params.channelLayout, 'MCS59')
     inclusionIndex = find(channelsOrdering ~= 82);
     Params.channels = channels(inclusionIndex);
     Params.coords = Params.coords(inclusionIndex, :);
-    Params.reorderingIdx = reorderingIdx(inclusionIndex);
+    Params.reorderingIdx = reorderingIdx; % (inclusionIndex)
 
 
 elseif strcmp(Params.channelLayout, 'Axion64')
