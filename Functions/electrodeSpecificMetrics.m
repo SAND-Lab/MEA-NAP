@@ -30,7 +30,7 @@ nexttile
 imshow('ND.png')
 
 nexttile
-imshow('MEW.png')
+imshow('EW.png')
 
 nexttile
 imshow('NS.png')
