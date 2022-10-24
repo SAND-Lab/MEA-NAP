@@ -87,7 +87,7 @@ Params.networkLevelNetMetCustomBounds = struct();
 Params.networkLevelNetMetCustomBounds.('effRank') = [1, nan];
 Params.networkLevelNetMetCustomBounds.('aveControl') = [1, 1.5];
 
-Params.unitLevelNetMetToPlot = {'ND','EW','NS','Z','Eloc','PC','BC', 'aveControl', 'modalControl'};
+Params.unitLevelNetMetToPlot = {'ND','MEW','NS','Z','Eloc','PC','BC', 'aveControl', 'modalControl'};
 Params.unitLevelNetMetLabels = {'node degree','edge weight','node strength', ... 
     'within-module degree z-score', ... 
     'local efficiency','participation coefficient','betweeness centrality', 'average controllability', 'modal controllability'}; 
