@@ -894,7 +894,7 @@ cd(HomeDir); cd(strcat('OutputData',Params.Date));
 cd('4_NetworkActivity'); cd('4B_GroupComparisons')
 cd('1_NodeByGroup')
 
-eMet = {'ND','EW','NS','Z','Eloc','PC','BC'}; 
+eMet = {'ND','MEW','NS','Z','Eloc','PC','BC'}; 
 eMetl = {'node degree','edge weight','node strength', ... 
     'within-module degree z-score','local efficiency', ... 
     'participation coefficient','betweeness centrality'}; 
@@ -972,7 +972,7 @@ cd(HomeDir); cd(strcat('OutputData',Params.Date));
 cd('4_NetworkActivity'); cd('4B_GroupComparisons')
 cd('2_NodeByAge')
 
-eMet = {'ND','EW','NS','Z','Eloc','PC','BC'}; 
+eMet = {'ND','MEW','NS','Z','Eloc','PC','BC'}; 
 eMetl = {'node degree','edge weight','node strength','within-module degree z-score', ... 
     'local efficiency','participation coefficient','betweeness centrality'}; 
 
