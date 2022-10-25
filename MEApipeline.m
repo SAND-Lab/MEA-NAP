@@ -536,7 +536,7 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
         if Params.autoSetCartographyBoudariesPerLag
             for lag_val = Params.FuncConLagval
                 [hubBoundaryWMdDeg, periPartCoef, proHubpartCoef, nonHubconnectorPartCoef, connectorHubPartCoef] = ...
-                TrialLandscapeDensity(ExpList, fig_folder, add_fig_info, Params.cartographyLagVal);
+                TrialLandscapeDensity(ExpList, fig_folder, add_fig_info, lag_val);
                 Params.(strcat('hubBoundaryWMdDeg', sprintf('_%.fmsLag', lag_val))) = hubBoundaryWMdDeg;
                 Params.(strcat('periPartCoef', sprintf('_%.fmsLag', lag_val))) = periPartCoef;
                 Params.(strcat('proHubpartCoef', sprintf('_%.fmsLag', lag_val))) = proHubpartCoef;
@@ -545,8 +545,9 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
             end 
 
         else 
+            lagValIdx = 1;
             [hubBoundaryWMdDeg, periPartCoef, proHubpartCoef, nonHubconnectorPartCoef, connectorHubPartCoef] = ...
-                TrialLandscapeDensity(ExpList, fig_folder, add_fig_info, Params.cartographyLagVal);
+                TrialLandscapeDensity(ExpList, fig_folder, add_fig_info, lag_val(lagValIdx));
             Params.hubBoundaryWMdDeg = hubBoundaryWMdDeg;
             Params.periPartCoef = periPartCoef;
             Params.proHubpartCoef = proHubpartCoef;
