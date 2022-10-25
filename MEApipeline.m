@@ -521,11 +521,12 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
     if Params.autoSetCartographyBoundaries
         if Params.priorAnalysis==1 
             cd(fullfile(Params.priorAnalysisPath, 'ExperimentMatFiles'));   
+            fig_folder = fullfile(Params.priorAnalysisPath, '4_NetworkActivity/4B_GroupComparisons/7_DensityLandscape');
         else
-            cd(fullfile(strcat('OutputData', Params.Date), 'ExperimentMatFiles'));   
+            cd(fullfile(strcat('OutputData', Params.Date), 'ExperimentMatFiles'));  
+            fig_folder = fullfile(strcat('OutputData', Params.Date), '4_NetworkActivity/4B_GroupComparisons/7_DensityLandscape');
         end 
         
-        fig_folder = fullfile(Params.priorAnalysisPath, '4_NetworkActivity/4B_GroupComparisons/7_DensityLandscape');
         if ~isfolder(fig_folder)
             mkdir(fig_folder)
         end 
