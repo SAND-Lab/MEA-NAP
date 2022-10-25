@@ -597,7 +597,7 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
     cd(fullfile(HomeDir, strcat('OutputData', Params.Date), 'ExperimentMatFiles'))
     NetMetricsE = {'Dens','Q','nMod','Eglob','aN','CC','PL','SW','SWw', ... 
                'Hub3','Hub4', 'NCpn1','NCpn2','NCpn3','NCpn4','NCpn5','NCpn6'}; 
-    NetMetricsC = {'ND','EW','NS','Eloc','BC','PC','Z'};
+    NetMetricsC = {'ND','MEW','NS','Eloc','BC','PC','Z'};
     combinedData = combineExpNetworkData(ExpName, Params, NetMetricsE, NetMetricsC, HomeDir);
     plotNetMetNodeCartography(combinedData, ExpName,Params,HomeDir)
 
