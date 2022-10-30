@@ -122,7 +122,6 @@ Options to start pipeline at different steps
    * - 27
      - Params.startAnalysisStep
      - If you would like to start running the pipeline at a later step than spike detection (step 1) using the prior data, change to the corresponding number.  See Section 3.1 for overview of pipeline functions.  If ``Params.priorAnalysis=0``, default is to start with spike detection. N.B. Steps 2-4 all require spike detection to run.  Step 4 requires Step 3.
-       
 
 
 Spike detection settings (lines 12 - 170)
@@ -191,6 +190,10 @@ Functional connectivity settings
 Pipeline output preferences
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
                 
+.. list-table:: 
+   :widths: 15 25 50
+   :header-rows: 1         
+   
    * - Line
      - Variable
      - User input required
