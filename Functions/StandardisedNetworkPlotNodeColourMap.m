@@ -427,7 +427,7 @@ end
 
 %% save figure
 figName = strcat([pNum,'_',plotType,'_NetworkPlot',zname,z2name]);
-figName = strrep(figName, ' ', '_');
+figName = strrep(figName, ' ', '');
 
 if ~isfield(Params, 'oneFigure')
     pipelineSaveFig(figName, Params.figExt, Params.fullSVG, F1);
