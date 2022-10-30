@@ -77,6 +77,9 @@ cd(char(Info.FN))
 meanSTTC = zeros(length(lagval), 1);
 maxSTTC = zeros(length(lagval), 1);
 
+% Folder to save figures 
+networkActivityFolder = Params.networkActivityFolder;
+
 for e = 1:length(lagval)
     
     % load adjM
@@ -87,7 +90,7 @@ for e = 1:length(lagval)
     adjM(isnan(adjM)) = 0;
     
     % create subfolder
-    lagFolderName = strcat(num2str(lagval(e)),'mslag');
+    lagFolderName = fullfile(networkActivityFolder, strcat(num2str(lagval(e)),'mslag'));
     if ~isfolder(lagFolderName)
         mkdir(lagFolderName)
     end 
@@ -348,13 +351,13 @@ else
     StandardisedNetworkPlot(adjM, coords, edge_thresh, ND, 'MEA', char(Info.FN),'2',Params,lagval,e);
    
     % grid network plot node degree betweeness centrality
-    StandardisedNetworkPlotNodeColourMap(adjM, coords, edge_thresh, ND, 'Node degree', BC, 'Betweeness centrality', 'MEA', char(Info.FN), '3', Params, lagval,e)
+    StandardisedNetworkPlotNodeColourMap(adjM, coords, edge_thresh, ND, 'Node degree', BC, 'Betweeness centrality', 'MEA', char(Info.FN), '3', Params, lagval, e, lagFolderName)
   
     % grid network plot node degree participation coefficient
-    StandardisedNetworkPlotNodeColourMap(adjM, coords, edge_thresh, ND, 'Node degree', PC, 'Participation coefficient', 'MEA', char(Info.FN), '4', Params, lagval,e)
+    StandardisedNetworkPlotNodeColourMap(adjM, coords, edge_thresh, ND, 'Node degree', PC, 'Participation coefficient', 'MEA', char(Info.FN), '4', Params, lagval, e, lagFolderName)
   
     % grid network plot node strength local efficiency
-    StandardisedNetworkPlotNodeColourMap(adjM, coords, edge_thresh, NS, 'Node strength', Eloc, 'Local efficiency', 'MEA', char(Info.FN), '5', Params, lagval,e)
+    StandardisedNetworkPlotNodeColourMap(adjM, coords, edge_thresh, NS, 'Node strength', Eloc, 'Local efficiency', 'MEA', char(Info.FN), '5', Params, lagval, e, lagFolderName)
   
     % simple circular network plot
     NDord = ND(On);

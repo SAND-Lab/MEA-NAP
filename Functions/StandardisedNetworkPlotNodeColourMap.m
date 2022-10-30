@@ -1,5 +1,5 @@
 function [] = StandardisedNetworkPlotNodeColourMap(adjM, coords, edge_thresh, z, zname, z2, z2name, plotType, ...
-                                                   FN, pNum, Params, lagval, e)
+                                                   FN, pNum, Params, lagval, e, figFolder)
 
 % 
 % Plots graph network with node size proportional to some node-level variable of
@@ -30,6 +30,8 @@ function [] = StandardisedNetworkPlotNodeColourMap(adjM, coords, edge_thresh, z,
 %       name of file/recording
 %   pNum : int
 %       number to precede name of figure when it is saved
+%   figFolder : path 
+%       folder to save the figure to 
 % Returns 
 % -------
 % None 
@@ -428,11 +430,12 @@ end
 %% save figure
 figName = strcat([pNum,'_',plotType,'_NetworkPlot',zname,z2name]);
 figName = strrep(figName, ' ', '');
+figPath = fullfile(figFolder, figName);
 
 if ~isfield(Params, 'oneFigure')
-    pipelineSaveFig(figName, Params.figExt, Params.fullSVG, F1);
+    pipelineSaveFig(figPath, Params.figExt, Params.fullSVG, F1);
 else 
-    pipelineSaveFig(figName, Params.figExt, Params.fullSVG, Params.oneFigure);
+    pipelineSaveFig(figPath, Params.figExt, Params.fullSVG, Params.oneFigure);
 end 
 
 if ~isfield(Params, 'oneFigure')

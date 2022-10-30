@@ -9,7 +9,7 @@
 
 % Directories
 HomeDir = '/Users/timothysit/AnalysisPipeline'; % analysis folder to home directory
-rawData = '/Volumes/Macintosh HD/Users/timothysit/AnalysisPipeline/localRawData/testElectrodeLayout';  % path to raw data .mat files
+rawData = '/Volumes/Elements/MAT_files/MEC';  % path to raw data .mat files
 Params.priorAnalysisPath = ['/Users/timothysit/AnalysisPipeline/OutputData14Oct2022'];  % path to prev analysis
 spikeDetectedData = '/Users/timothysit/AnalysisPipeline/OutputData14Oct2022'; % path to spike-detected data
 
@@ -33,14 +33,14 @@ Params.runSpikeCheckOnPrevSpikeData = 0; % whether to run spike detection check 
 Params.fs = 25000; % Sampling frequency, HPC: 25000, Axion: 12500;
 Params.dSampF = 25000; % down sampling factor for spike detection check
 Params.potentialDifferenceUnit = 'uV';  % the unit which you are recording electrical signals 
-Params.channelLayout = 'MCS59';  % 'MCS60' or 'Axion64' or 'MCS60old'
-Params.thresholds = {'2.5', '3.5', '4.5'}; % standard deviation multiplier threshold(s), eg. {'2.5', '3.5', '4.5'}
-Params.wnameList = {'bior1.5'}; % wavelet methods to use {'bior1.5', 'mea'}; 
+Params.channelLayout = 'MCS60';  % 'MCS60' or 'Axion64' or 'MCS60old'
+Params.thresholds = {'4', '5'}; % standard deviation multiplier threshold(s), eg. {'2.5', '3.5', '4.5'}
+Params.wnameList = {'bior1.5', 'bior1.3', 'db2'}; % wavelet methods to use {'bior1.5', 'mea'}; 
 Params.costList = -0.12;
 Params.SpikesMethod = 'bior1p5';  % wavelet methods, eg. 'bior1p5', or 'mergedAll', or 'mergedWavelet'
 
 % Functional connectivity inference settings
-Params.FuncConLagval = [15]; % set the different lag values (in ms), default to [10, 15, 25]
+Params.FuncConLagval = [10, 25, 50]; % set the different lag values (in ms), default to [10, 15, 25]
 Params.TruncRec = 0; % truncate recording? 1 = yes, 0 = no
 Params.TruncLength = 120; % length of truncated recordings (in seconds)
 Params.adjMtype = 'weighted'; % 'weighted' or 'binary'
@@ -53,7 +53,7 @@ Params.ProbThreshPlotChecksN = 5; % number of random checks to plot
 
 % Node cartography settings 
 Params.autoSetCartographyBoudariesPerLag = 1;  % whether to fit separate boundaries per lag value
-Params.cartographyLagVal = 15; % lag value (ms) to use to calculate PC-Z distribution (only applies if Params.autoSetCartographyBoudariesPerLag = 0)
+Params.cartographyLagVal = [10, 25, 50]; % lag value (ms) to use to calculate PC-Z distribution (only applies if Params.autoSetCartographyBoudariesPerLag = 0)
 Params.autoSetCartographyBoundaries = 1;  % whether to automatically determine bounds for hubs or use custom ones
 
 % Statistics and machine learning settings 
@@ -488,6 +488,8 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
         
         % Temp test on reordering the adjacency matrix 
         % adjMs = adjMs(Params.reorderingIdx, Params.reorderingIdx);
+        networkActivityFolder = fullfile(strcat('OutputData',Params.Date), '4_NetworkActivity', '4A_IndividualNetworkAnalysis', char(Info.Grp));
+        Params.networkActivityFolder = networkActivityFolder;
 
         NetMet = ExtractNetMetOrganoid(adjMs, spikeTimes, ...
             Params.FuncConLagval, Info,HomeDir,Params, spikeMatrix);
