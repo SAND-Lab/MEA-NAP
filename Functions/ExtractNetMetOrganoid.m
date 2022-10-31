@@ -367,12 +367,12 @@ else
     % grid network plot for controllability metrics
     if any(strcmp(Params.unitLevelNetMetToPlot , 'aveControl'))
          StandardisedNetworkPlotNodeColourMap(adjM, coords, edge_thresh, ND, 'Node degree', ...
-             aveControl, 'Average controllability', 'MEA', char(Info.FN), '3', Params, lagval,e)
+             aveControl, 'Average controllability', 'MEA', char(Info.FN), '3', Params, lagval, e, lagFolderName)
     end 
 
     if any(strcmp(Params.unitLevelNetMetToPlot , 'modalControl'))
          StandardisedNetworkPlotNodeColourMap(adjM, coords, edge_thresh, ND, 'Node degree', ...
-             modalControl, 'Modal controllability', 'MEA', char(Info.FN), '3', Params, lagval,e)
+             modalControl, 'Modal controllability', 'MEA', char(Info.FN), '3', Params, lagval, e, lagFolderName)
     end 
 
     % node cartography
