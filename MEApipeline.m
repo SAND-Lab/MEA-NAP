@@ -488,7 +488,7 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
         
         % Temp test on reordering the adjacency matrix 
         % adjMs = adjMs(Params.reorderingIdx, Params.reorderingIdx);
-        networkActivityFolder = fullfile(strcat('OutputData',Params.Date), '4_NetworkActivity', '4A_IndividualNetworkAnalysis', char(Info.Grp));
+        networkActivityFolder = fullfile(HomeDir, strcat('OutputData',Params.Date), '4_NetworkActivity', '4A_IndividualNetworkAnalysis', char(Info.Grp));
         Params.networkActivityFolder = networkActivityFolder;
 
         NetMet = ExtractNetMetOrganoid(adjMs, spikeTimes, ...
