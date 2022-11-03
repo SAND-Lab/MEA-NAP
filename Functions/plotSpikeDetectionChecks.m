@@ -1,5 +1,5 @@
 function plotSpikeDetectionChecks(spikeTimes,spikeDetectionResult,spikeWaveforms, ... 
-    Info,Params)
+    Info,Params, figFolder)
 %
 % Make plots to check that spike detection worked properly, and plots
 % spike-related statistics such as the firing rate of each unit / recorded
@@ -16,12 +16,13 @@ function plotSpikeDetectionChecks(spikeTimes,spikeDetectionResult,spikeWaveforms
 %     Info.FN : 
 %     Info.raw_file_path : (str)
 %         path to the folder including the raw matlab files
-% Params.dSampF : (int)
+% Params.dSampF : int
 %     down-sampling factor for plotting spike detection check 
 %     normally no down sampling is necessary, so set this to be equal 
 %     to the sampling rate of your acquisition system
-% 
-% 
+% figFolder : str
+%     specify where the full path to the folder to save the spike detection
+%     check plots
 % Returns 
 % -------
 % TODO: how does line 32 work? (seem to assume some file structure 
@@ -29,12 +30,6 @@ function plotSpikeDetectionChecks(spikeTimes,spikeDetectionResult,spikeWaveforms
 
 %}
 
-FN = char(Info.FN);
-
-% TOOD: directory create and save to folder rather than changing
-% directories
-mkdir(FN)
-cd(FN)
 
 %% load raw voltage trace data
 raw_file_name = strcat(FN,'.mat');
@@ -143,11 +138,11 @@ legend boxoff
 
 % Export figure
 figName = 'SpikeFrequencies';
-
+figFullPath = fullfile(figFolder, figName);
 if ~isfield(Params, 'oneFigure')
-    pipelineSaveFig(figName, Params.figExt, Params.fullSVG, F1);
+    pipelineSaveFig(figFullPath, Params.figExt, Params.fullSVG, F1);
 else 
-    pipelineSaveFig(figName, Params.figExt, Params.fullSVG, Params.oneFigure);
+    pipelineSaveFig(figFullPath, Params.figExt, Params.fullSVG, Params.oneFigure);
 end 
 
 if ~isfield(Params, 'oneFigure')
@@ -169,8 +164,9 @@ end
 
 tiledlayout(5,2,'TileSpacing','Compact');
 
-% l iterates through the 9 example traces?
-for l = 1:9
+% l iterates through the example traces
+numExampleTraces = 9;
+for l = 1:numExampleTraces
     
     bin_ms = 30;  % What is this???
     channel = randi([1,num_chan],1);
@@ -234,11 +230,11 @@ title({strcat(regexprep(FN,'_','','emptymatch')),' '});
 
 % Export figure
 figName = 'ExampleTraces';
-
+figFullPath = fullfile(figFolder, figName);
 if ~isfield(Params, 'oneFigure')
-    pipelineSaveFig(figName, Params.figExt, Params.fullSVG, F1);
+    pipelineSaveFig(figFullPath, Params.figExt, Params.fullSVG, F1);
 else 
-    pipelineSaveFig(figName, Params.figExt, Params.fullSVG, Params.oneFigure);
+    pipelineSaveFig(figFullPath, Params.figExt, Params.fullSVG, Params.oneFigure);
 end 
 
 if ~isfield(Params, 'oneFigure')
@@ -305,11 +301,11 @@ end
 
 % Export figure
 figName = 'Waveforms';
-
+figFullPath = fullfile(figFolder, figName);
 if ~isfield(Params, 'oneFigure')
-    pipelineSaveFig(figName, Params.figExt, Params.fullSVG, F1);
+    pipelineSaveFig(figFullPath, Params.figExt, Params.fullSVG, F1);
 else 
-    pipelineSaveFig(figName, Params.figExt, Params.fullSVG, Params.oneFigure);
+    pipelineSaveFig(figFullPath, Params.figExt, Params.fullSVG, Params.oneFigure);
 end 
 
 if ~isfield(Params, 'oneFigure')
