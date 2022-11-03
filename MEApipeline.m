@@ -10,7 +10,7 @@
 % Directories
 HomeDir = '/Users/timothysit/AnalysisPipeline'; % analysis folder to home directory
 rawData = '/Volumes/Elements/MAT_files/MEC';  % path to raw data .mat files
-Params.priorAnalysisPath = ['/Users/timothysit/AnalysisPipeline/OutputData14Oct2022'];  % path to prev analysis
+Params.priorAnalysisPath = ['/Users/timothysit/AnalysisPipeline/OutputData01Nov2022'];  % path to prev analysis
 spikeDetectedData = '/Users/timothysit/AnalysisPipeline/OutputData14Oct2022'; % path to spike-detected data
 
 % Input and output filetype
@@ -24,7 +24,7 @@ Params.output_spreadsheet_file_type = 'csv';  % .xlsx or .csv
 % Analysis step settings
 Params.priorAnalysisDate = '14Oct2022'; % prior analysis date in format given in output data folder e.g., '27Sep2021'
 Params.priorAnalysis = 0; % use previously analysed data? 1 = yes, 0 = no
-Params.startAnalysisStep = 1; % if Params.priorAnalysis=0, default is to start with spike detection
+Params.startAnalysisStep = 4; % if Params.priorAnalysis=0, default is to start with spike detection
 Params.optionalStepsToRun = {'runStats'}; % include 'generateCSV' to generate csv for rawData folder
 
 % Spike detection settings
@@ -262,27 +262,24 @@ end
 [~,Params.DivNm] = findgroups(ExpDIV);
 
 % create output data folder if doesn't exist
-CreateOutputFolders(HomeDir,Params.Date,Params.GrpNm)
+CreateOutputFolders(Params.outputDataFolder, Params.Date, Params.GrpNm)
 
 % plot electrode layout 
-plotElectrodeLayout(HomeDir, Params)
+plotElectrodeLayout(Params.outputDataFolder , Params)
 
 % export parameters to csv file
-cd(strcat('OutputData',Params.Date))
-writetable(struct2table(Params,'AsArray',true), strcat('Parameters_',Params.Date,'.csv'))
-cd(HomeDir)
+outputDataWDatePath = fullfile(outputDataFolder, strcat('OutputData',Params.Date));
+ParamsTableSavePath = fullfile(outputDataWDatePath, strcat('Parameters_',Params.Date,'.csv'));
+writetable(struct2table(Params,'AsArray',true), ParamsTableSavePath)
 
 % save metadata
+metaDataSaveFolder = fullfile(outputDataWDatePath, 'ExperimentMatFiles');
 for ExN = 1:length(ExpName)
-
     Info.FN = ExpName(ExN);
     Info.DIV = num2cell(ExpDIV(ExN));
     Info.Grp = ExpGrp(ExN);
-
-    cd(strcat('OutputData',Params.Date)); cd('ExperimentMatFiles')
-    save(strcat(char(Info.FN),'_',Params.Date,'.mat'),'Info')
-    cd(HomeDir)
-
+    InfoSavePath = fullfile(metaDataSaveFolder, strcat(char(Info.FN),'_',Params.Date,'.mat'));
+    save(InfoSavePath,'Info')
 end
 
 % create a random sample for checking the probabilistic thresholding
@@ -302,36 +299,49 @@ if ((Params.priorAnalysis == 0) || (Params.runSpikeCheckOnPrevSpikeData)) && (Pa
         addpath(spikeDetectedData)
     end
 
-    savePath = strcat(HomeDir,'/OutputData',Params.Date,'/1_SpikeDetection/1A_SpikeDetectedData/');
+    savePath = strcat(Params.outputDataFolder,'/OutputData',Params.Date,'/1_SpikeDetection/1A_SpikeDetectedData/');
     savePath(strfind(savePath,'\'))='/';
     
     % Run spike detection
     if detectSpikes == 1
         batchDetectSpikes(rawData, savePath, option, ExpName, Params);
-        cd(HomeDir)
     end 
+    
+    % Specify where ExperimentMatFiles are stored
+    experimentMatFileFolder = fullfile(Params.outputDataFolder, ...
+           strcat('OutputData',Params.Date), 'ExperimentMatFiles');
 
     % Plot spike detection results 
-
     for  ExN = 1:length(ExpName)
         
         if Params.runSpikeCheckOnPrevSpikeData
-            cd(fullfile(spikeDetectedData, '1_SpikeDetection', '1A_SpikeDetectedData'))
+            spikeDetectedDataOutputFolder = fullfile(spikeDetectedData, '1_SpikeDetection', '1A_SpikeDetectedData');
         else
-            cd(strcat(HomeDir,'/OutputData',Params.Date,'/1_SpikeDetection/1A_SpikeDetectedData/'))
+            spikeDetectedDataOutputFolder = fullfile(Params.outputDataFolder, ...
+                strcat('OutputData', Params.Date), '1_SpikeDetection', '1A_SpikeDetectedData'); 
         end 
-        load(strcat(char(ExpName(ExN)),'_spikes.mat'),'spikeTimes','spikeDetectionResult','channels','spikeWaveforms')
-        cd(HomeDir); cd(strcat('OutputData',Params.Date)); cd('ExperimentMatFiles')
-        load(strcat(char(ExpName(ExN)),'_',Params.Date,'.mat'),'Info')
+        
+        spikeFilePath = fullfile(spikeDetectedDataOutputFolder, strcat(char(ExpName(ExN)),'_spikes.mat'));
+        load(spikeFilePath,'spikeTimes','spikeDetectionResult','channels','spikeWaveforms')
 
-        cd(HomeDir); cd(strcat('OutputData',Params.Date))
-        cd('1_SpikeDetection'); cd('1B_SpikeDetectionChecks'); cd(char(Info.Grp))
-        plotSpikeDetectionChecks(spikeTimes,spikeDetectionResult,spikeWaveforms,Info,Params)
+        experimentMatFilePath = fullfile(experimentMatFileFolder, ...
+            strcat(char(ExpName(ExN)),'_',Params.Date,'.mat'));
+        load(experimentMatFilePath,'Info')
+
+        spikeDetectionCheckGrpFolder = fullfile(Params.outputDataFolder, ...
+            strcat('OutputData',Params.Date), '1_SpikeDetection', '1B_SpikeDetectionChecks', char(Info.Grp));
+        FN = char(Info.FN);
+        spikeDetectionCheckFNFolder = fullfile(spikeDetectionCheckGrpFolder, FN);
+
+        if ~isfolder(spikeDetectionCheckFNFolder)
+            mkdir(spikeDetectionCheckFNFolder)
+        end 
+
+        plotSpikeDetectionChecks(spikeTimes, spikeDetectionResult, ...
+            spikeWaveforms, Info, Params, spikeDetectionCheckFNFolder)
         
         % Check whether there are no spikes at all in recording 
         checkIfAnySpikes(spikeTimes, ExpName{ExN});
-
-        cd(HomeDir)
 
     end
 
