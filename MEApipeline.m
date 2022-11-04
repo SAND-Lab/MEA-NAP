@@ -67,96 +67,14 @@ Params.fullSVG = 1;  % whether to insist svg even with plots with large number o
 Params.showOneFig = 1;  % otherwise, 0 = pipeline shows plots as it runs, 1: supress plots
 
 %% GUI / Tutorial mode settings 
+% add all relevant folders to path
+cd(HomeDir)
+addpath(genpath('Functions'))
+addpath('Images')
+
 Params.guiMode = 1;
-if Params.guiMode
-    % CreateStruct.Interpreter = 'tex';
-    % CreateStruct.WindowStyle = 'modal';
-    opts = struct(); 
-    opts.Default = 'Okay';
-    opts.Interpreter = 'tex';
-    helloBox = questdlg("\fontsize{20} Hello! Welcome to the MEA network analysis pipeline (MEA-NAP)!", ...
-     'Welcome!', 'Okay', opts);
-    clear helloBox
-    
-    opts = struct(); 
-    opts.Default = 'Okay';
-    opts.Interpreter = 'tex';
-    selectHomeDir = questdlg("\fontsize{20} First, please select the folder where your MEApipeline.m script is located", ...
-        'Home directory selection', 'Okay', opts);
-    % uiwait(selectHomeDir);
-    clear selectHomeDir
-
-    homeDirUiGet = uigetdir(pwd, 'Please select the folder where the MEApipeline.m script is located');
-    % uiwait(homeDirUiGet)
-    Params.HomeDir = homeDirUiGet;
-
-    % Ask user for raw data directory 
-
-    rawDataAnswer = questdlg("\fontsize{20} Please select the folder containing your raw data", ...
-        'Raw data folder', 'Okay', opts);
-    clear rawDataAnswer
-    
-    rawDataUIGet = uigetdir(pwd, 'Please select the folder containing your raw data');
-    rawData = rawDataUIGet;
-    clear rawDataUIGet
-
-    % Please select the spreadsheet containing the set of recordings 
-    spreadSheetAnswer = questdlg("\fontsize{20} Please select the spreadsheet containing the list of files you want to run the pipeline", ...
-        'Spreadsheet file', 'Okay', opts);
-    spreadsheet_filename = uigetfile(pwd, 'Please select the spreadsheet');
-
-    % Asking user if they are running pipeline the first time on raw data
-    firstTimeOrNo = {'Yes', 'No'};
-    [indx,tf] = listdlg('PromptString',{'Are you running this pipeline for' ...
-        'the first time on this raw data?'}, ...
-             'ListString',firstTimeOrNo);
-
-    runningPipelineFirstTime = firstTimeOrNo{indx};
-
-    if strcmp(runningPipelineFirstTime, 'Yes')
-        Params.priorAnalysis = 0; 
-        Params.startAnalysisStep = 1;
-        detectSpikes = 1;
-
-    elseif strcmp(runningPipelineFirstTime, 'No')
-         Params.priorAnalysis = 1;
-         % ask user which step they want to start the pipeline on 
-         availStartAnalysisSteps = {'1 : Spike detection', '2 : Neuronal activity', ...
-             '3 : Functional connectivity', '4 : Network activity', '5 : Stats and classification'};
-         [indx, tf] = listdlg('PromptString',{'Please select which step you want' ...
-             'to start the pipeline'}, ...
-             'ListString',availStartAnalysisSteps);
-         Params.startAnalysisStep = str2num(availStartAnalysisSteps{indx}(1));
-
-    end 
-    
-    % Channel layout 
-    drawnow; pause(0.1);
-    availChanellLayout = {'MCS60', 'Axion64', 'Custom'};
-    [indx,tf] = listdlg('PromptString',{'Please select which electrode',  'layout you are using'}, ...
-        'ListString',availChanellLayout);
-    drawnow; pause(1);
-    Params.channelLayout = availChanellLayout{indx};
-
-
-    % Sampling rate of recording 
-    if strcmp(Params.channelLayout, 'Axion64')
-        Params.fs = 12500;
-    else
-        Params.fs = 25000;
-    end 
-    
-    % Ready to start pipeline 
-    opts = struct();
-    opts.Default = 'Run MEA-NAP!';
-    opts.Interpreter = 'tex';
-    pause(0.1);
-    readyBox = questdlg("\fontsize{20} You are all set!", ...
-     'Ready!', 'Run MEA-NAP!', opts);
-    drawnow; pause(0.1);
-
-    clear readyBox
-
+if Params.guiMode == 1
+    runGUImode
 end 
 
 %% END OF USER REQUIRED INPUT SECTION
@@ -175,34 +93,6 @@ if Params.runSpikeCheckOnPrevSpikeData
     detectSpikes = 0;
 end 
 
-% add all relevant folders to path
-cd(HomeDir)
-addpath(genpath('Functions'))
-addpath('Images')
-
-% Network plot colormap bounds 
-Params.use_theoretical_bounds = 1;
-Params.use_min_max_all_recording_bounds = 0;
-Params.use_min_max_per_genotype_bounds = 0;
-
-if Params.use_theoretical_bounds
-    network_plot_cmap_bounds = struct();
-    network_plot_cmap_bounds.CC = [0, 1];
-    network_plot_cmap_bounds.PC = [0, 1];
-    network_plot_cmap_bounds.Z = [-2, 2];
-    network_plot_cmap_bounds.BC = [0, 1];
-    network_plot_cmap_bounds.Eloc = [0, 1];
-    network_plot_cmap_bounds.aveControl = [1, 2];
-    network_plot_cmap_bounds.modalControl = [0, 1]; 
-    Params.network_plot_cmap_bounds = network_plot_cmap_bounds;
-else 
-    het_node_level_vals = 0;
-    if Params.use_min_max_all_recording_bounds
-        
-    elseif Params.use_min_max_per_genotype_bounds
-
-    end 
-end 
 
 %% Optional step : generate csv 
 if any(strcmp(Params.optionalStepsToRun,'generateCSV')) 
@@ -222,42 +112,7 @@ if any(strcmp(Params.optionalStepsToRun,'generateCSV'))
 end 
 
 %% setup - additional setup
-
-% import metadata from spreadsheet
-if strcmp(spreadsheet_file_type, 'excel')
-    [num,txt,~] = xlsread(spreadsheet_filename,sheet,xlRange);
-    ExpName = txt(:,1); % name of recording
-    ExpGrp = txt(:,3); % name of experimental group
-    ExpDIV = num(:,1); % DIV number
-elseif strcmp(spreadsheet_file_type, 'csv')
-    opts = detectImportOptions(spreadsheet_filename);
-    opts.Delimiter = ',';
-    opts.VariableNamesLine = 1;
-    opts.VariableTypes{1} = 'char';  % this should be the recoding file name
-    opts.VariableTypes{2} = 'double';  % this should be the DIV
-    opts.VariableTypes{3} = 'char'; % this should be Group 
-    if length(opts.VariableNames) > 3
-        opts.VariableTypes{4} = 'char'; % this should be Ground
-    end 
-    opts.DataLines = csvRange; % read the data in the range [StartRow EndRow]
-    % csv_data = readtable(spreadsheet_filename, 'Delimiter','comma');
-    csv_data = readtable(spreadsheet_filename, opts);
-    ExpName =  csv_data{:, 1};
-    ExpGrp = csv_data{:, 3};
-    ExpDIV = csv_data{:, 2};
-
-    Params.electrodesToGroundPerRecordingUseName = 1;  % use name (instead of index) to ground electrodes
-
-    if sum(strcmp('Ground',csv_data.Properties.VariableNames))
-        Params.electrodesToGroundPerRecording = csv_data.('Ground'); % this should be a 1 x N cell array 
-        if ~iscell(Params.electrodesToGroundPerRecording)
-            Params.electrodesToGroundPerRecording = {Params.electrodesToGroundPerRecording};
-        end 
-    else 
-        Params.electrodesToGroundPerRecording = [];
-    end 
-end 
-
+setUpSpreadSheet  % import metadata from spreadsheet
 [~,Params.GrpNm] = findgroups(ExpGrp);
 [~,Params.DivNm] = findgroups(ExpDIV);
 
@@ -298,9 +153,10 @@ if ((Params.priorAnalysis == 0) || (Params.runSpikeCheckOnPrevSpikeData)) && (Pa
     else
         addpath(spikeDetectedData)
     end
-
-    savePath = strcat(Params.outputDataFolder,'/OutputData',Params.Date,'/1_SpikeDetection/1A_SpikeDetectedData/');
-    savePath(strfind(savePath,'\'))='/';
+    
+    savePath = fullfile(Params.outputDataFolder, ...
+                        strcat('OutputData', Params.Date), ...
+                        '1_SpikeDetection', '1A_SpikeDetectedData');
     
     % Run spike detection
     if detectSpikes == 1
@@ -640,7 +496,8 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
     NetMetricsE = {'Dens','Q','nMod','Eglob','aN','CC','PL','SW','SWw', ... 
                'Hub3','Hub4', 'NCpn1','NCpn2','NCpn3','NCpn4','NCpn5','NCpn6'}; 
     NetMetricsC = {'ND','MEW','NS','Eloc','BC','PC','Z'};
-    combinedData = combineExpNetworkData(ExpName, Params, NetMetricsE, NetMetricsC, HomeDir, experimentMatFileFolderToSaveTo);
+    combinedData = combineExpNetworkData(ExpName, Params, NetMetricsE, ...
+        NetMetricsC, HomeDir, experimentMatFileFolderToSaveTo);
     plotNetMetNodeCartography(combinedData, ExpName,Params,HomeDir)
 
 end
