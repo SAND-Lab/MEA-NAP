@@ -89,13 +89,19 @@ Params.networkLevelNetMetLabels = {
     'hub nodes 2','hub nodes 1', 'Effective rank', ...
     'Num NMF components', 'nNMF div network size'};
 Params.networkLevelNetMetCustomBounds = struct();
+
+% Set custom axis limits that matches with what can theoretically be
+% obtained
 Params.networkLevelNetMetCustomBounds.('effRank') = [1, nan];
+Params.networkLevelNetMetCustomBounds.('density') = [0, 1];
+Params.networkLevelNetMetCustomBounds.('num_nnmf_components') = [1, nan];
 Params.networkLevelNetMetCustomBounds.('aveControl') = [1, 1.5];
 
 Params.unitLevelNetMetToPlot = {'ND','MEW','NS','Z','Eloc','PC','BC', 'aveControl', 'modalControl'};
 Params.unitLevelNetMetLabels = {'node degree','edge weight','node strength', ... 
     'within-module degree z-score', ... 
-    'local efficiency','participation coefficient','betweeness centrality', 'average controllability', 'modal controllability'}; 
+    'local efficiency','participation coefficient','betweeness centrality', ...
+    'average controllability', 'modal controllability'}; 
 
 Params.includeNMFcomponents = 0;  % whether to save extracted components and original downsampled data
 
@@ -289,3 +295,27 @@ end
 
 Params.coords  = Params.coords * 8;  % Do not remove this line after specifying coordinate positions in (0 - 1 format)
 
+%% Plotting : colormap settings 
+% Network plot colormap bounds 
+Params.use_theoretical_bounds = 1;
+Params.use_min_max_all_recording_bounds = 0;
+Params.use_min_max_per_genotype_bounds = 0;
+
+if Params.use_theoretical_bounds
+    network_plot_cmap_bounds = struct();
+    network_plot_cmap_bounds.CC = [0, 1];
+    network_plot_cmap_bounds.PC = [0, 1];
+    network_plot_cmap_bounds.Z = [-2, 2];
+    network_plot_cmap_bounds.BC = [0, 1];
+    network_plot_cmap_bounds.Eloc = [0, 1];
+    network_plot_cmap_bounds.aveControl = [1, 2];
+    network_plot_cmap_bounds.modalControl = [0, 1]; 
+    Params.network_plot_cmap_bounds = network_plot_cmap_bounds;
+else 
+    het_node_level_vals = 0;
+    if Params.use_min_max_all_recording_bounds
+        
+    elseif Params.use_min_max_per_genotype_bounds
+
+    end 
+end 
