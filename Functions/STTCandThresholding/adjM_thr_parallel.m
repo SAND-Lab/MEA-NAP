@@ -24,7 +24,7 @@ function [adjM, adjMci] = adjM_thr_parallel(spikeTimes, method, lag_ms, tail, fs
 %                          dataset
 %----------
 % OUTPUTS:
-%   adjM : 
+%   adjM : adjacency matrix such that A[i, j] = STTC(i, j) 
 %   adjMci : 
 %   real adjacency matrix thresholded at specidied confidence interval
 %            of probabilistic edge weights
