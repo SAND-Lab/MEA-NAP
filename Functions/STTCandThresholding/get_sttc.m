@@ -5,15 +5,15 @@ function adjM = get_sttc(spikeTimes, lag_ms, duration_s, method)
 % See the original paper:
 % https://www.ncbi.nlm.nih.gov/pubmed/25339742
 %----------
-% INPUT
+% Parameters
 % spikeTimes  - [n x 1]  cell with spike time structures; spikeTimes{}.(method)
 %                        NOTE: spike times MUST be in seconds!
 % lag_ms      - [scalar] time lag (in ms) used in STTC
 % duration_s  - [scalar] length of the recording in seconds
 % method      - [string] spike detection method
 % fs          - [scalar] sampling frequency in Hz
-%----------
-% OUTPUT
+% Returns
+% ----------
 % adjM        - [n x n] adjacency matrix representing functional
 %                       connectivity
 %----------
