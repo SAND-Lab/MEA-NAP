@@ -1,20 +1,21 @@
-function [adjMs] = generateAdjMs(spikeTimes,ExN,Params,Info,HomeDir)
-%{
-create AdjM for a series of lag values
+function [adjMs] = generateAdjMs(spikeTimes, ExN, Params, Info, HomeDir)
+%
+% Create AdjM for a series of lag values
+% 
+% Parameters
+% ----------
+% spikeTimes : 
+% ExN : 
+% Params : struct
+% Info : struct
+% HomeDir : path 
+% 
+% Returns 
+% -------
+% adjMs : 
 
-Parameters
-----------
-spikeTimes : 
-ExN : 
-Params : struct
-Info : 
-HomeDir
-
-Returns 
--------
-adjMs : 
-
-%}
+figFolder = fullfile(Params.outputDataFolder, ...
+    strcat('OutputData',Params.Date), '3_EdgeThresholdingCheck');
 
 
 for p = 1:length(Params.FuncConLagval)
@@ -38,15 +39,15 @@ for p = 1:length(Params.FuncConLagval)
             % probabilistic thresholding
             [F1, adjM, adjMci] = adjM_thr_checkreps(spikeTimes, Params.SpikesMethod, lag, Params.ProbThreshTail, Params.fs,...
                 Info.duration_s, Params.ProbThreshRepNum);
-            cd('3_EdgeThresholdingCheck')
 
             % Export figure
             for nFigExt = 1:length(Params.figExt)
-                saveas(gcf,strcat([char(Info.FN), num2str(lag), 'msLagProbThreshCheck', Params.figExt{nFigExt}]));
+                figName = strcat([char(Info.FN), num2str(lag), 'msLagProbThreshCheck', Params.figExt{nFigExt}]);
+                figPath = fullfile(figFolder, figName);
+                saveas(gcf, figPath);
             end 
 
             close all
-            cd(HomeDir); cd(strcat('OutputData',Params.Date))
             
         else % otherwise just generate the adjM
             [adjM, adjMci] = adjM_thr_parallel(spikeTimes, Params.SpikesMethod, lag, Params.ProbThreshTail, Params.fs,...
@@ -60,6 +61,9 @@ for p = 1:length(Params.FuncConLagval)
         
     end
     
+    % TODO: slightly confusing here that the adjacency matrix being saved is
+    % actually adjMci, perhaps the adjM outputf from previous function
+    % should be renamed ot adjMnoThreshold
     eval(['adjMs.adjM' num2str(lag) 'mslag = adjMci;']);
 end
 

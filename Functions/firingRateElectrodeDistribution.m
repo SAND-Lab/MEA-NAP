@@ -1,6 +1,6 @@
-function firingRateElectrodeDistribution(File,Ephys,Params,Info)
+function firingRateElectrodeDistribution(File, Ephys, Params, Info, figFolder)
 %{
-
+% Plots the firing rate distribution across electrodes
 Parameters
 ----------
 File : 
@@ -33,7 +33,8 @@ ylim([0 max(Ephys.FR)+max(Ephys.FR)*0.15])
 
 %% save the figure
 figName = 'FiringRateByElectrode';
-pipelineSaveFig(figName, Params.figExt, Params.fullSVG);
+figPath = fullfile(figFolder, figName);
+pipelineSaveFig(figPath, Params.figExt, Params.fullSVG);
 
 close(F1); 
   

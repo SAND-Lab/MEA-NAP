@@ -1,4 +1,4 @@
-function electrodeHeatMaps(FN,spikeMatrix,channels,spikeFreqMax,Params)
+function electrodeHeatMaps(FN, spikeMatrix, channels, spikeFreqMax, Params, figFolder)
 % Plots the firing rate of each node / electrode with a circle representing 
 % the spatial location of the electrode / node, and the color representing 
 % the firing rate (spikes/s)
@@ -89,7 +89,8 @@ for i = 1:length(spikeCount)
             end
         end
     if Params.includeChannelNumberInPlots 
-        text(pos(1) + 0.5 * nodeScaleF, pos(2) + 0.5 * nodeScaleF, sprintf('%.f', channels(i)), 'HorizontalAlignment','center')
+        text(pos(1) + 0.5 * nodeScaleF, pos(2) + 0.5 * nodeScaleF, ...
+            sprintf('%.f', channels(i)), 'HorizontalAlignment','center')
     end 
 end
 ylim([min(yc) - 1, max(yc) + 1])
@@ -157,7 +158,8 @@ title({strcat(regexprep(FN,'_','','emptymatch'),' Electrode heatmap scaled to en
 
 % save figure
 figName = 'Heatmap';
-pipelineSaveFig(figName, Params.figExt, Params.fullSVG);
+figPath = fullfile(figFolder, figName);
+pipelineSaveFig(figPath, Params.figExt, Params.fullSVG);
 
 close all;
 

@@ -1,24 +1,21 @@
-function PlotEphysStats(ExpName,Params,HomeDir)
+function PlotEphysStats(ExpName, Params, HomeDir)
 % plot ephys statistics for MEA data
+% Parameters 
+% -----------
+% ExpName : str
+% Params : structure
+%     The following fields are used
+%     groupColors : (nGroup x 3 matrix)
+%         the RGB colors to use for each group during plotting
+%     
+% HomeDir : str
+% 
+% Returns
+% -------
+% None
+%
 % author RCFeord July 2021
 % Updated by Tim Sit 
-%{
-
-Parameters 
------------
-ExpName : str
-Params : structure
-    The following fields are used
-    groupColors : (nGroup x 3 matrix)
-        the RGB colors to use for each group during plotting
-    
-HomeDir : str
-
-Returns
--------
-None
-%}
-
 %% colours
 
 % colour scheme for age groups DIV
@@ -63,7 +60,7 @@ metricsWCustomBounds = eMetCustomBounds(:, 1);
 Grps = Params.GrpNm;
 AgeDiv = Params.DivNm;
 
-if strcmp(char(Grps{1}),'HET')&&strcmp(char(Grps{2}),'KO')&&strcmp(char(Grps{3}),'WT')
+if strcmp(char(Grps{1}),'HET') && strcmp(char(Grps{2}),'KO') && strcmp(char(Grps{3}),'WT')
    clear Grps
    Grps{1} = 'WT'; Grps{2} = 'HET'; Grps{3} = 'KO';
 end
@@ -87,7 +84,8 @@ NetMetricsC = {'FR'};
 
 %% Import data from all experiments - whole experiment  
 
-cd(strcat('OutputData',Params.Date)); cd('ExperimentMatFiles')
+experimentMatFolderPath = fullfile(Params.outputDataFolder, ...
+        strcat('OutputData',Params.Date), 'ExperimentMatFiles');
 
 for g = 1:length(Grps)
     % create structure for each group
@@ -112,7 +110,9 @@ end
 % allocate numbers to relevant matrices
 for i = 1:length(ExpName)
      Exp = strcat(char(ExpName(i)),'_',Params.Date,'.mat');
-     load(Exp)
+     ExpFilePath = fullfile(experimentMatFolderPath, Exp);
+     % TODO: load to variable
+     load(ExpFilePath)
      for g = 1:length(Grps)
          if strcmp(cell2mat(Grps(g)),cell2mat(Info.Grp))
              eGrp = cell2mat(Grps(g));
@@ -159,7 +159,8 @@ end
 % allocate numbers to relevant matrices
 for i = 1:length(ExpName)
      Exp = strcat(char(ExpName(i)),'_',Params.Date,'.mat');
-     load(Exp)
+     ExpFilePath = fullfile(experimentMatFolderPath, Exp);
+     load(ExpFilePath)
      for g = 1:length(Grps)
          if strcmp(cell2mat(Grps(g)),cell2mat(Info.Grp))
              eGrp = cell2mat(Grps(g));
@@ -186,7 +187,8 @@ end
 %% export to excel / csv
 % TODO: export to csv as well
 
-cd(HomeDir); cd(strcat('OutputData',Params.Date));
+outputDataDateFolder = fullfile(Params.outputDataFolder, ...
+        strcat('OutputData',Params.Date));
 
 % network means
 for g = 1:length(Grps)
@@ -199,7 +201,10 @@ for g = 1:length(Grps)
             eval([VNet '.' char(NetMetricsE(e)) '=' VNe '.' char(NetMetricsE(e)) ';']);
         end
         eval(['DatTemp = ' VNet ';']);
-        writetable(struct2table(DatTemp), strcat('NeuronalActivity_RecordingLevel_',eGrp,'.xlsx'),'FileType','spreadsheet','Sheet',strcat('Age',num2str(AgeDiv(d))));
+        spreadsheetFname = strcat('NeuronalActivity_RecordingLevel_',eGrp,'.xlsx');
+        spreadsheetFpath = fullfile(outputDataDateFolder, spreadsheetFname);
+        writetable(struct2table(DatTemp), spreadsheetFpath, ...
+            'FileType','spreadsheet','Sheet',strcat('Age',num2str(AgeDiv(d))));
     end
 end
 
@@ -216,21 +221,21 @@ for g = 1:length(Grps)
             eval([VNet '.' char(NetMetricsC(e)) '=' VNe '.' char(NetMetricsC(e)) ';']);
         end
         eval(['DatTemp = ' VNet ';']);
-        writetable(struct2table(DatTemp), strcat('NeuronalActivity_NodeLevel_',eGrp,'.xlsx'),'FileType','spreadsheet','Sheet',strcat('Age',num2str(AgeDiv(d))));
+
+        spreadsheetFname = strcat('NeuronalActivity_NodeLevel_',eGrp,'.xlsx');
+        spreadsheetFpath = fullfile(outputDataDateFolder, spreadsheetFname);
+        writetable(struct2table(DatTemp), spreadsheetFpath, ... 
+            'FileType','spreadsheet','Sheet',strcat('Age',num2str(AgeDiv(d))));
     end
 end
-
 
 clear DatTemp TempStr
 
 
-
-
 %% notBoxPlots - plots by group
 
-cd(HomeDir); cd(strcat('OutputData',Params.Date));
-cd('2_NeuronalActivity'); cd('2B_GroupComparisons'); 
-cd('3_RecordingsByGroup'); cd('NotBoxPlots');
+notBoxPlotByGroupFolder = fullfile(Params.outputDataFolder, strcat('OutputData',Params.Date), ...
+    '2_NeuronalActivity', '2B_GroupComparisons', '3_RecordingsByGroup', 'NotBoxPlots');
 
 eMet = NetMetricsE; 
 eMetl = {'number of active electrodes','mean firing rate (Hz)','median firing rate (Hz)', ... 
@@ -276,16 +281,16 @@ for n = 1:length(eMet)
     set(findall(gcf,'-property','FontSize'),'FontSize',9)
     
     figName = strcat(num2str(n),'_',char(eMetl(n)));
-    pipelineSaveFig(figName, Params.figExt, Params.fullSVG, F1);
+    figPath = fullfile(notBoxPlotByGroupFolder, figName);
+    pipelineSaveFig(figPath, Params.figExt, Params.fullSVG, F1);
 
     close(F1)
 end
 
 %% halfViolinPlots - plots by group
 
-cd(HomeDir); cd(strcat('OutputData',Params.Date));
-cd('2_NeuronalActivity'); cd('2B_GroupComparisons'); 
-cd('3_RecordingsByGroup'); cd('HalfViolinPlots');
+halfViolinPlotByGroupFolder = fullfile(Params.outputDataFolder, strcat('OutputData',Params.Date), ...
+    '2_NeuronalActivity', '2B_GroupComparisons', '3_RecordingsByGroup', 'HalfViolinPlots');
 
 eMet = NetMetricsE; 
 eMetl = {'number of active electrodes','mean firing rate (Hz)','median firing rate (Hz)', ...
@@ -356,16 +361,16 @@ for n = 1:length(eMet)
     set(findall(gcf,'-property','FontSize'),'FontSize',9)
     
     figName = strcat(num2str(n),'_',char(eMetl(n)));
-    pipelineSaveFig(figName, Params.figExt, Params.fullSVG, F1);
+    figPath = fullfile(halfViolinPlotByGroupFolder, figName);
+    pipelineSaveFig(figPath, Params.figExt, Params.fullSVG, F1);
 
     close(F1)
 end
 
 %% notBoxPlots - plots by DIV
 
-cd(HomeDir); cd(strcat('OutputData',Params.Date));
-cd('2_NeuronalActivity'); cd('2B_GroupComparisons'); 
-cd('4_RecordingsByAge'); cd('NotBoxPlots')
+notBoxPlotByDivFolder = fullfile(Params.outputDataFolder, strcat('OutputData',Params.Date), ...
+    '2_NeuronalActivity', '2B_GroupComparisons', '4_RecordingsByAge', 'NotBoxPlots');
 
 eMet = NetMetricsE; 
 eMetl = {'number of active electrodes','mean firing rate (Hz)','median firing rate (Hz)', ... 
@@ -441,16 +446,16 @@ for n = 1:length(eMet)
     set(findall(gcf,'-property','FontSize'),'FontSize',9)
 
     figName = strcat(num2str(n),'_',char(eMetl(n)));
-    pipelineSaveFig(figName, Params.figExt, Params.fullSVG, F1);
+    figPath = fullfile(notBoxPlotByDivFolder, figName);
+    pipelineSaveFig(figPath, Params.figExt, Params.fullSVG, F1);
 
     close(F1)
 end
 
 %% halfViolinPlots - plots by DIV
 
-cd(HomeDir); cd(strcat('OutputData',Params.Date));
-cd('2_NeuronalActivity'); cd('2B_GroupComparisons'); 
-cd('4_RecordingsByAge'); cd('HalfViolinPlots')
+halfViolinPlotByDivFolder = fullfile(params.outputDataFolder, strcat('OutputData',Params.Date), ...
+    '2_NeuronalActivity', '2B_GroupComparisons', '4_RecordingsByAge', 'HalfViolinPlots');
 
 eMet = NetMetricsE; 
 eMetl = {'number of active electrodes','mean firing rate (Hz)','median firing rate (Hz)','network burst rate (per minute)','mean number of channels involved in network bursts','mean network burst length (s)','mean ISI within network burst (ms)','mean ISI outside network bursts (ms)','coefficient of variation of inter network burst intervals','fraction of in network bursts'}; 
@@ -518,15 +523,15 @@ for n = 1:length(eMet)
     set(findall(gcf,'-property','FontSize'),'FontSize',9)
 
     figName = strcat(num2str(n),'_',char(eMetl(n)));
-    pipelineSaveFig(figName, Params.figExt, Params.fullSVG, F1);
+    figPath = fullfile(halfViolinPlotByDivFolder, figName);
+    pipelineSaveFig(figPath, Params.figExt, Params.fullSVG, F1);
     close(F1)
 end
 
 %% halfViolinPlots - plots by group
 
-cd(HomeDir); cd(strcat('OutputData',Params.Date));
-cd('2_NeuronalActivity'); cd('2B_GroupComparisons'); 
-cd('1_NodeByGroup'); 
+halfViolinPlotNodeByGroupFolder = fullfile(Params.outputDataFolder, strcat('OutputData',Params.Date), ...
+    '2_NeuronalActivity', '2B_GroupComparisons', '1_NodeByGroup');
 
 eMet = NetMetricsC; 
 eMetl = {'mean firing rate per electrode (Hz)'}; 
@@ -570,15 +575,14 @@ for n = 1:length(eMet)
     set(findall(gcf,'-property','FontSize'),'FontSize',9)
 
     figName = strcat(num2str(n),'_',char(eMetl(n)));
-    pipelineSaveFig(figName, Params.figExt, Params.fullSVG, F1);
+    figPath = fullfile(halfViolinPlotNodeByGroupFolder, figName);
+    pipelineSaveFig(figPath, Params.figExt, Params.fullSVG, F1);
     close(F1)
 end
 
 %% halfViolinPlots - plots by DIV : mean firing rate per electrode 
-
-cd(HomeDir); cd(strcat('OutputData',Params.Date));
-cd('2_NeuronalActivity'); cd('2B_GroupComparisons'); 
-cd('2_NodeByAge')
+halfViolinPlotByNodeDivFolder = fullfile(Params.outputDataFolder, strcat('OutputData',Params.Date), ...
+    '2_NeuronalActivity', '2B_GroupComparisons', '2_NodeByAge');
 
 eMet = NetMetricsC; 
 eMetl = {'mean firing rate per electrode (Hz)'}; 
@@ -632,7 +636,8 @@ for n = 1:length(eMet)
 
     % Export figure
     figName = strcat(num2str(n),'_',char(eMetl(n)));
-    pipelineSaveFig(figName, Params.figExt, Params.fullSVG, F1);
+    figPath = fullfile(halfViolinPlotByNodeDivFolder, figName);
+    pipelineSaveFig(figPath, Params.figExt, Params.fullSVG, F1);
 
     close(F1)
 end

@@ -1,10 +1,9 @@
-function [spikeMatrix,spikeTimes,Params,Info] = formatSpikeTimes(File,Params,Info)
+function [spikeMatrix,spikeTimes,Params,Info] = formatSpikeTimes(File, Params, Info, spikeDataFolder)
 
 % this function loads in the spike detection result and creates a
 % spike matrix and spike times structure for the chosen spike detection
 % method and chosen length of recording
-% This function assumes that the _spikes.mat files are in your path
-%
+
 % Parameters
 % -----------
 % File : character
@@ -13,7 +12,8 @@ function [spikeMatrix,spikeTimes,Params,Info] = formatSpikeTimes(File,Params,Inf
 %    here we will use Params.SpikesCostParam, Params.SpikesMethod,
 %    Params.TruncRec and Params.TruncLength
 % Info : structure
-%
+% spikeDataFolder : path to directory 
+%     absolute path to the folder containing the spike detected files
 % Returns 
 % -------
 % spikeMatrix : matrix 
@@ -27,15 +27,18 @@ function [spikeMatrix,spikeTimes,Params,Info] = formatSpikeTimes(File,Params,Inf
 
 %% load spike detection result
 
-try
-    load(strcat(char(File),'_spikes.mat'),'spikeTimes','spikeDetectionResult','channels')
-    % remove empty channels
-    spikeTimes = spikeTimes(~cellfun(@isempty, spikeTimes));
-catch
-    load(strcat(char(File),'.mat'),'spikeTimes','spikeDetectionResult','channels')
-    % remove empty channels
-    spikeTimes = spikeTimes(~cellfun(@isempty, spikeTimes));
-end
+fileName = strcat(char(File),'_spikes.mat');
+fileFullPath = fullfile(spikeDataFolder, fileName);
+
+% try
+load(fileFullPath, 'spikeTimes', 'spikeDetectionResult', 'channels')
+% remove empty channels
+spikeTimes = spikeTimes(~cellfun(@isempty, spikeTimes));
+% catch
+%     load(strcat(char(File),'.mat'),'spikeTimes','spikeDetectionResult','channels')
+%     % remove empty channels
+%     spikeTimes = spikeTimes(~cellfun(@isempty, spikeTimes));
+% end
 
 Info.channels = channels;
 
@@ -46,7 +49,9 @@ Info.channels = channels;
 
 if strcmp(Params.channelLayout, 'MCS60') && length(spikeTimes) == 59
     fprintf('Detected 59 electrodes with MCS60 layout, removing electrode 82 \n')
-    Info.channels = channels(channels ~= 82);
+    inclusionIndex = find(channels ~= 82);
+    Info.channels = channels(inclusionIndex);
+    Params.coords = Params.coords(inclusionIndex, :);
 end 
 
 

@@ -1,63 +1,58 @@
-function [] = PlotNetMet(ExpName,Params,HomeDir)
-%{
-Plot network metrics for MEA data
-
-INPUTS 
----------------
-ExpName : (cell array)
-    cell array where each entry is the name of the recording to 
-    plot network metrics (file extension should NOT be included)
-Params : (struct)
-    structure object with key parameters for analysis, namely 
-    Params.output_spreadsheet_file_type : (str)
-        whether to output analysis results as excel spreadsheet (.xlsx), 
-        using 'excel' or comma-separated values (.csv) using 'csv'
-    Params.groupColors : (nGroup x 3 matrix)
-        RGB colors (scale from 0 to 1) to use for each group in plotting
-HomeDir : (str) 
-    main directory of the analysis 
-    ie. '/your/path/to/AnalysisPipeline'
-
-Other dependicies 
-    this code goes through the folder
-    .../AnalysisPipeline/OutputDataXXXXXXX/ExperimentMatFiles
-    and reads through the data contained there, each mat file 
-    in there should contain the following variables
-    Ephys : (struct)
-    Info : (struct)
-    NetMet : (struct)
-    Params : (struct)
-    adjMS : (struct)
-    spikeTimes : (struct)
-    
-Returns
--------
-
-
-Meaning of the variables: 
-
-
-cDiv1, cDiv2, ... : this is a 1 x 3 vector with the RGB values of the color to be used 
-
-Implicit dependencies 
-NetMet (structure)
-
-
-author RCFeord July 2021
-edited by Tim Sit
+function [] = PlotNetMet(ExpName, Params, HomeDir)
+% Plot network metrics for MEA data
+% 
+% Parameters 
+% ----------
+% ExpName : cell array
+%     cell array where each entry is the name of the recording to 
+%     plot network metrics (file extension should NOT be included)
+% Params : struct
+%     structure object with key parameters for analysis, namely 
+%     Params.output_spreadsheet_file_type : (str)
+%         whether to output analysis results as excel spreadsheet (.xlsx), 
+%         using 'excel' or comma-separated values (.csv) using 'csv'
+%     Params.groupColors : (nGroup x 3 matrix)
+%         RGB colors (scale from 0 to 1) to use for each group in plotting
+% HomeDir : (str) 
+%     main directory of the analysis 
+%     ie. '/your/path/to/AnalysisPipeline'
+% 
+% Other dependicies 
+%     this code goes through the folder
+%     .../AnalysisPipeline/OutputDataXXXXXXX/ExperimentMatFiles
+%     and reads through the data contained there, each mat file 
+%     in there should contain the following variables
+%     Ephys : (struct)
+%     Info : (struct)
+%     NetMet : (struct)
+%     Params : (struct)
+%     adjMS : (struct)
+%     spikeTimes : (struct)
+%     
+% Returns
+% -------
+% 
+% 
+% Meaning of the variables: 
+% 
+% 
+% cDiv1, cDiv2, ... : this is a 1 x 3 vector with the RGB values of the color to be used 
+% 
+% Implicit dependencies 
+% NetMet (structure)
+% 
+% 
+% author RCFeord July 2021
+% edited by Tim Sit
 
 % TODO: there is quite some reptition of the plotting code here, 
 % can be simplified
 
-%}
 
 % specify output format (currently Params is loaded from the mat file, 
 % so it will override the settings), may need to find a better way 
 % to distinguish the two 
 output_spreadsheet_file_type = Params.output_spreadsheet_file_type;
-
-
-
 
 %% colours
 
@@ -113,7 +108,8 @@ NetMetricsC = Params.unitLevelNetMetToPlot;
 
 %% Import data from all experiments - whole experiment  
 
-cd(strcat('OutputData',Params.Date)); cd('ExperimentMatFiles')
+experimentMatFileFolder = fullfile(Params.outputDataFolder, ... 
+    strcat('OutputData',Params.Date), 'ExperimentMatFiles');
 
 for g = 1:length(Grps)
     % create structure for each group
@@ -145,8 +141,9 @@ for i = 1:length(ExpName)
          % Make it so figure handle in oneFigure don't appear
          set(0, 'DefaultFigureVisible', 'off')
      end 
-
-     expFileData = load(Exp);  % what does this file contain? 
+     
+     ExpFPath = fullfile(experimentMatFileFolder, Exp);
+     expFileData = load(ExpFPath);  % what does this file contain? 
      % filepath contains Info structure
 
      for g = 1:length(Grps)
@@ -207,7 +204,8 @@ for i = 1:length(ExpName)
      
      % Load exp data to get which group and DIV it is from
      % also load the netMet variable
-     expFileData = load(Exp);
+     ExpFpath = fullfile(ExpFPath, Exp);
+     expFileData = load(ExpFpath);
 
      for g = 1:length(Grps)
          if strcmp(cell2mat(Grps(g)),cell2mat(expFileData.Info.Grp))
@@ -243,7 +241,8 @@ for i = 1:length(ExpName)
 end
 
 %% export to spreadsheet (excel or csv)
-cd(HomeDir); cd(strcat('OutputData',Params.Date));
+
+outputDataFolder = fullfile(Params.outputDataFolder, strcat('OutputData',Params.Date));
 
 if strcmp(output_spreadsheet_file_type, 'csv')
     % make one main table for storing all data 
@@ -290,7 +289,8 @@ for g = 1:length(Grps)
             end 
 
             if strcmp(output_spreadsheet_file_type, 'excel')
-                table_savepath = strcat('NetworkActivity_RecordingLevel_',eGrp,'.xlsx');
+                table_savename = strcat('NetworkActivity_RecordingLevel_',eGrp,'.xlsx');
+                table_savepath = fullfile(outputDataFolder, table_savename);
                 writetable(table_obj, table_savepath, ... 
                     'FileType','spreadsheet','Sheet', ... 
                     strcat('Age',num2str(AgeDiv(d)), ... 
@@ -302,7 +302,8 @@ end
 
 if strcmp(output_spreadsheet_file_type, 'csv')
     combined_table = vertcat(main_table{:});
-    table_savepath = strcat('NetworkActivity_RecordingLevel.csv');
+    table_savepath = fullfile(outputDataFolder, ...
+        strcat('NetworkActivity_RecordingLevel.csv'));
     writetable(combined_table, table_savepath);
 end 
 
@@ -352,9 +353,11 @@ for g = 1:length(Grps)
 
 
             if strcmp(output_spreadsheet_file_type, 'excel')
+                table_savename = strcat('NetworkActivity_NodeLevel_',eGrp,'.xlsx');
+                table_savepath = fullfile(outputDataFolder, table_savename);
                 writetable(electrode_table_obj, ... 
-                    strcat('NetworkActivity_NodeLevel_',eGrp,'.xlsx'),... 
-                    'FileType','spreadsheet','Sheet',strcat('Age',num2str(AgeDiv(d)), ...
+                     table_savepath, 'FileType','spreadsheet', ...
+                     'Sheet',strcat('Age',num2str(AgeDiv(d)), ...
                     'Lag',num2str(Params.FuncConLagval(l)),'ms'));
             end 
 
@@ -365,7 +368,7 @@ end
 
 if strcmp(output_spreadsheet_file_type, 'csv')
     electrode_combined_table = vertcat(electrode_main_table{:});
-    electrode_table_savepath = strcat('NetworkActivity_NodeLevel.csv');
+    electrode_table_savepath = fullfile(outputDataFolder, strcat('NetworkActivity_NodeLevel.csv'));
     writetable(electrode_combined_table, electrode_table_savepath);
 end 
 
@@ -373,9 +376,10 @@ clear DatTemp TempStr
 
 %% GraphMetricsByLag plots
 % Tim 2022-01-08: This seems to be independent of the saved table object (?)
-cd(HomeDir); cd(strcat('OutputData',Params.Date));
-cd('4_NetworkActivity'); cd('4B_GroupComparisons')
-cd('5_GraphMetricsByLag')
+
+graphMetricByLagFolder = fullfile(Params.outputDataFolder, ... 
+    strcat('OutputData',Params.Date), '4_NetworkActivity', ...
+    '4B_GroupComparisons', '5_GraphMetricsByLag');
 
 eMet = Params.networkLevelNetMetToPlot;
 eMetl = Params.networkLevelNetMetLabels;
@@ -468,7 +472,9 @@ for n = 1:length(eMet)
 
     % Export figure
     for nFigExt = 1:length(Params.figExt)
-        saveas(gcf,strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),Params.figExt{nFigExt}));
+        figName = strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),Params.figExt{nFigExt});
+        figPath = fullfile(graphMetricByLagFolder, figName);
+        saveas(gcf, figPath);
     end 
 
     % Close figure or clear the one shared figures
@@ -482,9 +488,9 @@ end
 
 %% notBoxPlots - plots by group
 
-cd(HomeDir); cd(strcat('OutputData',Params.Date));
-cd('4_NetworkActivity'); cd('4B_GroupComparisons')
-cd('3_RecordingsByGroup'); cd('NotBoxPlots')
+networkNotBoxPlotFolder = fullfile(Params.outputDataFolder, ...
+    strcat('OutputData',Params.Date), '4_NetworkActivity', ...
+    '4B_GroupComparisons', '3_RecordingsByGroup', 'NotBoxPlots');
 
 eMet = Params.networkLevelNetMetToPlot;
 eMetl = Params.networkLevelNetMetLabels;
@@ -502,8 +508,13 @@ if isfield(Params, 'oneFigure')
 end 
 
 for l = 1:length(Params.FuncConLagval)
-    mkdir(strcat(num2str(Params.FuncConLagval(l)),'mslag'))
-    cd(strcat(num2str(Params.FuncConLagval(l)),'mslag'))
+
+    networkNotBoxPlotFolderPlusLag = fullfile(networkNotBoxPlotFolder, ...
+        strcat(num2str(Params.FuncConLagval(l)),'mslag'));
+    if ~isfolder(networkNotBoxPlotFolderPlusLag)
+        mkdir(networkNotBoxPlotFolderPlusLag)
+    end 
+
     for n = 1:length(eMet)
         if ~isfield(Params, 'oneFigure')
             F1 = figure;
@@ -568,7 +579,9 @@ for l = 1:length(Params.FuncConLagval)
 
         % Export figure
         for nFigExt = 1:length(Params.figExt)
-            saveas(gcf,strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),Params.figExt{nFigExt}));
+            figName = strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),Params.figExt{nFigExt});
+            figPath = fullfile(networkNotBoxPlotFolderPlusLag, figName);
+            saveas(gcf, figPath);
         end 
 
         % Close figure or clear the one shared figures
@@ -579,16 +592,13 @@ for l = 1:length(Params.FuncConLagval)
             clf reset
         end 
     end
-    cd(HomeDir); cd(strcat('OutputData',Params.Date));
-    cd('4_NetworkActivity'); cd('4B_GroupComparisons')
-    cd('3_RecordingsByGroup'); cd('NotBoxPlots')
 end
 
 %% halfViolinPlots - plots by group
 
-cd(HomeDir); cd(strcat('OutputData',Params.Date));
-cd('4_NetworkActivity'); cd('4B_GroupComparisons')
-cd('3_RecordingsByGroup'); cd('HalfViolinPlots')
+halfViolinPlotByGroupFolder = fullfile(Params.outputDataFolder, ... 
+    strcat('OutputData',Params.Date), '4_NetworkActivity', ...
+    '4B_GroupComparisons', '3_RecordingsByGroup', 'HalfViolinPlots');
 
 eMet = Params.networkLevelNetMetToPlot;
 eMetl = Params.networkLevelNetMetLabels;
@@ -606,8 +616,12 @@ if isfield(Params, 'oneFigure')
 end 
 
 for l = 1:length(Params.FuncConLagval)
-    mkdir(strcat(num2str(Params.FuncConLagval(l)),'mslag'))
-    cd(strcat(num2str(Params.FuncConLagval(l)),'mslag'))
+    halfViolinPlotByGroupFolderPlusLag = fullfile(halfViolinPlotByGroupFolder, ...
+        strcat(num2str(Params.FuncConLagval(l)),'mslag'));
+    if ~isfolder(halfViolinPlotByGroupFolderPlusLag)
+        mkdir(halfViolinPlotByGroupFolderPlusLag)
+    end 
+
     for n = 1:length(eMet)
         if ~isfield(Params, 'oneFigure')
             F1 = figure;
@@ -651,7 +665,6 @@ for l = 1:length(Params.FuncConLagval)
         h(1).XLim = [min(xt)-0.5 max(xt)+0.5];
         set(findall(gcf,'-property','FontSize'),'FontSize',9)
 
-
         % Set custom y axis 
         if isfield(Params.networkLevelNetMetCustomBounds, eMeti) 
 
@@ -678,7 +691,9 @@ for l = 1:length(Params.FuncConLagval)
 
         % Export figure
         for nFigExt = 1:length(Params.figExt)
-            saveas(gcf,strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),Params.figExt{nFigExt}));
+            figName = strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''), Params.figExt{nFigExt});
+            figPath = fullfile(halfViolinPlotByGroupFolderPlusLag, figName);
+            saveas(gcf, figPath);
         end 
 
         % Close figure or clear the one shared figures
@@ -689,22 +704,20 @@ for l = 1:length(Params.FuncConLagval)
             clf reset
         end 
     end
-    cd(HomeDir); cd(strcat('OutputData',Params.Date));
-    cd('4_NetworkActivity'); cd('4B_GroupComparisons')
-    cd('3_RecordingsByGroup'); cd('HalfViolinPlots')
 end
 
 %% notBoxPlots - plots by DIV
 
-cd(HomeDir); cd(strcat('OutputData',Params.Date));
-cd('4_NetworkActivity'); cd('4B_GroupComparisons')
-cd('4_RecordingsByAge'); cd('NotBoxPlots')
+notBoxPlotByDivFolder = fullfile(Params.outputDataFolder, ...
+    strcat('OutputData',Params.Date), '4_NetworkActivity', '4B_GroupComparisons', ...
+    '4_RecordingsByAge', 'NotBoxPlots');
 
 eMet = Params.networkLevelNetMetToPlot;
 eMetl = Params.networkLevelNetMetLabels;
 
 for n = 1:length(eMetl)
-    eMetl(n) = strrep(eMetl(n), '/', 'div');  % edge case where there is a division symbol in the label
+    eMetl(n) = strrep(eMetl(n), '/', 'div');  
+    % edge case where there is a division symbol in the label
 end 
 
 
@@ -718,8 +731,13 @@ if isfield(Params, 'oneFigure')
 end 
 
 for l = 1:length(Params.FuncConLagval)
-    mkdir(strcat(num2str(Params.FuncConLagval(l)),'mslag'))
-    cd(strcat(num2str(Params.FuncConLagval(l)),'mslag'))
+    notBoxPlotByDivFolderPlusLag = fullfile(notBoxPlotByDivFolder, ...
+        strcat(num2str(Params.FuncConLagval(l)),'mslag'));
+    
+    if ~isfolder(notBoxPlotByDivFolderPlusLag)
+        mkdir(notBoxPlotByDivFolderPlusLag)
+    end 
+
     for n = 1:length(eMet)
         if ~isfield(Params, 'oneFigure')
             F1 = figure;
@@ -757,8 +775,9 @@ for l = 1:length(Params.FuncConLagval)
 
         % Export figure
         for nFigExt = 1:length(Params.figExt)
-
-            saveas(gcf,strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),Params.figExt{nFigExt}));
+            figName = strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),Params.figExt{nFigExt});
+            figPath = fullfile(notBoxPlotByDivFolderPlusLag, figName);
+            saveas(gcf, figPath);
         end 
 
         % Close figure or clear the one shared figures
@@ -769,16 +788,13 @@ for l = 1:length(Params.FuncConLagval)
             clf reset
         end 
     end
-    cd(HomeDir); cd(strcat('OutputData',Params.Date));
-    cd('4_NetworkActivity'); cd('4B_GroupComparisons')
-    cd('4_RecordingsByAge'); cd('NotBoxPlots')
+
 end
 
 %% halfViolinPlots - plots by DIV
 
-cd(HomeDir); cd(strcat('OutputData',Params.Date));
-cd('4_NetworkActivity'); cd('4B_GroupComparisons')
-cd('4_RecordingsByAge'); cd('HalfViolinPlots')
+halfViolinPlotByDivFolder = fullfile(Params.outputDataFolder, strcat('OutputData',Params.Date), ...
+    '4_NetworkActivity', '4B_GroupComparisons', '4_RecordingsByAge', 'HalfViolinPlots');
 
 eMet = Params.networkLevelNetMetToPlot;
 eMetl = Params.networkLevelNetMetLabels;
@@ -799,8 +815,11 @@ if isfield(Params, 'oneFigure')
 end 
 
 for l = 1:length(Params.FuncConLagval)
-    mkdir(strcat(num2str(Params.FuncConLagval(l)),'mslag'))
-    cd(strcat(num2str(Params.FuncConLagval(l)),'mslag'))
+    halfViolinPlotByDivFolderPlusLag = fullfile(halfViolinPlotByDivFolder, ...
+        strcat(num2str(Params.FuncConLagval(l)),'mslag'));
+    if ~isfolder(halfViolinPlotByDivFolderPlusLag)
+        mkdir(halfViolinPlotByDivFolderPlusLag)
+    end 
     for n = 1:length(eMet)
         if ~isfield(Params, 'oneFigure')
             F1 = figure;
@@ -871,7 +890,9 @@ for l = 1:length(Params.FuncConLagval)
 
         % Export figure
         for nFigExt = 1:length(Params.figExt)
-            saveas(gcf,strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),Params.figExt{nFigExt}));
+            figName = strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),Params.figExt{nFigExt});
+            figPath = fullfile(halfViolinPlotByDivFolderPlusLag, figName);
+            saveas(gcf, figPath);
         end 
 
         % Close figure or clear the one shared figures
@@ -882,17 +903,13 @@ for l = 1:length(Params.FuncConLagval)
             clf reset
         end 
     end
-    cd(HomeDir); cd(strcat('OutputData',Params.Date));
-    cd('4_NetworkActivity'); cd('4B_GroupComparisons')
-    cd('4_RecordingsByAge'); cd('HalfViolinPlots')
 end
 
    
 %% halfViolinPlots - plots by group electrode specific data
 
-cd(HomeDir); cd(strcat('OutputData',Params.Date));
-cd('4_NetworkActivity'); cd('4B_GroupComparisons')
-cd('1_NodeByGroup')
+nodeByGroupFolder = fullfile(Params.outputDataFolder, strcat('OutputData',Params.Date), ...
+    '4_NetworkActivity', '4B_GroupComparisons', '1_NodeByGroup');
 
 eMet = {'ND','MEW','NS','Z','Eloc','PC','BC'}; 
 eMetl = {'node degree','edge weight','node strength', ... 
@@ -906,8 +923,11 @@ if isfield(Params, 'oneFigure')
 end 
 
 for l = 1:length(Params.FuncConLagval)
-    mkdir(strcat(num2str(Params.FuncConLagval(l)),'mslag'))
-    cd(strcat(num2str(Params.FuncConLagval(l)),'mslag'))
+    nodeByGroupFolderPlusLag = fullfile(nodeByGroupFolder, ...
+        strcat(num2str(Params.FuncConLagval(l)),'mslag'));
+    if ~isfolder(nodeByGroupFolderPlusLag)
+        mkdir(nodeByGroupFolderPlusLag)
+    end 
     for n = 1:length(eMet)
         if ~isfield(Params, 'oneFigure')
             F1 = figure;
@@ -949,7 +969,9 @@ for l = 1:length(Params.FuncConLagval)
 
         % Export figure
         for nFigExt = 1:length(Params.figExt)
-            saveas(gcf,strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),Params.figExt{nFigExt}));
+            figName = strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),Params.figExt{nFigExt});
+            figPath = fullfile(nodeByGroupFolderPlusLag, figName);
+            saveas(gcf, figPath);
         end 
 
          % Close figure or clear the one shared figures
@@ -960,17 +982,13 @@ for l = 1:length(Params.FuncConLagval)
             clf reset
         end 
     end
-    cd(HomeDir); cd(strcat('OutputData',Params.Date));
-    cd('4_NetworkActivity'); cd('4B_GroupComparisons')
-    cd('1_NodeByGroup')
 end
 
 
 %% halfViolinPlots - plots by DIV electrode specific data
 
-cd(HomeDir); cd(strcat('OutputData',Params.Date));
-cd('4_NetworkActivity'); cd('4B_GroupComparisons')
-cd('2_NodeByAge')
+halfViolinPlotByAgeFolder = fullfile(Params.outputDataFolder, strcat('OutputData',Params.Date), ...
+    '4_NetworkActivity', '4B_GroupComparisons', '2_NodeByAge');
 
 eMet = {'ND','MEW','NS','Z','Eloc','PC','BC'}; 
 eMetl = {'node degree','edge weight','node strength','within-module degree z-score', ... 
@@ -983,8 +1001,13 @@ if isfield(Params, 'oneFigure')
 end 
 
 for l = 1:length(Params.FuncConLagval)
-    mkdir(strcat(num2str(Params.FuncConLagval(l)),'mslag'))
-    cd(strcat(num2str(Params.FuncConLagval(l)),'mslag'))
+    halfViolinPlotByAgeFolderPlusLag = fullfile(halfViolinPlotByAgeFolder, ...
+        strcat(num2str(Params.FuncConLagval(l)),'mslag'));
+    
+    if ~isfolder(halfViolinPlotByAgeFolderPlusLag)
+        mkdir(halfViolinPlotByAgeFolderPlusLag)
+    end 
+
     for n = 1:length(eMet)
         if ~isfield(Params, 'oneFigure')
             F1 = figure;
@@ -1027,9 +1050,10 @@ for l = 1:length(Params.FuncConLagval)
         
         % Export figure
         for nFigExt = 1:length(Params.figExt)
-            saveas(gcf,strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),Params.figExt{nFigExt}));
+            figName = strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),Params.figExt{nFigExt});
+            figPath = fullfile(halfViolinPlotByAgeFolderPlusLag, figName);
+            saveas(gcf, figPath);
         end 
-            
 
         % Close figure or clear the one shared figures
         if ~isfield(Params, 'oneFigure')
@@ -1039,9 +1063,6 @@ for l = 1:length(Params.FuncConLagval)
             clf reset
         end 
     end
-    cd(HomeDir); cd(strcat('OutputData',Params.Date));
-    cd('4_NetworkActivity'); cd('4B_GroupComparisons')
-    cd('2_NodeByAge')
 end
 
 %% Node cartography

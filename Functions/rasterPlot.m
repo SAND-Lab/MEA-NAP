@@ -1,6 +1,13 @@
-function rasterPlot(File,spikeMatrix,Params,spikeFreqMax)
-
+function rasterPlot(File,spikeMatrix,Params,spikeFreqMax, figFolder)
 % creata a raster plot of the recording
+% Parameters 
+% -----------
+% File : char 
+% spikeMatrix : matrix 
+% Params : structure 
+% spikeFreqMax : float 
+% figFolder : path to directory 
+%     absolute path to folder to save the raster plot
 
 %% Downsample spike matrix
 
@@ -76,7 +83,8 @@ ax.TitleFontSizeMultiplier = 0.7;
 
 %% save the figure
 figName = 'Raster';
-pipelineSaveFig(figName, Params.figExt, Params.fullSVG);
+figPath = fullfile(figFolder, figName);
+pipelineSaveFig(figPath, Params.figExt, Params.fullSVG);
 
 close(F1); 
   

@@ -1,4 +1,4 @@
-function NetMet = plotNodeCartography(adjMs, Params, NetMet, Info, HomeDir)
+function NetMet = plotNodeCartography(adjMs, Params, NetMet, Info, HomeDir, fileNameFolder)
 %
 % Parameters
 % ----------
@@ -19,14 +19,16 @@ function NetMet = plotNodeCartography(adjMs, Params, NetMet, Info, HomeDir)
 
 lagval = Params.FuncConLagval;
 edge_thresh = 0.0001;
-cd(char(Info.FN))
 
 %% Individual node cartography plots 
 
 for e = 1:length(lagval)
 
-    % change to lag val subfolder to save plots 
-    cd(strcat(num2str(lagval(e)),'mslag'))
+    % change to lag val subfolder to save plots
+    lagFolder = fullfile(fileNameFolder, strcat(num2str(lagval(e)),'mslag'));
+    if ~isfolder(lagFolder)
+        mkdir(lagFolder)
+    end 
     
     % load adjM
     adjM = adjMs.(strcat('adjM', num2str(lagval(e)), 'mslag'));
@@ -75,11 +77,11 @@ for e = 1:length(lagval)
     % node cartography in circular plot
     NdCartDivOrd = NdCartDiv(On);
     StandardisedNetworkPlotNodeCartography(adjM, coords, ... 
-        edge_thresh, NdCartDivOrd, 'circular', char(Info.FN), '7', Params, lagval, e)
+        edge_thresh, NdCartDivOrd, 'circular', char(Info.FN), '7', Params, lagval, e, lagFolder)
 
     % node cartography in grid plot 
     StandardisedNetworkPlotNodeCartography(adjM, coords, ... 
-        edge_thresh, NdCartDivOrd, 'MEA', char(Info.FN), '7', Params, lagval, e)
+        edge_thresh, NdCartDivOrd, 'MEA', char(Info.FN), '7', Params, lagval, e, lagFolder)
 
     % add node cartography results to existing experiment file 
     nodeCartVarsToSave = {'NCpn1', 'NCpn2','NCpn3','NCpn4','NCpn5','NCpn6'};
@@ -91,14 +93,11 @@ for e = 1:length(lagval)
         NetMet.(lagValField).(varName) = nodeCartVarsVals{varCounter};
     end
     
-    cd(HomeDir); cd(strcat('OutputData',Params.Date)); 
-    cd('4_NetworkActivity'); cd('4A_IndividualNetworkAnalysis'); 
-    cd(char(Info.Grp)); cd(char(Info.FN))
 
 end 
 
 %% Plot node catography proportions 
-plotNodeCartographyProportions(NetMet, lagval, char(Info.FN), Params)
+plotNodeCartographyProportions(NetMet, lagval, char(Info.FN), Params, lagFolder)
 
 
 end 

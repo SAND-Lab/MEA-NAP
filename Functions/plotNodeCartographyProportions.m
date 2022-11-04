@@ -1,4 +1,4 @@
-function [] = plotNodeCartographyProportions(NetMet, lagval, FN, Params)
+function [] = plotNodeCartographyProportions(NetMet, lagval, FN, Params, figFolder)
 % Plot proportion of nodes belonging to each node cartography group
 % Parameters
 % ----------
@@ -6,8 +6,8 @@ function [] = plotNodeCartographyProportions(NetMet, lagval, FN, Params)
 % lagval : int 
 % FN : 
 % Params : structure 
-% 
-% 
+% figFolder : path to directory 
+%       absolute path of folder where you want to save the plot 
 % Returns
 % -------
 % 
@@ -72,7 +72,8 @@ set(gca,'TickDir','out');
 %% save figure
 
 figName = 'NodeCartographyProportions';
-pipelineSaveFig(figName, Params.figExt, Params.fullSVG);
+figPath = fullfile(figFolder, figName);
+pipelineSaveFig(figPath, Params.figExt, Params.fullSVG);
 
 
 if ~isfield(Params, 'oneFigure')
