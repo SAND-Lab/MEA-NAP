@@ -1,25 +1,23 @@
-function combinedData = combineExpNetworkData(ExpName, Params, NetMetricsE, NetMetricsC, HomeDir)
-%{
-This function collects data from individual experiment analysis files and
-combine them to create a dataset containing all of the metrics from each
-experiment.
+function combinedData = combineExpNetworkData(ExpName, Params, NetMetricsE, NetMetricsC, HomeDir, NetworkDataFolder)
+% This function collects data from individual experiment analysis files and
+% combine them to create a dataset containing all of the metrics from each
+% experiment.
 
-Parameters
-----------
-ExpName : cell
-Params : struct
-
-Returns 
--------
-combinedData : struct 
-    structu containing as fields first the different genotypes / groups, 
-    eg. WT, KO, HET
-    then within each field are the different age groups:
-    WT.TP1, WT.TP2, ... 
-    which in turn contains network level or node level metrics 
-    which are vectors
-%}
-
+% Parameters
+% ----------
+% ExpName : cell
+% Params : struct
+% NetworkDataFolder : path to directory
+% Returns 
+% -------
+% combinedData : struct 
+%     structu containing as fields first the different genotypes / groups, 
+%     eg. WT, KO, HET
+%     then within each field are the different age groups:
+%     WT.TP1, WT.TP2, ... 
+%     which in turn contains network level or node level metrics 
+%     which are vectors
+%
 % Some tidying up of input 
 
 Grps = Params.GrpNm;
@@ -28,7 +26,7 @@ output_spreadsheet_file_type = Params.output_spreadsheet_file_type;
 combinedData = struct();
 
 
-if strcmp(char(Grps{1}),'HET')&&strcmp(char(Grps{2}),'KO')&&strcmp(char(Grps{3}),'WT')
+if strcmp(char(Grps{1}),'HET') && strcmp(char(Grps{2}),'KO') && strcmp(char(Grps{3}),'WT')
    clear Grps
    Grps{1} = 'WT'; Grps{2} = 'HET'; Grps{3} = 'KO';
 end
@@ -70,8 +68,9 @@ for i = 1:length(ExpName)
          % Make it so figure handle in oneFigure don't appear
          set(0, 'DefaultFigureVisible', 'off')
      end 
-
-     ExpData = load(Exp); % mat file contains Info, NetMet 
+    
+     ExpFilePath = fullfile(NetworkDataFolder, Exp);
+     ExpData = load(ExpFilePath); % mat file contains Info, NetMet 
     
      % TODO: no need loop here I think
      for g = 1:length(Grps)
@@ -134,7 +133,8 @@ for i = 1:length(ExpName)
          % Make it so figure handle in oneFigure don't appear
          set(0, 'DefaultFigureVisible', 'off')
      end 
-     load(Exp)
+     ExpFilePath = fullfile(NetworkDataFolder, Exp);
+     load(ExpFilePath)
      for g = 1:length(Grps)
          if strcmp(cell2mat(Grps(g)),cell2mat(Info.Grp))
              eGrp = cell2mat(Grps(g));
@@ -180,8 +180,7 @@ for i = 1:length(ExpName)
 end
 
 %% export to spreadsheet (excel or csv)
-% cd(HomeDir); cd(strcat('OutputData',Params.Date));
-csv_save_folder = fullfile(HomeDir, strcat('OutputData', Params.Date));
+csv_save_folder = fullfile(Params.outputDataFolder, strcat('OutputData', Params.Date));
 
 if strcmp(output_spreadsheet_file_type, 'csv')
     % make one main table for storing all data 

@@ -1,19 +1,18 @@
-function plotNetMetNodeCartography(combinedData, ExpName, Params,HomeDir)
-%{
-
-Parameters
-----------
-combinedData : struct
-    structure with fields of the different groups (eg. genotypes:
-    combinedData.WT, combinedData.KO, ...)
-ExpName 
-Params
-HomeDir
-
-Returns
--------
-
-%}
+function plotNetMetNodeCartography(combinedData, ExpName, Params,HomeDir, figFolder)
+% Plots network node cartography of individual recordings
+% Parameters
+% ----------
+% combinedData : struct
+%     structure with fields of the different groups (eg. genotypes:
+%     combinedData.WT, combinedData.KO, ...)
+% ExpName : str
+% Params : structure
+% HomeDir : str 
+% 
+% Returns
+% -------
+% 
+%
 
 cd(HomeDir); cd(strcat('OutputData',Params.Date))
 cd('4_NetworkActivity'); cd('4B_GroupComparisons')
@@ -24,7 +23,7 @@ cd('6_NodeCartographyByLag')
 Grps = Params.GrpNm;
 AgeDiv = Params.DivNm;
 
-if strcmp(char(Grps{1}),'HET')&&strcmp(char(Grps{2}),'KO')&&strcmp(char(Grps{3}),'WT')
+if strcmp(char(Grps{1}),'HET') && strcmp(char(Grps{2}),'KO') && strcmp(char(Grps{3}),'WT')
    clear Grps
    Grps{1} = 'WT'; Grps{2} = 'HET'; Grps{3} = 'KO';
 end
@@ -78,7 +77,7 @@ for l = 1:length(Params.FuncConLagval)
             % Choose a number between 0 (invisible) and 1 (opaque) for facealpha.
             set(h1,'facealpha',0.3)
             hold on
-            eval(['y' num2str(n) '= plot(xt,meanTP,''Color'',c,''LineWidth'',3);']);
+            eval(['y' num2str(n) '= plot(xt,meanTP,''Color'',c,''LineWidth'',3);']);   % TODO : fix this to not use eval
             xticks(xt)
             xticklabels(xtlabtext)
             xlabel('Age')
@@ -97,7 +96,8 @@ for l = 1:length(Params.FuncConLagval)
 
     % Export figure
     figName = strcat(['NodeCartography', num2str(Params.FuncConLagval(l)), 'mslag']);
-    pipelineSaveFig(figName, Params.figExt, Params.fullSVG)
+    figPath = fullfile(figFolder, figName);
+    pipelineSaveFig(figPath, Params.figExt, Params.fullSVG)
 
     % Close figure or clear the one shared figures
     if ~isfield(Params, 'oneFigure')

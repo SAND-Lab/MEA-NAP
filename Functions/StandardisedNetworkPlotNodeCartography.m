@@ -1,10 +1,10 @@
 function [] = StandardisedNetworkPlotNodeCartography(adjM, coords, edge_thresh, ...
-    NdCartDiv, plotType, FN, pNum, Params, lagval, e)
-%{
+    NdCartDiv, plotType, FN, pNum, Params, lagval, e, figFolder)
+%
 % script to plot the graph network 
 % 
-Parameters
-----------
+% Parameters
+% ----------
 %   adjM : double array 
 %          adjacency matrix 
 %   coords : double array 
@@ -30,12 +30,12 @@ Parameters
 %        name of file/recording
 %   pNum : char
 %        number (in character or string format) to precede name of figure when it is saved
-Returns 
--------
-
+%   figFolder : directory path 
+%        
+% Returns 
+% -------
 % author RCFeord August 2021
 % Edited by Tim Sit 
-%}
 %% plot
 if ~isfield(Params, 'oneFigure')
     F1 = figure;
@@ -368,8 +368,8 @@ end
 %% save figure
 
 figName = strcat([pNum,'_', plotType, '_NetworkPlotNodeCartography']);
-pipelineSaveFig(figName, Params.figExt, Params.fullSVG);
-
+figPath = fullfile(figFolder, figName);
+pipelineSaveFig(figPath, Params.figExt, Params.fullSVG);
 
 if ~isfield(Params, 'oneFigure')
     close all
