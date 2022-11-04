@@ -134,43 +134,54 @@ for i = 1:length(ExpName)
          set(0, 'DefaultFigureVisible', 'off')
      end 
      ExpFilePath = fullfile(NetworkDataFolder, Exp);
-     load(ExpFilePath)
+     ExpData = load(ExpFilePath);
      for g = 1:length(Grps)
-         if strcmp(cell2mat(Grps(g)),cell2mat(Info.Grp))
+         if strcmp(cell2mat(Grps(g)),cell2mat(ExpData.Info.Grp))
              eGrp = cell2mat(Grps(g));
          end       
      end
      for d = 1:length(AgeDiv)
-         if cell2mat(Info.DIV) == AgeDiv(d)
+         if cell2mat(ExpData.Info.DIV) == AgeDiv(d)
              eDiv = strcat('TP',num2str(d));
          end    
      end
+
      for e = 1:length(NetMetricsC)
             eMet = cell2mat(NetMetricsC(e));
+            DatTemp = cell(length(Params.FuncConLagval), 1);
+            mL = zeros(length(Params.FuncConLagval), 1);
             for l = 1:length(Params.FuncConLagval)
-                VNs = strcat('NetMet.adjM',num2str(Params.FuncConLagval(l)),'mslag.',eMet);
+                % VNs = strcat('NetMet.adjM',num2str(Params.FuncConLagval(l)),'mslag.',eMet);
                 lagValStr = strcat('adjM', num2str(Params.FuncConLagval(l)),'mslag');
-                eval(['DatTemp' num2str(l) '= ' VNs ';']);
-                % DatTemp(l) = NetMet.(lagValStr).(eMet);
                 
-                eval(['DatTemp' num2str(l) '= ' VNs ';']);
-                eval(['mL(l) = length(DatTemp' num2str(l) ');']);
-                %mL(l) = length(DatTemp(l));
+                % DatTemp = ExpData.NetMet.(lagValStr).(eMet);
 
-                clear VNs
+                % eval(['DatTemp' num2str(l) '= ' VNs ';']);
+                DatTemp{l} = ExpData.NetMet.(lagValStr).(eMet);
+                
+                % eval(['DatTemp' num2str(l) '= ' VNs ';']);
+                % eval(['mL(l) = length(DatTemp' num2str(l) ');']);
+                mL(l) = length(DatTemp{l});
+
+                % clear VNs
             end
-            % TODO: work out what is being assumed here and what it is
-            % doing
+            % This is using the maximum number of nodes per recording
+            % And filling data with fewer nodes than that with NaNs 
+            % so that the node metric has the same size in all lags
             for l = 1:length(Params.FuncConLagval)
-                eval(['DatTempT = DatTemp' num2str(l) ';']);
-                % DatTempT = DatTemp(l);
+                % eval(['DatTempT = DatTemp' num2str(l) ';']);
+                DatTempT = DatTemp{l};
                 if length(DatTempT) < max(mL)
                     DatTempT(length(DatTempT+1):max(mL)) = nan;
                 end
-                DatTemp(:,l) = DatTempT;
+                % DatTemp(:,l) = DatTempT;
+                DatTemp{l} = DatTempT; 
             end
-            VNe = strcat(eGrp,'.',eDiv,'.',eMet);
-            eval([VNe '= [' VNe '; DatTemp];']);
+            
+            % Convert from cell back to matrix 
+            DatTemp = cell2mat(DatTemp');
+            % VNe = strcat(eGrp,'.',eDiv,'.',eMet);
+            % eval([VNe '= [' VNe '; DatTemp];']);
 
             % Append to vector in field 
             combinedData.(eGrp).(eDiv).(eMet) = [combinedData.(eGrp).(eDiv).(eMet); DatTemp];
