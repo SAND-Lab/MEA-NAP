@@ -1,7 +1,9 @@
 function [hub_peripheral_xy, hub_metrics, hub_score_index] = ... 
     fcn_find_hubs_wu(channels, raster, adjM, fs)
+
 percentile_threshold    = 80; % percent
 fr_thresh               = 0.1; % Hz
+makePlots = 0;  % whether to make plots from this function (off for now)
 % calculate nodal metrics based on Schroeter 2015
 % these metrics are: nodal strength, betweenness centrality, local efficiency, and participation coefficient
 %{
@@ -87,13 +89,10 @@ Y = mean(norm_metric_matrix,2);
 channels_sorted = channels(I); % descending order
 top5_channel_xy = channels_sorted(1:5);
 disp('Stimulate:'); disp(num2str(top5_channel_xy))
-% plot nodes normalised value for each metric in overall percentile order
-f=figure;
-f.Position =    [642   386   637   255];
-% plot metrics sorted in order of hubness
-for metric = 1:length(metric_names)
-    hold on; plot(norm_metric_matrix(I,metric))
-end
+
+
+%% plot nodes normalised value for each metric in overall percentile order
+
 % add firing rate
 rec_duration = size(raster, 1) / fs;
 fr = sum(raster)./rec_duration;
@@ -101,36 +100,61 @@ fr = sum(raster)./rec_duration;
 % fr_norm = fr ./ max(fr);
 % sqrt fr to deal with skewed distribution and get z scores
 fr_norm = zscore(sqrt(fr));
-hold on; p=plot(fr_norm(I),'LineWidth',2);
-% make firing rate transparent
-p.Color(4) = 0.3;
-% add mean
-plot(mean(norm_metric_matrix(I,:),2),':k','LineWidth',2)
-% aesthetics
-ylabel('Z-score')
-xlabel({'Electrodes', '\itsorted for hubness'})
-aesthetics
-% get most peripheral node that is still active
+
+ % get most peripheral node that is still active
 % max find B>0 gives the lowest scoring channel in terms of all metrics
 % that is greater than 0. I of this gives where in the channels variable
 % this metric came from. This index of channels gives the xy coord
 bottom_active_channel = channels(I(max(find(fr(I)>fr_thresh))));
-% add markers for hub and peripheral node to stim
-hold on; 
-p=plot([find(channels_sorted==top5_channel_xy(1)),find(channels_sorted==bottom_active_channel)],...
-    [max(norm_metric_matrix(:)) max(norm_metric_matrix(:))],'vk','MarkerFaceColor','k','MarkerSize',3);
-% add legend etc
-l=legend([metric_names 'Firing rate' 'Metric mean','Stimulated nodes'],'box','off');
-l.Title.String = 'Normalised metrics';
-l.Location = 'eastoutside';
 
-title(sprintf('Stimulate nodes(xy): %g %g \n',top5_channel_xy(1),bottom_active_channel));
+if makePlots
+
+    p = [642 386 637 255];
+    if ~isfield(Params, 'oneFigure')
+        F1 = figure;
+        F1.Position = p;
+    else 
+        set(0, 'DefaultFigurePosition', p)
+        set(Params.oneFigure, 'Position', p);
+    end 
+       
+    % plot metrics sorted in order of hubness
+    for metric = 1:length(metric_names)
+        hold on; plot(norm_metric_matrix(I,metric))
+    end
+    
+    hold on; 
+    p=plot(fr_norm(I),'LineWidth',2);
+    % make firing rate transparent
+    p.Color(4) = 0.3;
+    % add mean
+    plot(mean(norm_metric_matrix(I,:),2),':k','LineWidth',2)
+    % aesthetics
+    ylabel('Z-score')
+    xlabel({'Electrodes', '\itsorted for hubness'})
+    aesthetics
+   
+    % add markers for hub and peripheral node to stim
+    hold on; 
+    p=plot([find(channels_sorted==top5_channel_xy(1)),find(channels_sorted==bottom_active_channel)],...
+        [max(norm_metric_matrix(:)) max(norm_metric_matrix(:))],'vk','MarkerFaceColor','k','MarkerSize',3);
+    % add legend etc
+    l=legend([metric_names 'Firing rate' 'Metric mean','Stimulated nodes'],'box','off');
+    l.Title.String = 'Normalised metrics';
+    l.Location = 'eastoutside';
+    
+    title(sprintf('Stimulate nodes(xy): %g %g \n',top5_channel_xy(1),bottom_active_channel));
+    
+end 
+
+% TODO: save these plots
+
 % get temporal raster sorted in order of hubness
-figure;
-imagesc(downSampleSum(full(raster(:,I)), rec_duration)'); 
-caxis([0 50]);
-cb = colorbar; cb.Label.String = 'Spike rate (Hz)' ; aesthetics
-xlabel('Time (s)');ylabel({'Electrodes', '\itsorted for hubness'});
+% figure;
+% imagesc(downSampleSum(full(raster(:,I)), rec_duration)'); 
+% caxis([0 50]);
+% cb = colorbar; cb.Label.String = 'Spike rate (Hz)' ; aesthetics
+% xlabel('Time (s)');ylabel({'Electrodes', '\itsorted for hubness'});
 % % verify with heatmap
 % figure;
 % TODO: cannot find this function 
