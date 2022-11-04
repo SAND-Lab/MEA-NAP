@@ -1,5 +1,10 @@
 %% Advanced settings for batchInterface (only modify if you know what you are doing)
 
+%% Output folder settings 
+Params.outputDataFolder = nan;  % specify the main folder to save output data to 
+if isnan(Params.outputDataFolder)
+    Params.outputDataFolder = HomeDir;
+end 
 %% Spike detection settings
 Params.plotDetectionResults = 0;
 Params.threshold_calculation_window = [0, 1.0];  % which part of the recording to do spike detection, 0 = start of recording, 0.5 = midway, 1 = end of recording
