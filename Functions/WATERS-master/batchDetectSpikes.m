@@ -340,7 +340,7 @@ for recording = 1:numel(files)
             spikeDetectionResult.method = 'CWT';
             spikeDetectionResult.params = params;
             
-            saveName = [savePath fileName '_spikes.mat'];
+            saveName = fullfile(savePath,  strcat(fileName, '_spikes.mat'));
             disp(['Saving results to: ' saveName]);
             
             varsList = {'spikeTimes', 'channels', 'spikeDetectionResult', ...
