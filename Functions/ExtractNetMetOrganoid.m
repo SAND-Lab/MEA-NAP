@@ -70,8 +70,6 @@ netMetToCal = Params.netMetToCal;
 
 % edge threshold for adjM
 edge_thresh = 0.0001;
-mkdir(char(Info.FN))
-cd(char(Info.FN))
 
 % Preallocate 
 meanSTTC = zeros(length(lagval), 1);
@@ -94,7 +92,7 @@ for e = 1:length(lagval)
     if ~isfolder(lagFolderName)
         mkdir(lagFolderName)
     end 
-    cd(lagFolderName)
+ 
     
     %% connectivity measures
     
@@ -142,7 +140,7 @@ for e = 1:length(lagval)
     % NS = sum(adjM)'; 
     
     % plot properties
-    plotConnectivityProperties(adjM, e, lagval, maxSTTC, meanSTTC, ND, NS, MEW, char(Info.FN),Params)
+    plotConnectivityProperties(adjM, e, lagval, maxSTTC, meanSTTC, ND, NS, MEW, char(Info.FN),Params, lagFolderName)
   
     
     %% if option stipulates binary adjM, binarise the matrix
@@ -333,7 +331,7 @@ else
     % TODO: move the plotting to a separate function
 
     electrodeSpecificMetrics(ND, NS, MEW, Eloc, BC, PC, Z, lagval, ... 
-            e, char(Info.FN), Params)
+            e, char(Info.FN), Params, lagFolderName)
     
     %% network plots
     [On,adjMord] = reorder_mod(adjM,Ci);
@@ -348,7 +346,7 @@ else
             72,82,73,83,64,74,84,85,75,65,86,76,87,77,66,78,67,68,55,56,58,57];
     end
    
-    StandardisedNetworkPlot(adjM, coords, edge_thresh, ND, 'MEA', char(Info.FN),'2',Params,lagval,e);
+    StandardisedNetworkPlot(adjM, coords, edge_thresh, ND, 'MEA', char(Info.FN),'2',Params,lagval,e, lagFolderName);
    
     % grid network plot node degree betweeness centrality
     StandardisedNetworkPlotNodeColourMap(adjM, coords, edge_thresh, ND, 'Node degree', BC, 'Betweeness centrality', 'MEA', char(Info.FN), '3', Params, lagval, e, lagFolderName)
@@ -361,7 +359,7 @@ else
   
     % simple circular network plot
     NDord = ND(On);
-    StandardisedNetworkPlot(adjMord, coords, edge_thresh, NDord, 'circular', char(Info.FN),'6',Params,lagval,e);
+    StandardisedNetworkPlot(adjMord, coords, edge_thresh, NDord, 'circular', char(Info.FN),'6',Params,lagval,e, lagFolderName);
     
     
     % grid network plot for controllability metrics
@@ -406,9 +404,9 @@ else
     clear ND MEW NS Dens Ci Q nMod CC PL SW SWw Eloc BC PC Z Var NCpn1 NCpn2 NCpn3 NCpn4 NCpn5 NCpn6 Hub3 Hub4 NE PC_raw Cmcblty
     
 
-cd(HomeDir); cd(strcat('OutputData',Params.Date)); 
-cd('4_NetworkActivity'); cd('4A_IndividualNetworkAnalysis'); 
-cd(char(Info.Grp)); cd(char(Info.FN))
+% cd(HomeDir); cd(strcat('OutputData',Params.Date)); 
+% cd('4_NetworkActivity'); cd('4A_IndividualNetworkAnalysis'); 
+% cd(char(Info.Grp)); cd(char(Info.FN))
 
 end
 
@@ -417,6 +415,6 @@ end
 
 %% plot metrics for different lag times
 % TODO: move this
-plotNetworkWideMetrics(NetMet, meanSTTC, maxSTTC, lagval, char(Info.FN), Params)
+plotNetworkWideMetrics(NetMet, meanSTTC, maxSTTC, lagval, char(Info.FN), Params, networkActivityFolder)
 
 end
