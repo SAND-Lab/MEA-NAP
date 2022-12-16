@@ -1,5 +1,5 @@
 function [] = plotConnectivityProperties(adjM, e, lagval, maxSTTC, meanSTTC, ... 
-    ND, NS, MEW, FN, Params)
+    ND, NS, MEW, FN, Params, figFolder)
 %
 % Plots connectivity properties given the adjacency matrix (adjM)
 % Parameters
@@ -90,11 +90,12 @@ set(gca,'TickDir','out');
    
 %% save figure
 figName = strcat(['1_adjM', num2str(lagval(e)),'msConnectivityStats']);
+figPath = fullfile(figFolder, figName); 
 
 if ~isfield(Params, 'oneFigure')
-    pipelineSaveFig(figName, Params.figExt, Params.fullSVG);
+    pipelineSaveFig(figPath, Params.figExt, Params.fullSVG);
 else 
-    pipelineSaveFig(figName, Params.figExt, Params.fullSVG, Params.oneFigure);
+    pipelineSaveFig(figPath, Params.figExt, Params.fullSVG, Params.oneFigure);
 end 
 
 if ~isfield(Params, 'oneFigure')
