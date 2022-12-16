@@ -8,27 +8,27 @@
 % https://analysis-pipeline.readthedocs.io/en/latest/pipeline-steps.html#pipeline-settings
 
 % Directories
-HomeDir = '/Users/timothysit/AnalysisPipeline'; % analysis folder to home directory
-rawData = '/Volumes/Elements/MAT_files/MEC';  % path to raw data .mat files
-Params.priorAnalysisPath = ['/Users/timothysit/AnalysisPipeline/OutputData01Nov2022'];  % path to prev analysis
-spikeDetectedData = '/Users/timothysit/AnalysisPipeline/OutputData14Oct2022'; % path to spike-detected data
+HomeDir = '/home/timothysit/AnalysisPipeline'; % analysis folder to home directory
+rawData = '/media/timothysit/Elements/MAT_files/MPT_MEC/';  % path to raw data .mat files
+Params.priorAnalysisPath = ['/media/timothysit/Elements/MAT_files/AnalysisPipeline/OutputData18Nov2022/'];  % path to prev analysis
+spikeDetectedData = '/media/timothysit/Elements/MAT_files/AnalysisPipeline/OutputData11Nov2022/1_SpikeDetection/1A_SpikeDetectedData/'; % path to spike-detected data
 
 % Input and output filetype
 spreadsheet_file_type = 'csv'; % 'csv' or 'excel'
-spreadsheet_filename = 'layoutTestWithoutGrounding.csv'; 
+spreadsheet_filename = 'mecp2_MPT_and_MEC_v2.csv'; 
 sheet = 1; % specify excel sheet
 xlRange = 'A2:C7'; % specify range on the sheet (e.g., 'A2:C7' would analyse the first 6 files)
 csvRange = [2, Inf]; % read the data in the range [StartRow EndRow], e.g. [2 Inf] means start reading data from row 2
 Params.output_spreadsheet_file_type = 'csv';  % .xlsx or .csv
 
 % Analysis step settings
-Params.priorAnalysisDate = '14Oct2022'; % prior analysis date in format given in output data folder e.g., '27Sep2021'
-Params.priorAnalysis = 0; % use previously analysed data? 1 = yes, 0 = no
+Params.priorAnalysisDate = '18Nov2022'; % prior analysis date in format given in output data folder e.g., '27Sep2021'
+Params.priorAnalysis = 1; % use previously analysed data? 1 = yes, 0 = no
 Params.startAnalysisStep = 4; % if Params.priorAnalysis=0, default is to start with spike detection
 Params.optionalStepsToRun = {'runStats'}; % include 'generateCSV' to generate csv for rawData folder
 
 % Spike detection settings
-detectSpikes = 1; % run spike detection? % 1 = yes, 0 = no
+detectSpikes = 0; % run spike detection? % 1 = yes, 0 = no
 Params.runSpikeCheckOnPrevSpikeData = 0; % whether to run spike detection check without spike detection 
 Params.fs = 25000; % Sampling frequency, HPC: 25000, Axion: 12500;
 Params.dSampF = 25000; % down sampling factor for spike detection check
@@ -66,11 +66,13 @@ Params.figExt = {'.png', '.svg'};  % supported options are '.fig', '.png', and '
 Params.fullSVG = 1;  % whether to insist svg even with plots with large number of elements
 Params.showOneFig = 1;  % otherwise, 0 = pipeline shows plots as it runs, 1: supress plots
 
-%% GUI / Tutorial mode settings 
+%% Paths 
 % add all relevant folders to path
 cd(HomeDir)
 addpath(genpath('Functions'))
 addpath('Images')
+
+%% GUI / Tutorial mode settings 
 
 Params.guiMode = 1;
 if Params.guiMode == 1
@@ -117,13 +119,13 @@ setUpSpreadSheet  % import metadata from spreadsheet
 [~,Params.DivNm] = findgroups(ExpDIV);
 
 % create output data folder if doesn't exist
-CreateOutputFolders(Params.outputDataFolder, Params.Date, Params.GrpNm)
+CreateOutputFolders(HomeDir, Params.outputDataFolder, Params.Date, Params.GrpNm)
 
 % plot electrode layout 
 plotElectrodeLayout(Params.outputDataFolder , Params)
 
 % export parameters to csv file
-outputDataWDatePath = fullfile(outputDataFolder, strcat('OutputData',Params.Date));
+outputDataWDatePath = fullfile(Params.outputDataFolder, strcat('OutputData',Params.Date));
 ParamsTableSavePath = fullfile(outputDataWDatePath, strcat('Parameters_',Params.Date,'.csv'));
 writetable(struct2table(Params,'AsArray',true), ParamsTableSavePath)
 
@@ -160,7 +162,8 @@ if ((Params.priorAnalysis == 0) || (Params.runSpikeCheckOnPrevSpikeData)) && (Pa
     
     % Run spike detection
     if detectSpikes == 1
-        batchDetectSpikes(rawData, savePath, option, ExpName, Params);
+        subsetExpName = ExpName(112:end);
+        batchDetectSpikes(rawData, savePath, option, subsetExpName, Params);
     end 
     
     % Specify where ExperimentMatFiles are stored
@@ -251,6 +254,7 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
     disp('Electrophysiological properties')
 
     spikeFreqMax = max(spikeFreqMax);
+    spikeFreqMax = 100;    % manual overrride 2022-12-16
 
     for  ExN = 1:length(ExpName)
         
@@ -268,15 +272,20 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
         if ~isfolder(idvNeuronalAnalysisGrpFolder)
             mkdir(idvNeuronalAnalysisGrpFolder)
         end 
+        
+        idvNeuronalAnalysisFNFolder = fullfile(idvNeuronalAnalysisGrpFolder, char(Info.FN));
+        if ~isfolder(idvNeuronalAnalysisFNFolder)
+            mkdir(idvNeuronalAnalysisFNFolder)
+        end 
 
         % generate and save raster plot
-        rasterPlot(char(Info.FN),spikeMatrix,Params,spikeFreqMax, idvNeuronalAnalysisGrpFolder)
+        rasterPlot(char(Info.FN),spikeMatrix,Params,spikeFreqMax, idvNeuronalAnalysisFNFolder)
         % electrode heat maps
         electrodeHeatMaps(char(Info.FN), spikeMatrix, Info.channels, ... 
-            spikeFreqMax,Params, idvNeuronalAnalysisGrpFolder)
+            spikeFreqMax,Params, idvNeuronalAnalysisFNFolder)
         % half violin plots
         firingRateElectrodeDistribution(char(Info.FN), Ephys, Params, ... 
-            Info, idvNeuronalAnalysisGrpFolder)
+            Info, idvNeuronalAnalysisFNFolder)
 
         infoFnFilePath = fullfile(experimentMatFolderPath, ...
                           strcat(char(Info.FN),'_',Params.Date,'.mat'));
@@ -332,7 +341,7 @@ Params = checkOneFigureHandle(Params);
 
 if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisStep<=4
 
-    for  ExN = 1:length(ExpName)
+    for  ExN = 1:length(ExpName)  % TODO: revert back from 27 back to 1
 
         if Params.priorAnalysis==1 && Params.startAnalysisStep==4
             priorAnalysisExpMatFolder = fullfile(Params.priorAnalysisPath, 'ExperimentMatFiles');
@@ -356,6 +365,11 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
         idvNetworkAnalysisGrpFolder = fullfile(Params.outputDataFolder, ...
             strcat('OutputData',Params.Date), '4_NetworkActivity', ...
             '4A_IndividualNetworkAnalysis', char(Info.Grp));
+        
+        idvNetworkAnalysisFNFolder = fullfile(idvNetworkAnalysisGrpFolder, char(Info.FN));
+        if ~isfolder(idvNetworkAnalysisFNFolder)
+            mkdir(idvNetworkAnalysisFNFolder)
+        end 
 
         % cd(strcat('OutputData',Params.Date)); cd('4_NetworkActivity')
         % cd('4A_IndividualNetworkAnalysis'); cd(char(Info.Grp))
@@ -371,12 +385,8 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
 
         [spikeMatrix, spikeTimes, Params, Info] = formatSpikeTimes(char(Info.FN), ...
             Params, Info, spikeDetectedDataFolder);
-        
-        networkActivityFolder = fullfile(Params.outputDataFolder, ...
-            strcat('OutputData',Params.Date), ...
-            '4_NetworkActivity', '4A_IndividualNetworkAnalysis', char(Info.Grp));
 
-        Params.networkActivityFolder = networkActivityFolder;
+        Params.networkActivityFolder = idvNetworkAnalysisFNFolder;
 
         NetMet = ExtractNetMetOrganoid(adjMs, spikeTimes, ...
             Params.FuncConLagval, Info,HomeDir,Params, spikeMatrix);
@@ -386,8 +396,7 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
         infoFnFname = strcat(char(Info.FN),'_',Params.Date,'.mat');
         infoFnFilePath = fullfile(ExpMatFolder, infoFnFname);
         
-        % TODO: use append mode to avoid writing to existing file 
-        save(infoFnFilePath, 'Info', 'Params', 'spikeTimes', 'Ephys', 'adjMs','NetMet')
+        save(infoFnFilePath, 'Info', 'Params', 'spikeTimes', 'Ephys', 'adjMs','NetMet', '-append')
 
         clear adjMs
 
