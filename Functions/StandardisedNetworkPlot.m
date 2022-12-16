@@ -1,5 +1,5 @@
 function [F1] = StandardisedNetworkPlot(adjM, coords, edge_thresh, z, plotType, FN, pNum, ...
-    Params, lagval, e)
+    Params, lagval, e, figFolder)
 % Plot the graph network 
 % Parameters
 % ----------
@@ -327,11 +327,11 @@ end
 %% save figure
 
 figName = strcat([pNum, '_', plotType, '_NetworkPlot']);
-
+figPath = fullfile(figFolder, figName);
 if ~isfield(Params, 'oneFigure')
-    pipelineSaveFig(figName, Params.figExt, Params.fullSVG, F1);
+    pipelineSaveFig(figPath, Params.figExt, Params.fullSVG, F1);
 else 
-    pipelineSaveFig(figName, Params.figExt, Params.fullSVG, Params.oneFigure);
+    pipelineSaveFig(figPath, Params.figExt, Params.fullSVG, Params.oneFigure);
 end 
 
 if ~isfield(Params, 'oneFigure')
