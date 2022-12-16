@@ -145,6 +145,10 @@ for i = 1:length(ExpName)
      ExpFPath = fullfile(experimentMatFileFolder, Exp);
      expFileData = load(ExpFPath);  % what does this file contain? 
      % filepath contains Info structure
+     
+     if ~isfield(expFileData, 'NetMet')
+         fprintf(sprintf('%s has no NetMet field, file idx %.f', Exp, i))
+     end 
 
      for g = 1:length(Grps)
          if strcmp(cell2mat(Grps(g)),cell2mat(expFileData.Info.Grp))
