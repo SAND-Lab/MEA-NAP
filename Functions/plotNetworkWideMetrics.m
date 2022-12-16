@@ -1,4 +1,4 @@
-function [] = plotNetworkWideMetrics(NetMet, meanSTTC, maxSTTC, lagval, FN, Params)
+function [] = plotNetworkWideMetrics(NetMet, meanSTTC, maxSTTC, lagval, FN, Params, figFolder)
 %{
 Parameters
 ----------
@@ -169,7 +169,8 @@ set(gca,'TickDir','out');
 
 %% save figure
 figName = 'NetworkWideMetrics';
-pipelineSaveFig(figName, Params.figExt, Params.fullSVG);
+figPath = fullfile(figFolder, figName);
+pipelineSaveFig(figPath, Params.figExt, Params.fullSVG);
 
 if ~isfield(Params, 'oneFigure')
     close all
