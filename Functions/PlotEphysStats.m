@@ -335,8 +335,6 @@ for n = 1:length(eMet)
     end
     linkaxes(h,'xy')
     h(1).XLim = [min(xt)-0.5 max(xt)+0.5];
-    fprintf('n is')
-    n
     customBoundMatchVec = strcmp(eMetl(n), metricsWCustomBounds);
     if sum(customBoundMatchVec) == 1
         bound_idx = find(customBoundMatchVec);
@@ -454,7 +452,7 @@ end
 
 %% halfViolinPlots - plots by DIV
 
-halfViolinPlotByDivFolder = fullfile(params.outputDataFolder, strcat('OutputData',Params.Date), ...
+halfViolinPlotByDivFolder = fullfile(Params.outputDataFolder, strcat('OutputData',Params.Date), ...
     '2_NeuronalActivity', '2B_GroupComparisons', '4_RecordingsByAge', 'HalfViolinPlots');
 
 eMet = NetMetricsE; 
