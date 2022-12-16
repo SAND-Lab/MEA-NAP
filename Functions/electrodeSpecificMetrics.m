@@ -1,4 +1,4 @@
-function [] = electrodeSpecificMetrics(ND, NS, MEW, Eloc, BC, PC, Z, lagval, e, FN, Params)
+function [] = electrodeSpecificMetrics(ND, NS, MEW, Eloc, BC, PC, Z, lagval, e, FN, Params, figFolder)
 % Plots electrode-level metrics for individual recordings
 % TODO: allow this to accept arbitrary number of parameters to plot, 
 % this allows easier extensions in the future.
@@ -83,7 +83,11 @@ if ~skipPlot
     set(gca,'TickDir','out');
     set(gca,'xtick',[])
     ylabel('within-module degree z-score')
-    ylim([nanmin(Z)-abs(nanmin(Z))*0.2 nanmax(Z)+0.2*nanmax(Z)])
+    if nanmin(Z) == nanmax(Z)
+        ylim([0, nanmax(Z) + 0.1])  % handle edge case of eg. all zeros
+    else
+        ylim([nanmin(Z)-abs(nanmin(Z))*0.2 nanmax(Z)+0.2*nanmax(Z)])
+    end 
 end 
 
 % Plot local efficiency
@@ -119,17 +123,22 @@ if ~skipPlot
     set(gca,'TickDir','out');
     set(gca,'xtick',[])
     ylabel('betweeness centrality')
-    ylim([0 nanmax(BC)+0.2*nanmax(BC)])
+    if nanmin(BC) == nanmax(BC)
+        ylim([0, nanmax(BC) + 0.1])  % handle edge case of eg. all zeros
+    else
+        ylim([0 nanmax(BC)+0.2*nanmax(BC)])
+    end 
 end 
 
 
 %% save figure
 figName = strcat('8_adjM', num2str(lagval(e)),'msGraphMetricsByNode');
+figPath = fullfile(figFolder, figName);
 
 if ~isfield(Params, 'oneFigure')
-    pipelineSaveFig(figName, Params.figExt, Params.fullSVG, F1);
+    pipelineSaveFig(figPath, Params.figExt, Params.fullSVG, F1);
 else 
-    pipelineSaveFig(figName, Params.figExt, Params.fullSVG, Params.oneFigure);
+    pipelineSaveFig(figPath, Params.figExt, Params.fullSVG, Params.oneFigure);
 end 
 
 if ~isfield(Params, 'oneFigure')
