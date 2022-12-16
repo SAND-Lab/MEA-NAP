@@ -1,26 +1,8 @@
 function [Ephys] = firingRatesBursts(spikeMatrix,Params,Info)
-%{
-firingRatesBursts detects burst in spike matrix 
-
-Parameters 
------------
-spikeMatrix : (N x T matrix)
-    where N is the number of electrodes/units 
-    and T is the number of time samples 
-Params : (structure)
-    structure with the following required fields 
-        fs : (int)
-            sampling rate (Hz) of the recording
-Info : (structure)
-    structure with the following required fields 
-    duration_s : (float)
-        duration of the recording in seconds
-Returns
---------
-Ephys : struct 
+%
 
 
-%}
+%
 
 
 % set firing rate threshold in Hz
