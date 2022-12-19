@@ -297,6 +297,7 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
 
     % create combined plots across groups/ages
     PlotEphysStats(ExpName,Params,HomeDir)
+    saveEphysStats(ExpName, Params, HomeDir)
     cd(HomeDir)
 
 end
