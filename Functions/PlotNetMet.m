@@ -208,7 +208,7 @@ for i = 1:length(ExpName)
      
      % Load exp data to get which group and DIV it is from
      % also load the netMet variable
-     ExpFpath = fullfile(ExpFPath, Exp);
+     ExpFpath = fullfile(experimentMatFileFolder, Exp);
      expFileData = load(ExpFpath);
 
      for g = 1:length(Grps)
