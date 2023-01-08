@@ -48,8 +48,10 @@ Var = {'PC','Z'};
 for n = 1:length(ExpList)
     
     FN = ExpList(n).name;
+    fileFolder = ExpList(n).folder;
+    filePath = fullfile(fileFolder, FN);
     % TODO: suppress figure handle popping up when loading
-    load(FN)
+    load(filePath)
     
     for i = 1:length(Var)
         VN = cell2mat(Var(i));
