@@ -14,10 +14,6 @@ function plotNetMetNodeCartography(combinedData, ExpName, Params,HomeDir, figFol
 % 
 %
 
-cd(HomeDir); cd(strcat('OutputData',Params.Date))
-cd('4_NetworkActivity'); cd('4B_GroupComparisons')
-cd('6_NodeCartographyByLag')
-
 %% groups and DIV
 
 Grps = Params.GrpNm;
