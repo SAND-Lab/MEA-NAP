@@ -342,7 +342,7 @@ Params = checkOneFigureHandle(Params);
 
 if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisStep<=4
 
-    for  ExN = 1:length(ExpName)  % TODO: revert back from 27 back to 1
+    for  ExN = 1:length(ExpName) 
 
         if Params.priorAnalysis==1 && Params.startAnalysisStep==4
             priorAnalysisExpMatFolder = fullfile(Params.priorAnalysisPath, 'ExperimentMatFiles');
@@ -377,9 +377,13 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
         
         % addpath(fullfile(spikeDetectedData, '1_SpikeDetection', '1A_SpikeDetectedData'));
         if Params.priorAnalysis == 1
-            spikeDetectedDataFolder = fullfile(Params.outputDataFolder, ...
+            if isempty(spikeDetectedData)
+                spikeDetectedDataFolder = fullfile(Params.outputDataFolder, ...
                     strcat('OutputData', Params.Date), '1_SpikeDetection', ...
                     '1A_SpikeDetectedData');
+            else 
+                spikeDetectedDataFolder = spikeDetectedData;
+            end 
         else
             spikeDetectedDataFolder = spikeDetectedData;
         end 
@@ -404,7 +408,9 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
     end
 
     % create combined plots
-    PlotNetMet(ExpName,Params,HomeDir)
+    PlotNetMet(ExpName, Params, HomeDir)
+    % save and export network data to spreadsheet
+    saveNetMet(ExpName, Params, HomeDir)
     
     if Params.includeNMFcomponents
         % Plot NMF 
@@ -428,7 +434,7 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
             experimentMatFileFolder = fullfile(Params.outputDataFolder, ...
                 strcat('OutputData', Params.Date), 'ExperimentMatFiles');
             % cd(fullfile(strcat('OutputData', Params.Date), 'ExperimentMatFiles'));  
-            fig_folder = fullfile(strcat('OutputData', Params.Date), ...
+            fig_folder = fullfile(Params.outputDataFolder, strcat('OutputData', Params.Date), ...
                 '4_NetworkActivity', '4B_GroupComparisons', '7_DensityLandscape');
         end 
         
@@ -508,7 +514,9 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
     NetMetricsC = {'ND','MEW','NS','Eloc','BC','PC','Z'};
     combinedData = combineExpNetworkData(ExpName, Params, NetMetricsE, ...
         NetMetricsC, HomeDir, experimentMatFileFolderToSaveTo);
-    plotNetMetNodeCartography(combinedData, ExpName,Params,HomeDir)
+    figFolder = fullfile(Params.outputDataFolder, strcat('OutputData', Params.Date), ...
+        '4_NetworkActivity', '4B_GroupComparisons', '6_NodeCartographyByLag');
+    plotNetMetNodeCartography(combinedData, ExpName,Params, HomeDir, figFolder)
 
 end
 
