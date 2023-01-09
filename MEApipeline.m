@@ -29,7 +29,7 @@ Params.startAnalysisStep = 4; % if Params.priorAnalysis=0, default is to start w
 Params.optionalStepsToRun = {'runStats'}; % include 'generateCSV' to generate csv for rawData folder
 
 % Spike detection settings
-detectSpikes = 0; % run spike detection? % 1 = yes, 0 = no
+detectSpikes = 1; % run spike detection? % 1 = yes, 0 = no
 Params.runSpikeCheckOnPrevSpikeData = 0; % whether to run spike detection check without spike detection 
 Params.fs = 25000; % Sampling frequency, HPC: 25000, Axion: 12500;
 Params.dSampF = 25000; % down sampling factor for spike detection check
