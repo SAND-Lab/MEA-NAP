@@ -8,7 +8,8 @@
 % https://analysis-pipeline.readthedocs.io/en/latest/pipeline-steps.html#pipeline-settings
 
 % Directories
-HomeDir = '/home/timothysit/AnalysisPipeline'; % analysis folder to home directory
+HomeDir = '/home/timothysit/AnalysisPipeline'; % Where the Aanlysis pipeline code is located
+Params.outputDataFolder = '';   % Where to save the output data, leave as '' if same as HomeDir 
 rawData = '/media/timothysit/Elements/MAT_files/MPT_MEC/';  % path to raw data .mat files
 Params.priorAnalysisPath = ['/media/timothysit/Elements/MAT_files/AnalysisPipeline/OutputData18Nov2022/'];  % path to prev analysis
 spikeDetectedData = '/media/timothysit/Elements/MAT_files/AnalysisPipeline/OutputData11Nov2022/1_SpikeDetection/1A_SpikeDetectedData/'; % path to spike-detected data
