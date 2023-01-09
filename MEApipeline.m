@@ -164,8 +164,7 @@ if ((Params.priorAnalysis == 0) || (Params.runSpikeCheckOnPrevSpikeData)) && (Pa
     
     % Run spike detection
     if detectSpikes == 1
-        subsetExpName = ExpName(112:end);
-        batchDetectSpikes(rawData, savePath, option, subsetExpName, Params);
+        batchDetectSpikes(rawData, savePath, option, ExpName, Params);
     end 
     
     % Specify where ExperimentMatFiles are stored
