@@ -96,6 +96,7 @@ if Params.runSpikeCheckOnPrevSpikeData
     detectSpikes = 0;
 end 
 
+Params.detectSpikes = detectSpikes;  % As a record of option selection 
 
 %% Optional step : generate csv 
 if any(strcmp(Params.optionalStepsToRun,'generateCSV')) 
