@@ -1,7 +1,7 @@
 %% Advanced settings for batchInterface (only modify if you know what you are doing)
 
 %% Output folder settings 
-if isnan(Params.outputDataFolder) || isempty(Params.outputDataFolder)
+if any(isnan(Params.outputDataFolder)) || isempty(Params.outputDataFolder)
     Params.outputDataFolder = HomeDir;
 end 
 %% Spike detection settings
