@@ -32,7 +32,7 @@ function plotSpikeDetectionChecks(spikeTimes,spikeDetectionResult,spikeWaveforms
 
 
 %% load raw voltage trace data
-raw_file_name = strcat(FN,'.mat');
+raw_file_name = strcat(Info.FN,'.mat');
 
 if isfield(Info, 'rawData')
     raw_file_name = fullfile(Info.rawData, raw_file_name);
