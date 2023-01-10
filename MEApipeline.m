@@ -549,15 +549,22 @@ if any(strcmp(Params.optionalStepsToRun,'runStats'))
             Params.oneFigure = figure;
         end 
     end 
-
-    nodeLevelFile = fullfile(Params.priorAnalysisPath, 'NetworkActivity_NodeLevel.csv');
+    
+    if Params.priorAnalysis 
+        statsDataFolder = Params.priorAnalysisPath;
+    else
+        statsDataFolder = fullfile(Params.outputDataFolder, ...
+                strcat('OutputData',Params.Date));
+    end 
+    
+    nodeLevelFile = fullfile(statsDataFolder, 'NetworkActivity_NodeLevel.csv');
     nodeLevelData = readtable(nodeLevelFile);
     
-    recordingLevelFile = fullfile(Params.priorAnalysisPath, 'NetworkActivity_RecordingLevel.csv');
+    recordingLevelFile = fullfile(statsDataFolder, 'NetworkActivity_RecordingLevel.csv');
     recordingLevelData = readtable(recordingLevelFile);
     
     for lag_val = Params.FuncConLagval
-        plotSaveFolder = fullfile(Params.priorAnalysisPath, '5_Stats', sprintf('%.fmsLag', lag_val));
+        plotSaveFolder = fullfile(statsDataFolder, '5_Stats', sprintf('%.fmsLag', lag_val));
         if ~isfolder(plotSaveFolder)
             mkdir(plotSaveFolder)
         end 
