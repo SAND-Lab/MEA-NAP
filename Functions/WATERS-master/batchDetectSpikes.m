@@ -1,34 +1,35 @@
 function batchDetectSpikes(dataPath, savePath, option, files, params)
-%{
-Master script for spike detection using CWT method. 
-Runs spike detection through recordings, cost parameters, electrodes, and wavelets.
 
-Parameters:
------------
-dataPath : str or character
-    path (ending with '/') to the folder containing data to be analyzed
-savePath : str or character
-    path (ending with '/') to the folder where spike detection
-            output will be saved
-option: 
-    pass either path to files ('path') or list of files ('list');
-
-params: structure
-    [optional] argument to pass structure containing parameters;
-      otherwise, run setParams() first to set parameters
-      nSpikes : number of spikes use to make the custom threshold
-      template
-
-Returns
--------
-
+% Master script for spike detection using CWT method. 
+% Runs spike detection through recordings, cost parameters, electrodes, and wavelets.
+% 
+% Parameters:
+% -----------
+% dataPath : str or character
+%     path to the folder containing data to be analyzed
+% savePath : str or character
+%     path to the folder where spike detection
+%             output will be saved
+% option: 
+%     pass either path to files ('path') or list of files ('list');
+% 
+% params: structure
+%     [optional] argument to pass structure containing parameters;
+%       otherwise, run setParams() first to set parameters
+%       nSpikes : number of spikes use to make the custom threshold
+%       template
+% 
+% Returns
+% -------
 
 % Author:
 %   Jeremy Chabros, University of Cambridge, 2020
 %   email: jjc80@cam.ac.uk
 %   github.com/jeremi-chabros/CWT
-% Edited by Tim SIt
-%}
+% Edited by Tim Sit
+% Improvements to make 
+% set params to Params to be consistent with the rest of the pipeline 
+
 
 arguments
     dataPath;
@@ -38,9 +39,6 @@ arguments
     params;
 end
 
-if ~endsWith(dataPath, filesep)
-    dataPath = [dataPath filesep];
-end
 
 % Check if specified folder exists 
 if ~exist(dataPath, 'dir')
@@ -92,15 +90,18 @@ else
 end 
 
 
-%%
+%% Spike Detection part
 % Get files
 % Modify the '*string*.mat' wildcard to include a subset of recordings
 
 if exist('option', 'var') && strcmp(option, 'list')
     files = files;
 else
-    files = dir([dataPath '*.mat']);
+    files = dir(fullfile(dataPath, '*.mat'));
 end
+
+params.numFilesForSpikeDetection = length(files);
+
 thresholds = params.thresholds;
 thrList = strcat( 'thr', thresholds);
 thrList = strrep(thrList, '.', 'p');
