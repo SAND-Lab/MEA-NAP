@@ -386,7 +386,9 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
                 spikeDetectedDataFolder = spikeDetectedData;
             end 
         else
-            spikeDetectedDataFolder = spikeDetectedData;
+            spikeDetectedDataFolder = fullfile(Params.outputDataFolder, ...
+                    strcat('OutputData', Params.Date), '1_SpikeDetection', ...
+                    '1A_SpikeDetectedData');
         end 
 
         [spikeMatrix, spikeTimes, Params, Info] = formatSpikeTimes(char(Info.FN), ...
