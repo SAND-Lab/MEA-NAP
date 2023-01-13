@@ -559,6 +559,7 @@ if any(strcmp(Params.optionalStepsToRun,'runStats'))
             mkdir(plotSaveFolder)
         end 
         featureCorrelation(nodeLevelData, recordingLevelData, Params, lag_val, plotSaveFolder);
+        doLDA(recordingLevelData, Params, lag_val);
         doClassification(recordingLevelData, Params, lag_val, plotSaveFolder);
     end 
 end 
