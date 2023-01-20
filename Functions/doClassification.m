@@ -1,11 +1,11 @@
-function classificationResults = doClassification(recordingLevelData, Params, subset_lag, figSaveFolder)
+function classificationResults = doClassification(recordingLevelData, Params, subset_lag)
 % Do classification of genotype based on network features 
 %
 % Parameters
 % ----------
 % recordingLevelData : table 
 % Params : struct 
-% figSaveFolder : str%
+% figSaveFolder : str
 % subset_lag : int
 %     which lag to use to do classification
 % Returns
@@ -15,7 +15,8 @@ function classificationResults = doClassification(recordingLevelData, Params, su
 
 % Parameters 
 num_shuffle = 200;  % number of shuffles to do 
-clf_num_kfold_repeat = 5;  % number of repeats of kfold validation to do for classification 
+clf_num_kfold_repeat = Params.clf_num_kfold_repeat;  % number of repeats of kfold validation to do for classification \
+clf_num_kfold = Params.clf_num_kfold ;
 reg_num_kfold_repeat = 5;  % number of repeats of kfold validation to do for regression
 nestedClassification = 0;
 nestedClassificationGroup = 'eGrp';
@@ -25,104 +26,33 @@ feature_preprocessing_steps = {'removeZeroVariance', 'zScore'};
 
 % TODO: allow multiple classification and regression models
 classification_models = Params.classification_models;
-regression_models = Params.regression_models;
+% regression_models = Params.regression_models;
 
-if Params.showOneFig 
-    Params.oneFigure = figure();
-end 
+%if Params.showOneFig 
+%    Params.oneFigure = figure();
+%end 
 
-%% Do LDA
-subset_idx = find(recordingLevelData.('Lag') == subset_lag);
-lagRecordingLevelData = recordingLevelData(subset_idx, :);
+%% Feature subsetting and processing 
+features_to_use = {'aN', 'Dens', 'CC', 'nMod', 'Q', 'PL', 'Eglob', 'SW', 'SWw', 'effRank', 'num_nnmf_components'};
+subsetColumnIdx = find(ismember(recordingLevelData.Properties.VariableNames, features_to_use));
+features = recordingLevelData(:, subsetColumnIdx);
 
-columnsToExclude = {'eGrp', 'AgeDiv', 'Lag'};
-subsetColumnIdx = find(~ismember(lagRecordingLevelData.Properties.VariableNames, columnsToExclude));
-lagRecordingLevelDataFeatures = lagRecordingLevelData(:,subsetColumnIdx);
+X = table2array(features);
+y = recordingLevelData.(classificationTarget);
 
-X = table2array(lagRecordingLevelDataFeatures);
-subset_feature_bool = var(X)~=0;
-subset_feature_names = lagRecordingLevelDataFeatures.Properties.VariableNames(subset_feature_bool);
-X_processed = X(:, subset_feature_bool);
-X_processed = zscore(X_processed, 1);
+% some data pre-processing 
+X_processed = X;
 
-y = lagRecordingLevelData.(classificationTarget);
-Mdl = fitcdiscr(X_processed, y);
-[W, LAMBDA] = eig(Mdl.BetweenSigma, Mdl.Sigma); %Must be in the right order! 
-lambda = diag(LAMBDA);
-[lambda, SortOrder] = sort(lambda, 'descend');
-W = W(:, SortOrder);  % each column is an LDA component
-Y = X_processed*W;
-
-if ~isfield(Params, 'oneFigure')
-    F1 = figure;
-end 
-
-% LDA plot
-subplot(2, 2, 1)
-unique_y = unique(y);
-num_unique_y = length(unique_y);
-
-sz = 100;
-
-legend_labels = {};
-
-colors = brewermap(num_unique_y, 'GnBu');
-
-for n_y = 1:num_unique_y
-    
-    sample_matching_y = find(y == unique_y(n_y));
-    scatter(Y(sample_matching_y, 1), Y(sample_matching_y, 2), sz, colors(n_y, :), 'filled')
-    hold on
-
-    legend_labels{n_y} = num2str(unique_y(n_y));
-
-end 
-xlabel('LDA 1');
-ylabel('LDA 2')
-leg = legend(legend_labels);
-title(leg, 'DIV')
-
-% Weights onto LDA1 
-subplot(2, 2, 3)
-bar(W(:, 1))
-xticks(1:length(subset_feature_names))
-xticklabels(subset_feature_names)
-xlabel('Features')
-ylabel('Weight')
-title('Weights on LDA 1')
-
-% Weights onto LDA2
-subplot(2, 2, 2)
-bar(W(:, 2))
-xticks(1:length(subset_feature_names))
-xticklabels(subset_feature_names)
-xlabel('Features')
-ylabel('Weight')
-title('Weights on LDA 1')
-
-
-set(gcf, 'color', 'w')
-
-saveName = 'ldaAcorssDIV';
-savePath = fullfile(figSaveFolder, saveName);
-
-if ~isfield(Params, 'oneFigure')
-    pipelineSaveFig(savePath, Params.figExt, Params.fullSVG, F1);
-else 
-    pipelineSaveFig(savePath, Params.figExt, Params.fullSVG, Params.oneFigure);
-end 
-    
-if ~isfield(Params, 'oneFigure')
-    close all
-else 
-    set(0, 'CurrentFigure', Params.oneFigure);
-    clf reset
-end 
 
 %% Do classification 
 num_classification_models = length(classification_models);
 model_loss = zeros(clf_num_kfold_repeat, num_classification_models);
-model_predictions = zeros(clf_num_kfold_repeat, num_classification_models, length(y));
+
+if iscell(y)
+    model_predictions = cell(clf_num_kfold_repeat, num_classification_models, length(y));
+else 
+    model_predictions = zeros(clf_num_kfold_repeat, num_classification_models, length(y));
+end 
 
 for kfold_repeat_idx = 1:clf_num_kfold_repeat
     for classifier_idx = 1:length(classification_models)
@@ -145,19 +75,24 @@ for kfold_repeat_idx = 1:clf_num_kfold_repeat
             fprinf('WARNING: no valid classifier specified')
         end 
         % TODO: do stratification via cv partition and setting 'stratifyOption', 1
-        cross_val_model = crossval(clf_model, 'KFold', 2);
+        cross_val_model = crossval(clf_model, 'KFold', clf_num_kfold);
         classifier_cv_prediction = kfoldPredict(cross_val_model);
-        model_predictions(kfold_repeat_idx, classifier_idx, :) = classifier_cv_prediction;
 
+        model_predictions(kfold_repeat_idx, classifier_idx, :) = classifier_cv_prediction;
         model_loss(kfold_repeat_idx, classifier_idx) = cross_val_model.kfoldLoss;
     end 
 
 end 
 
-
+%% Output classification results 
+classificationResults = struct();
+classificationResults.model_loss = model_loss; 
+classificationResults.model_predictions = model_predictions;
+classificationResults.classification_models = classification_models;
+classificationResults.clf_num_kfold = clf_num_kfold;
 
 %% Plot comparison of classification performance 
-
+%{
 if ~isfield(Params, 'oneFigure')
     F1 = figure;
 end 
@@ -464,6 +399,9 @@ end
 %}
 
 
+
+
+
 %% Plot some examples of the regression to make sure I know what I am doing
 tot_samples = size(X_processed, 1);
 sample_indices = 1:tot_samples;
@@ -516,6 +454,6 @@ subplot(1, 2, 2)
 plot(y_test);
 hold on
 plot(y_test_predicted)
-
+%}
 
 end 
