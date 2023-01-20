@@ -12,12 +12,9 @@ function LDAresults = doLDA(recordingLevelData, Params, subset_lag)
 % LDAresults : struct
 % 
 
-% mecp2 specific: replace DIV 34 with DIV 35 
-divValues = recordingLevelData.DIV;
-divValues(divValues == 34) = 35;
-recordingLevelData.DIV = divValues;
 
-classificationMode = 'genotypePerDIV';
+
+classificationMode = Params.classificationMode;
 
 if strcmp(classificationMode, 'genotypePerDIV')
 
@@ -32,6 +29,7 @@ if strcmp(classificationMode, 'genotypePerDIV')
     numFeatures = length(features_to_use);
 
     LDAresults.genotypePerDIV = cell(length(subGroupTargetLevels), 4);
+    LDAresults.features = features_to_use;
 
     % loop through DIVs
     for subGroupIdx = 1:length(subGroupTargetLevels)
