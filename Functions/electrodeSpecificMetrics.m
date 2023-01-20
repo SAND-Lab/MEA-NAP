@@ -55,15 +55,25 @@ aesthetics
 set(gca,'TickDir','out');
 set(gca,'xtick',[])
 ylabel('node degree')
-ylim([0 max(ND)+0.2*max(ND)])
+
+ND_max = max(ND);
+ND_max = max([ND_max, 1]);
+
+ylim([0 ND_max + 0.2 * ND_max])
 
 nexttile(9,[3,1])
-HalfViolinPlot(MEW,1,[0.3 0.3 0.3],0.3)
+if length(MEW) > 1
+    HalfViolinPlot(MEW,1,[0.3 0.3 0.3],0.3)
+end 
 aesthetics
 set(gca,'TickDir','out');
 set(gca,'xtick',[])
 ylabel('mean edge weight')
-ylim([0 max(MEW)+0.2*max(MEW)])
+
+max_mew = max(MEW);
+max_mew = max([max_mew, 0.1]);
+
+ylim([0 max_mew+0.2*max_mew])
 
 nexttile(10,[3,1])
 HalfViolinPlot(NS,1,[0.3 0.3 0.3],0.3)
@@ -71,7 +81,11 @@ aesthetics
 set(gca,'TickDir','out');
 set(gca,'xtick',[])
 ylabel('node strength')
-ylim([0 max(NS)+0.2*max(NS)])
+
+max_ns = max(NS);
+max_ns = max([max_ns, 0.1]);
+
+ylim([0 max_ns+0.2*max_ns])
 
 % Plot within-module degree z-score
 nexttile(11,[3,1])
