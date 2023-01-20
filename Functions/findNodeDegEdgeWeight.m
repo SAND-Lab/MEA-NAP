@@ -15,7 +15,7 @@ function [z,z2] = findNodeDegEdgeWeight(adjM, edge_thresh, exclude_zeros)
 % -------
 % z : mean node degree (often referred to as ND), this is the degree of each node 
 %     this is the mean degree of each node, rounded to the nearest integer.
-% z2 : mean edge weight (often referred to as EW), this is the edge weight of each
+% z2 : mean edge weight (often referred to as MEW), this is the edge weight of each
 %     this is not rounded, note that negative weights are thresholded to zero
 %   
 
