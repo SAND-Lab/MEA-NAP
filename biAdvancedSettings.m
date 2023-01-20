@@ -1,8 +1,7 @@
 %% Advanced settings for batchInterface (only modify if you know what you are doing)
 
 %% Output folder settings 
-Params.outputDataFolder = '/media/timothysit/Elements/MAT_files/AnalysisPipeline/';  % specify the main folder to save output data to 
-if isnan(Params.outputDataFolder)
+if any(isnan(Params.outputDataFolder)) || isempty(Params.outputDataFolder)
     Params.outputDataFolder = HomeDir;
 end 
 %% Spike detection settings

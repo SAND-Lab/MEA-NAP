@@ -8,7 +8,8 @@
 % https://analysis-pipeline.readthedocs.io/en/latest/pipeline-steps.html#pipeline-settings
 
 % Directories
-HomeDir = '/home/timothysit/AnalysisPipeline'; % analysis folder to home directory
+HomeDir = '/home/timothysit/AnalysisPipeline'; % Where the Aanlysis pipeline code is located
+Params.outputDataFolder = '';   % Where to save the output data, leave as '' if same as HomeDir 
 rawData = '/media/timothysit/Elements/MAT_files/MPT_MEC/';  % path to raw data .mat files
 Params.priorAnalysisPath = ['/media/timothysit/Elements/MAT_files/AnalysisPipeline/OutputData18Nov2022/'];  % path to prev analysis
 spikeDetectedData = '/media/timothysit/Elements/MAT_files/AnalysisPipeline/OutputData11Nov2022/1_SpikeDetection/1A_SpikeDetectedData/'; % path to spike-detected data
@@ -28,7 +29,7 @@ Params.startAnalysisStep = 4; % if Params.priorAnalysis=0, default is to start w
 Params.optionalStepsToRun = {'runStats'}; % include 'generateCSV' to generate csv for rawData folder
 
 % Spike detection settings
-detectSpikes = 0; % run spike detection? % 1 = yes, 0 = no
+detectSpikes = 1; % run spike detection? % 1 = yes, 0 = no
 Params.runSpikeCheckOnPrevSpikeData = 0; % whether to run spike detection check without spike detection 
 Params.fs = 25000; % Sampling frequency, HPC: 25000, Axion: 12500;
 Params.dSampF = 25000; % down sampling factor for spike detection check
@@ -95,6 +96,7 @@ if Params.runSpikeCheckOnPrevSpikeData
     detectSpikes = 0;
 end 
 
+Params.detectSpikes = detectSpikes;  % As a record of option selection 
 
 %% Optional step : generate csv 
 if any(strcmp(Params.optionalStepsToRun,'generateCSV')) 
@@ -162,8 +164,7 @@ if ((Params.priorAnalysis == 0) || (Params.runSpikeCheckOnPrevSpikeData)) && (Pa
     
     % Run spike detection
     if detectSpikes == 1
-        subsetExpName = ExpName(112:end);
-        batchDetectSpikes(rawData, savePath, option, subsetExpName, Params);
+        batchDetectSpikes(rawData, savePath, option, ExpName, Params);
     end 
     
     % Specify where ExperimentMatFiles are stored
@@ -385,7 +386,9 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
                 spikeDetectedDataFolder = spikeDetectedData;
             end 
         else
-            spikeDetectedDataFolder = spikeDetectedData;
+            spikeDetectedDataFolder = fullfile(Params.outputDataFolder, ...
+                    strcat('OutputData', Params.Date), '1_SpikeDetection', ...
+                    '1A_SpikeDetectedData');
         end 
 
         [spikeMatrix, spikeTimes, Params, Info] = formatSpikeTimes(char(Info.FN), ...
@@ -546,15 +549,22 @@ if any(strcmp(Params.optionalStepsToRun,'runStats'))
             Params.oneFigure = figure;
         end 
     end 
-
-    nodeLevelFile = fullfile(Params.priorAnalysisPath, 'NetworkActivity_NodeLevel.csv');
+    
+    if Params.priorAnalysis 
+        statsDataFolder = Params.priorAnalysisPath;
+    else
+        statsDataFolder = fullfile(Params.outputDataFolder, ...
+                strcat('OutputData',Params.Date));
+    end 
+    
+    nodeLevelFile = fullfile(statsDataFolder, 'NetworkActivity_NodeLevel.csv');
     nodeLevelData = readtable(nodeLevelFile);
     
-    recordingLevelFile = fullfile(Params.priorAnalysisPath, 'NetworkActivity_RecordingLevel.csv');
+    recordingLevelFile = fullfile(statsDataFolder, 'NetworkActivity_RecordingLevel.csv');
     recordingLevelData = readtable(recordingLevelFile);
     
     for lag_val = Params.FuncConLagval
-        plotSaveFolder = fullfile(Params.priorAnalysisPath, '5_Stats', sprintf('%.fmsLag', lag_val));
+        plotSaveFolder = fullfile(statsDataFolder, '5_Stats', sprintf('%.fmsLag', lag_val));
         if ~isfolder(plotSaveFolder)
             mkdir(plotSaveFolder)
         end 
