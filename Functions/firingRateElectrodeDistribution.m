@@ -29,7 +29,10 @@ ylabel('mean firing rate per electrode (Hz)')
 title({strcat(regexprep(File,'_','','emptymatch')),' '});
 ax = gca;
 ax.TitleFontSizeMultiplier = 0.7;
-ylim([0 max(Ephys.FR)+max(Ephys.FR)*0.15])
+
+max_ephys_fr = max(Ephys.FR);
+max_ephys_fr = max([max_ephys_fr, 0.1]);  % ensures a minimum of 0.1
+ylim([0 max_ephys_fr+max_ephys_fr*0.15])
 
 %% save the figure
 figName = 'FiringRateByElectrode';
