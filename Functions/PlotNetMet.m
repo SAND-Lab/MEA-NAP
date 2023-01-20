@@ -915,10 +915,8 @@ end
 nodeByGroupFolder = fullfile(Params.outputDataFolder, strcat('OutputData',Params.Date), ...
     '4_NetworkActivity', '4B_GroupComparisons', '1_NodeByGroup');
 
-eMet = {'ND','MEW','NS','Z','Eloc','PC','BC'}; 
-eMetl = {'node degree','edge weight','node strength', ... 
-    'within-module degree z-score','local efficiency', ... 
-    'participation coefficient','betweeness centrality'}; 
+eMet = Params.unitLevelNetMetToPlot; 
+eMetl = Params.unitLevelNetMetLabels; 
 
 p = [100 100 1300 600]; 
 set(0, 'DefaultFigurePosition', p)
@@ -994,9 +992,8 @@ end
 halfViolinPlotByAgeFolder = fullfile(Params.outputDataFolder, strcat('OutputData',Params.Date), ...
     '4_NetworkActivity', '4B_GroupComparisons', '2_NodeByAge');
 
-eMet = {'ND','MEW','NS','Z','Eloc','PC','BC'}; 
-eMetl = {'node degree','edge weight','node strength','within-module degree z-score', ... 
-    'local efficiency','participation coefficient','betweeness centrality'}; 
+eMet = Params.unitLevelNetMetToPlot; 
+eMetl = Params.unitLevelNetMetLabels; 
 
 p = [100 100 1300 600]; 
 set(0, 'DefaultFigurePosition', p)
