@@ -104,7 +104,10 @@ for e = 1:length(lagval)
     end 
 
     meanSTTC(e) = nanmean(edge_weights);
-    maxSTTC(e) = max(edge_weights);
+
+    max_edge_weights = max(edge_weights);
+    max_edge_weights = max([max_edge_weights, 0.001]);  % impose a minimum in case of all zeros
+    maxSTTC(e) = max_edge_weights;
 
     % create list of channel IDs
     ChannelID = 1:size(adjM,1);
@@ -129,8 +132,13 @@ for e = 1:length(lagval)
     Params.netSubsetChannels = Params.channels(inclusionIndex);
     
     %% node degree, edge weight, node strength
+    if Params.excludeEdgesBelowThreshold 
+        exclude_zeros = 1;
+    else 
+        exclude_zeros = 0;
+    end 
     
-    [ND,MEW] = findNodeDegEdgeWeight(adjM,edge_thresh);
+    [ND,MEW] = findNodeDegEdgeWeight(adjM, edge_thresh, exclude_zeros);
     
     % Node strength
     NS = strengths_und(adjM)';
@@ -140,7 +148,8 @@ for e = 1:length(lagval)
     % NS = sum(adjM)'; 
     
     % plot properties
-    plotConnectivityProperties(adjM, e, lagval, maxSTTC, meanSTTC, ND, NS, MEW, char(Info.FN),Params, lagFolderName)
+    plotConnectivityProperties(adjM, e, lagval, maxSTTC, meanSTTC, ...
+        ND, NS, MEW, char(Info.FN),Params, lagFolderName)
   
     
     %% if option stipulates binary adjM, binarise the matrix
@@ -223,10 +232,14 @@ else
     
     % participation coefficient
 %     PC = participation_coef(adjM,Ci,0);
-    [PC,~,~,~] = participation_coef_norm(adjM,Ci);
-    
-    % within module degree z-score
-    Z = module_degree_zscore(adjM,Ci,0);
+    if length(adjM) >= Params.minNumberOfNodesToCalNetMet
+        [PC,~,~,~] = participation_coef_norm(adjM,Ci);
+        % within module degree z-score
+        Z = module_degree_zscore(adjM,Ci,0);
+    else 
+        PC = nan;
+        Z = nan;
+    end 
     
     %% nodal efficiency
     
@@ -283,13 +296,21 @@ else
 
     %% Find hubs and plot raster sorted by hubs 
     % convert spike times to spike matrix 
-    [hub_peripheral_xy, hub_metrics, hub_score_index] = ...
-        fcn_find_hubs_wu(Info.channels,spikeMatrix,adjM,Params.fs);
-    
-    PC_raw_idx = find(contains(hub_metrics.metric_names, 'Participation coefficient'));
-    PC_raw = hub_metrics.metrics_unsorted(:, PC_raw_idx);
-    Cmcblty_idx = find(contains(hub_metrics.metric_names, 'Communicability'));
-    Cmcblty = hub_metrics.metrics_unsorted(:, Cmcblty_idx);
+    if aN >= Params.minNumberOfNodesToCalNetMet
+        [hub_peripheral_xy, hub_metrics, hub_score_index] = ...
+            fcn_find_hubs_wu(Info.channels,spikeMatrix,adjM,Params.fs);
+        
+        PC_raw_idx = find(contains(hub_metrics.metric_names, 'Participation coefficient'));
+        PC_raw = hub_metrics.metrics_unsorted(:, PC_raw_idx);
+        Cmcblty_idx = find(contains(hub_metrics.metric_names, 'Communicability'));
+        Cmcblty = hub_metrics.metrics_unsorted(:, Cmcblty_idx);
+    else 
+        hub_peripheral_xy = nan;
+        hub_metrics = nan;
+        hub_score_index = nan;
+        PC_raw = nan;
+        Cmcblty = nan;
+    end 
 
     %% Calculate non-negative matrix factorisation components
     if any(strcmp(netMetToCal, 'num_nnmf_components'))
@@ -334,7 +355,9 @@ else
             e, char(Info.FN), Params, lagFolderName)
     
     %% network plots
-    [On,adjMord] = reorder_mod(adjM,Ci);
+    if length(adjM) > 0
+        [On,adjMord] = reorder_mod(adjM,Ci);
+    end 
 
     try
         channels = Info.channels;
@@ -345,32 +368,37 @@ else
             13,23,12,22,33,21,32,31,44,43,41,42,52,51,53,54,61,62,71,63, ..., 
             72,82,73,83,64,74,84,85,75,65,86,76,87,77,66,78,67,68,55,56,58,57];
     end
-   
-    StandardisedNetworkPlot(adjM, coords, edge_thresh, ND, 'MEA', char(Info.FN),'2',Params,lagval,e, lagFolderName);
-   
-    % grid network plot node degree betweeness centrality
-    StandardisedNetworkPlotNodeColourMap(adjM, coords, edge_thresh, ND, 'Node degree', BC, 'Betweeness centrality', 'MEA', char(Info.FN), '3', Params, lagval, e, lagFolderName)
-  
-    % grid network plot node degree participation coefficient
-    StandardisedNetworkPlotNodeColourMap(adjM, coords, edge_thresh, ND, 'Node degree', PC, 'Participation coefficient', 'MEA', char(Info.FN), '4', Params, lagval, e, lagFolderName)
-  
-    % grid network plot node strength local efficiency
-    StandardisedNetworkPlotNodeColourMap(adjM, coords, edge_thresh, NS, 'Node strength', Eloc, 'Local efficiency', 'MEA', char(Info.FN), '5', Params, lagval, e, lagFolderName)
-  
-    % simple circular network plot
-    NDord = ND(On);
-    StandardisedNetworkPlot(adjMord, coords, edge_thresh, NDord, 'circular', char(Info.FN),'6',Params,lagval,e, lagFolderName);
     
+    if length(adjM) > 0
+        StandardisedNetworkPlot(adjM, coords, edge_thresh, ND, 'MEA', char(Info.FN),'2',Params,lagval,e, lagFolderName);
+       
+        % grid network plot node degree betweeness centrality
+        StandardisedNetworkPlotNodeColourMap(adjM, coords, edge_thresh, ND, 'Node degree', BC, 'Betweeness centrality', 'MEA', char(Info.FN), '3', Params, lagval, e, lagFolderName)
+      
+        % grid network plot node degree participation coefficient
+        StandardisedNetworkPlotNodeColourMap(adjM, coords, edge_thresh, ND, 'Node degree', PC, 'Participation coefficient', 'MEA', char(Info.FN), '4', Params, lagval, e, lagFolderName)
+      
+        % grid network plot node strength local efficiency
+        StandardisedNetworkPlotNodeColourMap(adjM, coords, edge_thresh, NS, 'Node strength', Eloc, 'Local efficiency', 'MEA', char(Info.FN), '5', Params, lagval, e, lagFolderName)
+      
+        % simple circular network plot
+        NDord = ND(On);
+        StandardisedNetworkPlot(adjMord, coords, edge_thresh, NDord, 'circular', char(Info.FN),'6',Params,lagval,e, lagFolderName);
+    end 
     
     % grid network plot for controllability metrics
     if any(strcmp(Params.unitLevelNetMetToPlot , 'aveControl'))
+        if length(adjM) > 0
          StandardisedNetworkPlotNodeColourMap(adjM, coords, edge_thresh, ND, 'Node degree', ...
              aveControl, 'Average controllability', 'MEA', char(Info.FN), '3', Params, lagval, e, lagFolderName)
+        end 
     end 
 
     if any(strcmp(Params.unitLevelNetMetToPlot , 'modalControl'))
-         StandardisedNetworkPlotNodeColourMap(adjM, coords, edge_thresh, ND, 'Node degree', ...
+        if length(adjM) > 0 
+            StandardisedNetworkPlotNodeColourMap(adjM, coords, edge_thresh, ND, 'Node degree', ...
              modalControl, 'Modal controllability', 'MEA', char(Info.FN), '3', Params, lagval, e, lagFolderName)
+        end 
     end 
 
     % node cartography

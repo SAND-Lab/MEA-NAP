@@ -49,6 +49,8 @@ cb.Location = 'Eastoutside';
 cb.Box = 'off';
 set(gca, 'FontSize', 14)
 ylimit_cbar = prctile(downSpikeMatrix(:),Params.rasterPlotUpperPercentile,'all');
+ylimit_cbar = max([ylimit_cbar, 1]);  % ensures it is minimum of 1
+
 caxis([0,ylimit_cbar])
 yticks([1, 10:10:60])
 title({strcat(regexprep(File,'_','','emptymatch'),' raster scaled to recording'),' '});

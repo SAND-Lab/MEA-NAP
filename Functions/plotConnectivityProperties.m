@@ -51,7 +51,11 @@ set(gca,'TickDir','out');
 
 nexttile(t, 19,[3 1]);
 bar(maxSTTC(e))
-ylim([0 max(adjM(:))+0.15*max(adjM(:))])
+
+max_adjM = max(adjM(:));
+max_adjM = max([max_adjM, 0.0001]);
+
+ylim([0 max_adjM + 0.15 * max_adjM])
 title('max corr. value')
 aesthetics
 set(gca,'TickDir','out');
@@ -59,7 +63,7 @@ set(gca,'xtick',[])
 
 nexttile(t, 20,[3 1]);
 bar(meanSTTC(e))
-ylim([0 max(adjM(:))+0.15*max(adjM(:))])
+ylim([0 max_adjM + 0.15 * max_adjM])
 title('mean corr. value')
 aesthetics
 set(gca,'TickDir','out');
@@ -81,7 +85,12 @@ set(gca,'TickDir','out');
 
 nexttile(t, 28,[2 3]);
 % histogram(EW,50)
-significantEdges = adjM(adjM > 0);
+if Params.excludeEdgesBelowThreshold 
+    significantEdges = adjM(adjM > 0);
+else 
+    significantEdges = adjM(:);
+end 
+
 histogram(significantEdges);
 xlabel('edge weight')
 ylabel('frequency')

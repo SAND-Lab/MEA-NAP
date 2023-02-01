@@ -152,5 +152,9 @@ fprintf('Beginning burst detection.\n');
     end 
  end 
  
- fprintf('Finished burst detection using %0.2f minutes of spike data.\n', ... 
- diff(Spike.T([1 end]))/60); 
+ if length(Spike.T) > 0
+     fprintf('Finished burst detection using %0.2f minutes of spike data.\n', ... 
+     diff(Spike.T([1 end]))/60); 
+ else 
+     fprintf('No spikes detected, burst detection not possible')
+ end 
