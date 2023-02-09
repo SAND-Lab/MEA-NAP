@@ -38,7 +38,7 @@ Params.maxPeakThrMultiplier = -100;
 Params.posPeakThrMultiplier = 15;
 
 % Refractory period (for spike detection and adapting template) (ms)
-Params.refPeriod = 0.2; 
+Params.refPeriod = 1; 
 Params.getTemplateRefPeriod = 2;
 
 Params.nSpikes = 10000;
@@ -307,7 +307,7 @@ if Params.use_theoretical_bounds
     network_plot_cmap_bounds.Z = [-2, 2];
     network_plot_cmap_bounds.BC = [0, 1];
     network_plot_cmap_bounds.Eloc = [0, 1];
-    network_plot_cmap_bounds.aveControl = [1, 2];
+    network_plot_cmap_bounds.aveControl = [1, 1.5];
     network_plot_cmap_bounds.modalControl = [0, 1]; 
     Params.network_plot_cmap_bounds = network_plot_cmap_bounds;
 else 
