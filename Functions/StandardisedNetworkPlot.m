@@ -286,7 +286,8 @@ if strcmp(plotType,'circular')
     
     for i = 1:length(adjM)
         if z(i)>0
-            pos = [cos(t(i))-(0.5*z(i)/nodeScaleF) sin(t(i))-(0.5*z(i)/nodeScaleF) z(i)/nodeScaleF z(i)/nodeScaleF];
+            nodeSize = max(Params.minNodeSize, z(i)/nodeScaleF);
+            pos = [cos(t(i))-(0.5*nodeSize) sin(t(i))-(0.5*nodeSize) nodeSize nodeSize];
             rectangle('Position',pos,'Curvature',[1 1],'FaceColor',[0.020 0.729 0.859],'EdgeColor','w','LineWidth',0.1)
         end
     end
