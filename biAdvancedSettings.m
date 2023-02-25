@@ -104,6 +104,9 @@ Params.unitLevelNetMetLabels = {'node degree','edge weight','node strength', ...
 
 Params.includeNMFcomponents = 0;  % whether to save extracted components and original downsampled data
 
+% specify whether to include network plots scaled to all recordings 
+Params.includeNetMetScaledPlots = 1;
+
 %% Dimensionality calculation settings 
 Params.effRankCalMethod = 'covariance';
 Params.NMFdownsampleFreq = 10;   % how mucn to downsample the spike matrix to (Hz) before doing non-negative matrix factorisation
@@ -128,6 +131,8 @@ Params.groupColors = [ ...
    0.027, 0.306, 0.659; ...
    0.5, 0.5, 0.5; ...
 ];
+
+Params.minNodeSize = 0.1;  % minimum node size in network plots
 
 
 % Coordinates of each channel / node 
