@@ -21,6 +21,14 @@ else
     set(Params.oneFigure, 'Position', p);
 end 
 
+% clear figure before plotting
+if ~isfield(Params, 'oneFigure')
+    close all
+else 
+    set(0, 'CurrentFigure', Params.oneFigure);
+    clf reset
+end 
+
 t = tiledlayout(4,7);
 t.Title.String = strcat(regexprep(FN,'_','','emptymatch'),{' '},num2str(lagval(e)),{' '},'ms',{' '},'lag');
 
@@ -106,14 +114,16 @@ end
 
 % Plot local efficiency
 nexttile(12,[3,1])
-skipPlot = (numel(Eloc) == 1) && isnan(Eloc);
+skipPlot = ((numel(Eloc) == 1) && isnan(Eloc)) | (nanmax(Eloc) == 0);
 if ~skipPlot
     HalfViolinPlot(Eloc,1,[0.3 0.3 0.3],0.3)
     aesthetics
     set(gca,'TickDir','out');
     set(gca,'xtick',[])
-    ylabel('local connectivity')
-    ylim([0 nanmax(Eloc)+0.2*nanmax(Eloc)])
+    ylabel('local connectivity') 
+    if length(unique(Eloc)) ~= 1
+        ylim([0 nanmax(Eloc)+0.2*nanmax(Eloc)])
+    end 
 end 
 
 % Plot participation coefficient 
@@ -153,13 +163,6 @@ if ~isfield(Params, 'oneFigure')
     pipelineSaveFig(figPath, Params.figExt, Params.fullSVG, F1);
 else 
     pipelineSaveFig(figPath, Params.figExt, Params.fullSVG, Params.oneFigure);
-end 
-
-if ~isfield(Params, 'oneFigure')
-    close all
-else 
-    set(0, 'CurrentFigure', Params.oneFigure);
-    clf reset
 end 
 
 end
