@@ -313,7 +313,7 @@ if Params.use_theoretical_bounds
     network_plot_cmap_bounds.BC = [0, 1];
     network_plot_cmap_bounds.Eloc = [0, 1];
     network_plot_cmap_bounds.aveControl = [1, 1.5];
-    network_plot_cmap_bounds.modalControl = [0, 1]; 
+    network_plot_cmap_bounds.modalControl = [0.7, 1]; 
     Params.network_plot_cmap_bounds = network_plot_cmap_bounds;
 else 
     het_node_level_vals = 0;
