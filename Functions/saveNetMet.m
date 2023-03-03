@@ -114,8 +114,19 @@ for i = 1:length(ExpName)
          end 
          
          for lag = Params.FuncConLagval
+            
             lagField = strcat('adjM', num2str(lag), 'mslag');
-            allElectrodeLevelData.(eMet) = [allElectrodeLevelData.(eMet); expData.('NetMet').(lagField).(eMet)];
+            numElectrodes = expData.NetMet.(lagField).aN;
+            
+            if sum(isnan(expData.('NetMet').(lagField).(eMet))) == length(expData.('NetMet').(lagField).(eMet))
+                allElectrodeLevelData.(eMet) = [allElectrodeLevelData.(eMet); ...
+                    repmat(nan, numElectrodes, 1)];
+            else
+                allElectrodeLevelData.(eMet) = [allElectrodeLevelData.(eMet); expData.('NetMet').(lagField).(eMet)];
+            
+            end 
+            
+           
          end 
      end 
      
