@@ -19,7 +19,11 @@ function figureHandle = StandardisedNetworkPlot(adjM, coords, edge_thresh, z, pl
 % FN : str
 %     name of file/recording
 % pNum - number to precede name of figure when it is saved
-% 
+% Params : struct 
+%   structure with parameters for plotting / file saving 
+%   Params.minNodeSize : float
+%       minimum node size for the network plot 
+%   
 % Returns 
 % -------
 %    F1 - 
