@@ -8,25 +8,28 @@
 % https://analysis-pipeline.readthedocs.io/en/latest/pipeline-steps.html#pipeline-settings
 
 % Directories
-HomeDir = '/home/timothysit/AnalysisPipeline'; % Where the Aanlysis pipeline code is located
-Params.outputDataFolder = '/media/timothysit/Elements/MAT_files/AnalysisPipeline/';   % Where to save the output data, leave as '' if same as HomeDir 
-rawData = '/media/timothysit/Elements/MAT_files/MPT_MEC/';  % path to raw data .mat files
-Params.priorAnalysisPath = ['/media/timothysit/Elements/MAT_files/AnalysisPipeline/OutputData20Jan2023/'];  % path to prev analysis
-spikeDetectedData = '/media/timothysit/Elements/MAT_files/AnalysisPipeline/OutputData20Jan2023/1_SpikeDetection/1A_SpikeDetectedData/'; % path to spike-detected data
+HomeDir = '[INPUT_REQUIRED]'; % Where the Aanlysis pipeline code is located
+Params.outputDataFolder = '';   % Where to save the output data, leave as '' if same as HomeDir 
+rawData = '[INPUT REQUIRED]';  % path to raw data .mat files
+Params.priorAnalysisPath = [''];  % path to prev analysis, leave as [''] if no prior anlaysis
+spikeDetectedData = ''; % path to spike-detected data, leave as '' if no previously detected spike data
 
 % Input and output filetype
 spreadsheet_file_type = 'csv'; % 'csv' or 'excel'
-spreadsheet_filename = 'mecp2_MPT_and_MEC_v2.csv'; 
+spreadsheet_filename = '[INPUT_REQUIRED].csv'; 
 sheet = 1; % specify excel sheet
 xlRange = 'A2:C7'; % specify range on the sheet (e.g., 'A2:C7' would analyse the first 6 files)
 csvRange = [2, Inf]; % read the data in the range [StartRow EndRow], e.g. [2 Inf] means start reading data from row 2
 Params.output_spreadsheet_file_type = 'csv';  % .xlsx or .csv
 
 % Analysis step settings
-Params.priorAnalysisDate = '20Jan2023'; % prior analysis date in format given in output data folder e.g., '27Sep2021'
-Params.priorAnalysis = 1; % use previously analysed data? 1 = yes, 0 = no
-Params.startAnalysisStep = 4; % if Params.priorAnalysis=0, default is to start with spike detection
-Params.optionalStepsToRun = {'runStats'}; % include 'generateCSV' to generate csv for rawData folder
+Params.priorAnalysisDate = ''; % prior analysis date in format given in output data folder e.g., '27Sep2021'
+Params.priorAnalysis = 0; % use previously analysed data? 1 = yes, 0 = no
+Params.startAnalysisStep = 1; % if Params.priorAnalysis=0, default is to start with spike detection
+Params.optionalStepsToRun = {''}; % include 'generateCSV' to generate csv for rawData folder
+                                  % include 'runStats' to look at feature
+                                  % correlation and classification across groups
+                                  % include 'combineDIVplots' to combine plots across DIVs
 
 % Spike detection settings
 detectSpikes = 0; % run spike detection? % 1 = yes, 0 = no
@@ -75,7 +78,7 @@ addpath('Images')
 
 %% GUI / Tutorial mode settings 
 
-Params.guiMode = 1;
+Params.guiMode = 0;
 if Params.guiMode == 1
     runGUImode
 end 
@@ -404,47 +407,40 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
 
     end
     
-    % Make individual network plots scaled to all recordings (part 1)
+    % Make network plots with shared colorbar and edge weight widths etc.
+    outputDataDateFolder = fullfile(Params.outputDataFolder, ...
+        strcat('OutputData', Params.Date));
+    minMax = findMinMaxNetMetTable(outputDataDateFolder, Params);
+    minMax.EW = [0.1, 1];
+    Params.metricsMinMax = minMax;
+    Params.useMinMaxBoundsForPlots = 1;
+    Params.sideBySideBoundPlots = 1;
     
-    ExpMatFolder = fullfile(Params.outputDataFolder, ...
-                strcat('OutputData',Params.Date), 'ExperimentMatFiles');
-    % load the first file to figure out which lag fields are available 
-    dfDataFname = strcat(char(ExpName(1)),'_',Params.Date,'.mat');
-    dfDataFpath = fullfile(ExpMatFolder, dfDataFname);
-    netMetData = load(dfDataFpath, 'adjMs','NetMet'); 
-    
-    lagFields = fields(netMetData.adjMs);
-    
-    for nField = 1:lagFields
-    
-        NetMetAllDat = createAllNetMetStruct();
-        for ExN = 1:length(ExpName)
-            dfDataFname = strcat(char(ExpName(ExN)),'_',Params.Date,'.mat');
-            dfDataFpath = fullfile(ExpMatFolder, dfDataFname);
-            netMetData = load(dfDataFpath, 'adjMs','NetMet'); 
-            disp(char(Info.FN))
-            NetMetAllDat = addAllNetMetStruct(NetMetAllDat, ... 
-                netMetData.NetMet.(lagFields{nField}), ...
-                netMetData.adjMs.(lagFields{nField}));
-        end
-
-        NetMetMinMax = findMinMaxAllNetMetStruct(NetMetAllDat);
-
-        for  ExN = 1:length(ExpName)
-            dfDataFname = strcat(char(ExpName(ExN)),'_',Params.Date,'.mat');
-            dfDataFpath = fullfile(ExpMatFolder, dfDataFname);
-            netMetData = load(dfDataFpath, 'Info','Params','adjMs','NetMet');
-            netMetData.Params = checkOneFigureHandle(netMetData.Params);
-            disp(char(netMetData.Info.FN))
+    for ExN = 1:length(ExpName) 
+        Params.oneFigure = figure();
+        disp(ExpName(ExN))
+        % load NetMet 
+        experimentMatFileFolder = fullfile(Params.outputDataFolder, ...
+            strcat('OutputData', Params.Date), 'ExperimentMatFiles');
+        experimentMatFilePath = fullfile(experimentMatFileFolder, ...
+            strcat(char(ExpName(ExN)),'_',Params.Date,'.mat'));
+        
+        expData = load(experimentMatFilePath);
+        idvNetworkAnalysisGrpFolder = fullfile(Params.outputDataFolder, ...
+            strcat('OutputData',Params.Date), '4_NetworkActivity', ...
+            '4A_IndividualNetworkAnalysis', char(expData.Info.Grp));
+        
+        idvNetworkAnalysisFNFolder = fullfile(idvNetworkAnalysisGrpFolder, char(expData.Info.FN));
+        if ~isfolder(idvNetworkAnalysisFNFolder)
+            mkdir(idvNetworkAnalysisFNFolder)
+        end 
+        
+        Params.networkActivityFolder = idvNetworkAnalysisFNFolder;
             
-            plotFolder = fullfile(netMetData.Params.networkActivityFolder, ...
-                        lagFields{nField}(5:end));
-            
-            plotNetworkOGandNorm(netMetData.NetMet.(lagFields{nField}),...
-                netMetData.adjMs.(lagFields{nField}), ...
-                NetMetMinMax,netMetData.Params,netMetData.Info, plotFolder)
-        end
-    end 
+        PlotIndvNetMet(expData, Params, expData.Info)
+        close all 
+    end
+    
     
     % create combined plots
     PlotNetMet(ExpName, Params, HomeDir)
@@ -559,39 +555,7 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
     plotNetMetNodeCartography(combinedData, ExpName,Params, HomeDir, figFolder)
     
 
-    % Make network plots with shared colorbar and edge weight widths etc.
-    outputDataDateFolder = fullfile(Params.outputDataFolder, ...
-        strcat('OutputData', Params.Date));
-    minMax = findMinMaxNetMetTable(outputDataDateFolder, Params);
-    minMax.EW = [0.1, 1];
-    Params.metricsMinMax = minMax;
-    Params.useMinMaxBoundsForPlots = 1;
-    Params.sideBySideBoundPlots = 1;
-    
-    for ExN = 1:length(ExpName) 
-        Params.oneFigure = figure();
-        disp(ExpName(ExN))
-        % load NetMet 
-        experimentMatFileFolder = fullfile(Params.outputDataFolder, ...
-            strcat('OutputData', Params.Date), 'ExperimentMatFiles');
-        experimentMatFilePath = fullfile(experimentMatFileFolder, ...
-            strcat(char(ExpName(ExN)),'_',Params.Date,'.mat'));
-        
-        expData = load(experimentMatFilePath);
-        idvNetworkAnalysisGrpFolder = fullfile(Params.outputDataFolder, ...
-            strcat('OutputData',Params.Date), '4_NetworkActivity', ...
-            '4A_IndividualNetworkAnalysis', char(expData.Info.Grp));
-        
-        idvNetworkAnalysisFNFolder = fullfile(idvNetworkAnalysisGrpFolder, char(expData.Info.FN));
-        if ~isfolder(idvNetworkAnalysisFNFolder)
-            mkdir(idvNetworkAnalysisFNFolder)
-        end 
-        
-        Params.networkActivityFolder = idvNetworkAnalysisFNFolder;
-            
-        PlotIndvNetMet(expData, Params, expData.Info)
-        close all 
-    end
+   
 
 end
 
@@ -648,7 +612,11 @@ end
 
 %% Optional step : combine plots across DIVs
 if any(strcmp(Params.optionalStepsToRun,'combineDIVplots'))
-    featureFolder = '/media/timothysit/Elements/MAT_files/AnalysisPipeline/OutputData20Jan2023/4_NetworkActivity/4A_IndividualNetworkAnalysis/';
+    if Params.priorAnalysis == 1
+        featureFolder = fullfile(Params.priorAnalysisPath, '4_NetworkActivity', '4A_IndividualNetworkAnalysis');
+    else
+        featureFolder = fullfile(Params.outputDataFolder, ['OutputData' Params.Date], '4_NetworkActivity', '4A_IndividualNetworkAnalysis');
+    end 
     featureFolderSearch = dir(featureFolder);
     dirFlags = [featureFolderSearch.isdir];
     folderNames = {featureFolderSearch.name};
