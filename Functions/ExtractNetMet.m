@@ -1,4 +1,4 @@
-function [NetMet] = ExtractNetMetOrganoid(adjMs, spikeTimes, lagval,Info,HomeDir,Params, spikeMatrix)
+function [NetMet] = ExtractNetMet(adjMs, spikeTimes, lagval,Info,HomeDir,Params, spikeMatrix)
 %
 % Extract network metrics from adjacency matrices for organoid data
 % 
