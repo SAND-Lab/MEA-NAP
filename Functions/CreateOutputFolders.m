@@ -1,5 +1,4 @@
-function [] = CreateOutputFolders(HomeDir, OutputDataFolder,Date,GrpNm)
-
+function [] = CreateOutputFolders(HomeDir, OutputDataFolder, Date, GrpNm)
 % this function creates the following output folder structure:
 %
 %   OutputData+Date
@@ -8,6 +7,15 @@ function [] = CreateOutputFolders(HomeDir, OutputDataFolder,Date,GrpNm)
 %       2_NeuronalActivity
 %       3_EdgeThresholdingCheck
 %       4_NetworkActivity
+% Parameters
+% ----------
+% HomeDir : 
+% OutputDataFolder : 
+% Date : 
+% GrpNm : 
+% Returns 
+% -------
+% None
 
 %% make sure we start in the home directory
 cd(OutputDataFolder)
@@ -23,6 +31,11 @@ if exist(strcat('OutputData',Date),'dir')
 end
 
 %% now we can create the output folders
+% TODO: remove cd from all of these
+outputDataDateFolder = fullfile(OutputDataFolder, strcat('OutputData', Date));
+spikeDetectionFolder = fullfile(outputDataDateFolder, '1_SpikeDetection');
+
+neuronalActivityFolder = fullfile(outputDataDateFolder, '2_NeuronalActivity');
 
 mkdir(strcat('OutputData',Date))
 cd(strcat('OutputData',Date))
