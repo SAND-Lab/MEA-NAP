@@ -348,70 +348,6 @@ else
         NetMet.(strcat('adjM',num2str(lagval(e)),'mslag')).modalControl = modalControl;
     end 
 
-    %% electrode specific half violin plots
-    % TODO: move the plotting to a separate function
-
-    electrodeSpecificMetrics(ND, NS, MEW, Eloc, BC, PC, Z, lagval, ... 
-            e, char(Info.FN), Params, lagFolderName)
-    
-    %% network plots
-    if length(adjM) > 0
-        [On,adjMord] = reorder_mod(adjM,Ci);
-    end 
-
-    try
-        channels = Info.channels;
-        channels(iN) = [];
-    catch
-        fprintf(2,'\n  WARNING: channel order not saved in spike matrix \n used default in line 50 of batch_getHeatMaps_fcn \n \n')
-        channels = [47,48,46,45,38,37,28,36,27,17,26,16,35,25,15,14,24,34,..., 
-            13,23,12,22,33,21,32,31,44,43,41,42,52,51,53,54,61,62,71,63, ..., 
-            72,82,73,83,64,74,84,85,75,65,86,76,87,77,66,78,67,68,55,56,58,57];
-    end
-    
-    if length(adjM) > 0
-        StandardisedNetworkPlot(adjM, coords, edge_thresh, ND, 'MEA', char(Info.FN),'2',Params,lagval,e, lagFolderName);
-       
-        % grid network plot node degree betweeness centrality
-        StandardisedNetworkPlotNodeColourMap(adjM, coords, edge_thresh, ND, 'Node degree', BC, 'Betweeness centrality', 'MEA', char(Info.FN), '3', Params, lagval, e, lagFolderName)
-      
-        % grid network plot node degree participation coefficient
-        StandardisedNetworkPlotNodeColourMap(adjM, coords, edge_thresh, ND, 'Node degree', PC, 'Participation coefficient', 'MEA', char(Info.FN), '4', Params, lagval, e, lagFolderName)
-      
-        % grid network plot node strength local efficiency
-        StandardisedNetworkPlotNodeColourMap(adjM, coords, edge_thresh, NS, 'Node strength', Eloc, 'Local efficiency', 'MEA', char(Info.FN), '5', Params, lagval, e, lagFolderName)
-      
-        % simple circular network plot
-        NDord = ND(On);
-        StandardisedNetworkPlot(adjMord, coords, edge_thresh, NDord, 'circular', char(Info.FN),'6',Params,lagval,e, lagFolderName);
-    end 
-    
-    % grid network plot for controllability metrics
-    if any(strcmp(Params.unitLevelNetMetToPlot , 'aveControl'))
-        if length(adjM) > 0
-         StandardisedNetworkPlotNodeColourMap(adjM, coords, edge_thresh, ND, 'Node degree', ...
-             aveControl, 'Average controllability', 'MEA', char(Info.FN), '3', Params, lagval, e, lagFolderName)
-        end 
-    end 
-
-    if any(strcmp(Params.unitLevelNetMetToPlot , 'modalControl'))
-        if length(adjM) > 0 
-            StandardisedNetworkPlotNodeColourMap(adjM, coords, edge_thresh, ND, 'Node degree', ...
-             modalControl, 'Modal controllability', 'MEA', char(Info.FN), '3', Params, lagval, e, lagFolderName)
-        end 
-    end 
-
-    % node cartography
-    % NdCartDivOrd = NdCartDiv(On);
-    % StandardisedNetworkPlotNodeCartography(adjMord, Params.coords, edge_thresh, NdCartDivOrd, 'circular', char(Info.FN), '7', Params, lagval, e)
-    
-   % colour map network plots where nodes are the same size
-%     StandardisedNetworkPlotNodeColourMap2(adjM, coords, 0.00001, PC, 'Participation coefficient', 'grid', char(Info.FN), Params)
-%     PCord = PC(On);
-%     StandardisedNetworkPlotNodeColourMap2(adjMord, coords, 0.00001, PC, 'Participation coefficient', 'circular', char(Info.FN), Params)
-%     
-
-    clear coords
     
     %% reassign to structures
     
@@ -432,17 +368,6 @@ else
     clear ND MEW NS Dens Ci Q nMod CC PL SW SWw Eloc BC PC Z Var NCpn1 NCpn2 NCpn3 NCpn4 NCpn5 NCpn6 Hub3 Hub4 NE PC_raw Cmcblty
     
 
-% cd(HomeDir); cd(strcat('OutputData',Params.Date)); 
-% cd('4_NetworkActivity'); cd('4A_IndividualNetworkAnalysis'); 
-% cd(char(Info.Grp)); cd(char(Info.FN))
-
 end
-
-%% plot node cartography proportions
-% plotNodeCartographyProportions(NetMet, lagval, char(Info.FN), Params)
-
-%% plot metrics for different lag times
-% TODO: move this
-plotNetworkWideMetrics(NetMet, meanSTTC, maxSTTC, lagval, char(Info.FN), Params, networkActivityFolder)
 
 end
