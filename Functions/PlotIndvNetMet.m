@@ -38,8 +38,9 @@ for e = 1:length(lagval)
     aNtemp = sum(adjM,1);
     iN = find(aNtemp==0);
     
-    nodeStrength = sum(adjM, 1);
-    inclusionIndex = find(nodeStrength ~= 0);
+    nodeStrength = nansum(adjM, 1);  % where are there sometimes NaN in the adjM?
+    % inclusionIndex = find(nodeStrength ~= 0);
+    inclusionIndex = find(abs(nodeStrength) > 1e-6);
     adjM = adjM(inclusionIndex, inclusionIndex);
     coords = Params.coords(inclusionIndex, :);
     Params.netSubsetChannels = Params.channels(inclusionIndex);
@@ -142,7 +143,7 @@ for e = 1:length(lagval)
             end 
 
             combinedFigure = figure;
-            p =  [50   100   660*2 + 300  550];
+            p =  [50   100   660*2 + 400  550];
             set(combinedFigure, 'Position', p);
             h(1) = subplot(1, 2, 1);
             axis off
@@ -168,7 +169,7 @@ for e = 1:length(lagval)
             copyobj(allchild(get(figureHandleOriginal, 'Currentaxes')), h(1)); 
             copyobj(allchild(get(figureHandleScaled, 'Currentaxes')), h(2)); 
             
-            
+            set(gcf, 'color', 'white');
             figPath = fullfile(lagFolderName, ...
                 sprintf('%s_combined_MEA_NetworKPlot%s%s', plotPrefixes{networkPlotIdx}, ... 
                 nodeSizeMetricName{networkPlotIdx}, colorMapMetricName{networkPlotIdx}));
