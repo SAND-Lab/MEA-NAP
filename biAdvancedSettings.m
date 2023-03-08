@@ -95,6 +95,7 @@ Params.networkLevelNetMetCustomBounds.('effRank') = [1, nan];
 Params.networkLevelNetMetCustomBounds.('density') = [0, 1];
 Params.networkLevelNetMetCustomBounds.('num_nnmf_components') = [1, nan];
 Params.networkLevelNetMetCustomBounds.('aveControl') = [1, 1.5];
+Params.networkLevelNetMetCustomBounds.('modalControl') = [0.7, 1];
 
 Params.unitLevelNetMetToPlot = {'ND','MEW','NS','Z','Eloc','PC','BC', 'aveControl', 'modalControl'};
 Params.unitLevelNetMetLabels = {'node degree','edge weight','node strength', ... 
