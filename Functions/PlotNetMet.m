@@ -838,18 +838,17 @@ for l = 1:length(Params.FuncConLagval)
                 eDivTP = strcat('TP',num2str(d));
                 VNe = strcat(eGrp,'.',eDivTP,'.',eMeti);
                 eval(['DatTemp = ' VNe ';']);
-                % Tim: temp fix to make zero vector of DIV is empty 
+                % Tim: temp fix to make zero vector if DIV is empty 
                 if isempty(DatTemp)
                     DatTemp = zeros(1, length(Params.FuncConLagval));
                 end 
                 PlotDat = DatTemp(:,l);
                 PlotDat(isnan(PlotDat)) = [];
-                if isempty(PlotDat)
-                    continue
-                else
+                if (1 - isempty(PlotDat))
                     HalfViolinPlot(PlotDat, xt(g), Params.groupColors(g, :), 0.3);
                 end
-                clear DatTemp ValMean ValStd UpperStd LowerStd
+                hold on
+                % clear DatTemp ValMean ValStd UpperStd LowerStd
                 xtlabtext{g} = eGrp;
             end
             xticks(xt)
@@ -886,7 +885,7 @@ for l = 1:length(Params.FuncConLagval)
         ylim([yLowerBound, yUpperBound]);
         
         xLowerBound = min(xt) - 0.5;
-        xUpperBound = min(xt) + 0.5;
+        xUpperBound = max(xt) + 0.5;
         set(gca, 'YLim', [yLowerBound, yUpperBound])
         % h(1).YLim = [yLowerBound, yUpperBound];
         h(1).XLim = [xLowerBound xUpperBound];
