@@ -47,11 +47,17 @@ imshow('NodeCartographyFull.jpg')
 %% bar chart
 
 nexttile
+numNodeCartographyGroups = 6;
 
 for l = 1:length(lagval)
-    for i = 1:6
-        eval(['NdPrp(l,i) = NetMet.adjM' num2str(lagval(l)) 'mslag.NCpn' num2str(i) ';']);
-        xlab{l} = num2str(lagval(l));
+    for i = 1:numNodeCartographyGroups
+        % eval(['NdPrp(l,i) = NetMet.adjM' num2str(lagval(l)) 'mslag.NCpn' num2str(i) ';']);
+        lagNetMet = NetMet.(['adjM', num2str(lagval(l)), 'mslag']);
+        
+        if lagNetMet.aN >= Params.minNumberOfNodesToCalNetMet
+            NdPrp(l, i) = lagNetMet.(['NCpn' num2str(i)]);
+            xlab{l} = num2str(lagval(l));
+        end
     end
 end
   
