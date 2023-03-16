@@ -81,7 +81,7 @@ for e = 1:length(lagval)
 
     % node cartography in grid plot 
     StandardisedNetworkPlotNodeCartography(adjM, coords, ... 
-        edge_thresh, NdCartDivOrd, 'MEA', char(Info.FN), '7', Params, lagval, e, lagFolder)
+        edge_thresh, NdCartDiv, 'MEA', char(Info.FN), '7', Params, lagval, e, lagFolder)
 
     % add node cartography results to existing experiment file 
     nodeCartVarsToSave = {'NCpn1', 'NCpn2','NCpn3','NCpn4','NCpn5','NCpn6'};
