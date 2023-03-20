@@ -285,6 +285,9 @@ else
     end 
 end 
 
+%% Plotting : ordering of groups for statistical summary plots 
+Params.customGrpOrder = {}; % eg. {'WT', 'HE', 'KO'};  % leave as empty {} if to use default alphabetical order
+
 %% Plotting : stats summary settings 
 
 Params.linePlotShadeMetric = 'sem';  % 'std' or 'sem'
