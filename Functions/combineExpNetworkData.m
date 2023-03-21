@@ -90,8 +90,10 @@ for i = 1:length(ExpName)
                 %eval(['DatTemp(l) =' VNs ';']);
                 lagValStr = strcat('adjM', num2str(Params.FuncConLagval(l)),'mslag');
                 % DatTemp(l) = NetMet.(lagValStr).(eMet);
-                groupTypeCounter = size(combinedData.(eGrp).(eDiv).(eMet), 1); % count occurences of a specific Grp-DIV
-                combinedData.(eGrp).(eDiv).(eMet)(groupTypeCounter+1, l) = ExpData.NetMet.(lagValStr).(eMet);
+                if isfield(ExpData.NetMet.(lagValStr), eMet)  % this is to exclude small networks where NCpn1 is not defined
+                    groupTypeCounter = size(combinedData.(eGrp).(eDiv).(eMet), 1); % count occurences of a specific Grp-DIV
+                    combinedData.(eGrp).(eDiv).(eMet)(groupTypeCounter+1, l) = ExpData.NetMet.(lagValStr).(eMet);
+                end 
                 %clear VNs
             end
             %VNe = strcat(eGrp,'.',eDiv,'.',eMet);
@@ -157,7 +159,10 @@ for i = 1:length(ExpName)
                 % DatTemp = ExpData.NetMet.(lagValStr).(eMet);
 
                 % eval(['DatTemp' num2str(l) '= ' VNs ';']);
-                DatTemp{l} = ExpData.NetMet.(lagValStr).(eMet);
+                % metric should be nNode x 1, for some reason sometimes
+                % it's transposed...
+                metricVector = ExpData.NetMet.(lagValStr).(eMet);                
+                DatTemp{l} = metricVector;
                 
                 % eval(['DatTemp' num2str(l) '= ' VNs ';']);
                 % eval(['mL(l) = length(DatTemp' num2str(l) ');']);
@@ -174,6 +179,11 @@ for i = 1:length(ExpName)
                 if length(DatTempT) < max(mL)
                     DatTempT(length(DatTempT+1):max(mL)) = nan;
                 end
+                
+                if size(DatTempT, 1) == 1
+                    DatTempT = DatTempT';
+                end 
+                
                 % DatTemp(:,l) = DatTempT;
                 DatTemp{l} = DatTempT; 
             end
