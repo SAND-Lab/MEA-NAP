@@ -16,13 +16,14 @@ function plotNetMetNodeCartography(combinedData, ExpName, Params,HomeDir, figFol
 
 %% groups and DIV
 
-Grps = Params.GrpNm;
-AgeDiv = Params.DivNm;
+if ~isempty(Params.customGrpOrder)
+    Grps = Params.customGrpOrder;
+else
+    Grps = Params.GrpNm;
+end 
 
-if strcmp(char(Grps{1}),'HET') && strcmp(char(Grps{2}),'KO') && strcmp(char(Grps{3}),'WT')
-   clear Grps
-   Grps{1} = 'WT'; Grps{2} = 'HET'; Grps{3} = 'KO';
-end
+
+AgeDiv = Params.DivNm;
 
 %% Plotting 
 
@@ -65,8 +66,17 @@ for l = 1:length(Params.FuncConLagval)
                 xtlabtext{d} = num2str(AgeDiv(d));
             end
             eval(['c = c' num2str(n) ';']);
-            UpperStd = meanTP+stdTP; % upper std line
-            LowerStd = meanTP-stdTP; % lower std line
+            if strcmp(Params.linePlotShadeMetric, 'std') 
+                UpperStd = meanTP+stdTP; % upper std line
+                LowerStd = meanTP-stdTP; % lower std line
+            elseif strcmp(Params.linePlotShadeMetric, 'sem') 
+                numSamples = sum(~isnan(DatTemp(:,l)));
+                UpperStd = meanTP + (stdTP / sqrt(numSamples)); % upper std line
+                LowerStd = meanTP - (stdTP / sqrt(numSamples)); % lower std line
+            else 
+                UpperStd = meanTP; % upper std line
+                LowerStd = meanTP; % lower std line
+            end 
             Xf =[xt,fliplr(xt)]; % create continuous x value array for plotting
             Yf =[UpperStd,fliplr(LowerStd)]; % create y values for out and then back
             h1 = fill(Xf,Yf,c,'edgecolor','none');
