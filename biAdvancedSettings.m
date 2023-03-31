@@ -286,10 +286,10 @@ else
 end 
 
 %% Plotting : ordering of groups for statistical summary plots 
-Params.customGrpOrder = {}; % eg. {'WT', 'HE', 'KO'};  % leave as empty {} if to use default alphabetical order
+Params.customGrpOrder = {'WT', 'HE', 'KO'} ; % eg. {'WT', 'HE', 'KO'};  % leave as empty {} if to use default alphabetical order
 
 %% Plotting : stats summary settings 
-
+Params.includeNotBoxPlots = 0;
 Params.linePlotShadeMetric = 'sem';  % 'std' or 'sem'
 
 %% Network analysis settings 
@@ -327,7 +327,7 @@ Params.networkLevelNetMetCustomBounds.('Eloc') = [0, nan];
 Params.networkLevelNetMetCustomBounds.('EW') = [0, nan];
 Params.networkLevelNetMetCustomBounds.('NS') = [0, nan];
 Params.networkLevelNetMetCustomBounds.('BC') = [0, 1];
-Params.networkLevelNetMetCustomBounds.('CC') = [0, 1];
+Params.networkLevelNetMetCustomBounds.('CC') = [0, nan];
 Params.networkLevelNetMetCustomBounds.('nMod') = [0, nan];
 Params.networkLevelNetMetCustomBounds.('Q') = [0, nan];
 Params.networkLevelNetMetCustomBounds.('PL') = [0, nan];

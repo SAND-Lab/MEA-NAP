@@ -437,9 +437,15 @@ for n = 1:length(eMet)
             % but currently DatTemp is just a 1 x n vector for me...
             
             ValMean = nanmean(DatTemp,1);
-            ValStd = std(DatTemp,1);
-            UpperStd = ValMean+ValStd; % upper std line
-            LowerStd = ValMean-ValStd; % lower std line
+            
+            if strcmp(Params.linePlotShadeMetric, 'sem')
+                spreadVal = nanstd(DatTemp, 1) / sqrt(length(DatTemp));
+            elseif strcmp(Params.linePlotShadeMetric, 'std')
+                spreadVal = nanstd(DatTemp, 1);
+            end 
+            UpperStd = ValMean + spreadVal; % upper std or sem line
+            LowerStd = ValMean - spreadVal; % lower std or sem line
+            
             % What is cDIv1
             Xf =[xt,fliplr(xt)]; % create continuous x value array for plotting
             Yf =[UpperStd,fliplr(LowerStd)]; % create y values for out and then back
@@ -462,7 +468,7 @@ for n = 1:length(eMet)
             xticklabels(LagValLabels)
             xlabel('STTC lag (ms)')
             ylabel(eMetl(n))
-            clear DatTemp ValMean ValStd UpperStd LowerStd
+            clear DatTemp ValMean UpperStd LowerStd
         end
         lgd = legend(line,num2str(AgeDiv));
         lgd.Location = 'Northeastoutside';
@@ -491,111 +497,113 @@ for n = 1:length(eMet)
 end
 
 %% notBoxPlots - plots by group
+if Params.includeNotBoxPlots 
+    networkNotBoxPlotFolder = fullfile(Params.outputDataFolder, ...
+        strcat('OutputData',Params.Date), '4_NetworkActivity', ...
+        '4B_GroupComparisons', '3_RecordingsByGroup', 'NotBoxPlots');
 
-networkNotBoxPlotFolder = fullfile(Params.outputDataFolder, ...
-    strcat('OutputData',Params.Date), '4_NetworkActivity', ...
-    '4B_GroupComparisons', '3_RecordingsByGroup', 'NotBoxPlots');
+    eMet = Params.networkLevelNetMetToPlot;
+    eMetl = Params.networkLevelNetMetLabels;
 
-eMet = Params.networkLevelNetMetToPlot;
-eMetl = Params.networkLevelNetMetLabels;
+    % moved:  'NCpn1','NCpn2','NCpn3','NCpn4','NCpn5','NCpn6',
+    %    'proportion peripheral nodes','proportion non-hub connectors', ... 
+    %    'proportion non-hub kinless nodes','proportion provincial hubs', ... 
+    %    'proportion connector hubs','proportion kinless hubs',
 
-% moved:  'NCpn1','NCpn2','NCpn3','NCpn4','NCpn5','NCpn6',
-%    'proportion peripheral nodes','proportion non-hub connectors', ... 
-%    'proportion non-hub kinless nodes','proportion provincial hubs', ... 
-%    'proportion connector hubs','proportion kinless hubs',
+    p = [100 100 1300 600]; 
+    set(0, 'DefaultFigurePosition', p)
 
-p = [100 100 1300 600]; 
-set(0, 'DefaultFigurePosition', p)
-
-if isfield(Params, 'oneFigure')
-    set(Params.oneFigure, 'Position', p);
-end 
-
-for l = 1:length(Params.FuncConLagval)
-
-    networkNotBoxPlotFolderPlusLag = fullfile(networkNotBoxPlotFolder, ...
-        strcat(num2str(Params.FuncConLagval(l)),'mslag'));
-    if ~isfolder(networkNotBoxPlotFolderPlusLag)
-        mkdir(networkNotBoxPlotFolderPlusLag)
+    if isfield(Params, 'oneFigure')
+        set(Params.oneFigure, 'Position', p);
     end 
 
-    for n = 1:length(eMet)
-        if ~isfield(Params, 'oneFigure')
-            F1 = figure;
+    for l = 1:length(Params.FuncConLagval)
+
+        networkNotBoxPlotFolderPlusLag = fullfile(networkNotBoxPlotFolder, ...
+            strcat(num2str(Params.FuncConLagval(l)),'mslag'));
+        if ~isfolder(networkNotBoxPlotFolderPlusLag)
+            mkdir(networkNotBoxPlotFolderPlusLag)
         end 
-        eMeti = char(eMet(n));
-        xt = 1:0.5:1+(length(AgeDiv)-1)*0.5;
-        for g = 1:length(Grps)
-            h(g) = subplot(1,length(Grps),g);
-            eGrp = cell2mat(Grps(g));
-            for d = 1:length(AgeDiv)
-                eDiv = strcat('TP',num2str(d));
-                VNe = strcat(eGrp,'.',eDiv,'.',eMeti);
-                eval(['DatTemp = ' VNe ';']);
-                
-                % Tim: temp fix to make zero vector of DIV is empty 
-                if isempty(DatTemp)
-                    DatTemp = zeros(1, length(Params.FuncConLagval));
-                end 
-                
-                
-                PlotDat = DatTemp(:,l);
-                eval(['notBoxPlotRF(PlotDat,xt(d),cDiv' num2str(d) ',12)']);
-                clear DatTemp ValMean ValStd UpperStd LowerStd
-                xtlabtext{d} = num2str(AgeDiv(d));
-            end
-            xticks(xt)
-            xticklabels(xtlabtext)
-            xlabel('Age')
-            ylabel(eMetl(n))
-            title(eGrp)
-            aesthetics
-            set(gca,'TickDir','out');
-        end
-        linkaxes(h,'xy')
-        h(1).XLim = [min(xt)-0.5 max(xt)+0.5];
 
-        % Set custom y axis 
-        if isfield(Params.networkLevelNetMetCustomBounds, eMeti) 
-
-            boundVector = Params.networkLevelNetMetCustomBounds.(eMeti);
-
-            if ~isnan(boundVector(1))
-                yLowerBound = boundVector(1);
-            else
-                yLowerBound = h(1).YLim(1);
+        for n = 1:length(eMet)
+            if ~isfield(Params, 'oneFigure')
+                F1 = figure;
             end 
-            
-            if ~isnan(boundVector(2))
-                yUpperBound = boundVector(2);
-            else
+            eMeti = char(eMet(n));
+            xt = 1:0.5:1+(length(AgeDiv)-1)*0.5;
+            for g = 1:length(Grps)
+                h(g) = subplot(1,length(Grps),g);
+                eGrp = cell2mat(Grps(g));
+                for d = 1:length(AgeDiv)
+                    eDiv = strcat('TP',num2str(d));
+                    VNe = strcat(eGrp,'.',eDiv,'.',eMeti);
+                    eval(['DatTemp = ' VNe ';']);
+
+                    % Tim: temp fix to make zero vector of DIV is empty 
+                    if isempty(DatTemp)
+                        DatTemp = zeros(1, length(Params.FuncConLagval));
+                    end 
+
+
+                    PlotDat = DatTemp(:,l);
+                    eval(['notBoxPlotRF(PlotDat,xt(d),cDiv' num2str(d) ',12)']);
+                    clear DatTemp ValMean UpperStd LowerStd
+                    xtlabtext{d} = num2str(AgeDiv(d));
+                end
+                xticks(xt)
+                xticklabels(xtlabtext)
+                xlabel('Age')
+                ylabel(eMetl(n))
+                title(eGrp)
+                aesthetics
+                set(gca,'TickDir','out');
+            end
+            linkaxes(h,'xy')
+            h(1).XLim = [min(xt)-0.5 max(xt)+0.5];
+
+            % Set custom y axis 
+            if isfield(Params.networkLevelNetMetCustomBounds, eMeti) 
+
+                boundVector = Params.networkLevelNetMetCustomBounds.(eMeti);
+
+                if ~isnan(boundVector(1))
+                    yLowerBound = boundVector(1);
+                else
+                    yLowerBound = h(1).YLim(1);
+                end 
+
+                if ~isnan(boundVector(2))
+                    yUpperBound = boundVector(2);
+                else
+                    yUpperBound = h(1).YLim(2);
+                end  
+
+            else 
+                yLowerBound = h(1).YLim(1);
                 yUpperBound = h(1).YLim(2);
-            end  
+            end 
 
-        else 
-            yLowerBound = h(1).YLim(1);
-            yUpperBound = h(1).YLim(2);
-        end 
-        
-        ylim([yLowerBound, yUpperBound])
+            ylim([yLowerBound, yUpperBound])
 
-        set(findall(gcf,'-property','FontSize'),'FontSize',9)
+            set(findall(gcf,'-property','FontSize'),'FontSize',9)
 
-        % Export figure
-        for nFigExt = 1:length(Params.figExt)
-            figName = strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),Params.figExt{nFigExt});
-            figPath = fullfile(networkNotBoxPlotFolderPlusLag, figName);
-            saveas(gcf, figPath);
-        end 
+            % Export figure
+            for nFigExt = 1:length(Params.figExt)
+                figName = strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),Params.figExt{nFigExt});
+                figPath = fullfile(networkNotBoxPlotFolderPlusLag, figName);
+                saveas(gcf, figPath);
+            end 
 
-        % Close figure or clear the one shared figures
-        if ~isfield(Params, 'oneFigure')
-            close(gcf)
-        else
-            set(0, 'CurrentFigure', Params.oneFigure);
-            clf reset
-        end 
+            % Close figure or clear the one shared figures
+            if ~isfield(Params, 'oneFigure')
+                close(gcf)
+            else
+                set(0, 'CurrentFigure', Params.oneFigure);
+                clf reset
+            end 
+        end
     end
+
 end
 
 %% halfViolinPlots - plots by group
@@ -711,89 +719,90 @@ for l = 1:length(Params.FuncConLagval)
 end
 
 %% notBoxPlots - plots by DIV
+if Params.includeNotBoxPlots 
+    notBoxPlotByDivFolder = fullfile(Params.outputDataFolder, ...
+        strcat('OutputData',Params.Date), '4_NetworkActivity', '4B_GroupComparisons', ...
+        '4_RecordingsByAge', 'NotBoxPlots');
 
-notBoxPlotByDivFolder = fullfile(Params.outputDataFolder, ...
-    strcat('OutputData',Params.Date), '4_NetworkActivity', '4B_GroupComparisons', ...
-    '4_RecordingsByAge', 'NotBoxPlots');
+    eMet = Params.networkLevelNetMetToPlot;
+    eMetl = Params.networkLevelNetMetLabels;
 
-eMet = Params.networkLevelNetMetToPlot;
-eMetl = Params.networkLevelNetMetLabels;
-
-for n = 1:length(eMetl)
-    eMetl(n) = strrep(eMetl(n), '/', 'div');  
-    % edge case where there is a division symbol in the label
-end 
-
-
-% moved: 'NCpn1','NCpn2','NCpn3','NCpn4','NCpn5','NCpn6',
-% 'proportion peripheral nodes','proportion non-hub connectors','proportion non-hub kinless nodes','proportion provincial hubs','proportion connector hubs','proportion kinless hubs',
-
-p = [100 100 1300 600]; 
-set(0, 'DefaultFigurePosition', p)
-if isfield(Params, 'oneFigure')
-    set(Params.oneFigure, 'Position', p);
-end 
-
-for l = 1:length(Params.FuncConLagval)
-    notBoxPlotByDivFolderPlusLag = fullfile(notBoxPlotByDivFolder, ...
-        strcat(num2str(Params.FuncConLagval(l)),'mslag'));
-    
-    if ~isfolder(notBoxPlotByDivFolderPlusLag)
-        mkdir(notBoxPlotByDivFolderPlusLag)
+    for n = 1:length(eMetl)
+        eMetl(n) = strrep(eMetl(n), '/', 'div');  
+        % edge case where there is a division symbol in the label
     end 
 
-    for n = 1:length(eMet)
-        if ~isfield(Params, 'oneFigure')
-            F1 = figure;
+
+    % moved: 'NCpn1','NCpn2','NCpn3','NCpn4','NCpn5','NCpn6',
+    % 'proportion peripheral nodes','proportion non-hub connectors','proportion non-hub kinless nodes','proportion provincial hubs','proportion connector hubs','proportion kinless hubs',
+
+    p = [100 100 1300 600]; 
+    set(0, 'DefaultFigurePosition', p)
+    if isfield(Params, 'oneFigure')
+        set(Params.oneFigure, 'Position', p);
+    end 
+
+    for l = 1:length(Params.FuncConLagval)
+        notBoxPlotByDivFolderPlusLag = fullfile(notBoxPlotByDivFolder, ...
+            strcat(num2str(Params.FuncConLagval(l)),'mslag'));
+
+        if ~isfolder(notBoxPlotByDivFolderPlusLag)
+            mkdir(notBoxPlotByDivFolderPlusLag)
         end 
-        eMeti = char(eMet(n));
-        xt = 1:0.5:1+(length(Grps)-1)*0.5;
-        for d = 1:length(AgeDiv)
-            h(d) = subplot(1,length(AgeDiv),d);
-            eDiv = num2str(AgeDiv(d));
-            for g = 1:length(Grps)
-                eGrp = cell2mat(Grps(g));
-                eDivTP = strcat('TP',num2str(d));
-                VNe = strcat(eGrp,'.',eDivTP,'.',eMeti);
-                eval(['DatTemp = ' VNe ';']);
-                % Tim: temp fix to make zero vector of DIV is empty 
-                if isempty(DatTemp)
-                    DatTemp = zeros(1, length(Params.FuncConLagval));
-                end 
-                PlotDat = DatTemp(:,l);
-                notBoxPlotRF(PlotDat, xt(g), Params.groupColors(g, :), 12);
-                clear DatTemp ValMean ValStd UpperStd LowerStd
-                xtlabtext{g} = eGrp;
+
+        for n = 1:length(eMet)
+            if ~isfield(Params, 'oneFigure')
+                F1 = figure;
+            end 
+            eMeti = char(eMet(n));
+            xt = 1:0.5:1+(length(Grps)-1)*0.5;
+            for d = 1:length(AgeDiv)
+                h(d) = subplot(1,length(AgeDiv),d);
+                eDiv = num2str(AgeDiv(d));
+                for g = 1:length(Grps)
+                    eGrp = cell2mat(Grps(g));
+                    eDivTP = strcat('TP',num2str(d));
+                    VNe = strcat(eGrp,'.',eDivTP,'.',eMeti);
+                    eval(['DatTemp = ' VNe ';']);
+                    % Tim: temp fix to make zero vector of DIV is empty 
+                    if isempty(DatTemp)
+                        DatTemp = zeros(1, length(Params.FuncConLagval));
+                    end 
+                    PlotDat = DatTemp(:,l);
+                    notBoxPlotRF(PlotDat, xt(g), Params.groupColors(g, :), 12);
+                    clear DatTemp ValMean ValStd UpperStd LowerStd
+                    xtlabtext{g} = eGrp;
+                end
+                xticks(xt)
+                xticklabels(xtlabtext)
+                xlabel('Group')
+                ylabel(eMetl(n))
+                title(strcat('Age',eDiv))
+                aesthetics
+                set(gca,'TickDir','out');
             end
-            xticks(xt)
-            xticklabels(xtlabtext)
-            xlabel('Group')
-            ylabel(eMetl(n))
-            title(strcat('Age',eDiv))
-            aesthetics
-            set(gca,'TickDir','out');
+            linkaxes(h,'xy')
+            h(1).XLim = [min(xt)-0.5 max(xt)+0.5];
+            set(findall(gcf,'-property','FontSize'),'FontSize',12)
+
+            % Export figure
+            for nFigExt = 1:length(Params.figExt)
+                figName = strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),Params.figExt{nFigExt});
+                figPath = fullfile(notBoxPlotByDivFolderPlusLag, figName);
+                saveas(gcf, figPath);
+            end 
+
+            % Close figure or clear the one shared figures
+            if ~isfield(Params, 'oneFigure')
+                close(gcf)
+            else
+                set(0, 'CurrentFigure', Params.oneFigure);
+                clf reset
+            end 
         end
-        linkaxes(h,'xy')
-        h(1).XLim = [min(xt)-0.5 max(xt)+0.5];
-        set(findall(gcf,'-property','FontSize'),'FontSize',12)
 
-        % Export figure
-        for nFigExt = 1:length(Params.figExt)
-            figName = strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),Params.figExt{nFigExt});
-            figPath = fullfile(notBoxPlotByDivFolderPlusLag, figName);
-            saveas(gcf, figPath);
-        end 
-
-        % Close figure or clear the one shared figures
-        if ~isfield(Params, 'oneFigure')
-            close(gcf)
-        else
-            set(0, 'CurrentFigure', Params.oneFigure);
-            clf reset
-        end 
     end
-
-end
+end 
 
 %% halfViolinPlots - plots by DIV
 
@@ -953,7 +962,7 @@ for l = 1:length(Params.FuncConLagval)
                 else
                     eval(['HalfViolinPlot(PlotDat,xt(d),cDiv' num2str(d) ',0.3)']);
                 end
-                clear DatTemp ValMean ValStd UpperStd LowerStd
+                clear DatTemp ValMean UpperStd LowerStd
                 xtlabtext{d} = num2str(AgeDiv(d));
             end
             xticks(xt)
@@ -1064,91 +1073,5 @@ for l = 1:length(Params.FuncConLagval)
         end 
     end
 end
-
-%% Node cartography
-% TODO: move this 
-%{
-cd(HomeDir); cd(strcat('OutputData',Params.Date))
-cd('4_NetworkActivity'); cd('4B_GroupComparisons')
-cd('6_NodeCartographyByLag')
-
-c1 = [0.8 0.902 0.310]; % light green
-c2 = [0.580 0.706 0.278]; % medium green
-c3 = [0.369 0.435 0.122]; % dark green
-c4 = [0.2 0.729 0.949]; % light blue
-c5 = [0.078 0.424 0.835]; % medium blue
-c6 = [0.016 0.235 0.498]; % dark blue
-
-eMet = {'NCpn1','NCpn2','NCpn3','NCpn4','NCpn5','NCpn6'}; 
-
-p = [100 100 1200 800]; % this can be ammended accordingly
-set(0, 'DefaultFigurePosition', p)
-if isfield(Params, 'oneFigure')
-    set(Params.oneFigure, 'Position', p);
-end 
-
-for l = 1:length(Params.FuncConLagval)
-    if ~isfield(Params, 'oneFigure')
-        F1 = figure;
-    end 
-    xt = 1:length(AgeDiv);
-    for g = 1:length(Grps)
-        h(g) = subplot(length(Grps),1,g);
-        eGrp = cell2mat(Grps(g));
-        for n = 1:length(eMet)
-            eMeti = char(eMet(n));
-            for d = 1:length(AgeDiv)
-                eDiv = strcat('TP',num2str(d));
-                VNe = strcat(eGrp,'.',eDiv,'.',eMeti);
-                eval(['DatTemp = ' VNe ';']);
-                % Tim: temp fix to make zero vector of DIV is empty 
-                if isempty(DatTemp)
-                    DatTemp = zeros(1, length(Params.FuncConLagval));
-                end 
-                meanTP(d)= nanmean(DatTemp(:,l));
-                stdTP(d)= nanstd(DatTemp(:,l));
-                xtlabtext{d} = num2str(AgeDiv(d));
-            end
-            eval(['c = c' num2str(n) ';']);
-            UpperStd = meanTP+stdTP; % upper std line
-            LowerStd = meanTP-stdTP; % lower std line
-            Xf =[xt,fliplr(xt)]; % create continuous x value array for plotting
-            Yf =[UpperStd,fliplr(LowerStd)]; % create y values for out and then back
-            h1 = fill(Xf,Yf,c,'edgecolor','none');
-            % Choose a number between 0 (invisible) and 1 (opaque) for facealpha.
-            set(h1,'facealpha',0.3)
-            hold on
-            eval(['y' num2str(n) '= plot(xt,meanTP,''Color'',c,''LineWidth'',3);']);
-            xticks(xt)
-            xticklabels(xtlabtext)
-            xlabel('Age')
-            ylabel('node cartography')
-            clear DatTemp meanTP meanSTD ValStd UpperStd LowerStd
-        end
-        linkaxes(h,'xy')
-        h(1).XLim = [min(xt)-0.5 max(xt)+0.5];
-        title(eGrp)
-        aesthetics
-        set(gca,'TickDir','out');
-        legend([y1 y2, y3, y4, y5, y6],'proportion peripheral nodes','proportion non-hub connectors','proportion non-hub kinless nodes','proportion provincial hubs','proportion connector hubs','proportion kinless hubs','Location','eastoutside')
-        legend Box off
-    end
-
-    % Export figure
-    for nFigExt = 1:length(Params.figExt)
-        saveas(gcf,strcat(['NodeCartography', num2str(Params.FuncConLagval(l)), ...
-            'mslag', Params.figExt{nFigExt}]));
-    end 
-
-
-    % Close figure or clear the one shared figures
-    if ~isfield(Params, 'oneFigure')
-        close(gcf)
-    else
-        set(0, 'CurrentFigure', Params.oneFigure);
-        clf reset
-    end 
-end
-%}
 
 end
