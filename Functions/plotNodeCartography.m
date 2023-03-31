@@ -73,26 +73,29 @@ for e = 1:length(lagval)
     NCpn4 = PopNumNC(4)/aN;
     NCpn5 = PopNumNC(5)/aN;
     NCpn6 = PopNumNC(6)/aN;
-
-    % node cartography in circular plot
-    NdCartDivOrd = NdCartDiv(On);
-    StandardisedNetworkPlotNodeCartography(adjM, coords, ... 
-        edge_thresh, NdCartDivOrd, 'circular', char(Info.FN), '7', Params, lagval, e, lagFolder)
-
-    % node cartography in grid plot 
-    StandardisedNetworkPlotNodeCartography(adjM, coords, ... 
-        edge_thresh, NdCartDivOrd, 'MEA', char(Info.FN), '7', Params, lagval, e, lagFolder)
-
-    % add node cartography results to existing experiment file 
-    nodeCartVarsToSave = {'NCpn1', 'NCpn2','NCpn3','NCpn4','NCpn5','NCpn6'};
-    nodeCartVarsVals = {NCpn1, NCpn2, NCpn3, NCpn4, NCpn5, NCpn6};
     
-    for varCounter = 1:length(nodeCartVarsToSave)
-        lagValField = strcat('adjM', num2str(lagval(e)), 'mslag');
-        varName = nodeCartVarsToSave{varCounter};
-        NetMet.(lagValField).(varName) = nodeCartVarsVals{varCounter};
+    if aN >= Params.minNumberOfNodesToCalNetMet
+        % node cartography in circular plot
+        NdCartDivOrd = NdCartDiv(On);
+        StandardisedNetworkPlotNodeCartography(adjM, coords, ... 
+            edge_thresh, NdCartDivOrd, 'circular', char(Info.FN), '7', Params, lagval, e, lagFolder)
+
+        % node cartography in grid plot 
+        StandardisedNetworkPlotNodeCartography(adjM, coords, ... 
+            edge_thresh, NdCartDiv, 'MEA', char(Info.FN), '7', Params, lagval, e, lagFolder)
+
+        % add node cartography results to existing experiment file 
+        nodeCartVarsToSave = {'NCpn1', 'NCpn2','NCpn3','NCpn4','NCpn5','NCpn6'};
+        nodeCartVarsVals = {NCpn1, NCpn2, NCpn3, NCpn4, NCpn5, NCpn6};
+
+        for varCounter = 1:length(nodeCartVarsToSave)
+            lagValField = strcat('adjM', num2str(lagval(e)), 'mslag');
+            varName = nodeCartVarsToSave{varCounter};
+            NetMet.(lagValField).(varName) = nodeCartVarsVals{varCounter};
+        end
+    else 
+        fprintf('Warning: not enough active nodes to plot node cartography \n')
     end
-    
 
 end 
 

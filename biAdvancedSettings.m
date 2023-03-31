@@ -66,47 +66,7 @@ option = 'list';
 % low firing rate)
 Params.rasterPlotUpperPercentile = 99;  
 
-%% Network analysis settings 
-Params.netMetToCal = {'ND', 'EW', 'NS', 'aN', 'Dens', 'Ci', 'Q', 'nMod', 'Eglob', ...,
-        'CC', 'PL' 'SW','SWw' 'Eloc', 'BC', 'PC' , 'PC_raw', 'Cmcblty', 'Z', ...
-        'NE', 'effRank', 'num_nnmf_components', 'nComponentsRelNS', ...
-        'aveControl', 'modalControl'};
-Params.excludeEdgesBelowThreshold = 1;
-Params.minNumberOfNodesToCalNetMet = 25;  % minimum number of nodes to calculate BC and other metrics
-Params.networkLevelNetMetToPlot = {'aN','Dens','CC','nMod','Q','PL','Eglob', ...
-    'SW','SWw', 'effRank', ...
-    'num_nnmf_components', 'nComponentsRelNS'};  % which network metric to plot at the network level 
-Params.networkLevelNetMetLabels = {
-    'network size', ... 
-    'density','clustering coefficient', ...
-    'number of modules', ... 
-    'modularity score', ...
-    'path length', ...
-    'global efficiency', ...
-    'small worldness \sigma', ... 
-    'small worldness \omega', ...
-    'Effective rank', ...
-    'Num NMF components', 'nNMF div network size'};
-Params.networkLevelNetMetCustomBounds = struct();
 
-% Set custom axis limits that matches with what can theoretically be
-% obtained
-Params.networkLevelNetMetCustomBounds.('effRank') = [1, nan];
-Params.networkLevelNetMetCustomBounds.('density') = [0, 1];
-Params.networkLevelNetMetCustomBounds.('num_nnmf_components') = [1, nan];
-Params.networkLevelNetMetCustomBounds.('aveControl') = [1, 1.5];
-Params.networkLevelNetMetCustomBounds.('modalControl') = [0.7, 1];
-
-Params.unitLevelNetMetToPlot = {'ND','MEW','NS','Z','Eloc','PC','BC', 'aveControl', 'modalControl'};
-Params.unitLevelNetMetLabels = {'node degree','edge weight','node strength', ... 
-    'within-module degree z-score', ... 
-    'local efficiency','participation coefficient','betweeness centrality', ...
-    'average controllability', 'modal controllability'}; 
-
-Params.includeNMFcomponents = 0;  % whether to save extracted components and original downsampled data
-
-% specify whether to include network plots scaled to all recordings 
-Params.includeNetMetScaledPlots = 1;
 
 %% Dimensionality calculation settings 
 Params.effRankCalMethod = 'covariance';
@@ -145,7 +105,7 @@ Params.minNodeSize = 0.1;  % minimum node size in network plots
 
 % Default mutichannel systems 8 x 8 layout
 %
-Params.includeChannelNumberInPlots = 1;  % whether to plot channel ID in heatmaps and node plots
+Params.includeChannelNumberInPlots = 0;  % whether to plot channel ID in heatmaps and node plots
 
 
 if strcmp(Params.channelLayout, 'MCS60old')
@@ -302,7 +262,7 @@ Params.coords  = Params.coords * 8;  % Do not remove this line after specifying 
 
 %% Plotting : colormap settings 
 % Network plot colormap bounds 
-Params.use_theoretical_bounds = 1;
+Params.use_theoretical_bounds = 0;
 Params.use_min_max_all_recording_bounds = 0;
 Params.use_min_max_per_genotype_bounds = 0;
 
@@ -324,3 +284,64 @@ else
 
     end 
 end 
+
+%% Plotting : ordering of groups for statistical summary plots 
+Params.customGrpOrder = {}; % eg. {'WT', 'HE', 'KO'};  % leave as empty {} if to use default alphabetical order
+
+%% Plotting : stats summary settings 
+
+Params.linePlotShadeMetric = 'sem';  % 'std' or 'sem'
+
+%% Network analysis settings 
+Params.netMetToCal = {'ND', 'EW', 'NS', 'aN', 'Dens', 'Ci', 'Q', 'nMod', 'Eglob', ...,
+        'CC', 'PL' 'SW','SWw' 'Eloc', 'BC', 'PC' , 'PC_raw', 'Cmcblty', 'Z', ...
+        'NE', 'effRank', 'num_nnmf_components', 'nComponentsRelNS', ...
+        'aveControl', 'modalControl'};
+Params.excludeEdgesBelowThreshold = 1;
+Params.minNumberOfNodesToCalNetMet = 25;  % minimum number of nodes to calculate BC and other metrics
+Params.networkLevelNetMetToPlot = {'aN','Dens','CC','nMod','Q','PL','Eglob', ...
+    'SW','SWw', 'effRank', ...
+    'num_nnmf_components', 'nComponentsRelNS'};  % which network metric to plot at the network level 
+Params.networkLevelNetMetLabels = {
+    'network size', ... 
+    'density','clustering coefficient', ...
+    'number of modules', ... 
+    'modularity score', ...
+    'path length', ...
+    'global efficiency', ...
+    'small worldness \sigma', ... 
+    'small worldness \omega', ...
+    'Effective rank', ...
+    'Num NMF components', 'nNMF div network size'};
+Params.networkLevelNetMetCustomBounds = struct();
+
+% Set custom axis limits that matches with what can theoretically be
+% obtained (This applies to the group comparison violin plots)
+Params.networkLevelNetMetCustomBounds.('effRank') = [1, nan];
+Params.networkLevelNetMetCustomBounds.('Dens') = [0, 1];  % density
+Params.networkLevelNetMetCustomBounds.('num_nnmf_components') = [1, nan];
+Params.networkLevelNetMetCustomBounds.('aveControl') = [1, 1.5];
+Params.networkLevelNetMetCustomBounds.('modalControl') = [0.6, 1];
+Params.networkLevelNetMetCustomBounds.('ND') = [0, length(Params.channels) -1];
+Params.networkLevelNetMetCustomBounds.('Eloc') = [0, nan];
+Params.networkLevelNetMetCustomBounds.('EW') = [0, nan];
+Params.networkLevelNetMetCustomBounds.('NS') = [0, nan];
+Params.networkLevelNetMetCustomBounds.('BC') = [0, 1];
+Params.networkLevelNetMetCustomBounds.('CC') = [0, 1];
+Params.networkLevelNetMetCustomBounds.('nMod') = [0, nan];
+Params.networkLevelNetMetCustomBounds.('Q') = [0, nan];
+Params.networkLevelNetMetCustomBounds.('PL') = [0, nan];
+Params.networkLevelNetMetCustomBounds.('Eglob') = [0, 1];
+Params.networkLevelNetMetCustomBounds.('effRank') = [1, length(Params.channels)];
+Params.networkLevelNetMetCustomBounds.('nComponentsRelNS') = [0, 1];
+
+Params.unitLevelNetMetToPlot = {'ND','MEW','NS','Z','Eloc','PC','BC', 'aveControl', 'modalControl'};
+Params.unitLevelNetMetLabels = {'node degree','edge weight','node strength', ... 
+    'within-module degree z-score', ... 
+    'local efficiency','participation coefficient','betweeness centrality', ...
+    'average controllability', 'modal controllability'}; 
+
+Params.includeNMFcomponents = 0;  % whether to save extracted components and original downsampled data
+
+% specify whether to include network plots scaled to all recordings 
+Params.includeNetMetScaledPlots = 1;

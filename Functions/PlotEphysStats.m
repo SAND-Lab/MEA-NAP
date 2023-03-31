@@ -51,19 +51,23 @@ eMetCustomBounds = { ...
 'mean ISI within network burst (ms)', [0, nan]; ...
 'mean ISI outside network bursts (ms)', [0, nan]; ...
 'coefficient of variation of inter network burst intervals', [0, nan]; ...
-'fraction of in network bursts', [0, 1]};
+'fraction of in network bursts', [0, 1]; ... 
+'mean number of channels involved in network bursts', [0, nan]; ... 
+};
 
 metricsWCustomBounds = eMetCustomBounds(:, 1);
 
 %% groups and DIV
 
-Grps = Params.GrpNm;
+if ~isempty(Params.customGrpOrder)
+    Grps = Params.customGrpOrder;
+else
+    Grps = Params.GrpNm;
+end 
+
 AgeDiv = Params.DivNm;
 
-if strcmp(char(Grps{1}),'HET') && strcmp(char(Grps{2}),'KO') && strcmp(char(Grps{3}),'WT')
-   clear Grps
-   Grps{1} = 'WT'; Grps{2} = 'HET'; Grps{3} = 'KO';
-end
+
 
 %% Variable names
 
@@ -456,7 +460,11 @@ halfViolinPlotByDivFolder = fullfile(Params.outputDataFolder, strcat('OutputData
     '2_NeuronalActivity', '2B_GroupComparisons', '4_RecordingsByAge', 'HalfViolinPlots');
 
 eMet = NetMetricsE; 
-eMetl = {'number of active electrodes','mean firing rate (Hz)','median firing rate (Hz)','network burst rate (per minute)','mean number of channels involved in network bursts','mean network burst length (s)','mean ISI within network burst (ms)','mean ISI outside network bursts (ms)','coefficient of variation of inter network burst intervals','fraction of in network bursts'}; 
+eMetl = {'number of active electrodes','mean firing rate (Hz)','median firing rate (Hz)', ...
+    'network burst rate (per minute)','mean number of channels involved in network bursts', ... 
+    'mean network burst length (s)','mean ISI within network burst (ms)', ... 
+    'mean ISI outside network bursts (ms)','coefficient of variation of inter network burst intervals', ...
+    'fraction of in network bursts'}; 
 
 p = [100 100 1300 600]; 
 set(0, 'DefaultFigurePosition', p)
@@ -537,6 +545,7 @@ eMetl = {'mean firing rate per electrode (Hz)'};
 p = [100 100 1300 600]; 
 set(0, 'DefaultFigurePosition', p)
 
+allPlotDat = [];
 for n = 1:length(eMet)
     F1 = figure;
     eMeti = char(eMet(n));
@@ -554,6 +563,7 @@ for n = 1:length(eMet)
                 continue
             else
                 eval(['HalfViolinPlot(PlotDat,xt(d),cDiv' num2str(d) ',0.3)']);
+                allPlotDat = [allPlotDat; PlotDat]; 
             end
             clear DatTemp ValMean ValStd UpperStd LowerStd
             xtlabtext{d} = num2str(AgeDiv(d));
@@ -571,7 +581,9 @@ for n = 1:length(eMet)
     aesthetics
     set(gca,'TickDir','out');
     set(findall(gcf,'-property','FontSize'),'FontSize',9)
-
+    % set hard lower bound to be zero for firing rate 
+    maxPlotDat = max(PlotDat);
+    ylim([0, maxPlotDat])
     figName = strcat(num2str(n),'_',char(eMetl(n)));
     figPath = fullfile(halfViolinPlotNodeByGroupFolder, figName);
     pipelineSaveFig(figPath, Params.figExt, Params.fullSVG, F1);
