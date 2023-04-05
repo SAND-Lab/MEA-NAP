@@ -7,6 +7,7 @@ plotTimeRange = [0, 60];  % in seconds
 filterTrace = 1;  % 0 : plot raw trace, 1 : plot filtered trace
 filterLowPass = 600;
 filterHighPass = 8000;
+traceColor = 'black';
 
 data = load(fullfile(rawDataFolder, fileName));
 
@@ -29,7 +30,7 @@ end
 
 figure 
 
-plot(secTimeBins, channelTrace(plotTimeSamplesRange(1):plotTimeSamplesRange(2)))
+plot(secTimeBins, channelTrace(plotTimeSamplesRange(1):plotTimeSamplesRange(2)), 'color', traceColor)
 xlabel('Time (seconds)')
 title(sprintf('Channel %.f', channelNameToPlot));
 
