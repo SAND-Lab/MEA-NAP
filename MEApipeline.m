@@ -407,6 +407,9 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
 
     end
     
+    % save and export network data to spreadsheet
+    saveNetMet(ExpName, Params, HomeDir)
+    
     % Make network plots with shared colorbar and edge weight widths etc.
     outputDataDateFolder = fullfile(Params.outputDataFolder, ...
         strcat('OutputData', Params.Date));
@@ -444,8 +447,6 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
     
     % create combined plots
     PlotNetMet(ExpName, Params, HomeDir)
-    % save and export network data to spreadsheet
-    saveNetMet(ExpName, Params, HomeDir)
     
     if Params.includeNMFcomponents
         % Plot NMF 
