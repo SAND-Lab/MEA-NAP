@@ -74,6 +74,14 @@ for e = 1:length(lagval)
     NCpn5 = PopNumNC(5)/aN;
     NCpn6 = PopNumNC(6)/aN;
     
+    NCpn1count = PopNumNC(1);
+    NCpn2count = PopNumNC(2);
+    NCpn3count = PopNumNC(3);
+    NCpn4count = PopNumNC(4);
+    NCpn5count = PopNumNC(5);
+    NCpn6count = PopNumNC(6);
+    
+    
     if aN >= Params.minNumberOfNodesToCalNetMet
         % node cartography in circular plot
         NdCartDivOrd = NdCartDiv(On);
@@ -85,7 +93,9 @@ for e = 1:length(lagval)
             edge_thresh, NdCartDiv, 'MEA', char(Info.FN), '7', Params, lagval, e, lagFolder)
 
         % add node cartography results to existing experiment file 
-        nodeCartVarsToSave = {'NCpn1', 'NCpn2','NCpn3','NCpn4','NCpn5','NCpn6'};
+        nodeCartVarsToSave = {'NCpn1', 'NCpn2','NCpn3','NCpn4','NCpn5','NCpn6', ...
+                              'NCpn1count', 'NCpn2count', 'NCpn3count', ...
+                              'NCpn4count', 'NCpn5count', 'NCpn6count'};
         nodeCartVarsVals = {NCpn1, NCpn2, NCpn3, NCpn4, NCpn5, NCpn6};
 
         for varCounter = 1:length(nodeCartVarsToSave)
@@ -95,6 +105,15 @@ for e = 1:length(lagval)
         end
     else 
         fprintf('Warning: not enough active nodes to plot node cartography \n')
+        % add NaNs to the NCpn fields
+        nodeCartVarsToSave = {'NCpn1', 'NCpn2','NCpn3','NCpn4','NCpn5','NCpn6', ...
+                              'NCpn1count', 'NCpn2count', 'NCpn3count', ...
+                              'NCpn4count', 'NCpn5count', 'NCpn6count'};
+        for varCounter = 1:length(nodeCartVarsToSave)
+            lagValField = strcat('adjM', num2str(lagval(e)), 'mslag');
+            varName = nodeCartVarsToSave{varCounter};
+            NetMet.(lagValField).(varName) = nan;
+        end
     end
 
 end 
