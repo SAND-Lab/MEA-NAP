@@ -8,22 +8,22 @@
 % https://analysis-pipeline.readthedocs.io/en/latest/pipeline-steps.html#pipeline-settings
 
 % Directories
-HomeDir = '/home/gridsan/doluigbo/AnalysisPipeline'; % Where the Aanlysis pipeline code is located
+HomeDir = '[INPUT_REQUIRED]'; % Where the Aanlysis pipeline code is located
 Params.outputDataFolder = '';   % Where to save the output data, leave as '' if same as HomeDir 
-rawData = '/home/gridsan/doluigbo/AnalysisPipeline/MAT Files';  % path to raw data .mat files
-Params.priorAnalysisPath = ['/home/gridsan/doluigbo/AnalysisPipeline/OutputData05Oct2022'];  % path to prev analysis, leave as [''] if no prior anlaysis
-spikeDetectedData = '/home/gridsan/doluigbo/AnalysisPipeline/OutputData05Oct2022'; % path to spike-detected data, leave as '' if no previously detected spike data
+rawData = '[INPUT REQUIRED]';  % path to raw data .mat files
+Params.priorAnalysisPath = [''];  % path to prev analysis, leave as [''] if no prior anlaysis
+spikeDetectedData = ''; % path to spike-detected data, leave as '' if no previously detected spike data
 
 % Input and output filetype
 spreadsheet_file_type = 'csv'; % 'csv' or 'excel'
-spreadsheet_filename = 'Pipeline_Test_1.csv'; 
+spreadsheet_filename = '[INPUT_REQUIRED].csv'; 
 sheet = 1; % specify excel sheet
 xlRange = 'A2:C7'; % specify range on the sheet (e.g., 'A2:C7' would analyse the first 6 files)
 csvRange = [2, Inf]; % read the data in the range [StartRow EndRow], e.g. [2 Inf] means start reading data from row 2
 Params.output_spreadsheet_file_type = 'csv';  % .xlsx or .csv
 
 % Analysis step settings
-Params.priorAnalysisDate = '05Oct2022'; % prior analysis date in format given in output data folder e.g., '27Sep2021'
+Params.priorAnalysisDate = ''; % prior analysis date in format given in output data folder e.g., '27Sep2021'
 Params.priorAnalysis = 0; % use previously analysed data? 1 = yes, 0 = no
 Params.startAnalysisStep = 1; % if Params.priorAnalysis=0, default is to start with spike detection
 Params.optionalStepsToRun = {''}; % include 'generateCSV' to generate csv for rawData folder
@@ -32,14 +32,14 @@ Params.optionalStepsToRun = {''}; % include 'generateCSV' to generate csv for ra
                                   % include 'combineDIVplots' to combine plots across DIVs
 
 % Spike detection settings
-detectSpikes = 1; % run spike detection? % 1 = yes, 0 = no
+detectSpikes = 0; % run spike detection? % 1 = yes, 0 = no
 Params.runSpikeCheckOnPrevSpikeData = 0; % whether to run spike detection check without spike detection 
-Params.fs = 12500; % Sampling frequency, HPC: 25000, Axion: 12500;
-Params.dSampF = 12500; % down sampling factor for spike detection check
+Params.fs = 25000; % Sampling frequency, HPC: 25000, Axion: 12500;
+Params.dSampF = 25000; % down sampling factor for spike detection check
 Params.potentialDifferenceUnit = 'uV';  % the unit which you are recording electrical signals 
-Params.channelLayout = 'Axion64';  % 'MCS60' or 'Axion64' or 'MCS60old'
-Params.thresholds = {'3.5'}; % standard deviation multiplier threshold(s), eg. {'2.5', '3.5', '4.5'}
-Params.wnameList = {'bior1.5'}; % wavelet methods to use {'bior1.5', 'mea'}; 
+Params.channelLayout = 'MCS60';  % 'MCS60' or 'Axion64' or 'MCS60old'
+Params.thresholds = {'4', '5'}; % standard deviation multiplier threshold(s), eg. {'2.5', '3.5', '4.5'}
+Params.wnameList = {'bior1.5', 'bior1.3', 'db2'}; % wavelet methods to use {'bior1.5', 'mea'}; 
 Params.costList = -0.12;
 Params.SpikesMethod = 'bior1p5';  % wavelet methods, eg. 'bior1p5', or 'mergedAll', or 'mergedWavelet'
 
