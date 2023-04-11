@@ -150,7 +150,25 @@ for e = 1:length(lagval)
     % plot properties
     plotConnectivityProperties(adjM, e, lagval, maxSTTC, meanSTTC, ...
         ND, NS, MEW, char(Info.FN),Params, lagFolderName)
-  
+    
+    
+    % mean node degree of the network 
+    NDmean = nanmean(ND);
+    
+    % mean node degree of the top 25% of the nodes by node degree 
+    ND75thpercentile = prctile(ND, 75);
+    NDtop25 = mean(ND(ND >= ND75thpercentile));
+    
+    % mean of the significant edges
+    sigEdges = adjM(abs(adjM) > 0);
+    sigEdgesMean = mean(sigEdges);
+    
+    % mean of the top 10 percentile of significant edges
+    sigEdges90thpercentile = prctile(sigEdges, 90); 
+    sigEdgesTop10 = mean(sigEdges(sigEdges >= sigEdges90thpercentile));
+    
+    % mean node strength 
+    NSmean = nanmean(NS);
     
     %% if option stipulates binary adjM, binarise the matrix
     
@@ -207,6 +225,9 @@ for e = 1:length(lagval)
             adjM_nrm = weight_conversion(adjM, 'normalize');
             Eloc = efficiency_bin(adjM_nrm,2);
         end
+        
+        % mean local efficiency across nodes
+        ElocMean = mean(Eloc);
    
         % betweenness centrality
         %   Note: Betweenness centrality may be normalised to the range [0,1] as
@@ -219,7 +240,9 @@ for e = 1:length(lagval)
             BC = betweenness_bin(adjM);
         end
         BC = BC/((length(adjM)-1)*(length(adjM)-2));
-    
+        
+        BC95thpercentile = prctile(BC, 95);
+        BCmeantop5 = mean(BC(BC >= BC95thpercentile));
 else
      fprintf('Not enough nodes to calculate network metrics! \n')
      SW = nan;
@@ -227,7 +250,9 @@ else
      CC = nan;
      PL = nan;
      Eloc = nan;
+     ElocMean = nan;
      BC = nan;
+     BCmeantop5 = nan;
  end
     
     % participation coefficient
@@ -236,10 +261,30 @@ else
         [PC,~,~,~] = participation_coef_norm(adjM,Ci);
         % within module degree z-score
         Z = module_degree_zscore(adjM,Ci,0);
+        
+        % percentage of within-module z-score greater and less than zero
+        percentZscoreGreaterThanZero = sum(Z > 0) / length(Z) * 100;
+        percentZscoreLessThanZero = sum(Z < 0) / length(Z) * 100;
+        
+        % mean participation coefficient 
+        PCmean = mean(PC);
+        PC90thpercentile = prctile(PC, 90);
+        PC10thpercentile = prctile(PC, 10);
+        PCmeanTop10 = mean(PC(PC >= PC90thpercentile));
+        PCmeanBottom10 = mean(PC(PC <= PC10thpercentile));
+        
     else 
         PC = nan;
         Z = nan;
+        
+        percentZscoreGreaterThanZero = nan;
+        percentZscoreLessThanZero = nan;
+        PCmean = nan;
+        PCmeanTop10 = nan;
+        PCmeanBottom10 = nan;
     end 
+    
+
     
     %% nodal efficiency
     
@@ -340,19 +385,40 @@ else
     %% Calculate average and modal controllability 
     if any(strcmp(netMetToCal, 'aveControl'))
         aveControl = ave_control(adjM);
+        
+        aveControlMean = mean(aveControl);
+        aveControl75thpercentile = prctile(aveControl, 75);
+        aveControlTop25 = mean(aveControlMean(aveControlMean >= aveControl75thpercentile));
+        
         NetMet.(strcat('adjM',num2str(lagval(e)),'mslag')).aveControl = aveControl;
+        NetMet.(strcat('adjM',num2str(lagval(e)),'mslag')).aveControlTop25 = aveControlTop25;
     end 
 
     if any(strcmp(netMetToCal, 'modalControl'))
         modalControl = modal_control(adjM);
+        
+        modalControlMean = mean(modalControl);
+        modalControlThreshold = 0.975;
+        modalControlPrctLessThanThreshold = sum(modalControl < modalControlThreshold) / length(modalControl);
+        
         NetMet.(strcat('adjM',num2str(lagval(e)),'mslag')).modalControl = modalControl;
+        NetMet.(strcat('adjM',num2str(lagval(e)),'mslag')).modalControlMean = modalControlMean;
+        NetMet.(strcat('adjM',num2str(lagval(e)),'mslag')).modalControlPrctLessThanThreshold = modalControlPrctLessThanThreshold;
     end 
 
     
     %% reassign to structures
     
-    Var = {'ND', 'MEW', 'NS', 'aN', 'Dens', 'Ci', 'Q', 'nMod', 'Eglob', ...,
-        'CC', 'PL' 'SW','SWw' 'Eloc', 'BC', 'PC' , 'PC_raw', 'Cmcblty', 'Z', ...
+    Var = {'ND', 'NDmean', 'NDtop25', ...
+          'MEW', 'sigEdgesMean', 'sigEdgesTop10', ...
+          'NS', 'NSmean', ...
+          'aN', 'Dens', 'Ci', 'Q', 'nMod', 'Eglob', ...,
+        'CC', 'PL' 'SW','SWw', ...
+        'Eloc', 'ElocMean', ...
+        'BC', 'BCmeantop5', ...
+        'PC' , 'PC_raw', 'PCmean', 'PCmeanTop10', 'PCmeanBottom10', ...
+        'Cmcblty', ...
+        'Z', 'percentZscoreGreaterThanZero', 'percentZscoreLessThanZero', ...
         'Hub4','Hub3', 'NE'};
 
     % 'NCpn1', 'NCpn2','NCpn3','NCpn4','NCpn5','NCpn6' were moved
