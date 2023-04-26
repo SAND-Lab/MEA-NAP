@@ -405,7 +405,12 @@ p = [100 100 1200 800]; % this can be ammended accordingly
 set(0, 'DefaultFigurePosition', p)
 
 if isfield(Params, 'oneFigure')
-    set(Params.oneFigure, 'Position', p);
+    if isgraphics(Params.oneFigure)
+        set(Params.oneFigure, 'Position', p);
+    else 
+        Params.oneFigure = figure;
+        set(Params.oneFigure, 'Position', p);
+    end 
 end 
 
 for n = 1:length(eMet)
@@ -484,6 +489,8 @@ for n = 1:length(eMet)
     for nFigExt = 1:length(Params.figExt)
         figName = strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),Params.figExt{nFigExt});
         figPath = fullfile(graphMetricByLagFolder, figName);
+        figPath = strrep(figPath, '>', 'greater than');
+        figPath = strrep(figPath, '<', 'less than');
         saveas(gcf, figPath);
     end 
 
@@ -705,6 +712,8 @@ for l = 1:length(Params.FuncConLagval)
         for nFigExt = 1:length(Params.figExt)
             figName = strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''), Params.figExt{nFigExt});
             figPath = fullfile(halfViolinPlotByGroupFolderPlusLag, figName);
+            figPath = strrep(figPath, '>', 'greater than');
+            figPath = strrep(figPath, '<', 'less than');
             saveas(gcf, figPath);
         end 
 
@@ -789,6 +798,8 @@ if Params.includeNotBoxPlots
             for nFigExt = 1:length(Params.figExt)
                 figName = strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),Params.figExt{nFigExt});
                 figPath = fullfile(notBoxPlotByDivFolderPlusLag, figName);
+                figPath = strrep(figPath, '>', 'greater than');
+                figPath = strrep(figPath, '<', 'less than');
                 saveas(gcf, figPath);
             end 
 
@@ -904,6 +915,8 @@ for l = 1:length(Params.FuncConLagval)
         for nFigExt = 1:length(Params.figExt)
             figName = strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),Params.figExt{nFigExt});
             figPath = fullfile(halfViolinPlotByDivFolderPlusLag, figName);
+            figPath = strrep(figPath, '>', 'greater than');
+            figPath = strrep(figPath, '<', 'less than');
             saveas(gcf, figPath);
         end 
 
@@ -981,6 +994,8 @@ for l = 1:length(Params.FuncConLagval)
         for nFigExt = 1:length(Params.figExt)
             figName = strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),Params.figExt{nFigExt});
             figPath = fullfile(nodeByGroupFolderPlusLag, figName);
+            figPath = strrep(figPath, '>', 'greater than');
+            figPath = strrep(figPath, '<', 'less than');
             saveas(gcf, figPath);
         end 
 
@@ -1061,6 +1076,8 @@ for l = 1:length(Params.FuncConLagval)
         for nFigExt = 1:length(Params.figExt)
             figName = strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),Params.figExt{nFigExt});
             figPath = fullfile(halfViolinPlotByAgeFolderPlusLag, figName);
+            figPath = strrep(figPath, '>', 'greater than');
+            figPath = strrep(figPath, '<', 'less than');
             saveas(gcf, figPath);
         end 
 
