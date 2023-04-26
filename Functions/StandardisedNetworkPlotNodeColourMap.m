@@ -281,14 +281,16 @@ if strcmp(plotType,'MEA')
             pos = [xc(i)-(0.5*nodeSize) yc(i)-(0.5*nodeSize) nodeSize nodeSize];
             if length(z2) > 1   % deal with z2 is nan due to network size being too small
                 if z2(i)>0
+                    % TODO: there is some subtracting / adding small
+                    % numbers here because ceil() is a bit too sensitive
                     try
                         rectangle('Position',pos,'Curvature',[1 1],'FaceColor', ... 
-                            mycolours(ceil(length(mycolours)*((z2(i)-z2_min)/(z2_max-z2_min))),1:3), ...
+                            mycolours(ceil(length(mycolours)*((z2(i)-z2_min)/(z2_max-z2_min)) - 0.00001),1:3), ...
                             'EdgeColor','w','LineWidth',0.1)
 
                     catch
                         rectangle('Position',pos,'Curvature',[1 1],'FaceColor', ...
-                            mycolours(ceil(length(mycolours)*((z2(i)-z2_min)/(z2_max-z2_min))+0.00001),1:3),'EdgeColor','w','LineWidth',0.1)
+                             mycolours(ceil(length(mycolours)*((z2(i)-z2_min)/(z2_max-z2_min))+0.00001),1:3),'EdgeColor','w','LineWidth',0.1)
                     end
                 else
                     rectangle('Position',pos,'Curvature',[1 1],'FaceColor',mycolours(1,1:3),'EdgeColor','w','LineWidth',0.1)
@@ -424,9 +426,14 @@ if strcmp(plotType,'MEA')
 %     end 
    tickVals = linspace(z2_min, z2_max, num_ticks);
    round_decimal_places = ceil(-log10(z2_max - z2_min)) + 1;
-
-   for tickIndex = 1:num_ticks
-       cbar_ticklabels{tickIndex} = num2str(round(tickVals(tickIndex), round_decimal_places));
+   
+   if min(z2) == 0 && max(z2) == 0
+        % fix for when all values are zeros
+        cbar_ticklabels = {'0', '1'};
+   else
+       for tickIndex = 1:num_ticks
+           cbar_ticklabels{tickIndex} = num2str(round(tickVals(tickIndex), round_decimal_places));
+       end 
    end 
     
     cb.TickLabels = cbar_ticklabels;
@@ -483,8 +490,14 @@ if strcmp(plotType,'circular')
     num_ticks = length(cb.Ticks);
     round_decimal_places = ceil(-log10(max(z2) - min(z2))) + 1;
     tickVals = linspace(min(z2), max(z2), num_ticks);
-    for tickIndex = 1:num_ticks
-        cbar_ticklabels{tickIndex} = num2str(round(tickVals(tickIndex), round_decimal_places));
+    
+    if min(z2) == 0 && max(z2) == 0
+        % fix for when all values are zeros
+        cbar_ticklabels = {'0', '1'};
+    else
+        for tickIndex = 1:num_ticks
+            cbar_ticklabels{tickIndex} = num2str(round(tickVals(tickIndex), round_decimal_places));
+        end 
     end 
     
     cb.TickLabels = cbar_ticklabels;
