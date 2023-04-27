@@ -25,16 +25,15 @@ function plotSpikeDetectionChecks(spikeTimes,spikeDetectionResult,spikeWaveforms
 %     check plots
 % Returns 
 % -------
-% TODO: how does line 32 work? (seem to assume some file structure 
-% where the raw file is located...
 
 %}
 
 
 %% load raw voltage trace data
-raw_file_name = strcat(Info.FN,'.mat');
+raw_file_name = strcat(Info.FN{1},'.mat');
 
 if isfield(Info, 'rawData')
+    % get the full path of the raw data
     raw_file_name = fullfile(Info.rawData, raw_file_name);
 end 
 
@@ -133,7 +132,7 @@ xlabel('Time (minutes)');
 ylabel('Spiking frequency (Hz)');
 aesthetics
 set(gca,'TickDir','out');
-title({strcat(regexprep(FN,'_','','emptymatch')),' '});
+title({strcat(regexprep(Info.FN{1},'_','','emptymatch')),' '});
 legend boxoff
 
 % Export figure
@@ -225,7 +224,7 @@ hL = legend('Filtered voltage trace', methodsl{:});
 newPosition = [0.6 0.12 0.1 0.1];
 newUnits = 'normalized';
 set(hL,'Position', newPosition,'Units', newUnits,'Box','off');
-title({strcat(regexprep(FN,'_','','emptymatch')),' '});
+title({strcat(regexprep(Info.FN{1},'_','','emptymatch')),' '});
 
 
 % Export figure
@@ -258,7 +257,7 @@ else
 end 
 
 t = tiledlayout(2, ceil(length(methods)/2), 'tilespacing','none','padding','none');
-t.Title.String = {strcat(regexprep(FN,'_','','emptymatch')),' ',["Unique spikes by method from electrode " + channel]};
+t.Title.String = {strcat(regexprep(Info.FN{1},'_','','emptymatch')),' ',["Unique spikes by method from electrode " + channel]};
 for i = 1:length(methods)
     method = methods{i};
     if ~strcmp(method, 'all')
