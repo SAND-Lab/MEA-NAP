@@ -582,7 +582,12 @@ for n = 1:length(eMet)
     set(gca,'TickDir','out');
     set(findall(gcf,'-property','FontSize'),'FontSize',9)
     % set hard lower bound to be zero for firing rate 
-    maxPlotDat = max(PlotDat);
+    if isempty(PlotDat)
+        maxPlotDat = 1;
+    else 
+        maxPlotDat = nanmax(PlotDat);
+    end 
+        
     ylim([0, maxPlotDat])
     figName = strcat(num2str(n),'_',char(eMetl(n)));
     figPath = fullfile(halfViolinPlotNodeByGroupFolder, figName);
