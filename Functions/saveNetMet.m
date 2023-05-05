@@ -95,7 +95,12 @@ for i = 1:length(ExpName)
                 % identity is not correct here and will need to be included
                 % in future implementations including the electrode numbers
                 % in expData (Tim Sit 2023-01-07)
-                allElectrodeLevelData.Channel = [allElectrodeLevelData.Channel; expData.Info.channels(1:numElectrodes)];
+                if size(expData.Info.channels(1:numElectrodes), 1) == 1
+                    allElectrodeLevelData.Channel = [allElectrodeLevelData.Channel; expData.Info.channels(1:numElectrodes)'];
+                else
+                    allElectrodeLevelData.Channel = [allElectrodeLevelData.Channel; expData.Info.channels(1:numElectrodes)];
+                end
+                
                 allElectrodeLevelData.Lag = [allElectrodeLevelData.Lag; repmat(lag, numElectrodes, 1)]; 
      
             end 
