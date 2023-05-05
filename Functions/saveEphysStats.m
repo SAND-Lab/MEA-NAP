@@ -92,6 +92,12 @@ for i = 1:length(ExpName)
      
 end
 
+% transpose Channel when there is only one file, I haven't figured out what is the source of this (why
+% it is not an issue when there are multiple files)
+if length(ExpName) == 1 && size(allElectrodeLevelData.Channel, 1) == 1
+    allElectrodeLevelData.Channel = allElectrodeLevelData.Channel';
+end 
+
 outputDataDateFolder = fullfile(Params.outputDataFolder, ...
         strcat('OutputData',Params.Date));
     
