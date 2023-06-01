@@ -624,7 +624,7 @@ if any(strcmp(Params.optionalStepsToRun,'combineDIVplots'))
     groupFolders = folderNames(dirFlags);
     groupFolders = groupFolders(~ismember(groupFolders, {'.', '..'}));
     combinedPlotFolder = fullfile(Params.outputDataFolder, ['OutputData' Params.Date], ...
-        '4_NetworkActivity', '4B_GroupComparisons', '7_CombinedPlotsByDiv');
+        '4_NetworkActivity', '4B_GroupComparisons', '8_CombinedPlotsByDiv');
     if 1 - isfolder(combinedPlotFolder)
         mkdir(combinedPlotFolder)
     end 
