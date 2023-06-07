@@ -211,9 +211,8 @@ if ((Params.priorAnalysis == 0) || (Params.runSpikeCheckOnPrevSpikeData)) && (Pa
 end
 
 %% Step 2 - neuronal activity
-fprintf('Running step 2 of MEA-NAP: neuronal activity \n')
 if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisStep<3
-
+    fprintf('Running step 2 of MEA-NAP: neuronal activity \n')
     % Format spike data
     experimentMatFolderPath = fullfile(Params.outputDataFolder, ...
         strcat('OutputData',Params.Date), 'ExperimentMatFiles');
