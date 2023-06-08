@@ -357,6 +357,12 @@ for n = 1:length(eMet)
             end 
             
         end 
+        
+        if custom_bound_vec(1) == custom_bound_vec(2)
+            fprintf('WARNING: custom bound first value and second value are equal, adding one to deal with this \n')
+            custom_bound_vec(2) = custom_bound_vec(2) + 1;
+        end 
+        
         h(1).YLim = custom_bound_vec;
     end 
 
@@ -440,6 +446,12 @@ for n = 1:length(eMet)
                 custom_bound_vec(2) = max(all_group_eMet_vals);
             end 
         end 
+        
+        if custom_bound_vec(1) == custom_bound_vec(2)
+            fprintf('WARNING: custom bound first value and second value are equal, adding one to deal with this \n')
+            custom_bound_vec(2) = custom_bound_vec(2) + 1;
+        end 
+        
         h(1).YLim = custom_bound_vec;
     end 
 
@@ -520,6 +532,11 @@ for n = 1:length(eMet)
             else 
                 custom_bound_vec(2) = max(all_group_eMet_vals);
             end 
+        end 
+        
+        if custom_bound_vec(1) == custom_bound_vec(2)
+            fprintf('WARNING: custom bound first value and second value are equal, adding one to deal with this \n')
+            custom_bound_vec(2) = custom_bound_vec(2) + 1;
         end 
         h(1).YLim = custom_bound_vec;
     end 
