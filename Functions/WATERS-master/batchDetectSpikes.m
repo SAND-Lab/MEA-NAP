@@ -10,8 +10,9 @@ function batchDetectSpikes(dataPath, savePath, option, files, params)
 % savePath : str or character
 %     path to the folder where spike detection
 %             output will be saved
-% option: 
+% option : 
 %     pass either path to files ('path') or list of files ('list');
+% files : cell array 
 % 
 % params: structure
 %     [optional] argument to pass structure containing parameters;
