@@ -1,5 +1,5 @@
 function [F1, adjM, adjMci] = adjM_thr_checkreps_capop(spikeTimes, method, lag_ms, tail, fs,...
-    duration_s, rep_num)
+    duration_s, rep_num, oneFigureHandle)
 % Description: This function generates synthetic spike times from original
 % events and randomizes them using circular shift. All synthetic data is
 % created from existing events.
@@ -80,7 +80,7 @@ adjMi(isnan(adjMi)) = 0;
 
 repVal = a;
 genotype = 1;
-F1 = significance_distribution_plots(dist1,repVal,adjM,genotype);
+F1 = significance_distribution_plots(dist1,repVal,adjM,genotype, oneFigureHandle);
 
 % STATS TEST:
 % Threshold each element if >= top 'tail' % of data

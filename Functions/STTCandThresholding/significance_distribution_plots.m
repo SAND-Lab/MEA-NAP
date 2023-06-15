@@ -1,4 +1,4 @@
-function F1 = significance_distribution_plots(dist1,repVal,adjM,genotype)
+function F1 = significance_distribution_plots(dist1, repVal, adjM, genotype, oneFigureHandle)
 % H Smith, Cambridge, 2021
 % INPUTS:
 %   dist1 = Cell where dist1{i} is double size(adjM) where element value
@@ -15,7 +15,13 @@ function F1 = significance_distribution_plots(dist1,repVal,adjM,genotype)
 
 p = [20 20 1250 850];
 set(0, 'DefaultFigurePosition', p)
-F1 = figure;
+
+if ~exist('oneFigureHandle', 'var')
+    F1 = figure;
+else
+    F1 = oneFigureHandle;
+end 
+
 tiledlayout(3,5)
 % Colours
 if genotype == 1 % Wild-type

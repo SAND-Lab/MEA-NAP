@@ -63,7 +63,7 @@ function [Burst SpikeBurstNumber] = BurstDetectISIn(Spike, N, ISI_N)
 % ylabel 'Channel' 
 % 
  
-fprintf('Beginning burst detection.\n'); 
+% fprintf('Beginning burst detection.\n'); 
 % %% Find when the ISI_N burst condition is met 
  
  % Look both directions from each spike 
@@ -133,7 +133,7 @@ fprintf('Beginning burst detection.\n');
  
  % %% Assign Burst information 
  
- fprintf('Assigning Burst information.\n'); 
+ % fprintf('Assigning Burst information.\n'); 
  
  MaxBurstNumber = max(SpikeBurstNumber); 
  
@@ -152,9 +152,11 @@ fprintf('Beginning burst detection.\n');
     end 
  end 
  
- if length(Spike.T) > 0
-     fprintf('Finished burst detection using %0.2f minutes of spike data.\n', ... 
-     diff(Spike.T([1 end]))/60); 
- else 
-     fprintf('No spikes detected, burst detection not possible')
- end 
+ % if length(Spike.T) > 0
+ %    fprintf('Finished burst detection using %0.2f minutes of spike data.\n', ... 
+ %    diff(Spike.T([1 end]))/60); 
+ % else 
+ %    fprintf('No spikes detected, burst detection not possible')
+ % end 
+ 
+ 

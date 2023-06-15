@@ -1,4 +1,4 @@
-function findBasinsOfAttraction(DensityLandcape, gridx1, PCmin, PCmax, sigma, Params, fig_folder, add_fig_info)
+function findBasinsOfAttraction(DensityLandcape, gridx1, PCmin, PCmax, sigma, Params, fig_folder, add_fig_info, oneFigureHandle)
 
     % DL1_Zmin = 0.55;  % got these from gridx1(70) using original spacing
     % DL1_Zmax = -1.45; % got these from gridx1(110) using original spacing
@@ -21,7 +21,12 @@ function findBasinsOfAttraction(DensityLandcape, gridx1, PCmin, PCmax, sigma, Pa
     % imshow(Lrgb)
     p = [20 100 600 600];
     set(0, 'DefaultFigurePosition', p)
-    figure()
+    if Params.showOneFig 
+        set(oneFigureHandle, 'Position', p)
+    else
+       figure() 
+    end
+    
     imagesc([PCmin, PCmax], [DL1_Zmin, DL1_Zmax], L1)
     set(gca,'YDir','normal');
     xlabel('Participation Coefficient (PC)')
@@ -35,8 +40,12 @@ function findBasinsOfAttraction(DensityLandcape, gridx1, PCmin, PCmax, sigma, Pa
     for nFigExt = 1:length(Params.figExt)
         saveas(gcf,strcat([fig_fullpath, Params.figExt{nFigExt}]));
     end 
-
-    close(gcf)
+    
+    if Params.showOneFig
+        clf(oneFigureHandle)
+    else
+        close(gcf)
+    end
     
     DL2 = DensityLandcape(DL2_index_start:DL2_index_end,:);
     DL2 = DL2*-1;
@@ -46,7 +55,12 @@ function findBasinsOfAttraction(DensityLandcape, gridx1, PCmin, PCmax, sigma, Pa
     % imshow(Lrgb)
     p = [20 100 600 600];
     set(0, 'DefaultFigurePosition', p)
-    figure()
+    if Params.showOneFig 
+        set(oneFigureHandle, 'Position', p)
+    else
+       figure() 
+    end
+    
     imagesc([PCmin, PCmax], [DL2_Zmin, DL2_Zmax], L2)
     set(gca,'YDir','normal');
     xlabel('Participation Coefficient (PC)')
@@ -61,7 +75,11 @@ function findBasinsOfAttraction(DensityLandcape, gridx1, PCmin, PCmax, sigma, Pa
         saveas(gcf,strcat([fig_fullpath, Params.figExt{nFigExt}]));
     end 
 
-    close(gcf)
+    if Params.showOneFig
+        clf(oneFigureHandle)
+    else
+        close(gcf)
+    end
 
     % Plot the watershed on the whole thing 
     Zmin = -2;
@@ -74,7 +92,11 @@ function findBasinsOfAttraction(DensityLandcape, gridx1, PCmin, PCmax, sigma, Pa
     % imshow(Lrgb)
     p = [20 100 600 600];
     set(0, 'DefaultFigurePosition', p)
-    figure()
+    if Params.showOneFig 
+        set(oneFigureHandle, 'Position', p)
+    else
+       figure() 
+    end
     imagesc([PCmin, PCmax], [Zmin, Zmax], L3)
     set(gca,'YDir','normal');
     xlabel('Participation Coefficient (PC)')
@@ -90,7 +112,11 @@ function findBasinsOfAttraction(DensityLandcape, gridx1, PCmin, PCmax, sigma, Pa
         saveas(gcf,strcat([fig_fullpath, Params.figExt{nFigExt}]));
     end 
 
-    close(gcf)
+    if Params.showOneFig
+        clf(oneFigureHandle)
+    else
+        close(gcf)
+    end
 
    
 end 
