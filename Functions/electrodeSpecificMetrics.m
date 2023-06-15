@@ -1,4 +1,4 @@
-function [] = electrodeSpecificMetrics(ND, NS, MEW, Eloc, BC, PC, Z, lagval, e, FN, Params, figFolder)
+function [] = electrodeSpecificMetrics(ND, NS, MEW, Eloc, BC, PC, Z, lagval, e, FN, Params, figFolder, oneFigureHandle)
 % Plots electrode-level metrics for individual recordings
 % TODO: allow this to accept arbitrary number of parameters to plot, 
 % this allows easier extensions in the future.
@@ -15,17 +15,17 @@ function [] = electrodeSpecificMetrics(ND, NS, MEW, Eloc, BC, PC, Z, lagval, e, 
 p = [100 100 1400 550];
 set(0, 'DefaultFigurePosition', p)
 
-if ~isfield(Params, 'oneFigure')
+if ~Params.showOneFig
     F1 = figure;
 else 
-    set(Params.oneFigure, 'Position', p);
+    set(oneFigureHandle, 'Position', p);
 end 
 
 % clear figure before plotting
-if ~isfield(Params, 'oneFigure')
+if ~Params.showOneFig
     close all
 else 
-    set(0, 'CurrentFigure', Params.oneFigure);
+    set(0, 'CurrentFigure', oneFigureHandle);
     clf reset
 end 
 
@@ -159,10 +159,12 @@ end
 figName = strcat('8_adjM', num2str(lagval(e)),'msGraphMetricsByNode');
 figPath = fullfile(figFolder, figName);
 
-if ~isfield(Params, 'oneFigure')
+if ~Params.showOneFig
     pipelineSaveFig(figPath, Params.figExt, Params.fullSVG, F1);
+    close all
 else 
-    pipelineSaveFig(figPath, Params.figExt, Params.fullSVG, Params.oneFigure);
-end 
+    pipelineSaveFig(figPath, Params.figExt, Params.fullSVG, oneFigureHandle);
+    clf(oneFigureHandle)
+end
 
 end

@@ -1,4 +1,4 @@
-function [] = PlotNetMet(ExpName, Params, HomeDir)
+function [] = PlotNetMet(ExpName, Params, HomeDir, oneFigureHandle)
 % Plot network metrics for MEA data
 % 
 % Parameters 
@@ -404,13 +404,15 @@ end
 p = [100 100 1200 800]; % this can be ammended accordingly 
 set(0, 'DefaultFigurePosition', p)
 
-if isfield(Params, 'oneFigure')
-    if isgraphics(Params.oneFigure)
-        set(Params.oneFigure, 'Position', p);
+if Params.showOneFig
+    if isgraphics(oneFigureHandle)
+        set(oneFigureHandle, 'Position', p);
     else 
-        Params.oneFigure = figure;
-        set(Params.oneFigure, 'Position', p);
+        oneFigureHandle = figure;
+        set(oneFigureHandle, 'Position', p);
     end 
+else
+    figure
 end 
 
 for n = 1:length(eMet)
@@ -495,10 +497,10 @@ for n = 1:length(eMet)
     end 
 
     % Close figure or clear the one shared figures
-    if ~isfield(Params, 'oneFigure')
+    if ~Params.showOneFig
         close(gcf)
     else
-        set(0, 'CurrentFigure', Params.oneFigure);
+        set(0, 'CurrentFigure', oneFigureHandle);
         clf reset
     end 
 end
@@ -520,8 +522,8 @@ if Params.includeNotBoxPlots
     p = [100 100 1300 600]; 
     set(0, 'DefaultFigurePosition', p)
 
-    if isfield(Params, 'oneFigure')
-        set(Params.oneFigure, 'Position', p);
+    if Params.showOneFig
+        set(oneFigureHandle, 'Position', p);
     end 
 
     for l = 1:length(Params.FuncConLagval)
@@ -602,10 +604,10 @@ if Params.includeNotBoxPlots
             end 
 
             % Close figure or clear the one shared figures
-            if ~isfield(Params, 'oneFigure')
+            if ~Params.showOneFig
                 close(gcf)
             else
-                set(0, 'CurrentFigure', Params.oneFigure);
+                set(0, 'CurrentFigure', oneFigureHandle);
                 clf reset
             end 
         end
@@ -630,8 +632,8 @@ eMetl = Params.networkLevelNetMetLabels;
 p = [100 100 1300 600]; 
 set(0, 'DefaultFigurePosition', p)
 
-if isfield(Params, 'oneFigure')
-    set(Params.oneFigure, 'Position', p);
+if Params.showOneFig
+    set(oneFigureHandle, 'Position', p);
 end 
 
 for l = 1:length(Params.FuncConLagval)
@@ -642,7 +644,7 @@ for l = 1:length(Params.FuncConLagval)
     end 
 
     for n = 1:length(eMet)
-        if ~isfield(Params, 'oneFigure')
+        if ~Params.showOneFig
             F1 = figure;
         end 
         eMeti = char(eMet(n));
@@ -718,10 +720,10 @@ for l = 1:length(Params.FuncConLagval)
         end 
 
         % Close figure or clear the one shared figures
-        if ~isfield(Params, 'oneFigure')
+        if ~Params.showOneFig
             close(gcf)
         else
-            set(0, 'CurrentFigure', Params.oneFigure);
+            set(0, 'CurrentFigure', oneFigureHandle);
             clf reset
         end 
     end
@@ -747,8 +749,8 @@ if Params.includeNotBoxPlots
 
     p = [100 100 1300 600]; 
     set(0, 'DefaultFigurePosition', p)
-    if isfield(Params, 'oneFigure')
-        set(Params.oneFigure, 'Position', p);
+    if Params.showOneFig
+        set(oneFigureHandle, 'Position', p);
     end 
 
     for l = 1:length(Params.FuncConLagval)
@@ -804,10 +806,10 @@ if Params.includeNotBoxPlots
             end 
 
             % Close figure or clear the one shared figures
-            if ~isfield(Params, 'oneFigure')
+            if ~Params.showOneFig
                 close(gcf)
             else
-                set(0, 'CurrentFigure', Params.oneFigure);
+                set(0, 'CurrentFigure', oneFigureHandle);
                 clf reset
             end 
         end
@@ -834,8 +836,8 @@ end
 
 p = [100 100 1300 600]; 
 set(0, 'DefaultFigurePosition', p)
-if isfield(Params, 'oneFigure')
-    set(Params.oneFigure, 'Position', p);
+if Params.showOneFig
+    set(oneFigureHandle, 'Position', p);
 end 
 
 for l = 1:length(Params.FuncConLagval)
@@ -921,10 +923,10 @@ for l = 1:length(Params.FuncConLagval)
         end 
 
         % Close figure or clear the one shared figures
-        if ~isfield(Params, 'oneFigure')
+        if ~Params.showOneFig
             close(gcf)
         else
-            set(0, 'CurrentFigure', Params.oneFigure);
+            set(0, 'CurrentFigure', oneFigureHandle);
             clf reset
         end 
     end
@@ -941,8 +943,8 @@ eMetl = Params.unitLevelNetMetLabels;
 
 p = [100 100 1300 600]; 
 set(0, 'DefaultFigurePosition', p)
-if isfield(Params, 'oneFigure')
-    set(Params.oneFigure, 'Position', p);
+if Params.showOneFig
+    set(oneFigureHandle, 'Position', p);
 end 
 
 for l = 1:length(Params.FuncConLagval)
@@ -952,7 +954,7 @@ for l = 1:length(Params.FuncConLagval)
         mkdir(nodeByGroupFolderPlusLag)
     end 
     for n = 1:length(eMet)
-        if ~isfield(Params, 'oneFigure')
+        if ~Params.showOneFig
             F1 = figure;
         end 
         eMeti = char(eMet(n));
@@ -1000,10 +1002,10 @@ for l = 1:length(Params.FuncConLagval)
         end 
 
          % Close figure or clear the one shared figures
-        if ~isfield(Params, 'oneFigure')
+        if ~Params.showOneFig
             close(gcf)
         else
-            set(0, 'CurrentFigure', Params.oneFigure);
+            set(0, 'CurrentFigure', oneFigureHandle);
             clf reset
         end 
     end
@@ -1020,8 +1022,8 @@ eMetl = Params.unitLevelNetMetLabels;
 
 p = [100 100 1300 600]; 
 set(0, 'DefaultFigurePosition', p)
-if isfield(Params, 'oneFigure')
-    set(Params.oneFigure, 'Position', p);
+if Params.showOneFig
+    set(oneFigureHandle, 'Position', p);
 end 
 
 for l = 1:length(Params.FuncConLagval)
@@ -1082,10 +1084,10 @@ for l = 1:length(Params.FuncConLagval)
         end 
 
         % Close figure or clear the one shared figures
-        if ~isfield(Params, 'oneFigure')
+        if ~Params.showOneFig
             close(gcf)
         else
-            set(0, 'CurrentFigure', Params.oneFigure);
+            set(0, 'CurrentFigure', oneFigureHandle);
             clf reset
         end 
     end

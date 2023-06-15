@@ -1,4 +1,4 @@
-function [] = plotNodeCartographyProportions(NetMet, lagval, FN, Params, figFolder)
+function [] = plotNodeCartographyProportions(NetMet, lagval, FN, Params, figFolder, oneFigureHandle)
 % Plot proportion of nodes belonging to each node cartography group
 % Parameters
 % ----------
@@ -19,10 +19,10 @@ function [] = plotNodeCartographyProportions(NetMet, lagval, FN, Params, figFold
 p = [100 100 1200 600];
 set(0, 'DefaultFigurePosition', p)
 
-if ~isfield(Params, 'oneFigure')
+if ~Params.showOneFig
     figure();
 else 
-    set(Params.oneFigure, 'Position', p);
+    set(oneFigureHandle, 'Position', p);
 end 
 
 t = tiledlayout(1,2);
@@ -79,13 +79,17 @@ set(gca,'TickDir','out');
 
 figName = 'NodeCartographyProportions';
 figPath = fullfile(figFolder, figName);
-pipelineSaveFig(figPath, Params.figExt, Params.fullSVG);
 
+if Params.showOneFig 
+    pipelineSaveFig(figPath, Params.figExt, Params.fullSVG, oneFigureHandle);
+else
+    pipelineSaveFig(figPath, Params.figExt, Params.fullSVG);
+end
 
-if ~isfield(Params, 'oneFigure')
+if ~Params.showOneFig 
     close all
 else 
-    set(0, 'CurrentFigure', Params.oneFigure);
+    set(0, 'CurrentFigure', oneFigureHandle);
     clf reset
 end 
 

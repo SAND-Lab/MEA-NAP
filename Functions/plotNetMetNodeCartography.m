@@ -1,4 +1,4 @@
-function plotNetMetNodeCartography(combinedData, ExpName, Params,HomeDir, figFolder)
+function plotNetMetNodeCartography(combinedData, ExpName, Params,HomeDir, figFolder, oneFigureHandle)
 % Plots network node cartography of individual recordings
 % Parameters
 % ----------
@@ -38,12 +38,13 @@ eMet = {'NCpn1','NCpn2','NCpn3','NCpn4','NCpn5','NCpn6'};
 
 p = [100 100 1200 800]; % this can be ammended accordingly
 set(0, 'DefaultFigurePosition', p)
-if isfield(Params, 'oneFigure')
-    set(Params.oneFigure, 'Position', p);
+
+if Params.showOneFig
+    set(oneFigureHandle, 'Position', p);
 end 
 
 for l = 1:length(Params.FuncConLagval)
-    if ~isfield(Params, 'oneFigure')
+    if ~Params.showOneFig
         F1 = figure;
     end 
     xt = 1:length(AgeDiv);
@@ -103,13 +104,17 @@ for l = 1:length(Params.FuncConLagval)
     % Export figure
     figName = strcat(['NodeCartography', num2str(Params.FuncConLagval(l)), 'mslag']);
     figPath = fullfile(figFolder, figName);
-    pipelineSaveFig(figPath, Params.figExt, Params.fullSVG)
-
+    
+    if Params.showOneFig
+        pipelineSaveFig(figPath, Params.figExt, Params.fullSVG, oneFigureHandle)
+    else 
+        pipelineSaveFig(figPath, Params.figExt, Params.fullSVG)
+    end 
     % Close figure or clear the one shared figures
-    if ~isfield(Params, 'oneFigure')
+    if ~Params.showOneFig
         close(gcf)
     else
-        set(0, 'CurrentFigure', Params.oneFigure);
+        set(0, 'CurrentFigure', oneFigureHandle);
         clf reset
     end 
 end

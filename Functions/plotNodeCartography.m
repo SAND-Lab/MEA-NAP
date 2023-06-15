@@ -1,4 +1,4 @@
-function NetMet = plotNodeCartography(adjMs, Params, NetMet, Info, HomeDir, fileNameFolder)
+function NetMet = plotNodeCartography(adjMs, Params, NetMet, Info, HomeDir, fileNameFolder, oneFigureHandle)
 %
 % Parameters
 % ----------
@@ -63,7 +63,7 @@ for e = 1:length(lagval)
 
     % TODO Check if oneFigure object exists here, if not create it again 
     % Params.oneFigure = figure();
-    [NdCartDiv, PopNumNC] = NodeCartography(Z, PC, lagval, e, char(Info.FN), Params); 
+    [NdCartDiv, PopNumNC] = NodeCartography(Z, PC, lagval, e, char(Info.FN), Params, oneFigureHandle); 
 
     PopNumNCt(e,:) = PopNumNC;
     
@@ -86,11 +86,11 @@ for e = 1:length(lagval)
         % node cartography in circular plot
         NdCartDivOrd = NdCartDiv(On);
         StandardisedNetworkPlotNodeCartography(adjM, coords, ... 
-            edge_thresh, NdCartDivOrd, 'circular', char(Info.FN), '7', Params, lagval, e, lagFolder)
+            edge_thresh, NdCartDivOrd, 'circular', char(Info.FN), '7', Params, lagval, e, lagFolder, oneFigureHandle)
 
         % node cartography in grid plot 
         StandardisedNetworkPlotNodeCartography(adjM, coords, ... 
-            edge_thresh, NdCartDiv, 'MEA', char(Info.FN), '7', Params, lagval, e, lagFolder)
+            edge_thresh, NdCartDiv, 'MEA', char(Info.FN), '7', Params, lagval, e, lagFolder, oneFigureHandle)
 
         % add node cartography results to existing experiment file 
         nodeCartVarsToSave = {'NCpn1', 'NCpn2','NCpn3','NCpn4','NCpn5','NCpn6', ...
@@ -121,7 +121,7 @@ for e = 1:length(lagval)
 end 
 
 %% Plot node catography proportions 
-plotNodeCartographyProportions(NetMet, lagval, char(Info.FN), Params, lagFolder)
+plotNodeCartographyProportions(NetMet, lagval, char(Info.FN), Params, lagFolder, oneFigureHandle)
 
 
 end 

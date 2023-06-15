@@ -1,4 +1,4 @@
-function [NdCartDiv,PopNumNC] = NodeCartography(Z,PC,lagval,e,FN,Params)
+function [NdCartDiv,PopNumNC] = NodeCartography(Z,PC,lagval,e,FN,Params, oneFigureHandle)
 %   
 % node cartography 
 % see Guimera and Amaral, 2005
@@ -27,10 +27,10 @@ function [NdCartDiv,PopNumNC] = NodeCartography(Z,PC,lagval,e,FN,Params)
 p = [50 50 600 700];
 set(0, 'DefaultFigurePosition', p)
 
-if ~isfield(Params, 'oneFigure')
+if ~Params.showOneFig
     figure();
 else 
-    set(Params.oneFigure, 'Position', p);
+    set(oneFigureHandle, 'Position', p);
 end 
 
 t = tiledlayout(2,1);
@@ -160,10 +160,10 @@ for nFigExt = 1:length(Params.figExt)
     saveas(gcf,strcat(['9_adjM',num2str(lagval(e)),'msNodeCartography', Params.figExt{nFigExt}]));
 end 
 
-if ~isfield(Params, 'oneFigure')
+if ~Params.showOneFig
     close all
 else 
-    set(0, 'CurrentFigure', Params.oneFigure);
+    set(0, 'CurrentFigure', oneFigureHandle);
     clf reset
 end 
 
