@@ -1,4 +1,4 @@
-function [] = plotNullModelIterations(met, met2, lagval, e, FN, Params)
+function [] = plotNullModelIterations(met, met2, lagval, e, FN, Params, oneFigureHandle)
 %{
 
 Parameters
@@ -20,10 +20,10 @@ Returns
 p = [100 100 1000 600];
 set(0, 'DefaultFigurePosition', p)
 
-if ~isfield(Params, 'oneFigure')
+if ~Params.showOneFig
     figure();
 else 
-    set(Params.oneFigure, 'Position', p);
+    set(oneFigureHandle, 'Position', p);
 end 
 
 t = tiledlayout(2,1);
@@ -48,12 +48,17 @@ set(gca,'TickDir','out');
 
 %% save figure
 figName = strcat(['10_adjM', num2str(lagval(e)), 'msNullModels']);
-pipelineSaveFig(figName, Params.figExt, Params.fullSVG);
 
-if ~isfield(Params, 'oneFigure')
+if Params.showOneFig
+    pipelineSaveFig(figName, Params.figExt, Params.fullSVG, oneFigureHandle);
+else
+    pipelineSaveFig(figName, Params.figExt, Params.fullSVG);
+end 
+
+if ~Params.showOneFig
     close all
 else 
-    set(0, 'CurrentFigure', Params.oneFigure);
+    set(0, 'CurrentFigure', oneFigureHandle);
     clf reset
 end 
     

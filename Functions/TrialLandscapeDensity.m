@@ -1,5 +1,5 @@
 function [hubBoundaryWMdDeg, periPartCoef, proHubpartCoef, nonHubconnectorPartCoef, connectorHubPartCoef] = ...
-    TrialLandscapeDensity(ExpList, fig_folder, add_fig_info, cartographyLagVal)
+    TrialLandscapeDensity(ExpList, fig_folder, add_fig_info, cartographyLagVal, oneFigureHandle)
 %{
 This script calculates and plots the distribution 
 of Within-module Z-score (Z) and participation coefficient (PC)
@@ -64,7 +64,14 @@ for n = 1:length(ExpList)
 end
 
 % In case figure handles are loaded
-close all 
+if ~Params.showOneFig
+    close all 
+end 
+
+% fprintf('Size of Z is \n')
+% size(Z)
+% fprintf('Size of PC is \n')
+% size(PC)
 
 X = [Z,PC];
 
@@ -143,8 +150,14 @@ end
 
 
 % Plot the final automatically generated partitions 
-figure;
+if exist('oneFigureHandle', 'var')
+    % do nothing 
+else
+    figure;
+end
+
 scatter(PC, Z);
+
 hold on 
 yline(z_boundary)
 
@@ -175,7 +188,11 @@ for nFigExt = 1:length(Params.figExt)
     saveas(gcf,strcat([fig_fullpath, Params.figExt{nFigExt}]));
 end 
 
-close(gcf)
+if ~exist('oneFigureHandle', 'var')
+    close(gcf)
+else 
+    clf(oneFigureHandle)
+end 
 
 
 %% Add gaussian distribution
@@ -236,7 +253,13 @@ for n = 1:length(sigma)
     
     p = [20 100 1400 400];
     set(0, 'DefaultFigurePosition', p)
-    figure()
+    
+    if Params.showOneFig 
+       set(oneFigureHandle, 'Position', p);
+    else 
+       figure() 
+    end
+    
     subplot(1,length(bandw)+1,1)
     scatter(X(:,2),X(:,1),5,'filled')
     xlim([PCmin PCmax])
@@ -283,12 +306,16 @@ for n = 1:length(sigma)
     for nFigExt = 1:length(Params.figExt)
         saveas(gcf,strcat([fig_fullpath, Params.figExt{nFigExt}]));
     end 
-
-    close gcf 
+    
+    if Params.showOneFig
+        clf(oneFigureHandle)
+    else 
+        close gcf 
+    end 
 
     % Find basins of attraction for given 'DensityLandcape' matrix
     findBasinsOfAttraction(DensityLandcape, gridx1, PCmin, PCmax, ...
-        sigma, Params, fig_folder, add_fig_info);
+        sigma, Params, fig_folder, add_fig_info, oneFigureHandle);
 
 
     % TODO: work on putting everything in one figure handle

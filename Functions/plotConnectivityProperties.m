@@ -1,5 +1,5 @@
 function [] = plotConnectivityProperties(adjM, e, lagval, maxSTTC, meanSTTC, ... 
-    ND, NS, MEW, FN, Params, figFolder)
+    ND, NS, MEW, FN, Params, figFolder, oneFigureHandle)
 %
 % Plots connectivity properties given the adjacency matrix (adjM)
 % Parameters
@@ -26,15 +26,15 @@ function [] = plotConnectivityProperties(adjM, e, lagval, maxSTTC, meanSTTC, ...
 
 p = [10 10 1100 600];
 
-if ~isfield(Params, 'oneFigure')
+if ~Params.showOneFig
     F1 = figure;
     F1.OuterPosition = p;
     t = tiledlayout(6,6);
     t.Title.String = strcat(regexprep(FN,'_','','emptymatch'),{' '},num2str(lagval(e)),{' '},'ms',{' '},'lag');
 else 
     set(0, 'DefaultFigurePosition', p)
-    set(Params.oneFigure, 'Position', p);
-    t = tiledlayout(Params.oneFigure, 6,6);
+    set(oneFigureHandle, 'Position', p);
+    t = tiledlayout(oneFigureHandle, 6,6);
     t.Title.String = strcat(regexprep(FN,'_','','emptymatch'),{' '},num2str(lagval(e)),{' '},'ms',{' '},'lag');
     %title(strcat(regexprep(FN,'_','','emptymatch'),{' '},num2str(lagval(e)),{' '},'ms',{' '},'lag'));
 end 
@@ -101,17 +101,17 @@ set(gca,'TickDir','out');
 figName = strcat(['1_adjM', num2str(lagval(e)),'msConnectivityStats']);
 figPath = fullfile(figFolder, figName); 
 
-if ~isfield(Params, 'oneFigure')
+if ~Params.showOneFig
     pipelineSaveFig(figPath, Params.figExt, Params.fullSVG);
 else 
-    pipelineSaveFig(figPath, Params.figExt, Params.fullSVG, Params.oneFigure);
+    pipelineSaveFig(figPath, Params.figExt, Params.fullSVG, oneFigureHandle);
 end 
 
-if ~isfield(Params, 'oneFigure')
+if ~Params.showOneFig
     close all
 else 
     % Reset the oneFigure figure handle shared by all plots
-    set(0, 'CurrentFigure', Params.oneFigure);
+    set(0, 'CurrentFigure', oneFigureHandle);
     clf reset
 end
 

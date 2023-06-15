@@ -1,5 +1,5 @@
 function plotSpikeDetectionChecks(spikeTimes,spikeDetectionResult,spikeWaveforms, ... 
-    Info,Params, figFolder)
+    Info,Params, figFolder, oneFigureHandle)
 %
 % Make plots to check that spike detection worked properly, and plots
 % spike-related statistics such as the firing rate of each unit / recorded
@@ -92,10 +92,10 @@ trace = filtered_data(:, channel);
 p = [100 100 1200 600];
 set(0, 'DefaultFigurePosition', p)
 
-if ~isfield(Params, 'oneFigure')
-     F1 = figure;
+if ~Params.showOneFig
+    F1 = figure;
 else
-    Params.oneFigure.Position = p;
+    set(oneFigureHandle, 'Position', p);
 end 
 
 dSampF = Params.dSampF;
@@ -124,6 +124,7 @@ for i = 1:length(methods)
     %             plot(movmean(spk_vec_all, bin_s*fs), 'linewidth', 2)
     hold on
 end
+
 xticks((duration_s)/(duration_s/60):(duration_s)/(duration_s/60):duration_s)
 xticklabels({'1','2','3','4','5','6','7','8','9','10','11','12','13','14','15','16','17'})
 xlim([0 duration_s])
@@ -138,16 +139,16 @@ legend boxoff
 % Export figure
 figName = 'SpikeFrequencies';
 figFullPath = fullfile(figFolder, figName);
-if ~isfield(Params, 'oneFigure')
+if ~Params.showOneFig
     pipelineSaveFig(figFullPath, Params.figExt, Params.fullSVG, F1);
 else 
-    pipelineSaveFig(figFullPath, Params.figExt, Params.fullSVG, Params.oneFigure);
+    pipelineSaveFig(figFullPath, Params.figExt, Params.fullSVG, oneFigureHandle);
 end 
 
-if ~isfield(Params, 'oneFigure')
-    close all
+if ~Params.showOneFig 
+    close all 
 else 
-    set(0, 'CurrentFigure', Params.oneFigure);
+    set(0, 'CurrentFigure', oneFigureHandle);
     clf reset
 end 
 
@@ -155,10 +156,10 @@ end
 p = [100 100 1400 800];
 set(0, 'DefaultFigurePosition', p)
 
-if ~isfield(Params, 'oneFigure')
+if ~Params.showOneFig
     F1 = figure;
 else
-    Params.oneFigure.Position = p;
+    set(oneFigureHandle, 'Position', p);
 end 
 
 tiledlayout(5,2,'TileSpacing','Compact');
@@ -230,16 +231,16 @@ title({strcat(regexprep(Info.FN{1},'_','','emptymatch')),' '});
 % Export figure
 figName = 'ExampleTraces';
 figFullPath = fullfile(figFolder, figName);
-if ~isfield(Params, 'oneFigure')
+if ~Params.showOneFig
     pipelineSaveFig(figFullPath, Params.figExt, Params.fullSVG, F1);
 else 
-    pipelineSaveFig(figFullPath, Params.figExt, Params.fullSVG, Params.oneFigure);
+    pipelineSaveFig(figFullPath, Params.figExt, Params.fullSVG, oneFigureHandle);
 end 
 
-if ~isfield(Params, 'oneFigure')
+if ~Params.showOneFig
     close all
 else 
-    set(0, 'CurrentFigure', Params.oneFigure);
+    set(0, 'CurrentFigure', oneFigureHandle);
     clf reset
 end 
 
@@ -250,10 +251,10 @@ end
 p = [100 100 600 700];
 set(0, 'DefaultFigurePosition', p)
 
-if ~isfield(Params, 'oneFigure')
+if ~Params.showOneFig
     F1 = figure;
 else
-    Params.oneFigure.Position = p;
+    set(oneFigureHandle, 'Position', p);
 end 
 
 t = tiledlayout(2, ceil(length(methods)/2), 'tilespacing','none','padding','none');
@@ -301,16 +302,16 @@ end
 % Export figure
 figName = 'Waveforms';
 figFullPath = fullfile(figFolder, figName);
-if ~isfield(Params, 'oneFigure')
+if ~Params.showOneFig
     pipelineSaveFig(figFullPath, Params.figExt, Params.fullSVG, F1);
 else 
-    pipelineSaveFig(figFullPath, Params.figExt, Params.fullSVG, Params.oneFigure);
+    pipelineSaveFig(figFullPath, Params.figExt, Params.fullSVG, oneFigureHandle);
 end 
 
-if ~isfield(Params, 'oneFigure')
+if ~Params.showOneFig
     close all
 else 
-    set(0, 'CurrentFigure', Params.oneFigure);
+    set(0, 'CurrentFigure', oneFigureHandle);
     clf reset
 end 
 

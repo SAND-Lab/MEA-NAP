@@ -1,24 +1,32 @@
-function firingRateElectrodeDistribution(File, Ephys, Params, Info, figFolder)
-%{
+function firingRateElectrodeDistribution(File, Ephys, Params, Info, figFolder, oneFigureHandle)
+%
 % Plots the firing rate distribution across electrodes
-Parameters
-----------
-File : 
-Ephys : 
-Params : 
-Info : 
+% Parameters
+% ----------
+% File : 
+% Ephys : 
+% Params : 
+% Info : 
+% 
+% Returns
+% -------
+% None
 
-Returns
--------
-None
-
-%}
-
-% create a half violin plot of the firing rate for individual electrodes
+%% Create a half violin plot of the firing rate for individual electrodes
 
 p = [50 50 500 600];
 set(0, 'DefaultFigurePosition', p)
-F1 = figure;
+
+if Params.showOneFig
+    if isgraphics(oneFigureHandle)
+        set(oneFigureHandle, 'OuterPosition', p);
+    else 
+        oneFigureHandle = figure;
+        set(oneFigureHandle, 'OuterPosition', p);
+    end 
+else 
+    F1 = figure;
+end 
 
 HalfViolinPlot(Ephys.FR,1,[0.5 0.5 0.5],0.3)
 xlim([0.5 1.5])
@@ -37,8 +45,17 @@ ylim([0 max_ephys_fr+max_ephys_fr*0.15])
 %% save the figure
 figName = 'FiringRateByElectrode';
 figPath = fullfile(figFolder, figName);
-pipelineSaveFig(figPath, Params.figExt, Params.fullSVG);
 
-close(F1); 
+if Params.showOneFig
+    pipelineSaveFig(figPath, Params.figExt, Params.fullSVG, oneFigureHandle);
+else
+    pipelineSaveFig(figPath, Params.figExt, Params.fullSVG)
+end 
+
+if Params.showOneFig
+    clf(oneFigureHandle)
+else 
+    close(F1);
+end 
   
 end

@@ -1,4 +1,4 @@
-function [adjMs] = generateAdjMs(spikeTimes, ExN, Params, Info, HomeDir)
+function [adjMs, F1] = generateAdjMs(spikeTimes, ExN, Params, Info, HomeDir, oneFigureHandle)
 %
 % Create AdjM for a series of lag values
 % 
@@ -38,7 +38,7 @@ for p = 1:length(Params.FuncConLagval)
             % plot data over incresing repetition number to check stability of
             % probabilistic thresholding
             [F1, adjM, adjMci] = adjM_thr_checkreps(spikeTimes, Params.SpikesMethod, lag, Params.ProbThreshTail, Params.fs,...
-                Info.duration_s, Params.ProbThreshRepNum);
+                Info.duration_s, Params.ProbThreshRepNum, oneFigureHandle);
 
             % Export figure
             for nFigExt = 1:length(Params.figExt)
@@ -46,8 +46,12 @@ for p = 1:length(Params.FuncConLagval)
                 figPath = fullfile(figFolder, figName);
                 saveas(gcf, figPath);
             end 
-
-            close all
+            
+            if ~Params.showOneFig
+                close all
+            else
+                clf(F1)
+            end 
             
         else % otherwise just generate the adjM
             [adjM, adjMci] = adjM_thr_parallel(spikeTimes, Params.SpikesMethod, lag, Params.ProbThreshTail, Params.fs,...

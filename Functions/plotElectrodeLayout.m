@@ -1,15 +1,15 @@
-function plotElectrodeLayout(HomeDir, Params)
+function plotElectrodeLayout(HomeDir, Params, oneFigureHandle)
 %PLOTELECTRODELAYOUT Plots the layout of the electrodes specified in Params
 %   Detailed explanation goes here
 
 num_channels = size(Params.coords, 1);
 p = [100 100 1400 550];
 if Params.showOneFig 
-    if ~isfield(Params, 'oneFigure')
-        Params.oneFigure = figure;
+    if ~isgraphics(oneFigureHandle)
+        oneFigureHandle = figure;
     end 
     set(0, 'DefaultFigurePosition', p)
-    set(Params.oneFigure, 'Position', p);
+    set(oneFigureHandle, 'Position', p);
 else
     F1 = figure;
     set(0, 'DefaultFigurePosition', p)
@@ -46,16 +46,16 @@ figFolder = fullfile(HomeDir, strcat(['OutputData', Params.Date]));
 figName = 'channel_layout';
 figSavePath = fullfile(figFolder, figName);
 
-if ~isfield(Params, 'oneFigure')
+if ~Params.showOneFig
     pipelineSaveFig(figSavePath, Params.figExt, Params.fullSVG, F1);
 else 
-    pipelineSaveFig(figSavePath, Params.figExt, Params.fullSVG, Params.oneFigure);
+    pipelineSaveFig(figSavePath, Params.figExt, Params.fullSVG, oneFigureHandle);
 end 
 
-if ~isfield(Params, 'oneFigure')
+if ~Params.showOneFig
     close all
 else 
-    set(0, 'CurrentFigure', Params.oneFigure);
+    set(0, 'CurrentFigure', oneFigureHandle);
     clf reset
 end 
 

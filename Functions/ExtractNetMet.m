@@ -1,4 +1,4 @@
-function [NetMet] = ExtractNetMet(adjMs, spikeTimes, lagval,Info,HomeDir,Params, spikeMatrix)
+function [NetMet] = ExtractNetMet(adjMs, spikeTimes, lagval,Info,HomeDir,Params, spikeMatrix, oneFigureHandle)
 %
 % Extract network metrics from adjacency matrices for organoid data
 % 
@@ -149,7 +149,7 @@ for e = 1:length(lagval)
     
     % plot properties
     plotConnectivityProperties(adjM, e, lagval, maxSTTC, meanSTTC, ...
-        ND, NS, MEW, char(Info.FN),Params, lagFolderName)
+        ND, NS, MEW, char(Info.FN),Params, lagFolderName, oneFigureHandle)
     
     
     % mean node degree of the network 
@@ -209,7 +209,7 @@ for e = 1:length(lagval)
         ITER = 5000;
         [R, ~,met2] = randmio_und_v2(adjM, ITER,'SW');
     
-        plotNullModelIterations(met, met2, lagval, e, char(Info.FN), Params)
+        plotNullModelIterations(met, met2, lagval, e, char(Info.FN), Params, oneFigureHandle)
     
         %% Calculate network metrics (+normalization).
         

@@ -1,4 +1,4 @@
-function rasterPlot(File,spikeMatrix,Params,spikeFreqMax, figFolder)
+function rasterPlot(File,spikeMatrix,Params,spikeFreqMax, figFolder, oneFigureHandle)
 % creata a raster plot of the recording
 % Parameters 
 % -----------
@@ -26,7 +26,18 @@ downSpikeMatrix = downSampleSum(spikeMatrix, duration_s);
 
 p = [100 100 1500 800];
 set(0, 'DefaultFigurePosition', p)
-F1 = figure;
+
+if Params.showOneFig
+    if isgraphics(oneFigureHandle)
+        set(oneFigureHandle, 'Position', p);
+    else 
+        oneFigureHandle = figure;
+        set(oneFigureHandle, 'Position', p);
+    end 
+else 
+    F1 = figure;
+end 
+
 tiledlayout(2,1)
 
 nexttile
@@ -86,8 +97,18 @@ ax.TitleFontSizeMultiplier = 0.7;
 %% save the figure
 figName = 'Raster';
 figPath = fullfile(figFolder, figName);
-pipelineSaveFig(figPath, Params.figExt, Params.fullSVG);
 
-close(F1); 
+if Params.showOneFig
+    pipelineSaveFig(figPath, Params.figExt, Params.fullSVG, oneFigureHandle);
+else
+    pipelineSaveFig(figPath, Params.figExt, Params.fullSVG)
+end 
+
+if Params.showOneFig
+    clf(oneFigureHandle)
+else 
+    close(F1);
+end 
+
   
 end

@@ -1,5 +1,5 @@
 function figureHandle = StandardisedNetworkPlot(adjM, coords, edge_thresh, z, plotType, FN, pNum, ...
-    Params, lagval, e, figFolder)
+    Params, lagval, e, figFolder, figureHandle)
 % Plot the graph network 
 % Parameters
 % ----------
@@ -33,25 +33,27 @@ function figureHandle = StandardisedNetworkPlot(adjM, coords, edge_thresh, z, pl
 num_nodes = size(adjM, 2);
 
 %% plot
-
-if ~isfield(Params, 'oneFigure')
+p =  [50   100   660  550];
+if exist('figureHandle', 'var')
+    set(figureHandle, 'Position', p)
+elseif ~isfield(Params, 'oneFigure')
     F1 = figure;
-    F1.OuterPosition = [50   100   660  550];
+    F1.OuterPosition = p;
 else 
-    p =  [50   100   660  550];
     set(0, 'DefaultFigurePosition', p)
     % Params.oneFigure.OuterPosition = [50   100   660  550];
     set(Params.oneFigure, 'Position', p);
 end 
 
 % Close previous objects in figure
+%{
 if ~isfield(Params, 'oneFigure')
     close all
 else 
     set(0, 'CurrentFigure', Params.oneFigure);
     clf reset
 end 
-
+%}
 
 
 
@@ -416,7 +418,10 @@ end
 
 figName = strcat([pNum, '_', plotType, '_NetworkPlot']);
 figPath = fullfile(figFolder, figName);
-if ~isfield(Params, 'oneFigure')
+
+if exist('figureHandle', 'var')
+    pipelineSaveFig(figPath, Params.figExt, Params.fullSVG, figureHandle);
+elseif ~isfield(Params, 'oneFigure')
     pipelineSaveFig(figPath, Params.figExt, Params.fullSVG, F1);
 else 
     pipelineSaveFig(figPath, Params.figExt, Params.fullSVG, Params.oneFigure);
@@ -424,7 +429,9 @@ end
 
 
 %  output figure handle 
-if ~isfield(Params, 'oneFigure')
+if exist('figureHandle', 'var')
+    % do nothing
+elseif ~isfield(Params, 'oneFigure')
     figureHandle = F1;
 else 
     figureHandle = Params.oneFigure;

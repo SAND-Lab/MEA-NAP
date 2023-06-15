@@ -1,4 +1,4 @@
-function electrodeHeatMaps(FN, spikeMatrix, channels, spikeFreqMax, Params, figFolder)
+function electrodeHeatMaps(FN, spikeMatrix, channels, spikeFreqMax, Params, figFolder, oneFigureHandle)
 % Plots the firing rate of each node / electrode with a circle representing 
 % the spatial location of the electrode / node, and the color representing 
 % the firing rate (spikes/s)
@@ -34,9 +34,20 @@ function electrodeHeatMaps(FN, spikeMatrix, channels, spikeFreqMax, Params, figF
 % None 
 
 %% plot
+p = [50 100 1150 570];
 
-F1 = figure;
-F1.OuterPosition = [50 100 1150 570];
+if Params.showOneFig
+    if isgraphics(oneFigureHandle)
+        set(oneFigureHandle, 'OuterPosition', p);
+    else 
+        oneFigureHandle = figure;
+        set(oneFigureHandle, 'OuterPosition', p);
+    end 
+else 
+    F1 = figure;
+    F1.OuterPosition = p;
+end 
+
 tiledlayout(1,2)
 aesthetics; axis off; hold on
 
@@ -159,8 +170,18 @@ title({strcat(regexprep(FN,'_','','emptymatch'),' Electrode heatmap scaled to en
 % save figure
 figName = 'Heatmap';
 figPath = fullfile(figFolder, figName);
-pipelineSaveFig(figPath, Params.figExt, Params.fullSVG);
 
-close all;
+if Params.showOneFig
+    pipelineSaveFig(figPath, Params.figExt, Params.fullSVG, oneFigureHandle);
+else
+    pipelineSaveFig(figPath, Params.figExt, Params.fullSVG)
+end 
+
+if Params.showOneFig
+    clf(oneFigureHandle)
+else 
+    close(F1);
+end 
+
 
 end

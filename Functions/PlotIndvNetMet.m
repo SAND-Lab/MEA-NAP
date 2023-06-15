@@ -1,11 +1,13 @@
-function PlotIndvNetMet(expData, Params, Info)
+function PlotIndvNetMet(expData, Params, Info, oneFigureHandle)
 %PLOTINDVNETMET Creates network plot for individual recordings
 % Parameters
 % ----------
 % expData : struct 
 % Params : struct 
-% Info : struct 
-
+% Info : struct
+% 
+% Returns 
+% ----------
     
 
 %% electrode specific half violin plots
@@ -28,7 +30,7 @@ for e = 1:length(lagval)
     
     electrodeSpecificMetrics(lagNetMet.ND, lagNetMet.NS, lagNetMet.MEW, ...
         lagNetMet.Eloc, lagNetMet.BC, lagNetMet.PC, lagNetMet.Z, lagval, ... 
-            e, char(Info.FN), Params, lagFolderName)
+            e, char(Info.FN), Params, lagFolderName, oneFigureHandle)
     
     %% Network plots 
     
@@ -116,33 +118,50 @@ for e = 1:length(lagval)
         for networkPlotIdx = 1:length(colorMapMetricsToPlot)
             
             Params.useMinMaxBoundsForPlots = 0;
-            Params.oneFigure = figure;
+            
+            figureHandleOriginal = figure('visible', 'off');
+            
             
             if sum(isnan(colorMapMetricsToPlot{networkPlotIdx}))
                 figureHandleOriginal = StandardisedNetworkPlot(adjM, coords, edge_thresh, ...
                 nodeSizeMetricsToPlot{networkPlotIdx}, 'MEA', ...
-                char(Info.FN),sprintf('%s', plotPrefixes{networkPlotIdx}),Params,lagval,e, lagFolderName);
+                char(Info.FN),sprintf('%s', plotPrefixes{networkPlotIdx}),Params,lagval,e, lagFolderName, figureHandleOriginal);
             else 
                 [figureHandleOriginal, cbOriginal] = StandardisedNetworkPlotNodeColourMap(adjM, coords, edge_thresh, ...
                 nodeSizeMetricsToPlot{networkPlotIdx}, nodeSizeMetricName{networkPlotIdx}, ...
                 colorMapMetricsToPlot{networkPlotIdx}, colorMapMetricName{networkPlotIdx}, ...
-                'MEA', char(Info.FN), sprintf('%s', plotPrefixes{networkPlotIdx}), Params, lagval, e, lagFolderName);
+                'MEA', char(Info.FN), sprintf('%s', plotPrefixes{networkPlotIdx}), Params, lagval, e, lagFolderName, figureHandleOriginal);
+                % [figureHandleOriginal, cbOriginal] = StandardisedNetworkPlotNodeColourMap(adjM, coords, edge_thresh, ...
+                % nodeSizeMetricsToPlot{networkPlotIdx}, nodeSizeMetricName{networkPlotIdx}, ...
+                % colorMapMetricsToPlot{networkPlotIdx}, colorMapMetricName{networkPlotIdx}, ...
+                % 'MEA', char(Info.FN), sprintf('%s', plotPrefixes{networkPlotIdx}), Params, lagval, e, lagFolderName);
             end 
+            
 
-            Params.oneFigure = figure;
+            figureHandleScaled = figure('visible', 'off');
             Params.useMinMaxBoundsForPlots = 1;
             if sum(isnan(colorMapMetricsToPlot{networkPlotIdx}))
+                %
+                % figureHandleScaled = StandardisedNetworkPlot(adjM, coords, edge_thresh, ...
+                % nodeSizeMetricsToPlot{networkPlotIdx}, 'MEA', ...
+                % char(Info.FN), sprintf('%s_scaled', plotPrefixes{networkPlotIdx}), Params, lagval, e, lagFolderName);
+            
                 figureHandleScaled = StandardisedNetworkPlot(adjM, coords, edge_thresh, ...
                 nodeSizeMetricsToPlot{networkPlotIdx}, 'MEA', ...
-                char(Info.FN), sprintf('%s_scaled', plotPrefixes{networkPlotIdx}), Params, lagval, e, lagFolderName);
+                char(Info.FN), sprintf('%s_scaled', plotPrefixes{networkPlotIdx}), Params, lagval, e, lagFolderName, figureHandleScaled);
             else 
-                [figureHandleScaled, cbScaled] = StandardisedNetworkPlotNodeColourMap(adjM, coords, edge_thresh, ...
+                 [figureHandleScaled, cbScaled] = StandardisedNetworkPlotNodeColourMap(adjM, coords, edge_thresh, ...
                  nodeSizeMetricsToPlot{networkPlotIdx}, nodeSizeMetricName{networkPlotIdx}, ...
                  colorMapMetricsToPlot{networkPlotIdx}, colorMapMetricName{networkPlotIdx}, ...
-                'MEA', char(Info.FN), sprintf('%s_scaled', plotPrefixes{networkPlotIdx}), Params, lagval, e, lagFolderName);
+                'MEA', char(Info.FN), sprintf('%s_scaled', plotPrefixes{networkPlotIdx}), Params, lagval, e, lagFolderName, figureHandleScaled);
+                % [figureHandleScaled, cbScaled] = StandardisedNetworkPlotNodeColourMap(adjM, coords, edge_thresh, ...
+                %  nodeSizeMetricsToPlot{networkPlotIdx}, nodeSizeMetricName{networkPlotIdx}, ...
+                %  colorMapMetricsToPlot{networkPlotIdx}, colorMapMetricName{networkPlotIdx}, ...
+                % 'MEA', char(Info.FN), sprintf('%s_scaled', plotPrefixes{networkPlotIdx}), Params, lagval, e, lagFolderName);
             end 
-
-            combinedFigure = figure;
+            
+            
+            combinedFigure = figure('visible','off'); % create a new figure for saving and printing
             p =  [50   100   660*2 + 400  550];
             set(combinedFigure, 'Position', p);
             h(1) = subplot(1, 2, 1);
@@ -166,6 +185,7 @@ for e = 1:length(lagval)
                 h2cbar.TickLabels = cbScaled.TickLabels;
             end 
             axis off
+            
             copyobj(allchild(get(figureHandleOriginal, 'Currentaxes')), h(1)); 
             copyobj(allchild(get(figureHandleScaled, 'Currentaxes')), h(2)); 
             
@@ -182,7 +202,7 @@ for e = 1:length(lagval)
         % simple circular network plot
         NDord = lagNetMet.ND(On);
         StandardisedNetworkPlot(adjMord, coords, edge_thresh, NDord, ...
-            'circular', char(Info.FN),'6',Params,lagval,e, lagFolderName);
+            'circular', char(Info.FN),'6',Params,lagval,e, lagFolderName, oneFigureHandle);
 
         
     end 

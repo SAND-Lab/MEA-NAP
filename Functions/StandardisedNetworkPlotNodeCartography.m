@@ -1,5 +1,5 @@
 function [] = StandardisedNetworkPlotNodeCartography(adjM, coords, edge_thresh, ...
-    NdCartDiv, plotType, FN, pNum, Params, lagval, e, figFolder)
+    NdCartDiv, plotType, FN, pNum, Params, lagval, e, figFolder, oneFigureHandle)
 %
 % script to plot the graph network 
 % 
@@ -37,14 +37,15 @@ function [] = StandardisedNetworkPlotNodeCartography(adjM, coords, edge_thresh, 
 % author RCFeord August 2021
 % Edited by Tim Sit 
 %% plot
-if ~isfield(Params, 'oneFigure')
+p =  [50 100 700 550];
+
+if ~Params.showOneFig
     F1 = figure;
-    F1.OuterPosition = [50   100   700  550];
+    F1.OuterPosition = p;
 else 
-    p =  [50   100   720  550];
     % set(0, 'DefaultFigurePosition', p)
-    Params.oneFigure.OuterPosition = p;
-    set(Params.oneFigure, 'Position', p);
+    % Params.oneFigure.OuterPosition = p;
+    set(oneFigureHandle, 'OuterPosition', p);
 end 
 
 aesthetics; axis off; hold on
@@ -369,12 +370,18 @@ end
 
 figName = strcat([pNum,'_', plotType, '_NetworkPlotNodeCartography']);
 figPath = fullfile(figFolder, figName);
-pipelineSaveFig(figPath, Params.figExt, Params.fullSVG);
 
-if ~isfield(Params, 'oneFigure')
+if Params.showOneFig 
+    pipelineSaveFig(figPath, Params.figExt, Params.fullSVG, oneFigureHandle);
+else 
+    pipelineSaveFig(figPath, Params.figExt, Params.fullSVG);
+
+end 
+
+if ~Params.showOneFig
     close all
 else 
-    set(0, 'CurrentFigure', Params.oneFigure);
+    set(0, 'CurrentFigure', oneFigureHandle);
     clf reset
 end 
 

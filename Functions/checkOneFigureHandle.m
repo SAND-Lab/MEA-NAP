@@ -1,10 +1,9 @@
-function Params = checkOneFigureHandle(Params)
+function oneFigureHandle = checkOneFigureHandle(Params, oneFigureHandle)
     if Params.showOneFig
-        if ~isfield(Params, 'oneFigure')
-            Params.oneFigure = figure;
+        if ~isgraphics(oneFigureHandle)
+            oneFigureHandle = figure;
         end 
-        if ~isgraphics(Params.oneFigure)
-            Params.oneFigure = figure;
-        end 
+    else
+        oneFigureHandle = 0;
     end 
 end 

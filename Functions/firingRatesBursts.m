@@ -1,8 +1,10 @@
 function [Ephys] = firingRatesBursts(spikeMatrix,Params,Info)
 %
-
+% Detects firing rate bursts
 
 %
+
+verbose = 0;  % 1 : prints out status, 0 : keep quiet
 
 
 % set firing rate threshold in Hz
@@ -109,7 +111,9 @@ if ~isempty(burstMatrix)
     %need this for easier plotting of burst
     
 else
-    disp('no bursts detected')
+    if verbose
+        disp('no bursts detected')
+    end 
     sp_in_bst=0;
     
     Ephys.meanNBstLengthS = nan; % mean length burst in s

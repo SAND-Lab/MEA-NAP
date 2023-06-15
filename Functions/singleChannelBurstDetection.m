@@ -41,7 +41,7 @@ plot example electrode bursts
 plot raster for median co-activity and max / some std above median
 CV of ISI 
 %}
-progressbar('Units done')
+% progressbar('Units done')
 warning('off','MATLAB:nearlySingularMatrix');
 
 method = 'Bakkum'; % ask tim if bakkum method works with downsampling
@@ -73,13 +73,13 @@ for elec = 1 : size(raster,2)
     burstTimes_all{elec} = burstTimes;
     burstChannels_all{elec} = burstChannels;
     clear burstMatrix burstTimes burstChannels
-    progressbar(elec/size(raster,2))
+    % progressbar(elec/size(raster,2))
 end
-progressbar(elec/size(raster,2))
+% progressbar(elec/size(raster,2))
 
 
 % analyse bursts
-progressbar('Units done')
+% progressbar('Units done')
 for elec = 1:length(burstMatrices)
     %     numBursts(i,1) = length(burstMatrices{i});
     burstMatrix = burstMatrices{elec};
@@ -121,7 +121,7 @@ for elec = 1:length(burstMatrices)
     
     mean_ISI_o(elec)        = round(nanmean(ISI_outside)/samplingRate*1000,3); % in ms
     %         frac_spikes_inB(elec)   = total_num_sp_in_bst(elec) / sum(raster(:,elec));
-    progressbar(elec/length(burstMatrices))
+    % progressbar(elec/length(burstMatrices))
     clear burstMatrix sp_in_bst
 end
 
