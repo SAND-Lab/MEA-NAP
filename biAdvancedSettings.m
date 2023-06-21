@@ -94,7 +94,12 @@ Params.groupColors = [ ...
 ];
 
 Params.minNodeSize = 0.1;  % minimum node size in network plots
-
+Params.kdeHeight = 0.3;  % height of the KDE curve, only affects plotting and not the kernel density estimate itself
+Params.kdeWidthForOnePoint = 0;  % bandwidth for KDE (in half violin plots) if there is only a single data point 
+% set to 0 to disable plotting of KDE if there is only a single data point,
+% and set to a positive number for a custom bandwidth, or set to 'auto', in
+% which case the bandwidth will be determined automatically by ksdensity(),
+% see HalfViolinPlot.m for more details
 
 % Coordinates of each channel / node 
 % Please specify coordinates such that 
