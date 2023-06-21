@@ -196,6 +196,10 @@ for e = 1:length(lagval)
             
             pipelineSaveFig(figPath, Params.figExt, Params.fullSVG, combinedFigure);
             
+            close(figureHandleOriginal) 
+            close(figureHandleScaled) 
+            close(combinedFigure)
+            % fprintf(sprintf('Current figure number: %.f \n', get(gcf, 'Number')))
         end
         
         
