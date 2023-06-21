@@ -28,7 +28,7 @@ else
     F1 = figure;
 end 
 
-HalfViolinPlot(Ephys.FR,1,[0.5 0.5 0.5],0.3)
+HalfViolinPlot(Ephys.FR,1,[0.5 0.5 0.5], Params.kdeHeight, Params.kdeWidthForOnePoint)
 xlim([0.5 1.5])
 xticks([])
 xlabel(strcat('age',num2str(cell2mat(Info.DIV))))

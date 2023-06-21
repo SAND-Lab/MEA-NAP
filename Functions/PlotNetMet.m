@@ -668,7 +668,7 @@ for l = 1:length(Params.FuncConLagval)
                 if isempty(PlotDat)
                     continue
                 else
-                    eval(['HalfViolinPlot(PlotDat,xt(d),cDiv' num2str(d) ',0.3)']);
+                    eval(['HalfViolinPlot(PlotDat,xt(d),cDiv' num2str(d) ',Params.kdeHeight, Params.kdeWidthForOnePoint)']);
                 end
                 clear DatTemp ValMean ValStd UpperStd LowerStd
                 xtlabtext{d} = num2str(AgeDiv(d));
@@ -867,7 +867,7 @@ for l = 1:length(Params.FuncConLagval)
                 PlotDat = DatTemp(:,l);
                 PlotDat(isnan(PlotDat)) = [];
                 if (1 - isempty(PlotDat))
-                    HalfViolinPlot(PlotDat, xt(g), Params.groupColors(g, :), 0.3);
+                    HalfViolinPlot(PlotDat, xt(g), Params.groupColors(g, :), Params.kdeHeight, Params.kdeWidthForOnePoint);
                 end
                 hold on
                 % clear DatTemp ValMean ValStd UpperStd LowerStd
@@ -975,7 +975,7 @@ for l = 1:length(Params.FuncConLagval)
                 if isempty(PlotDat)
                     continue
                 else
-                    eval(['HalfViolinPlot(PlotDat,xt(d),cDiv' num2str(d) ',0.3)']);
+                    eval(['HalfViolinPlot(PlotDat,xt(d),cDiv' num2str(d) ', Params.kdeHeight, Params.kdeWidthForOnePoint)']);
                 end
                 clear DatTemp ValMean UpperStd LowerStd
                 xtlabtext{d} = num2str(AgeDiv(d));
@@ -1057,7 +1057,7 @@ for l = 1:length(Params.FuncConLagval)
                 if isempty(PlotDat)
                     continue
                 else
-                    HalfViolinPlot(PlotDat, xt(g), Params.groupColors(g, :), 0.3);
+                    HalfViolinPlot(PlotDat, xt(g), Params.groupColors(g, :), Params.kdeHeight, Params.kdeWidthForOnePoint);
                 end
                 clear DatTemp ValMean ValStd UpperStd LowerStd
                 xtlabtext{g} = eGrp;

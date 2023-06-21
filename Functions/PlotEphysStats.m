@@ -353,7 +353,7 @@ for n = 1:length(eMet)
             if isempty(PlotDat)
                 continue
             else
-                eval(['HalfViolinPlot(PlotDat,xt(d),cDiv' num2str(d) ',0.3)']);
+                eval(['HalfViolinPlot(PlotDat,xt(d),cDiv' num2str(d) ', Params.kdeHeight, Params.kdeWidthForOnePoint)']);
             end
             clear DatTemp ValMean ValStd UpperStd LowerStd
             xtlabtext{d} = num2str(AgeDiv(d));
@@ -570,7 +570,7 @@ for n = 1:length(eMet)
             if isempty(PlotDat)
                 continue
             else
-                HalfViolinPlot(PlotDat,xt(g), Params.groupColors(g, :), 0.3);
+                HalfViolinPlot(PlotDat,xt(g), Params.groupColors(g, :), 0.3, Params);
             end
             clear DatTemp ValMean ValStd UpperStd LowerStd
             xtlabtext{g} = eGrp;
