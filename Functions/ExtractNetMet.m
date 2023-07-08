@@ -405,6 +405,20 @@ else
         NetMet.(strcat('adjM',num2str(lagval(e)),'mslag')).modalControlMean = modalControlMean;
         NetMet.(strcat('adjM',num2str(lagval(e)),'mslag')).modalControlPrctLessThanThreshold = modalControlPrctLessThanThreshold;
     end 
+    
+    
+    %% Spatial and Temporal autocorrelation 
+    if any(strcmp(netMetToCal, 'SA_lambda')) || y(strcmp(netMetToCal, 'SA_inf'))
+        dist = squareform(pdist(Params.coords));
+        cm = adjM;
+        discretization = 15;  % arbitrary number to get good number of samples per bin
+        [SA_lambda, SA_inf] = spatial_autocorrelation(dist, cm, discretization);
+    end 
+    
+    if any(strcmp(netMetToCal, 'TA_regional')) || y(strcmp(netMetToCal, 'TA_global'))
+        
+    end 
+    
 
     
     %% reassign to structures
