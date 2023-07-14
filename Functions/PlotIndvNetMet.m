@@ -118,7 +118,7 @@ for e = 1:length(lagval)
         for networkPlotIdx = 1:length(colorMapMetricsToPlot)
             
             if Params.timeProcesses
-                fprintf('Plotting network scaled to individual recording')
+                fprintf('Plotting network scaled to individual recording \n')
                 tic
             end 
             
@@ -147,7 +147,7 @@ for e = 1:length(lagval)
             end 
             
             if Params.timeProcesses
-                fprintf('Plotting network scaled to all recordings')
+                fprintf('Plotting network scaled to all recordings \n')
                 tic
             end 
 
@@ -178,7 +178,7 @@ for e = 1:length(lagval)
             end 
             
             if Params.timeProcesses
-                fprintf('Combining the two network plots')
+                fprintf('Combining the two network plots \n')
                 tic
             end 
             
