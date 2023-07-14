@@ -415,8 +415,8 @@ else
         [SA_lambda, SA_inf] = spatial_autocorrelation(dist, cm, discretization);
     end 
     
-    if any(strcmp(netMetToCal, 'TA_regional')) || y(strcmp(netMetToCal, 'TA_global'))
-        
+    if any(strcmp(netMetToCal, 'TA_regional')) || any(strcmp(netMetToCal, 'TA_global'))
+        % TODO: calculate temporal autocorrelatio
     end 
     
 
