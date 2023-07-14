@@ -117,6 +117,11 @@ for e = 1:length(lagval)
         % Loop through the metrics of interest to plot
         for networkPlotIdx = 1:length(colorMapMetricsToPlot)
             
+            if Params.timeProcesses
+                fprintf('Plotting network scaled to individual recording')
+                tic
+            end 
+            
             Params.useMinMaxBoundsForPlots = 0;
             
             figureHandleOriginal = figure('visible', 'off');
@@ -137,6 +142,14 @@ for e = 1:length(lagval)
                 % 'MEA', char(Info.FN), sprintf('%s', plotPrefixes{networkPlotIdx}), Params, lagval, e, lagFolderName);
             end 
             
+            if Params.timeProcesses
+                toc
+            end 
+            
+            if Params.timeProcesses
+                fprintf('Plotting network scaled to all recordings')
+                tic
+            end 
 
             figureHandleScaled = figure('visible', 'off');
             Params.useMinMaxBoundsForPlots = 1;
@@ -160,6 +173,14 @@ for e = 1:length(lagval)
                 % 'MEA', char(Info.FN), sprintf('%s_scaled', plotPrefixes{networkPlotIdx}), Params, lagval, e, lagFolderName);
             end 
             
+            if Params.timeProcesses
+                toc
+            end 
+            
+            if Params.timeProcesses
+                fprintf('Combining the two network plots')
+                tic
+            end 
             
             combinedFigure = figure('visible','off'); % create a new figure for saving and printing
             p =  [50   100   660*2 + 400  550];
@@ -196,6 +217,10 @@ for e = 1:length(lagval)
             
             pipelineSaveFig(figPath, Params.figExt, Params.fullSVG, combinedFigure);
             
+            if Params.timeProcesses
+                toc
+            end 
+            
             close(figureHandleOriginal) 
             close(figureHandleScaled) 
             close(combinedFigure)
@@ -204,10 +229,18 @@ for e = 1:length(lagval)
         
         
         % simple circular network plot
+        if Params.timeProcesses
+            fprintf('Plotting circular network \n')
+            tic
+        end 
+        
         NDord = lagNetMet.ND(On);
         StandardisedNetworkPlot(adjMord, coords, edge_thresh, NDord, ...
             'circular', char(Info.FN),'6',Params,lagval,e, lagFolderName, oneFigureHandle);
-
+        
+        if Params.timeProcesses
+            toc
+        end 
         
     end 
     

@@ -366,3 +366,9 @@ Params.includeNMFcomponents = 0;  % whether to save extracted components and ori
 
 % specify whether to include network plots scaled to all recordings 
 Params.includeNetMetScaledPlots = 1;
+
+
+%% Troubleshooting / Diagnostic settings 
+
+Params.timeProcesses = 0; % whether to log how long each process took
+
