@@ -408,7 +408,7 @@ else
     
     
     %% Spatial and Temporal autocorrelation 
-    if any(strcmp(netMetToCal, 'SA_lambda')) || y(strcmp(netMetToCal, 'SA_inf'))
+    if any(strcmp(netMetToCal, 'SA_lambda')) || any(strcmp(netMetToCal, 'SA_inf'))
         dist = squareform(pdist(Params.coords));
         cm = adjM;
         discretization = 15;  % arbitrary number to get good number of samples per bin
