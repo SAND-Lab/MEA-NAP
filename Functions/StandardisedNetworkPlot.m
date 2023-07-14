@@ -223,10 +223,13 @@ if strcmp(plotType,'circular')
     colourT = colour(order,:);
     xcot = xco(order,:);
     ycot = yco(order,:);
-    for u = 1:size(xcot,1)
-        plot(xcot(u,:),ycot(u,:),'LineWidth',lineWidthT(u),'Color',colourT(u,:));
-        hold on
-    end
+
+    linePlot = plot(xcot',ycot'); % 'LineWidth',lineWidthT,'Color',colourT);
+    set(linePlot, {'LineWidth'}, num2cell(lineWidthT'));
+    set(linePlot, {'Color'}, num2cell(colourT', [1, 3])');
+    hold on
+
+
 end
 %% add nodes
 
