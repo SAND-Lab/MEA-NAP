@@ -7,6 +7,11 @@ function combinedData = combineExpNetworkData(ExpName, Params, NetMetricsE, NetM
 % ----------
 % ExpName : cell
 % Params : struct
+% NetMetricsE : cell 
+%   cell where each entry is the name (str) of an electrode-level metric to
+%   save
+% NetMetricsC : cell 
+
 % NetworkDataFolder : path to directory
 % Returns 
 % -------
@@ -16,7 +21,8 @@ function combinedData = combineExpNetworkData(ExpName, Params, NetMetricsE, NetM
 %     then within each field are the different age groups:
 %     WT.TP1, WT.TP2, ... 
 %     which in turn contains network level or node level metrics 
-%     which are vectors
+%     which are vectors 
+%     2023-07-12 Tim : seems to be saving matrices rather than vectors..
 %
 % Some tidying up of input 
 
@@ -85,13 +91,13 @@ for i = 1:length(ExpName)
      end
      for e = 1:length(NetMetricsE)
             eMet = cell2mat(NetMetricsE(e));
+            groupTypeCounter = size(combinedData.(eGrp).(eDiv).(eMet), 1); % count occurences of a specific Grp-DIV
             for l = 1:length(Params.FuncConLagval)
                 %VNs = strcat('NetMet.adjM',num2str(Params.FuncConLagval(l)),'mslag.',eMet);
                 %eval(['DatTemp(l) =' VNs ';']);
                 lagValStr = strcat('adjM', num2str(Params.FuncConLagval(l)),'mslag');
                 % DatTemp(l) = NetMet.(lagValStr).(eMet);
                 if isfield(ExpData.NetMet.(lagValStr), eMet)  % this is to exclude small networks where NCpn1 is not defined
-                    groupTypeCounter = size(combinedData.(eGrp).(eDiv).(eMet), 1); % count occurences of a specific Grp-DIV
                     combinedData.(eGrp).(eDiv).(eMet)(groupTypeCounter+1, l) = ExpData.NetMet.(lagValStr).(eMet);
                 end 
                 %clear VNs
@@ -101,6 +107,11 @@ for i = 1:length(ExpName)
             % combinedData.(eGrp).(eDiv).(eMet)(i, l) = NetMet.(lagValStr).(eMet);
             % clear DatTemp
      end
+     
+     % add recording name 
+     fileNameSplit = split(Exp, '_');
+     recordingName = join(fileNameSplit(1:end-1), '_');
+     combinedData.(eGrp).(eDiv).recordingName{groupTypeCounter+1} = recordingName{1};
 end
 
 %% Data concerning single electrodes
@@ -129,6 +140,7 @@ end
 % allocate numbers to relevant matrices
 for i = 1:length(ExpName)
      Exp = strcat(char(ExpName(i)),'_',Params.Date,'.mat');
+     groupTypeCounterElectrode = 1;
      % if previously used showOneFig, then this prevents saved oneFigure 
      % handle from showing up when loading the matlab variable
      if Params.showOneFig 
@@ -147,6 +159,8 @@ for i = 1:length(ExpName)
              eDiv = strcat('TP',num2str(d));
          end    
      end
+     
+     
 
      for e = 1:length(NetMetricsC)
             eMet = cell2mat(NetMetricsC(e));
@@ -197,6 +211,15 @@ for i = 1:length(ExpName)
             combinedData.(eGrp).(eDiv).(eMet) = [combinedData.(eGrp).(eDiv).(eMet); DatTemp];
             clear DatTemp
      end
+     
+     % add recording name 
+     % TODO: have not tested this yet...
+     fileNameSplit = split(Exp, '_');
+     recordingName = join(fileNameSplit(1:end-1), '_');
+     numElectrode = length(combinedData.(eGrp).(eDiv).(eMet));
+     combinedData.(eGrp).(eDiv).recordingNamePerElectrode(groupTypeCounterElectrode:groupTypeCounterElectrode+numElectrode-1) = repmat(recordingName, numElectrode, 1);
+     groupTypeCounterElectrode = groupTypeCounterElectrode + numElectrode;
+     
      clear Info NetMet adjMs
 end
 
@@ -210,7 +233,7 @@ if strcmp(output_spreadsheet_file_type, 'csv')
 end 
 
 
-% network means
+% network metrics table
 for g = 1:length(Grps)
     eGrp = cell2mat(Grps(g));
     for d = 1:length(AgeDiv)
@@ -223,7 +246,7 @@ for g = 1:length(Grps)
                 % Only do the asignment if metricVal is not empty
                 %eval(['metricVal' '=' VNe '.' char(NetMetricsE(e)) ';'])
                 metricVal = combinedData.(eGrp).(eDiv).(char(NetMetricsE(e)));
-                if length(metricVal) ~= 0
+                if ~isempty(metricVal)
                     %eval([VNet '.' char(NetMetricsE(e)) '='  'metricVal(:,l);']);
                     TempStr.(eDiv).(char(NetMetricsE(e))) = metricVal(:, l);
                 else 
@@ -242,6 +265,8 @@ for g = 1:length(Grps)
                 DatTemp.eGrp = repmat(convertCharsToStrings(eGrp), numEntries, 1);
                 DatTemp.AgeDiv = repmat(AgeDiv(d), numEntries, 1);
                 DatTemp.Lag = repmat(Params.FuncConLagval(l), numEntries, 1);
+                DatTemp.recordingName = convertCharsToStrings(combinedData.(eGrp).(eDiv).recordingName)';
+
                 table_obj = struct2table(DatTemp);
                 for table_row = 1:numEntries
                     main_table{n_row} = table_obj(table_row, :);
@@ -267,7 +292,6 @@ if strcmp(output_spreadsheet_file_type, 'csv')
     table_savepath = fullfile(csv_save_folder, 'NetworkActivity_RecordingLevel.csv');
     writetable(combined_table, table_savepath);
 end 
-
 
 clear DatTemp TempStr
 
@@ -307,6 +331,7 @@ for g = 1:length(Grps)
                 DatTemp.eGrp = repmat(convertCharsToStrings(eGrp), numEntries, 1);
                 DatTemp.AgeDiv = repmat(AgeDiv(d), numEntries, 1);
                 DatTemp.Lag = repmat(Params.FuncConLagval(l), numEntries, 1);
+                DatTemp.recordingName = convertCharsToStrings(combinedData.(eGrp).(eDiv).recordingNamePerElectrode)';
                 electrode_table_obj = struct2table(DatTemp);
                 for table_row = 1:numEntries
                     electrode_main_table{n_row} = electrode_table_obj(table_row, :);
