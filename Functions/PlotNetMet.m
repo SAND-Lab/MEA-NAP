@@ -866,6 +866,7 @@ for l = 1:length(Params.FuncConLagval)
                 end 
                 PlotDat = DatTemp(:,l);
                 PlotDat(isnan(PlotDat)) = [];
+                PlotDat(~isfinite(PlotDat)) = [];
                 if (1 - isempty(PlotDat))
                     HalfViolinPlot(PlotDat, xt(g), Params.groupColors(g, :), Params.kdeHeight, Params.kdeWidthForOnePoint);
                 end
@@ -972,6 +973,7 @@ for l = 1:length(Params.FuncConLagval)
                 end 
                 PlotDat = DatTemp(:,l);
                 PlotDat(isnan(PlotDat)) = [];
+                PlotDat(~isfinite(PlotDat)) = [];
                 if isempty(PlotDat)
                     continue
                 else
@@ -1054,6 +1056,7 @@ for l = 1:length(Params.FuncConLagval)
                 end 
                 PlotDat = DatTemp(:,l);
                 PlotDat(isnan(PlotDat)) = [];
+                PlotDat(~isfinite(PlotDat)) = [];
                 if isempty(PlotDat)
                     continue
                 else
