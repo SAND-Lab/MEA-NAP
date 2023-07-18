@@ -284,4 +284,8 @@ The mean node degree is the mean of the values in the binarized adjacency matrix
    Currently this thresholding uses the raw adjancency metric values, which can range
    from -1 to 1, so negative weights (correlations) are ignored.
 
+Modularity
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+There are a number of different methods available to partition nodes into modules. Our pipeline uses the Louvain algorithm (Blondel et al., 2008). This was selected as it performs well across a number a network types and generates a high modularity score. The code to calculate this is in ``community_louvain.m`` (Brain Connectivity Toolbox). In our pipeline, the :math:`\gamma` variable, which affects the size and number of modules detected, uses the default value of 1. Each time the Louvain algorithm is applied to a network, there is a small chance that the modular structure will vary, i.e., nodes may be partitioned into different modules. To ensure consistency each time the pipeline is run, the consesus clustering method (Lancichinetti & Fortunato, 2012) is used. The code is available in ``mod_consensus_cluster_iterate.m``. Here, the variable ``repNum`` specifies the number of times the Louvain algorithm is applied to the adjacency matrix. A consensus matrix is generated, in which each value indicates the proportion of ``repNum`` applications in which two nodes are partitioned into the same module. This matrix is thresholded at a value specified by the variable ``threshold``. The Louvain algorithm is applied to this consensus matrix ``repNum`` times, and the process iteratively repeats until a consistent modular structure emerges. In our pipeline, ``repNum`` is set to 50 and ``threshold`` is set to 0.4. 
+
  
