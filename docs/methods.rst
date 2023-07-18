@@ -288,6 +288,17 @@ The mean node degree is the mean of the values in the binarized adjacency matrix
 
 Modularity
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
 There are a number of different methods available to partition nodes into modules. Our pipeline uses the Louvain algorithm (Blondel et al., 2008). This was selected as it performs well across a number a network types and generates a high modularity score. The code to calculate this is in ``community_louvain.m`` (Brain Connectivity Toolbox). In our pipeline, the :math:`\gamma` variable, which affects the size and number of modules detected, uses the default value of 1. Each time the Louvain algorithm is applied to a network, there is a small chance that the modular structure will vary, i.e., nodes may be partitioned into different modules. To ensure consistency each time the pipeline is run, the consesus clustering method (Lancichinetti & Fortunato, 2012) is used. The code is available in ``mod_consensus_cluster_iterate.m``. Here, the variable ``repNum`` specifies the number of times the Louvain algorithm is applied to the adjacency matrix. A consensus matrix is generated, in which each value indicates the proportion of ``repNum`` applications in which two nodes are partitioned into the same module. This matrix is thresholded at a value specified by the variable ``threshold``. The Louvain algorithm is applied to this consensus matrix ``repNum`` times, and the process iteratively repeats until a consistent modular structure emerges. In our pipeline, ``repNum`` is set to 50 and ``threshold`` is set to 0.4. 
 
+Null models
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+This code is found in ``small_worldness_RL_wu.m``.
+
+Features of local and global processing are influenced by basic network topology, such as the number of nodes. Therefore this pipeline normalises several of these features in order to allow comparison between different networks, as well as the same network over developmental time. To do this, a number of artificial networks (null models) are created for each real network to provide a baseline to normalise to. The structure of these networks is such that the influence of network topology is removed while network features such as size and connection density are retained. This pipeline uses two types of null model, and generates and saves figures to allow comparison by visual inspection of certain features of their network topology. 
+
+The first is lattice-like, available in ``latmio_und_v2.m`` (based on Brain Connectivity Toolbox). These exhibit high clustering and high path lengths. In our pipeline, lattice-like models are used to normalise clustering coefficient, itself used in calculating the small world coefficient :math:`w`. Further information on these metrics is given below.
+
+The second is randomised, available in ``randmio_und_v2.m`` (based on Brain Connectivity Toolbox). These exhibit low clustering and low path lengths. In our pipeline, randomised models are used to normalise path length, itself used in calculating the small world coefficient :math:`w`. It is also used to calculate the small world coefficient :math:`\sigma`. Further information on these metrics is given below. 
  
