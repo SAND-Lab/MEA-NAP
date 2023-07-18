@@ -662,9 +662,9 @@ for l = 1:length(Params.FuncConLagval)
                     DatTemp = zeros(1, length(Params.FuncConLagval));
                 end 
                 
-                
                 PlotDat = DatTemp(:,l);
                 PlotDat(isnan(PlotDat)) = [];
+                PlotDat(~isfinite(PlotDat)) = [];
                 if isempty(PlotDat)
                     continue
                 else
