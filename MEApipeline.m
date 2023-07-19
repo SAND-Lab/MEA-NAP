@@ -506,6 +506,15 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
             for lag_val = Params.FuncConLagval
                 [hubBoundaryWMdDeg, periPartCoef, proHubpartCoef, nonHubconnectorPartCoef, connectorHubPartCoef] = ...
                 TrialLandscapeDensity(ExpList, fig_folder, add_fig_info, lag_val, oneFigureHandle);
+                
+                if isnan(hubBoundaryWMdDeg)
+                    hubBoundaryWMdDeg = Params.hubBoundaryWMdDeg;
+                    periPartCoef = Params.periPartCoef;
+                    proHubpartCoef = Params.proHubpartCoef;
+                    nonHubconnectorPartCoef = Params.nonHubconnectorPartCoef; 
+                    connectorHubPartCoef = Params.connectorHubPartCoef;
+                end 
+            
                 Params.(strcat('hubBoundaryWMdDeg', sprintf('_%.fmsLag', lag_val))) = hubBoundaryWMdDeg;
                 Params.(strcat('periPartCoef', sprintf('_%.fmsLag', lag_val))) = periPartCoef;
                 Params.(strcat('proHubpartCoef', sprintf('_%.fmsLag', lag_val))) = proHubpartCoef;
