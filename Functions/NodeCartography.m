@@ -1,5 +1,5 @@
-function [NdCartDiv,PopNumNC] = NodeCartography(Z,PC,lagval,e,FN,Params, oneFigureHandle)
-%   
+function [NdCartDiv, PopNumNC] = NodeCartography(Z, PC, lagval, e, FN, Params, figFolder, oneFigureHandle)
+% This also makes a plot  
 % node cartography 
 % see Guimera and Amaral, 2005
 % 'Functional cartography of complex metabolic networks'
@@ -154,15 +154,19 @@ imshow('NodeCartographyDiagram.jpg')
 
 
 %% save figure
+figName = strcat(['9_adjM',num2str(lagval(e)),'msNodeCartography']);
+figPath = fullfile(figFolder, figName);
 
-% Export figure
-for nFigExt = 1:length(Params.figExt)
-    saveas(gcf,strcat(['9_adjM',num2str(lagval(e)),'msNodeCartography', Params.figExt{nFigExt}]));
+if Params.showOneFig
+        pipelineSaveFig(figPath, Params.figExt, Params.fullSVG, oneFigureHandle)
+    else 
+        pipelineSaveFig(figPath, Params.figExt, Params.fullSVG)
 end 
 
+% Close figure or clear the one shared figures
 if ~Params.showOneFig
-    close all
-else 
+    close(gcf)
+else
     set(0, 'CurrentFigure', oneFigureHandle);
     clf reset
 end 

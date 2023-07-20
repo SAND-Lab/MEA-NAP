@@ -15,8 +15,6 @@ function NetMet = plotNodeCartography(adjMs, Params, NetMet, Info, HomeDir, file
 % -------
 
 
-%}
-
 lagval = Params.FuncConLagval;
 edge_thresh = 0.0001;
 
@@ -63,7 +61,7 @@ for e = 1:length(lagval)
 
     % TODO Check if oneFigure object exists here, if not create it again 
     % Params.oneFigure = figure();
-    [NdCartDiv, PopNumNC] = NodeCartography(Z, PC, lagval, e, char(Info.FN), Params, oneFigureHandle); 
+    [NdCartDiv, PopNumNC] = NodeCartography(Z, PC, lagval, e, char(Info.FN), Params, lagFolder, oneFigureHandle); 
 
     PopNumNCt(e,:) = PopNumNC;
     
