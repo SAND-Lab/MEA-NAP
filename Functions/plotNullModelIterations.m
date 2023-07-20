@@ -1,4 +1,4 @@
-function [] = plotNullModelIterations(met, met2, lagval, e, FN, Params, oneFigureHandle)
+function [] = plotNullModelIterations(met, met2, lagval, e, FN, Params, figFolder, oneFigureHandle)
 %{
 
 Parameters
@@ -48,11 +48,12 @@ set(gca,'TickDir','out');
 
 %% save figure
 figName = strcat(['10_adjM', num2str(lagval(e)), 'msNullModels']);
+figPath = fullfile(figFolder, figName);
 
 if Params.showOneFig
-    pipelineSaveFig(figName, Params.figExt, Params.fullSVG, oneFigureHandle);
+    pipelineSaveFig(figPath, Params.figExt, Params.fullSVG, oneFigureHandle);
 else
-    pipelineSaveFig(figName, Params.figExt, Params.fullSVG);
+    pipelineSaveFig(figPath, Params.figExt, Params.fullSVG);
 end 
 
 if ~Params.showOneFig

@@ -209,7 +209,8 @@ for e = 1:length(lagval)
         ITER = 5000;
         [R, ~,met2] = randmio_und_v2(adjM, ITER,'SW');
     
-        plotNullModelIterations(met, met2, lagval, e, char(Info.FN), Params, oneFigureHandle)
+        plotNullModelIterations(met, met2, lagval, e, char(Info.FN), ...
+            Params, lagFolderName, oneFigureHandle)
     
         %% Calculate network metrics (+normalization).
         
