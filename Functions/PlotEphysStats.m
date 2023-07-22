@@ -273,6 +273,7 @@ for n = 1:length(eMet)
             eval(['DatTemp = ' VNe ';']);
             PlotDat = DatTemp;
             PlotDat(isnan(PlotDat)) = [];
+            PlotDat(~isfinite(PlotDat)) = [];
             if isempty(PlotDat)
                 continue
             else
@@ -457,7 +458,7 @@ for n = 1:length(eMet)
             eval(['DatTemp = ' VNe ';']);
             PlotDat = DatTemp;
             PlotDat(isnan(PlotDat)) = [];
-
+            PlotDat(~isfinite(PlotDat)) = [];
             all_group_eMet_vals = [all_group_eMet_vals; PlotDat];
 
             if isempty(PlotDat)
@@ -567,6 +568,7 @@ for n = 1:length(eMet)
             eval(['DatTemp = ' VNe ';']);
             PlotDat = DatTemp;
             PlotDat(isnan(PlotDat)) = [];
+            PlotDat(~isfinite(PlotDat)) = [];
             all_group_eMet_vals = [all_group_eMet_vals; PlotDat];
             if isempty(PlotDat)
                 continue
@@ -668,6 +670,7 @@ for n = 1:length(eMet)
             eval(['DatTemp = ' VNe ';']);
             PlotDat = DatTemp;
             PlotDat(isnan(PlotDat)) = [];
+            PlotDat(~isfinite(PlotDat)) = [];
             if isempty(PlotDat)
                 continue
             else
@@ -751,7 +754,7 @@ for n = 1:length(eMet)
             eval(['DatTemp = ' VNe ';']);
             PlotDat = DatTemp;
             PlotDat(isnan(PlotDat)) = [];
-            
+            PlotDat(~isfinite(PlotDat)) = [];
             % concateenate to a store to get ylim 
             all_eMet_vals = [all_eMet_vals; PlotDat];
 
