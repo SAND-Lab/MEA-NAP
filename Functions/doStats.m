@@ -6,6 +6,11 @@ recordingLevelData = readtable('/media/timothysit/Elements/HPC_analysisPIpelineO
 
 uniqueLags = unique(recordingLevelData.Lag);
 
+
+% Look at how the example logitudinal data from matlab looks like 
+% this = load('longitudinalData.mat');
+% Maybe just use this: https://uk.mathworks.com/matlabcentral/fileexchange/5576-rmaov1
+
 for lag = uniqueLags 
     subsetIndex = recordingLevelData.Lag == lag;
     recordingLevelDataSubset = recordingLevelData(subsetIndex, :);
