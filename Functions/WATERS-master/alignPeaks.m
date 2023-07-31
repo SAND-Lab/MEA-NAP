@@ -28,67 +28,66 @@ function [spikeTimes, spikeWaveforms] = alignPeaks(spikeTimes, trace, win,...
 %   email: jjc80@cam.ac.uk
 %   github.com/jeremi-chabros
 
-% NOTE: currently 'win' refers to the width of the bin that is searched for
-% the peak, NOT to the width of the waveform (hard-coded to 25);
-% TODO: Pass it as an argument
-waveform_width = 25;
-
-% Obtain thresholds for artifact removal
-threshold = median(trace) - median(abs(trace - mean(trace)))/0.6745;
-
 % TODO: should be a user option to use multiplier or absolute threshold
 % Comment out to use the multiplier
+% threshold = 5;
 % if artifactFlg
 %     minPeakThr = threshold * varargin{1};
 %     maxPeakThr = -threshold * varargin{2};
 %     posPeakThr = -threshold * varargin{3};
 % end
 
+% NOTE: currently 'win' refers to the width of the bin that is searched for
+% the peak, NOT to the width of the waveform (hard-coded to 25);
+% TODO: Pass it as an argument
+waveform_width = 25;
+
+minThr = -inf; maxThr = inf; posThr = inf;
+traceLength = length(trace);
+
 % Uses absolute threshold in microvolts
 if artifactFlg
-    minPeakThr = varargin{1}; % e.g. -7 uV
-    maxPeakThr = varargin{2}; % e.g. -100 uV
-    posPeakThr = varargin{3}; % % e.g. 100 uV
+    minThr = varargin{1}; % e.g. -7 uV
+    maxThr = varargin{2}; % e.g. -100 uV
+    posThr = varargin{3}; % % e.g. 100 uV
 end
 
-sFr = zeros(length(spikeTimes),1);
-spikeWaveforms = zeros(length(spikeTimes),waveform_width*2+1);
+% Filter out spikeTimes too close to the borders
+validSpikes = (spikeTimes+win<traceLength-1) & (spikeTimes-win>1);
+spikeTimes = spikeTimes(validSpikes);
 
-for i = 1:length(spikeTimes)
-    
-    if spikeTimes(i)+win < length(trace)-1 && spikeTimes(i)-win > 1
-        
-        % Look into a window around the spike
-        bin = trace(spikeTimes(i)-win:spikeTimes(i)+win);
-        
-        negativePeak = min(bin);
-        positivePeak = max(bin);
-        pos = find(bin == negativePeak);
-        
-        % Remove artifacts and assign new timestamps
-        if artifactFlg
-            if (negativePeak < minPeakThr) && (positivePeak < posPeakThr) && (negativePeak > maxPeakThr)
-                newSpikeTime = spikeTimes(i)+pos-win;
-                if newSpikeTime+waveform_width < length(trace) && newSpikeTime-waveform_width > 1
-                    waveform = trace(newSpikeTime-waveform_width:newSpikeTime+waveform_width);
-                    sFr(i) = newSpikeTime;
-                    spikeWaveforms(i, :) = waveform;
-                end
-            end
-        else
-            newSpikeTime = spikeTimes(i)+pos-win;
-            if newSpikeTime+waveform_width < length(trace) && newSpikeTime-waveform_width > 1
-                waveform = trace(newSpikeTime-waveform_width:newSpikeTime+waveform_width);
-                sFr(i) = newSpikeTime;
-                spikeWaveforms(i, :) = waveform;
-            end
-        end
+% Array to store spikes and waveforms
+spikeWaveforms = zeros(length(spikeTimes),waveform_width*2+1);
+sFr = zeros(length(spikeTimes),1);
+
+% Calculate bins for all spikes at once
+bins = arrayfun(@(s) trace(s-win:s+win), spikeTimes, 'UniformOutput', false);
+
+% For each bin
+for i = 1:length(bins)
+    bin = bins{i};
+    negativePeak = min(bin);
+    positivePeak = max(bin);
+    pos = find(bin == negativePeak, 1, 'first');
+
+    if artifactFlg && (negativePeak < minThr || positivePeak > posThr || negativePeak > maxThr)
+        continue
+    end
+
+    newSpikeTime = spikeTimes(i)+pos-win;
+
+    if newSpikeTime+waveform_width < traceLength && newSpikeTime-waveform_width > 1
+        waveform = trace(newSpikeTime-waveform_width:newSpikeTime+waveform_width);
+        sFr(i) = newSpikeTime;
+        spikeWaveforms(i, :) = waveform;
     end
 end
 
-% Pre-allocation & logical indexing made it a lot faster
-% than using (end+1) indexing in the loop above
-spikeTimes = sFr(sFr~=0);
-spikeWaveforms = spikeWaveforms(sFr~=0,:);
+% remove zero entries
+validIdx = sFr ~= 0;
+spikeTimes = sFr(validIdx);
+spikeWaveforms = spikeWaveforms(validIdx,:);
+
 end
+
 

@@ -94,7 +94,7 @@ trace = filtfilt(b, a, double(data));
 
 % Will return this error in some other instances as well...
 % error('Signal Processing Toolbox not found');
-win = 10;   % [frames]
+win = 25;   % [frames]
 
 % Setting this to zero by default
 threshold = nan;

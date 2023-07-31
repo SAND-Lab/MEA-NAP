@@ -8,23 +8,23 @@
 % https://analysis-pipeline.readthedocs.io/en/latest/pipeline-steps.html#pipeline-settings
 
 % Directories
-HomeDir = '[INPUT_REQUIRED]'; % Where the Aanlysis pipeline code is located
+HomeDir = '/Users/jjc/MEA-NAP/'; % Where the Aanlysis pipeline code is located
 Params.outputDataFolder = '';   % Where to save the output data, leave as '' if same as HomeDir 
-rawData = '[INPUT REQUIRED]';  % path to raw data .mat files
+rawData = '/Users/jjc/Controllability/Data/Raw/';  % path to raw data .mat files
 Params.priorAnalysisPath = [''];  % path to prev analysis, leave as [''] if no prior anlaysis
-spikeDetectedData = ''; % path to spike-detected data, leave as '' if no previously detected spike data
+spikeDetectedData = '/Users/jjc/MEA-NAP/OutputData17Jul2023vv/1_SpikeDetection/1A_SpikeDetectedData/'; % path to spike-detected data, leave as '' if no previously detected spike data
 
 % Input and output filetype
 spreadsheet_file_type = 'csv'; % 'csv' or 'excel'
-spreadsheet_filename = '[INPUT_REQUIRED].csv'; 
+spreadsheet_filename = 'mecp2RecordingsList.csv'; 
 sheet = 1; % specify excel sheet
-xlRange = 'A2:C7'; % specify range on the sheet (e.g., 'A2:C7' would analyse the first 6 files)
+xlRange = 'A2:C4'; % specify range on the sheet (e.g., 'A2:C7' would analyse the first 6 files)
 csvRange = [2, Inf]; % read the data in the range [StartRow EndRow], e.g. [2 Inf] means start reading data from row 2
 Params.output_spreadsheet_file_type = 'csv';  % .xlsx or .csv
 
 % Analysis step settings
-Params.priorAnalysisDate = ''; % prior analysis date in format given in output data folder e.g., '27Sep2021'
-Params.priorAnalysis = 0; % use previously analysed data? 1 = yes, 0 = no
+Params.priorAnalysisDate = '17Jul2023'; % prior analysis date in format given in output data folder e.g., '27Sep2021'
+Params.priorAnalysis = 1; % use previously analysed data? 1 = yes, 0 = no
 Params.startAnalysisStep = 1; % if Params.priorAnalysis=0, default is to start with spike detection
 Params.optionalStepsToRun = {''}; % include 'generateCSV' to generate csv for rawData folder
                                   % include 'runStats' to look at feature
@@ -157,6 +157,8 @@ end
 
 %% Step 1 - spike detection
 
+profile on
+
 if ((Params.priorAnalysis == 0) || (Params.runSpikeCheckOnPrevSpikeData)) && (Params.startAnalysisStep == 1) 
 
     if (detectSpikes == 1) || (Params.runSpikeCheckOnPrevSpikeData)
@@ -214,7 +216,14 @@ if ((Params.priorAnalysis == 0) || (Params.runSpikeCheckOnPrevSpikeData)) && (Pa
 
 end
 
+p = profile('info');
+save spike_detection_profiler p;
+
 %% Step 2 - neuronal activity
+
+profile on
+
+
 if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisStep<3
     fprintf('Running step 2 of MEA-NAP: neuronal activity \n')
     % Format spike data
@@ -311,8 +320,12 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
 
 end
 
+p = profile('info');
+save step2_profiler p;
 
 %% Step 3 - functional connectivity, generate adjacency matrices
+
+profile on
 
 if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisStep<4
 
@@ -350,7 +363,12 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
 
 end
 
+p = profile('info');
+save step2_profiler p;
+
 %% Step 4 - network activity
+
+profile on
 
 if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisStep<=4
     
@@ -580,7 +598,14 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
 
 end
 
+p = profile('info');
+save step4_profiler p;
+
 %% Optional step: Run density landscape to determine the boundaries for the node cartography 
+
+profile on
+
+
 if any(strcmp(Params.optionalStepsToRun,'getDensityLandscape')) 
     cd(fullfile(Params.priorAnalysisPath, 'ExperimentMatFiles'));
     
@@ -599,7 +624,13 @@ if any(strcmp(Params.optionalStepsToRun,'getDensityLandscape'))
     end 
 end 
 
+p = profile('info');
+save density_profiler p;
+
 %% Optional step: statistics and classification of genotype / ages 
+
+profile on
+
 if any(strcmp(Params.optionalStepsToRun,'runStats'))
     if Params.showOneFig
         if ~isfield(Params, 'oneFigure')
@@ -631,7 +662,13 @@ if any(strcmp(Params.optionalStepsToRun,'runStats'))
     end 
 end 
 
+p = profile('info');
+save stats_profiler p;
+
 %% Optional step : combine plots across DIVs
+
+profile on
+
 if any(strcmp(Params.optionalStepsToRun,'combineDIVplots'))
     if Params.priorAnalysis == 1
         featureFolder = fullfile(Params.priorAnalysisPath, '4_NetworkActivity', '4A_IndividualNetworkAnalysis');
@@ -734,6 +771,9 @@ if any(strcmp(Params.optionalStepsToRun,'combineDIVplots'))
 
     end
 end
+
+p = profile('info');
+save combine_plots_profiler p;
 
 %% Optional Step: compare pre-post TTX spike activity 
 if any(strcmp(Params.optionalStepsToRun,'comparePrePostTTX')) 
