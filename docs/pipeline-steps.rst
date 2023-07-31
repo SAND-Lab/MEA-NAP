@@ -151,7 +151,7 @@ Spike detection settings (lines 12 - 170)
      - Choose one or more of the MATLAB wavelets if running our template-based spike detection. This method identifies spikes based on the similarity of the spike waveform to the templates (wavelets). For 2D murine cortical cultures recorded with the MCS system, we recommend ``bior1.5`` or running ``bior1.5``, ``bior1.3``, and ``db`` and merging the spikes detected for increased sensitivity. Note, these 3 templates do not work as well with 3D human cerebral organoid recordings.
    * - 39
      - Params.costList
-     - You have the option to choose one or more cost parameters to run for the templated-based method (line 37).  Recommend running for first time users at -0.12. If missing spikes make more negative (e.g., -0.2).  If false positives, make less negative (e.g., -0.10).
+     - Cost parameter to run for the templated-based method (line 37).  Recommend running for first time users at -0.12. If missing spikes make more negative (e.g., -0.2).  If false positives, make less negative (e.g., -0.10). NOTE: Currently only supports one value, if running a list then only the last cost parameter value will be saved.
    * - 40
      - Params.SpikeMethod
      - Here you choose the spike detection method for the downstream analysis. We have a custom method called “mea” that first uses the threshold method to select spikes to make electrode-specific wavelets for use with the template-based spike detection.  Select “merged” to combine spikes from all wavelets you select to improve sensitivity for detecting multi-unit activity with different waveforms.
