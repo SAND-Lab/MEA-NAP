@@ -367,6 +367,8 @@ Params.includeNMFcomponents = 0;  % whether to save extracted components and ori
 % specify whether to include network plots scaled to all recordings 
 Params.includeNetMetScaledPlots = 1;
 
+%% Optional step : statistics and classification 
+Params.pValThreshold = 0.01;  % p value threshold to consider effect as significant
 
 %% Troubleshooting / Diagnostic settings 
 

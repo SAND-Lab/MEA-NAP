@@ -629,6 +629,15 @@ if any(strcmp(Params.optionalStepsToRun,'runStats'))
     recordingLevelFile = fullfile(statsDataFolder, 'NetworkActivity_RecordingLevel.csv');
     recordingLevelData = readtable(recordingLevelFile);
     
+    % Traditional Statistics
+    statsTable = doStats(0, recordingLevelData, Params);
+    statsTableSavePath = fullfile(statsDataFolder, 'stats.csv');
+    writetable(statsTable, statsTableSavePath);
+    oneFigureHandle = NaN;
+    oneFigureHandle = checkOneFigureHandle(Params, oneFigureHandle);
+    plotStats(statsTable, plotSaveFolder, Params, oneFigureHandle)
+    
+    % Classification and Regression 
     for lag_val = Params.FuncConLagval
         plotSaveFolder = fullfile(statsDataFolder, '5_Stats', sprintf('%.fmsLag', lag_val));
         if ~isfolder(plotSaveFolder)
@@ -638,6 +647,8 @@ if any(strcmp(Params.optionalStepsToRun,'runStats'))
         doLDA(recordingLevelData, Params, lag_val);
         doClassification(recordingLevelData, Params, lag_val, plotSaveFolder);
     end 
+
+
 end 
 
 %% Optional step : combine plots across DIVs
