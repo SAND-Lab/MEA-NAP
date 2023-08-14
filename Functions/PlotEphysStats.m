@@ -251,65 +251,68 @@ eMetl = {'number of active electrodes','mean firing rate (Hz)','median firing ra
 p = [100 100 1300 600]; 
 set(0, 'DefaultFigurePosition', p)
 
-for n = 1:length(eMet)
-    if Params.showOneFig
-        if isgraphics(oneFigureHandle)
-            set(oneFigureHandle, 'Position', p);
-        else 
-            oneFigureHandle = figure;
-        end 
-    else 
-        F1 = figure;
-    end 
-    
-    eMeti = char(eMet(n));
-    xt = 1:0.5:1+(length(AgeDiv)-1)*0.5;
-    for g = 1:length(Grps)
-        h(g) = subplot(1,length(Grps),g);
-        eGrp = cell2mat(Grps(g));
-        for d = 1:length(AgeDiv)
-            eDiv = strcat('TP',num2str(d));
-            VNe = strcat(eGrp,'.',eDiv,'.',eMeti);
-            eval(['DatTemp = ' VNe ';']);
-            PlotDat = DatTemp;
-            PlotDat(isnan(PlotDat)) = [];
-            PlotDat(~isfinite(PlotDat)) = [];
-            if isempty(PlotDat)
-                continue
-            else
-                eval(['notBoxPlotRF(PlotDat,xt(d),cDiv' num2str(d) ',7)']);
-            end
-            clear DatTemp ValMean ValStd UpperStd LowerStd
-            xtlabtext{d} = num2str(AgeDiv(d));
-        end
-        xticks(xt)
-        xticklabels(xtlabtext)
-        xlabel('Age')
-        ylabel(eMetl(n))
-        title(eGrp)
-        aesthetics
-        set(gca,'TickDir','out');
-    end
-    linkaxes(h,'xy')
-    h(1).XLim = [min(xt)-0.5 max(xt)+0.5];
-    set(findall(gcf,'-property','FontSize'),'FontSize',9)
-    
-    figName = strcat(num2str(n),'_',char(eMetl(n)));
-    figPath = fullfile(notBoxPlotByGroupFolder, figName);
-    
-    if Params.showOneFig
-        pipelineSaveFig(figPath, Params.figExt, Params.fullSVG, oneFigureHandle);
-    else
-        pipelineSaveFig(figPath, Params.figExt, Params.fullSVG, F1);
-    end 
-    
-    if Params.showOneFig
-        clf(oneFigureHandle)
-    else 
-        close(F1);
-    end 
+if Params.includeNotBoxPlots
 
-end
+    for n = 1:length(eMet)
+        if Params.showOneFig
+            if isgraphics(oneFigureHandle)
+                set(oneFigureHandle, 'Position', p);
+            else 
+                oneFigureHandle = figure;
+            end 
+        else 
+            F1 = figure;
+        end 
+
+        eMeti = char(eMet(n));
+        xt = 1:0.5:1+(length(AgeDiv)-1)*0.5;
+        for g = 1:length(Grps)
+            h(g) = subplot(1,length(Grps),g);
+            eGrp = cell2mat(Grps(g));
+            for d = 1:length(AgeDiv)
+                eDiv = strcat('TP',num2str(d));
+                VNe = strcat(eGrp,'.',eDiv,'.',eMeti);
+                eval(['DatTemp = ' VNe ';']);
+                PlotDat = DatTemp;
+                PlotDat(isnan(PlotDat)) = [];
+                PlotDat(~isfinite(PlotDat)) = [];
+                if isempty(PlotDat)
+                    continue
+                else
+                    eval(['notBoxPlotRF(PlotDat,xt(d),cDiv' num2str(d) ',7)']);
+                end
+                clear DatTemp ValMean ValStd UpperStd LowerStd
+                xtlabtext{d} = num2str(AgeDiv(d));
+            end
+            xticks(xt)
+            xticklabels(xtlabtext)
+            xlabel('Age')
+            ylabel(eMetl(n))
+            title(eGrp)
+            aesthetics
+            set(gca,'TickDir','out');
+        end
+        linkaxes(h,'xy')
+        h(1).XLim = [min(xt)-0.5 max(xt)+0.5];
+        set(findall(gcf,'-property','FontSize'),'FontSize',9)
+
+        figName = strcat(num2str(n),'_',char(eMetl(n)));
+        figPath = fullfile(notBoxPlotByGroupFolder, figName);
+
+        if Params.showOneFig
+            pipelineSaveFig(figPath, Params.figExt, Params.fullSVG, oneFigureHandle);
+        else
+            pipelineSaveFig(figPath, Params.figExt, Params.fullSVG, F1);
+        end 
+
+        if Params.showOneFig
+            clf(oneFigureHandle)
+        else 
+            close(F1);
+        end 
+
+    end
+end 
 
 %% halfViolinPlots - plots by group
 
