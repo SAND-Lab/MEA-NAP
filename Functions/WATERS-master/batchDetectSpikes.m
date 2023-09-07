@@ -339,7 +339,7 @@ for recording = 1:numel(files)
             params.absThreshold = absThreshold;
             
             spikeDetectionResult = struct();
-            spikeDetectionResult.method = 'CWT';
+            % spikeDetectionResult.method = 'CWT';
             spikeDetectionResult.params = params;
             
             saveName = fullfile(savePath,  strcat(fileName, '_spikes.mat'));
