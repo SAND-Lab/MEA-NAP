@@ -355,6 +355,11 @@ for n = 1:length(eMet)
             PlotDat(isnan(PlotDat)) = [];
             PlotDat(~isfinite(PlotDat)) = [];
             all_group_eMet_vals = [all_group_eMet_vals; PlotDat];
+            
+            if issparse(PlotDat)
+               PlotDat = full(PlotDat); 
+            end
+            
             if isempty(PlotDat)
                 continue
             else
@@ -435,101 +440,105 @@ eMetl = {'number of active electrodes','mean firing rate (Hz)','median firing ra
 p = [100 100 1300 600]; 
 set(0, 'DefaultFigurePosition', p)
 
-for n = 1:length(eMet)
+if Params.includeNotBoxPlots
 
-    all_group_eMet_vals = [];
+    for n = 1:length(eMet)
 
-    if Params.showOneFig
-        if isgraphics(oneFigureHandle)
-            set(oneFigureHandle, 'Position', p);
+        all_group_eMet_vals = [];
+
+        if Params.showOneFig
+            if isgraphics(oneFigureHandle)
+                set(oneFigureHandle, 'Position', p);
+            else 
+                oneFigureHandle = figure;
+            end 
         else 
-            oneFigureHandle = figure;
+            F1 = figure;
         end 
-    else 
-        F1 = figure;
-    end 
-    
-    eMeti = char(eMet(n));
-    xt = 1:0.5:1+(length(Grps)-1)*0.5;
-    for d = 1:length(AgeDiv)
-        h(d) = subplot(1,length(AgeDiv),d);
-        eDiv = num2str(AgeDiv(d));
-        for g = 1:length(Grps)
-            eGrp = cell2mat(Grps(g));
-            eDivTP = strcat('TP',num2str(d));
-            VNe = strcat(eGrp,'.',eDivTP,'.',eMeti);
-            eval(['DatTemp = ' VNe ';']);
-            PlotDat = DatTemp;
-            PlotDat(isnan(PlotDat)) = [];
-            PlotDat(~isfinite(PlotDat)) = [];
-            all_group_eMet_vals = [all_group_eMet_vals; PlotDat];
 
-            if isempty(PlotDat)
-                continue
-            else
-                notBoxPlotRF(PlotDat,xt(g), Params.groupColors(g, :) , 7);
+        eMeti = char(eMet(n));
+        xt = 1:0.5:1+(length(Grps)-1)*0.5;
+        for d = 1:length(AgeDiv)
+            h(d) = subplot(1,length(AgeDiv),d);
+            eDiv = num2str(AgeDiv(d));
+            for g = 1:length(Grps)
+                eGrp = cell2mat(Grps(g));
+                eDivTP = strcat('TP',num2str(d));
+                VNe = strcat(eGrp,'.',eDivTP,'.',eMeti);
+                eval(['DatTemp = ' VNe ';']);
+                PlotDat = DatTemp;
+                PlotDat(isnan(PlotDat)) = [];
+                PlotDat(~isfinite(PlotDat)) = [];
+                all_group_eMet_vals = [all_group_eMet_vals; PlotDat];
+
+                if isempty(PlotDat)
+                    continue
+                else
+                    notBoxPlotRF(PlotDat,xt(g), Params.groupColors(g, :) , 7);
+                end
+                clear DatTemp ValMean ValStd UpperStd LowerStd
+                xtlabtext{g} = eGrp;
             end
-            clear DatTemp ValMean ValStd UpperStd LowerStd
-            xtlabtext{g} = eGrp;
+            xticks(xt)
+            xticklabels(xtlabtext)
+            xlabel('Group')
+            ylabel(eMetl(n))
+            title(strcat('Age',eDiv))
+            aesthetics
+            set(gca,'TickDir','out');
         end
-        xticks(xt)
-        xticklabels(xtlabtext)
-        xlabel('Group')
-        ylabel(eMetl(n))
-        title(strcat('Age',eDiv))
+        linkaxes(h,'xy')
+        h(1).XLim = [min(xt)-0.5 max(xt)+0.5];
+
+        customBoundMatchVec = strcmp(eMetl(n), metricsWCustomBounds);
+        if sum(customBoundMatchVec) == 1
+            bound_idx = find(customBoundMatchVec);
+            custom_bound_vec = eMetCustomBounds{bound_idx, 2};
+
+            if isnan(custom_bound_vec(1))
+                custom_bound_vec(1) = min(all_group_eMet_vals);
+            end 
+
+            if isnan(custom_bound_vec(2))
+                if isempty(all_group_eMet_vals)
+                    fprintf('WARNING: all_group_eMet_vals is empty, setting arbitrary bounds \n')
+                    custom_bound_vec(2) = 1;
+                else
+                    custom_bound_vec(2) = max(all_group_eMet_vals);
+                end 
+            end 
+
+            if custom_bound_vec(1) == custom_bound_vec(2)
+                fprintf('WARNING: custom bound first value and second value are equal, adding one to deal with this \n')
+                custom_bound_vec(2) = custom_bound_vec(2) + 1;
+            end 
+
+            h(1).YLim = custom_bound_vec;
+        end 
+
         aesthetics
         set(gca,'TickDir','out');
-    end
-    linkaxes(h,'xy')
-    h(1).XLim = [min(xt)-0.5 max(xt)+0.5];
-    
-    customBoundMatchVec = strcmp(eMetl(n), metricsWCustomBounds);
-    if sum(customBoundMatchVec) == 1
-        bound_idx = find(customBoundMatchVec);
-        custom_bound_vec = eMetCustomBounds{bound_idx, 2};
+        set(findall(gcf,'-property','FontSize'),'FontSize',9)
 
-        if isnan(custom_bound_vec(1))
-            custom_bound_vec(1) = min(all_group_eMet_vals);
-        end 
-   
-        if isnan(custom_bound_vec(2))
-            if isempty(all_group_eMet_vals)
-                fprintf('WARNING: all_group_eMet_vals is empty, setting arbitrary bounds \n')
-                custom_bound_vec(2) = 1;
-            else
-                custom_bound_vec(2) = max(all_group_eMet_vals);
-            end 
-        end 
-        
-        if custom_bound_vec(1) == custom_bound_vec(2)
-            fprintf('WARNING: custom bound first value and second value are equal, adding one to deal with this \n')
-            custom_bound_vec(2) = custom_bound_vec(2) + 1;
-        end 
-        
-        h(1).YLim = custom_bound_vec;
-    end 
+        figName = strcat(num2str(n),'_',char(eMetl(n)));
+        figPath = fullfile(notBoxPlotByDivFolder, figName);
 
-    aesthetics
-    set(gca,'TickDir','out');
-    set(findall(gcf,'-property','FontSize'),'FontSize',9)
+        if Params.showOneFig
+            pipelineSaveFig(figPath, Params.figExt, Params.fullSVG, oneFigureHandle);
+        else
+            pipelineSaveFig(figPath, Params.figExt, Params.fullSVG, F1);
+        end
 
-    figName = strcat(num2str(n),'_',char(eMetl(n)));
-    figPath = fullfile(notBoxPlotByDivFolder, figName);
-    
-    if Params.showOneFig
-        pipelineSaveFig(figPath, Params.figExt, Params.fullSVG, oneFigureHandle);
-    else
-        pipelineSaveFig(figPath, Params.figExt, Params.fullSVG, F1);
+
+        if Params.showOneFig
+            clf(oneFigureHandle)
+        else 
+            close(F1);
+        end 
+
     end
     
-    
-    if Params.showOneFig
-        clf(oneFigureHandle)
-    else 
-        close(F1);
-    end 
-    
-end
+end 
 
 %% halfViolinPlots - plots by DIV
 
@@ -573,6 +582,11 @@ for n = 1:length(eMet)
             PlotDat(isnan(PlotDat)) = [];
             PlotDat(~isfinite(PlotDat)) = [];
             all_group_eMet_vals = [all_group_eMet_vals; PlotDat];
+            
+            if issparse(PlotDat)
+               PlotDat = full(PlotDat); 
+            end
+            
             if isempty(PlotDat)
                 continue
             else
