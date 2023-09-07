@@ -1,4 +1,4 @@
-function [values] = ave_control(A)
+% function [values] = ave_control(A)
 % FUNCTION:
 %         Returns values of AVERAGE CONTROLLABILITY for each node in a
 %         network, given the adjacency matrix for that network. Average
