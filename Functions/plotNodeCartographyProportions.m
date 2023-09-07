@@ -25,7 +25,7 @@ else
     set(oneFigureHandle, 'Position', p);
 end 
 
-t = tiledlayout(1,2);
+t = tiledlayout(2,2);
 t.TileSpacing = 'compact';
 t.Padding = 'compact';
 t.Title.String = strcat(regexprep(FN,'_','','emptymatch'));
@@ -39,14 +39,46 @@ c4 = [0.2 0.729 0.949]; % light blue
 c5 = [0.078 0.424 0.835]; % medium blue
 c6 = [0.016 0.235 0.498]; % dark blue
 
+%% Add custom boundary scatter diagram 
+nexttile
+dotSize = 500;
+scatter(0.2, 2.75,  dotSize, c4, 'filled');
+hold on 
+scatter(0.5, 2.75,  dotSize, c5, 'filled');
+hold on 
+scatter(0.8, 2.75, dotSize, c6, 'filled');
+
+yline(2)
+plot([0.3, 0.3], [2, 3], '--', 'color', [.5 .5 .5]);
+plot([0.7, 0.7], [2, 3], '--', 'color', [.5 .5 .5]);
+plot([0.45, 0.45], [0, 2], '--', 'color', [.5 .5 .5]);
+plot([0.72, 0.72], [0, 2], '--', 'color', [.5 .5 .5]);
+
+scatter(0.25, 1,  dotSize, c1, 'filled');
+hold on 
+scatter(0.6, 1, dotSize, c2, 'filled');
+hold on
+scatter(0.8, 1,  dotSize, c3, 'filled');
+
+ylim([0, 3])
+xlim([0, 1])
+xticks([]) 
+yticks([])
+aesthetics
+xlabel('Participation coefficient');
+ylabel('Within-module degree z-score');
+
+% hline(Params.(sprintf('hubBoundaryWMdDeg_%.fmsLag', lag)));
+
+
 %% add diagram
 
-nexttile
-imshow('NodeCartographyFull.jpg')
+nexttile(3)
+imshow('NodeCartographyDiagram.jpg')
 
 %% bar chart
 
-nexttile
+nexttile([2, 1])
 numNodeCartographyGroups = 6;
 
 for l = 1:length(lagval)
