@@ -178,7 +178,7 @@ else
 end 
 
 if Params.showOneFig
-    clf(oneFigureHandle)
+    clf(oneFigureHandle, 'reset')
 else 
     close(F1);
 end 

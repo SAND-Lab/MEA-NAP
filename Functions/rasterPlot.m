@@ -46,7 +46,8 @@ h = imagesc(downSpikeMatrix');
 xticks((duration_s)/(duration_s/60):(duration_s)/(duration_s/60):duration_s)
 xticklabels({'1','2','3','4','5','6','7','8','9','10','11','12','13','14','15'})
 
-c = parula;c = c(1:round(length(c)*.85),:);
+c = parula;
+c = c(1:round(length(c)*.85),:);
 colormap(c);
 
 aesthetics
@@ -106,7 +107,7 @@ else
 end 
 
 if Params.showOneFig
-    clf(oneFigureHandle)
+    clf(oneFigureHandle, 'reset')
 else 
     close(F1);
 end 
