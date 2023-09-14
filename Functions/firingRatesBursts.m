@@ -41,7 +41,7 @@ end
 % Network burst detection
 [burstMatrix, burstTimes, burstChannels] = burstDetect(spikeMatrix, ...
     Params.networkBurstDetectionMethod, Params.fs, Params.minSpikeNetworkBurst, ...
-    Params.minChannelNetworkBurst);
+    Params.minChannelNetworkBurst, Params.bakkumNetworkBurstISInThreshold);
 
 nBursts = size(burstTimes,1);
 

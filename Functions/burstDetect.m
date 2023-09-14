@@ -1,7 +1,4 @@
-function [burstMatrix, burstTimes, burstChannels] = burstDetect(spikeMatrix, method, samplingRate, N, minChannel)
-%script from: https://github.com/Timothysit/mecp2
-    %last edited by Alex Dunn: August 2019
-    
+function [burstMatrix, burstTimes, burstChannels] = burstDetect(spikeMatrix, method, samplingRate, N, minChannel, ISInThreshold)
 % INPUT 
     % spikeMatrix 
     
@@ -32,9 +29,13 @@ function [burstMatrix, burstTimes, burstChannels] = burstDetect(spikeMatrix, met
     % nB x 1 cell, each containing a vector listing which channels were
     % active during that burst
     
-    
-% Original author: Tim Sit 
-% Last update: 2020.04.03 bu Alex Dunn
+% original script from: https://github.com/Timothysit/mecp2
+% December 2017 : Created by Tim Sit
+% August 2019 : Edited by Alex Dunn
+% August 2020 : Edited by Alex Dunn
+% September 2023 : Tim Sit Added setting of ISInThreshold, which should be
+% 'automatic' if you are not sure what you should put
+
 
 switch nargin
     case 1 
@@ -176,10 +177,15 @@ if strcmp(method, 'Bakkum')
     % ISI_N can be automatically selected (and this is dependent on N)
     Steps = 10.^[-5:0.05:1.5]; 
     % exact values of this doens't matter as long as its log scale, covers 
-    % the possible spikeISI times,(but we don't care about values about
+    % the possible spikeISI times,(but we don't care about values above
     % 0.1s anyway)
     plotFig = 0;
-    ISInTh = getISInTh(Spike.T, N, Steps, plotFig);
+    
+    if strcmp(ISInThreshold, 'automatic')
+        ISInTh = getISInTh(Spike.T, N, Steps, plotFig);
+    else
+        ISInTh = ISInThreshold;
+    end
     
     [Burst SpikeBurstNumber] = BurstDetectISIn(Spike, N, ISInTh); 
     

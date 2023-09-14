@@ -70,6 +70,7 @@ Params.rasterPlotUpperPercentile = 99;
 Params.networkBurstDetectionMethod = 'Bakkum'; % supported methods: 'Bakkum', 'Manuel', 'LogISI', 'nno'
 Params.minSpikeNetworkBurst = 10;
 Params.minChannelNetworkBurst = 3;
+Params.bakkumNetworkBurstISInThreshold = 'automatic'; % either 'automatic' or a number in seconds
 
 Params.singleChannelBurstDetectionMethod = 'Bakkum'; % supported methods: 'Bakkum'
 Params.singleChannelBurstMinSpike = 10;
