@@ -66,7 +66,13 @@ option = 'list';
 % low firing rate)
 Params.rasterPlotUpperPercentile = 99;  
 
+%% Burst detection settings 
+Params.networkBurstDetectionMethod = 'Bakkum'; % supported methods: 'Bakkum', 'Manuel', 'LogISI', 'nno'
+Params.minSpikeNetworkBurst = 10;
+Params.minChannelNetworkBurst = 3;
 
+Params.singleChannelBurstDetectionMethod = 'Bakkum'; % supported methods: 'Bakkum'
+Params.singleChannelBurstMinSpike = 10;
 
 %% Dimensionality calculation settings 
 Params.effRankCalMethod = 'covariance';

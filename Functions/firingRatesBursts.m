@@ -37,21 +37,16 @@ if isnan(Ephys.FRmedian)
 end
 
 
-method ='Bakkum';
-%note, Set N = 30 (min number of spikes in a burst)
-%ensure bursts are excluded if fewer than 3 channels (see inside burstDetect
-%function)
-%to change min channels change line 207 of burstDetect.m
-%to change N (min number of spikes) see line 170 of burstDetect.m
-N = 10; 
-minChan = 3;
 
 % Network burst detection
-[burstMatrix, burstTimes, burstChannels] = burstDetect(spikeMatrix, method, Params.fs, N, minChan);
+[burstMatrix, burstTimes, burstChannels] = burstDetect(spikeMatrix, ...
+    Params.networkBurstDetectionMethod, Params.fs, Params.minSpikeNetworkBurst, ...
+    Params.minChannelNetworkBurst);
+
 nBursts = size(burstTimes,1);
 
 % Single channel burst detection
-burstData = singleChannelBurstDetection(spikeMatrix, N, Params.fs); 
+burstData = singleChannelBurstDetection(spikeMatrix, Params.singleChannelBurstMinSpike, Params.fs); 
 
 if ~isempty(burstMatrix)
     for Bst=1:length(burstMatrix)
