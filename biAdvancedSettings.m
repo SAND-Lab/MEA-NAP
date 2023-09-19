@@ -5,7 +5,6 @@ if any(isnan(Params.outputDataFolder)) || isempty(Params.outputDataFolder)
     Params.outputDataFolder = HomeDir;
 end 
 %% Spike detection settings
-Params.plotDetectionResults = 0;
 Params.threshold_calculation_window = [0, 1.0];  % which part of the recording to do spike detection, 0 = start of recording, 0.5 = midway, 1 = end of recording
 % params.absThresholds = {''};  % add absolute thresholds here % TODO:
 % double check this works, and allow for this to be empty so it does not have to be commented out 
