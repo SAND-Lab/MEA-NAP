@@ -80,7 +80,7 @@ addpath('Images')
 
 Params.guiMode = 0;
 if Params.guiMode == 1
-    runGUImode
+    runPipelineApp
 end 
 
 %% END OF USER REQUIRED INPUT SECTION
