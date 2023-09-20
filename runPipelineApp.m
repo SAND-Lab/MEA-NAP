@@ -15,6 +15,10 @@ app.UITable.Data = [ ...
    10, 0, 0, 0; ...
 ];
 app.UITable.ColumnEditable = [true, true, true, true];
+
+% get Original parents to hide/show them later 
+advancedSpikeDetectionTabParent = app.AdvancedSpikeDetectionTab.Parent;
+
 while app.RunPipelineButton.Value == 0
 
     % previous analysis fields
@@ -32,6 +36,14 @@ while app.RunPipelineButton.Value == 0
         app.PreviousAnalysisFolderEditFieldLabel.Enable = 'On';
         app.SpikeDataFolderEditField.Enable = 'On';
         app.SpikeDataFolderEditFieldLabel.Enable = 'On';
+    end 
+    
+    % check if advanced settings shown 
+    
+    if app.ShowAdvancedSettingsCheckBox.Value == 1
+        app.AdvancedSpikeDetectionTab.Parent = advancedSpikeDetectionTabParent;
+    else
+        app.AdvancedSpikeDetectionTab.Parent = [];
     end 
 
     % check if all required parameters are set
