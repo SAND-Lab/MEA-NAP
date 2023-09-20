@@ -1,4 +1,5 @@
 %% Script to run pipeline app and propagate settings back to Params
+clear app
 app = AnalysisPipelineApp;
 app.PipelineStatusTextArea.Value = {'Welcome!, Analysis Pipeline GUI is launched'};
 app.UITable.Data = [ ...
@@ -40,7 +41,26 @@ while app.RunPipelineButton.Value == 0
     else
         app.AllrequiredparameterssetLamp.Color = [1 0 0];
     end
+    
+    % check if load parameters button is pressed
+    if app.LoadParametersButton.Value == 1
+        [ParamsFileName, ParamsFilePath] = uigetfile;
+        app.LoadParametersButton.Value = 0;
+        figure(app.UIFigure)  % put app back to focus
+    end 
 
     pause(0.1)
 end 
+
+%% Moving settings to Params
+
+HomeDir = app.HomeDirectoryEditField.Value;
+Params.outputDataFolder = app.OutputDataFolderEditField.Value;
+rawData = app.RawDataFolderEditField.Value;
+Params.priorAnalysisPath = app.PreviousAnalysisFolderEditField.Value;
+spikeDetectedData = app.SpikeDataFolderEditField.Value;
+
+
+
+%% Start analysis message
 app.PipelineStatusTextArea.Value = [app.PipelineStatusTextArea.Value; 'Starting analysis!'];
