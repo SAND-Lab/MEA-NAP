@@ -70,18 +70,19 @@ Params.figExt = {'.png', '.svg'};  % supported options are '.fig', '.png', and '
 Params.fullSVG = 1;  % whether to insist svg even with plots with large number of elements
 Params.showOneFig = 1;  % otherwise, 0 = pipeline shows plots as it runs, 1: supress plots
 
+%% GUI / Tutorial mode settings 
+Params.guiMode = 1;
+if Params.guiMode == 1
+    runPipelineApp
+end 
+
+
 %% Paths 
 % add all relevant folders to path
 cd(HomeDir)
 addpath(genpath('Functions'))
 addpath('Images')
 
-%% GUI / Tutorial mode settings 
-
-Params.guiMode = 1;
-if Params.guiMode == 1
-    runPipelineApp
-end 
 
 %% END OF USER REQUIRED INPUT SECTION
 % The rest of the MEApipeline.m runs automatically. Do not change after this line
