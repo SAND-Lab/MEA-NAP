@@ -36,6 +36,8 @@ while app.RunPipelineButton.Value == 0
         app.PreviousAnalysisFolderEditFieldLabel.Enable = 'Off';
         app.SpikeDataFolderEditField.Enable = 'Off';
         app.SpikeDataFolderEditFieldLabel.Enable = 'Off';
+        app.PrevAnalysisSelectButton.Enable = 'Off';
+        app.SpikeDataSelectButton.Enable = 'Off';
     else
         app.PreviousAnalysisDateEditField.Enable = 'On';
         app.PreviousAnalysisDateEditFieldLabel.Enable = 'On';
@@ -43,6 +45,8 @@ while app.RunPipelineButton.Value == 0
         app.PreviousAnalysisFolderEditFieldLabel.Enable = 'On';
         app.SpikeDataFolderEditField.Enable = 'On';
         app.SpikeDataFolderEditFieldLabel.Enable = 'On';
+        app.PrevAnalysisSelectButton.Enable = 'On';
+        app.SpikeDataSelectButton.Enable = 'On';
     end 
     
     % check whether to show advanced settings
@@ -133,6 +137,20 @@ while app.RunPipelineButton.Value == 0
          app.PipelineStatusTextArea.Value = [app.PipelineStatusTextArea.Value; strjoin(csv_data.Properties.VariableNames, ', ')];
     end
     
+    % Load previous analysis folder 
+    if app.PrevAnalysisSelectButton.Value == 1
+        app.PreviousAnalysisFolderEditField.Value = uigetdir;
+        app.PrevAnalysisSelectButton.Value = 0;
+        figure(app.UIFigure)  % put app back to focus
+    end 
+    
+    % Previous Spike Data Folder 
+    if app.SpikeDataSelectButton.Value == 1 
+        app.SpikeDataFolderEditField.Value = uigetdir;
+        app.SpikeDataSelectButton.Value = 0;
+        figure(app.UIFigure)  % put app back to focus
+    end 
+    
     % check if load parameters button is pressed
     if app.LoadParametersButton.Value == 1
         [ParamsFileName, ParamsFilePath] = uigetfile('.mat');
@@ -150,7 +168,9 @@ while app.RunPipelineButton.Value == 0
         currDateTime = string(datetime);
         currDateTime = strrep(currDateTime, ' ', '-');
         currDateTime = strrep(currDateTime, ':', '-');
-        ParamsSavePath = strcat('MEANAP-Params-', currDateTime, '.mat');
+        [ParamName,ParamPath,indx] = uiputfile(sprintf('MEANAP-Params-%s.mat', currDateTime));
+        ParamsSavePath = fullfile(ParamPath, ParamName);
+        % ParamsSavePath = strcat('MEANAP-Params-', currDateTime, '.mat');
         save(ParamsSavePath, 'Params');
         app.PipelineStatusTextArea.Value = [app.PipelineStatusTextArea.Value; 'Saved parameters to:'];
         app.PipelineStatusTextArea.Value = [app.PipelineStatusTextArea.Value; ParamsSavePath];
