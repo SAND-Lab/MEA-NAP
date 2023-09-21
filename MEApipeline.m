@@ -78,7 +78,7 @@ addpath('Images')
 
 %% GUI / Tutorial mode settings 
 
-Params.guiMode = 0;
+Params.guiMode = 1;
 if Params.guiMode == 1
     runPipelineApp
 end 
