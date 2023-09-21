@@ -59,6 +59,12 @@ while app.RunPipelineButton.Value == 0
         % Not Tabs
         app.MinimumnodesizeEditField.Visible = 'on';
         app.MinimumnodesizeEditFieldLabel.Visible = 'on';
+        app.KDEwidthforonepointEditField.Visible = 'on';
+        app.KDEwidthforonepointEditFieldLabel.Visible = 'on';
+        app.KDEHeightEditField.Visible = 'on';
+        app.KDEHeightEditFieldLabel.Visible = 'on';
+        app.ShadeMetricDropDown.Visible = 'on';
+        app.ShadeMetricDropDownLabel.Visible = 'on';
     else
         app.AdvancedSpikeDetectionTab.Parent = [];
         app.AdvancedBurstDetectionTab.Parent = [];
@@ -71,6 +77,12 @@ while app.RunPipelineButton.Value == 0
         % Not Tabs 
         app.MinimumnodesizeEditField.Visible = 'off';
         app.MinimumnodesizeEditFieldLabel.Visible = 'off';
+        app.KDEwidthforonepointEditField.Visible = 'off';
+        app.KDEwidthforonepointEditFieldLabel.Visible = 'off';
+        app.KDEHeightEditField.Visible = 'off';
+        app.KDEHeightEditFieldLabel.Visible = 'off';
+        app.ShadeMetricDropDown.Visible = 'off';
+        app.ShadeMetricDropDownLabel.Visible = 'off';
     end 
 
     % check if all required parameters are set
@@ -107,13 +119,14 @@ while app.RunPipelineButton.Value == 0
     % Load CSV
     if app.SpreadsheetSelectButton.Value == 1
          [spreadsheetFilename, spreadsheetFolder] = uigetfile('.csv');
-         app.SpreadsheetfilenameEditField.Value = spreadsheetFilename;
+         spreadsheetFilePath = fullfile(spreadsheetFolder, spreadsheetFilename);
+         app.SpreadsheetfilenameEditField.Value = spreadsheetFilePath;
          app.SpreadsheetSelectButton.Value = 0;        
          figure(app.UIFigure)  % put app back to focus
          
          % load csv to check if everything is alright 
          csvRange = str2num(app.CSVRangeEditField.Value);
-         csv_data = pipelineReadCSV(spreadsheetFilename, csvRange);
+         csv_data = pipelineReadCSV(spreadsheetFilePath, csvRange);
          app.PipelineStatusTextArea.Value = [app.PipelineStatusTextArea.Value; 'Loaded spreadsheet succesfully!'];
          app.PipelineStatusTextArea.Value = [app.PipelineStatusTextArea.Value; sprintf('Your data has %.f rows', size(csv_data, 1))];
          app.PipelineStatusTextArea.Value = [app.PipelineStatusTextArea.Value; 'And columns with names:'];
