@@ -42,12 +42,20 @@ end
 
 
 % Check if specified folder exists 
-if ~exist(dataPath, 'dir')
-    error(sprintf('Specified dataPath does not exist: %s', dataPath))
-end 
+if iscell(dataPath)
+    for dataPathIdx = 1:length(dataPath)
+        if ~exist(dataPath{dataPathIdx}, 'dir')
+            error(sprintf('Specified dataPath does not exist: %s', dataPath{dataPathIdx}))
+        end 
+        addpath(dataPath{dataPathIdx});
+    end
+else 
+    if ~exist(dataPath, 'dir')
+        error(sprintf('Specified dataPath does not exist: %s', dataPath))
+    end 
+    addpath(dataPath);
+end
 
-
-addpath(dataPath);
 
 multiplier = params.multiplier;
 nSpikes = params.nSpikes;
@@ -98,7 +106,18 @@ end
 if exist('option', 'var') && strcmp(option, 'list')
     files = files;
 else
-    files = dir(fullfile(dataPath, '*.mat'));
+    if iscell(dataPath)
+        for dataPathIdx = 1:length(dataPath)
+            filesInFolder = dir(fullfile(dataPath{dataPathIdx}, '*.mat'));
+            if dataPathIdx == 1
+                files = filesInFolder;
+            else 
+                files = [files; filesInFolder];
+            end 
+        end
+    else
+        files = dir(fullfile(dataPath, '*.mat'));
+    end
 end
 
 params.numFilesForSpikeDetection = length(files);
@@ -166,7 +185,7 @@ for recording = 1:numel(files)
             end 
             grd = groundElectrodeVec;
 
-            if params.electrodesToGroundPerRecordingUseName == 1
+            if (params.electrodesToGroundPerRecordingUseName == 1) && ~isnan(grd)
                 % Convert from the channel name we want to ground, to the
                 % index within Params.channels
                 new_grd = zeros(length(grd), 1);
