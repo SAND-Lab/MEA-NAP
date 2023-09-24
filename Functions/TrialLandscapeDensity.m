@@ -1,29 +1,26 @@
 function [hubBoundaryWMdDeg, periPartCoef, proHubpartCoef, nonHubconnectorPartCoef, connectorHubPartCoef] = ...
     TrialLandscapeDensity(ExpList, fig_folder, add_fig_info, cartographyLagVal, oneFigureHandle)
-%{
-This script calculates and plots the distribution 
-of Within-module Z-score (Z) and participation coefficient (PC)
-for each electrode across recordings.
-
-Parameters
------------
-ExpList: struct 
-    structure containing names of files to analyse, this should be the
-    output of dir() command, so should contain the fields : name, folder,
-    date, bytes, isdir, datenum
-fig_folder : str
-    folder to save the plots
-add_fig_info : str
-    optional str to add an extra name tag to the figure, set to '' if this
-    is not needed
-cartographyLagVal : int 
-    lag value in ms
-Returns
--------
-hubBoundaryWMdDeg : float
-    boundary that separates hub and non-hubs
-
-%}
+% This script calculates and plots the distribution 
+% of Within-module Z-score (Z) and participation coefficient (PC)
+% for each electrode across recordings.
+% 
+% Parameters
+% -----------
+% ExpList: struct 
+%     structure containing names of files to analyse, this should be the
+%     output of dir() command, so should contain the fields : name, folder,
+%     date, bytes, isdir, datenum
+% fig_folder : str
+%     folder to save the plots
+% add_fig_info : str
+%     optional str to add an extra name tag to the figure, set to '' if this
+%     is not needed
+% cartographyLagVal : int 
+%     lag value in ms
+% Returns
+% -------
+% hubBoundaryWMdDeg : float
+%     boundary that separates hub and non-hubs
 
 PC = [];
 Z = [];
