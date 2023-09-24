@@ -242,9 +242,10 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
                 spikeDetectedDataFolder = spikeDetectedData;
             end
         end
-
+        
+        channelLayout =  Params.channelLayoutPerRecording{ExN};
         [spikeMatrix,spikeTimes,Params,Info] = formatSpikeTimes(... 
-            char(Info.FN), Params, Info, spikeDetectedDataFolder);
+            char(Info.FN), Params, Info, spikeDetectedDataFolder, channelLayout);
 
         % initial run-through to establish max values for scaling
         spikeFreqMax(ExN) = prctile((downSampleSum(full(spikeMatrix), Info.duration_s)),95,'all');
@@ -291,8 +292,9 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
         % generate and save raster plot
         rasterPlot(char(Info.FN),spikeMatrix,Params,spikeFreqMax, idvNeuronalAnalysisFNFolder, oneFigureHandle)
         % electrode heat maps
+        coords = Params.coords{ExN};
         electrodeHeatMaps(char(Info.FN), spikeMatrix, Info.channels, ... 
-            spikeFreqMax,Params, idvNeuronalAnalysisFNFolder, oneFigureHandle)
+            spikeFreqMax,Params, coords, idvNeuronalAnalysisFNFolder, oneFigureHandle)
         % half violin plots
         firingRateElectrodeDistribution(char(Info.FN), Ephys, Params, ... 
             Info, idvNeuronalAnalysisFNFolder, oneFigureHandle)
@@ -398,14 +400,17 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
                     strcat('OutputData', Params.Date), '1_SpikeDetection', ...
                     '1A_SpikeDetectedData');
         end 
-
+        
+        channelLayout = Params.channelLayoutPerRecording{ExN};
         [spikeMatrix, spikeTimes, Params, Info] = formatSpikeTimes(char(Info.FN), ...
-            Params, Info, spikeDetectedDataFolder);
+            Params, Info, spikeDetectedDataFolder, channelLayout);
 
         Params.networkActivityFolder = idvNetworkAnalysisFNFolder;
-
+        
+        coords = Params.coords{ExN};
+        channels = Params.channels{ExN};
         NetMet = ExtractNetMet(adjMs, spikeTimes, ...
-            Params.FuncConLagval, Info,HomeDir,Params, spikeMatrix, oneFigureHandle);
+            Params.FuncConLagval, Info,HomeDir,Params, spikeMatrix, coords, channels, oneFigureHandle);
 
         ExpMatFolder = fullfile(Params.outputDataFolder, ...
                 strcat('OutputData',Params.Date), 'ExperimentMatFiles');
@@ -449,8 +454,10 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
         end 
         
         Params.networkActivityFolder = idvNetworkAnalysisFNFolder;
-            
-        PlotIndvNetMet(expData, Params, expData.Info, oneFigureHandle)
+        
+        originalCoords = Params.coords{ExN};
+        originalChannels = Params.channels{ExN};
+        PlotIndvNetMet(expData, Params, expData.Info, originalCoords, originalChannels,  oneFigureHandle)
         
         if Params.showOneFig
             clf(oneFigureHandle)
