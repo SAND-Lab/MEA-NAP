@@ -1,4 +1,4 @@
-function NetMet = plotNodeCartography(adjMs, Params, NetMet, Info, HomeDir, fileNameFolder, oneFigureHandle)
+function NetMet = plotNodeCartography(adjMs, Params, NetMet, Info, originalCoords, originalChannels, HomeDir, fileNameFolder, oneFigureHandle)
 %
 % Parameters
 % ----------
@@ -48,8 +48,8 @@ for e = 1:length(lagval)
     nodeStrength = sum(adjM, 1);
     inclusionIndex = find(nodeStrength ~= 0);
     adjM = adjM(inclusionIndex, inclusionIndex);
-    coords = Params.coords(inclusionIndex, :);
-    Params.netSubsetChannels = Params.channels(inclusionIndex);
+    coords = originalCoords(inclusionIndex, :);
+    Params.netSubsetChannels = originalChannels(inclusionIndex);
 
 
     [Ci,Q,~] = mod_consensus_cluster_iterate(adjM,0.4,50);

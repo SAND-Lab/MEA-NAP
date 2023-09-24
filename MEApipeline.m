@@ -575,8 +575,10 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
                                   '4_NetworkActivity', '4A_IndividualNetworkAnalysis', ...
                                   char(Info.Grp), char(Info.FN));
 
-        
-        NetMet = plotNodeCartography(adjMs, Params, NetMet, Info, HomeDir, fileNameFolder, oneFigureHandle);
+        originalCoords = Params.coords{ExN};
+        originalChannels = Params.channels{ExN};
+        NetMet = plotNodeCartography(adjMs, Params, NetMet, Info, ...
+            originalCoords, originalChannels, HomeDir, fileNameFolder, oneFigureHandle);
         % save NetMet now that we have node cartography data as well
         experimentMatFileFolderToSaveTo = fullfile(Params.outputDataFolder, strcat('OutputData', Params.Date), 'ExperimentMatFiles');
         experimentMatFilePathToSaveTo = fullfile(experimentMatFileFolderToSaveTo, strcat(char(Info.FN),'_',Params.Date,'.mat'));
