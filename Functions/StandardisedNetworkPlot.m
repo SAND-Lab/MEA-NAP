@@ -114,9 +114,17 @@ if strcmp(plotType,'MEA')
     colourT = colour(order,:);
     xcot = xco(order,:);
     ycot = yco(order,:);
-    for u = 1:length(xcot)
-        plot(xcot(u,:),ycot(u,:),'LineWidth',lineWidthT(u),'Color',colourT(u,:));
-    end
+    
+    % for u = 1:length(xcot)
+    %     plot(xcot(u,:),ycot(u,:),'LineWidth',lineWidthT(u),'Color',colourT(u,:));
+    % end
+    % Thought: changing earlier code to avoid having to transpose
+    % will speed things up (but not sure if significant)
+    linePlot = plot(xcot',ycot'); % 'LineWidth',lineWidthT,'Color',colourT);
+    set(linePlot, {'LineWidth'}, num2cell(lineWidthT'));
+    set(linePlot, {'Color'}, num2cell(colourT', [1, 3])');
+    hold on
+    
 end
 
 if strcmp(plotType,'circular')
