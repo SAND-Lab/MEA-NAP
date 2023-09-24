@@ -97,7 +97,8 @@ for l = 1:length(Params.FuncConLagval)
         aesthetics
         set(gca,'TickDir','out');
         legend([y1 y2, y3, y4, y5, y6],'proportion peripheral nodes','proportion non-hub connectors', ... 
-            'proportion non-hub kinless nodes','proportion provincial hubs','proportion connector hubs','proportion kinless hubs','Location','eastoutside')
+            'proportion non-hub kinless nodes','proportion provincial hubs','proportion connector hubs', ...
+            'proportion kinless hubs','Location','eastoutside')
         legend Box off
     end
 
