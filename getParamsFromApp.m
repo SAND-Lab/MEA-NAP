@@ -56,7 +56,7 @@ for figExtIndex = 1:length(figExts)
     figExts{figExtIndex} = ['.' figExts{figExtIndex}];
 end 
 Params.figExt = figExts;
-Params.fullSVG = app.DonotcompressSVGCheckBox.Value
+Params.fullSVG = app.DonotcompressSVGCheckBox.Value;
 
 %%%%%%%%%%%%%%%%%%%%%%%%% ADVANCED SETTINGS %%%%%%%%%%%%%%%%%%%%
 Params.run_detection_in_chunks = app.RundetectioninchunksCheckBox.Value; % whether to run wavelet detection in chunks (0: no, 1:yes)
