@@ -532,6 +532,7 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
 
         else 
             lagValIdx = 1;
+            lag_val = Params.FuncConLagval;
             [hubBoundaryWMdDeg, periPartCoef, proHubpartCoef, nonHubconnectorPartCoef, connectorHubPartCoef] = ...
                 TrialLandscapeDensity(ExpList, fig_folder, add_fig_info, lag_val(lagValIdx), oneFigureHandle);
             Params.hubBoundaryWMdDeg = hubBoundaryWMdDeg;
