@@ -1,4 +1,4 @@
-function electrodeHeatMaps(FN, spikeMatrix, channels, spikeFreqMax, Params, figFolder, oneFigureHandle)
+function electrodeHeatMaps(FN, spikeMatrix, channels, spikeFreqMax, Params, coords, figFolder, oneFigureHandle)
 % Plots the firing rate of each node / electrode with a circle representing 
 % the spatial location of the electrode / node, and the color representing 
 % the firing rate (spikes/s)
@@ -58,8 +58,11 @@ if size(channels, 1) == 1
     channels = channels'; 
 end 
 
-xc = Params.coords(:,1);
-yc = Params.coords(:,2);
+% xc = Params.coords(:,1);
+% yc = Params.coords(:,2);
+
+xc = coords(:, 1);
+yc = coords(:, 2); 
 
 %% calculate spiking frequency
 

@@ -16,10 +16,15 @@ elseif strcmp(spreadsheet_file_type, 'csv')
     if length(opts.VariableNames) > 3
         opts.VariableTypes{4} = 'char'; % this should be Ground
     end 
+    
+    if length(opts.VariableNames) > 4
+        opts.VariableTypes{5} = 'char'; % this should be channelLayout
+    end 
+    
     opts.DataLines = csvRange; % read the data in the range [StartRow EndRow]
     % csv_data = readtable(spreadsheet_filename, 'Delimiter','comma');
     csv_data = readtable(spreadsheet_filename, opts);
-    ExpName =  csv_data{:, 1};
+    ExpName = csv_data{:, 1};
     ExpGrp = csv_data{:, 3};
     ExpDIV = csv_data{:, 2};
 
@@ -33,4 +38,20 @@ elseif strcmp(spreadsheet_file_type, 'csv')
     else 
         Params.electrodesToGroundPerRecording = [];
     end 
+    
+    if 1 - sum(strcmp('ChannelLayout', csv_data.Properties.VariableNames))
+        Params.channelLayoutPerRecording = cellstr(repmat(Params.channelLayout, size(csv_data, 1)));
+    else
+        Params.channelLayoutPerRecording = csv_data.('ChannelLayout');
+    end
+    
+    % Get coords and channels for each recording 
+    Params.channels = {};
+    Params.coords = {};
+    for nRecording = 1:size(csv_data, 1)
+        [channels, coords] = getCoordsFromLayout(Params.channelLayoutPerRecording{nRecording});
+        Params.channels{nRecording} = channels;
+        Params.coords{nRecording} = coords;
+    end
+    
 end 

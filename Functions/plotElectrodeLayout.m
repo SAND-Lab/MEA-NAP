@@ -19,25 +19,48 @@ end
 
 subplot(1, 2, 1)
 title('Provided electrode layout (channel index)')
+
+% TODO: currently only plots first layout, should plot unique layouts
 for n_channel = 1:num_channels
     txt_to_plot = sprintf('%.f', n_channel);
-    text(Params.coords(n_channel, 1), Params.coords(n_channel, 2), txt_to_plot)
+    if iscell(Params.coords)
+        text(Params.coords{1}(n_channel, 1), Params.coords{1}(n_channel, 2), txt_to_plot)
+    else
+        text(Params.coords(n_channel, 1), Params.coords(n_channel, 2), txt_to_plot)
+    end
 end 
 xlabel('X coordinates')
 ylabel('Y coordinates')
-xlim([min(Params.coords(:, 1)) - 1, max(Params.coords(:, 1) + 1)])
-ylim([min(Params.coords(:, 2)) - 1, max(Params.coords(:, 2) + 1)])
+
+if iscell(Params.coords)
+    xlim([min(Params.coords{1}(:, 1)) - 1, max(Params.coords{1}(:, 1) + 1)])
+    ylim([min(Params.coords{1}(:, 2)) - 1, max(Params.coords{1}(:, 2) + 1)])
+else
+    xlim([min(Params.coords(:, 1)) - 1, max(Params.coords(:, 1) + 1)])
+    ylim([min(Params.coords(:, 2)) - 1, max(Params.coords(:, 2) + 1)])
+end
 
 subplot(1, 2, 2)
 title('Provided electrode layout (channel ID)')
 for n_channel = 1:num_channels
-    txt_to_plot = sprintf('%.f', Params.channels(n_channel));
-    text(Params.coords(n_channel, 1), Params.coords(n_channel, 2), txt_to_plot)
+    if iscell(Params.coords)
+        txt_to_plot = sprintf('%.f', Params.channels{1}(n_channel));
+        text(Params.coords{1}(n_channel, 1), Params.coords{1}(n_channel, 2), txt_to_plot)
+    else
+        txt_to_plot = sprintf('%.f', Params.channels(n_channel));
+        text(Params.coords(n_channel, 1), Params.coords(n_channel, 2), txt_to_plot)
+    end 
 end 
 xlabel('X coordinates')
 ylabel('Y coordinates')
-xlim([min(Params.coords(:, 1)) - 1, max(Params.coords(:, 1) + 1)])
-ylim([min(Params.coords(:, 2)) - 1, max(Params.coords(:, 2) + 1)])
+
+if iscell(Params.coords)
+    xlim([min(Params.coords{1}(:, 1)) - 1, max(Params.coords{1}(:, 1) + 1)])
+    ylim([min(Params.coords{1}(:, 2)) - 1, max(Params.coords{1}(:, 2) + 1)])
+else 
+    xlim([min(Params.coords(:, 1)) - 1, max(Params.coords(:, 1) + 1)])
+    ylim([min(Params.coords(:, 2)) - 1, max(Params.coords(:, 2) + 1)])
+end 
 
 set(gcf, 'color', 'w')
 

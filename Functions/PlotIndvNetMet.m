@@ -1,4 +1,4 @@
-function PlotIndvNetMet(expData, Params, Info, oneFigureHandle)
+function PlotIndvNetMet(expData, Params, Info, originalCoords, originalChannels, oneFigureHandle)
 %PLOTINDVNETMET Creates network plot for individual recordings
 % Parameters
 % ----------
@@ -44,8 +44,8 @@ for e = 1:length(lagval)
     % inclusionIndex = find(nodeStrength ~= 0);
     inclusionIndex = find(abs(nodeStrength) > 1e-6);
     adjM = adjM(inclusionIndex, inclusionIndex);
-    coords = Params.coords(inclusionIndex, :);
-    Params.netSubsetChannels = Params.channels(inclusionIndex);
+    coords = originalCoords(inclusionIndex, :);
+    Params.netSubsetChannels = originalChannels(inclusionIndex);
     
     Ci = expData.NetMet.(lagValStr).Ci;
     if length(adjM) > 0

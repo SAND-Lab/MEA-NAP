@@ -1,4 +1,4 @@
-function [spikeMatrix,spikeTimes,Params,Info] = formatSpikeTimes(File, Params, Info, spikeDataFolder)
+function [spikeMatrix,spikeTimes,Params,Info] = formatSpikeTimes(File, Params, Info, spikeDataFolder, channelLayout)
 
 % this function loads in the spike detection result and creates a
 % spike matrix and spike times structure for the chosen spike detection
@@ -47,7 +47,7 @@ Info.channels = channels;
 % of which electrodes as "missing" from the standard layout, or ideally
 % none at all 
 
-if strcmp(Params.channelLayout, 'MCS60') && length(spikeTimes) == 59
+if strcmp(channelLayout, 'MCS60') && length(spikeTimes) == 59
     fprintf('Detected 59 electrodes with MCS60 layout, removing electrode 82 \n')
     inclusionIndex = find(channels ~= 82);
     Info.channels = channels(inclusionIndex);
