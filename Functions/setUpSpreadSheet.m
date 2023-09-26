@@ -40,7 +40,7 @@ elseif strcmp(spreadsheet_file_type, 'csv')
     end 
     
     if 1 - sum(strcmp('ChannelLayout', csv_data.Properties.VariableNames))
-        Params.channelLayoutPerRecording = cellstr(repmat(Params.channelLayout, size(csv_data, 1)));
+        Params.channelLayoutPerRecording = cellstr(repmat(Params.channelLayout, size(csv_data, 1), 1));
     else
         Params.channelLayoutPerRecording = csv_data.('ChannelLayout');
     end
