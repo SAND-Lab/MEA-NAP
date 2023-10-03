@@ -63,7 +63,12 @@ for i = 1:length(ExpName)
      allElectrodeLevelData.FileName = [allElectrodeLevelData.FileName; repmat({expData.Info.FN{1}}, numElectrodes, 1)];
      allElectrodeLevelData.Grp = [allElectrodeLevelData.Grp; repmat({expData.Info.Grp{1}}, numElectrodes, 1)];
      allElectrodeLevelData.DIV = [allElectrodeLevelData.DIV; repmat(expData.Info.DIV{1}, numElectrodes, 1)];
-     allElectrodeLevelData.Channel = [allElectrodeLevelData.Channel; expData.Info.channels];
+     
+     if size(expData.Info.channels, 1) == 1
+        allElectrodeLevelData.Channel = [allElectrodeLevelData.Channel; expData.Info.channels'];
+     else
+        allElectrodeLevelData.Channel = [allElectrodeLevelData.Channel; expData.Info.channels];
+     end
      
      % recording level data 
      for e = 1:length(NetMetricsE)
