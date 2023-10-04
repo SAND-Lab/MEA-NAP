@@ -362,7 +362,7 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
     oneFigureHandle = checkOneFigureHandle(Params, oneFigureHandle);
 
     for  ExN = 1:length(ExpName) 
-
+        
         if Params.priorAnalysis==1 && Params.startAnalysisStep==4
             priorAnalysisExpMatFolder = fullfile(Params.priorAnalysisPath, 'ExperimentMatFiles');
             spikeDataFname = strcat(char(ExpName(ExN)),'_',Params.priorAnalysisDate,'.mat');
@@ -436,6 +436,12 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
     Params.sideBySideBoundPlots = 1;
     
     for ExN = 1:length(ExpName) 
+        
+        % Testing: make figure handle per recording 
+        % Set up one figure handle to save all the figures
+        oneFigureHandle = NaN;
+        oneFigureHandle = checkOneFigureHandle(Params, oneFigureHandle);
+        
         disp(ExpName(ExN))
         % load NetMet 
         experimentMatFileFolder = fullfile(Params.outputDataFolder, ...
@@ -463,6 +469,14 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
             clf(oneFigureHandle)
         else
             close all 
+        end 
+        
+        % Testing: Always close all the figures
+        close all
+        if strcmp(Params.verboseLevel, 'High')
+            getMemoryUsage
+            numTotalGraphicObjects = length(findall(groot));
+            fprintf(sprintf('Total number of graphic objects: %.f \n', numTotalGraphicObjects))
         end 
          
     end
