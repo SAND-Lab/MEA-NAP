@@ -34,6 +34,11 @@ app.KDEwidthforonepointEditField.Value = Params.kdeWidthForOnePoint;  % bandwidt
 app.IncludechannelnumberinplotsCheckBox.Value = Params.includeChannelNumberInPlots;  % whether to plot channel ID in heatmaps and node plots
 
 
+%% Pipeline settings 
+
+app.TimeprocessesCheckBox.Value = Params.timeProcesses;
+app.VerboseLevelDropDown.Value = Params.verboseLevel;
+
 %%%%%%%%%%%%%%%%%%%%%%%%%% GUI SPECIFIC SETTINGS %%%%%%%%%%%%%%%%%%%%%%%
 app.ShowAdvancedSettingsCheckBox.Value = Params.showAdvancedSetting;
 

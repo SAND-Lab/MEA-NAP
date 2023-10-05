@@ -122,6 +122,10 @@ Params.kdeHeight = app.KDEHeightEditField.Value;  % height of the KDE curve, onl
 Params.kdeWidthForOnePoint = app.KDEwidthforonepointEditField.Value;  % bandwidth for KDE (in half violin plots) if there is only a single data point 
 Params.includeChannelNumberInPlots = app.IncludechannelnumberinplotsCheckBox.Value;  % whether to plot channel ID in heatmaps and node plots
 
+%% Pipeline settings 
+Params.timeProcesses = app.TimeprocessesCheckBox.Value;
+Params.verboseLevel = app.VerboseLevelDropDown.Value;
+
 %%%%%%%%%%%%%%%%%%%%%%%%%% GUI SPECIFIC SETTINGS %%%%%%%%%%%%%%%%%%%%%%%
 Params.showAdvancedSetting = app.ShowAdvancedSettingsCheckBox.Value; 
 
