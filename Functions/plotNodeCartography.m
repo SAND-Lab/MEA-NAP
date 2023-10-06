@@ -1,4 +1,5 @@
-function NetMet = plotNodeCartography(adjMs, Params, NetMet, Info, originalCoords, originalChannels, HomeDir, fileNameFolder, oneFigureHandle)
+function NetMet = plotNodeCartography(adjMs, Params, NetMet, Info, originalCoords, ...
+    originalChannels, HomeDir, fileNameFolder, oneFigureHandle)
 %
 % Parameters
 % ----------
@@ -83,7 +84,7 @@ for e = 1:length(lagval)
     if aN >= Params.minNumberOfNodesToCalNetMet
         % node cartography in circular plot
         NdCartDivOrd = NdCartDiv(On);
-        StandardisedNetworkPlotNodeCartography(adjM, coords, ... 
+        StandardisedNetworkPlotNodeCartography(adjMord, coords, ... 
             edge_thresh, NdCartDivOrd, 'circular', char(Info.FN), '7', Params, lagval, e, lagFolder, oneFigureHandle)
 
         % node cartography in grid plot 
