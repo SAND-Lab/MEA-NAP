@@ -101,7 +101,7 @@ while app.RunPipelineButton.Value == 0
 
     % Load HomeDir 
     if app.HomeDirSelectButton.Value == 1
-        app.HomeDirectoryEditField.Value = uigetdir;
+        app.MEANAPFolderEditField.Value = uigetdir;
         app.HomeDirSelectButton.Value = 0;
         figure(app.UIFigure)  % put app back to focus
     end 
