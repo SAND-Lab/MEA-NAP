@@ -90,7 +90,7 @@ while app.RunPipelineButton.Value == 0
     end 
 
     % check if all required parameters are set
-    homeDirSet = 1 - isempty(app.HomeDirectoryEditField.Value);
+    homeDirSet = 1 - isempty(app.MEANAPFolderEditField.Value);
     spreadsheetSet = 1 - isempty(app.SpreadsheetfilenameEditField.Value);
     
     if homeDirSet && spreadsheetSet
