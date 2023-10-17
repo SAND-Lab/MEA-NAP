@@ -1,7 +1,7 @@
 %% Script to run pipeline app and propagate settings back to Params
 clear app
 app = AnalysisPipelineApp;
-app.PipelineStatusTextArea.Value = {'Welcome!, Analysis Pipeline GUI is launched'};
+app.MEANAPStatusTextArea.Value = {'Welcome! The MEA-NAP GUI is launched.'};
 app.colorUITable.Data = [ ...
    1, 0.996, 0.670, 0.318; ...
    2, 0.780, 0.114, 0.114; ... 
@@ -131,10 +131,10 @@ while app.RunPipelineButton.Value == 0
          % load csv to check if everything is alright 
          csvRange = str2num(app.CSVRangeEditField.Value);
          csv_data = pipelineReadCSV(spreadsheetFilePath, csvRange);
-         app.PipelineStatusTextArea.Value = [app.PipelineStatusTextArea.Value; 'Loaded spreadsheet succesfully!'];
-         app.PipelineStatusTextArea.Value = [app.PipelineStatusTextArea.Value; sprintf('Your data has %.f rows', size(csv_data, 1))];
-         app.PipelineStatusTextArea.Value = [app.PipelineStatusTextArea.Value; 'And columns with names:'];
-         app.PipelineStatusTextArea.Value = [app.PipelineStatusTextArea.Value; strjoin(csv_data.Properties.VariableNames, ', ')];
+         app.MEANAPStatusTextArea.Value = [app.MEANAPStatusTextArea.Value; 'Loaded spreadsheet succesfully!'];
+         app.MEANAPStatusTextArea.Value = [app.MEANAPStatusTextArea.Value; sprintf('Your data has %.f rows', size(csv_data, 1))];
+         app.MEANAPStatusTextArea.Value = [app.MEANAPStatusTextArea.Value; 'And columns with names:'];
+         app.MEANAPStatusTextArea.Value = [app.MEANAPStatusTextArea.Value; strjoin(csv_data.Properties.VariableNames, ', ')];
     end
     
     % Load previous analysis folder 
@@ -158,8 +158,8 @@ while app.RunPipelineButton.Value == 0
         figure(app.UIFigure)  % put app back to focus
         load(fullfile(ParamsFilePath, ParamsFileName));
         app = setAppParams(app, Params);
-        app.PipelineStatusTextArea.Value = [app.PipelineStatusTextArea.Value; 'Loaded parameters from:'];
-        app.PipelineStatusTextArea.Value = [app.PipelineStatusTextArea.Value; fullfile(ParamsFilePath, ParamsFileName)];
+        app.MEANAPStatusTextArea.Value = [app.MEANAPStatusTextArea.Value; 'Loaded parameters from:'];
+        app.MEANAPStatusTextArea.Value = [app.MEANAPStatusTextArea.Value; fullfile(ParamsFilePath, ParamsFileName)];
     end 
 
 
@@ -172,8 +172,8 @@ while app.RunPipelineButton.Value == 0
         ParamsSavePath = fullfile(ParamPath, ParamName);
         % ParamsSavePath = strcat('MEANAP-Params-', currDateTime, '.mat');
         save(ParamsSavePath, 'Params');
-        app.PipelineStatusTextArea.Value = [app.PipelineStatusTextArea.Value; 'Saved parameters to:'];
-        app.PipelineStatusTextArea.Value = [app.PipelineStatusTextArea.Value; ParamsSavePath];
+        app.MEANAPStatusTextArea.Value = [app.MEANAPStatusTextArea.Value; 'Saved parameters to:'];
+        app.MEANAPStatusTextArea.Value = [app.MEANAPStatusTextArea.Value; ParamsSavePath];
         app.SaveParametersButton.Value = 0;
         figure(app.UIFigure)  % put app back to focus
     end 
@@ -207,4 +207,4 @@ end
 
 
 %% Start analysis message
-app.PipelineStatusTextArea.Value = [app.PipelineStatusTextArea.Value; 'Starting analysis!'];
+app.MEANAPStatusTextArea.Value = [app.MEANAPStatusTextArea.Value; 'Starting analysis!'];
