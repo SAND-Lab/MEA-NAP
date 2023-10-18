@@ -91,7 +91,7 @@ for e = 1:length(lagval)
     
     % OPTIONAL: also include controllability metrics in plot 
     if any(strcmp(Params.unitLevelNetMetToPlot , 'aveControl'))
-        plotPrefixes{end+1} = '7';
+        plotPrefixes{end+1} = '10';
         nodeSizeMetricsToPlot{end+1} = lagNetMet.ND;
         nodeSizeMetricName{end+1} = 'Node degree';
         colorMapMetricsToPlot{end+1} = lagNetMet.aveControl;
@@ -101,7 +101,7 @@ for e = 1:length(lagval)
 
     if any(strcmp(Params.unitLevelNetMetToPlot , 'modalControl'))
         
-        plotPrefixes{end+1} = '8';
+        plotPrefixes{end+1} = '11';
         nodeSizeMetricsToPlot{end+1} = lagNetMet.ND;
         nodeSizeMetricName{end+1} = 'Node degree';
         colorMapMetricsToPlot{end+1} = lagNetMet.modalControl;
@@ -126,16 +126,44 @@ for e = 1:length(lagval)
             
             figureHandleOriginal = figure('visible', 'off');
             
-            
+            % make unscaledPlotPathsToCombine 
+            plotPathsToCombine = {};
+
+            % for plotNameIdx = 1:length(plotPathsToCombine)
+            %     unscaledPlotPathsToCombine{plotNameIdx} = strrep(plotPathsToCombine{plotNameIdx}, '_scaled', '');
+            %  end 
+
             if sum(isnan(colorMapMetricsToPlot{networkPlotIdx}))
+                
+                plotType = 'MEA';
+                pNum = sprintf('%s', plotPrefixes{networkPlotIdx});
                 figureHandleOriginal = StandardisedNetworkPlot(adjM, coords, edge_thresh, ...
-                nodeSizeMetricsToPlot{networkPlotIdx}, 'MEA', ...
-                char(Info.FN),sprintf('%s', plotPrefixes{networkPlotIdx}),Params,lagval,e, lagFolderName, figureHandleOriginal);
+                nodeSizeMetricsToPlot{networkPlotIdx}, plotType, ...
+                char(Info.FN),pNum,Params,lagval,e, lagFolderName, figureHandleOriginal);
+                
+                figName = strcat([pNum, '_', plotType, '_NetworkPlot.png']);
+                figPath = fullfile(lagFolderName, figName);
+                plotPathsToCombine{1} = figPath;
+            
+                % Temp test 
+                % h(1) = StandardisedNetworkPlot(adjM, coords, edge_thresh, ...
+                % nodeSizeMetricsToPlot{networkPlotIdx}, 'MEA', ...
+                % char(Info.FN),sprintf('%s', plotPrefixes{networkPlotIdx}),Params,lagval,e, lagFolderName, h(1), 0);
             else 
+                plotType = 'MEA';
+                pNum = sprintf('%s', plotPrefixes{networkPlotIdx});
+                zname = nodeSizeMetricName{networkPlotIdx};
+                z2name = colorMapMetricName{networkPlotIdx};
+                
                 [figureHandleOriginal, cbOriginal] = StandardisedNetworkPlotNodeColourMap(adjM, coords, edge_thresh, ...
-                nodeSizeMetricsToPlot{networkPlotIdx}, nodeSizeMetricName{networkPlotIdx}, ...
-                colorMapMetricsToPlot{networkPlotIdx}, colorMapMetricName{networkPlotIdx}, ...
-                'MEA', char(Info.FN), sprintf('%s', plotPrefixes{networkPlotIdx}), Params, lagval, e, lagFolderName, figureHandleOriginal);
+                nodeSizeMetricsToPlot{networkPlotIdx}, zname, ...
+                colorMapMetricsToPlot{networkPlotIdx}, z2name, ...
+                plotType, char(Info.FN), pNum, Params, lagval, e, lagFolderName, figureHandleOriginal);
+            
+                figName = strcat([pNum,'_',plotType,'_NetworkPlot',zname,z2name]);
+                figName = strrep(figName, ' ', '');
+                figPath = fullfile(lagFolderName, [figName '.png']);
+                plotPathsToCombine{1} = figPath;
                 % [figureHandleOriginal, cbOriginal] = StandardisedNetworkPlotNodeColourMap(adjM, coords, edge_thresh, ...
                 % nodeSizeMetricsToPlot{networkPlotIdx}, nodeSizeMetricName{networkPlotIdx}, ...
                 % colorMapMetricsToPlot{networkPlotIdx}, colorMapMetricName{networkPlotIdx}, ...
@@ -158,15 +186,31 @@ for e = 1:length(lagval)
                 % figureHandleScaled = StandardisedNetworkPlot(adjM, coords, edge_thresh, ...
                 % nodeSizeMetricsToPlot{networkPlotIdx}, 'MEA', ...
                 % char(Info.FN), sprintf('%s_scaled', plotPrefixes{networkPlotIdx}), Params, lagval, e, lagFolderName);
-            
+                plotType = 'MEA';
+                pNum = sprintf('%s_scaled', plotPrefixes{networkPlotIdx});
+                
                 figureHandleScaled = StandardisedNetworkPlot(adjM, coords, edge_thresh, ...
-                nodeSizeMetricsToPlot{networkPlotIdx}, 'MEA', ...
-                char(Info.FN), sprintf('%s_scaled', plotPrefixes{networkPlotIdx}), Params, lagval, e, lagFolderName, figureHandleScaled);
+                nodeSizeMetricsToPlot{networkPlotIdx}, plotType, ...
+                char(Info.FN), pNum, Params, lagval, e, lagFolderName, figureHandleScaled);
+                
+                figName = strcat([pNum, '_', plotType, '_NetworkPlot.png']);
+                figPath = fullfile(lagFolderName, figName);
+                plotPathsToCombine{2} = figPath;
             else 
-                 [figureHandleScaled, cbScaled] = StandardisedNetworkPlotNodeColourMap(adjM, coords, edge_thresh, ...
-                 nodeSizeMetricsToPlot{networkPlotIdx}, nodeSizeMetricName{networkPlotIdx}, ...
-                 colorMapMetricsToPlot{networkPlotIdx}, colorMapMetricName{networkPlotIdx}, ...
-                'MEA', char(Info.FN), sprintf('%s_scaled', plotPrefixes{networkPlotIdx}), Params, lagval, e, lagFolderName, figureHandleScaled);
+                plotType = 'MEA';
+                pNum = sprintf('%s_scaled', plotPrefixes{networkPlotIdx});
+                zname = nodeSizeMetricName{networkPlotIdx};
+                z2name = colorMapMetricName{networkPlotIdx};
+                [figureHandleScaled, cbScaled] = StandardisedNetworkPlotNodeColourMap(adjM, coords, edge_thresh, ...
+                 nodeSizeMetricsToPlot{networkPlotIdx}, zname, ...
+                 colorMapMetricsToPlot{networkPlotIdx}, z2name, ...
+                plotType, char(Info.FN), pNum, Params, lagval, e, lagFolderName, figureHandleScaled);
+            
+                figName = strcat([pNum,'_',plotType,'_NetworkPlot',zname,z2name]);
+                figName = strrep(figName, ' ', '');
+                figPath = fullfile(lagFolderName, [figName '.png']);
+                plotPathsToCombine{2} = figPath;
+                
                 % [figureHandleScaled, cbScaled] = StandardisedNetworkPlotNodeColourMap(adjM, coords, edge_thresh, ...
                 %  nodeSizeMetricsToPlot{networkPlotIdx}, nodeSizeMetricName{networkPlotIdx}, ...
                 %  colorMapMetricsToPlot{networkPlotIdx}, colorMapMetricName{networkPlotIdx}, ...
@@ -182,6 +226,28 @@ for e = 1:length(lagval)
                 tic
             end 
             
+            % Try just merging two PNGs
+            % TEMP TEST
+            %{
+            combinedFigure = figure('visible','off'); % create a new figure for saving and printing
+            p =  [50   100   660*2 + 400  550];
+            set(combinedFigure, 'Position', p);
+            
+            % h(1) = subplot(1, 2, 1);
+            % axis off
+            % h(2) = subplot(1, 2, 2);
+            % PNG MERGE strategy
+            gap = 0.00;
+            marg_h = 0.01; 
+            marg_w = -0.01;
+            [ha, pos] = tight_subplot(1, 2, gap, marg_h, marg_w);
+            axes(ha(1));
+            imshow(plotPathsToCombine{1});
+            axes(ha(2));
+            imshow(plotPathsToCombine{2});
+            %}
+            
+            %
             combinedFigure = figure('visible','off'); % create a new figure for saving and printing
             p =  [50   100   660*2 + 400  550];
             set(combinedFigure, 'Position', p);
@@ -209,6 +275,7 @@ for e = 1:length(lagval)
             
             copyobj(allchild(get(figureHandleOriginal, 'Currentaxes')), h(1)); 
             copyobj(allchild(get(figureHandleScaled, 'Currentaxes')), h(2)); 
+            %}
             
             set(gcf, 'color', 'white');
             figPath = fullfile(lagFolderName, ...
@@ -221,9 +288,15 @@ for e = 1:length(lagval)
                 toc
             end 
             
+            
+            
             close(figureHandleOriginal) 
             close(figureHandleScaled) 
             close(combinedFigure)
+            
+            % delete(figureHandleOriginal) 
+            % delete(figureHandleScaled) 
+            % delete(combinedFigure)
             % fprintf(sprintf('Current figure number: %.f \n', get(gcf, 'Number')))
         end
         
@@ -240,6 +313,11 @@ for e = 1:length(lagval)
         
         if Params.timeProcesses
             toc
+        end 
+        
+        if strcmp(Params.verboseLevel, 'High')
+            figureHandleList = findall(groot,'Type','figure');
+            fprintf(sprintf('Number of figure handles: %.f \n', numel(figureHandleList)));
         end 
         
     end 

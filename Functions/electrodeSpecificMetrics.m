@@ -156,7 +156,7 @@ end
 
 
 %% save figure
-figName = strcat('8_adjM', num2str(lagval(e)),'msGraphMetricsByNode');
+figName = strcat('7_adjM', num2str(lagval(e)),'msGraphMetricsByNode');
 figPath = fullfile(figFolder, figName);
 
 if ~Params.showOneFig

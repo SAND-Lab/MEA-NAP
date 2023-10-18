@@ -47,7 +47,7 @@ set(gca,'TickDir','out');
 
 
 %% save figure
-figName = strcat(['10_adjM', num2str(lagval(e)), 'msNullModels']);
+figName = strcat(['8_adjM', num2str(lagval(e)), 'msNullModels']);
 figPath = fullfile(figFolder, figName);
 
 if Params.showOneFig
