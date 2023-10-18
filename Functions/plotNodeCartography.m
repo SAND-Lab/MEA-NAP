@@ -120,7 +120,7 @@ for e = 1:length(lagval)
 end 
 
 %% Plot node catography proportions 
-plotNodeCartographyProportions(NetMet, lagval, char(Info.FN), Params, lagFolder, oneFigureHandle)
+plotNodeCartographyProportions(NetMet, lagval, char(Info.FN), Params, fileNameFolder, oneFigureHandle)
 
 
 end 
