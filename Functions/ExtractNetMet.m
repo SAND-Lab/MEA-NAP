@@ -246,17 +246,17 @@ for e = 1:length(lagval)
         
         BC95thpercentile = prctile(BC, 95);
         BCmeantop5 = mean(BC(BC >= BC95thpercentile));
-else
-     fprintf('Not enough nodes to calculate network metrics! \n')
-     SW = nan;
-     SWw = nan;
-     CC = nan;
-     PL = nan;
-     Eloc = nan;
-     ElocMean = nan;
-     BC = nan;
-     BCmeantop5 = nan;
- end
+    else
+         fprintf('Not enough nodes to calculate network metrics! \n')
+         SW = nan;
+         SWw = nan;
+         CC = nan;
+         PL = nan;
+         Eloc = nan;
+         ElocMean = nan;
+         BC = nan;
+         BCmeantop5 = nan;
+     end
     
     % participation coefficient
 %     PC = participation_coef(adjM,Ci,0);
@@ -361,30 +361,37 @@ else
     end 
 
     %% Calculate non-negative matrix factorisation components
-    if any(strcmp(netMetToCal, 'num_nnmf_components'))
-        fprintf('Calculating NMF \n')
-        minSpikeCount = 10;
-        includeRandomMatrix = 1;
-        nmfCalResults = calNMF(spikeMatrix, Params.fs, Params.NMFdownsampleFreq, ...
-                                Info.duration_s, minSpikeCount, includeRandomMatrix, ...
-                                Params.includeNMFcomponents);
-        NetMet.(strcat('adjM',num2str(lagval(e)),'mslag')).num_nnmf_components = nmfCalResults.num_nnmf_components;
-        NetMet.(strcat('adjM',num2str(lagval(e)),'mslag')).nComponentsRelNS = nmfCalResults.nComponentsRelNS; 
-        if Params.includeNMFcomponents
-            NetMet.(strcat('adjM',num2str(lagval(e)),'mslag')).nmfFactors = nmfCalResults.nmfFactors;
-            NetMet.(strcat('adjM',num2str(lagval(e)),'mslag')).nmfWeights = nmfCalResults.nmfWeights;
-            NetMet.(strcat('adjM',num2str(lagval(e)),'mslag')).downSampleSpikeMatrix = nmfCalResults.downSampleSpikeMatrix;
+    % note these are only calcualted for the first lag field because they
+    % do not depend on lag
+    if e == 1
+        if any(strcmp(netMetToCal, 'num_nnmf_components'))
+            fprintf('Calculating NMF \n')
+            minSpikeCount = 10;
+            includeRandomMatrix = 1;
+            nmfCalResults = calNMF(spikeMatrix, Params.fs, Params.NMFdownsampleFreq, ...
+                                    Info.duration_s, minSpikeCount, includeRandomMatrix, ...
+                                    Params.includeNMFcomponents);
+            NetMet.(strcat('adjM',num2str(lagval(e)),'mslag')).num_nnmf_components = nmfCalResults.num_nnmf_components;
+            NetMet.(strcat('adjM',num2str(lagval(e)),'mslag')).nComponentsRelNS = nmfCalResults.nComponentsRelNS; 
+            NetMet.(strcat('adjM',num2str(lagval(e)),'mslag')).nnmf_residuals = nmfCalResults.nnmf_residuals; 
+            NetMet.(strcat('adjM',num2str(lagval(e)),'mslag')).nnmf_var_explained = nmfCalResults.nnmf_var_explained;
+            if Params.includeNMFcomponents
+                NetMet.(strcat('adjM',num2str(lagval(e)),'mslag')).nmfFactors = nmfCalResults.nmfFactors;
+                NetMet.(strcat('adjM',num2str(lagval(e)),'mslag')).nmfWeights = nmfCalResults.nmfWeights;
+                NetMet.(strcat('adjM',num2str(lagval(e)),'mslag')).downSampleSpikeMatrix = nmfCalResults.downSampleSpikeMatrix;
+            end 
+
         end 
 
+        %% Calculate effective rank 
+        if any(strcmp(netMetToCal,'effRank'))
+            fprintf('Calculating effective rank \n')
+            downSampleMatrix = downSampleSum(full(spikeMatrix), Params.effRankDownsampleFreq * Info.duration_s);
+            NetMet.(strcat('adjM',num2str(lagval(e)),'mslag')).effRank = ...
+                calEffRank(downSampleMatrix, Params.effRankCalMethod);
+        end 
+        
     end 
-
-    %% Calculate effective rank 
-    if any(strcmp(netMetToCal,'effRank'))
-        fprintf('Calculating effective rank \n')
-        NetMet.(strcat('adjM',num2str(lagval(e)),'mslag')).effRank = ...
-            calEffRank(spikeMatrix, Params.effRankCalMethod);
-    end 
-
     %% Calculate average and modal controllability 
     if any(strcmp(netMetToCal, 'aveControl'))
         aveControl = ave_control(adjM);
@@ -419,7 +426,14 @@ else
     end 
     
     if any(strcmp(netMetToCal, 'TA_regional')) || any(strcmp(netMetToCal, 'TA_global'))
-        % TODO: calculate temporal autocorrelatio
+        % TODO: calculate temporal autocorrelation
+        time_bin_size = 0.1; % in units of seconds 
+        spikeMatrixBinned = 1; % TODO: resample spike matrix
+        lag_corr_per_channel = zeros(length(inclusionIndex), 1);
+        for channel = 1:size(spikeMatrix, 1)
+            x = spikeMatrix(inclusionIndex, :);
+            lag_corr_per_channel = temporal_autocorrelation(x);
+        end
     end 
     
 
