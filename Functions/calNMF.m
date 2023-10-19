@@ -19,6 +19,7 @@ function nmfResults = calNMF(spikeMatrix, fs, downsamplefreq, duration_s, ...
 %   num_nnmf_components : number of significant components from NMF
 %   nComponentsRelNS : number of components relative to network size
 
+
 if issparse(spikeMatrix)
     spikeMatrix = full(spikeMatrix);
 end
@@ -31,7 +32,7 @@ nmfResults = struct();
 %% Generate random matrix from original spike matrix
 
 %% Downsample both matrices 
-
+%
 % downsampled randomised spike matrix
 if includeRandomMatrix
     
@@ -104,6 +105,44 @@ for nnmf_c = 1:num_nnmf_components
     % components.(strcat("Component_channels", "_",num2str(nnmf_c))) = participatingElectrodes;
 end
 
+%% Do NNMF on each possible component 
+activeElectrodes = sum(spikeMatrix,1) > minSpikeCount;
+networkSize = sum(full(activeElectrodes));
+downSampleSpikeMatrixActive = downSampleSpikeMatrix(:, activeElectrodes);
+% numTimeBins = size(downSampleSpikeMatrixActive, 1);
+
+v = ver;
+hasParallelToolbox = any(strcmp(cellstr(char(v.Name)), 'Parallel Processing Toolbox'));
+
+nnmf_residuals = zeros(networkSize, 1);
+nnmf_var_explained = zeros(networkSize, 1);
+% D_store = zeros(networkSize, 1); % for testing purposes
+
+varExplainedThreshold = 0.95;
+thresholdReached = 0;
+
+for k = 1:networkSize
+    [k_nmfFactors, k_nmfWeights, k_residual] = nnmf(downSampleSpikeMatrixActive,k, ... 
+    'options', statset('UseParallel', hasParallelToolbox));
+    
+    nnmf_residuals(k) = k_residual;
+    
+     % variance explained 
+    predictedMatrix = k_nmfFactors * k_nmfWeights;
+    var_explained = 1 -  sum(sum((predictedMatrix - downSampleSpikeMatrixActive).^2)) ... 
+        / sum(sum((downSampleSpikeMatrixActive - mean(mean(downSampleSpikeMatrixActive))).^2));
+    nnmf_var_explained(k) = var_explained;
+    
+    if (var_explained > varExplainedThreshold) && (1 - thresholdReached)
+        thresholdReached = 1;
+        nmfFactorsVarThreshold = k_nmfFactors;
+        nmfWeightsVarThreshold = k_nmfWeights;
+    end
+    
+    % D = norm(downSampleSpikeMatrixActive - nmfFactors*nmfWeights,'fro') / sqrt(numTimeBins*networkSize);
+    % D_store(k) = D;
+end
+
 
 %% Make output 
 
@@ -113,11 +152,15 @@ nmfResults.residual = residual;
 nmfResults.nComponentsRelNS = (k-1)/networkSize;
 nmfResults.nComponentsnRelNSsquared = (k-1)/networkSize^2;
 nmfResults.meanComponentSize = mean(componentSize);
+nmfResults.nnmf_residuals = nnmf_residuals;
+nmfResults.nnmf_var_explained = nnmf_var_explained;
 
 if includeNMFcomponents
     nmfResults.downSampleSpikeMatrix = downSampleSpikeMatrix;
     nmfResults.nmfFactors = nmfFactors;  % numTimeStamp x numComponents
     nmfResults.nmfWeights = nmfWeights;  % numComponents x numNodes
+    nmfResults.nmfFactorsVarThreshold = nmfFactorsVarThreshold;
+    nmfResults.nmfWeightsVarThreshold = nmfWeightsVarThreshold;
 end 
 
 
