@@ -120,7 +120,7 @@ if ~skipPlot
     aesthetics
     set(gca,'TickDir','out');
     set(gca,'xtick',[])
-    ylabel('local connectivity') 
+    ylabel('local efficiency') 
     if length(unique(Eloc)) ~= 1
         ylim([0 nanmax(Eloc)+0.2*nanmax(Eloc)])
     end 
@@ -146,7 +146,7 @@ if ~skipPlot
     aesthetics
     set(gca,'TickDir','out');
     set(gca,'xtick',[])
-    ylabel('betweeness centrality')
+    ylabel('betweenness centrality')
     if nanmin(BC) == nanmax(BC)
         ylim([0, nanmax(BC) + 0.1])  % handle edge case of eg. all zeros
     else
