@@ -88,6 +88,8 @@ if strcmp(plotType,'MEA')
     colourT = colour(order,:);
     xcot = xco(order,:);
     ycot = yco(order,:);
+    
+    % TODO: this does not require a loop I think... 
     for u = 1:length(xcot)
         plot(xcot(u,:),ycot(u,:),'LineWidth',lineWidthT(u),'Color',colourT(u,:));
     end
@@ -205,13 +207,6 @@ nodeTypeColors = [0.8 0.902 0.310; ... % light green
                   0.078 0.424 0.835; ... % medium blue
                   0.016 0.235 0.498; ... % dark blue
                   ];
-
-%c1 = [0.8 0.902 0.310]; % light green
-%c2 = [0.580 0.706 0.278]; % medium green
-%c3 = [0.369 0.435 0.122]; % dark green
-%c4 = [0.2 0.729 0.949]; % light blue
-%c5 = [0.078 0.424 0.835]; % medium blue
-%c6 = [0.016 0.235 0.498]; % dark blue
 
 if strcmp(plotType,'MEA')
     uniqueXc = sort(unique(xc));
