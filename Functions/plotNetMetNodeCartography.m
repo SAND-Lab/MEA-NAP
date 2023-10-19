@@ -8,7 +8,10 @@ function plotNetMetNodeCartography(combinedData, ExpName, Params,HomeDir, figFol
 % ExpName : str
 % Params : structure
 % HomeDir : str 
-% 
+%       Path to folder where AnalysisPipeline code is located
+% figFolder : str 
+%       Path to folder to save the plots 
+% oneFigureHandle : figure handle
 % Returns
 % -------
 % 
