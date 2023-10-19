@@ -278,9 +278,15 @@ for e = 1:length(lagval)
             %}
             
             set(gcf, 'color', 'white');
-            figPath = fullfile(lagFolderName, ...
-                sprintf('%s_combined_MEA_NetworKPlot%s%s', plotPrefixes{networkPlotIdx}, ... 
-                nodeSizeMetricName{networkPlotIdx}, colorMapMetricName{networkPlotIdx}));
+            
+            if isnan(colorMapMetricName{networkPlotIdx})
+                figPath = fullfile(lagFolderName, ...
+                sprintf('%s_combined_MEA_NetworkPlot', plotPrefixes{networkPlotIdx}));
+            else
+                figPath = fullfile(lagFolderName, ...
+                sprintf('%s_combined_MEA_NetworkPlot_%s', plotPrefixes{networkPlotIdx}, ... 
+                colorMapMetricName{networkPlotIdx}));
+            end
             
             pipelineSaveFig(figPath, Params.figExt, Params.fullSVG, combinedFigure);
             
