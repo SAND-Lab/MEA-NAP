@@ -129,7 +129,7 @@ while app.RunPipelineButton.Value == 0
          figure(app.UIFigure)  % put app back to focus
          
          % load csv to check if everything is alright 
-         csvRange = str2num(app.CSVRangeEditField.Value);
+         csvRange = str2num(app.SpreadsheetRangeEditField.Value);
          csv_data = pipelineReadCSV(spreadsheetFilePath, csvRange);
          app.MEANAPStatusTextArea.Value = [app.MEANAPStatusTextArea.Value; 'Loaded spreadsheet succesfully!'];
          app.MEANAPStatusTextArea.Value = [app.MEANAPStatusTextArea.Value; sprintf('Your data has %.f rows', size(csv_data, 1))];
