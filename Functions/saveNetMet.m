@@ -104,8 +104,12 @@ for i = 1:length(ExpName)
                 allElectrodeLevelData.Lag = [allElectrodeLevelData.Lag; repmat(lag, numElectrodes, 1)]; 
      
             end 
-            
-            allRecordingLevelData.(eMet) = [allRecordingLevelData.(eMet); expData.('NetMet').(lagField).(eMet)];
+            if strcmp(eMet, 'effRank')
+                firstLagField = Params.FuncConLagval(1);
+                allRecordingLevelData.(eMet) = [allRecordingLevelData.(eMet); expData.('NetMet').(firstLagField).(eMet)];
+            else
+                allRecordingLevelData.(eMet) = [allRecordingLevelData.(eMet); expData.('NetMet').(lagField).(eMet)];
+            end 
          end 
      end 
      
