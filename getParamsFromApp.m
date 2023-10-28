@@ -2,7 +2,7 @@ function  Params = getParamsFromApp(app)
 %UNTITLED2 Summary of this function goes here
 %   Detailed explanation goes here
 
-Params.HomeDir = app.HomeDirectoryEditField.Value;
+Params.HomeDir = app.MEANAPFolderEditField.Value;
 Params.outputDataFolder = app.OutputDataFolderEditField.Value;
 Params.rawData = app.RawDataFolderEditField.Value;
 Params.priorAnalysisPath = app.PreviousAnalysisFolderEditField.Value;
