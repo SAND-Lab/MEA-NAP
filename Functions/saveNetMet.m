@@ -104,7 +104,10 @@ for i = 1:length(ExpName)
                 allElectrodeLevelData.Lag = [allElectrodeLevelData.Lag; repmat(lag, numElectrodes, 1)]; 
      
             end 
-            if strcmp(eMet, 'effRank')
+            
+            lagIndependentMets = {'effRank', 'num_nnmf_components', 'nComponentsRelNS'}; 
+            if contains(eMet, lagIndependentMets)
+                % 'effRank', 'num_nnmf_components', 'nComponentsRelNS'
                 firstLagField = sprintf('adjM%.fmslag', Params.FuncConLagval(1));
                 allRecordingLevelData.(eMet) = [allRecordingLevelData.(eMet); expData.('NetMet').(firstLagField).(eMet)];
             else
