@@ -105,7 +105,7 @@ for i = 1:length(ExpName)
      
             end 
             if strcmp(eMet, 'effRank')
-                firstLagField = Params.FuncConLagval(1);
+                firstLagField = sprintf('adjM%.fmslag', Params.FuncConLagval(1));
                 allRecordingLevelData.(eMet) = [allRecordingLevelData.(eMet); expData.('NetMet').(firstLagField).(eMet)];
             else
                 allRecordingLevelData.(eMet) = [allRecordingLevelData.(eMet); expData.('NetMet').(lagField).(eMet)];
