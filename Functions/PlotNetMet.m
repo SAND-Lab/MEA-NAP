@@ -164,7 +164,15 @@ for i = 1:length(ExpName)
             eMet = cell2mat(NetMetricsE(e));
             for l = 1:length(Params.FuncConLagval)
                 % VNs = strcat('NetMet.adjM',num2str(Params.FuncConLagval(l)),'mslag.',eMet);
-                DatTemp(l) = expFileData.NetMet.(strcat('adjM', num2str(Params.FuncConLagval(l)), 'mslag')).(eMet);
+                
+                lagIndependentMets = {'effRank', 'num_nnmf_components', 'nComponentsRelNS'}; 
+                if contains(eMet, lagIndependentMets)
+                    % 'effRank', 'num_nnmf_components', 'nComponentsRelNS'
+                    firstLagField = sprintf('adjM%.fmslag', Params.FuncConLagval(1));
+                    DatTemp(l) = expFileData.NetMet.firstLagField.(eMet);
+                else
+                    DatTemp(l) = expFileData.NetMet.(strcat('adjM', num2str(Params.FuncConLagval(l)), 'mslag')).(eMet);
+                end 
                 % eval(['DatTemp(l) =' VNs ';']);
                 clear VNs
             end
