@@ -22,6 +22,16 @@ What this does is to obtain the latest changes of the pipeline from the github r
 
 Sometimes, you may encounter an error when running this because some of your local changes (eg. your edits to the main ``MEApipeline.m``) scripts are in conflict with the version of the web, and github doesn't want to overwrite the changes you have made. In this case, rename the script you have changed, eg. ``MEApipeline_MyName.m``, and then run the command again. You can then copy back the changes you have made into the new script.
 
+What do I do if I am experiencing issues with the pipeline? 
+----------------------------------------------------------------------------------------
+
+Begin by visiting the GitHub repository. You can find the repository by searching for it on the GitHub website. Once you are on the repository's page, click on the **Issues** tab located in the top menu. This is where you can report problems, ask questions, or request new features.
+
+Next click the green "New Issue" button to initiate the process of submitting a new issue. Describe your problem in detail, including the steps to reproduce the issue and any error messages you encountered. If relevant, include screenshots or code snippets to provide additional context to the issue. Also use appropriate formatting to enhance readability and comprehension. See an example of a detailed, properly formatted GitHub issue here.
+
+**Before submitting your issue**, it is advisable to search for similar problems in the repository's archived issues. This can help you find solutions or gain a better grasp of the problem.
+
+By submitting an issue on GitHub, you are not only seeking assistance but also contributing to the community's knowledge base. Other pipeline users facing comparable issues can consult your issue and any ensuing discussions or resolutions, promoting collaboration and simplifying the process of troubleshooting and resolving pipeline-related problems. 
 
 
 

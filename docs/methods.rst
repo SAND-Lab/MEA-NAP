@@ -1,4 +1,4 @@
-Methods for Cellular-scale Network Analysis of MEA recordings
+Methods for Microscale Network Analysis of MEA recordings
 ======================================
 
 

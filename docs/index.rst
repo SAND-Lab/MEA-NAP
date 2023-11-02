@@ -4,16 +4,20 @@
    contain the root `toctree` directive.
 
 Welcome to the MEA network analysis pipeline (MEA-NAP) documentation!
-========================================
+======================================================================
+
 .. image:: ../imgs/MEANAPoverview.png
-  :width: 800
+   :width: 800
 
 .. toctree::
    :maxdepth: 2
    :caption: Contents:
 
    introduction
+   setting-up-matlab
+   getting-started
    pipeline-steps
+   running-MEANAP-on-HPC
    system-requirements
    methods
    frequently-asked-questions

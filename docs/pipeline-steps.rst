@@ -12,6 +12,7 @@ The pipeline has the following steps:
 2. Comparison of the neuronal activity (e.g., firing rates, burst rates)
 3. Inferring the functional connectivity
 4. Comparison of the network activity (i.e., graph theoretical metric)
+5. Statistical analysis (e.g., feature correlation and classification)
 
 
    
@@ -40,7 +41,7 @@ Here is an example of the variables you should see in matlab for an Axion input 
       
    
 2. Table with your data filenames for batch analysis with age and group identifiers
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 ``*.csv`` or ``*.xlsx`` file with the first column containing the filenames of the raw ``*.mat`` files for analysis, second column the age (this should be a number), third column genotype (e.g., WT or KO, do not put numbers in your names), and fourth column including any electrodes that should be grounded (for MCS 60 channel data, electrode 15 should be included here as it is the reference electrode).
 
@@ -66,6 +67,7 @@ The first section sets many of the parameters that instruct the pipeline where t
 
 N.B. As we continue to update and improve MEA-NAP, some of the line numbers in the ``MEApipeline.m`` may change. There may be a lag before we update those line numbers in this documentation.  If the line numbers do not match, you can search for the function in the ``MEApipeline.m`` file in matlab to find the new line number.
 
+
 .. list-table:: 
    :widths: 15 25 50
    :header-rows: 1
@@ -75,39 +77,44 @@ N.B. As we continue to update and improve MEA-NAP, some of the line numbers in t
      - User input required
    * - 11
      - HomeDir
-     - Set the location of the folder with the AnalysisPipeline scripts.  N.B.  Best not to save in Program Files.
-   * - 12
+     - Set the location of the folder with the AnalysisPipeline scripts. N.B. Best not to save in Program Files.
+   * - 12 
+     - Params.outputDataFolder 
+     - Set the location of where your output data will be saved. Leave as '' if the same as HomeDir.
+   * - 13
      - rawData 
      - Set the location of the folder with the raw data .mat files.
-   * - 17, 18
+   * - 18, 19
      - spreadsheet_file_type, spreadsheet_filename
-     - Input file with list of recordings with their age and genotype. Specify if input file is ``*.csv`` or ``*.xlsx`` (line 17) and the name of your input file (line 18). 
-   * - 20
-     - xlRange (optional)
-     - If using an .xlsx file type, you can specify all or a subset of the filenames to analyse by changing the sheet number (if more than one sheet in spreadsheet) and/or xlRange (e.g., ``A2:C3`` would analyze the first two files listed in the sheet).
+     - Input file with a list of recordings with their age and genotype. Specify if the input file is ``*.csv`` or ``*.xlsx`` (line 17) and the name of your input file (line 18). 
+   * - 20 
+     - sheet 
+     - Specify whether you are using an Excel sheet. If you are using one, set this setting equal to "1". Otherwise, set it equal to "0".
    * - 21
-     - csvRange (optional)
-     - If using an .csv file type, you can specify all or a subset of the filenames to analyse by only reading read the data in the range [StartRow EndRow]. (e.g. ``[2 Inf]`` would start reading data from row 2).
+     - xlRange (optional)
+     - If using an .xlsx file type, you can specify all or a subset of the filenames to analyze by changing the sheet number (if more than one sheet in the spreadsheet) and/or xlRange (e.g., ``A2:C3`` would analyze the first two files listed in the sheet).
    * - 22
+     - csvRange (optional)
+     - If using a .csv file type, you can specify all or a subset of the filenames to analyze by only reading data in the range [StartRow EndRow]. (e.g. ``[2 Inf]`` would start reading data from row 2).
+   * - 23
      - Params.output_spreadsheet_file_type
-     - Option to choose .csv or .xlsx as output file type for your data analysis from the pipeline.  Default is ``.csv``
-   * - 33
+     - Option to choose .csv or .xlsx as the output file type for your data analysis from the pipeline. Default is ``.csv``
+   * - 37
      - Params.fs
-     - Confirm the sampling frequency is correct for your recording.  We acquire data on the MCS 60 channel system at 25000 Hz and on the Axion Maestro at 12500 Hz.
-   * - 36 
+     - Confirm the sampling frequency is correct for your recording. We acquire data on the MCS 60 channel system at 25000 Hz and on the Axion Maestro at 12500 Hz.
+   * - 38 
+     - Params.dSampF 
+     - Confirm the downsampling factor is correct for spike detection check in step 1 of the pipeline. Its value should match the sampling frequency.
+   * - 40
      - Params.channelLayout 
      - Confirm the correct channel layout for your recording. Options: ``MCS60``, ``Axion64``, ``MCS60old``
-   * - 70 
+   * - 74
      - Params.guiMode
-     - Set ``Params.guiMode`` equal to 1 if you wish to use interactive, tutorial GUI for MEANAP pipeline. Otherwise, set ``Params.guiMode`` equal to 0 if you wish to run non-interactive default version of the MEANAP pipeline, which does not include the tutorial GUI. 
+     - Set ``Params.guiMode`` equal to 1 if you wish to use an interactive, tutorial GUI for MEANAP pipeline. Otherwise, set ``Params.guiMode`` equal to 0 if you wish to run the non-interactive default version of the MEANAP pipeline, which does not include the tutorial GUI. 
 
-
-
-
-Options to start pipeline at different steps
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Options to start the pipeline at different steps
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 (e.g., save time by running functional connectivity for different time lags without having to rerun the spike detection). 
-
 
 .. list-table:: 
    :widths: 15 25 50
@@ -116,15 +123,17 @@ Options to start pipeline at different steps
    * - Line
      - Variable
      - User input required
-   * - 13, 25, 26
+   * - 14, 26, 27
      - Params.prior AnalysisPath, …AnalysisDate, …Analysis
      - If you have already run the pipeline previously and wish to use some of the outputs from the earlier steps, set equal to 1 and give the location and date for the prior analysis (this format should match the folder name of the previous data analysis). N.B. If a previous OutputData folder for the Date already exists, the pipeline will prompt you when running to add a suffix to the previous version (e.g. “v1”). The pipeline will then rename the old folder and remove it from the path.
-   * - 27
+   * - 28
      - Params.startAnalysisStep
-     - If you would like to start running the pipeline at a later step than spike detection (step 1) using the prior data, change to the corresponding number.  See Section 3.1 for overview of pipeline functions.  If ``Params.priorAnalysis=0``, default is to start with spike detection. N.B. Steps 2-4 all require spike detection to run.  Step 4 requires Step 3.
+     - If you would like to start running the pipeline at a later step than spike detection (step 1) using the prior data, change to the corresponding number. See Section 3.1 for an overview of pipeline functions. If ``Params.priorAnalysis=0``, the default is to start with spike detection. N.B. Steps 2-4 all require spike detection to run. Step 4 requires Step 3. Step 5 requires step 4. 
+   * - 29 
+     - Params.optionalStepsToRun 
+     - If you have completed steps 1 -4 of the pipeline, use this step to run optional downstream steps of the pipeline. You can set this setting equal to 'runStats' to perform statistical analysis that looks at feature correlations and classification across groups. You can also set it equal to 'combineDIVplots' to combine plots across DIVs. 
 
-
-Spike detection settings (lines 12 - 170)
+Spike detection settings (lines 13 - 95)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. list-table:: 
@@ -134,35 +143,24 @@ Spike detection settings (lines 12 - 170)
    * - Line
      - Variable
      - User input required
-   * - 12
+   * - 13
      - rawData
-     - This is the folder where your recordings are (*.mat format). Mac uses / for filenames.  PC uses \ for file names.
-   * - 14
+     - This is the folder where your recordings are (*.mat format). Mac uses / for filenames. PC uses \ for file names.
+   * - 15
      - spikeDetectedData
-     - If you are using previous spike detection .mat files for the pipeline, put folder location here.  This allows you to run downstream parts of the pipeline again without having to redo spike detection (saves computational time). Spike detection files are also much smaller file size than raw so easier to share/run on less powerful computers.
-   * - 31
+     - If you are using previous spike detection .mat files for the pipeline, put the folder location here. This allows you to run downstream parts of the pipeline again without having to redo spike detection (saves computational time). Spike detection files are also much smaller file size than raw so easier to share/run on less powerful computers.
+   * - 35
      - detectSpikes
-     - If you are starting with a .mat file of a raw recording, set to “1” to run spike detection.  If starting with a .mat file of detected spikes, or have previously run spike detection, set to “0”.
-   * - 37
+     - If you are starting with a .mat file of a raw recording, set to “1” to run spike detection. If starting with a .mat file of detected spikes, or have previously run spike detection, set equal to “0”.
+   * - 36 
+     - Params.runSpikeCheckOnPrevSpikeData
+     - If you were unable to generate spike detection check figures during step 1 of the pipeline to visualize the performance of your spike detection methods, set equal to "1". You must have already generated spike files for all of your recordings before using this setting.
+   * - 41
      - Params.thresholds
-     - Choose one or more standard deviations (SD) if running threshold-based spike detection. This method identifies negative voltage deflections that exceed the threshold set based on the SD of the mean voltage signal. This method is fast. It works well for electrodes with a high signal:noise ratio and for recordings with similar firing rates. Threshold-based methods can underestimate spikes in electrodes with high firing rates and are susceptible to counting large artifacts as spikes, as the spike waveform is not considered.  For 2D & 3D cultures recorded with the MCS 60 channel system, we recommend the 4.5 SD multiplier.  Axion recommends 5.0 for the data acquired on their system. The pipeline allows you to run multiple thresholds and compare the spike detection.
-   * - 38
-     - Params.wnameList
-     - Choose one or more of the MATLAB wavelets if running our template-based spike detection. This method identifies spikes based on the similarity of the spike waveform to the templates (wavelets). For 2D murine cortical cultures recorded with the MCS system, we recommend ``bior1.5`` or running ``bior1.5``, ``bior1.3``, and ``db`` and merging the spikes detected for increased sensitivity. Note, these 3 templates do not work as well with 3D human cerebral organoid recordings.
-   * - 39
-     - Params.costList
-     - Cost parameter to run for the templated-based method (line 37).  Recommend running for first time users at -0.12. If missing spikes make more negative (e.g., -0.2).  If false positives, make less negative (e.g., -0.10). NOTE: Currently only supports one value, if running a list then only the last cost parameter value will be saved.
-   * - 40
-     - Params.SpikeMethod
-     - Here you choose the spike detection method for the downstream analysis. We have a custom method called “mea” that first uses the threshold method to select spikes to make electrode-specific wavelets for use with the template-based spike detection.  Select “merged” to combine spikes from all wavelets you select to improve sensitivity for detecting multi-unit activity with different waveforms.
-   * - 170
-     - biAdvancedSettings
-     - Experienced users can open this *.m file to change more parameters for the spike detection.  (Optional step)
-
+     - Choose one or more standard deviations (SD) if running threshold-based spike detection. This method identifies negative voltage deflections that exceed the threshold set based on the SD of the mean voltage signal. This method is fast. It works well for electrodes with a high signal-to-noise ratio and for recordings with similar firing rates. Threshold-based methods can underestimate spikes in electrodes with high firing rates and are susceptible to
 
 Functional connectivity settings
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
 
 .. list-table:: 
    :widths: 15 25 50
@@ -171,25 +169,63 @@ Functional connectivity settings
    * - Line
      - Variable
      - User input required
-   * - 43
+   * - 47
      - Params.FuncConLagval
      - The pipeline uses the spike time tiling coefficient (STTC; Cutts & Eglen, 2014) to estimate pairwise correlations between spiking activity observed in electrodes. Select one or more lag values (in milliseconds) for detecting coincident activity.  For MCS-acquired data, 25 ms is a good starting point. Pipeline works best if you choose 2 or 3 different lags to compare (although the computational time is longer).
-   * - 44, 45
+   * - 48, 49
      - Params. TrunRec, TrunLength
-     - Calculating the functional connectivity can be computationally intensive. If you wish to shorten (truncate) the recording change TrunRc to 1 and select a length in seconds. N.B. Shortening the recording can significantly change the connectivity estimates.
-   * - 46
+     - Calculating the functional connectivity can be computationally intensive. If you wish to shorten (truncate) the recording change TrunRec to 1 and select a length in seconds. N.B. Shortening the recording can significantly change the connectivity estimates.
+   * - 50
      - Params.adjMtype
      - We use weighted networks. The strength of the connectivity between two electrodes is determined by the STTC. Changing to binary would treat weak and strong connections the same. 
-   * - 49, 50, 51, 52
+   * - 53, 54, 55, 56
      - Params. ProbThres... RepNum, Tail, PlotChecks, PlotChecksN
      - Probabilistic thresholding is a method for determining above-chance correlation between activity observed in the electrodes.  It works by shuffling the real data many times (RepNum default = 200) and then calculating the STTC. If the STTC value for the real data is greater than expected by chance for a given electrode pair from the shuffles (e.g., Tail 0.1, aka 90%-tile), that pair is functionally connected. Depending on the number of shuffles and STTC lag, we may use ``Params.ProbThreshTail = 0.01`` (aka 99%-tile). To determine whether the number of shuffles (RepNum) is sufficient in a sample of the recordings, set ``Params.ProbThreshPlotChecks = 1`` (otherwise 0) and indicate the number of recordings to examine (PlotChecksN).
 
+Node cartography settings 
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+.. list-table:: 
+  :widths: 15 25 50
+  :header-rows: 1     
 
+  * - Line
+    - Variable
+    - User input required
+  * - 59 
+    - Params.autoSetCartographyBoudariesPerLag
+    - During step 4, our pipeline generates figures related to node cartography. Use this setting to choose whether to fir separate boundaries per lag value. 
+  * - 60 
+    - Params.cartographyLagVal
+    - If ``Params.autoSetCartographyBoudariesPerLag = 0``, specifiy lag values (in ms) that you want to use to calculate PC-Z distribution. 
+  * - 61 
+    - Params.autoSetCartographyBoundaries 
+    - This setting specifies whether the pipeline should automatically determine the boundaries for hubs or use custom ones during the node 
+
+Statistics and machine learning settings
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. list-table:: 
+  :widths: 15 25 50
+  :header-rows: 1    
+
+  * - Line
+    - Variable
+    - User input required
+  * - 64 
+    - Params.classificationTarget
+    - Specify which property of your recordings that you wish to classify using machine learning based classification and regression models during step 5 (statisical analysis) of the pipeline. 
+  * - 65 
+    - Params.classification_models
+    - Specify the classification models that you wish to classify recording property that you previously specified with ``Params.classificationTarget``.
+  * - 66 
+    - Params.regression_models
+    - Specify the regression models that you wish to use to classify recording property that you previously specified with ``Params.classificationTarget``.
 
 Pipeline output preferences
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
                 
+
 .. list-table:: 
    :widths: 15 25 50
    :header-rows: 1         
@@ -197,9 +233,15 @@ Pipeline output preferences
    * - Line
      - Variable
      - User input required
-   * - 65
+   * - 69
      - Params.figExt
      - The pipeline output includes a large number of figures which allow you to look at network features within individual networks and to compare across multiple recordings.  You can have these figures in .fig (can edit in MATLAB), .png (standard image), and/or .svg (can edit colors, font sizes in graphics programs). Specify which extensions to include as a cell array in this line.  More file types selected increases pipeline run time.
+  * - 70 
+    - Params.fullSVG 
+    - You can choose whether to use .svg format for all plots, including ones with large numbers of elements. 
+  * - 71 
+    - Params.showOneFig 
+    - You can choose whether to show plots as the pipeline
 
 
 
