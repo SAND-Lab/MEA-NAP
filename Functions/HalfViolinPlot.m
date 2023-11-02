@@ -2,13 +2,15 @@ function HalfViolinPlot(data, pos, colour, width, kdeWidthForOnePoint)
 % Parameters
 % -----------
 % data : 
-% pos : 
+% pos : float
+%    center position on the x axis
 % color : 
 % width : has nothing to do with kde computation, just the plotting (ie.
 % not to be confused with bandwidth)
 % kdeWidthForOnePoint : 
 
 % created May 2020, author RCFeord
+% Edited by Tim Sit to change kernel density estimation method
 
 data(isnan(data)) = [];
 data(isinf(data)) = [];
@@ -31,7 +33,20 @@ data(isinf(data)) = [];
 
 % Improved Sheather and Jones rule 
 if length(data) > 1 && std(data) > 0
-    [bandwidth, density, xmesh, cdf] = improvedSJkde(data);
+    % zero_replacement =  (max(data) - min(data)) * 0.01;
+    % zero_replacement = 0.02;
+    % zero_idx = find(data == 0);
+    % zero_replacement_vector = repmat(zero_replacement, length(zero_idx), 1);
+    % zero_replacement_vector(1:2:end) = -zero_replacement;
+    % data(zero_idx) = zero_replacement_vector;
+    num_mesh_points = 2 ^ 12; % this is the default from the authors of improvedSJkde
+    [bandwidth, density, xmesh, cdf] = improvedSJkde(data, num_mesh_points);
+    % data(zero_idx) = 0; 
+    
+    % min_bandwidth = 0.03;
+    min_bandwidth = (max(data) - min(data)) * 0.1;
+    bandwidth = max([min_bandwidth, bandwidth]); 
+    
 else
     if strcmp(kdeWidthForOnePoint, 'auto')
         [~, ~, bandwidth] = ksdensity(data);
