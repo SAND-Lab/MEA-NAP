@@ -1,4 +1,15 @@
-function saveEphysStats(ExpName, Params, HomeDir)
+function saveEphysStats(ExpName, Params)
+% Saves data related to spike and bursts to two csv files 
+% One csv contains node level metrics : NeuronalActivity_NodeLevel
+% One csv contains network level metrics : NeuronalActivity_RecordingLevel
+% INPUT 
+% -----
+% ExpName : cell array 
+%      cell array with size N x 1 where N is the number of recordings 
+%      each entry is the name of a recording file without the extension 
+%      eg. MPT_220603_10A_DIV14
+% Params : struct
+%      Parameter structure 
 
 %% groups and DIV
 
@@ -97,8 +108,7 @@ for i = 1:length(ExpName)
      
 end
 
-% transpose Channel when there is only one file, I haven't figured out what is the source of this (why
-% it is not an issue when there are multiple files)
+% transpose Channel when there is only one file 
 if length(ExpName) == 1 && size(allElectrodeLevelData.Channel, 1) == 1
     allElectrodeLevelData.Channel = allElectrodeLevelData.Channel';
 end 
