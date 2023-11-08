@@ -27,7 +27,7 @@ Params.priorAnalysisDate = ''; % prior analysis date in format given in output d
 Params.priorAnalysis = 0; % use previously analysed data? 1 = yes, 0 = no
 Params.startAnalysisStep = 1; % if Params.priorAnalysis=0, default is to start with spike detection
 Params.optionalStepsToRun = {''}; % include 'generateCSV' to generate csv for rawData folder
-                                  % include 'runStats' to look at feature
+                                  % include 'Stats' to look at feature
                                   % correlation and classification across groups
                                   % include 'combineDIVplots' to combine plots across DIVs
 
@@ -75,7 +75,7 @@ Params.guiMode = 1;
 if Params.guiMode == 1
     runPipelineApp
 end 
-
+spikeDetectedData = Params.spikeDetectedData;
 
 %% Paths 
 % add all relevant folders to path
@@ -161,7 +161,13 @@ end
 if ((Params.priorAnalysis == 0) || (Params.runSpikeCheckOnPrevSpikeData)) && (Params.startAnalysisStep == 1) 
 
     if (detectSpikes == 1) || (Params.runSpikeCheckOnPrevSpikeData)
-        addpath(rawData)
+        if iscell(rawData)
+            for pathIdx = 1:length(rawData)
+                addpath(rawData{pathIdx});
+            end 
+        else 
+            addpath(rawData)
+        end 
     else
         addpath(spikeDetectedData)
     end
@@ -309,7 +315,7 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
 
     % create combined plots across groups/ages
     PlotEphysStats(ExpName,Params,HomeDir, oneFigureHandle)
-    saveEphysStats(ExpName, Params, HomeDir)
+    saveEphysStats(ExpName, Params)
     cd(HomeDir)
 
 end
@@ -486,9 +492,9 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
     
     if Params.includeNMFcomponents
         % Plot NMF 
-        experimentMatFolder = fullfile(HomeDir, ...
+        experimentMatFolder = fullfile(Params.outputDataFolder, ...
             strcat('OutputData',Params.Date), 'ExperimentMatFiles');
-        plotSaveFolder = fullfile(HomeDir, ...
+        plotSaveFolder = fullfile(Params.outputDataFolder, ...
             strcat('OutputData',Params.Date), '4_NetworkActivity', ...
             '4A_IndividualNetworkAnalysis');
         plotNMF(experimentMatFolder, plotSaveFolder, Params)
@@ -570,34 +576,79 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
 
     % Plot node cartography plots using either custom bounds or
     % automatically determined bounds
-    for  ExN = 1:length(ExpName)
-
-        if Params.priorAnalysis==1 && Params.startAnalysisStep==4 && usePriorNetMet
-            experimentMatFileFolder = fullfile(Params.priorAnalysisPath, 'ExperimentMatFiles');
-            experimentMatFilePath = fullfile(experimentMatFileFolder, strcat(char(ExpName(ExN)),'_',Params.priorAnalysisDate,'.mat'));
-            % TODO: load as struct rather than into workspace
-            load(experimentMatFilePath, 'spikeTimes','Ephys','adjMs','Info', 'NetMet')
-        else
-            experimentMatFileFolder = fullfile(Params.outputDataFolder, strcat('OutputData', Params.Date), 'ExperimentMatFiles');
-            experimentMatFilePath = fullfile(experimentMatFileFolder, strcat(char(ExpName(ExN)),'_',Params.Date,'.mat'));
-            load(experimentMatFilePath,'Info','Params', 'spikeTimes','Ephys','adjMs', 'NetMet')
-        end
-
-        disp(char(Info.FN))
-
-        fileNameFolder = fullfile(Params.outputDataFolder, strcat('OutputData',Params.Date), ...
-                                  '4_NetworkActivity', '4A_IndividualNetworkAnalysis', ...
-                                  char(Info.Grp), char(Info.FN));
-
-        originalCoords = Params.coords{ExN};
-        originalChannels = Params.channels{ExN};
-        NetMet = plotNodeCartography(adjMs, Params, NetMet, Info, ...
-            originalCoords, originalChannels, HomeDir, fileNameFolder, oneFigureHandle);
-        % save NetMet now that we have node cartography data as well
-        experimentMatFileFolderToSaveTo = fullfile(Params.outputDataFolder, strcat('OutputData', Params.Date), 'ExperimentMatFiles');
-        experimentMatFilePathToSaveTo = fullfile(experimentMatFileFolderToSaveTo, strcat(char(Info.FN),'_',Params.Date,'.mat'));
-        save(experimentMatFilePathToSaveTo,'Info','Params','spikeTimes','Ephys','adjMs','NetMet')
+    
+    % Group the ExpNames by their file identity, to anchor coordinates to
+    % the last DIV
+    for ExN = 1:length(ExpName)
+        stringParts = strsplit(ExpName{ExN}, '_');
+        ExpNamesWithoutDIV{ExN} = strjoin(stringParts(1:end-1), '_');
+        divPerExN(ExN) = str2num(stringParts{end}(4:end));  % first three characters are always 'DIV'
+    end
+    ExpNameGroup = findgroups(ExpNamesWithoutDIV);
+    ExpNameGroupUseCoord = zeros(length(ExpNamesWithoutDIV), 1);
+    for groupNum = unique(ExpNameGroup)
+        subsetIndex = find(ExpNameGroup == groupNum);
+        divMaxIndex = find(divPerExN(subsetIndex) == max(divPerExN(subsetIndex)));
+        ExpNameGroupUseCoord(subsetIndex(divMaxIndex)) = 1; 
     end 
+    
+    % Loop through each group 
+    for groupNum = unique(ExpNameGroup)
+        subsetIndex = find(ExpNameGroup == groupNum);
+        % Put the recording to be used as the anchor as the first recording
+        % to analyse
+        [~, sort_index] = sort(ExpNameGroupUseCoord(subsetIndex), 'descend');
+        ExNorderToAnalyse = subsetIndex(sort_index);
+        for ExN = ExNorderToAnalyse
+            Params.ExpNameGroupUseCoord = ExpNameGroupUseCoord(ExN);
+            if Params.priorAnalysis==1 && Params.startAnalysisStep==4 && usePriorNetMet
+                experimentMatFileFolder = fullfile(Params.priorAnalysisPath, 'ExperimentMatFiles');
+                experimentMatFilePath = fullfile(experimentMatFileFolder, strcat(char(ExpName(ExN)),'_',Params.priorAnalysisDate,'.mat'));
+                % TODO: load as struct rather than into workspace
+                expData = load(experimentMatFilePath, 'spikeTimes','Ephys','adjMs','Info', 'NetMet');
+            else
+                experimentMatFileFolder = fullfile(Params.outputDataFolder, strcat('OutputData', Params.Date), 'ExperimentMatFiles');
+                experimentMatFilePath = fullfile(experimentMatFileFolder, strcat(char(ExpName(ExN)),'_',Params.Date,'.mat'));
+                expData = load(experimentMatFilePath,'Info','Params', 'spikeTimes','Ephys','adjMs', 'NetMet');
+            end
+
+            disp(char(expData.Info.FN))
+            
+            fileNameFolder = fullfile(Params.outputDataFolder, strcat('OutputData',Params.Date), ...
+                                  '4_NetworkActivity', '4A_IndividualNetworkAnalysis', ...
+                                  char(expData.Info.Grp), char(expData.Info.FN));
+
+            originalCoords = Params.coords{ExN};
+            originalChannels = Params.channels{ExN};
+            
+            % apply the anchoring index used in previous recording
+            if Params.ExpNameGroupUseCoord == 0
+                for lagval = Params.FuncConLagval
+                     expData.NetMet.(sprintf('AnchoredReorderingIndex%.fmslag', lagval)) = tempNetMet.(sprintf('AnchoredReorderingIndex%.fmslag', lagval)); 
+                end
+            end
+            
+            % note here the Params from expData is not used because there
+            % is a variale I want to presever between runs... may come
+            % up with a better solution down the line...
+            NetMet = plotNodeCartography(expData.adjMs, Params, expData.NetMet, expData.Info, originalCoords, originalChannels, ...
+                HomeDir, fileNameFolder, oneFigureHandle);
+            % save NetMet now that we have node cartography data as well
+            experimentMatFileFolderToSaveTo = fullfile(Params.outputDataFolder, strcat('OutputData', Params.Date), 'ExperimentMatFiles');
+            experimentMatFilePathToSaveTo = fullfile(experimentMatFileFolderToSaveTo, strcat(char(expData.Info.FN),'_',Params.Date,'.mat'));
+            
+            spikeTimes = expData.spikeTimes;
+            Ephys = expData.Ephys;
+            adjMs = expData.adjMs;
+            Info = expData.Info;
+            save(experimentMatFilePathToSaveTo,'Info','Params','spikeTimes','Ephys','adjMs','NetMet')
+            
+            % save the current in use reordering index 
+            for lagval = Params.FuncConLagval
+                tempNetMet.(sprintf('AnchoredReorderingIndex%.fmslag', lagval)) = NetMet.(sprintf('AnchoredReorderingIndex%.fmslag', lagval)); 
+            end
+        end
+    end
     
     % Plot node cartography metrics across all recordings 
     NetMetricsE = {'Dens','Q','nMod','Eglob','aN','CC','PL','SW','SWw', ... 
@@ -608,8 +659,6 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
     figFolder = fullfile(Params.outputDataFolder, strcat('OutputData', Params.Date), ...
         '4_NetworkActivity', '4B_GroupComparisons', '6_NodeCartographyByLag');
     plotNetMetNodeCartography(combinedData, ExpName,Params, HomeDir, figFolder, oneFigureHandle)
-    
-
    
 
 end
@@ -633,15 +682,21 @@ if any(strcmp(Params.optionalStepsToRun,'getDensityLandscape'))
     end 
 end 
 
-%% Optional step: statistics and classification of genotype / ages 
-if any(strcmp(Params.optionalStepsToRun,'runStats'))
+%% Optional step: statistics and classification of genotype / ages
+% Statistics and machine learning settings 
+% Params.classificationTarget = 'AgeDiv';  % which property of the recordings to classify 
+Params.classification_models = {'linearSVM', 'kNN', 'decisionTree', 'LDA'}; % 'fforwardNN'
+Params.regression_models = {'svmRegressor', 'regressionTree', 'ridgeRegression', 'fforwardNN'};
+Params.statsRandomSeed = 1;
+
+if any(strcmp(Params.optionalStepsToRun,'Stats'))
     if Params.showOneFig
         if ~isfield(Params, 'oneFigure')
             Params.oneFigure = figure;
         end 
     end 
     
-    if Params.priorAnalysis 
+    if Params.priorAnalysis && Params.startAnalysisStep >= 5
         statsDataFolder = Params.priorAnalysisPath;
     else
         statsDataFolder = fullfile(Params.outputDataFolder, ...
@@ -660,6 +715,10 @@ if any(strcmp(Params.optionalStepsToRun,'runStats'))
     writetable(statsTable, statsTableSavePath);
     oneFigureHandle = NaN;
     oneFigureHandle = checkOneFigureHandle(Params, oneFigureHandle);
+    plotSaveFolder = fullfile(statsDataFolder, '5_Stats');
+    if ~isfolder(plotSaveFolder)
+        mkdir(plotSaveFolder)
+    end 
     plotStats(statsTable, plotSaveFolder, Params, oneFigureHandle)
     
     % Classification and Regression 
@@ -670,7 +729,7 @@ if any(strcmp(Params.optionalStepsToRun,'runStats'))
         end 
         featureCorrelation(nodeLevelData, recordingLevelData, Params, lag_val, plotSaveFolder);
         doLDA(recordingLevelData, Params, lag_val);
-        doClassification(recordingLevelData, Params, lag_val, plotSaveFolder);
+        doClassification(recordingLevelData, Params, lag_val, plotSaveFolder, oneFigureHandle);
     end 
 
 
