@@ -17,7 +17,7 @@ num_eGrp = length(unique_eGrp);
 unique_AgeDiv = unique(nodeLevelData.('AgeDiv'));
 num_AgeDiv = length(unique_AgeDiv);
 
-columnsToExclude = {'eGrp', 'AgeDiv', 'Lag'};
+columnsToExclude = {'eGrp', 'AgeDiv', 'Lag', 'recordingName'};
 
 % TODO: figure creation needs to be tidied up here
 f = figure();
@@ -74,7 +74,7 @@ num_eGrp = length(unique_eGrp);
 unique_AgeDiv = unique(recordingLevelData.('AgeDiv'));
 num_AgeDiv = length(unique_AgeDiv);
 
-columnsToExclude = {'eGrp', 'AgeDiv', 'Lag'};
+columnsToExclude = {'eGrp', 'AgeDiv', 'Lag', 'recordingName'};
 
 
 f = figure();
