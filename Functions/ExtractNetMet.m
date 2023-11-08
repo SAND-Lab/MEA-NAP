@@ -375,10 +375,13 @@ for e = 1:length(lagval)
             NetMet.(strcat('adjM',num2str(lagval(e)),'mslag')).nComponentsRelNS = nmfCalResults.nComponentsRelNS; 
             NetMet.(strcat('adjM',num2str(lagval(e)),'mslag')).nnmf_residuals = nmfCalResults.nnmf_residuals; 
             NetMet.(strcat('adjM',num2str(lagval(e)),'mslag')).nnmf_var_explained = nmfCalResults.nnmf_var_explained;
+            NetMet.(strcat('adjM',num2str(lagval(e)),'mslag')).randResidualPerComponent = nmfCalResults.randResidualPerComponent;
             if Params.includeNMFcomponents
                 NetMet.(strcat('adjM',num2str(lagval(e)),'mslag')).nmfFactors = nmfCalResults.nmfFactors;
                 NetMet.(strcat('adjM',num2str(lagval(e)),'mslag')).nmfWeights = nmfCalResults.nmfWeights;
                 NetMet.(strcat('adjM',num2str(lagval(e)),'mslag')).downSampleSpikeMatrix = nmfCalResults.downSampleSpikeMatrix;
+                NetMet.(strcat('adjM',num2str(lagval(e)),'mslag')).nmfFactorsVarThreshold = nmfCalResults.nmfFactorsVarThreshold;
+                NetMet.(strcat('adjM',num2str(lagval(e)),'mslag')).nmfWeightsVarThreshold = nmfCalResults.nmfWeightsVarThreshold;
             end 
 
         end 
