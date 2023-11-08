@@ -3,7 +3,7 @@ function app = setAppParams(app, Params)
 %   Detailed explanation goes here
 
 
-app.HomeDirectoryEditField.Value = Params.HomeDir;
+app.MEANAPFolderEditField.Value = Params.HomeDir;
 app.OutputDataFolderEditField.Value = Params.outputDataFolder;
 app.RawDataFolderEditField.Value = Params.rawData;
 
@@ -33,6 +33,20 @@ app.KDEHeightEditField.Value = Params.kdeHeight;  % height of the KDE curve, onl
 app.KDEwidthforonepointEditField.Value = Params.kdeWidthForOnePoint;  % bandwidth for KDE (in half violin plots) if there is only a single data point 
 app.IncludechannelnumberinplotsCheckBox.Value = Params.includeChannelNumberInPlots;  % whether to plot channel ID in heatmaps and node plots
 
+% show one figure 
+app.DisplayonlyonefigureCheckBox.Value = Params.showOneFig;
+
+for ext_i = 1:length(Params.figExt)
+    figExtWithoutDot{ext_i} = Params.figExt{ext_i}(2:end);
+end
+app.FigureformatsListBox.Value = figExtWithoutDot;
+% for figExtIndex = 1:length(figExts)
+%     figExts{figExtIndex} = ['.' figExts{figExtIndex}];
+% end 
+app.DonotcompressSVGCheckBox.Value = Params.fullSVG ;
+
+%% Dimensionality Analysis
+% app.IncludeNMFcomponentsCheckBox.Value = Params.includeNMFcomponents;
 
 %% Pipeline settings 
 
