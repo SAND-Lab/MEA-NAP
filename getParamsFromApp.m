@@ -20,13 +20,13 @@ Params.costList = str2double(app.WaveletCostEditField.Value);
 Params.SpikesMethod = app.SpikeMethodforAnalysisEditField.Value;  % wavelet methods, eg. 'bior1p5', or 'mergedAll', or 'mergedWavelet'
 
 % Functional connectivity inference settings
-Params.FuncConLagval = str2num(app.LagvaluesEditField.Value); % set the different lag values (in ms), default to [10, 15, 25]
+Params.FuncConLagval = str2num(app.STTCLagsEditField.Value); % set the different lag values (in ms), default to [10, 15, 25]
 Params.TruncRec = app.TruncateRecordingCheckBox.Value; % truncate recording? 1 = yes, 0 = no
 Params.TruncLength = app.TruncationlengthsecEditField.Value; % length of truncated recordings (in seconds)
 Params.adjMtype = lower(app.AdjacencymatrixtypeButtonGroup.SelectedObject.Text); % 'weighted'; % 'weighted' or 'binary'
 
 % Connectivity matrix thresholding settings
-Params.ProbThreshRepNum = app.ProbthresholdingrepeatsEditField.Value; % probabilistic thresholding number of repeats 
+Params.ProbThreshRepNum = app.ProbthresholdingiterationsEditField.Value; % probabilistic thresholding number of repeats 
 Params.ProbThreshTail = app.ProbthresholdingtailEditField.Value; % probabilistic thresholding percentile threshold 
 Params.ProbThreshPlotChecks = app.PlotprobthresholdingchecksCheckBox.Value; % randomly sample recordings to plot probabilistic thresholding check, 1 = yes, 0 = no
 Params.ProbThreshPlotChecksN = app.ProbthresholdingnumchecksEditField.Value; % number of random checks to plot
@@ -48,6 +48,9 @@ Params.optionalStepsToRun = app.OptionalStepstoRunListBox.Value;
 % run spike detection?
 Params.detectSpikes = app.DetectSpikesCheckBox.Value;
 Params.runSpikeCheckOnPrevSpikeData = app.RunspikecheckonpreviousspikedataCheckBox.Value;
+
+% Spike detected data location 
+Params.spikeDetectedData = app.SpikeDataFolderEditField.Value;
 
 % show one figure 
 Params.showOneFig = app.DisplayonlyonefigureCheckBox.Value;
@@ -101,6 +104,7 @@ Params.singleChannelBurstMinSpike = app.MinspikeperchannelburstEditField.Value;
 %% Dimensionality calculation settings 
 Params.effRankCalMethod = app.effRankCalculationMethodDropDown.Value;
 Params.NMFdownsampleFreq = app.NMFDownsamplingFrequencyHzEditField.Value;   % how mucn to downsample the spike matrix to (Hz) before doing non-negative matrix factorisation
+Params.includeNMFcomponents = app.IncludeNMFcomponentsCheckBox.Value;
 
 %% Node cartography settings 
 Params.hubBoundaryWMdDeg = app.hubBoundaryWMdDegEditField.Value; % boundary that separates hub and non-hubs (default 2.5)
