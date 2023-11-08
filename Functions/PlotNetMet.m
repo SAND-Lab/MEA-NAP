@@ -169,7 +169,7 @@ for i = 1:length(ExpName)
                 if contains(eMet, lagIndependentMets)
                     % 'effRank', 'num_nnmf_components', 'nComponentsRelNS'
                     firstLagField = sprintf('adjM%.fmslag', Params.FuncConLagval(1));
-                    DatTemp(l) = expFileData.NetMet.firstLagField.(eMet);
+                    DatTemp(l) = expFileData.NetMet.(firstLagField).(eMet);
                 else
                     DatTemp(l) = expFileData.NetMet.(strcat('adjM', num2str(Params.FuncConLagval(l)), 'mslag')).(eMet);
                 end 
