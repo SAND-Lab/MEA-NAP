@@ -32,7 +32,7 @@ data(isinf(data)) = [];
 % bandwidth = bandwidth_SJ(data, 'norm');
 
 % Improved Sheather and Jones rule 
-if length(data) > 1 && std(data) > 0
+if (length(data) > 1) && (std(data) > 10^-8)  % using value slightly above zero to prevent numerical precision issues
     % zero_replacement =  (max(data) - min(data)) * 0.01;
     % zero_replacement = 0.02;
     % zero_idx = find(data == 0);
