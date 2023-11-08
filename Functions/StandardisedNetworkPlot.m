@@ -1,5 +1,5 @@
 function figureHandle = StandardisedNetworkPlot(adjM, coords, edge_thresh, z, plotType, FN, pNum, ...
-    Params, lagval, e, figFolder, figureHandle)
+    Params, lagval, e, figFolder, figureHandle, saveFigure)
 % Plot the graph network 
 % Parameters
 % ----------
@@ -29,6 +29,10 @@ function figureHandle = StandardisedNetworkPlot(adjM, coords, edge_thresh, z, pl
 %    F1 - 
 % author RCFeord August 2021
 % edited by Tim Sit 
+
+if ~exist('saveFigure', 'var')
+    saveFigure = 1;
+end 
 
 num_nodes = size(adjM, 2);
 
@@ -306,6 +310,11 @@ if strcmp(plotType,'circular')
             nodeSize = max(Params.minNodeSize, z(i)/nodeScaleF);
             pos = [cos(t(i))-(0.5*nodeSize) sin(t(i))-(0.5*nodeSize) nodeSize nodeSize];
             rectangle('Position',pos,'Curvature',[1 1],'FaceColor',[0.020 0.729 0.859],'EdgeColor','w','LineWidth',0.1)
+            % add channel number 
+            if Params.includeChannelNumberInPlots 
+                text(pos(1), pos(2), sprintf('%.f', Params.netSubsetChannels(i)), ...
+                'HorizontalAlignment','center')
+            end
         end
     end
     ylim([-1.1 1.1])
@@ -430,12 +439,14 @@ end
 figName = strcat([pNum, '_', plotType, '_NetworkPlot']);
 figPath = fullfile(figFolder, figName);
 
-if exist('figureHandle', 'var')
-    pipelineSaveFig(figPath, Params.figExt, Params.fullSVG, figureHandle);
-elseif ~isfield(Params, 'oneFigure')
-    pipelineSaveFig(figPath, Params.figExt, Params.fullSVG, F1);
-else 
-    pipelineSaveFig(figPath, Params.figExt, Params.fullSVG, Params.oneFigure);
+if saveFigure
+    if exist('figureHandle', 'var')
+        pipelineSaveFig(figPath, Params.figExt, Params.fullSVG, figureHandle);
+    elseif ~isfield(Params, 'oneFigure')
+        pipelineSaveFig(figPath, Params.figExt, Params.fullSVG, F1);
+    else 
+        pipelineSaveFig(figPath, Params.figExt, Params.fullSVG, Params.oneFigure);
+    end 
 end 
 
 
