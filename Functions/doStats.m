@@ -105,6 +105,8 @@ for lagIdx = 1:length(uniqueLags)
                  lme = lmeNoInt;
              end 
              %}
+             
+             % TODO: Switch between lme and LME int
              lme = lmeNoInt;
 
              coefNames = lme.Coefficients.Name;
@@ -166,7 +168,8 @@ for lagIdx = 1:length(uniqueLags)
                 
                 % TODO: also fit linear mixed effects model
 
-                % paired t-test 
+                % paired t-test : assume all recordings have all the DIV
+                % pairs...
                 divPairs = nchoosek(unique(recordingLevelDataSubset.AgeDiv), 2);
 
                 for divPairIdx = 1:size(divPairs, 1)
