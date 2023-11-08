@@ -48,13 +48,28 @@ for e = 1:length(lagval)
     % Tim 2022-10-14 fix
     nodeStrength = sum(adjM, 1);
     inclusionIndex = find(nodeStrength ~= 0);
-    adjM = adjM(inclusionIndex, inclusionIndex);
-    coords = originalCoords(inclusionIndex, :);
-    Params.netSubsetChannels = originalChannels(inclusionIndex);
-
+    
+    % Exclude Inactive Electrodes
+    % adjM = adjM(inclusionIndex, inclusionIndex);
+    % coords = originalCoords(inclusionIndex, :);
+    % Params.netSubsetChannels = originalChannels(inclusionIndex);
+    
+    % Use all coords and channels (will make them black/white instead)
+    % adjM = adjM(inclusionIndex, inclusionIndex);
+    coords = originalCoords;
+    Params.netSubsetChannels = originalChannels;
 
     [Ci,Q,~] = mod_consensus_cluster_iterate(adjM,0.4,50);
-    [On,adjMord] = reorder_mod(adjM,Ci);
+        
+    % NOTE: This currently works only if adjM has the same size across
+    % DIVs...
+    if Params.ExpNameGroupUseCoord == 1
+        [On,adjMord] = reorder_mod(adjM,Ci);  % On is the re-odering index
+        NetMet.(sprintf('AnchoredReorderingIndex%.fmslag', lagval(e))) = On;
+    else 
+        On = NetMet.(sprintf('AnchoredReorderingIndex%.fmslag', lagval(e)));
+        adjMord = adjM(On, On);
+    end
 
     % extract node cartography
     PC = NetMet.(strcat('adjM', num2str(lagval(e)), 'mslag')).PC;
@@ -63,6 +78,11 @@ for e = 1:length(lagval)
     % TODO Check if oneFigure object exists here, if not create it again 
     % Params.oneFigure = figure();
     [NdCartDiv, PopNumNC] = NodeCartography(Z, PC, lagval, e, char(Info.FN), Params, lagFolder, oneFigureHandle); 
+    
+    % Include inactive nodes and assign them to group 7 
+    NdCartDivFull = zeros(length(adjM), 1) + 7;
+    NdCartDivFull(inclusionIndex) = NdCartDiv;
+    NdCartDiv = NdCartDivFull;
 
     PopNumNCt(e,:) = PopNumNC;
     
@@ -84,8 +104,14 @@ for e = 1:length(lagval)
     if aN >= Params.minNumberOfNodesToCalNetMet
         % node cartography in circular plot
         NdCartDivOrd = NdCartDiv(On);
+        Params.channelsReordered = Params.netSubsetChannels(On);
         StandardisedNetworkPlotNodeCartography(adjMord, coords, ... 
             edge_thresh, NdCartDivOrd, 'circular', char(Info.FN), '7', Params, lagval, e, lagFolder, oneFigureHandle)
+        
+        % node cartography in circular plot same order across DIV
+        Params.channelsReordered = Params.netSubsetChannels;  % back to original order
+        StandardisedNetworkPlotNodeCartography(adjM, coords, ... 
+            edge_thresh, NdCartDiv, 'circular', char(Info.FN), '7b', Params, lagval, e, lagFolder, oneFigureHandle)
 
         % node cartography in grid plot 
         StandardisedNetworkPlotNodeCartography(adjM, coords, ... 
