@@ -206,6 +206,7 @@ nodeTypeColors = [0.8 0.902 0.310; ... % light green
                   0.2 0.729 0.949; ... % light blue
                   0.078 0.424 0.835; ... % medium blue
                   0.016 0.235 0.498; ... % dark blue
+                  0 0 0; ... % black for inactive nodes
                   ];
 
 if strcmp(plotType,'MEA')
@@ -219,7 +220,6 @@ if strcmp(plotType,'MEA')
 
         % Add channel numbers on top of the nodes
         if Params.includeChannelNumberInPlots 
-            pos = [xc(i)  yc(i)];
             text(pos(1), pos(2), sprintf('%.f', Params.netSubsetChannels(i)), ...
                 'HorizontalAlignment','center')
         end 
@@ -238,6 +238,12 @@ if strcmp(plotType,'circular')
         Colour = nodeTypeColors(NdCartDiv(i), :);
         pos = [cos(t(i))-(0.5*nodeScaleF) sin(t(i))-(0.5*nodeScaleF) nodeScaleF nodeScaleF];
         rectangle('Position',pos,'Curvature',[1 1],'FaceColor',Colour,'EdgeColor','w','LineWidth',0.1)
+        
+         % Add channel numbers on top of the nodes
+        if Params.includeChannelNumberInPlots 
+            text(pos(1)+(0.5*nodeScaleF), pos(2)+(0.5*nodeScaleF), sprintf('%.f', Params.channelsReordered(i)), ...
+                'HorizontalAlignment','center', 'VerticalAlignment','middle', 'Color','white','FontSize',7)
+        end 
     end
     ylim([-1.1 1.1])
     xlim([-1.1 1.9])
