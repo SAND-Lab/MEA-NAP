@@ -1,4 +1,4 @@
-function classificationResults = doClassification(recordingLevelData, Params, subset_lag)
+function classificationResults = doClassification(recordingLevelData, Params, subset_lag, plotSaveFolder, oneFigureHandle)
 % Do classification of genotype based on network features 
 %
 % Parameters
@@ -13,6 +13,9 @@ function classificationResults = doClassification(recordingLevelData, Params, su
 %
 %
 
+Params.clf_num_kfold_repeat = 5;
+Params.clf_num_kfold = 2;
+
 % Parameters 
 num_shuffle = 200;  % number of shuffles to do 
 clf_num_kfold_repeat = Params.clf_num_kfold_repeat;  % number of repeats of kfold validation to do for classification \
@@ -20,7 +23,13 @@ clf_num_kfold = Params.clf_num_kfold ;
 reg_num_kfold_repeat = 5;  % number of repeats of kfold validation to do for regression
 nestedClassification = 0;
 nestedClassificationGroup = 'eGrp';
-classificationTarget = Params.classificationTarget;
+% classificationTarget = Params.classificationTarget;
+
+if length(unique(recordingLevelData.eGrp)) == 1
+    classificationTarget = 'AgeDiv';
+else 
+    classificationTarget = 'eGrp';
+end 
 feature_preprocessing_steps = {'removeZeroVariance', 'zScore'};
 
 
@@ -36,6 +45,7 @@ classification_models = Params.classification_models;
 features_to_use = {'aN', 'Dens', 'CC', 'nMod', 'Q', 'PL', 'Eglob', 'SW', 'SWw', 'effRank', 'num_nnmf_components'};
 subsetColumnIdx = find(ismember(recordingLevelData.Properties.VariableNames, features_to_use));
 features = recordingLevelData(:, subsetColumnIdx);
+feature_names = features.Properties.VariableNames;
 
 X = table2array(features);
 y = recordingLevelData.(classificationTarget);
@@ -75,6 +85,7 @@ for kfold_repeat_idx = 1:clf_num_kfold_repeat
             fprinf('WARNING: no valid classifier specified')
         end 
         % TODO: do stratification via cv partition and setting 'stratifyOption', 1
+        rng(Params.statsRandomSeed + kfold_repeat_idx);
         cross_val_model = crossval(clf_model, 'KFold', clf_num_kfold);
         classifier_cv_prediction = kfoldPredict(cross_val_model);
 
@@ -91,9 +102,93 @@ classificationResults.model_predictions = model_predictions;
 classificationResults.classification_models = classification_models;
 classificationResults.clf_num_kfold = clf_num_kfold;
 
+%% Get feature importance by shuffling each feature and recomputing performance 
+num_shuffles = 10;
+num_features = size(X_processed, 2);
+num_observations = size(X_processed, 1);
+num_models = length(classification_models);
+leave_one_out_kfoldLoss = size(num_models, num_shuffles, num_features);
+
+for classifier_idx = 1:num_models
+    classifier_name = classification_models{classifier_idx};
+    
+    for feature_idx = 1:num_features 
+        for shuffle_idx = 1:num_shuffles
+            X_shuffled = X_processed;
+            random_idx = randperm(num_observations);
+            X_shuffled(:, feature_idx) = X_processed(random_idx, feature_idx);
+            
+            if strcmp(classifier_name, 'linearSVM')
+            clf_model = fitcecoc(X_shuffled,y);
+            elseif strcmp(classifier_name, 'kNN')
+                clf_model = fitcknn(X_shuffled, y);
+            elseif strcmp(classifier_name, 'decisionTree')
+                clf_model = fitctree(X_shuffled, y);
+            elseif strcmp(classifier_name, 'fforwardNN')
+                clf_model = fitcnet(X_shuffled, y);
+            elseif strcmp(classifier_name, 'LDA')
+                clf_model = fitcdiscr(X_shuffled, y);
+            else 
+                fprinf('WARNING: no valid classifier specified')
+            end 
+            rng(Params.statsRandomSeed + shuffle_idx);
+            cross_val_model = crossval(clf_model, 'KFold', clf_num_kfold);
+            leave_one_out_kfoldLoss(classifier_idx, shuffle_idx, feature_idx) = cross_val_model.kfoldLoss;
+        end
+    end 
+end 
+
+%% Plot feature importance
+
+if ~Params.showOneFig
+    close all
+else 
+    set(0, 'CurrentFigure', oneFigureHandle);
+    clf reset
+end 
+
+set(gcf, 'Position', [0, 0, 600, 600]);
+mean_model_loss = squeeze(mean(model_loss, 1));
+mean_loo_loss = squeeze(mean(leave_one_out_kfoldLoss, 2));
+
+for classifier_idx = 1:num_models
+    loo_loss_per_feature = mean_loo_loss(classifier_idx, :) - mean_model_loss(classifier_idx);
+    feature_idx = 1:length(loo_loss_per_feature);
+    plot(feature_idx, loo_loss_per_feature, 'Linewidth', 2)
+    hold on
+end 
+
+ylabel('Leave one out loss - original loss (Higher is better)')
+xlabel('Features')
+xticks(feature_idx)
+xticklabels(feature_names);
+[~, hobj, ~, ~] = legend(classification_models);
+hl = findobj(hobj,'type','line');
+set(hl,'LineWidth',2);
+legend box off
+set(gca, 'TickDir', 'Out');
+set(gca, 'box', 'off');
+set(gcf, 'color', 'white');
+
+saveName = 'classificationFeatureImportanceViaLeaveOneOut';
+savePath = fullfile(plotSaveFolder, saveName);
+if ~Params.showOneFig
+    pipelineSaveFig(savePath, Params.figExt, Params.fullSVG, F1);
+else 
+    pipelineSaveFig(savePath, Params.figExt, Params.fullSVG, oneFigureHandle);
+end 
+    
+if ~Params.showOneFig
+    close all
+else 
+    set(0, 'CurrentFigure', oneFigureHandle);
+    clf reset
+end 
+
+
 %% Plot comparison of classification performance 
-%{
-if ~isfield(Params, 'oneFigure')
+%
+if ~Params.showOneFig
     F1 = figure;
 end 
 
@@ -101,7 +196,7 @@ cmap = colormap(winter(num_classification_models));
 jitter_level = 0.1;
 dot_size = 80;
 
-set(gcf, 'Position', [0, 0, 600, 600]);
+set(gcf, 'Position', [0, 0, num_classification_models*150, 600]);
 for classifier_idx = 1:num_classification_models
     
 
@@ -113,27 +208,29 @@ end
 
 dummy_misclassification_rate = 1 - 1 / length(unique(y));
 yline(dummy_misclassification_rate, 'LineWidth', 1.5);
-
+text(num_classification_models - 0.5, dummy_misclassification_rate+0.02, ...
+    'Random chance', 'color', [0.5, 0.5, 0.5])
 ylim([0, 1])
 ylabel('Misclassification rate')
 xticks(1:num_classification_models)
 xticklabels(classification_models)
 xlabel('Classifier')
 set(gcf, 'color', 'white')
+set(gca, 'TickDir', 'Out');
+set(gca, 'box', 'off');
 
 saveName = 'allclassifiersMisclassificatoinRatePerKFold';
-savePath = fullfile(figSaveFolder, saveName);
-
-if ~isfield(Params, 'oneFigure')
-        pipelineSaveFig(savePath, Params.figExt, Params.fullSVG, F1);
-    else 
-        pipelineSaveFig(savePath, Params.figExt, Params.fullSVG, Params.oneFigure);
+savePath = fullfile(plotSaveFolder, saveName);
+if ~Params.showOneFig
+    pipelineSaveFig(savePath, Params.figExt, Params.fullSVG, F1);
+else 
+    pipelineSaveFig(savePath, Params.figExt, Params.fullSVG, oneFigureHandle);
 end 
     
-if ~isfield(Params, 'oneFigure')
+if ~Params.showOneFig
     close all
 else 
-    set(0, 'CurrentFigure', Params.oneFigure);
+    set(0, 'CurrentFigure', oneFigureHandle);
     clf reset
 end 
 
@@ -154,18 +251,17 @@ end
 
 set(gcf, 'color', 'white')
 saveName = 'allclassifiersConfusionMatrix';
-savePath = fullfile(figSaveFolder, saveName);
-
-if ~isfield(Params, 'oneFigure')
-        pipelineSaveFig(savePath, Params.figExt, Params.fullSVG, F1);
-    else 
-        pipelineSaveFig(savePath, Params.figExt, Params.fullSVG, Params.oneFigure);
+savePath = fullfile(plotSaveFolder, saveName);
+if ~Params.showOneFig
+    pipelineSaveFig(savePath, Params.figExt, Params.fullSVG, F1);
+else 
+    pipelineSaveFig(savePath, Params.figExt, Params.fullSVG, oneFigureHandle);
 end 
     
-if ~isfield(Params, 'oneFigure')
+if ~Params.showOneFig
     close all
 else 
-    set(0, 'CurrentFigure', Params.oneFigure);
+    set(0, 'CurrentFigure', oneFigureHandle);
     clf reset
 end 
 
@@ -185,7 +281,7 @@ for shuffle = 1:num_shuffle
 end 
 
 %% Plot classification performance 
-
+%{
 if ~isfield(Params, 'oneFigure')
     F1 = figure;
 end 
@@ -216,30 +312,29 @@ ylabel('Percentile')
 
 
 saveName = 'svmClassificationLossVersusShuffle';
-savePath = fullfile(figSaveFolder, saveName);
-
-if ~isfield(Params, 'oneFigure')
+savePath = fullfile(plotSaveFolder, saveName);
+if ~Params.showOneFig
         pipelineSaveFig(savePath, Params.figExt, Params.fullSVG, F1);
     else 
-        pipelineSaveFig(savePath, Params.figExt, Params.fullSVG, Params.oneFigure);
+        pipelineSaveFig(savePath, Params.figExt, Params.fullSVG, oneFigureHandle);
 end 
     
-if ~isfield(Params, 'oneFigure')
+if ~Params.showOneFig
     close all
 else 
-    set(0, 'CurrentFigure', Params.oneFigure);
+    set(0, 'CurrentFigure', oneFigureHandle);
     clf reset
 end 
-
+%}
 %% Do regression 
 
 regression_model_predictions = zeros(clf_num_kfold_repeat, num_classification_models, length(y));
-num_regressor_models = length(regression_models);
+num_regressor_models = length(Params.regression_models);
 regression_model_loss = zeros(reg_num_kfold_repeat, num_regressor_models);
 
 for kfold_repeat_idx = 1:clf_num_kfold_repeat
     for regressor_idx = 1:num_regressor_models
-        regressor_name = regression_models{regressor_idx};
+        regressor_name = Params.regression_models{regressor_idx};
         
         if strcmp(regressor_name, 'svmRegressor')
             regressionModel = fitrsvm(X_processed, y);
@@ -276,7 +371,7 @@ cmap = colormap(winter(num_regressor_models));
 jitter_level = 0.1;
 dot_size = 80;
 
-set(gcf, 'Position', [0, 0, 600, 600]);
+set(gcf, 'Position', [0, 0, 150 * num_regressor_models, 600]);
 for regressor_idx = 1:num_regressor_models
     
     x_vals = normrnd(regressor_idx, jitter_level, [reg_num_kfold_repeat, 1]);
@@ -288,30 +383,32 @@ end
 mean_y = mean(y);
 dummy_regressor_mse = mean((y - mean_y).^2);
 yline(dummy_regressor_mse, 'LineWidth', 1.5);
+text(num_regressor_models - 0.5, dummy_regressor_mse*1.02, ...
+    'Random chance', 'color', [0.5, 0.5, 0.5])
+
 ylabel('Mean squared error')
 xlabel('Regression models')
 xticks(1:num_regressor_models)
-xticklabels(regression_models)
+xticklabels(Params.regression_models)
 ylim([0, inf])
 set(gcf, 'color', 'white')
 
 saveName = 'allRegressorMSEPerKFold';
-savePath = fullfile(figSaveFolder, saveName);
-
-if ~isfield(Params, 'oneFigure')
+savePath = fullfile(plotSaveFolder, saveName);
+if ~Params.showOneFig
         pipelineSaveFig(savePath, Params.figExt, Params.fullSVG, F1);
     else 
-        pipelineSaveFig(savePath, Params.figExt, Params.fullSVG, Params.oneFigure);
+        pipelineSaveFig(savePath, Params.figExt, Params.fullSVG, oneFigureHandle);
 end 
     
-if ~isfield(Params, 'oneFigure')
+if ~Params.showOneFig
     close all
 else 
-    set(0, 'CurrentFigure', Params.oneFigure);
+    set(0, 'CurrentFigure', oneFigureHandle);
     clf reset
 end 
 
-%% Plot regression actual vs. predicted for different models 
+%% Plot regression actual vs. predicted for different models (only applies to DIV)
 
 if ~isfield(Params, 'oneFigure')
     F1 = figure;
@@ -324,7 +421,9 @@ for regressor_idx = 1:num_regressor_models
     y_predicted = regression_model_predictions(1, regressor_idx, :);
     scatter(y, y_predicted(:), dot_size, 'filled');
     hold on
-    title(regression_models{regressor_idx})
+    title(Params.regression_models{regressor_idx})
+    xlabel('Observed')
+    ylabel('Predicted')
 end 
 
 
@@ -333,30 +432,31 @@ ylim([min(y), max(y)])
 
 set(gcf, 'color', 'white')
 saveName = 'allRegressorActualVsPredicted';
-savePath = fullfile(figSaveFolder, saveName);
+savePath = fullfile(plotSaveFolder, saveName);
 
 
-if ~isfield(Params, 'oneFigure')
+if ~Params.showOneFig
         pipelineSaveFig(savePath, Params.figExt, Params.fullSVG, F1);
     else 
-        pipelineSaveFig(savePath, Params.figExt, Params.fullSVG, Params.oneFigure);
+        pipelineSaveFig(savePath, Params.figExt, Params.fullSVG, oneFigureHandle);
 end 
     
-if ~isfield(Params, 'oneFigure')
+if ~Params.showOneFig
     close all
 else 
-    set(0, 'CurrentFigure', Params.oneFigure);
+    set(0, 'CurrentFigure', oneFigureHandle);
     clf reset
 end 
 
 
-%% Regression : compare to shuffles
 
-% TODO: add percentile plot here as well
+%% Regression : compare to shuffles
 %{
+% TODO: add percentile plot here as well
+%
 regressionModel = fitrtree(X_processed, y);
 CVSVMModel = crossval(regressionModel, 'KFold',2);
-[~,scorePred] = kfoldPredict(CVSVMModel);
+% [~,scorePred] = kfoldPredict(CVSVMModel);
 original_loss = CVSVMModel.kfoldLoss;
 
 shuffle_loss = zeros(num_shuffle, 1);
@@ -382,20 +482,21 @@ set(gcf, 'color', 'white');
 
 
 saveName = 'regressionTreeMSEVersusShuffle';
-savePath = fullfile(figSaveFolder, saveName);
+savePath = fullfile(plotSaveFolder, saveName);
 
-if ~isfield(Params, 'oneFigure')
+if ~Params.showOneFig
         pipelineSaveFig(savePath, Params.figExt, Params.fullSVG, F1);
     else 
-        pipelineSaveFig(savePath, Params.figExt, Params.fullSVG, Params.oneFigure);
+        pipelineSaveFig(savePath, Params.figExt, Params.fullSVG, oneFigureHandle);
 end 
     
-if ~isfield(Params, 'oneFigure')
+if ~Params.showOneFig
     close all
 else 
-    set(0, 'CurrentFigure', Params.oneFigure);
+    set(0, 'CurrentFigure', oneFigureHandle);
     clf reset
 end 
+
 %}
 
 
@@ -403,6 +504,8 @@ end
 
 
 %% Plot some examples of the regression to make sure I know what I am doing
+
+%{
 tot_samples = size(X_processed, 1);
 sample_indices = 1:tot_samples;
 test_prop = 0.5;
