@@ -44,7 +44,7 @@ for lagIdx = 1:numLags
 
     end 
     
-    plotWidth = length(uniqueMetricLabels) * 50;
+    plotWidth = length(uniqueMetricLabels) * 90;
     plotHeight = numTest * 75;
     p = [100 100 plotWidth plotHeight]; 
 
@@ -62,7 +62,9 @@ for lagIdx = 1:numLags
         end 
     else
         figure
+        set(gcf, 'Position', p);
     end 
+    
 
     colormap gray
     imagesc(1 - sigMatrix)  % either 1 - sigMatrix or reverse colormap
@@ -77,14 +79,20 @@ for lagIdx = 1:numLags
     
     % TODO: add a black square to show that means p < threshold 
     % hold on
-    % ax = gca; ax.Clipping = 'off';
-    % rectangle('Position', [length(uniqueMetricLabels) * 1.5, numTest * 0.5, 10, 10]);
+    ax = gca; ax.Clipping = 'off';
+    ax.XAxis.TickLength = [0 0];
+    ax.YAxis.TickLength = [0 0];
+    custom_colormap = [0 0 0; 1 1 1];
+    colormap(custom_colormap);
+    colorbar('Ticks', 0:1, 'TickLabels', {sprintf('p < %.4f', pValThreshold), 'n.s.'});
+    % rectangle('Position', [length(uniqueMetricLabels) + 1, numTest * 0.5, 1, 1]);
 
 
-    figName = fullfile(plotSaveFolder, sprintf('sig_table_%.fms_lag, p < %.4f', ...
-        uniqueLags(lagIdx), pValThreshold));
+    % figName = fullfile(plotSaveFolder, sprintf('sig_table_%.fms_lag, p < %.4f', ...
+    %      uniqueLags(lagIdx), pValThreshold));
+    figName = fullfile(plotSaveFolder, sprintf('sig_table_%.fms_lag', uniqueLags(lagIdx)));
 
-    pipelineSaveFig(figName, Params.figExts, Params.fullSVG, oneFigureHandle)
+    pipelineSaveFig(figName, Params.figExt, Params.fullSVG, oneFigureHandle)
     close all 
 
 
