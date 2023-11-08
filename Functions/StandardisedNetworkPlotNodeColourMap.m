@@ -1,5 +1,5 @@
 function [figureHandle, cb] = StandardisedNetworkPlotNodeColourMap(adjM, coords, edge_thresh, z, zname, z2, z2name, plotType, ...
-                                                   FN, pNum, Params, lagval, e, figFolder, figureHandle)
+                                                   FN, pNum, Params, lagval, e, figFolder, figureHandle, saveFigure)
 % Plots graph network with node size proportional to some node-level variable of
 % choice and color-mapped based on some other node-level variable of choice
 % 
@@ -36,6 +36,11 @@ function [figureHandle, cb] = StandardisedNetworkPlotNodeColourMap(adjM, coords,
 %
 % author RCFeord August 2021
 % Updated by Tim Sit
+
+if ~exist('saveFigure', 'var')
+    saveFigure = 1;
+end 
+
 
 %% plot
 p =  [50   100   720  550];
@@ -333,6 +338,12 @@ if strcmp(plotType,'circular')
             else
                 rectangle('Position',pos,'Curvature',[1 1],'FaceColor',mycolours(1,1:3),'EdgeColor','w','LineWidth',0.1)
             end
+            
+            % add channel number 
+            if Params.includeChannelNumberInPlots 
+                text(pos(1), pos(2), sprintf('%.f', Params.netSubsetChannels(i)), ...
+                'HorizontalAlignment','center')
+            end
         end
     end
     ylim([-1.1 1.1])
@@ -505,13 +516,15 @@ figName = strcat([pNum,'_',plotType,'_NetworkPlot',zname,z2name]);
 figName = strrep(figName, ' ', '');
 figPath = fullfile(figFolder, figName);
 
-if exist('figureHandle', 'var')
-    pipelineSaveFig(figPath, Params.figExt, Params.fullSVG, figureHandle);
-elseif ~isfield(Params, 'oneFigure')
-    pipelineSaveFig(figPath, Params.figExt, Params.fullSVG, F1);
-else 
-    pipelineSaveFig(figPath, Params.figExt, Params.fullSVG, Params.oneFigure);
-end 
+if saveFigure
+    if exist('figureHandle', 'var')
+        pipelineSaveFig(figPath, Params.figExt, Params.fullSVG, figureHandle);
+    elseif ~isfield(Params, 'oneFigure')
+        pipelineSaveFig(figPath, Params.figExt, Params.fullSVG, F1);
+    else 
+        pipelineSaveFig(figPath, Params.figExt, Params.fullSVG, Params.oneFigure);
+    end 
+end
 
 
 
