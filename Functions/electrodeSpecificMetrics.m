@@ -135,7 +135,10 @@ if ~skipPlot
     set(gca,'TickDir','out');
     set(gca,'xtick',[])
     ylabel('participation coefficient')
-    ylim([0 nanmax(PC)+0.2*nanmax(PC)])
+    max_possible_pc = 1;
+    y_bound_suggestion = 1.2 * nanmax(PC);
+    y_max = min([y_bound_suggestion, max_possible_pc]);
+    ylim([0 y_max])
 end 
 
 % Plot betweeness centrality 
