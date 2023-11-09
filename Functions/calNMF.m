@@ -65,6 +65,7 @@ networkSize = sum(full(activeElectrodes));
 %% Do NNMF 
 fprintf('Doing non-negative matrix factorsiation with different components... \n')
 residual = 0; randResidual = 1; k = 1;
+randResidualPerComponent = [];
 while residual < randResidual && k <= size(downSampleSpikeMatrix,2)
     fprintf(sprintf('Searching k = %.f \n', k))
     [nmfFactors, nmfWeights, residual] = nnmf(downSampleSpikeMatrix,k);
@@ -80,6 +81,7 @@ while residual < randResidual && k <= size(downSampleSpikeMatrix,2)
         if strcmp(msgid,'nmf_warning')
             randResidual = Inf;
         end
+        randResidualPerComponent = [randResidualPerComponent; randResidual];
     end 
     k = k+1;
 end
@@ -154,6 +156,7 @@ nmfResults.nComponentsnRelNSsquared = (k-1)/networkSize^2;
 nmfResults.meanComponentSize = mean(componentSize);
 nmfResults.nnmf_residuals = nnmf_residuals;
 nmfResults.nnmf_var_explained = nnmf_var_explained;
+nmfResults.randResidualPerComponent = randResidualPerComponent;
 
 if includeNMFcomponents
     nmfResults.downSampleSpikeMatrix = downSampleSpikeMatrix;
