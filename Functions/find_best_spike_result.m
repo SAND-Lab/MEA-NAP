@@ -1,100 +1,96 @@
+function find_best_spike_result(wavelet_spike_folder, summary_plot_folder, Params)
 %% Finding the best cost parameter L for each recording 
-%{
-Parameters 
-------------
-wavelet_spike_folder : (str)
-    directory containing wavelet spike detection results.
-    If you are not using wavelet spike detection, then leave it as an empty
-    string ''
-threshold_spike_folder : (str)
-    directory containing threshold spike detection results.
-    If you are not using wavelet spike detection, then leave it as an empty
-    string ''
-summary_plot_folder : (str)
-    directory which you want save the summary plot for each recording, and
-    the csv table that summarises properties of each file (best param file,
-    number of active electrodes etc.)
-max_tolerable_spikes_in_TTX_abs : (int)
-    maximum tolerable spikes in all TTX recording electrode (summed) to
-    allow during the selection of the cost parameter.
-    If duration is not specified, then this is absolute number (meaning
-    100/ 600 sec). This parameter is ignored if duration of the recording
-    is provided, as the code will use `max_tolerable_spikes_in_TTX_per_s` 
-    instead. 
-max_tolerable_spikes_in_grounded_abs : (int)
-    maximum tolerable number of spikes in grounded electrode(s).
-regularisation_param : (float)
-    regurlaisation parameter for calculating spike ratio between actual 
-    recording and control (either TTX recording or grounded electrode or 
-    WIP: electrode with no spikes but similar noise statsitics)
-    this is currently in terms of absolute number of spikes in the 
-    entire erecording
-spike_time_unit : (str)
-    option 1: 'frame', spike time are in frame numbers (int)
-    option 2: 'sec', spike time are in seconds (float)
-start_time : (float)
-    starting time of the recording
-    should be 0 in most cases unless you only want to look at a subset
-    of the recording. 
-default_end_time : (float)
-    the default end time of the recording of 'duration' parameter 
-    is not found in the spike detection result file.
-wavelet_to_search : (cell containing str)
-    set of wavelets to look at, currently only supports single 
-    wavelets, and 'mea' is probably your best bet. 
-threshold_ground_electrode_name : (int)
-    name (electrode number) of the grounded electrode, if you are using 
-    the threshold spike detection method. (2021-04-15: defunct, TODO: clean up)
-default_grounded_electrode_name : (int)
-    name (electrode number) of the grounded electrode(s), if you are using
-    the wavelet spike detection method.
-sampling_rate : (int)
-    sampling rate to reduce the spike times to to look at overall variation
-    in spike activity over time. In samples / second, usually `1` will do
-    (ie. you look at how many spikes per 1 second time bin)
-    (NOT to be confused with the  recording sampling rate `recording_fs`,
-    which is extracted from the parameter)
-Outputs 
----------------
-figures : (.png)
-    this script saves a set of .png figure files summarising the spike 
-    statistics for each recording (across cost parameters)
-.csv file
-
-
-Usage instructions 
----------------------
-Parameters to modify: 
-
-(1) wavelet_spike_folder : where the spike detection results are held
-(2) summary_plot_folder : where you want the code to save the summary plots
-(3) wavelet_to_search : which wavelet spike detection method(s) you want to find the best L
-parameters 
-(4) spike_time_unit : whether spike times are specified in frames or
-seconds
-
-raw_data_folder can be kept empty for current purposes.
-
-2021-04-15: Please don't close the figure(s) whilst the code is running,
-currently the code works by saving the current figure through a loop.
-
-
-Known issues / TODOs
---------------------
-** The script currently only searches through the mea method
-** The script assumes a specific file name structure (so it can tell which 
-files are from the same recording but using the same paraemters), and 
-currently does not work with 190830_slice1stim..., should be an easy fix
-** Future versions of this code will find the best L per electrode.
-
-Last update: Tim Sit 2021-04-15
-%}
+% Parameters 
+% ------------
+% wavelet_spike_folder : (str)
+%     directory containing wavelet spike detection results.
+%     If you are not using wavelet spike detection, then leave it as an empty
+%     string ''
+% threshold_spike_folder : (str)
+%     directory containing threshold spike detection results.
+%     If you are not using wavelet spike detection, then leave it as an empty
+%     string ''
+% summary_plot_folder : (str)
+%     directory which you want save the summary plot for each recording, and
+%     the csv table that summarises properties of each file (best param file,
+%     number of active electrodes etc.)
+% max_tolerable_spikes_in_TTX_abs : (int)
+%     maximum tolerable spikes in all TTX recording electrode (summed) to
+%     allow during the selection of the cost parameter.
+%     If duration is not specified, then this is absolute number (meaning
+%     100/ 600 sec). This parameter is ignored if duration of the recording
+%     is provided, as the code will use `max_tolerable_spikes_in_TTX_per_s` 
+%     instead. 
+% max_tolerable_spikes_in_grounded_abs : (int)
+%     maximum tolerable number of spikes in grounded electrode(s).
+% regularisation_param : (float)
+%     regurlaisation parameter for calculating spike ratio between actual 
+%     recording and control (either TTX recording or grounded electrode or 
+%     WIP: electrode with no spikes but similar noise statsitics)
+%     this is currently in terms of absolute number of spikes in the 
+%     entire erecording
+% spike_time_unit : (str)
+%     option 1: 'frame', spike time are in frame numbers (int)
+%     option 2: 'sec', spike time are in seconds (float)
+% start_time : (float)
+%     starting time of the recording
+%     should be 0 in most cases unless you only want to look at a subset
+%     of the recording. 
+% default_end_time : (float)
+%     the default end time of the recording of 'duration' parameter 
+%     is not found in the spike detection result file.
+% wavelet_to_search : (cell containing str)
+%     set of wavelets to look at, currently only supports single 
+%     wavelets, and 'mea' is probably your best bet. 
+% threshold_ground_electrode_name : (int)
+%     name (electrode number) of the grounded electrode, if you are using 
+%     the threshold spike detection method. (2021-04-15: defunct, TODO: clean up)
+% default_grounded_electrode_name : (int)
+%     name (electrode number) of the grounded electrode(s), if you are using
+%     the wavelet spike detection method.
+% sampling_rate : (int)
+%     sampling rate to reduce the spike times to to look at overall variation
+%     in spike activity over time. In samples / second, usually `1` will do
+%     (ie. you look at how many spikes per 1 second time bin)
+%     (NOT to be confused with the  recording sampling rate `recording_fs`,
+%     which is extracted from the parameter)
+% Outputs 
+% ---------------
+% figures : (.png)
+%     this script saves a set of .png figure files summarising the spike 
+%     statistics for each recording (across cost parameters)
+% .csv file
+% 
+% 
+% Usage instructions 
+% ---------------------
+% Parameters to modify: 
+% 
+% (1) wavelet_spike_folder : where the spike detection results are held
+% (2) summary_plot_folder : where you want the code to save the summary plots
+% (3) wavelet_to_search : which wavelet spike detection method(s) you want to find the best L
+% parameters 
+% (4) spike_time_unit : whether spike times are specified in frames or
+% seconds
+% 
+% raw_data_folder can be kept empty for current purposes.
+% 
+% 2021-04-15: Please don't close the figure(s) whilst the code is running,
+% currently the code works by saving the current figure through a loop.
+% 
+% 
+% Known issues / TODOs
+% --------------------
+% ** The script currently only searches through the mea method
+% ** The script assumes a specific file name structure (so it can tell which 
+% files are from the same recording but using the same paraemters), and 
+% currently does not work with 190830_slice1stim..., should be an easy fix
+% ** Future versions of this code will find the best L per electrode.
+% 
+% Last update: Tim Sit 2021-04-15
 
 %% Define file to find best params, and parameters 
 raw_data_folder = '';
-wavelet_spike_folder = '/media/timsit/Seagate Expansion Drive/The_Organoid_Project/data/all_mat_files/test-detection/results/';
-summary_plot_folder = '/media/timsit/Seagate Expansion Drive/The_Organoid_Project/data/all_mat_files/test-detection/results/plots/';
-
 if not(isfolder(wavelet_spike_folder))
     fprintf('Spike detection result folder is not a folder, please doubel check your entry \n')
 end 
@@ -685,3 +681,4 @@ end
 
 end 
 
+end
