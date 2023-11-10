@@ -1,5 +1,4 @@
-function [adjMs, F1] = generateAdjMs(spikeTimes, ExN, Params, Info, HomeDir, oneFigureHandle)
-%
+function [adjMs, F1] = generateAdjMs(spikeTimes, ExN, Params, Info, oneFigureHandle)
 % Create AdjM for a series of lag values
 % 
 % Parameters
@@ -8,7 +7,6 @@ function [adjMs, F1] = generateAdjMs(spikeTimes, ExN, Params, Info, HomeDir, one
 % ExN : 
 % Params : struct
 % Info : struct
-% HomeDir : path 
 % 
 % Returns 
 % -------
@@ -37,7 +35,7 @@ for p = 1:length(Params.FuncConLagval)
         if sum(Params.randRepCheckN)>0  % if it is a randomly chosen check point:
             % plot data over incresing repetition number to check stability of
             % probabilistic thresholding
-            [F1, adjM, adjMci] = adjM_thr_checkreps(spikeTimes, Params.SpikesMethod, lag, Params.ProbThreshTail, Params.fs,...
+            [F1, ~, adjMci] = adjM_thr_checkreps(spikeTimes, Params.SpikesMethod, lag, Params.ProbThreshTail, Params.fs,...
                 Info.duration_s, Params.ProbThreshRepNum, oneFigureHandle);
 
             % Export figure
@@ -54,21 +52,19 @@ for p = 1:length(Params.FuncConLagval)
             end 
             
         else % otherwise just generate the adjM
-            [adjM, adjMci] = adjM_thr_parallel(spikeTimes, Params.SpikesMethod, lag, Params.ProbThreshTail, Params.fs,...
+            [~, adjMci] = adjM_thr_parallel(spikeTimes, Params.SpikesMethod, lag, Params.ProbThreshTail, Params.fs,...
                 Info.duration_s, Params.ProbThreshRepNum);
         end
         
         
     else % if no random checks for probabilistic thresholding
-        [adjM, adjMci] = adjM_thr_parallel(spikeTimes, Params.SpikesMethod, lag, Params.ProbThreshTail, Params.fs,...
+        [~, adjMci] = adjM_thr_parallel(spikeTimes, Params.SpikesMethod, lag, Params.ProbThreshTail, Params.fs,...
             Info.duration_s, Params.ProbThreshRepNum);
         
     end
     
-    % TODO: slightly confusing here that the adjacency matrix being saved is
-    % actually adjMci, perhaps the adjM outputf from previous function
-    % should be renamed ot adjMnoThreshold
-    eval(['adjMs.adjM' num2str(lag) 'mslag = adjMci;']);
+    lagFieldName = strcat('adjM', num2str(lag), 'mslag');
+    adjMs.(lagFieldName) = adjMci;
 end
 
 end
