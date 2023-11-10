@@ -348,7 +348,7 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
 
         disp(char(Info.FN))
 
-        adjMs = generateAdjMs(spikeTimes,ExN,Params,Info,HomeDir, oneFigureHandle);
+        adjMs = generateAdjMs(spikeTimes, ExN, Params, Info, oneFigureHandle);
 
         ExpMatFolder = fullfile(Params.outputDataFolder, ...
                 strcat('OutputData',Params.Date), 'ExperimentMatFiles');
