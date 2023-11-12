@@ -23,10 +23,21 @@ function figureHandle = StandardisedNetworkPlot(adjM, coords, edge_thresh, z, pl
 %   structure with parameters for plotting / file saving 
 %   Params.minNodeSize : float
 %       minimum node size for the network plot 
+%   Params.useMinMaxBoundsForPlots : bool
+%       whether to use the same node size scaling across plots of different
+%       recordings, 1: yes, 0; no. This parameter determines how nodeScaleF
+%       is determined
 %   
 % Returns 
 % -------
 %    F1 - 
+%
+% Variable definitions 
+% --------
+% nodeScaleF : float 
+%       determines the maximum node size, based on the maximum node degree
+%       either for an individual recording (Params.useMinMaxBoundsForPlots = 0) 
+%       or across all recordings (Params.useMinMaxBoundsForPlots = 1)
 % author RCFeord August 2021
 % edited by Tim Sit 
 
@@ -48,18 +59,6 @@ else
     % Params.oneFigure.OuterPosition = [50   100   660  550];
     set(Params.oneFigure, 'Position', p);
 end 
-
-% Close previous objects in figure
-%{
-if ~isfield(Params, 'oneFigure')
-    close all
-else 
-    set(0, 'CurrentFigure', Params.oneFigure);
-    clf reset
-end 
-%}
-
-
 
 aesthetics; axis off; hold on
 
@@ -246,13 +245,7 @@ end
 %% add nodes
 
 if strcmp(plotType,'MEA')
-    % What is nodeScaleF, and why is it calculated this way???
-    %uniqueXc = sort(unique(xc))
-    %nodeScaleF = max(z)/(uniqueXc(2)-uniqueXc(1));  % This line was
-    %originally meant to deal with scaling things but the minimum distance
-    %between electrodes, but this can lead to very small dots 
-    % TODO: perhaps add option to allow user to control this
-    
+
     if isfield(Params, 'useMinMaxBoundsForPlots')
         if Params.useMinMaxBoundsForPlots
             nodeScaleF = max(Params.metricsMinMax.ND); % hard-coding to ND for now because there is no quick fix
@@ -271,8 +264,6 @@ if strcmp(plotType,'MEA')
             nodeSize = max(Params.minNodeSize, z(i)/nodeScaleF);
             
             pos = [xc(i)-(0.5*nodeSize) yc(i)-(0.5*nodeSize) nodeSize nodeSize];
-            % TODO: add a small circle (based on some minimum node size
-            % parameter)
             
             rectangle('Position',pos,'Curvature',[1 1],'FaceColor',[0.020 0.729 0.859],'EdgeColor','w','LineWidth',0.1)
         end
@@ -325,11 +316,12 @@ set(gca,'color','none')
 
 
 %% format plot
-
-% TODO: replace this with not eval
-
-
-eval(['legdata = [''' num2str(round(max_z*1/3),'%02d') '''; ''' num2str(round(max_z*2/3),'%02d') '''; ''' num2str(round(max_z),'%02d') '''];']); % data for the legend
+legdata = {};
+legendNumDivisor = 3;
+for divisor = 1:legendNumDivisor
+    legdata{divisor} = num2str(round(max_z * divisor / legendNumDivisor), '%02d');
+end
+legdata = char(legdata);
 
 if strcmp(plotType,'MEA')
     
