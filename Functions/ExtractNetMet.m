@@ -145,10 +145,6 @@ for e = 1:length(lagval)
     % Node strength
     NS = strengths_und(adjM)';
     
-    % Tim 2021-12-02: Actually strengths_und is just the sum for each node?
-    % If you are using the function here: https://github.com/eglerean/NBEHBC/blob/master/code/external/BCT/2017_01_15_BCT/strengths_und.m
-    % NS = sum(adjM)'; 
-    
     % plot properties
     plotConnectivityProperties(adjM, e, lagval, maxSTTC, meanSTTC, ...
         ND, NS, MEW, char(Info.FN),Params, lagFolderName, oneFigureHandle)
