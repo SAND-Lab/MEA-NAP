@@ -1,6 +1,5 @@
 function batchDetectSpikes(dataPath, savePath, option, files, params)
-
-% Master script for spike detection using CWT method. 
+% Performs spike detection 
 % Runs spike detection through recordings, cost parameters, electrodes, and wavelets.
 % 
 % Parameters:
@@ -22,7 +21,6 @@ function batchDetectSpikes(dataPath, savePath, option, files, params)
 % 
 % Returns
 % -------
-
 % Author:
 %   Jeremy Chabros, University of Cambridge, 2020
 %   email: jjc80@cam.ac.uk
@@ -30,6 +28,7 @@ function batchDetectSpikes(dataPath, savePath, option, files, params)
 % Edited by Tim Sit
 % Improvements to make 
 % set params to Params to be consistent with the rest of the pipeline 
+% TODO: Please address the median definition
 
 
 arguments
@@ -134,15 +133,7 @@ if isfield(params, 'absThresholds')
     
 end 
 
-% TODO: work in progress
-% if isfield(params, 'absThresholds')
-%     wnameList = horzcat(wnameList, absThrList);
-% end 
-
-% Note that this adds a new dimensions, you should get Nx2 cell array
-% 2021-06-09: TS: but why not just do vertcat???
 wnameList = horzcat(wnameList, thrList);
-% wnameList = vertcat(wnameList, thrList);
 
 % check if custom threshold file is provided
 if isfield(params, 'custom_threshold_file')
@@ -157,9 +148,6 @@ else
     customAbsThrPerChannel = nan;
     custom_threshold_method_name = nan;
 end 
-
-% wnameList = vertcat(wnameList, {'customAbsThr'});
-
 
 progressbar('File', 'Electrode');
 
@@ -338,8 +326,7 @@ for recording = 1:numel(files)
                 % sensible...
                 s = median(abs(trace - mean(trace))) / 0.6745;
                 mad(channel) = s;
-                % s = median(abs(trace-mean(trace)))/0.6745;     % Faster than mad(X,1);
-                m = median(trace);                % Note: filtered trace is already zero-mean
+                m = median(trace); % Note: filtered trace is already zero-mean
                 absThreshold = m - multiplier*s;
                 
                 variance(channel) = var(trace);
