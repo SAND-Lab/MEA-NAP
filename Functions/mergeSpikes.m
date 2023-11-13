@@ -4,8 +4,15 @@ function [all_spikes, unique_idx, intersect_matrix] = mergeSpikes(spike_times, o
 %      [~, spikes] = alignPeaks(spike_times.all, filtered_trace, 25, 0, 1, 10, 10);
 % Parameters
 % ----------
-% spike_times - [n x 1 cell] containing for each electrode a structure : TODO : I
-% think this is a structure (???)
+% spike_times - [1 x numElectrode] 
+%        each cell contain a structure corresponding to an electrode
+%        within each cell, eg. spikeTimes{1} is a structure that contains 
+%        a field for each spike detection method, which contains 
+%        a vector denoting the spike times in seconds 
+%        eg.    bior1p5: [5611×1 double]
+%               thr4: [5356×1 double]
+%               thr5: [3380×1 double]
+%        
 % option      - [string] specifies merging option: 'all' or 'wavelets'; if
 %                        not specified, defaults to 'all'
 % Returns 
