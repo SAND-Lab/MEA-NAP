@@ -1,6 +1,5 @@
 function [NetMet] = ExtractNetMet(adjMs, spikeTimes, lagval,Info,HomeDir,Params, spikeMatrix, originalCoords, channels, oneFigureHandle)
-%
-% Extract network metrics from adjacency matrices for organoid data
+% EXTRACTNETMET Extract network metrics from adjacency matrices 
 % 
 % Parameters 
 % ----------
@@ -17,9 +16,10 @@ function [NetMet] = ExtractNetMet(adjMs, spikeTimes, lagval,Info,HomeDir,Params,
 %             in and out whilst the code is running the background)
 %         coords : N X 2 matrix 
 %            the coordinates of each network 
-% coords : 
-% channels : 
-% 
+% coords : N x 2 matrix
+%       spatial coordinates of the channels
+% channels : N x 1 vector
+%       channel numbering (for visualisation purpopse)
 % spikeMatrix : (N x T sparse or full matrix)
 % 
 % Returns
@@ -30,19 +30,19 @@ function [NetMet] = ExtractNetMet(adjMs, spikeTimes, lagval,Info,HomeDir,Params,
 %     'ND' : Node degree
 %     'EW' : mean edge weight of each node
 %     'NS' : Node strength
-%     'aN' : 
-%     'Dens' : 
+%     'aN' : Number of active nodes
+%     'Dens' : Density
 %     'Ci' :
-%     'Q' :  
-%     'nMod' : 
+%     'Q' : Moudality index
+%     'nMod' : Number of modules
 %     'Eglob' : 
-%     'CC' :  
-%     'PL' : 
-%     'SW' : 
+%     'CC' :  Clustering Coefficient
+%     'PL' : Mean path length
+%     'SW' : Small-worldness coefficient
 %     'SWw' :
 %     'Eloc' :
-%     'BC' : 
-%     'PC' :  
+%     'BC' : Betwenness Centrality
+%     'PC' : Participation Coefficient
 %     'PC_raw' :
 %     'Cmcblty' : 
 %     'Z' : 
