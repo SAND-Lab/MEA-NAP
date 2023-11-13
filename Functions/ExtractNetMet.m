@@ -35,12 +35,12 @@ function [NetMet] = ExtractNetMet(adjMs, spikeTimes, lagval,Info,HomeDir,Params,
 %     'Ci' :
 %     'Q' : Moudality index
 %     'nMod' : Number of modules
-%     'Eglob' : 
+%     'Eglob' : Global efficiency
 %     'CC' :  Clustering Coefficient
 %     'PL' : Mean path length
 %     'SW' : Small-worldness coefficient
 %     'SWw' :
-%     'Eloc' :
+%     'Eloc' : Local efficiency
 %     'BC' : Betwenness Centrality
 %     'PC' : Participation Coefficient
 %     'PC_raw' :
