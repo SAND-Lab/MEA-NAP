@@ -1,6 +1,20 @@
 function [channels,coords] = getCoordsFromLayout(channelLayout)
-%GETCOORDSFROMLAYOUT Summary of this function goes here
-%   Detailed explanation goes here
+%GETCOORDSFROMLAYOUT Specifies mapping from channel number to spatial
+%coordinates
+% We provide a few default coordinates from 
+% the Multichannel systems (MCS) (60 channel In Vitro MEA set up) and
+% the Axion system. Alternatively, you can specify your own layout 
+% by specifying giving the input arugment 'Custom' and editing 
+% the line after: 'elseif strcmp(channelLayout, 'Custom')'
+% Parameters 
+% ----------
+% channelLayout : str 
+%      channel coordinate to use 
+%      'MCS60old' : old version of MCS 60 channel MEA 
+%      'MCS60' : lateset version of MCS 60 channel MEA 
+%      'MCS59' : MCS 60 channel MEA with grounded electrode removed 
+%      'Axion64' : Axion 64 channel MEA system
+%      'Custom' : specify your own channel layout
 if strcmp(channelLayout, 'MCS60old')
 
     channels = [11, 12, 13, 14, 15, 16, 17, 18, ... 
@@ -133,7 +147,11 @@ elseif strcmp(channelLayout, 'Axion64')
 
 
 elseif strcmp(channelLayout, 'Custom')
-
+    % Here you can specify your own custom channel layout by 
+    % editing the variable coords, which should have shape 
+    % numChannel x 2 
+    % where the first column is the x-coordinate of the channels
+    % and the second column is the y-coordinate of the chanenels
     x_min = 0;
     x_max = 1;
     y_min = 0;
