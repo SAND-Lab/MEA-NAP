@@ -32,24 +32,23 @@ function [NetMet] = ExtractNetMet(adjMs, spikeTimes, lagval,Info,HomeDir,Params,
 %     'NS' : Node strength
 %     'aN' : Number of active nodes
 %     'Dens' : Density
-%     'Ci' :
+%     'Ci' : Community affiliation vector
 %     'Q' : Moudality index
 %     'nMod' : Number of modules
 %     'Eglob' : Global efficiency
 %     'CC' :  Clustering Coefficient
 %     'PL' : Mean path length
-%     'SW' : Small-worldness coefficient
-%     'SWw' :
+%     'SW' : Small-worldness sigma coefficient
+%     'SWw' : Small-wordlness omega coefficient
 %     'Eloc' : Local efficiency
 %     'BC' : Betwenness Centrality
-%     'PC' : Participation Coefficient
-%     'PC_raw' :
-%     'Cmcblty' : 
-%     'Z' : 
-%     'Hub4' : 
-%     'Hub3' : 
-%     'NE' : 
-% 
+%     'PC' : Participation Coefficient with normalization
+%     'PC_raw' : Participation Coefficient without normalization
+%     'Cmcblty' : Communicability
+%     'Z' : Within-module z-score
+%     'Hub4' : Number of hubs satisfying all 4 of the hub criteria
+%     'Hub3' : Number of hubs satisfying 3 out of 4 of the hub criteria
+%     'NE' : Nodal efficiency
 % 
 % % List of plotting functions used in this script: 
 %     - plotConnectivityProperties
