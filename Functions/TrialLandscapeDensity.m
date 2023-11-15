@@ -1,9 +1,10 @@
 function [hubBoundaryWMdDeg, periPartCoef, proHubpartCoef, nonHubconnectorPartCoef, connectorHubPartCoef] = ...
     TrialLandscapeDensity(ExpList, fig_folder, add_fig_info, cartographyLagVal, oneFigureHandle)
-% This script calculates and plots the distribution 
+% TrialLandscapeDensity calculates and plots the distribution 
 % of Within-module Z-score (Z) and participation coefficient (PC)
 % for each electrode across recordings.
-% 
+% From these distributions, it then generates boundary values 
+% used for node cartography
 % Parameters
 % -----------
 % ExpList: struct 
@@ -17,27 +18,40 @@ function [hubBoundaryWMdDeg, periPartCoef, proHubpartCoef, nonHubconnectorPartCo
 %     is not needed
 % cartographyLagVal : int 
 %     lag value in ms
+% oneFigureHandle : figure object
+%     figure object to plot to
 % Returns
 % -------
 % hubBoundaryWMdDeg : float
 %     boundary that separates hub and non-hubs
+% Log 
+% ---
 
+%% Initialize variables to store PC and Z values for recordings
+boundarySelectionMethod = 'kmeans';  % 'kmeans' or 'watershed'
 PC = [];
 Z = [];
 
-%% Parameters
-% TODO: explain what are these parameters
-% sigma = [0 0.035 0.05 0.08];  
-sigma = [0];
-% I think the sigma and bandwidth does more or less the same thing
-% so one can just keep sigma at 0 and play with more bandwidth parameters
+%% K-means method parameters
+n_z_partitions = 2;
+num_hub_partitions = 3;
+num_non_hub_partitions = 3;
+
+%% Water shed method parameters
+sigma = [0];  
+% sigma controls the amount of smoothing performed on the kernel density estimate,
+% larger values leads to more smoothing
+% input multiple values to iterate through these values
 
 PCmin = 0;
 PCmax = 1;
 Zmin = -2;
 Zmax = 4;
 
-bandw = [0.06, 0.08, 0.1];  % TODO: allow trying out more values
+bandw = [0.06, 0.08, 0.1];  
+% controls the bandwidth parameter for kernel density estimate 
+% larger values leads to more smoothing
+
 
 %% For each recording, load Z (within-module Z-score) and PC (participation coefficient)
 Var = {'PC','Z'};
@@ -65,11 +79,7 @@ if ~Params.showOneFig
     close all 
 end 
 
-% fprintf('Size of Z is \n')
-% size(Z)
-% fprintf('Size of PC is \n')
-% size(PC)
-
+%% Check length of Z is sufficient to perform clustering
 if length(Z) < 2
    fprintf('There are not enough values of Z, returning custom boundary values \n')
    hubBoundaryWMdDeg = nan; 
@@ -77,16 +87,14 @@ if length(Z) < 2
    proHubpartCoef = nan; 
    nonHubconnectorPartCoef = nan;
    connectorHubPartCoef = nan;
-else 
+elseif strcmp(boundarySelectionMethod, 'kmeans') 
+    %% Determine clusters using K means clustering
+
     X = [Z,PC];
 
     sortZ = sort(Z,'descend');
 
-    % I guess this can be commented out?
-    % 0.02*length(Z)
-
-    %% Determine clusters 
-    n_z_partitions = 2;
+    
     z_cluster_idx = kmeans(Z, n_z_partitions);
     z_cluster_group_1 = Z(z_cluster_idx == 1);
     z_cluster_group_2 = Z(z_cluster_idx == 2);
@@ -98,25 +106,10 @@ else
 
     if z_cluster_group_1_max > z_cluster_group_2_max
         z_boundary = (z_cluster_group_2_max + z_cluster_group_1_min) / 2;
-        else
+    else
         z_boundary = (z_cluster_group_1_max + z_cluster_group_2_min) / 2;
     end 
-
-
-    %{
-    figure;
-    histogram(z_cluster_group_1, 'FaceColor', 'blue');
-    hold on
-    histogram(z_cluster_group_2, 'FaceColor', 'red');
-    xline(z_boundary)
-    set(gcf, 'color', 'white')
-    ylabel('Count')
-    xlabel('Z')
-    %} 
-
-    num_hub_partitions = 3;
-    num_non_hub_partitions = 3;
-
+    
     % Compute the boundary values for the hubs
     hub_pc_vals = PC(Z >= z_boundary);
     hub_cluster_idx = kmeans(hub_pc_vals, num_hub_partitions);
@@ -154,7 +147,7 @@ else
     end 
 
 
-    % Plot the final automatically generated partitions 
+    %% Plot the automatically generated partitions 
     if exist('oneFigureHandle', 'var')
         % do nothing 
     else
@@ -198,10 +191,18 @@ else
     else 
         clf(oneFigureHandle)
     end 
+    
+    % Assign boundaries
+    hubBoundaryWMdDeg = z_boundary;
+    periPartCoef = non_hub_pc_boundaries(1); % boundary that separates peripheral node and none-hub connector 
+    nonHubconnectorPartCoef = non_hub_pc_boundaries(2); % boundary that separates non-hub connector and non-hub kinless node 
+
+    proHubpartCoef = hub_pc_boundaries(1); % boundary that separates provincial hub and connector hub (default: 0.3)
+    connectorHubPartCoef = hub_pc_boundaries(2);  % boundary that separates connector hub and kinless hub 
 
 
-    %% Add gaussian distribution
-
+elseif strcmp(boundarySelectionMethod, 'watershed') 
+    %% Smooth data with gaussian distribution
     % The first sigma (0) is withouut Gaussian convolution, so 
     % just set it to the original Z and PC values
     eval(['Xsigm' num2str(sigma(1)) '= [Z,PC];']);
@@ -236,7 +237,6 @@ else
 
 
     %% ks density version
-    % TODO: this part takes longer than I expect, look into what is slow
 
     zSpacing = -0.05;  % originally -0.05, modify to speed things up
     pcSpacing = 0.02;  % originally 0.01, modify to speed things up 
@@ -302,7 +302,6 @@ else
         end 
 
 
-         % TODO: save the figure
         sigma_str = strrep(num2str(sigma(n)), '.', 'p');
         fig_name = strcat(['ZandPCLandscape_sigma_', sigma_str, '_', add_fig_info]); 
         fig_fullpath = fullfile(fig_folder, fig_name);
@@ -322,24 +321,8 @@ else
         findBasinsOfAttraction(DensityLandcape, gridx1, PCmin, PCmax, ...
             sigma, Params, fig_folder, add_fig_info, oneFigureHandle);
 
-
-        % TODO: work on putting everything in one figure handle
-        % if ~isfield(Params, 'oneFigure')
-        %     close all
-        % else 
-        %     set(0, 'CurrentFigure', Params.oneFigure);
-        %     clf reset
-        % end 
-
     end
 
-    % Assign boundaries
-    hubBoundaryWMdDeg = z_boundary;
-    periPartCoef = non_hub_pc_boundaries(1); % boundary that separates peripheral node and none-hub connector 
-    nonHubconnectorPartCoef = non_hub_pc_boundaries(2); % boundary that separates non-hub connector and non-hub kinless node 
-
-    proHubpartCoef = hub_pc_boundaries(1); % boundary that separates provincial hub and connector hub (default: 0.3)
-    connectorHubPartCoef = hub_pc_boundaries(2);  % boundary that separates connector hub and kinless hub 
-
 end 
+
 end
