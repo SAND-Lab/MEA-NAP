@@ -46,9 +46,7 @@ function burstData = singleChannelBurstDetection(raster,N,samplingRate)
 % progressbar('Units done')
 warning('off','MATLAB:nearlySingularMatrix');
 
-method = 'Bakkum'; % ask tim if bakkum method works with downsampling
-% in burstDetect there was a switch loop at the top that if using the
-% bakkum method sampling fr would be 25000
+method = 'Bakkum'; 
 minChan = 1;
 if ~exist('N')
     N = 3;
@@ -122,7 +120,7 @@ for elec = 1:length(burstMatrices)
     ISI_outside = sp_times2 - sp_times(1:end-1);
     
     mean_ISI_o(elec)        = round(nanmean(ISI_outside)/samplingRate*1000,3); % in ms
-    %         frac_spikes_inB(elec)   = total_num_sp_in_bst(elec) / sum(raster(:,elec));
+    % frac_spikes_inB(elec)   = total_num_sp_in_bst(elec) / sum(raster(:,elec));
     % progressbar(elec/length(burstMatrices))
     clear burstMatrix sp_in_bst
 end
