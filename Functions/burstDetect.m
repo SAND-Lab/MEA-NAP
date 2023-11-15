@@ -1,21 +1,20 @@
 function [burstMatrix, burstTimes, burstChannels] = burstDetect(spikeMatrix, method, samplingRate, N, minChannel, ISInThreshold)
-% INPUT 
-    % spikeMatrix 
-    
-    % method 
-    % string input specifying the method to do burst detection 
-    % main ones are logISI o 
-    % defaults to Bakkum
-    
-    % samplingRate 
-    % sampling frequency, defaults to 25kHz (mecp2 project 2017-2018) 
-    
-    % N is the minimum  number of spike for detecting a burst
-    
-    % minChannel is the minimum number of channels required to participate
-    % in a burst
-
+% burstDetect detects bursting activity from single channels
+% Parameters 
+% ----------
+% spikeMatrix : N x T matrix
+% method : str
+%     string input specifying the method to do burst detection 
+%     main ones are logISI, Manuel, nno, and Bakkum
+%     defaults to Bakkum if no argument provided
+% samplingRate : int
+%     sampling frequency, defaults to 25kHz 
+% N : int 
+%     minimum  number of spike for detecting a burst
+% minChannel : int
+%     minimum number of channels required to participate in a burst
 % OUTPUT 
+% ------
     % burstMatrix
     % nB x 1 cell. where nB is the number of burst 
     % each cell contain the spike matrix during the burst duration 
@@ -28,7 +27,8 @@ function [burstMatrix, burstTimes, burstChannels] = burstDetect(spikeMatrix, met
     % burstChannels 
     % nB x 1 cell, each containing a vector listing which channels were
     % active during that burst
-    
+% Log 
+% ---
 % original script from: https://github.com/Timothysit/mecp2
 % December 2017 : Created by Tim Sit
 % August 2019 : Edited by Alex Dunn
@@ -143,7 +143,6 @@ if strcmp(method, 'Bakkum')
     % get spike times
     % note that this does network burst. (but can also do channel burst
     % with some modifications)
-    
     % combine spike times to a single train 
     
     trainCombine = sum(spikeMatrix, 2);
@@ -157,11 +156,9 @@ if strcmp(method, 'Bakkum')
     
     % combine them into a single vector
     
-    
     Spike.T = cell2mat(findSpikeTimes(trainCombine, 'seconds', samplingRate));
     
     % convert it to a structure 
-    
     
     % 'Spike' is a structure with members: 
     % Spike.T Vector of spike times [sec] 
@@ -212,11 +209,6 @@ if strcmp(method, 'Bakkum')
     % burstTimes = [Burst.T_start', Burst.T_end'] % in seconds
     burstTimes = [round(Burst.T_start * samplingRate)', round(Burst.T_end * samplingRate)']; % in frames 
     
-     
-    % burstMatrix = burstCell; 
-    
-%     minChannel = 3; 
-
     % minimum number of channel to be active for a burst to be considered network burst
     % this can be incorporated to the above can can be vectorised
     % active means at least one spike within the time window

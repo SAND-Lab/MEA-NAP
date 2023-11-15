@@ -1,46 +1,48 @@
-function [burstData] = fcn_bursts_within_bakkum(raster,N,samplingRate)
-%{
-Get bursts within channels using Bakkum method
-INPUTS
------------
-raster : (T x N matrix)
-    number of samples (T) x number of units (N) binary spike matrix
-N : (int)
-   minimum number of spikes in spike train to attempt burst detection 
-   if the number of spikes is lower than this number, then default to
-   finding 0 bursts
-samplingRate : (int)
-    sampling rate of your recording 
-OUTPUTS 
---------
-burstData (structure)
-with the following fields
-    bursting_units : (vector)
-    array_burstRate : (float)
-        median burst rate across all electrodes 
-    all_burstRates : (vector)
-        burst rate for each bursting electrode
-    array_inBurstFR : (float)
-        median (across electrode) of the mean (across burst) firing rate within bursts
-    array_burstDur : (float)
-        median (across electrode) of the mean (across burst) duration
-        of bursts (in milliseconds)
-    all_burstDurs : (vector)
-        the duration of each burst 
-    array_ISI_within : (float)
-        median (across electrode) of the mean (across burst) inter-spike
-        interval within bursts
-    all_ISIs_within : (vector)
-        the inter-spike interval within each burst 
-    burst_times: (vector)
-
+function burstData = singleChannelBurstDetection(raster,N,samplingRate)
+% singleChannelBurstDetection Get bursts within channels using Bakkum method
+% INPUTS
+% -----------
+% raster : T x N matrix
+%     number of time samples (T) x number of units (N) binary spike matrix
+% N : int
+%    minimum number of spikes in spike train to attempt burst detection 
+%    if the number of spikes is lower than this number, then default to
+%    finding 0 bursts
+% samplingRate : int
+%     sampling rate of your recording in samples per second (Hz)
+% OUTPUTS 
+% --------
+% burstData (structure)
+% with the following fields
+%     bursting_units : N x 1 vector
+%           binary vector where 1 = channel has burst and 0 = no bursts
+%     array_burstRate : float
+%         median burst rate across all electrodes 
+%     all_burstRates : (vector)
+%         burst rate for each bursting electrode
+%     array_inBurstFR : (float)
+%         median (across electrode) of the mean (across burst) firing rate within bursts
+%     array_burstDur : (float)
+%         median (across electrode) of the mean (across burst) duration
+%         of bursts (in milliseconds)
+%     all_burstDurs : (vector)
+%         the duration of each burst 
+%     array_ISI_within : (float)
+%         median (across electrode) of the mean (across burst) inter-spike
+%         interval within bursts
+%     all_ISIs_within : (vector)
+%         the inter-spike interval within each burst 
+%     burst_times: (vector)
+% Returns 
+% -------
+% burstData
 % TODO:
-plot ISI distribution within bursts
-plot ISI between every N spikes 
-plot example electrode bursts
-plot raster for median co-activity and max / some std above median
-CV of ISI 
-%}
+% plot ISI distribution within bursts
+% plot ISI between every N spikes 
+% plot example electrode bursts
+% plot raster for median co-activity and max / some std above median
+% CV of ISI 
+%
 % progressbar('Units done')
 warning('off','MATLAB:nearlySingularMatrix');
 
