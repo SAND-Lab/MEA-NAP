@@ -232,7 +232,6 @@ Params.includeNetMetScaledPlots = 1;
 
 %% Optional step : statistics and classification 
 Params.pValThreshold = 0.01;  % p value threshold to consider effect as significant
-
 %% Troubleshooting / Diagnostic settings 
 Params.verboseLevel = 'Normal';  % 'Normal', 'High', 'Silent'
 Params.timeProcesses = 0; % whether to log how long each process took
