@@ -74,8 +74,8 @@ Params.showOneFig = 1;  % otherwise, 0 = pipeline shows plots as it runs, 1: sup
 Params.guiMode = 1;   % GUI mode? 1 = on, 0 = off
 if Params.guiMode == 1
     runPipelineApp
+    spikeDetectedData = Params.spikeDetectedData;
 end 
-spikeDetectedData = Params.spikeDetectedData;
 
 %% Paths 
 % add all relevant folders to path
