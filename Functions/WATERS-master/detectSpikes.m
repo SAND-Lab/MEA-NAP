@@ -1236,7 +1236,7 @@ classdef detectSpikes
             X = temp;
         end
         %%
-        function idx2 = get_spike_pos(self, input_sig,fs,orig_sig,params)
+        function idx2 = get_spike_pos(self, input_sig, fs, orig_sig, params)
             %get_spike_pos computes spike positions from thresholded data
             %
             %   This function computes the exact spike locations based on a thresholded
