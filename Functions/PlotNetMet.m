@@ -44,10 +44,13 @@ function [] = PlotNetMet(ExpName, Params, HomeDir, oneFigureHandle)
 % 
 % author RCFeord July 2021
 % edited by Tim Sit
-
-% TODO: there is quite some reptition of the plotting code here, 
-% can be simplified
-
+% Update log 
+% ---------------
+% 2023-11-22: Cleaned up code comments (Tim Sit)
+% Future features
+% ----------------
+% Some of the repeated plotting code will be simplified.
+% Color scheme will be specified in advanced settings.
 
 % specify output format (currently Params is loaded from the mat file, 
 % so it will override the settings), may need to find a better way 
@@ -91,20 +94,11 @@ AgeDiv = Params.DivNm;
 
 %% Variable names
 
-% whole experiment metrics (1 value per experiment)
-
-% names of metrics
-ExpInfoE = {'Grp','DIV'}; % info for both age and genotype, TODO: this is not used
 % list of metrics that are obtained at the network level
 NetMetricsE = Params.networkLevelNetMetToPlot;
-% 'NCpn1','NCpn2','NCpn3','NCpn4','NCpn5','NCpn6' are moved
-% single cell/node metrics (1 value per cell/node)
 
-% names of metrics
-ExpInfoC = {'Grp','DIV'}; % info for both age and genotype, TODO: this is not used
 % list of metrics that are obtained at the electrode level
 NetMetricsC = Params.unitLevelNetMetToPlot;
-
 
 %% Import data from all experiments - whole experiment  
 
@@ -143,7 +137,7 @@ for i = 1:length(ExpName)
      end 
      
      ExpFPath = fullfile(experimentMatFileFolder, Exp);
-     expFileData = load(ExpFPath);  % what does this file contain? 
+     expFileData = load(ExpFPath);  
      % filepath contains Info structure
      
      if ~isfield(expFileData, 'NetMet')
@@ -167,7 +161,6 @@ for i = 1:length(ExpName)
                 
                 lagIndependentMets = {'effRank', 'num_nnmf_components', 'nComponentsRelNS'}; 
                 if contains(eMet, lagIndependentMets)
-                    % 'effRank', 'num_nnmf_components', 'nComponentsRelNS'
                     firstLagField = sprintf('adjM%.fmslag', Params.FuncConLagval(1));
                     DatTemp(l) = expFileData.NetMet.(firstLagField).(eMet);
                 else
@@ -387,7 +380,6 @@ end
 clear DatTemp TempStr
 
 %% GraphMetricsByLag plots
-% Tim 2022-01-08: This seems to be independent of the saved table object (?)
 
 graphMetricByLagFolder = fullfile(Params.outputDataFolder, ... 
     strcat('OutputData',Params.Date), '4_NetworkActivity', ...
@@ -395,13 +387,6 @@ graphMetricByLagFolder = fullfile(Params.outputDataFolder, ...
 
 eMet = Params.networkLevelNetMetToPlot;
 eMetl = Params.networkLevelNetMetLabels;
-% moved:
-% 'NCpn1','NCpn2','NCpn3','NCpn4','NCpn5', 'NCpn6'
-%     'proportion peripheral nodes','proportion non-hub connectors', ... 
-%    'proportion non-hub kinless nodes', ... 
-%    'proportion provincial hubs','proportion connector hubs', ... 
-%    'proportion kinless hubs','
-
 
 assert(length(eMet) == length(eMetl), 'ERROR: eMet and eMetl have different lengths')
 
@@ -439,17 +424,9 @@ for n = 1:length(eMet)
             VNe = strcat(eGrp,'.',eDiv,'.',eMeti);
             eval(['DatTemp = ' VNe ';']);
             
-            % Tim: temp fix
             if isempty(DatTemp)
                 DatTemp = zeros(1, length(Params.FuncConLagval));
             end 
-            
-            % What is c again? What is cDiv1?
-            % TODO: what is expected dimensions of DatTemp 
-            % I think in here it is DatTemp in (m, n)
-            % where m is the number of recordings (for a single genoype????)
-            % and n is the number of time lags
-            % but currently DatTemp is just a 1 x n vector for me...
             
             ValMean = nanmean(DatTemp,1);
             
@@ -461,15 +438,9 @@ for n = 1:length(eMet)
             UpperStd = ValMean + spreadVal; % upper std or sem line
             LowerStd = ValMean - spreadVal; % lower std or sem line
             
-            % What is cDIv1
             Xf =[xt,fliplr(xt)]; % create continuous x value array for plotting
             Yf =[UpperStd,fliplr(LowerStd)]; % create y values for out and then back
-            % What is out and then back mean???
-            
-            % So xt is Functional connectivity lag values counter, but why
-            % need to double it??? ie. why Xf goes from 1 2 3 3 2 1 ? But
-            % my c only has 3 values?
-            % TODO: What is Xf and Yf?
+
             h1 = fill(Xf,Yf,c,'edgecolor','none'); 
             
             % Choose a number between 0 (invisible) and 1 (opaque) for facealpha.
@@ -522,11 +493,6 @@ if Params.includeNotBoxPlots
     eMet = Params.networkLevelNetMetToPlot;
     eMetl = Params.networkLevelNetMetLabels;
 
-    % moved:  'NCpn1','NCpn2','NCpn3','NCpn4','NCpn5','NCpn6',
-    %    'proportion peripheral nodes','proportion non-hub connectors', ... 
-    %    'proportion non-hub kinless nodes','proportion provincial hubs', ... 
-    %    'proportion connector hubs','proportion kinless hubs',
-
     p = [100 100 1300 600]; 
     set(0, 'DefaultFigurePosition', p)
 
@@ -556,7 +522,7 @@ if Params.includeNotBoxPlots
                     VNe = strcat(eGrp,'.',eDiv,'.',eMeti);
                     eval(['DatTemp = ' VNe ';']);
 
-                    % Tim: temp fix to make zero vector of DIV is empty 
+                    % Make zero vector of DIV is empty 
                     if isempty(DatTemp)
                         DatTemp = zeros(1, length(Params.FuncConLagval));
                     end 
@@ -632,11 +598,6 @@ halfViolinPlotByGroupFolder = fullfile(Params.outputDataFolder, ...
 eMet = Params.networkLevelNetMetToPlot;
 eMetl = Params.networkLevelNetMetLabels;
 
-% moved: 'NCpn1', 'NCpn2','NCpn3','NCpn4','NCpn5','NCpn6'
-% moved: 'proportion peripheral nodes','proportion non-hub connectors', ... 
-%    'proportion non-hub kinless nodes','proportion provincial hubs','proportion connector hubs', ... 
-%    'proportion kinless hubs',
-
 p = [100 100 1300 600]; 
 set(0, 'DefaultFigurePosition', p)
 
@@ -665,7 +626,7 @@ for l = 1:length(Params.FuncConLagval)
                 VNe = strcat(eGrp,'.',eDiv,'.',eMeti);
                 eval(['DatTemp = ' VNe ';']);
                 
-                % Tim: temp fix to make zero vector of DIV is empty 
+                % Make zero vector of DIV is empty 
                 if isempty(DatTemp)
                     DatTemp = zeros(1, length(Params.FuncConLagval));
                 end 
@@ -751,10 +712,6 @@ if Params.includeNotBoxPlots
         % edge case where there is a division symbol in the label
     end 
 
-
-    % moved: 'NCpn1','NCpn2','NCpn3','NCpn4','NCpn5','NCpn6',
-    % 'proportion peripheral nodes','proportion non-hub connectors','proportion non-hub kinless nodes','proportion provincial hubs','proportion connector hubs','proportion kinless hubs',
-
     p = [100 100 1300 600]; 
     set(0, 'DefaultFigurePosition', p)
     if Params.showOneFig
@@ -783,7 +740,7 @@ if Params.includeNotBoxPlots
                     eDivTP = strcat('TP',num2str(d));
                     VNe = strcat(eGrp,'.',eDivTP,'.',eMeti);
                     eval(['DatTemp = ' VNe ';']);
-                    % Tim: temp fix to make zero vector of DIV is empty 
+                    % Make zero vector if DIV is empty 
                     if isempty(DatTemp)
                         DatTemp = zeros(1, length(Params.FuncConLagval));
                     end 
@@ -836,11 +793,6 @@ eMetl = Params.networkLevelNetMetLabels;
 for n = 1:length(eMetl)
     eMetl(n) = strrep(eMetl(n), '/', 'div');  % edge case where there is a division symbol in the label
 end 
-
-
-% moved: 'NCpn1','NCpn2','NCpn3','NCpn4','NCpn5','NCpn6'
-% 'proportion peripheral nodes','proportion non-hub connectors','proportion non-hub kinless nodes','proportion provincial hubs','proportion connector hubs','proportion kinless hubs',
-
 
 p = [100 100 1300 600]; 
 set(0, 'DefaultFigurePosition', p)
@@ -975,7 +927,7 @@ for l = 1:length(Params.FuncConLagval)
                 eDiv = strcat('TP',num2str(d));
                 VNe = strcat(eGrp,'.',eDiv,'.',eMeti);
                 eval(['DatTemp = ' VNe ';']);
-                % Tim: temp fix to make zero vector of DIV is empty 
+                % Make zero vector if DIV is empty 
                 if isempty(DatTemp)
                     DatTemp = zeros(1, length(Params.FuncConLagval));
                 end 
@@ -1058,7 +1010,7 @@ for l = 1:length(Params.FuncConLagval)
                 eDivTP = strcat('TP',num2str(d));
                 VNe = strcat(eGrp,'.',eDivTP,'.',eMeti);
                 eval(['DatTemp = ' VNe ';']);
-                % Tim: temp fix to make zero vector of DIV is empty 
+                % Make zero vector if DIV is empty 
                 if isempty(DatTemp)
                     DatTemp = zeros(1, length(Params.FuncConLagval));
                 end 
