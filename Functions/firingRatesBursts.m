@@ -20,7 +20,7 @@ ActiveFiringRates = FiringRates(active_chanIndex);  %spikes of only active chann
 Ephys.FR = FiringRates;
 % currently calculates only on active channels (>=FR_threshold)
 % stats  
-% TODO: Why is the rounding necessary ?
+% currently rounds to a specified number of decimal digits
 Ephys.FRmean = round(mean(ActiveFiringRates),3);
 Ephys.FRstd = round(std(ActiveFiringRates),3);
 Ephys.FRsem = round(std(ActiveFiringRates)/(sqrt(length(ActiveFiringRates))),3);
