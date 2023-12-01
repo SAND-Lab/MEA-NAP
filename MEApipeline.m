@@ -366,7 +366,8 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
     % Set up one figure handle to save all the figures
     oneFigureHandle = NaN;
     oneFigureHandle = checkOneFigureHandle(Params, oneFigureHandle);
-
+    
+    % Step 4 Analysis Step
     for  ExN = 1:length(ExpName) 
         
         if Params.priorAnalysis==1 && Params.startAnalysisStep==4
@@ -432,7 +433,7 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
     % save and export network data to spreadsheet
     saveNetMet(ExpName, Params, HomeDir)
     
-    % Make network plots with shared colorbar and edge weight widths etc.
+    % Plotting step 4A : Make individual network plots with shared colorbar and edge weight widths etc.
     outputDataDateFolder = fullfile(Params.outputDataFolder, ...
         strcat('OutputData', Params.Date));
     minMax = findMinMaxNetMetTable(outputDataDateFolder, Params);
@@ -487,7 +488,7 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
          
     end
     
-    % create combined plots
+    % Plotting step 4B: create combined plots
     PlotNetMet(ExpName, Params, HomeDir, oneFigureHandle)
     
     if Params.includeNMFcomponents
@@ -709,6 +710,20 @@ if any(strcmp(Params.optionalStepsToRun,'Stats'))
     recordingLevelFile = fullfile(statsDataFolder, 'NetworkActivity_RecordingLevel.csv');
     recordingLevelData = readtable(recordingLevelFile);
     
+    %{
+    if sum(ismember(recordingLevelData.Properties.VariableNames, 'AgeDiv')) == 0 
+        if sum(ismember(recordingLevelData.Properties.VariableNames, 'DIV')) == 1
+            recordingLevelData.AgeDiv = recordingLevelData.DIV;
+        end 
+    end 
+
+    if sum(ismember(recordingLevelData.Properties.VariableNames, 'eGrp')) == 0 
+        if sum(ismember(recordingLevelData.Properties.VariableNames, 'Grp')) == 1
+            recordingLevelData.eGrp = recordingLevelData.Grp;
+        end 
+    end 
+    %}
+
     % Traditional Statistics
     statsTable = doStats(0, recordingLevelData, Params);
     statsTableSavePath = fullfile(statsDataFolder, 'stats.csv');
