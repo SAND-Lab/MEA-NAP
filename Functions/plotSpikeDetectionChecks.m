@@ -95,7 +95,12 @@ set(0, 'DefaultFigurePosition', p)
 if ~Params.showOneFig
     F1 = figure;
 else
-    set(oneFigureHandle, 'Position', p);
+    if isgraphics(oneFigureHandle)
+        set(oneFigureHandle, 'Position', p);
+    else 
+        oneFigureHandle = figure;
+        set(oneFigureHandle, 'Position', p);
+    end 
 end 
 
 dSampF = Params.dSampF;
