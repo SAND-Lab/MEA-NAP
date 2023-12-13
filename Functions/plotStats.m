@@ -109,6 +109,7 @@ for lagIdx = 1:numLags
     yaxisproperties.TickLabelInterpreter = 'none'; 
     yticklabels(uniqueTests);
     xlim([0, numMetric + 3]);
+    ylim([0, numTest + 0.5])
     
     % add legend 
     log3dotSize = 3 / maxLogPval * maxDotSize;
