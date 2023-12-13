@@ -1,4 +1,4 @@
-function combinedData = combineExpNetworkData(ExpName, Params, NetMetricsE, NetMetricsC, HomeDir, NetworkDataFolder)
+function combinedData = combineExpNetworkData(ExpName, Params, NetMetricsE, NetMetricsC, experimentMatFileFolder, NetworkDataFolder)
 % This function collects data from individual experiment analysis files and
 % combine them to create a dataset containing all of the metrics from each
 % experiment.
@@ -66,7 +66,8 @@ end
 
 % allocate numbers to relevant matrices
 for i = 1:length(ExpName)
-     Exp = strcat(char(ExpName(i)),'_',Params.Date,'.mat');
+     % Exp = strcat(char(ExpName(i)),'_',Params.Date,'.mat');
+     Exp = char(ExpName(i));
 
      % if previously used showOneFig, then this prevents saved oneFigure 
      % handle from showing up when loading the matlab variable
@@ -75,8 +76,10 @@ for i = 1:length(ExpName)
          set(0, 'DefaultFigureVisible', 'off')
      end 
     
-     ExpFilePath = fullfile(NetworkDataFolder, Exp);
-     ExpData = load(ExpFilePath); % mat file contains Info, NetMet 
+     % ExpFilePath = fullfile(NetworkDataFolder, Exp);
+     ExpFPathSearchName = dir(fullfile(experimentMatFileFolder, [Exp, '*.mat'])).name;
+     ExpFpath = fullfile(experimentMatFileFolder, ExpFPathSearchName);
+     ExpData = load(ExpFpath); % mat file contains Info, NetMet 
     
      % TODO: no need loop here I think
      for g = 1:length(Grps)
@@ -139,7 +142,9 @@ end
 
 % allocate numbers to relevant matrices
 for i = 1:length(ExpName)
-     Exp = strcat(char(ExpName(i)),'_',Params.Date,'.mat');
+     % Exp = strcat(char(ExpName(i)),'_',Params.Date,'.mat');
+     Exp = char(ExpName(i));
+     
      groupTypeCounterElectrode = 1;
      % if previously used showOneFig, then this prevents saved oneFigure 
      % handle from showing up when loading the matlab variable
@@ -147,8 +152,11 @@ for i = 1:length(ExpName)
          % Make it so figure handle in oneFigure don't appear
          set(0, 'DefaultFigureVisible', 'off')
      end 
-     ExpFilePath = fullfile(NetworkDataFolder, Exp);
-     ExpData = load(ExpFilePath);
+     % ExpFilePath = fullfile(NetworkDataFolder, Exp);
+     ExpFPathSearchName = dir(fullfile(experimentMatFileFolder, [Exp, '*.mat'])).name;
+     ExpFpath = fullfile(experimentMatFileFolder, ExpFPathSearchName);
+     
+     ExpData = load(ExpFpath);
      for g = 1:length(Grps)
          if strcmp(cell2mat(Grps(g)),cell2mat(ExpData.Info.Grp))
              eGrp = cell2mat(Grps(g));
