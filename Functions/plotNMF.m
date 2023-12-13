@@ -93,7 +93,7 @@ function plotNMF(experimentMatFolder, plotSaveFolder, Params)
         text(firstLagFieldData.num_nnmf_components + 9, 0.9 * y_loc, '>', 'Color', [0, 0, 0])
         text(firstLagFieldData.num_nnmf_components + 10.5, 0.9 * y_loc, 'Random', 'Color', [0.5, 0.5, 0.5])
         xlabel('Number of NMF components')
-        ylabel('Mean square root residual')
+        ylabel('Mean sq. root residual')
         
         if numPossibleComponents > 10
             if mod(numPossibleComponents, 10) == 0
