@@ -1,4 +1,4 @@
-function [] = PlotNetMet(ExpName, Params, HomeDir, oneFigureHandle)
+function [] = PlotNetMet(ExpName, Params, experimentMatFileFolder, oneFigureHandle)
 % Plot network metrics for MEA data
 % 
 % Parameters 
@@ -13,9 +13,6 @@ function [] = PlotNetMet(ExpName, Params, HomeDir, oneFigureHandle)
 %         using 'excel' or comma-separated values (.csv) using 'csv'
 %     Params.groupColors : (nGroup x 3 matrix)
 %         RGB colors (scale from 0 to 1) to use for each group in plotting
-% HomeDir : (str) 
-%     main directory of the analysis 
-%     ie. '/your/path/to/AnalysisPipeline'
 % 
 % Other dependicies 
 %     this code goes through the folder
@@ -102,9 +99,6 @@ NetMetricsC = Params.unitLevelNetMetToPlot;
 
 %% Import data from all experiments - whole experiment  
 
-experimentMatFileFolder = fullfile(Params.outputDataFolder, ... 
-    strcat('OutputData',Params.Date), 'ExperimentMatFiles');
-
 for g = 1:length(Grps)
     % create structure for each group
     VN1 = cell2mat(Grps(g));
@@ -127,7 +121,8 @@ end
 
 % allocate numbers to relevant matrices
 for i = 1:length(ExpName)
-     Exp = strcat(char(ExpName(i)),'_',Params.Date,'.mat');
+     %  Exp = strcat(char(ExpName(i)),'_',Params.Date,'.mat');
+     Exp = char(ExpName(i));
 
      % if previously used showOneFig, then this prevents saved oneFigure 
      % handle from showing up when loading the matlab variable
@@ -136,7 +131,9 @@ for i = 1:length(ExpName)
          set(0, 'DefaultFigureVisible', 'off')
      end 
      
-     ExpFPath = fullfile(experimentMatFileFolder, Exp);
+     % Search for any .mat file with the Exp str (regardless of date)
+     ExpFPathSearchName = dir(fullfile(experimentMatFileFolder, [Exp, '*.mat'])).name;
+     ExpFPath = fullfile(experimentMatFileFolder, ExpFPathSearchName);
      expFileData = load(ExpFPath);  
      % filepath contains Info structure
      
@@ -199,7 +196,8 @@ end
 
 % allocate numbers to relevant matrices
 for i = 1:length(ExpName)
-     Exp = strcat(char(ExpName(i)),'_',Params.Date,'.mat');
+     % Exp = strcat(char(ExpName(i)),'_',Params.Date,'.mat');
+     Exp = char(ExpName(i));
      % if previously used showOneFig, then this prevents saved oneFigure 
      % handle from showing up when loading the matlab variable
      if Params.showOneFig 
@@ -209,7 +207,10 @@ for i = 1:length(ExpName)
      
      % Load exp data to get which group and DIV it is from
      % also load the netMet variable
-     ExpFpath = fullfile(experimentMatFileFolder, Exp);
+     % ExpFpath = fullfile(experimentMatFileFolder, Exp);
+     % Search for any .mat file with the Exp str (regardless of date)
+     ExpFPathSearchName = dir(fullfile(experimentMatFileFolder, [Exp, '*.mat'])).name;
+     ExpFpath = fullfile(experimentMatFileFolder, ExpFPathSearchName);
      expFileData = load(ExpFpath);
 
      for g = 1:length(Grps)
