@@ -378,7 +378,7 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
     oneFigureHandle = NaN;
     oneFigureHandle = checkOneFigureHandle(Params, oneFigureHandle);
     
-<<<<<<< HEAD
+    % Step 4 Analysis step
     if strcmp(Params.startAnalysisSubStep, 'ALL')
         for  ExN = 1:length(ExpName) 
 
@@ -431,17 +431,6 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
             NetMet = ExtractNetMet(adjMs, spikeTimes, ...
                 Params.FuncConLagval, Info,HomeDir,Params, spikeMatrix, coords, channels, oneFigureHandle);
 
-=======
-    % Step 4 Analysis Step
-    for  ExN = 1:length(ExpName) 
-        
-        if Params.priorAnalysis==1 && Params.startAnalysisStep==4
-            priorAnalysisExpMatFolder = fullfile(Params.priorAnalysisPath, 'ExperimentMatFiles');
-            spikeDataFname = strcat(char(ExpName(ExN)),'_',Params.priorAnalysisDate,'.mat');
-            spikeDataFpath = fullfile(priorAnalysisExpMatFolder, spikeDataFname);
-            load(spikeDataFpath, 'spikeTimes', 'Ephys','adjMs','Info')
-        else
->>>>>>> 83022db005a123e2ce20e5ab4ce4d5fbdd4f76e0
             ExpMatFolder = fullfile(Params.outputDataFolder, ...
                     strcat('OutputData',Params.Date), 'ExperimentMatFiles');
             infoFnFname = strcat(char(Info.FN),'_',Params.Date,'.mat');
@@ -457,14 +446,11 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
         saveNetMet(ExpName, Params, HomeDir)
  
     
-<<<<<<< HEAD
         % Set up one figure handle to save all the figures
         oneFigureHandle = NaN;
         oneFigureHandle = checkOneFigureHandle(Params, oneFigureHandle);
-=======
-    % save and export network data to spreadsheet
-    saveNetMet(ExpName, Params, HomeDir)
-    
+
+ 
     % Plotting step 4A : Make individual network plots with shared colorbar and edge weight widths etc.
     outputDataDateFolder = fullfile(Params.outputDataFolder, ...
         strcat('OutputData', Params.Date));
@@ -519,10 +505,7 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
         end 
          
     end
-    
-    % Plotting step 4B: create combined plots
-    PlotNetMet(ExpName, Params, HomeDir, oneFigureHandle)
-    
+
     if Params.includeNMFcomponents
         % Plot NMF 
         experimentMatFolder = fullfile(Params.outputDataFolder, ...
@@ -532,79 +515,74 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
             '4A_IndividualNetworkAnalysis');
         plotNMF(experimentMatFolder, plotSaveFolder, Params)
     end 
-    
-    % Set up one figure handle to save all the figures
-    oneFigureHandle = NaN;
-    oneFigureHandle = checkOneFigureHandle(Params, oneFigureHandle);
->>>>>>> 83022db005a123e2ce20e5ab4ce4d5fbdd4f76e0
 
-        % Aggregate all files and run density analysis to determine boundaries
-        % for node cartography
-        if Params.autoSetCartographyBoundaries
-            usePriorNetMet = 0;  % set to 0 by default
-            if Params.priorAnalysis==1 && usePriorNetMet
-                experimentMatFileFolder = fullfile(Params.priorAnalysisPath, 'ExperimentMatFiles');
-                % cd(fullfile(Params.priorAnalysisPath, 'ExperimentMatFiles'));   
-                fig_folder = fullfile(Params.priorAnalysisPath, ...
-                    '4_NetworkActivity', '4B_GroupComparisons', '7_DensityLandscape');
-            else
-                experimentMatFileFolder = fullfile(Params.outputDataFolder, ...
-                    strcat('OutputData', Params.Date), 'ExperimentMatFiles');
-                % cd(fullfile(strcat('OutputData', Params.Date), 'ExperimentMatFiles'));  
-                fig_folder = fullfile(Params.outputDataFolder, strcat('OutputData', Params.Date), ...
-                    '4_NetworkActivity', '4B_GroupComparisons', '7_DensityLandscape');
-            end 
+    % Aggregate all files and run density analysis to determine boundaries
+    % for node cartography
+    if Params.autoSetCartographyBoundaries
+        usePriorNetMet = 0;  % set to 0 by default
+        if Params.priorAnalysis==1 && usePriorNetMet
+            experimentMatFileFolder = fullfile(Params.priorAnalysisPath, 'ExperimentMatFiles');
+            % cd(fullfile(Params.priorAnalysisPath, 'ExperimentMatFiles'));   
+            fig_folder = fullfile(Params.priorAnalysisPath, ...
+                '4_NetworkActivity', '4B_GroupComparisons', '7_DensityLandscape');
+        else
+            experimentMatFileFolder = fullfile(Params.outputDataFolder, ...
+                strcat('OutputData', Params.Date), 'ExperimentMatFiles');
+            % cd(fullfile(strcat('OutputData', Params.Date), 'ExperimentMatFiles'));  
+            fig_folder = fullfile(Params.outputDataFolder, strcat('OutputData', Params.Date), ...
+                '4_NetworkActivity', '4B_GroupComparisons', '7_DensityLandscape');
+        end 
 
-            if ~isfolder(fig_folder)
-                mkdir(fig_folder)
-            end 
+        if ~isfolder(fig_folder)
+            mkdir(fig_folder)
+        end 
 
-            ExpList = dir(fullfile(experimentMatFileFolder, '*.mat'));
-            add_fig_info = '';
+        ExpList = dir(fullfile(experimentMatFileFolder, '*.mat'));
+        add_fig_info = '';
 
-            if Params.autoSetCartographyBoudariesPerLag
-                for lag_val = Params.FuncConLagval
-                    [hubBoundaryWMdDeg, periPartCoef, proHubpartCoef, nonHubconnectorPartCoef, connectorHubPartCoef] = ...
-                    TrialLandscapeDensity(ExpList, fig_folder, add_fig_info, lag_val, oneFigureHandle);
+        if Params.autoSetCartographyBoudariesPerLag
+            for lag_val = Params.FuncConLagval
+                [hubBoundaryWMdDeg, periPartCoef, proHubpartCoef, nonHubconnectorPartCoef, connectorHubPartCoef] = ...
+                TrialLandscapeDensity(ExpList, fig_folder, add_fig_info, lag_val, oneFigureHandle);
 
-                    if isnan(hubBoundaryWMdDeg)
-                        hubBoundaryWMdDeg = Params.hubBoundaryWMdDeg;
-                        periPartCoef = Params.periPartCoef;
-                        proHubpartCoef = Params.proHubpartCoef;
-                        nonHubconnectorPartCoef = Params.nonHubconnectorPartCoef; 
-                        connectorHubPartCoef = Params.connectorHubPartCoef;
-                    end 
-
-                    Params.(strcat('hubBoundaryWMdDeg', sprintf('_%.fmsLag', lag_val))) = hubBoundaryWMdDeg;
-                    Params.(strcat('periPartCoef', sprintf('_%.fmsLag', lag_val))) = periPartCoef;
-                    Params.(strcat('proHubpartCoef', sprintf('_%.fmsLag', lag_val))) = proHubpartCoef;
-                    Params.(strcat('nonHubconnectorPartCoef', sprintf('_%.fmsLag', lag_val))) = nonHubconnectorPartCoef;
-                    Params.(strcat('connectorHubPartCoef', sprintf('_%.fmsLag', lag_val))) = connectorHubPartCoef;
+                if isnan(hubBoundaryWMdDeg)
+                    hubBoundaryWMdDeg = Params.hubBoundaryWMdDeg;
+                    periPartCoef = Params.periPartCoef;
+                    proHubpartCoef = Params.proHubpartCoef;
+                    nonHubconnectorPartCoef = Params.nonHubconnectorPartCoef; 
+                    connectorHubPartCoef = Params.connectorHubPartCoef;
                 end 
 
-            else 
-                lagValIdx = 1;
-                lag_val = Params.FuncConLagval;
-                [hubBoundaryWMdDeg, periPartCoef, proHubpartCoef, nonHubconnectorPartCoef, connectorHubPartCoef] = ...
-                    TrialLandscapeDensity(ExpList, fig_folder, add_fig_info, lag_val(lagValIdx), oneFigureHandle);
-                Params.hubBoundaryWMdDeg = hubBoundaryWMdDeg;
-                Params.periPartCoef = periPartCoef;
-                Params.proHubpartCoef = proHubpartCoef;
-                Params.nonHubconnectorPartCoef = nonHubconnectorPartCoef;
-                Params.connectorHubPartCoef = connectorHubPartCoef;
+                Params.(strcat('hubBoundaryWMdDeg', sprintf('_%.fmsLag', lag_val))) = hubBoundaryWMdDeg;
+                Params.(strcat('periPartCoef', sprintf('_%.fmsLag', lag_val))) = periPartCoef;
+                Params.(strcat('proHubpartCoef', sprintf('_%.fmsLag', lag_val))) = proHubpartCoef;
+                Params.(strcat('nonHubconnectorPartCoef', sprintf('_%.fmsLag', lag_val))) = nonHubconnectorPartCoef;
+                Params.(strcat('connectorHubPartCoef', sprintf('_%.fmsLag', lag_val))) = connectorHubPartCoef;
             end 
 
-            % save the newly set boundaries to the Params struct
-            experimentMatFileFolderToSaveTo = fullfile(Params.outputDataFolder, ...
-                    strcat('OutputData', Params.Date), 'ExperimentMatFiles');
-            for nFile = 1:length(ExpList)
-                FN = ExpList(nFile).name;
-                FNPath = fullfile(experimentMatFileFolderToSaveTo, FN);
-                save(FNPath, 'Params', '-append')
-            end 
-
-
+        else 
+            lagValIdx = 1;
+            lag_val = Params.FuncConLagval;
+            [hubBoundaryWMdDeg, periPartCoef, proHubpartCoef, nonHubconnectorPartCoef, connectorHubPartCoef] = ...
+                TrialLandscapeDensity(ExpList, fig_folder, add_fig_info, lag_val(lagValIdx), oneFigureHandle);
+            Params.hubBoundaryWMdDeg = hubBoundaryWMdDeg;
+            Params.periPartCoef = periPartCoef;
+            Params.proHubpartCoef = proHubpartCoef;
+            Params.nonHubconnectorPartCoef = nonHubconnectorPartCoef;
+            Params.connectorHubPartCoef = connectorHubPartCoef;
         end 
+
+        % save the newly set boundaries to the Params struct
+        experimentMatFileFolderToSaveTo = fullfile(Params.outputDataFolder, ...
+                strcat('OutputData', Params.Date), 'ExperimentMatFiles');
+        for nFile = 1:length(ExpList)
+            FN = ExpList(nFile).name;
+            FNPath = fullfile(experimentMatFileFolderToSaveTo, FN);
+            save(FNPath, 'Params', '-append')
+        end 
+
+
+    end 
     end 
     
     
