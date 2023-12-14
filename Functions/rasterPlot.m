@@ -75,8 +75,12 @@ h = imagesc(downSpikeMatrix');
 xticks((duration_s)/(duration_s/60):(duration_s)/(duration_s/60):duration_s)
 xticklabels({'1','2','3','4','5','6','7','8','9','10','11','12','13','14','15'})
 
-c = parula;c = c(1:round(length(c)*.85),:);
-colormap(c);
+if strcmp(Params.rasterColormap, 'parula')
+    c = parula;c = c(1:round(length(c)*.85),:);
+    colormap(c);
+elseif strcmp(Params.rasterColormap, 'gray')
+   colormap(flipud(gray))  
+end
 
 aesthetics
 ylabel('Electrode')
