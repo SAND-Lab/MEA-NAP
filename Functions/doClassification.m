@@ -53,6 +53,11 @@ y = recordingLevelData.(classificationTarget);
 % some data pre-processing 
 X_processed = X;
 
+% Drop non-finite values 
+subsetIdx = find(sum(~isfinite(X_processed), 2) == 0);
+X_processed = X_processed(subsetIdx, :);
+y = y(subsetIdx);
+
 
 %% Do classification 
 num_classification_models = length(classification_models);
@@ -139,15 +144,23 @@ for classifier_idx = 1:num_models
 end 
 
 %% Plot feature importance
-
-if ~Params.showOneFig
-    close all
-else 
-    set(0, 'CurrentFigure', oneFigureHandle);
-    clf reset
+if Params.showOneFig 
+     % Make it so figure handle in oneFigure don't appear
+     set(0, 'DefaultFigureVisible', 'off')
+end 
+p = [0, 0, 600, 600];
+if Params.showOneFig
+    if isgraphics(oneFigureHandle)
+        set(oneFigureHandle, 'Position', p);
+    else 
+        oneFigureHandle = figure;
+        set(oneFigureHandle, 'Position', p);
+    end 
+else
+    figure
+    set(gcf, 'Position', p);
 end 
 
-set(gcf, 'Position', [0, 0, 600, 600]);
 mean_model_loss = squeeze(mean(model_loss, 1));
 mean_loo_loss = squeeze(mean(leave_one_out_kfoldLoss, 2));
 
@@ -326,127 +339,128 @@ else
     clf reset
 end 
 %}
-%% Do regression 
+%% Do regression (currently only for DIVs)
+if strcmp(classificationTarget, 'AgeDiv')
+    regression_model_predictions = zeros(clf_num_kfold_repeat, num_classification_models, length(y));
+    num_regressor_models = length(Params.regression_models);
+    regression_model_loss = zeros(reg_num_kfold_repeat, num_regressor_models);
 
-regression_model_predictions = zeros(clf_num_kfold_repeat, num_classification_models, length(y));
-num_regressor_models = length(Params.regression_models);
-regression_model_loss = zeros(reg_num_kfold_repeat, num_regressor_models);
+    for kfold_repeat_idx = 1:clf_num_kfold_repeat
+        for regressor_idx = 1:num_regressor_models
+            regressor_name = Params.regression_models{regressor_idx};
 
-for kfold_repeat_idx = 1:clf_num_kfold_repeat
+            if strcmp(regressor_name, 'svmRegressor')
+                regressionModel = fitrsvm(X_processed, y);
+            elseif strcmp(regressor_name, 'regressionTree')
+                regressionModel = fitrtree(X_processed, y);
+            elseif strcmp(regressor_name, 'ridgeRegression')
+                cv_regression_model = fitrlinear(X_processed, y, 'Learner', 'leastsquares', ...
+                    'Regularization','ridge', 'KFold', 2);
+            elseif strcmp(regressor_name, 'fforwardNN')
+                regressionModel = fitrnet(X_processed, y);
+            else 
+                fprintf('WARNING: invalid regressor_name specified')
+            end 
+
+            if ~strcmp(regressor_name, 'ridgeRegression')
+                cv_regression_model = crossval(regressionModel, 'KFold',2);
+            end 
+
+            regression_model_predictions(kfold_repeat_idx, regressor_idx, :) = kfoldPredict(cv_regression_model);
+
+            regression_model_loss(kfold_repeat_idx, regressor_idx) = cv_regression_model.kfoldLoss;
+
+        end 
+    end 
+
+
+    %% Plot regression model performance comparison 
+
+    if ~isfield(Params, 'oneFigure')
+        F1 = figure;
+    end 
+
+    cmap = colormap(winter(num_regressor_models));
+    jitter_level = 0.1;
+    dot_size = 80;
+
+    set(gcf, 'Position', [0, 0, 150 * num_regressor_models, 600]);
     for regressor_idx = 1:num_regressor_models
-        regressor_name = Params.regression_models{regressor_idx};
-        
-        if strcmp(regressor_name, 'svmRegressor')
-            regressionModel = fitrsvm(X_processed, y);
-        elseif strcmp(regressor_name, 'regressionTree')
-            regressionModel = fitrtree(X_processed, y);
-        elseif strcmp(regressor_name, 'ridgeRegression')
-            cv_regression_model = fitrlinear(X_processed, y, 'Learner', 'leastsquares', ...
-                'Regularization','ridge', 'KFold', 2);
-        elseif strcmp(regressor_name, 'fforwardNN')
-            regressionModel = fitrnet(X_processed, y);
-        else 
-            fprintf('WARNING: invalid regressor_name specified')
-        end 
-         
-        if ~strcmp(regressor_name, 'ridgeRegression')
-            cv_regression_model = crossval(regressionModel, 'KFold',2);
-        end 
 
-        regression_model_predictions(kfold_repeat_idx, regressor_idx, :) = kfoldPredict(cv_regression_model);
-        
-        regression_model_loss(kfold_repeat_idx, regressor_idx) = cv_regression_model.kfoldLoss;
+        x_vals = normrnd(regressor_idx, jitter_level, [reg_num_kfold_repeat, 1]);
+        scatter(x_vals, regression_model_loss(:, regressor_idx), dot_size, cmap(regressor_idx, :), 'filled')
+        hold on
 
     end 
-end 
 
+    mean_y = mean(y);
+    dummy_regressor_mse = mean((y - mean_y).^2);
+    yline(dummy_regressor_mse, 'LineWidth', 1.5);
+    text(num_regressor_models - 0.5, dummy_regressor_mse*1.02, ...
+        'Random chance', 'color', [0.5, 0.5, 0.5])
 
-%% Plot regression model performance comparison 
+    ylabel('Mean squared error')
+    xlabel('Regression models')
+    xticks(1:num_regressor_models)
+    xticklabels(Params.regression_models)
+    ylim([0, inf])
+    set(gcf, 'color', 'white')
 
-if ~isfield(Params, 'oneFigure')
-    F1 = figure;
-end 
+    saveName = 'allRegressorMSEPerKFold';
+    savePath = fullfile(plotSaveFolder, saveName);
+    if ~Params.showOneFig
+            pipelineSaveFig(savePath, Params.figExt, Params.fullSVG, F1);
+        else 
+            pipelineSaveFig(savePath, Params.figExt, Params.fullSVG, oneFigureHandle);
+    end 
 
-cmap = colormap(winter(num_regressor_models));
-jitter_level = 0.1;
-dot_size = 80;
-
-set(gcf, 'Position', [0, 0, 150 * num_regressor_models, 600]);
-for regressor_idx = 1:num_regressor_models
-    
-    x_vals = normrnd(regressor_idx, jitter_level, [reg_num_kfold_repeat, 1]);
-    scatter(x_vals, regression_model_loss(:, regressor_idx), dot_size, cmap(regressor_idx, :), 'filled')
-    hold on
-
-end 
-
-mean_y = mean(y);
-dummy_regressor_mse = mean((y - mean_y).^2);
-yline(dummy_regressor_mse, 'LineWidth', 1.5);
-text(num_regressor_models - 0.5, dummy_regressor_mse*1.02, ...
-    'Random chance', 'color', [0.5, 0.5, 0.5])
-
-ylabel('Mean squared error')
-xlabel('Regression models')
-xticks(1:num_regressor_models)
-xticklabels(Params.regression_models)
-ylim([0, inf])
-set(gcf, 'color', 'white')
-
-saveName = 'allRegressorMSEPerKFold';
-savePath = fullfile(plotSaveFolder, saveName);
-if ~Params.showOneFig
-        pipelineSaveFig(savePath, Params.figExt, Params.fullSVG, F1);
+    if ~Params.showOneFig
+        close all
     else 
-        pipelineSaveFig(savePath, Params.figExt, Params.fullSVG, oneFigureHandle);
-end 
-    
-if ~Params.showOneFig
-    close all
-else 
-    set(0, 'CurrentFigure', oneFigureHandle);
-    clf reset
-end 
+        set(0, 'CurrentFigure', oneFigureHandle);
+        clf reset
+    end 
 
-%% Plot regression actual vs. predicted for different models (only applies to DIV)
+    %% Plot regression actual vs. predicted for different models (only applies to DIV)
 
-if ~isfield(Params, 'oneFigure')
-    F1 = figure;
-end 
+    if ~isfield(Params, 'oneFigure')
+        F1 = figure;
+    end 
 
-set(gcf, 'Position', [0, 0, 300 * num_regressor_models, 300]);
-for regressor_idx = 1:num_regressor_models
-    subplot(1, num_regressor_models, regressor_idx)
-    % plot confusion matrix
-    y_predicted = regression_model_predictions(1, regressor_idx, :);
-    scatter(y, y_predicted(:), dot_size, 'filled');
-    hold on
-    title(Params.regression_models{regressor_idx})
-    xlabel('Observed')
-    ylabel('Predicted')
-end 
+    set(gcf, 'Position', [0, 0, 300 * num_regressor_models, 300]);
+    for regressor_idx = 1:num_regressor_models
+        subplot(1, num_regressor_models, regressor_idx)
+        % plot confusion matrix
+        y_predicted = regression_model_predictions(1, regressor_idx, :);
+        scatter(y, y_predicted(:), dot_size, 'filled');
+        hold on
+        title(Params.regression_models{regressor_idx})
+        xlabel('Observed')
+        ylabel('Predicted')
+    end 
 
 
-xlim([min(y), max(y)])
-ylim([min(y), max(y)])
+    xlim([min(y), max(y)])
+    ylim([min(y), max(y)])
 
-set(gcf, 'color', 'white')
-saveName = 'allRegressorActualVsPredicted';
-savePath = fullfile(plotSaveFolder, saveName);
+    set(gcf, 'color', 'white')
+    saveName = 'allRegressorActualVsPredicted';
+    savePath = fullfile(plotSaveFolder, saveName);
 
 
-if ~Params.showOneFig
-        pipelineSaveFig(savePath, Params.figExt, Params.fullSVG, F1);
+    if ~Params.showOneFig
+            pipelineSaveFig(savePath, Params.figExt, Params.fullSVG, F1);
+        else 
+            pipelineSaveFig(savePath, Params.figExt, Params.fullSVG, oneFigureHandle);
+    end 
+
+    if ~Params.showOneFig
+        close all
     else 
-        pipelineSaveFig(savePath, Params.figExt, Params.fullSVG, oneFigureHandle);
-end 
-    
-if ~Params.showOneFig
-    close all
-else 
-    set(0, 'CurrentFigure', oneFigureHandle);
-    clf reset
-end 
+        set(0, 'CurrentFigure', oneFigureHandle);
+        clf reset
+    end 
+end
 
 
 

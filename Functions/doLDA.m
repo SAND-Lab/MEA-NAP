@@ -12,14 +12,16 @@ function LDAresults = doLDA(recordingLevelData, Params, subset_lag)
 % LDAresults : struct
 % 
 
-
-
-classificationMode = Params.classificationMode;
+if length(unique(recordingLevelData.eGrp)) == 1
+    classificationMode = 'allDIV';
+else 
+    classificationMode = 'genotypePerDIV';
+end
 
 if strcmp(classificationMode, 'genotypePerDIV')
 
-    subgroupTarget = 'DIV';
-    classificationTarget = 'Grp';
+    subgroupTarget = 'AgeDiv';
+    classificationTarget = 'eGrp';
     subGroupTargetLevels = unique(recordingLevelData.(subgroupTarget));
     features_to_use = {'aN', 'Dens', 'CC', 'nMod', 'Q', 'PL', 'Eglob', 'SW', 'SWw', 'effRank', 'num_nnmf_components'};
     subsetColumnIdx = find(ismember(recordingLevelData.Properties.VariableNames, features_to_use));
@@ -45,6 +47,11 @@ if strcmp(classificationMode, 'genotypePerDIV')
         % some data pre-processing 
         X_processed = X;
         
+        % Drop NaN 
+        subsetIdx = find(sum(~isfinite(X_processed), 2) == 0);
+        X_processed = X_processed(subsetIdx, :);
+        y = y(subsetIdx);
+        
         % do genotype classification
         Mdl = fitcdiscr(X_processed, y);
         [W, LAMBDA] = eig(Mdl.BetweenSigma, Mdl.Sigma); %Must be in the right order! 
@@ -66,7 +73,7 @@ elseif strcmp(classificationMode, 'allDIV')
     subset_idx = find(recordingLevelData.('Lag') == subset_lag);
     lagRecordingLevelData = recordingLevelData(subset_idx, :);
     
-    columnsToExclude = {'eGrp', 'AgeDiv', 'Lag'};
+    columnsToExclude = {'eGrp', 'AgeDiv', 'Lag', 'recordingName'};
     subsetColumnIdx = find(~ismember(lagRecordingLevelData.Properties.VariableNames, columnsToExclude));
     lagRecordingLevelDataFeatures = lagRecordingLevelData(:,subsetColumnIdx);
     
