@@ -518,6 +518,33 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
 
 
     end 
+        % Run through each file to do node cartography analysis 
+        for ExN = 1:length(ExpName) 
+            if Params.priorAnalysis==1 && Params.startAnalysisStep==4 && usePriorNetMet
+                experimentMatFileFolder = fullfile(Params.priorAnalysisPath, 'ExperimentMatFiles');
+                experimentMatFilePath = fullfile(experimentMatFileFolder, strcat(char(ExpName(ExN)),'_',Params.priorAnalysisDate,'.mat'));
+                expData = load(experimentMatFilePath, 'spikeTimes','Ephys','adjMs','Info', 'NetMet');
+            else
+                experimentMatFileFolder = fullfile(Params.outputDataFolder, strcat('OutputData', Params.Date), 'ExperimentMatFiles');
+                experimentMatFilePath = fullfile(experimentMatFileFolder, strcat(char(ExpName(ExN)),'_',Params.Date,'.mat'));
+                expData = load(experimentMatFilePath,'Info','Params', 'spikeTimes','Ephys','adjMs', 'NetMet');
+            end
+            fileNameFolder = fullfile(Params.outputDataFolder, strcat('OutputData',Params.Date), ...
+                                      '4_NetworkActivity', '4A_IndividualNetworkAnalysis', ...
+                                      char(expData.Info.Grp), char(expData.Info.FN));
+            NetMet = calNodeCartography(expData.adjMs, Params, expData.NetMet, expData.Info, originalCoords, originalChannels, ...
+            HomeDir, fileNameFolder, oneFigureHandle);
+            % save NetMet now that we have node cartography data as well
+            experimentMatFileFolderToSaveTo = fullfile(Params.outputDataFolder, strcat('OutputData', Params.Date), 'ExperimentMatFiles');
+            experimentMatFilePathToSaveTo = fullfile(experimentMatFileFolderToSaveTo, strcat(char(expData.Info.FN),'_',Params.Date,'.mat'));
+
+            spikeTimes = expData.spikeTimes;
+            Ephys = expData.Ephys;
+            adjMs = expData.adjMs;
+            Info = expData.Info;
+            save(experimentMatFilePathToSaveTo,'Info','Params','spikeTimes','Ephys','adjMs','NetMet')
+        end
+        
     end 
     
     
@@ -534,12 +561,7 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
         % (everything except node cartography)
         PlotNetMet(ExpName, Params, experimentMatFileFolder, oneFigureHandle)
 
-        % Plot node cartography metrics across all recordings 
-        % NetMetricsE = {'Dens','Q','nMod','Eglob','aN','CC','PL','SW','SWw', ... 
-        %           'Hub3','Hub4', 'NCpn1','NCpn2','NCpn3','NCpn4','NCpn5','NCpn6'}; 
-        % combine netmet with node cartography net met
-        % NetMetricsE = [Params.networkLevelNetMetToPlot, ... 
-        %     'NCpn1','NCpn2','NCpn3','NCpn4','NCpn5','NCpn6'];      
+        % Plot node cartography metrics across all recordings     
         NetMetricsE = Params.networkLevelNetMetToPlot;
         NetMetricsC = Params.unitLevelNetMetToPlot;
         experimentMatFileFolderToSaveTo = fullfile(Params.outputDataFolder, ...
@@ -679,6 +701,8 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
                 % note here the Params from expData is not used because there
                 % is a variable I want to preserve between runs... may come
                 % up with a better solution down the line...
+                % TODO: remove the analysis step in the function, alreasdy
+                % dealt with earlier
                 NetMet = plotNodeCartography(expData.adjMs, Params, expData.NetMet, expData.Info, originalCoords, originalChannels, ...
                     HomeDir, fileNameFolder, oneFigureHandle);
                 % save NetMet now that we have node cartography data as well
