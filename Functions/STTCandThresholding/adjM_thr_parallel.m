@@ -1,7 +1,6 @@
 function [adjM, adjMci] = adjM_thr_parallel(spikeTimes, method, lag_ms, tail, fs,...
     duration_s, rep_num)
-
-% Description: This function generates synthetic spike times from original
+% This function generates synthetic spike times from original
 % events and randomizes them using circular shift. All synthetic data is
 % created from existing events.
 %
@@ -10,7 +9,6 @@ function [adjM, adjMci] = adjM_thr_parallel(spikeTimes, method, lag_ms, tail, fs
 
 % NOTE: This is the fast version of the script and does not generate plots
 %       For troubleshooting/visuals use adjM_thr_JC.m
-
 %----------
 % INPUTS:
 %   spikeTimes  - [n x 1]  cell with spike time structures; spikeTimes{}.(method)
@@ -24,10 +22,11 @@ function [adjM, adjMci] = adjM_thr_parallel(spikeTimes, method, lag_ms, tail, fs
 %                          dataset
 %----------
 % OUTPUTS:
-%   adjM : adjacency matrix such that A[i, j] = STTC(i, j) 
-%   adjMci : 
-%   real adjacency matrix thresholded at specidied confidence interval
-%            of probabilistic edge weights
+%   adjM : [n x n] matrix 
+%          adjacency matrix such that A[i, j] = STTC(i, j) 
+%   adjMci : [n x n] matrix
+%          adjacency matrix thresholded at specified confidence
+%          interval of probabilistic edge weights
 %----------
 % Author: RCFeord
 %   Updated by HSmith, Cambridge, Dec 2020
