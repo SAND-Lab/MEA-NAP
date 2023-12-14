@@ -15,8 +15,10 @@ nodeLevelTable = readtable(electrodeSpreadsheetFpath);
 for netMetIdx = 1:length(Params.networkLevelNetMetToPlot)
     
     netMetStr = Params.networkLevelNetMetToPlot{netMetIdx};
-    minMax.(netMetStr) = [min(recordingLevelTable.(netMetStr)), ...
+    if contains(netMetStr, recordingLevelTable.Properties.VariableNames)
+        minMax.(netMetStr) = [min(recordingLevelTable.(netMetStr)), ...
                        max(recordingLevelTable.(netMetStr))];
+    end
     
 end 
 

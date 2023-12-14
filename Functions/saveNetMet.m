@@ -74,12 +74,13 @@ for i = 1:length(ExpName)
      allRecordingLevelData.Lag = [allRecordingLevelData.Lag; Params.FuncConLagval'];
      
      % add to electrode level data 
-
+     lagIndependentMets = {'effRank', 'num_nnmf_components', 'nComponentsRelNS'}; 
+     firstLagField = strcat('adjM', num2str(Params.FuncConLagval(1)), 'mslag');
      % recording level data 
      for e = 1:length(NetMetricsE)
          eMet = cell2mat(NetMetricsE(e));
          
-         if i == 1
+         if (i == 1) && (contains(eMet, fieldnames(expData.('NetMet').(firstLagField))) || contains(eMet, lagIndependentMets))
              allRecordingLevelData.(eMet) = [];
          end 
          
@@ -105,12 +106,11 @@ for i = 1:length(ExpName)
      
             end 
             
-            lagIndependentMets = {'effRank', 'num_nnmf_components', 'nComponentsRelNS'}; 
             if contains(eMet, lagIndependentMets)
                 % 'effRank', 'num_nnmf_components', 'nComponentsRelNS'
                 firstLagField = sprintf('adjM%.fmslag', Params.FuncConLagval(1));
                 allRecordingLevelData.(eMet) = [allRecordingLevelData.(eMet); expData.('NetMet').(firstLagField).(eMet)];
-            else
+            elseif contains(eMet, fieldnames(expData.('NetMet').(lagField)))
                 allRecordingLevelData.(eMet) = [allRecordingLevelData.(eMet); expData.('NetMet').(lagField).(eMet)];
             end 
          end 
