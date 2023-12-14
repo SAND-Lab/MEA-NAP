@@ -221,7 +221,6 @@ for i = 1:length(ExpName)
      end
      
      % add recording name 
-     % TODO: have not tested this yet...
      fileNameSplit = split(Exp, '_');
      recordingName = join(fileNameSplit(1:end-1), '_');
      numElectrode = length(combinedData.(eGrp).(eDiv).(eMet));
@@ -256,7 +255,12 @@ for g = 1:length(Grps)
                 metricVal = combinedData.(eGrp).(eDiv).(char(NetMetricsE(e)));
                 if ~isempty(metricVal)
                     %eval([VNet '.' char(NetMetricsE(e)) '='  'metricVal(:,l);']);
-                    TempStr.(eDiv).(char(NetMetricsE(e))) = metricVal(:, l);
+                    if size(metricVal, 2) > 1  % lag dependent metrics
+                        TempStr.(eDiv).(char(NetMetricsE(e))) = metricVal(:, l);
+                    else
+                        % lag-independent metrics
+                        TempStr.(eDiv).(char(NetMetricsE(e))) = metricVal(:);
+                    end
                 else 
                     TempStr.(eDiv).(char(NetMetricsE(e))) = 0;
                     % eval([VNet '.' char(NetMetricsE(e)) '='  '0;']);
