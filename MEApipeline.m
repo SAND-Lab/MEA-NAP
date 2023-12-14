@@ -450,71 +450,6 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
         oneFigureHandle = NaN;
         oneFigureHandle = checkOneFigureHandle(Params, oneFigureHandle);
 
- 
-    % Plotting step 4A : Make individual network plots with shared colorbar and edge weight widths etc.
-    outputDataDateFolder = fullfile(Params.outputDataFolder, ...
-        strcat('OutputData', Params.Date));
-    minMax = findMinMaxNetMetTable(outputDataDateFolder, Params);
-    minMax.EW = [0.1, 1];
-    Params.metricsMinMax = minMax;
-    Params.useMinMaxBoundsForPlots = 1;
-    Params.sideBySideBoundPlots = 1;
-    
-    for ExN = 1:length(ExpName) 
-        
-        % Testing: make figure handle per recording 
-        % Set up one figure handle to save all the figures
-        oneFigureHandle = NaN;
-        oneFigureHandle = checkOneFigureHandle(Params, oneFigureHandle);
-        
-        disp(ExpName(ExN))
-        % load NetMet 
-        experimentMatFileFolder = fullfile(Params.outputDataFolder, ...
-            strcat('OutputData', Params.Date), 'ExperimentMatFiles');
-        experimentMatFilePath = fullfile(experimentMatFileFolder, ...
-            strcat(char(ExpName(ExN)),'_',Params.Date,'.mat'));
-        
-        expData = load(experimentMatFilePath);
-        idvNetworkAnalysisGrpFolder = fullfile(Params.outputDataFolder, ...
-            strcat('OutputData',Params.Date), '4_NetworkActivity', ...
-            '4A_IndividualNetworkAnalysis', char(expData.Info.Grp));
-        
-        idvNetworkAnalysisFNFolder = fullfile(idvNetworkAnalysisGrpFolder, char(expData.Info.FN));
-        if ~isfolder(idvNetworkAnalysisFNFolder)
-            mkdir(idvNetworkAnalysisFNFolder)
-        end 
-        
-        Params.networkActivityFolder = idvNetworkAnalysisFNFolder;
-        
-        originalCoords = Params.coords{ExN};
-        originalChannels = Params.channels{ExN};
-        PlotIndvNetMet(expData, Params, expData.Info, originalCoords, originalChannels,  oneFigureHandle)
-        
-        if Params.showOneFig
-            clf(oneFigureHandle)
-        else
-            close all 
-        end 
-        
-        % Testing: Always close all the figures
-        close all
-        if strcmp(Params.verboseLevel, 'High')
-            getMemoryUsage
-            numTotalGraphicObjects = length(findall(groot));
-            fprintf(sprintf('Total number of graphic objects: %.f \n', numTotalGraphicObjects))
-        end 
-         
-    end
-
-    if Params.includeNMFcomponents
-        % Plot NMF 
-        experimentMatFolder = fullfile(Params.outputDataFolder, ...
-            strcat('OutputData',Params.Date), 'ExperimentMatFiles');
-        plotSaveFolder = fullfile(Params.outputDataFolder, ...
-            strcat('OutputData',Params.Date), '4_NetworkActivity', ...
-            '4A_IndividualNetworkAnalysis');
-        plotNMF(experimentMatFolder, plotSaveFolder, Params)
-    end 
 
     % Aggregate all files and run density analysis to determine boundaries
     % for node cartography
@@ -742,7 +677,7 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
                 end
 
                 % note here the Params from expData is not used because there
-                % is a variale I want to presever between runs... may come
+                % is a variable I want to preserve between runs... may come
                 % up with a better solution down the line...
                 NetMet = plotNodeCartography(expData.adjMs, Params, expData.NetMet, expData.Info, originalCoords, originalChannels, ...
                     HomeDir, fileNameFolder, oneFigureHandle);
