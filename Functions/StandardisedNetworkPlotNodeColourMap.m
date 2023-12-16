@@ -253,7 +253,7 @@ end
 
 % Theoretical bounds currently takes prescedence over using minMax bounds
 % for colors
-if Params.use_theoretical_bounds
+if Params.use_custom_bounds
     cmap_bounds = Params.network_plot_cmap_bounds.(z2nameToShortHand(z2name));
     z2_min = cmap_bounds(1);
     z2_max = cmap_bounds(end);
