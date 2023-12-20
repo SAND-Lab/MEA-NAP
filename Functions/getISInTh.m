@@ -10,6 +10,7 @@ function ISInTh = getISInTh(SpikeTimes, N, Steps, plotFig)
 %   'SpikeTimes' [sec] % Vector of spike times 
 %   'N'                % Vector of values for plotting ISI_N histograms 
                        % can also be a single real integer value.
+                       % Author recommends 10
 %   'Steps' [sec]      % Vector of histogram edges 
 %   'Plot'             % 1: make a plot, 0: don't plot (default)
 % Steps should be of uniform width on a log scale. Note that histograms are
@@ -70,6 +71,11 @@ for FRnum = N
     
 end 
 
+if plotFig == 1 
+   xlabel('Inter-spike interval (ms)')
+   ylabel('Proportion of ISIs')
+end
+
 % SIT 2018 now we find peak in the curve to set threshold 
 % don't know what to call that curve, so for now I will call it landscape
 curve = n/sum(n);
@@ -80,8 +86,11 @@ curve = n/sum(n);
 
 if length(pks) <= 1 
     % no peak or one peak, return default ISIn threshold value 
-    ISInTh = 0.1; % in seconds, ie. 100ms (See Pasquale et al 2010) 
+    % ISInTh = 0.1; % in seconds, ie. 100ms (See Pasquale et al 2010) 
                   % actually also default value used in Bakkum et al 2014 
+    ISInTh = 0; % 2023-12-20 Tim Sit: no bursts of there is only one peak 
+    % eg. see the Pseudocode in Pasquale et al 2010: 
+    % https://link.springer.com/article/10.1007/s10827-009-0175-1#MOESM1
 elseif length(pks) >= 2               
     % note that this entertains two conditions, peak == 2, in which case we get the
     % minimum value between those two peaks, and where peak > 2, in which
