@@ -808,7 +808,7 @@ for l = 1:length(Params.FuncConLagval)
         mkdir(halfViolinPlotByDivFolderPlusLag)
     end 
     for n = 1:length(eMet)
-        if ~isfield(Params, 'oneFigure')
+        if ~Params.showOneFig
             F1 = figure;
         end 
         eMeti = char(eMet(n));
@@ -939,6 +939,7 @@ for l = 1:length(Params.FuncConLagval)
                     continue
                 else
                     eval(['HalfViolinPlot(PlotDat,xt(d),cDiv' num2str(d) ', Params.kdeHeight, Params.kdeWidthForOnePoint)']);
+                    %  HalfViolinPlot(PlotDat, xt(d), Params.groupColors(d, :), Params.kdeHeight, Params.kdeWidthForOnePoint);
                 end
                 clear DatTemp ValMean UpperStd LowerStd
                 xtlabtext{d} = num2str(AgeDiv(d));
@@ -953,6 +954,31 @@ for l = 1:length(Params.FuncConLagval)
         end
         linkaxes(h,'xy')
         h(1).XLim = [min(xt)-0.5 max(xt)+0.5];
+        
+        % Set custom y axis 
+        if isfield(Params.networkLevelNetMetCustomBounds, eMeti) 
+
+            boundVector = Params.networkLevelNetMetCustomBounds.(eMeti);
+
+            if ~isnan(boundVector(1))
+                yLowerBound = boundVector(1);
+            else
+                yLowerBound = h(1).YLim(1);
+            end 
+
+            if ~isnan(boundVector(2))
+                yUpperBound = boundVector(2);
+            else
+                yUpperBound = h(1).YLim(2);
+            end  
+
+        else 
+            yLowerBound = h(1).YLim(1);
+            yUpperBound = h(1).YLim(2);
+        end 
+
+        ylim([yLowerBound, yUpperBound])
+        
         set(findall(gcf,'-property','FontSize'),'FontSize',9)
 
         % Export figure
@@ -1036,6 +1062,31 @@ for l = 1:length(Params.FuncConLagval)
         end
         linkaxes(h,'xy')
         h(1).XLim = [min(xt)-0.5 max(xt)+0.5];
+        
+        % Set custom y axis 
+        if isfield(Params.networkLevelNetMetCustomBounds, eMeti) 
+
+            boundVector = Params.networkLevelNetMetCustomBounds.(eMeti);
+
+            if ~isnan(boundVector(1))
+                yLowerBound = boundVector(1);
+            else
+                yLowerBound = h(1).YLim(1);
+            end 
+
+            if ~isnan(boundVector(2))
+                yUpperBound = boundVector(2);
+            else
+                yUpperBound = h(1).YLim(2);
+            end  
+
+        else 
+            yLowerBound = h(1).YLim(1);
+            yUpperBound = h(1).YLim(2);
+        end 
+
+        ylim([yLowerBound, yUpperBound])
+
         set(findall(gcf,'-property','FontSize'),'FontSize',12)
         
         % Export figure
