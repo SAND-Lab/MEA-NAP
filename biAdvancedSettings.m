@@ -226,7 +226,7 @@ Params.unitLevelNetMetToPlot = {'ND','MEW','NS','Z','Eloc','PC','BC'};
 % 'aveControl', 'modalControl'
 Params.unitLevelNetMetLabels = {'node degree','edge weight','node strength', ... 
     'within-module degree z-score', ... 
-    'local efficiency','participation coefficient','betweeness centrality'};
+    'local efficiency','participation coefficient','betweenness centrality'};
 % 'average controllability', 'modal controllability'
 
 Params.includeNMFcomponents = 1;  % whether to save extracted components and original downsampled data

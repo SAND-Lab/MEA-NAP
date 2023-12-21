@@ -18,7 +18,7 @@ function [figureHandle, cb] = StandardisedNetworkPlotNodeColourMap(adjM, coords,
 %     name of the z network metric
 %   z2 : str
 %     the network metric used to determine the colour of the plotted
-%      nodes, eg: betweeness centrality or participation coefficient
+%      nodes, eg: betweenness centrality or participation coefficient
 %   z2name : str
 %     name of the z2 network metric
 %   plotType : str
@@ -69,7 +69,7 @@ yc = coords(:,2);
 % metric names
 % TODO: find a more streamlined way to do this
 z2nameToShortHand = containers.Map;
-z2nameToShortHand('Betweeness centrality') = 'BC';
+z2nameToShortHand('Betweenness centrality') = 'BC';
 z2nameToShortHand('Participation coefficient') = 'PC';
 z2nameToShortHand('Local efficiency') = 'Eloc';
 z2nameToShortHand('Average controllability') = 'aveControl';
