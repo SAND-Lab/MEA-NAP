@@ -1,5 +1,6 @@
 function F1 = significance_distribution_plots(dist1, repVal, adjM, genotype, oneFigureHandle)
-% H Smith, Cambridge, 2021
+% Plots the threshold value as a function of the number of circular shifts
+% (repeats) and the thersholded adjacency matrices
 % INPUTS:
 %   dist1 = Cell where dist1{i} is double size(adjM) where element value
 %       at dist1{i} is threshold value at repVal(i)
@@ -9,9 +10,14 @@ function F1 = significance_distribution_plots(dist1, repVal, adjM, genotype, one
 %   genotype:
 %       1 = Wild-type
 %       0 = Knockout
-
+% Output 
+% ------
+% F1 : Figure Handle
 % REQUIRED FUNCTIONS
 %   distinguishable_colors
+% Author and udpates
+% H Smith, Cambridge, 2021
+% 2023-12-21 : Updated documentation, added text labels and colorbars (Tim Sit)
 
 p = [20 20 1250 850];
 set(0, 'DefaultFigurePosition', p)
@@ -152,8 +158,9 @@ aesthetics
 set(gca,'TickDir','out');
 
 %% Thresholded adjMs
-p = round(linspace(1,length(a),5));
-for q = 1:5
+numAdjmToPlot = 5;
+p = round(linspace(1,length(a),numAdjmToPlot));
+for q = 1:numAdjmToPlot
     nexttile(10+q)
     hold on
     use = dist1{p(q)};
@@ -166,12 +173,20 @@ for q = 1:5
         end
     end
     imagesc(blank)
+    
+    if q == numAdjmToPlot
+        cbar = colorbar();
+        cbar.Label.String = 'Edge weight';
+    end 
+    
     xlim([1 length(adjM)]);
     ylim([1 length(adjM)]);
     axis square
     title(['discarded edges (rep' num2str(a(p(q))-1) ')'])
     aesthetics
     set(gca,'TickDir','out');
+    xlabel('Electrode')
+    ylabel('Electrode')
 end
 
 end
