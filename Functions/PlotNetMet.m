@@ -413,6 +413,11 @@ for n = 1:length(eMet)
     if ~isfield(Params, 'oneFigure')
         F1 = figure;
     end 
+    
+    % Skip lag-independent eMets
+    if ismember(eMet, Params.lagIndependentMets)
+        continue
+    end 
 
     eMeti = char(eMet(n));
     xt = 1:length(Params.FuncConLagval);
