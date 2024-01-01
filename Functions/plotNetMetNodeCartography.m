@@ -43,8 +43,17 @@ p = [100 100 1200 800]; % this can be ammended accordingly
 set(0, 'DefaultFigurePosition', p)
 
 if Params.showOneFig
-    set(oneFigureHandle, 'Position', p);
-end 
+        if isgraphics(oneFigureHandle)
+            set(oneFigureHandle, 'Position', p);
+        else 
+            oneFigureHandle = figure;
+            set(oneFigureHandle, 'Position', p);
+        end 
+    else
+        figure
+        set(gcf, 'Position', p);
+end
+
 
 for l = 1:length(Params.FuncConLagval)
     if ~Params.showOneFig
