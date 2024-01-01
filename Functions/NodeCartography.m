@@ -27,10 +27,16 @@ function [NdCartDiv, PopNumNC] = NodeCartography(Z, PC, lagval, e, FN, Params, f
 p = [50 50 600 700];
 set(0, 'DefaultFigurePosition', p)
 
-if ~Params.showOneFig
-    figure();
-else 
-    set(oneFigureHandle, 'Position', p);
+if Params.showOneFig
+    if isgraphics(oneFigureHandle)
+        set(oneFigureHandle, 'Position', p);
+    else 
+        oneFigureHandle = figure;
+        set(oneFigureHandle, 'Position', p);
+    end 
+else
+    figure
+    set(gcf, 'Position', p);
 end 
 
 t = tiledlayout(2,1);
