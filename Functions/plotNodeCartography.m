@@ -75,8 +75,6 @@ for e = 1:length(lagval)
     PC = NetMet.(strcat('adjM', num2str(lagval(e)), 'mslag')).PC;
     Z = NetMet.(strcat('adjM', num2str(lagval(e)), 'mslag')).Z;
 
-    % TODO Check if oneFigure object exists here, if not create it again 
-    % Params.oneFigure = figure();
     [NdCartDiv, PopNumNC] = NodeCartography(Z, PC, lagval, e, char(Info.FN), Params, lagFolder, oneFigureHandle); 
     
     % Include inactive nodes and assign them to group 7 
