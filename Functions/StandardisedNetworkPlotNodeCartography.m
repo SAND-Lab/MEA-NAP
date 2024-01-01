@@ -39,13 +39,16 @@ function [] = StandardisedNetworkPlotNodeCartography(adjM, coords, edge_thresh, 
 %% plot
 p =  [50 100 700 550];
 
-if ~Params.showOneFig
-    F1 = figure;
-    F1.OuterPosition = p;
-else 
-    % set(0, 'DefaultFigurePosition', p)
-    % Params.oneFigure.OuterPosition = p;
-    set(oneFigureHandle, 'OuterPosition', p);
+if Params.showOneFig
+    if isgraphics(oneFigureHandle)
+        set(oneFigureHandle, 'OuterPosition', p);
+    else 
+        oneFigureHandle = figure;
+        set(oneFigureHandle, 'OuterPosition', p);
+    end 
+else
+   F1 = figure;
+   F1.OuterPosition = p;
 end 
 
 aesthetics; axis off; hold on
