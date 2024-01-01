@@ -134,7 +134,7 @@ Params.use_custom_bounds = 0;
 Params.use_min_max_all_recording_bounds = 0;
 Params.use_min_max_per_genotype_bounds = 0;
 
-if Params.use_theoretical_bounds
+if Params.use_custom_bounds
     network_plot_cmap_bounds = struct();
     network_plot_cmap_bounds.CC = [0, 1];
     network_plot_cmap_bounds.PC = [0, 1];
@@ -222,6 +222,17 @@ Params.networkLevelNetMetCustomBounds.('PL') = [0, nan];
 Params.networkLevelNetMetCustomBounds.('Eglob') = [0, 1];
 Params.networkLevelNetMetCustomBounds.('effRank') = [1, length(Params.channels)];
 Params.networkLevelNetMetCustomBounds.('nComponentsRelNS') = [0, 1];
+Params.networkLevelNetMetCustomBounds.('NDmean') = [0, nan];
+Params.networkLevelNetMetCustomBounds.('NDtop25') = [0, nan];
+Params.networkLevelNetMetCustomBounds.('sigEdgesMean') = [0, nan];
+Params.networkLevelNetMetCustomBounds.('sigEdgesTop10') = [0, nan];
+Params.networkLevelNetMetCustomBounds.('NSmean') = [0, nan];
+Params.networkLevelNetMetCustomBounds.('ElocMean') = [0, 1];
+Params.networkLevelNetMetCustomBounds.('PCmean') = [0, 1];
+Params.networkLevelNetMetCustomBounds.('PCmeanTop10') = [0, 1];
+Params.networkLevelNetMetCustomBounds.('PCmeanBottom10') = [0, 1];
+
+Params.lagIndependentMets = {'effRank', 'num_nnmf_components', 'nComponentsRelNS'};
 
 Params.unitLevelNetMetToPlot = {'ND','MEW','NS','Z','Eloc','PC','BC'};
 % 'aveControl', 'modalControl'
