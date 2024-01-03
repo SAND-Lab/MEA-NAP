@@ -27,12 +27,12 @@ MEA-NAP Outputs
 
 .. _Step 1 - Spike Detection:
 
-``Step 1 - Spike Detection``
+Step 1 - Spike Detection
 ------------------------------------
 
 .. _Step 1A - Spike Detection Files:
 
-``Step 1A - Spike Detection Files``
+Step 1A - Spike Detection Files
 ------------------------------------
 
 This folder contains the MATLAB file for each MEA recording with the spike times detected by each spike detection method and parameter selected.  This folder can be used by MEA-NAP to perform Steps 1B – Step 5 without repeating the spike detection.
@@ -48,14 +48,14 @@ spikeWaveforms: same format as spikeTimes, but where each field entry are the sp
 
 .. _Step 1B - Spike Detection Checks:
 
-``Step 1B – Spike Detection Checks``
+Step 1B – Spike Detection Checks
 ------------------------------------
 
 This folder contains subfolders for each Group.  Each subfolder contains folders for each MEA recording by filename.
 
 .. _Subfolder - By Filename:
 
-``Subfolder – By Filename``
+Subfolder – By Filename
 """"""""""""""""""""""""""""""
 
 **Figure 1.** Example Traces. Sample 60-millisecond-long filtered voltage traces from 9 electrodes (if the default number of electrodes to plot is selected in MEA-NAP) centered on at least one action potential. The electrode number and time in the recording are shown above each voltage trace, except for the bottom left trace which is labeled with the MEA recording filename. The colored arrows indicate where one or more spike detection methods and parameters identified an action potential.  Legend, bior1.3, bior1.5, and db2 are MATLAB wavelets used for template-based spike detection with the continuous wavelet transform. The median absolute deviation used for the threshold method is indicated with the prefix “thr.”  This figure facilitates comparing the performance of the spike detection methods and parameters at the electrode level.
@@ -66,14 +66,14 @@ This folder contains subfolders for each Group.  Each subfolder contains folders
 
 .. _Step 2 - Neuronal Activity:
 
-``Step 2 – Neuronal Activity``
+Step 2 – Neuronal Activity
 -------------------------------
 
 This folder contains two subfolders, one to evaluate the individual recordings and one with comparisons by age and group.  The Step 2A folder contains subfolders for each group and, within each group folder, individual subfolders for each recording.  The Step 2B folder contains 4 subfolders that compare metrics by node (electrode) and recording for age and group.
 
 .. _Step 2A – Individual Neuronal Analysis (includes a subfolder for each MEA recording): 
 
-``Step 2A – Individual Neuronal Analysis``
+Step 2A – Individual Neuronal Analysis
 -----------------------------------------------------------------------------------------
 
 
@@ -86,26 +86,26 @@ This folder contains two subfolders, one to evaluate the individual recordings a
 
 .. _Step 2B – Group Comparison:
 
-``Step 2B - Group Comparison``
+Step 2B - Group Comparison
 -------------------------------
 
 .. _Subfolder 1 – Node by Group:
 
-``Subfolder 1  – Node by Group``
+Subfolder 1  – Node by Group
 """"""""""""""""""""""""""""""""""
 
 **Figure 1. Mean Firing Rate by Node.**  Scatter plots, mean (black circles with error bars), and density curves show the mean firing rate (MFR) for each electrode (colored circles) from all of the recordings in the dataset in hertz (Hz) by age for Group 1 (left panel), Group 2 (right panel). Error bars may not be visible where they are smaller than the size of the circle representing the mean. The MFR was calculated by dividing the number of action potentials detected divided by the length of the recording in seconds. Panel title (top) is the group name. 
 
 .. _Subfolder 2 – Node by Age (Step 2):
 
-``Subfolder 2 – Node by Age``
+Subfolder 2 – Node by Age
 """"""""""""""""""""""""""""""
 
 **Figure 1. Mean Firing Rate by Node.**  Scatter plots, mean (black circles with error bars), and density curves show the mean firing rate (MFR) for each electrode (colored circles) from all of the recordings in the dataset in hertz (Hz) by group for Age 1 (left panel), Age 2 (second-from-the-left-panel), etc. Error bars may not be visible where they are smaller than the size of the circle representing the mean. The MFR was calculated by dividing the number of action potentials detected divided by the length of the recording in seconds. Panel title (top) is the age. 
 
 .. _Subfolder 3 – Recordings by Group (Step 2):
 
-``Subfolder 3 – Recordings by Group``
+Subfolder 3 – Recordings by Group
 """"""""""""""""""""""""""""""""""""""
 
 **Figure 1. Number of Active Electrodes.** Scatter plots, mean ± s.e.m. (black circles with error bars), and density curves show the number of active electrodes (colored circles) for each recording in the dataset by age for Group 1 (left panel), Group 2 (second-from-the-left-panel panel), etc. Error bars may not be visible where they are smaller than the size of the circle representing the mean. An active electrode is defined as MFR greater than 0.01 Hz (if default settings in MEA-NAP were used).  Panel title (top) is the group name. 
@@ -130,8 +130,8 @@ This folder contains two subfolders, one to evaluate the individual recordings a
 
 .. _Subfolder 4 – Recordings by Age (Step 2):
 
-``Subfolder 4  – Recordings by Age``
-""""""""""""""""""""""""""""""""""""
+Subfolder 4  – Recordings by Age
+""""""""""""""""""""""""""""""""""
 
 **Figure 1. Number of Active Electrodes.** Scatter plots, mean ± s.e.m. (black circles with error bars), and density curves show the number of active electrodes (colored circles) for each recording in the dataset by group for Age 1 (left panel), Age 2 (second-from-the-left-panel), etc. Error bars may not be visible where they are smaller than the size of the circle representing the mean. An active electrode is defined as MFR greater than 0.01 Hz (if default settings in MEA-NAP were used).  Panel title (top) is the age name. 
 
@@ -155,21 +155,21 @@ This folder contains two subfolders, one to evaluate the individual recordings a
 
 .. _Step 3 – Functional Connectivity Edge Thresholding Check:
 
-``Step 3 – Functional Connectivity Edge Thresholding Check``
+Step 3 – Functional Connectivity Edge Thresholding Check
 -------------------------------------------------------------
 
 **Figure 1. Edge Thresholding Check for Probabilistic Thresholding.** Top panel, line graphs for the average (green) and coefficient of variation (black) for the threshold value for significant functional connections (edges) as the number of repeats (iterations of circular shifts used to determine the threshold for significance edges) increases for an example MEA recording from the dataset. The filename includes the recording name and spike time tiling coefficient lag.  The green line represents the mean and the green shaded area the standard deviation. Middle panel, Threshold values for a sample of the individual edges (black lines) as the number of repeats increases. Most threshold values stabilize between 120-180 iterations of the circular shifts.  Bottom panel, adjacency matrices show the edges that are eliminated (below the threshold for a significant edge) as the number of repeats increases. 
 
 .. _Step 4 – Network Activity:
 
-``Step 4 – Network Activity``
+Step 4 – Network Activity
 ------------------------------
 
 This folder contains two subfolders, one to evaluate the individual recordings and one with comparisons by age and group.  The Step 4A folder contains individual subfolders for each recording.  The Step 4B folder contains 7 subfolders that compare metrics by node (electrode) and recording for age and group.
 
 .. _Subfolders – Individual Recordings by Filename: 
 
-``Subfolders – Individual Recordings by Filename``
+Subfolders – Individual Recordings by Filename
 """""""""""""""""""""""""""""""""""""""""""""""""""
 
 **Figure 1. Non-negative Matrix Factorization (NMF) Reveals Patterns of Activity in the Microelectrode Array (MEA) Recording.** Top left, Raster plot of action potentials (black lines) by electrode (rows) over the length of the MEA recording in seconds. Top right – bottom right panels, Raster plots of action potentials in the top 3 components determined by non-negative matrix factorization (NMF).  Middle right panel, proportion of variance explained as the number of NMF components increases.  The dashed gray line indicates the number of NMF components that are sufficient to explain 95% of the neuronal activity in the MEA recording. Lower right panel, The mean square root residual as the number of NMF components increases for the MEA recording (observed) and the action potentials shuffled in the recording (random).  The intersection (dashed gray line) indicates the number of significant NMF components.
@@ -178,7 +178,7 @@ This folder contains two subfolders, one to evaluate the individual recordings a
 
 .. _Subfolders – Network Activity By Lag (in milliseconds): 
 
-``Subfolders – Network Activity By Lag (in milliseconds)``
+Subfolders – Network Activity By Lag (in milliseconds)
 """""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 
 For each spike time tiling coefficient (STTC) lag used to determine the functional connections (edges), there is a separate folder for the network activity outputs of the individual MEA recordings. 
@@ -235,12 +235,12 @@ For each spike time tiling coefficient (STTC) lag used to determine the function
 
 .. _Step 4B – Network Activity – Group Comparisons:
 
-``Step 4B – Network Activity – Group Comparisons``
+Step 4B – Network Activity – Group Comparisons
 ----------------------------------------------------
 
 .. _Subfolder 1 – Node by Group (with subfolders for each STTC lag): 
 
-``Subfolder 1 – Node by Group (with subfolders for each STTC lag)``
+Subfolder 1 – Node by Group (with subfolders for each STTC lag)
 """"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 
 **Figure 1. Node Degree by Group.**  Scatter plots, mean ± s.e.m. (black circles with error bars), and density curves show the node degree for node (colored circles) for all of the recordings in the dataset by age for Group 1 (left panel), Group 2 (second-from-the-left panel), etc. Error bars may not be visible where they are smaller than the size of the circle representing the mean. The node degree was calculated as the number of significant edges for each node. Panel title (top) is the group name. 
@@ -263,7 +263,7 @@ For each spike time tiling coefficient (STTC) lag used to determine the function
 
 .. _Subfolder 2 – Node by Age (Step 4): 
 
-``Subfolder 2 – Node by Age``
+Subfolder 2 – Node by Age
 """"""""""""""""""""""""""""""
 
 **Figure 1. Node Degree by Age.**  Scatter plots, mean ± s.e.m. (black circles with error bars), and density curves show the node degree for node (colored circles) for all of the recordings in the dataset by group for Age 1 (left panel), Age 2 (second-from-the-left-panel), etc. Error bars may not be visible where they are smaller than the size of the circle representing the mean. The node degree was calculated as the number of significant edges for each node. Panel title (top) is the age. 
@@ -286,7 +286,7 @@ For each spike time tiling coefficient (STTC) lag used to determine the function
 
 .. _Subfolder 3  – Recordings by Group (Step 4):
 
-``Subfolder 3  – Recordings by Group``
+Subfolder 3  – Recordings by Group
 """"""""""""""""""""""""""""""""""""""""
 
 **Figure 1. Network Size by Group.**  Scatter plots, mean ± s.e.m. (black circles with error bars), and density curves show the network size for each MEA recording (colored circles) in the dataset by age for Group 1 (left panel), Group 2 (second-from-the-left panel), etc. Error bars may not be visible where they are smaller than the size of the circle representing the mean. The network size was calculated as number of nodes with at least one significant edge. Panel title (top) is the group name. 
@@ -337,7 +337,7 @@ For each spike time tiling coefficient (STTC) lag used to determine the function
 
 .. _Subfolder 4  – Recordings by Age (Step 4):
 
-``Subfolder 4  – Recordings by Age``
+Subfolder 4  – Recordings by Age
 """"""""""""""""""""""""""""""""""""""""
 
 **Figure 1. Network Size by Age.**  Scatter plots, mean ± s.e.m. (black circles with error bars), and density curves show the network size for each MEA recording (colored circles) in the dataset by group for Age 1 (left panel), Age 2 (second-from-the-left-panel), etc. Error bars may not be visible where they are smaller than the size of the circle representing the mean. The network size was calculated as number of nodes with at least one significant edge. Panel title (top) is the age. 
@@ -388,7 +388,7 @@ For each spike time tiling coefficient (STTC) lag used to determine the function
 
 .. _Subfolder 5  – Graph Metrics by Lag:
 
-``Subfolder 5  – Graph Metrics by Lag``
+Subfolder 5  – Graph Metrics by Lag
 """"""""""""""""""""""""""""""""""""""""
 
 **Figure 1. Network Size by Group.**  Line graphs of the mean (solid line) ± s.e.m. (shading) network size by age (colors) for different spike time tiling coefficient (STTC) lags (x-axis) in milliseconds.  The STTC and probabilistic thresholding are used to determine the significant edges in the network.  This figure illustrates the impact of choice of STTC lag on network size. For datasets with more than one group, each panel title indicates the group name. 
@@ -433,7 +433,7 @@ For each spike time tiling coefficient (STTC) lag used to determine the function
 
 .. _Subfolder 6  – Node Cartography By Lag:
 
-``Subfolder 6  – Node Cartography By Lag``
+Subfolder 6  – Node Cartography By Lag
 """"""""""""""""""""""""""""""""""""""""""
 
 There will be one figure per spike time tiling coefficient (STTC) lag selected when MEA-NAP was run. The STTC lag (in milliseconds) is indicated in the figure filename.  
@@ -442,14 +442,14 @@ There will be one figure per spike time tiling coefficient (STTC) lag selected w
 
 .. _Subfolder 7  – Density Landscape:
 
-``Subfolder 7  – Density Landscape``
+Subfolder 7  – Density Landscape
 """""""""""""""""""""""""""""""""""""
 
 **Figure 1. Density Landscape for Determining the Node Cartography.** Scatterplot shows values of within-module degree z-score and participation coefficient for all of the nodes (blue circles) in the entire dataset.  The colored lines show the automated k-means boundaries set for determining the hub and non-hub roles (horizontal gray line, based on within-module degree z-score) and for the node cartography roles within the hub and non-hub designations (vertical colored lines, based on the participation coefficient). This figure was created to evaluate the automated boundaries set for determining the node cartography roles.
 
 .. _Step 5  – Statistical Comparisons:
 
-``Step 5  – Statistical Comparisons``
+Step 5  – Statistical Comparisons
 --------------------------------------
 
 There will be one figure per spike time tiling coefficient (STTC) lag selected when MEA-NAP was run. The STTC lag (in milliseconds) is indicated in the figure filename.  
