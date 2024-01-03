@@ -1,0 +1,1386 @@
+<!doctype html>
+<html class="no-js" lang="en" data-content_root="./">
+  <head><meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width,initial-scale=1"/>
+    <meta name="color-scheme" content="light dark"><meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Running MEA-NAP on High-Performance Computing (HPC)" href="running-MEANAP-on-HPC.html" /><link rel="prev" title="Guide for New Users" href="guide-for-new-users.html" />
+
+    <!-- Generated with Sphinx 7.2.6 and Furo 2023.09.10 -->
+        <title>Guide for Advanced Users - MEA pipeline 1.5.1 documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=362ab14a" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?v=135e06be" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster.custom.css" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster.bundle.min.css" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-shadow.min.css" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-punk.min.css" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-noir.min.css" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-light.min.css" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-borderless.min.css" />
+    <link rel="stylesheet" type="text/css" href="_static/css/micromodal.css" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?v=36a5483c" />
+    
+    
+
+
+<style>
+  body {
+    --color-code-background: #f8f8f8;
+  --color-code-foreground: black;
+  
+  }
+  @media not print {
+    body[data-theme="dark"] {
+      --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+    }
+    @media (prefers-color-scheme: dark) {
+      body:not([data-theme="light"]) {
+        --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+      }
+    }
+  }
+</style></head>
+  <body>
+    
+    <script>
+      document.body.dataset.theme = localStorage.getItem("theme") || "auto";
+    </script>
+    
+
+<svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+  <symbol id="svg-toc" viewBox="0 0 24 24">
+    <title>Contents</title>
+    <svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 1024 1024">
+      <path d="M408 442h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8zm-8 204c0 4.4 3.6 8 8 8h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56zm504-486H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zm0 632H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zM115.4 518.9L271.7 642c5.8 4.6 14.4.5 14.4-6.9V388.9c0-7.4-8.5-11.5-14.4-6.9L115.4 505.1a8.74 8.74 0 0 0 0 13.8z"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-menu" viewBox="0 0 24 24">
+    <title>Menu</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-menu">
+      <line x1="3" y1="12" x2="21" y2="12"></line>
+      <line x1="3" y1="6" x2="21" y2="6"></line>
+      <line x1="3" y1="18" x2="21" y2="18"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-arrow-right" viewBox="0 0 24 24">
+    <title>Expand</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-chevron-right">
+      <polyline points="9 18 15 12 9 6"></polyline>
+    </svg>
+  </symbol>
+  <symbol id="svg-sun" viewBox="0 0 24 24">
+    <title>Light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
+      <circle cx="12" cy="12" r="5"></circle>
+      <line x1="12" y1="1" x2="12" y2="3"></line>
+      <line x1="12" y1="21" x2="12" y2="23"></line>
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+      <line x1="1" y1="12" x2="3" y2="12"></line>
+      <line x1="21" y1="12" x2="23" y2="12"></line>
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon" viewBox="0 0 24 24">
+    <title>Dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" />
+    </svg>
+  </symbol>
+  <symbol id="svg-sun-half" viewBox="0 0 24 24">
+    <title>Auto light/dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-shadow">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M13 12h5" />
+      <path d="M13 15h4" />
+      <path d="M13 18h1" />
+      <path d="M13 9h4" />
+      <path d="M13 6h1" />
+    </svg>
+  </symbol>
+</svg>
+
+<input type="checkbox" class="sidebar-toggle" name="__navigation" id="__navigation">
+<input type="checkbox" class="sidebar-toggle" name="__toc" id="__toc">
+<label class="overlay sidebar-overlay" for="__navigation">
+  <div class="visually-hidden">Hide navigation sidebar</div>
+</label>
+<label class="overlay toc-overlay" for="__toc">
+  <div class="visually-hidden">Hide table of contents sidebar</div>
+</label>
+
+
+
+<div class="page">
+  <header class="mobile-header">
+    <div class="header-left">
+      <label class="nav-overlay-icon" for="__navigation">
+        <div class="visually-hidden">Toggle site navigation sidebar</div>
+        <i class="icon"><svg><use href="#svg-menu"></use></svg></i>
+      </label>
+    </div>
+    <div class="header-center">
+      <a href="index.html"><div class="brand">MEA pipeline 1.5.1 documentation</div></a>
+    </div>
+    <div class="header-right">
+      <div class="theme-toggle-container theme-toggle-header">
+        <button class="theme-toggle">
+          <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
+          <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
+          <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+          <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+        </button>
+      </div>
+      <label class="toc-overlay-icon toc-header-icon" for="__toc">
+        <div class="visually-hidden">Toggle table of contents sidebar</div>
+        <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
+      </label>
+    </div>
+  </header>
+  <aside class="sidebar-drawer">
+    <div class="sidebar-container">
+      
+      <div class="sidebar-sticky"><a class="sidebar-brand" href="index.html">
+  
+  
+  <span class="sidebar-brand-text">MEA pipeline 1.5.1 documentation</span>
+  
+</a><form class="sidebar-search-container" method="get" action="search.html" role="search">
+  <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
+  <input type="hidden" name="check_keywords" value="yes">
+  <input type="hidden" name="area" value="default">
+</form>
+<div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
+  <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="introduction.html">Introduction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="setting-up-matlab.html">Setting up MATLAB</a></li>
+<li class="toctree-l1"><a class="reference internal" href="setting-up-meanap.html">Setting up MEA-NAP</a></li>
+<li class="toctree-l1"><a class="reference internal" href="guide-for-new-users.html">Guide for New Users</a></li>
+<li class="toctree-l1 current current-page"><a class="current reference internal" href="#">Guide for Advanced Users</a></li>
+<li class="toctree-l1"><a class="reference internal" href="running-MEANAP-on-HPC.html">Running MEA-NAP on High-Performance Computing (HPC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="meanap-methods.html">MEA-NAP Methods</a></li>
+<li class="toctree-l1"><a class="reference internal" href="meanap-outputs.html">MEA-NAP Outputs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="system-requirements.html">System Requirements</a></li>
+<li class="toctree-l1"><a class="reference internal" href="frequently-asked-questions.html">Frequently Asked Questions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="how-to-contribute.html">Contributing to the Project</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sources.html">Code Sources</a></li>
+</ul>
+
+</div>
+</div>
+
+      </div>
+      
+    </div>
+  </aside>
+  <div class="main">
+    <div class="content">
+      <div class="article-container">
+        <a href="#" class="back-to-top muted-link">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+            <path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8v12z"></path>
+          </svg>
+          <span>Back to top</span>
+        </a>
+        <div class="content-icon-container">
+          
+<div class="theme-toggle-container theme-toggle-content">
+            <button class="theme-toggle">
+              <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
+              <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
+              <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+              <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+            </button>
+          </div>
+          <label class="toc-overlay-icon toc-content-icon" for="__toc">
+            <div class="visually-hidden">Toggle table of contents sidebar</div>
+            <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
+          </label>
+        </div>
+        <article role="main">
+          <section id="guide-for-advanced-users">
+<h1>Guide for Advanced Users<a class="headerlink" href="#guide-for-advanced-users" title="Link to this heading">#</a></h1>
+<p>If you have <strong>a solid background in MATLAB</strong>, running the <cite>MEApipeline.m</cite> script involves fine-tuning parameters crucial for batch analysis of experimental files.
+By customizing parameters in <cite>MEApipeline.m</cite>, users can tailor their data analysis to align with the specific requirements of your experiments.
+Without the interactive GUI Mode (found under ‘Guide for New Users’), you will be working with directly <cite>MEApipeline.m</cite>.</p>
+<section id="overview-of-mea-nap">
+<span id="overview"></span><h2>Overview of MEA-NAP<a class="headerlink" href="#overview-of-mea-nap" title="Link to this heading">#</a></h2>
+<p>The pipeline has the following steps:</p>
+<ol class="arabic simple">
+<li><p>Spike detection (this step can be skipped if done previously)</p></li>
+<li><p>Comparison of the neuronal activity (e.g., firing rates, burst rates)</p></li>
+<li><p>Inferring the functional connectivity</p></li>
+<li><p>Comparison of the network activity (i.e., graph theoretical metric)</p></li>
+<li><p>Statistical analysis (e.g., feature correlation and classification)</p></li>
+</ol>
+</section>
+<section id="starting-mea-nap">
+<h2>Starting MEA-NAP<a class="headerlink" href="#starting-mea-nap" title="Link to this heading">#</a></h2>
+<ul class="simple">
+<li><p>Make sure all of the recordings are in <cite>*.mat</cite> format and saved in the same folder first.</p></li>
+<li><p>To use the pipeline, open <code class="docutils literal notranslate"><span class="pre">MEApipeline.m</span></code> in MATLAB next.</p></li>
+</ul>
+<section id="required-user-input-in-the-first-section-of-mea-nap">
+<h3>Required user input in the first section of MEA-NAP<a class="headerlink" href="#required-user-input-in-the-first-section-of-mea-nap" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p>The first section of <code class="docutils literal notranslate"><span class="pre">MEApipeline.m</span></code> sets many of the parameters that instruct the pipeline on how to do the following:</p>
+<ul>
+<li><p>Find your data</p></li>
+<li><p>Select which parts of the analysis pipeline to run</p></li>
+<li><p>Save your outputs</p></li>
+</ul>
+</li>
+<li><p>Follow the prompts to set-up the pipeline for analysing a single or multiple MEA recording files in the same experiment.</p></li>
+</ul>
+<p>This section is also well annotated and does not require understanding of MATLAB in order to edit.  Save your edits and run.</p>
+<ul class="simple">
+<li><p><strong>Descriptions and line numbers for each parameter can be found below.</strong></p></li>
+<li><p>N.B. As we continue to update and improve MEA-NAP, some of the line numbers in the <code class="docutils literal notranslate"><span class="pre">MEApipeline.m</span></code> may change**. There may be a lag before we update those line numbers in this documentation.  If the line numbers do not match, you can search for the function in the <code class="docutils literal notranslate"><span class="pre">MEApipeline.m</span></code> file in matlab to find the new line number.</p></li>
+</ul>
+<div class="table-wrapper colwidths-given docutils container">
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 16.7%" />
+<col style="width: 27.8%" />
+<col style="width: 55.6%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Line</p></th>
+<th class="head"><p>Variable</p></th>
+<th class="head"><p>User input required</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>11</p></td>
+<td><p>HomeDir</p></td>
+<td><p>Set the location of the folder with the AnalysisPipeline scripts. N.B. Best not to save in Program Files.</p></td>
+</tr>
+<tr class="row-odd"><td><p>12</p></td>
+<td><p>Params.outputDataFolder</p></td>
+<td><p>Set the location of where your output data will be saved. Leave as ‘’ if the same as HomeDir.</p></td>
+</tr>
+<tr class="row-even"><td><p>13</p></td>
+<td><p>rawData</p></td>
+<td><p>Set the location of the folder with the raw data .mat files.</p></td>
+</tr>
+<tr class="row-odd"><td><p>18, 19</p></td>
+<td><p>spreadsheet_file_type, spreadsheet_filename</p></td>
+<td><p>Input file with a list of recordings with their age and genotype. Specify if the input file is <code class="docutils literal notranslate"><span class="pre">*.csv</span></code> or <code class="docutils literal notranslate"><span class="pre">*.xlsx</span></code> (line 17) and the name of your input file (line 18).</p></td>
+</tr>
+<tr class="row-even"><td><p>20</p></td>
+<td><p>sheet</p></td>
+<td><p>Specify whether you are using an Excel sheet. If you are using one, set this setting equal to “1”. Otherwise, set it equal to “0”.</p></td>
+</tr>
+<tr class="row-odd"><td><p>21</p></td>
+<td><p>xlRange (optional)</p></td>
+<td><p>If using an .xlsx file type, you can specify all or a subset of the filenames to analyze by changing the sheet number (if more than one sheet in the spreadsheet) and/or xlRange (e.g., <code class="docutils literal notranslate"><span class="pre">A2:C3</span></code> would analyze the first two files listed in the sheet).</p></td>
+</tr>
+<tr class="row-even"><td><p>22</p></td>
+<td><p>csvRange (optional)</p></td>
+<td><p>If using a .csv file type, you can specify all or a subset of the filenames to analyze by only reading data in the range [StartRow EndRow]. (e.g. <code class="docutils literal notranslate"><span class="pre">[2</span> <span class="pre">Inf]</span></code> would start reading data from row 2).</p></td>
+</tr>
+<tr class="row-odd"><td><p>23</p></td>
+<td><p>Params.output_spreadsheet_file_type</p></td>
+<td><p>Option to choose .csv or .xlsx as the output file type for your data analysis from the pipeline. Default is <code class="docutils literal notranslate"><span class="pre">.csv</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>37</p></td>
+<td><p>Params.fs</p></td>
+<td><p>Confirm the sampling frequency is correct for your recording. We acquire data on the MCS 60 channel system at 25000 Hz and on the Axion Maestro at 12500 Hz.</p></td>
+</tr>
+<tr class="row-odd"><td><p>38</p></td>
+<td><p>Params.dSampF</p></td>
+<td><p>Confirm the downsampling factor is correct for spike detection check in step 1 of the pipeline. Its value should match the sampling frequency.</p></td>
+</tr>
+<tr class="row-even"><td><p>40</p></td>
+<td><p>Params.channelLayout</p></td>
+<td><p>Confirm the correct channel layout for your recording. Options: <code class="docutils literal notranslate"><span class="pre">MCS60</span></code>, <code class="docutils literal notranslate"><span class="pre">Axion64</span></code>, <code class="docutils literal notranslate"><span class="pre">MCS60old</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>74</p></td>
+<td><p>Params.guiMode</p></td>
+<td><p>Set <code class="docutils literal notranslate"><span class="pre">Params.guiMode</span></code> equal to 1 if you wish to use an interactive, tutorial GUI for MEANAP pipeline. Otherwise, set <code class="docutils literal notranslate"><span class="pre">Params.guiMode</span></code> equal to 0 if you wish to run the non-interactive default version of the MEANAP pipeline, which does not include the tutorial GUI.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="options-to-start-the-pipeline-at-different-steps">
+<h3>Options to start the pipeline at different steps<a class="headerlink" href="#options-to-start-the-pipeline-at-different-steps" title="Link to this heading">#</a></h3>
+<p>(e.g., save time by running functional connectivity for different time lags without having to rerun the spike detection).</p>
+<div class="table-wrapper colwidths-given docutils container">
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 16.7%" />
+<col style="width: 27.8%" />
+<col style="width: 55.6%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Line</p></th>
+<th class="head"><p>Variable</p></th>
+<th class="head"><p>User input required</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>14, 26, 27</p></td>
+<td><p>Params.prior AnalysisPath, …AnalysisDate, …Analysis</p></td>
+<td><p>If you have already run the pipeline previously and wish to use some of the outputs from the earlier steps, set equal to 1 and give the location and date for the prior analysis (this format should match the folder name of the previous data analysis). N.B. If a previous OutputData folder for the Date already exists, the pipeline will prompt you when running to add a suffix to the previous version (e.g. “v1”). The pipeline will then rename the old folder and remove it from the path.</p></td>
+</tr>
+<tr class="row-odd"><td><p>28</p></td>
+<td><p>Params.startAnalysisStep</p></td>
+<td><p>If you would like to start running the pipeline at a later step than spike detection (step 1) using the prior data, change to the corresponding number. See Section 3.1 for an overview of pipeline functions. If <code class="docutils literal notranslate"><span class="pre">Params.priorAnalysis=0</span></code>, the default is to start with spike detection. N.B. Steps 2-4 all require spike detection to run. Step 4 requires Step 3. Step 5 requires step 4.</p></td>
+</tr>
+<tr class="row-even"><td><p>29</p></td>
+<td><p>Params.optionalStepsToRun</p></td>
+<td><p>If you have completed steps 1 -4 of the pipeline, use this step to run optional downstream steps of the pipeline. You can set this setting equal to ‘runStats’ to perform statistical analysis that looks at feature correlations and classification across groups. You can also set it equal to ‘combineDIVplots’ to combine plots across DIVs.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="spike-detection-settings-lines-13-95">
+<h3>Spike detection settings (lines 13 - 95)<a class="headerlink" href="#spike-detection-settings-lines-13-95" title="Link to this heading">#</a></h3>
+<div class="table-wrapper colwidths-given docutils container">
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 16.7%" />
+<col style="width: 27.8%" />
+<col style="width: 55.6%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Line</p></th>
+<th class="head"><p>Variable</p></th>
+<th class="head"><p>User input required</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>13</p></td>
+<td><p>rawData</p></td>
+<td><p>This is the folder where your recordings are (<a href="#id1"><span class="problematic" id="id2">*</span></a>.mat format). Mac uses / for filenames. PC uses for file names.</p></td>
+</tr>
+<tr class="row-odd"><td><p>15</p></td>
+<td><p>spikeDetectedData</p></td>
+<td><p>If you are using previous spike detection .mat files for the pipeline, put the folder location here. This allows you to run downstream parts of the pipeline again without having to redo spike detection (saves computational time). Spike detection files are also much smaller file size than raw so easier to share/run on less powerful computers.</p></td>
+</tr>
+<tr class="row-even"><td><p>35</p></td>
+<td><p>detectSpikes</p></td>
+<td><p>If you are starting with a .mat file of a raw recording, set to “1” to run spike detection. If starting with a .mat file of detected spikes, or have previously run spike detection, set equal to “0”.</p></td>
+</tr>
+<tr class="row-odd"><td><p>36</p></td>
+<td><p>Params.runSpikeCheckOnPrevSpikeData</p></td>
+<td><p>If you were unable to generate spike detection check figures during step 1 of the pipeline to visualize the performance of your spike detection methods, set equal to “1”. You must have already generated spike files for all of your recordings before using this setting.</p></td>
+</tr>
+<tr class="row-even"><td><p>41</p></td>
+<td><p>Params.thresholds</p></td>
+<td><p>Choose one or more standard deviations (SD) if running threshold-based spike detection. This method identifies negative voltage deflections that exceed the threshold set based on the SD of the mean voltage signal. This method is fast. It works well for electrodes with a high signal-to-noise ratio and for recordings with similar firing rates. Threshold-based methods can underestimate spikes in electrodes with high firing rates and are susceptible to</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="functional-connectivity-settings">
+<h3>Functional connectivity settings<a class="headerlink" href="#functional-connectivity-settings" title="Link to this heading">#</a></h3>
+<div class="table-wrapper colwidths-given docutils container">
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 16.7%" />
+<col style="width: 27.8%" />
+<col style="width: 55.6%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Line</p></th>
+<th class="head"><p>Variable</p></th>
+<th class="head"><p>User input required</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>47</p></td>
+<td><p>Params.FuncConLagval</p></td>
+<td><p>The pipeline uses the spike time tiling coefficient (STTC; Cutts &amp; Eglen, 2014) to estimate pairwise correlations between spiking activity observed in electrodes. Select one or more lag values (in milliseconds) for detecting coincident activity.  For MCS-acquired data, 25 ms is a good starting point. Pipeline works best if you choose 2 or 3 different lags to compare (although the computational time is longer).</p></td>
+</tr>
+<tr class="row-odd"><td><p>48, 49</p></td>
+<td><p>Params. TrunRec, TrunLength</p></td>
+<td><p>Calculating the functional connectivity can be computationally intensive. If you wish to shorten (truncate) the recording change TrunRec to 1 and select a length in seconds. N.B. Shortening the recording can significantly change the connectivity estimates.</p></td>
+</tr>
+<tr class="row-even"><td><p>50</p></td>
+<td><p>Params.adjMtype</p></td>
+<td><p>We use weighted networks. The strength of the connectivity between two electrodes is determined by the STTC. Changing to binary would treat weak and strong connections the same.</p></td>
+</tr>
+<tr class="row-odd"><td><p>53, 54, 55, 56</p></td>
+<td><p>Params. ProbThres… RepNum, Tail, PlotChecks, PlotChecksN</p></td>
+<td><p>Probabilistic thresholding is a method for determining above-chance correlation between activity observed in the electrodes.  It works by shuffling the real data many times (RepNum default = 200) and then calculating the STTC. If the STTC value for the real data is greater than expected by chance for a given electrode pair from the shuffles (e.g., Tail 0.1, aka 90%-tile), that pair is functionally connected. Depending on the number of shuffles and STTC lag, we may use <code class="docutils literal notranslate"><span class="pre">Params.ProbThreshTail</span> <span class="pre">=</span> <span class="pre">0.01</span></code> (aka 99%-tile). To determine whether the number of shuffles (RepNum) is sufficient in a sample of the recordings, set <code class="docutils literal notranslate"><span class="pre">Params.ProbThreshPlotChecks</span> <span class="pre">=</span> <span class="pre">1</span></code> (otherwise 0) and indicate the number of recordings to examine (PlotChecksN).</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="node-cartography-settings">
+<h3>Node cartography settings<a class="headerlink" href="#node-cartography-settings" title="Link to this heading">#</a></h3>
+<div class="table-wrapper colwidths-given docutils container">
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 16.7%" />
+<col style="width: 27.8%" />
+<col style="width: 55.6%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Line</p></th>
+<th class="head"><p>Variable</p></th>
+<th class="head"><p>User input required</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>59</p></td>
+<td><p>Params.autoSetCartographyBoudariesPerLag</p></td>
+<td><p>During step 4, our pipeline generates figures related to node cartography. Use this setting to choose whether to fir separate boundaries per lag value.</p></td>
+</tr>
+<tr class="row-odd"><td><p>60</p></td>
+<td><p>Params.cartographyLagVal</p></td>
+<td><p>If <code class="docutils literal notranslate"><span class="pre">Params.autoSetCartographyBoudariesPerLag</span> <span class="pre">=</span> <span class="pre">0</span></code>, specifiy lag values (in ms) that you want to use to calculate PC-Z distribution.</p></td>
+</tr>
+<tr class="row-even"><td><p>61</p></td>
+<td><p>Params.autoSetCartographyBoundaries</p></td>
+<td><p>This setting specifies whether the pipeline should automatically determine the boundaries for hubs or use custom ones during the node</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="statistics-and-machine-learning-settings">
+<h3>Statistics and machine learning settings<a class="headerlink" href="#statistics-and-machine-learning-settings" title="Link to this heading">#</a></h3>
+<div class="table-wrapper colwidths-given docutils container">
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 16.7%" />
+<col style="width: 27.8%" />
+<col style="width: 55.6%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Line</p></th>
+<th class="head"><p>Variable</p></th>
+<th class="head"><p>User input required</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>64</p></td>
+<td><p>Params.classificationTarget</p></td>
+<td><p>Specify which property of your recordings that you wish to classify using machine learning based classification and regression models during step 5 (statisical analysis) of the pipeline.</p></td>
+</tr>
+<tr class="row-odd"><td><p>65</p></td>
+<td><p>Params.classification_models</p></td>
+<td><p>Specify the classification models that you wish to classify recording property that you previously specified with <code class="docutils literal notranslate"><span class="pre">Params.classificationTarget</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p>66</p></td>
+<td><p>Params.regression_models</p></td>
+<td><p>Specify the regression models that you wish to use to classify recording property that you previously specified with <code class="docutils literal notranslate"><span class="pre">Params.classificationTarget</span></code>.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="pipeline-output-preferences">
+<h3>Pipeline output preferences<a class="headerlink" href="#pipeline-output-preferences" title="Link to this heading">#</a></h3>
+</section>
+<section id="run-and-wait">
+<h3>Run and wait<a class="headerlink" href="#run-and-wait" title="Link to this heading">#</a></h3>
+<p>After completing this list, no further changes are necessary to run the pipeline. Save your changes.  Press RUN and then wait!  The length of time will depend on the acquisition rate, length of recordings, number of files and processing power of the computer. Cluster computing when available is recommended for larger batch datasets.</p>
+</section>
+</section>
+<section id="pipeline-settings">
+<h2>Pipeline settings<a class="headerlink" href="#pipeline-settings" title="Link to this heading">#</a></h2>
+<section id="id3">
+<h3>Overview<a class="headerlink" href="#id3" title="Link to this heading">#</a></h3>
+<p>Folder paths:</p>
+<ul class="simple">
+<li><p><a class="hxr-hoverxref hxr-tooltip reference internal" href="#homedir"><span class="std std-ref">HomeDir</span></a></p></li>
+<li><p><a class="hxr-hoverxref hxr-tooltip reference internal" href="#rawdata"><span class="std std-ref">rawData</span></a></p></li>
+<li><p><a class="hxr-hoverxref hxr-tooltip reference internal" href="#params-prioranalysispath"><span class="std std-ref">Params.priorAnalysisPath</span></a></p></li>
+<li><p><a class="hxr-hoverxref hxr-tooltip reference internal" href="#spikedetecteddata"><span class="std std-ref">spikeDetectedData</span></a></p></li>
+<li><p><a class="hxr-hoverxref hxr-tooltip reference internal" href="#spreadsheet-filename"><span class="std std-ref">spreadsheet_filename</span></a></p></li>
+</ul>
+<p>Input and output filetypes:</p>
+<ul class="simple">
+<li><p><a class="hxr-hoverxref hxr-tooltip reference internal" href="#spreadsheet-file-type"><span class="std std-ref">spreadsheet_file_type</span></a></p></li>
+<li><p><a class="hxr-hoverxref hxr-tooltip reference internal" href="#params-output-spreadsheet-file-type"><span class="std std-ref">Params.output_spreadsheet_file_type</span></a></p></li>
+</ul>
+<p>Analysis step settings:</p>
+<ul class="simple">
+<li><p><a class="hxr-hoverxref hxr-tooltip reference internal" href="#params-prioranalysisdate"><span class="std std-ref">Params.priorAnalysisDate</span></a></p></li>
+<li><p><a class="hxr-hoverxref hxr-tooltip reference internal" href="#params-prioranalysis"><span class="std std-ref">Params.priorAnalysis</span></a></p></li>
+<li><p><a class="hxr-hoverxref hxr-tooltip reference internal" href="#params-startanalysisstep"><span class="std std-ref">Params.startAnalysisStep</span></a></p></li>
+<li><p><a class="hxr-hoverxref hxr-tooltip reference internal" href="#params-optionalstepstorun"><span class="std std-ref">Params.optionalStepsToRun</span></a></p></li>
+<li><p><a class="hxr-hoverxref hxr-tooltip reference internal" href="#params-date"><span class="std std-ref">Params.Date</span></a></p></li>
+</ul>
+<p>Spike detection:</p>
+<ul class="simple">
+<li><p><a class="hxr-hoverxref hxr-tooltip reference internal" href="#params-detectspikes"><span class="std std-ref">Params.detectSpikes</span></a></p></li>
+<li><p><a class="hxr-hoverxref hxr-tooltip reference internal" href="#params-fs"><span class="std std-ref">Params.fs</span></a></p></li>
+<li><p><a class="hxr-hoverxref hxr-tooltip reference internal" href="#params-dsampf"><span class="std std-ref">Params.dSampF</span></a></p></li>
+<li><p><a class="hxr-hoverxref hxr-tooltip reference internal" href="#params-potentialdifferenceunit"><span class="std std-ref">Params.potentialDifferenceUnit</span></a></p></li>
+<li><p><a class="hxr-hoverxref hxr-tooltip reference internal" href="#params-channellayout"><span class="std std-ref">Params.channelLayout</span></a></p></li>
+<li><p><a class="hxr-hoverxref hxr-tooltip reference internal" href="#params-coords"><span class="std std-ref">Params.coords</span></a></p></li>
+<li><p><a class="hxr-hoverxref hxr-tooltip reference internal" href="#params-wnamelist"><span class="std std-ref">Params.wnameList</span></a></p></li>
+<li><p><a class="hxr-hoverxref hxr-tooltip reference internal" href="#params-spikesmethod"><span class="std std-ref">Params.SpikesMethod</span></a></p></li>
+<li><p><a class="hxr-hoverxref hxr-tooltip reference internal" href="#params-costlist"><span class="std std-ref">Params.costList</span></a></p></li>
+<li><p><a class="hxr-hoverxref hxr-tooltip reference internal" href="#params-refperiod"><span class="std std-ref">Params.refPeriod</span></a></p></li>
+<li><p><a class="hxr-hoverxref hxr-tooltip reference internal" href="#params-filterlowpass"><span class="std std-ref">Params.filterLowPass</span></a></p></li>
+<li><p><a class="hxr-hoverxref hxr-tooltip reference internal" href="#params-filterhighpass"><span class="std std-ref">Params.filterHighPass</span></a></p></li>
+<li><p><a class="hxr-hoverxref hxr-tooltip reference internal" href="#params-runspikecheckonprevspikedata"><span class="std std-ref">Params.runSpikeCheckOnPrevSpikeData</span></a></p></li>
+<li><p><a class="hxr-hoverxref hxr-tooltip reference internal" href="#params-threshold-calculation-window"><span class="std std-ref">Params.threshold_calculation_window</span></a></p></li>
+<li><p><a class="hxr-hoverxref hxr-tooltip reference internal" href="#params-remove-artifacts"><span class="std std-ref">Params.remove_artifacts</span></a></p></li>
+<li><p><a class="hxr-hoverxref hxr-tooltip reference internal" href="#params-minpeakthrmultiplier"><span class="std std-ref">Params.minPeakThrMultiplier</span></a></p></li>
+<li><p><a class="hxr-hoverxref hxr-tooltip reference internal" href="#params-maxpeakthrmultiplier"><span class="std std-ref">Params.maxPeakThrMultiplier</span></a></p></li>
+<li><p><a class="hxr-hoverxref hxr-tooltip reference internal" href="#params-pospeakthrmultiplier"><span class="std std-ref">Params.posPeakThrMultiplier</span></a></p></li>
+<li><p><a class="hxr-hoverxref hxr-tooltip reference internal" href="#params-multiplier"><span class="std std-ref">Params.multiplier</span></a></p></li>
+</ul>
+<p>Functional connectivity:</p>
+<ul class="simple">
+<li><p><a class="hxr-hoverxref hxr-tooltip reference internal" href="#params-funcconlagval"><span class="std std-ref">Params.FuncConLagval</span></a></p></li>
+<li><p><a class="hxr-hoverxref hxr-tooltip reference internal" href="#params-truncrec"><span class="std std-ref">Params.TruncRec</span></a></p></li>
+<li><p><a class="hxr-hoverxref hxr-tooltip reference internal" href="#params-trunclength"><span class="std std-ref">Params.TruncLength</span></a></p></li>
+<li><p><a class="hxr-hoverxref hxr-tooltip reference internal" href="#params-adjmtype"><span class="std std-ref">Params.adjMtype</span></a></p></li>
+<li><p><a class="hxr-hoverxref hxr-tooltip reference internal" href="#params-probthreshrepnum"><span class="std std-ref">Params.ProbThreshRepNum</span></a></p></li>
+<li><p><a class="hxr-hoverxref hxr-tooltip reference internal" href="#params-probthreshtail"><span class="std std-ref">Params.ProbThreshTail</span></a></p></li>
+<li><p><a class="hxr-hoverxref hxr-tooltip reference internal" href="#params-probthreshplotchecks"><span class="std std-ref">Params.ProbThreshPlotChecks</span></a></p></li>
+<li><p><a class="hxr-hoverxref hxr-tooltip reference internal" href="#params-probthreshplotchecksn"><span class="std std-ref">Params.ProbThreshPlotChecksN</span></a></p></li>
+</ul>
+<p>Network analysis:</p>
+<ul class="simple">
+<li><p><a class="hxr-hoverxref hxr-tooltip reference internal" href="#params-netmettocal"><span class="std std-ref">Params.netMetToCal</span></a></p></li>
+<li><p><a class="hxr-hoverxref hxr-tooltip reference internal" href="#params-minnumberofnodestocalnetmet"><span class="std std-ref">Params.minNumberOfNodesToCalNetMet</span></a></p></li>
+<li><p><a class="hxr-hoverxref hxr-tooltip reference internal" href="#params-autosetcartographyboundaries"><span class="std std-ref">Params.autoSetCartographyBoundaries</span></a></p></li>
+<li><p><a class="hxr-hoverxref hxr-tooltip reference internal" href="#params-networklevelnetmettoplot"><span class="std std-ref">Params.networkLevelNetMetToPlot</span></a></p></li>
+<li><p><a class="hxr-hoverxref hxr-tooltip reference internal" href="#params-networklevelnetmetlabels"><span class="std std-ref">Params.networkLevelNetMetLabels</span></a></p></li>
+<li><p><a class="hxr-hoverxref hxr-tooltip reference internal" href="#params-includenmfcomponents"><span class="std std-ref">Params.includeNMFcomponents</span></a></p></li>
+<li><p><a class="hxr-hoverxref hxr-tooltip reference internal" href="#params-effrankcalmethod"><span class="std std-ref">Params.effRankCalMethod</span></a></p></li>
+<li><p><a class="hxr-hoverxref hxr-tooltip reference internal" href="#params-nmfdownsamplefreq"><span class="std std-ref">Params.NMFdownsampleFreq</span></a></p></li>
+<li><p><a class="hxr-hoverxref hxr-tooltip reference internal" href="#params-hubboundarywmddeg"><span class="std std-ref">Params.hubBoundaryWMdDeg</span></a></p></li>
+<li><p><a class="hxr-hoverxref hxr-tooltip reference internal" href="#params-peripartcoef"><span class="std std-ref">Params.periPartCoef</span></a></p></li>
+<li><p><a class="hxr-hoverxref hxr-tooltip reference internal" href="#params-prohubpartcoef"><span class="std std-ref">Params.proHubpartCoef</span></a></p></li>
+<li><p><a class="hxr-hoverxref hxr-tooltip reference internal" href="#params-nonhubconnectorpartcoef"><span class="std std-ref">Params.nonHubconnectorPartCoef</span></a></p></li>
+<li><p><a class="hxr-hoverxref hxr-tooltip reference internal" href="#params-connectorhubpartcoef"><span class="std std-ref">Params.connectorHubPartCoef</span></a></p></li>
+</ul>
+<p>Plot settings</p>
+<ul class="simple">
+<li><p><a class="hxr-hoverxref hxr-tooltip reference internal" href="#params-figext"><span class="std std-ref">Params.figExt</span></a></p></li>
+<li><p><a class="hxr-hoverxref hxr-tooltip reference internal" href="#params-fullsvg"><span class="std std-ref">Params.fullSVG</span></a></p></li>
+<li><p><a class="hxr-hoverxref hxr-tooltip reference internal" href="#params-showonefig"><span class="std std-ref">Params.showOneFig</span></a></p></li>
+<li><p><a class="hxr-hoverxref hxr-tooltip reference internal" href="#params-groupcolors"><span class="std std-ref">Params.groupColors</span></a></p></li>
+<li><p><a class="hxr-hoverxref hxr-tooltip reference internal" href="#params-grpnm"><span class="std std-ref">Params.GrpNm</span></a></p></li>
+<li><p><a class="hxr-hoverxref hxr-tooltip reference internal" href="#params-divnm"><span class="std std-ref">Params.DivNm</span></a></p></li>
+</ul>
+</section>
+<section id="folder-paths">
+<h3>Folder paths<a class="headerlink" href="#folder-paths" title="Link to this heading">#</a></h3>
+<section id="homedir">
+<span id="id4"></span><h4><code class="docutils literal notranslate"><span class="pre">HomeDir</span></code><a class="headerlink" href="#homedir" title="Link to this heading">#</a></h4>
+<blockquote>
+<div><ul class="simple">
+<li><p>Argument type : char</p></li>
+<li><p>The location of the folder with the AnalysisPipeline scripts</p></li>
+<li><p>This will also be the default location in which the analysis pipeline outputs will be saved</p></li>
+</ul>
+</div></blockquote>
+</section>
+<section id="rawdata">
+<span id="id5"></span><h4><code class="docutils literal notranslate"><span class="pre">rawData</span></code><a class="headerlink" href="#rawdata" title="Link to this heading">#</a></h4>
+<blockquote>
+<div><ul class="simple">
+<li><p>Argument type : char</p></li>
+<li><p>The location of the folder with the raw .mat files to be analyzed</p></li>
+</ul>
+</div></blockquote>
+</section>
+<section id="params-prioranalysispath">
+<span id="id6"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.priorAnalysisPath</span></code><a class="headerlink" href="#params-prioranalysispath" title="Link to this heading">#</a></h4>
+<blockquote>
+<div><ul class="simple">
+<li><p>Optional (can leave as empty string)</p></li>
+<li><p>Argument type : char</p></li>
+<li><p>Path to previous network pipeline analysis folder</p></li>
+</ul>
+</div></blockquote>
+</section>
+<section id="spikedetecteddata">
+<span id="id7"></span><h4><code class="docutils literal notranslate"><span class="pre">spikeDetectedData</span></code><a class="headerlink" href="#spikedetecteddata" title="Link to this heading">#</a></h4>
+<blockquote>
+<div><ul class="simple">
+<li><p>Optional (can leave as empty string)</p></li>
+<li><p>Argument type : char</p></li>
+<li><p>Path to previously spike-detected data</p></li>
+</ul>
+</div></blockquote>
+</section>
+<section id="spreadsheet-filename">
+<span id="id8"></span><h4><code class="docutils literal notranslate"><span class="pre">spreadsheet_filename</span></code><a class="headerlink" href="#spreadsheet-filename" title="Link to this heading">#</a></h4>
+<blockquote>
+<div><ul class="simple">
+<li><p>the name of spreadsheet containing information about the data to be analysed, including the file extension, usually in the form of ‘spreadhsheet.csv’ or ‘spreadsheet.xlsx’</p></li>
+<li><p>this spreadsheet file is assumed to be located in the main analysis pipeline folder</p></li>
+<li><p>argument type: string or character array</p></li>
+</ul>
+</div></blockquote>
+</section>
+</section>
+<section id="input-and-output-filetypes">
+<h3>Input and output filetypes<a class="headerlink" href="#input-and-output-filetypes" title="Link to this heading">#</a></h3>
+<section id="spreadsheet-file-type">
+<span id="id9"></span><h4><code class="docutils literal notranslate"><span class="pre">spreadsheet_file_type</span></code><a class="headerlink" href="#spreadsheet-file-type" title="Link to this heading">#</a></h4>
+<blockquote>
+<div><ul class="simple">
+<li><p>Filetype of file which contains a table of recording data</p></li>
+<li><p>Options: ‘csv’ or ‘excel’</p></li>
+<li><p>Default: ‘csv’</p></li>
+</ul>
+</div></blockquote>
+</section>
+<section id="params-output-spreadsheet-file-type">
+<span id="id10"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.output_spreadsheet_file_type</span></code><a class="headerlink" href="#params-output-spreadsheet-file-type" title="Link to this heading">#</a></h4>
+<blockquote>
+<div><ul class="simple">
+<li><p>Filetype of output file to create which contains a table of calculated features</p></li>
+<li><p>Options: ‘csv’ or ‘xlsx’</p></li>
+<li><p>Default: ‘csv’</p></li>
+</ul>
+</div></blockquote>
+</section>
+</section>
+<section id="analysis-step-settings">
+<h3>Analysis step settings<a class="headerlink" href="#analysis-step-settings" title="Link to this heading">#</a></h3>
+<section id="params-prioranalysisdate">
+<span id="id11"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.priorAnalysisDate</span></code><a class="headerlink" href="#params-prioranalysisdate" title="Link to this heading">#</a></h4>
+<blockquote>
+<div><ul class="simple">
+<li><p>Date of prior analysis, can leave empty or ignore this line if no prior analysis was performed</p></li>
+<li><p>Format: ‘DDMonthYYYY’, eg. ‘27Sep2021’</p></li>
+</ul>
+</div></blockquote>
+</section>
+<section id="params-prioranalysis">
+<span id="id12"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.priorAnalysis</span></code><a class="headerlink" href="#params-prioranalysis" title="Link to this heading">#</a></h4>
+<blockquote>
+<div><ul class="simple">
+<li><p>Whether to use previously analysed data</p></li>
+<li><p>Options : 1 = yes, 0 = no</p></li>
+</ul>
+</div></blockquote>
+</section>
+<section id="params-startanalysisstep">
+<span id="id13"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.startAnalysisStep</span></code><a class="headerlink" href="#params-startanalysisstep" title="Link to this heading">#</a></h4>
+<blockquote>
+<div><ul class="simple">
+<li><p>Which step to start analysis</p></li>
+<li><p>Options : 1 = spike detection, 2 = neuronal activity, 3 = functional connectivity, 4 = network activity</p></li>
+<li><p>Default : 1</p></li>
+</ul>
+</div></blockquote>
+</section>
+<section id="params-optionalstepstorun">
+<span id="id14"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.optionalStepsToRun</span></code><a class="headerlink" href="#params-optionalstepstorun" title="Link to this heading">#</a></h4>
+<blockquote>
+<div><ul class="simple">
+<li><p>Which optional steps to run (after the main steps are performed)</p></li>
+<li><p>Argument type : cell array with strings / characters</p></li>
+<li><p>Options : ‘runstats’ = obtained feature correlations and do classification, ‘getDensityLandscape’ = get density landscape plot of participation coefficient and within module z-score</p></li>
+<li><p>Default : {}</p></li>
+</ul>
+</div></blockquote>
+</section>
+<section id="params-date">
+<span id="id15"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.Date</span></code><a class="headerlink" href="#params-date" title="Link to this heading">#</a></h4>
+<blockquote>
+<div><ul class="simple">
+<li><p>This specifies the date in which the analysis was performed</p></li>
+<li><p>Normally, no user input is required for this parameter, it is automatically set to the date detected on the computer’s system clock</p></li>
+<li><p>This also informs what to name the output folder of the pipeline, which will be of the form ‘OutputDataDDMonthYYYY’</p></li>
+</ul>
+</div></blockquote>
+</section>
+</section>
+<section id="spike-detection">
+<h3>Spike detection<a class="headerlink" href="#spike-detection" title="Link to this heading">#</a></h3>
+<section id="params-detectspikes">
+<span id="id16"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.detectSpikes</span></code><a class="headerlink" href="#params-detectspikes" title="Link to this heading">#</a></h4>
+<blockquote>
+<div><ul class="simple">
+<li><p>determines whether to run spike detection in the pipeline</p></li>
+<li><p>argument type: boolean</p></li>
+<li><p>options: 0 : do not detect spikes, 1 : detect spikes</p></li>
+</ul>
+</div></blockquote>
+<p id="params-fs"><code class="docutils literal notranslate"><span class="pre">Params.fs</span></code>
+“”””””””””””””””””””””””””””””””’</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>the sampling rate of the recording electrodes, in samples per second (Hz)</p></li>
+<li><p>argument type: int</p></li>
+<li><p>default : 25000</p></li>
+</ul>
+</div></blockquote>
+</section>
+<section id="params-dsampf">
+<span id="id17"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.dSampF</span></code><a class="headerlink" href="#params-dsampf" title="Link to this heading">#</a></h4>
+<blockquote>
+<div><ul class="simple">
+<li><p>the down sample frequency for spike detection check</p></li>
+<li><p>normally, this should be kept as the same value as <cite>Params.fs</cite></p></li>
+<li><p>argument type: int</p></li>
+<li><p>default: 25000</p></li>
+</ul>
+</div></blockquote>
+</section>
+<section id="params-potentialdifferenceunit">
+<span id="id18"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.potentialDifferenceUnit</span></code><a class="headerlink" href="#params-potentialdifferenceunit" title="Link to this heading">#</a></h4>
+<blockquote>
+<div><ul class="simple">
+<li><p>the unit of potential difference in which you are recording electrical signals</p></li>
+<li><p>options: ‘mV’ for millivolt, ‘uV’ for microvolt</p></li>
+<li><p>default : ‘uV’</p></li>
+</ul>
+</div></blockquote>
+</section>
+<section id="params-channellayout">
+<span id="id19"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.channelLayout</span></code><a class="headerlink" href="#params-channellayout" title="Link to this heading">#</a></h4>
+<blockquote>
+<div><ul class="simple">
+<li><p>which channel layout to use for plotting firing rate heatmaps, and other plots related to the layout of the electrodes</p></li>
+<li><p>options: ‘MCS60’ = multichannel systems layout with 59 recording electrodes + 1 grounding electrode, ‘Axion64’ = axion recording layout in a 8 x 8 grid with 64 electrodes, ‘Custom’ = provide own custom layout by specifying the coordinate of each electrode in biAdvantedSettings.m, you will need to edit the block of code under strcmp(Params.channelLayout, ‘Custom’)</p></li>
+</ul>
+</div></blockquote>
+</section>
+<section id="params-coords">
+<span id="id20"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.coords</span></code><a class="headerlink" href="#params-coords" title="Link to this heading">#</a></h4>
+<blockquote>
+<div><ul class="simple">
+<li><p>the x and y coordinates of each electrode to be used for visualisation purposes</p></li>
+<li><p>this is automatically set of Params.channelLayout is one of the provided options ‘MCS60’ or ‘Axion64’, but will require to be set by the user if the option chosen the ‘Custom’ option</p></li>
+<li><p>argument type : nUnit x 2 matrix where nUnit is the number of recorded units, such that each row contains the x and y coordinate of the corresponding recorded unit</p></li>
+</ul>
+</div></blockquote>
+</section>
+<section id="params-wnamelist">
+<span id="id21"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.wnameList</span></code><a class="headerlink" href="#params-wnamelist" title="Link to this heading">#</a></h4>
+<blockquote>
+<div><ul class="simple">
+<li><p>determines which wavelets to run the spike detection with</p></li>
+<li><p>argument type: either string or a cell array of strings</p></li>
+<li><p>options: bior1p5, bior1p3, db2, mea,</p></li>
+</ul>
+</div></blockquote>
+</section>
+<section id="params-spikesmethod">
+<span id="id22"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.SpikesMethod</span></code><a class="headerlink" href="#params-spikesmethod" title="Link to this heading">#</a></h4>
+<blockquote>
+<div><ul class="simple">
+<li><p>the spike method to used in downstream analysis</p></li>
+<li><p>argument type : char</p></li>
+<li><p>options : ‘bior1p5’, ‘bior1p3’, ‘merged’, ‘thr3p0’, or other available wavelet names</p></li>
+</ul>
+<p>If ‘merged’ is used, then all wavelet-based spike detection methods are combined.
+‘mea’ uses spikes from electrode-specific custom wavelets (adapted from putative spikes detected using the threshold method)
+‘thr3p0’ means using a threshold-based method with a multiplier of 3.0, you can specify other thresholds by replacing the decimal place ‘.’ with ‘p’, eg. ‘thr4p5’ means a threhold multiplier of 4.5.</p>
+</div></blockquote>
+</section>
+<section id="params-costlist">
+<span id="id23"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.costList</span></code><a class="headerlink" href="#params-costlist" title="Link to this heading">#</a></h4>
+<blockquote>
+<div><ul class="simple">
+<li><p>the false positive / false negative tradeoff for wavelet spike detection</p></li>
+<li><p>argument type : float value between -2 to 2</p></li>
+<li><p>default value : -0.12</p></li>
+</ul>
+</div></blockquote>
+<p>More negative values leads to less false negative but more false positives, recommended range is between -2 to 2, but usually we use -1 to 0. Note that this is in a log10 scale, meaning -1 will lead to 10 times more false positive compared to -0.1</p>
+</section>
+<section id="params-threshold-calculation-window">
+<span id="id24"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.threshold_calculation_window</span></code><a class="headerlink" href="#params-threshold-calculation-window" title="Link to this heading">#</a></h4>
+<blockquote>
+<div><ul class="simple">
+<li><p>which part of the recording to do spike detection</p></li>
+<li><p>0 : start of recording, 0.5 : middle of recording, 1 : end of recording</p></li>
+<li><p>argument type : a matlab double with 2 elements</p></li>
+<li><p>This is an advanced setting, modify this in biAdvancedSettings.m</p></li>
+</ul>
+</div></blockquote>
+</section>
+<section id="params-refperiod">
+<span id="id25"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.refPeriod</span></code><a class="headerlink" href="#params-refperiod" title="Link to this heading">#</a></h4>
+<blockquote>
+<div><ul class="simple">
+<li><p>the refractory period of spikes in milliseconds</p></li>
+<li><p>spikes that are smaller than this time period apart will be excluded</p></li>
+<li><p>argument type : float</p></li>
+<li><p>default value : 0.2</p></li>
+<li><p>This is an advanced setting, modify this in biAdvancedSettings.m</p></li>
+</ul>
+</div></blockquote>
+</section>
+<section id="params-filterlowpass">
+<span id="id26"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.filterLowPass</span></code><a class="headerlink" href="#params-filterlowpass" title="Link to this heading">#</a></h4>
+<blockquote>
+<div><ul class="simple">
+<li><p>the low pass frequency (Hz) to use on the raw signal before spike detection</p></li>
+<li><p>argument type : float</p></li>
+<li><p>default value : 600</p></li>
+</ul>
+</div></blockquote>
+</section>
+<section id="params-filterhighpass">
+<span id="id27"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.filterHighPass</span></code><a class="headerlink" href="#params-filterhighpass" title="Link to this heading">#</a></h4>
+<blockquote>
+<div><ul class="simple">
+<li><p>the high pass frequency (Hz) to use on the raw signal before spike detection</p></li>
+<li><p>argument type : float</p></li>
+<li><p>default value : 8000</p></li>
+</ul>
+</div></blockquote>
+</section>
+<section id="params-runspikecheckonprevspikedata">
+<span id="id28"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.runSpikeCheckOnPrevSpikeData</span></code><a class="headerlink" href="#params-runspikecheckonprevspikedata" title="Link to this heading">#</a></h4>
+<blockquote>
+<div><ul class="simple">
+<li><p>Whether to run spike detection check without spike detection</p></li>
+<li><p>argument type : bool</p></li>
+<li><p>default value : 0</p></li>
+<li><p>options : 0 or 1</p></li>
+</ul>
+</div></blockquote>
+<p>Note that setting this to 1 automatically sets <cite>detectSpikes</cite> to 0.</p>
+</section>
+<section id="params-remove-artifacts">
+<span id="id29"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.remove_artifacts</span></code><a class="headerlink" href="#params-remove-artifacts" title="Link to this heading">#</a></h4>
+<blockquote>
+<div><ul class="simple">
+<li><p>whether to run process to remove artifacts from recording</p></li>
+<li><p>argument type : bool</p></li>
+<li><p>options : 1 = yes, 0 = no</p></li>
+<li><p>default : 0</p></li>
+</ul>
+</div></blockquote>
+</section>
+<section id="params-minpeakthrmultiplier">
+<span id="id30"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.minPeakThrMultiplier</span></code><a class="headerlink" href="#params-minpeakthrmultiplier" title="Link to this heading">#</a></h4>
+<blockquote>
+<div><ul class="simple">
+<li><p>The minimal spike amplitude that is used for artifact removal</p></li>
+<li><p>After spike detection, spikes with an amplitude smaller than <cite>Params.minPeakThrMultiplier</cite> will be removed</p></li>
+<li><p>This is used in <cite>alignPeaks.m</cite></p></li>
+<li><p>This is only used if <cite>Params.remove_artifacts = 1</cite></p></li>
+</ul>
+</div></blockquote>
+</section>
+<section id="params-maxpeakthrmultiplier">
+<span id="id31"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.maxPeakThrMultiplier</span></code><a class="headerlink" href="#params-maxpeakthrmultiplier" title="Link to this heading">#</a></h4>
+<blockquote>
+<div><ul class="simple">
+<li><p>The maximal spike amplitude in terms of negative peak that is used for artifact removal</p></li>
+<li><p>After spike detection, spikes with a negative peak greater than <cite>Params.maxPeakThrMultiplier</cite> will be removed</p></li>
+<li><p>This is used in <cite>alignPeaks.m</cite></p></li>
+<li><p>This is only used if <cite>Params.remove_artifacts = 1</cite></p></li>
+</ul>
+</div></blockquote>
+</section>
+<section id="params-pospeakthrmultiplier">
+<span id="id32"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.posPeakThrMultiplier</span></code><a class="headerlink" href="#params-pospeakthrmultiplier" title="Link to this heading">#</a></h4>
+<blockquote>
+<div><ul class="simple">
+<li><p>The maximal spike amplitude in terms of positive peak that is used for artifact removal</p></li>
+<li><p>After spike detection, spikes with a positive peak lower than this value will be removed</p></li>
+<li><p>This is used in <cite>alignPeaks.m</cite></p></li>
+<li><p>This is only used if <cite>Params.remove_artifacts = 1</cite></p></li>
+</ul>
+</div></blockquote>
+</section>
+<section id="params-multiplier">
+<span id="id33"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.multiplier</span></code><a class="headerlink" href="#params-multiplier" title="Link to this heading">#</a></h4>
+<blockquote>
+<div><ul class="simple">
+<li><p>the multiplier to use for extracting spikes for wavelet adaptation method (not for the spike detection itself)</p></li>
+<li><p>this is an advanced setting, and can be found in biAdvancedSettings.m</p></li>
+<li><p>argument type: float</p></li>
+<li><p>default: 3</p></li>
+</ul>
+</div></blockquote>
+</section>
+</section>
+<section id="functional-connectivity">
+<h3>Functional connectivity<a class="headerlink" href="#functional-connectivity" title="Link to this heading">#</a></h3>
+<section id="params-funcconlagval">
+<span id="id34"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.FuncConLagval</span></code><a class="headerlink" href="#params-funcconlagval" title="Link to this heading">#</a></h4>
+<blockquote>
+<div><ul class="simple">
+<li><p>List of lag values (in ms) to use to infer correlation of spike trains</p></li>
+<li><p>Default : [10, 15, 25]</p></li>
+</ul>
+</div></blockquote>
+</section>
+<section id="params-truncrec">
+<span id="id35"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.TruncRec</span></code><a class="headerlink" href="#params-truncrec" title="Link to this heading">#</a></h4>
+<blockquote>
+<div><ul class="simple">
+<li><p>Whether or not to truncate the recording</p></li>
+<li><p>Options: 1 = yes, 0 = no</p></li>
+<li><p>Default: 0</p></li>
+</ul>
+</div></blockquote>
+</section>
+<section id="params-trunclength">
+<span id="id36"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.TruncLength</span></code><a class="headerlink" href="#params-trunclength" title="Link to this heading">#</a></h4>
+<blockquote>
+<div><ul class="simple">
+<li><p>The duration (in seconds) of the recording to truncate</p></li>
+<li><p>Default: 120, but not applied since Params.TruncRec = 0</p></li>
+</ul>
+</div></blockquote>
+</section>
+<section id="params-adjmtype">
+<span id="id37"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.adjMtype</span></code><a class="headerlink" href="#params-adjmtype" title="Link to this heading">#</a></h4>
+<blockquote>
+<div><ul class="simple">
+<li><p>The type of adjacency matrix to obtain</p></li>
+<li><p>Options: ‘weighted’ or ‘binary’</p></li>
+<li><p>Default : ‘weighted’</p></li>
+</ul>
+</div></blockquote>
+</section>
+<section id="params-probthreshrepnum">
+<span id="id38"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.ProbThreshRepNum</span></code><a class="headerlink" href="#params-probthreshrepnum" title="Link to this heading">#</a></h4>
+<blockquote>
+<div><ul class="simple">
+<li><p>Number of random shuffles to obtain for probabilistic thresholding</p></li>
+<li><p>Default : 200</p></li>
+</ul>
+</div></blockquote>
+</section>
+<section id="params-probthreshtail">
+<span id="id39"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.ProbThreshTail</span></code><a class="headerlink" href="#params-probthreshtail" title="Link to this heading">#</a></h4>
+<blockquote>
+<div><ul class="simple">
+<li><p>The percentile threshold to use for probabilistic thresholding</p></li>
+<li><p>Argument type: float between 0 and 1</p></li>
+<li><p>Default : 0.05</p></li>
+</ul>
+</div></blockquote>
+</section>
+<section id="probthreshplotchecks">
+<span id="id40"></span><h4><code class="docutils literal notranslate"><span class="pre">ProbThreshPlotChecks</span></code><a class="headerlink" href="#probthreshplotchecks" title="Link to this heading">#</a></h4>
+<blockquote>
+<div><ul class="simple">
+<li><p>Whether or not to plot probabilistic thresholding check</p></li>
+<li><p>Options : 1 = yes, 0 = no</p></li>
+<li><p>Default : 1</p></li>
+</ul>
+</div></blockquote>
+</section>
+<section id="params-probthreshplotchecks">
+<span id="id41"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.ProbThreshPlotChecks</span></code><a class="headerlink" href="#params-probthreshplotchecks" title="Link to this heading">#</a></h4>
+<blockquote>
+<div><ul class="simple">
+<li><p>Whether to randomly sample recordings to plot probabilistic thresholding check</p></li>
+<li><p>Options : 1 = yes, 0 = no</p></li>
+<li><p>Default : 1</p></li>
+</ul>
+</div></blockquote>
+</section>
+<section id="params-probthreshplotchecksn">
+<span id="id42"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.ProbThreshPlotChecksN</span></code><a class="headerlink" href="#params-probthreshplotchecksn" title="Link to this heading">#</a></h4>
+<blockquote>
+<div><ul class="simple">
+<li><p>Number of recordings to check (selected randomly) for probabilistic thresholding</p></li>
+<li><p>Argument type : integer value greater than or equal to 1</p></li>
+<li><p>Default : 5</p></li>
+</ul>
+</div></blockquote>
+</section>
+</section>
+<section id="network-analysis">
+<h3>Network analysis<a class="headerlink" href="#network-analysis" title="Link to this heading">#</a></h3>
+<section id="params-netmettocal">
+<span id="id43"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.netMetToCal</span></code><a class="headerlink" href="#params-netmettocal" title="Link to this heading">#</a></h4>
+<blockquote>
+<div><ul class="simple">
+<li><p>list of network metrics to calculate</p></li>
+<li><p>argument type : cell containing strings</p></li>
+<li><p>options : ND, MEW, NS, aN, etc.</p></li>
+</ul>
+</div></blockquote>
+</section>
+<section id="params-minnumberofnodestocalnetmet">
+<span id="id44"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.minNumberOfNodesToCalNetMet</span></code><a class="headerlink" href="#params-minnumberofnodestocalnetmet" title="Link to this heading">#</a></h4>
+<blockquote>
+<div><ul class="simple">
+<li><p>minimum number of nodes required to calculate network metrics</p></li>
+<li><p>argument type : int</p></li>
+<li><p>options : any integer value from 2 to the maximum number of nodes in your network</p></li>
+<li><p>default value : 25</p></li>
+</ul>
+</div></blockquote>
+</section>
+<section id="params-networklevelnetmettoplot">
+<span id="id45"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.networkLevelNetMetToPlot</span></code><a class="headerlink" href="#params-networklevelnetmettoplot" title="Link to this heading">#</a></h4>
+<blockquote>
+<div><ul class="simple">
+<li><p>list of network metrics to plot, this should be the same or a subset as the list of network metrics to calculate, which is specified in Params.netMetToCal</p></li>
+<li><p>argument type: cell array of strings / characters</p></li>
+<li><p>eg. {‘aN’, ‘Dens’, ‘effRank’}</p></li>
+</ul>
+</div></blockquote>
+</section>
+<section id="params-networklevelnetmetlabels">
+<span id="id46"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.networkLevelNetMetLabels</span></code><a class="headerlink" href="#params-networklevelnetmetlabels" title="Link to this heading">#</a></h4>
+<blockquote>
+<div><ul class="simple">
+<li><p>list of labels corresponding to the network level metrics to plot</p></li>
+<li><p>eg. ‘aN’ denotes network size and so the label given is ‘network size’</p></li>
+<li><p>argument type: cell array of strings / characters with the same length as <cite>Params.networkLevelNetMetToPlot</cite></p></li>
+</ul>
+</div></blockquote>
+</section>
+<section id="params-includenmfcomponents">
+<span id="id47"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.includeNMFcomponents</span></code><a class="headerlink" href="#params-includenmfcomponents" title="Link to this heading">#</a></h4>
+<blockquote>
+<div><ul class="simple">
+<li><p>whether to include the components as output when performing non-negative matrix factorisation on the spike rate matrix, which outputs a matrix of size (num_components, num_time_samples) and a matrix of size (num_components, num_units)</p></li>
+<li><p>argument type : bool</p></li>
+<li><p>options : 0 = no, 1 = yes</p></li>
+<li><p>default : 0</p></li>
+</ul>
+</div></blockquote>
+</section>
+<section id="params-nmfdownsamplefreq">
+<span id="id48"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.NMFdownSampleFreq</span></code><a class="headerlink" href="#params-nmfdownsamplefreq" title="Link to this heading">#</a></h4>
+<blockquote>
+<div><ul class="simple">
+<li><p>how mcuh to downsample the spike rate matrix before performing non-negative matrix factorisation</p></li>
+<li><p>eg. 10 will mean downsampling from 25000 Hz to 2500 Hz</p></li>
+<li><p>argument type : int</p></li>
+<li><p>default : 10</p></li>
+</ul>
+</div></blockquote>
+</section>
+<section id="params-effrankcalmethod">
+<span id="id49"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.effRankCalMethod</span></code><a class="headerlink" href="#params-effrankcalmethod" title="Link to this heading">#</a></h4>
+<blockquote>
+<div><ul class="simple">
+<li><p>whether to use the covariance or correlation matrix for effective rank calculation</p></li>
+<li><p>options: ‘covariance’ or ‘correlation’</p></li>
+<li><p>default: ‘covariance’</p></li>
+<li><p>this is an advanced setting and is located in biAdvancedSettings.m</p></li>
+</ul>
+</div></blockquote>
+</section>
+<section id="params-autosetcartographyboundaries">
+<span id="id50"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.autoSetCartographyBoundaries</span></code><a class="headerlink" href="#params-autosetcartographyboundaries" title="Link to this heading">#</a></h4>
+<blockquote>
+<div><ul class="simple">
+<li><p>Whether or not to automatically determine bounds in the participation coefficient vs. within module z-score space to classify different nodes (eg. hubs versus non-hubs)</p></li>
+<li><p>Options : 1 = yes, 0 = no, use either default or custom coded boundary values</p></li>
+</ul>
+</div></blockquote>
+</section>
+<section id="params-hubboundarywmddeg">
+<span id="id51"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.hubBoundaryWMdDeg</span></code><a class="headerlink" href="#params-hubboundarywmddeg" title="Link to this heading">#</a></h4>
+<blockquote>
+<div><ul class="simple">
+<li><p>boundary that separtes hub and non-hubs</p></li>
+<li><p>default value: 0.25</p></li>
+<li><p>argument type: float</p></li>
+<li><p>this argument has no effect if Params.autoSetCartographyBoundaries = 1</p></li>
+</ul>
+</div></blockquote>
+</section>
+<section id="params-peripartcoef">
+<span id="id52"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.periPartCoef</span></code><a class="headerlink" href="#params-peripartcoef" title="Link to this heading">#</a></h4>
+<blockquote>
+<div><ul class="simple">
+<li><p>boundary (in terms of participation coefficient) that separates peripheral node and non-hub connector</p></li>
+<li><p>default value: 0.525</p></li>
+<li><p>argument type : float</p></li>
+<li><p>this argument has no effect if Params.autoSetCartographyBoundaries = 1</p></li>
+</ul>
+</div></blockquote>
+</section>
+<section id="params-prohubpartcoef">
+<span id="id53"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.proHubPartCoef</span></code><a class="headerlink" href="#params-prohubpartcoef" title="Link to this heading">#</a></h4>
+<blockquote>
+<div><ul class="simple">
+<li><p>boundary (in terms of participation coefficient) that separates provincial hub and connector hub</p></li>
+<li><p>default value: 0.45</p></li>
+<li><p>argument type: float</p></li>
+<li><p>this argument has no effect if Params.autoSetCartographyBoundaries = 1</p></li>
+</ul>
+</div></blockquote>
+</section>
+<section id="params-nonhubconnectorpartcoef">
+<span id="id54"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.nonHubConnectorPartCoef</span></code><a class="headerlink" href="#params-nonhubconnectorpartcoef" title="Link to this heading">#</a></h4>
+<blockquote>
+<div><ul class="simple">
+<li><p>boundary (in terms of participation coefficient) that separates non-hub connector and non-hub kinless node</p></li>
+<li><p>default value: 0.8</p></li>
+<li><p>argument type: float</p></li>
+<li><p>this argument has no effect if Params.autoSetCartographyBoundaries = 1</p></li>
+</ul>
+</div></blockquote>
+</section>
+<section id="params-connectorhubpartcoef">
+<span id="id55"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.connectorHubPartCoef</span></code><a class="headerlink" href="#params-connectorhubpartcoef" title="Link to this heading">#</a></h4>
+<blockquote>
+<div><ul class="simple">
+<li><p>boundary that separates connector hub and kinless hub</p></li>
+<li><p>default value: 0.75</p></li>
+<li><p>argument type : float</p></li>
+<li><p>this argument has no effect if Params.autoSetCartographyBoundaries = 1</p></li>
+</ul>
+</div></blockquote>
+</section>
+</section>
+<section id="plot-settings">
+<h3>Plot settings<a class="headerlink" href="#plot-settings" title="Link to this heading">#</a></h3>
+<section id="params-figext">
+<span id="id56"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.figExt</span></code><a class="headerlink" href="#params-figext" title="Link to this heading">#</a></h4>
+<blockquote>
+<div><ul class="simple">
+<li><p>Which file formats to export figures as</p></li>
+<li><p>Argument type : cell array for string / character arrays</p></li>
+<li><p>Default : {‘.png’}</p></li>
+<li><p>Options : ‘.png’, ‘.svg’, ‘.fig’</p></li>
+</ul>
+</div></blockquote>
+</section>
+<section id="params-fullsvg">
+<span id="id57"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.fullSVG</span></code><a class="headerlink" href="#params-fullsvg" title="Link to this heading">#</a></h4>
+<blockquote>
+<div><ul class="simple">
+<li><p>Whether to insist matlab to export to SVG in plots with large number of elements, otherwise matlab will compress figure as an image before saving to an SVG file</p></li>
+<li><p>Options : 1 = yes, 0 = no</p></li>
+<li><p>Default : 1</p></li>
+</ul>
+</div></blockquote>
+</section>
+<section id="params-showonefig">
+<span id="id58"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.showOneFig</span></code><a class="headerlink" href="#params-showonefig" title="Link to this heading">#</a></h4>
+<blockquote>
+<div><ul class="simple">
+<li><p>Whether to do all the plotting in the pipeline in one figure handle, this prevents multiple figure from popping out as the code runs, which may interrupt the user using the computer</p></li>
+<li><p>Options : 0 = pipeline show plots as it runs, 1 = only one plot, so pipeline runs in the background</p></li>
+<li><p>Default : 1</p></li>
+</ul>
+</div></blockquote>
+</section>
+<section id="params-groupcolors">
+<span id="id59"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.groupColors</span></code><a class="headerlink" href="#params-groupcolors" title="Link to this heading">#</a></h4>
+<blockquote>
+<div><ul class="simple">
+<li><p>colors to use for each group in group comparison plots</p></li>
+<li><p>this should be an nGroup x 3 matrix where nGroup is the number of groups you have, and each row is a RGB value (scaled from 0 to 1) denoting the color</p></li>
+</ul>
+</div></blockquote>
+</section>
+<section id="params-grpnm">
+<span id="id60"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.GrpNm</span></code><a class="headerlink" href="#params-grpnm" title="Link to this heading">#</a></h4>
+<blockquote>
+<div><ul class="simple">
+<li><p>list of names corresponding to the different groups</p></li>
+<li><p>this is automatically generated through the provided spreadsheet and requires no user input in most cases</p></li>
+<li><p>argument type : cell array of string / characters with number of entries equal to the number of unique groups</p></li>
+</ul>
+</div></blockquote>
+</section>
+<section id="params-divnm">
+<span id="id61"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.DivNm</span></code><a class="headerlink" href="#params-divnm" title="Link to this heading">#</a></h4>
+<blockquote>
+<div><ul class="simple">
+<li><p>list of numbers corresponding to the days in vitro (or any quantification of development time point)</p></li>
+<li><p>this is automatically generated through the provided spreadsheet and requires no user input in most cases</p></li>
+<li><p>argument type : cell array of integers or float with number of entries equal to the number of unique developmental time points</p></li>
+</ul>
+</div></blockquote>
+</section>
+</section>
+</section>
+</section>
+
+        </article>
+      </div>
+      <footer>
+        
+        <div class="related-pages">
+          <a class="next-page" href="running-MEANAP-on-HPC.html">
+              <div class="page-info">
+                <div class="context">
+                  <span>Next</span>
+                </div>
+                <div class="title">Running MEA-NAP on High-Performance Computing (HPC)</div>
+              </div>
+              <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
+            </a>
+          <a class="prev-page" href="guide-for-new-users.html">
+              <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
+              <div class="page-info">
+                <div class="context">
+                  <span>Previous</span>
+                </div>
+                
+                <div class="title">Guide for New Users</div>
+                
+              </div>
+            </a>
+        </div>
+        <div class="bottom-of-page">
+          <div class="left-details">
+            <div class="copyright">
+                Copyright &#169; 2022, Timothy Sit, Rachael Feord, Alexander Dunn, Jeremy Chabros, Mierau SB and SAND group members
+            </div>
+            Made with <a href="https://www.sphinx-doc.org/">Sphinx</a> and <a class="muted-link" href="https://pradyunsg.me">@pradyunsg</a>'s
+            
+            <a href="https://github.com/pradyunsg/furo">Furo</a>
+            
+          </div>
+          <div class="right-details">
+            
+          </div>
+        </div>
+        
+      </footer>
+    </div>
+    <aside class="toc-drawer">
+      
+      
+      <div class="toc-sticky toc-scroll">
+        <div class="toc-title-container">
+          <span class="toc-title">
+            On this page
+          </span>
+        </div>
+        <div class="toc-tree-container">
+          <div class="toc-tree">
+            <ul>
+<li><a class="reference internal" href="#">Guide for Advanced Users</a><ul>
+<li><a class="reference internal" href="#overview-of-mea-nap">Overview of MEA-NAP</a></li>
+<li><a class="reference internal" href="#starting-mea-nap">Starting MEA-NAP</a><ul>
+<li><a class="reference internal" href="#required-user-input-in-the-first-section-of-mea-nap">Required user input in the first section of MEA-NAP</a></li>
+<li><a class="reference internal" href="#options-to-start-the-pipeline-at-different-steps">Options to start the pipeline at different steps</a></li>
+<li><a class="reference internal" href="#spike-detection-settings-lines-13-95">Spike detection settings (lines 13 - 95)</a></li>
+<li><a class="reference internal" href="#functional-connectivity-settings">Functional connectivity settings</a></li>
+<li><a class="reference internal" href="#node-cartography-settings">Node cartography settings</a></li>
+<li><a class="reference internal" href="#statistics-and-machine-learning-settings">Statistics and machine learning settings</a></li>
+<li><a class="reference internal" href="#pipeline-output-preferences">Pipeline output preferences</a></li>
+<li><a class="reference internal" href="#run-and-wait">Run and wait</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#pipeline-settings">Pipeline settings</a><ul>
+<li><a class="reference internal" href="#id3">Overview</a></li>
+<li><a class="reference internal" href="#folder-paths">Folder paths</a><ul>
+<li><a class="reference internal" href="#homedir"><code class="docutils literal notranslate"><span class="pre">HomeDir</span></code></a></li>
+<li><a class="reference internal" href="#rawdata"><code class="docutils literal notranslate"><span class="pre">rawData</span></code></a></li>
+<li><a class="reference internal" href="#params-prioranalysispath"><code class="docutils literal notranslate"><span class="pre">Params.priorAnalysisPath</span></code></a></li>
+<li><a class="reference internal" href="#spikedetecteddata"><code class="docutils literal notranslate"><span class="pre">spikeDetectedData</span></code></a></li>
+<li><a class="reference internal" href="#spreadsheet-filename"><code class="docutils literal notranslate"><span class="pre">spreadsheet_filename</span></code></a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#input-and-output-filetypes">Input and output filetypes</a><ul>
+<li><a class="reference internal" href="#spreadsheet-file-type"><code class="docutils literal notranslate"><span class="pre">spreadsheet_file_type</span></code></a></li>
+<li><a class="reference internal" href="#params-output-spreadsheet-file-type"><code class="docutils literal notranslate"><span class="pre">Params.output_spreadsheet_file_type</span></code></a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#analysis-step-settings">Analysis step settings</a><ul>
+<li><a class="reference internal" href="#params-prioranalysisdate"><code class="docutils literal notranslate"><span class="pre">Params.priorAnalysisDate</span></code></a></li>
+<li><a class="reference internal" href="#params-prioranalysis"><code class="docutils literal notranslate"><span class="pre">Params.priorAnalysis</span></code></a></li>
+<li><a class="reference internal" href="#params-startanalysisstep"><code class="docutils literal notranslate"><span class="pre">Params.startAnalysisStep</span></code></a></li>
+<li><a class="reference internal" href="#params-optionalstepstorun"><code class="docutils literal notranslate"><span class="pre">Params.optionalStepsToRun</span></code></a></li>
+<li><a class="reference internal" href="#params-date"><code class="docutils literal notranslate"><span class="pre">Params.Date</span></code></a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#spike-detection">Spike detection</a><ul>
+<li><a class="reference internal" href="#params-detectspikes"><code class="docutils literal notranslate"><span class="pre">Params.detectSpikes</span></code></a></li>
+<li><a class="reference internal" href="#params-dsampf"><code class="docutils literal notranslate"><span class="pre">Params.dSampF</span></code></a></li>
+<li><a class="reference internal" href="#params-potentialdifferenceunit"><code class="docutils literal notranslate"><span class="pre">Params.potentialDifferenceUnit</span></code></a></li>
+<li><a class="reference internal" href="#params-channellayout"><code class="docutils literal notranslate"><span class="pre">Params.channelLayout</span></code></a></li>
+<li><a class="reference internal" href="#params-coords"><code class="docutils literal notranslate"><span class="pre">Params.coords</span></code></a></li>
+<li><a class="reference internal" href="#params-wnamelist"><code class="docutils literal notranslate"><span class="pre">Params.wnameList</span></code></a></li>
+<li><a class="reference internal" href="#params-spikesmethod"><code class="docutils literal notranslate"><span class="pre">Params.SpikesMethod</span></code></a></li>
+<li><a class="reference internal" href="#params-costlist"><code class="docutils literal notranslate"><span class="pre">Params.costList</span></code></a></li>
+<li><a class="reference internal" href="#params-threshold-calculation-window"><code class="docutils literal notranslate"><span class="pre">Params.threshold_calculation_window</span></code></a></li>
+<li><a class="reference internal" href="#params-refperiod"><code class="docutils literal notranslate"><span class="pre">Params.refPeriod</span></code></a></li>
+<li><a class="reference internal" href="#params-filterlowpass"><code class="docutils literal notranslate"><span class="pre">Params.filterLowPass</span></code></a></li>
+<li><a class="reference internal" href="#params-filterhighpass"><code class="docutils literal notranslate"><span class="pre">Params.filterHighPass</span></code></a></li>
+<li><a class="reference internal" href="#params-runspikecheckonprevspikedata"><code class="docutils literal notranslate"><span class="pre">Params.runSpikeCheckOnPrevSpikeData</span></code></a></li>
+<li><a class="reference internal" href="#params-remove-artifacts"><code class="docutils literal notranslate"><span class="pre">Params.remove_artifacts</span></code></a></li>
+<li><a class="reference internal" href="#params-minpeakthrmultiplier"><code class="docutils literal notranslate"><span class="pre">Params.minPeakThrMultiplier</span></code></a></li>
+<li><a class="reference internal" href="#params-maxpeakthrmultiplier"><code class="docutils literal notranslate"><span class="pre">Params.maxPeakThrMultiplier</span></code></a></li>
+<li><a class="reference internal" href="#params-pospeakthrmultiplier"><code class="docutils literal notranslate"><span class="pre">Params.posPeakThrMultiplier</span></code></a></li>
+<li><a class="reference internal" href="#params-multiplier"><code class="docutils literal notranslate"><span class="pre">Params.multiplier</span></code></a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#functional-connectivity">Functional connectivity</a><ul>
+<li><a class="reference internal" href="#params-funcconlagval"><code class="docutils literal notranslate"><span class="pre">Params.FuncConLagval</span></code></a></li>
+<li><a class="reference internal" href="#params-truncrec"><code class="docutils literal notranslate"><span class="pre">Params.TruncRec</span></code></a></li>
+<li><a class="reference internal" href="#params-trunclength"><code class="docutils literal notranslate"><span class="pre">Params.TruncLength</span></code></a></li>
+<li><a class="reference internal" href="#params-adjmtype"><code class="docutils literal notranslate"><span class="pre">Params.adjMtype</span></code></a></li>
+<li><a class="reference internal" href="#params-probthreshrepnum"><code class="docutils literal notranslate"><span class="pre">Params.ProbThreshRepNum</span></code></a></li>
+<li><a class="reference internal" href="#params-probthreshtail"><code class="docutils literal notranslate"><span class="pre">Params.ProbThreshTail</span></code></a></li>
+<li><a class="reference internal" href="#probthreshplotchecks"><code class="docutils literal notranslate"><span class="pre">ProbThreshPlotChecks</span></code></a></li>
+<li><a class="reference internal" href="#params-probthreshplotchecks"><code class="docutils literal notranslate"><span class="pre">Params.ProbThreshPlotChecks</span></code></a></li>
+<li><a class="reference internal" href="#params-probthreshplotchecksn"><code class="docutils literal notranslate"><span class="pre">Params.ProbThreshPlotChecksN</span></code></a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#network-analysis">Network analysis</a><ul>
+<li><a class="reference internal" href="#params-netmettocal"><code class="docutils literal notranslate"><span class="pre">Params.netMetToCal</span></code></a></li>
+<li><a class="reference internal" href="#params-minnumberofnodestocalnetmet"><code class="docutils literal notranslate"><span class="pre">Params.minNumberOfNodesToCalNetMet</span></code></a></li>
+<li><a class="reference internal" href="#params-networklevelnetmettoplot"><code class="docutils literal notranslate"><span class="pre">Params.networkLevelNetMetToPlot</span></code></a></li>
+<li><a class="reference internal" href="#params-networklevelnetmetlabels"><code class="docutils literal notranslate"><span class="pre">Params.networkLevelNetMetLabels</span></code></a></li>
+<li><a class="reference internal" href="#params-includenmfcomponents"><code class="docutils literal notranslate"><span class="pre">Params.includeNMFcomponents</span></code></a></li>
+<li><a class="reference internal" href="#params-nmfdownsamplefreq"><code class="docutils literal notranslate"><span class="pre">Params.NMFdownSampleFreq</span></code></a></li>
+<li><a class="reference internal" href="#params-effrankcalmethod"><code class="docutils literal notranslate"><span class="pre">Params.effRankCalMethod</span></code></a></li>
+<li><a class="reference internal" href="#params-autosetcartographyboundaries"><code class="docutils literal notranslate"><span class="pre">Params.autoSetCartographyBoundaries</span></code></a></li>
+<li><a class="reference internal" href="#params-hubboundarywmddeg"><code class="docutils literal notranslate"><span class="pre">Params.hubBoundaryWMdDeg</span></code></a></li>
+<li><a class="reference internal" href="#params-peripartcoef"><code class="docutils literal notranslate"><span class="pre">Params.periPartCoef</span></code></a></li>
+<li><a class="reference internal" href="#params-prohubpartcoef"><code class="docutils literal notranslate"><span class="pre">Params.proHubPartCoef</span></code></a></li>
+<li><a class="reference internal" href="#params-nonhubconnectorpartcoef"><code class="docutils literal notranslate"><span class="pre">Params.nonHubConnectorPartCoef</span></code></a></li>
+<li><a class="reference internal" href="#params-connectorhubpartcoef"><code class="docutils literal notranslate"><span class="pre">Params.connectorHubPartCoef</span></code></a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#plot-settings">Plot settings</a><ul>
+<li><a class="reference internal" href="#params-figext"><code class="docutils literal notranslate"><span class="pre">Params.figExt</span></code></a></li>
+<li><a class="reference internal" href="#params-fullsvg"><code class="docutils literal notranslate"><span class="pre">Params.fullSVG</span></code></a></li>
+<li><a class="reference internal" href="#params-showonefig"><code class="docutils literal notranslate"><span class="pre">Params.showOneFig</span></code></a></li>
+<li><a class="reference internal" href="#params-groupcolors"><code class="docutils literal notranslate"><span class="pre">Params.groupColors</span></code></a></li>
+<li><a class="reference internal" href="#params-grpnm"><code class="docutils literal notranslate"><span class="pre">Params.GrpNm</span></code></a></li>
+<li><a class="reference internal" href="#params-divnm"><code class="docutils literal notranslate"><span class="pre">Params.DivNm</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+          </div>
+        </div>
+      </div>
+      
+      
+    </aside>
+  </div>
+</div><script src="_static/jquery.js?v=5d32c60e"></script>
+    <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+    <script src="_static/documentation_options.js?v=44dfd65d"></script>
+    <script src="_static/doctools.js?v=888ff710"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/scripts/furo.js?v=32e29ea5"></script>
+    <script src="_static/js/hoverxref.js"></script>
+    <script src="_static/js/tooltipster.bundle.min.js"></script>
+    <script src="_static/js/micromodal.min.js"></script>
+    <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    </body>
+</html>

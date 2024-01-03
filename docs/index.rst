@@ -15,11 +15,13 @@ Welcome to the MEA network analysis pipeline (MEA-NAP) documentation!
 
    introduction
    setting-up-matlab
-   getting-started
-   pipeline-steps
+   setting-up-meanap
+   guide-for-new-users 
+   guide-for-advanced-users
    running-MEANAP-on-HPC
+   meanap-methods
+   meanap-outputs
    system-requirements
-   methods
    frequently-asked-questions
    how-to-contribute
    sources

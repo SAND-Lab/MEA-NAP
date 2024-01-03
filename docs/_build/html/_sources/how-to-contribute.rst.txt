@@ -1,4 +1,4 @@
-Contributing to the project
+Contributing to the Project
 =============================
 
 

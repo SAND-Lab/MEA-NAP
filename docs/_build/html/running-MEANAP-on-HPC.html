@@ -1,0 +1,745 @@
+<!doctype html>
+<html class="no-js" lang="en" data-content_root="./">
+  <head><meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width,initial-scale=1"/>
+    <meta name="color-scheme" content="light dark"><meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="MEA-NAP Methods" href="meanap-methods.html" /><link rel="prev" title="Guide for Advanced Users" href="guide-for-advanced-users.html" />
+
+    <!-- Generated with Sphinx 7.2.6 and Furo 2023.09.10 -->
+        <title>Running MEA-NAP on High-Performance Computing (HPC) - MEA pipeline 1.5.1 documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=362ab14a" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?v=135e06be" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster.custom.css" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster.bundle.min.css" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-shadow.min.css" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-punk.min.css" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-noir.min.css" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-light.min.css" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-borderless.min.css" />
+    <link rel="stylesheet" type="text/css" href="_static/css/micromodal.css" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?v=36a5483c" />
+    
+    
+
+
+<style>
+  body {
+    --color-code-background: #f8f8f8;
+  --color-code-foreground: black;
+  
+  }
+  @media not print {
+    body[data-theme="dark"] {
+      --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+    }
+    @media (prefers-color-scheme: dark) {
+      body:not([data-theme="light"]) {
+        --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+      }
+    }
+  }
+</style></head>
+  <body>
+    
+    <script>
+      document.body.dataset.theme = localStorage.getItem("theme") || "auto";
+    </script>
+    
+
+<svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+  <symbol id="svg-toc" viewBox="0 0 24 24">
+    <title>Contents</title>
+    <svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 1024 1024">
+      <path d="M408 442h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8zm-8 204c0 4.4 3.6 8 8 8h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56zm504-486H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zm0 632H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zM115.4 518.9L271.7 642c5.8 4.6 14.4.5 14.4-6.9V388.9c0-7.4-8.5-11.5-14.4-6.9L115.4 505.1a8.74 8.74 0 0 0 0 13.8z"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-menu" viewBox="0 0 24 24">
+    <title>Menu</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-menu">
+      <line x1="3" y1="12" x2="21" y2="12"></line>
+      <line x1="3" y1="6" x2="21" y2="6"></line>
+      <line x1="3" y1="18" x2="21" y2="18"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-arrow-right" viewBox="0 0 24 24">
+    <title>Expand</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-chevron-right">
+      <polyline points="9 18 15 12 9 6"></polyline>
+    </svg>
+  </symbol>
+  <symbol id="svg-sun" viewBox="0 0 24 24">
+    <title>Light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
+      <circle cx="12" cy="12" r="5"></circle>
+      <line x1="12" y1="1" x2="12" y2="3"></line>
+      <line x1="12" y1="21" x2="12" y2="23"></line>
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+      <line x1="1" y1="12" x2="3" y2="12"></line>
+      <line x1="21" y1="12" x2="23" y2="12"></line>
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon" viewBox="0 0 24 24">
+    <title>Dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" />
+    </svg>
+  </symbol>
+  <symbol id="svg-sun-half" viewBox="0 0 24 24">
+    <title>Auto light/dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-shadow">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M13 12h5" />
+      <path d="M13 15h4" />
+      <path d="M13 18h1" />
+      <path d="M13 9h4" />
+      <path d="M13 6h1" />
+    </svg>
+  </symbol>
+</svg>
+
+<input type="checkbox" class="sidebar-toggle" name="__navigation" id="__navigation">
+<input type="checkbox" class="sidebar-toggle" name="__toc" id="__toc">
+<label class="overlay sidebar-overlay" for="__navigation">
+  <div class="visually-hidden">Hide navigation sidebar</div>
+</label>
+<label class="overlay toc-overlay" for="__toc">
+  <div class="visually-hidden">Hide table of contents sidebar</div>
+</label>
+
+
+
+<div class="page">
+  <header class="mobile-header">
+    <div class="header-left">
+      <label class="nav-overlay-icon" for="__navigation">
+        <div class="visually-hidden">Toggle site navigation sidebar</div>
+        <i class="icon"><svg><use href="#svg-menu"></use></svg></i>
+      </label>
+    </div>
+    <div class="header-center">
+      <a href="index.html"><div class="brand">MEA pipeline 1.5.1 documentation</div></a>
+    </div>
+    <div class="header-right">
+      <div class="theme-toggle-container theme-toggle-header">
+        <button class="theme-toggle">
+          <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
+          <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
+          <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+          <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+        </button>
+      </div>
+      <label class="toc-overlay-icon toc-header-icon" for="__toc">
+        <div class="visually-hidden">Toggle table of contents sidebar</div>
+        <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
+      </label>
+    </div>
+  </header>
+  <aside class="sidebar-drawer">
+    <div class="sidebar-container">
+      
+      <div class="sidebar-sticky"><a class="sidebar-brand" href="index.html">
+  
+  
+  <span class="sidebar-brand-text">MEA pipeline 1.5.1 documentation</span>
+  
+</a><form class="sidebar-search-container" method="get" action="search.html" role="search">
+  <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
+  <input type="hidden" name="check_keywords" value="yes">
+  <input type="hidden" name="area" value="default">
+</form>
+<div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
+  <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="introduction.html">Introduction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="setting-up-matlab.html">Setting up MATLAB</a></li>
+<li class="toctree-l1"><a class="reference internal" href="setting-up-meanap.html">Setting up MEA-NAP</a></li>
+<li class="toctree-l1"><a class="reference internal" href="guide-for-new-users.html">Guide for New Users</a></li>
+<li class="toctree-l1"><a class="reference internal" href="guide-for-advanced-users.html">Guide for Advanced Users</a></li>
+<li class="toctree-l1 current current-page"><a class="current reference internal" href="#">Running MEA-NAP on High-Performance Computing (HPC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="meanap-methods.html">MEA-NAP Methods</a></li>
+<li class="toctree-l1"><a class="reference internal" href="meanap-outputs.html">MEA-NAP Outputs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="system-requirements.html">System Requirements</a></li>
+<li class="toctree-l1"><a class="reference internal" href="frequently-asked-questions.html">Frequently Asked Questions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="how-to-contribute.html">Contributing to the Project</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sources.html">Code Sources</a></li>
+</ul>
+
+</div>
+</div>
+
+      </div>
+      
+    </div>
+  </aside>
+  <div class="main">
+    <div class="content">
+      <div class="article-container">
+        <a href="#" class="back-to-top muted-link">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+            <path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8v12z"></path>
+          </svg>
+          <span>Back to top</span>
+        </a>
+        <div class="content-icon-container">
+          
+<div class="theme-toggle-container theme-toggle-content">
+            <button class="theme-toggle">
+              <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
+              <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
+              <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+              <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+            </button>
+          </div>
+          <label class="toc-overlay-icon toc-content-icon" for="__toc">
+            <div class="visually-hidden">Toggle table of contents sidebar</div>
+            <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
+          </label>
+        </div>
+        <article role="main">
+          <section id="running-mea-nap-on-high-performance-computing-hpc">
+<h1>Running MEA-NAP on High-Performance Computing (HPC)<a class="headerlink" href="#running-mea-nap-on-high-performance-computing-hpc" title="Link to this heading">#</a></h1>
+<section id="ssh-into-your-remote-server">
+<h2>1. SSH into your remote server<a class="headerlink" href="#ssh-into-your-remote-server" title="Link to this heading">#</a></h2>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ssh<span class="w"> </span>remote_username@remote_host
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">remote_username</span></code> and <code class="docutils literal notranslate"><span class="pre">remote_host</span></code> are specific to your remote server</p>
+</section>
+<section id="download-mea-pipeline-directory-to-your-remote-server">
+<h2>2. Download MEA pipeline directory to your remote server<a class="headerlink" href="#download-mea-pipeline-directory-to-your-remote-server" title="Link to this heading">#</a></h2>
+<p>There are <strong>2 ways</strong> to download the MEA pipeline directory to your remote server</p>
+<ol class="arabic">
+<li><p>Download the most recent version of the MEA pipeline GitHub repository directly to your remote server</p>
+<ul class="simple">
+<li><p>SSH into your remote server (see step 1 above)</p></li>
+<li><p>Change to your preferred working directory</p></li>
+</ul>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span><span class="o">[</span>myDir<span class="o">]</span>
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">myDir</span></code>: preferred working directory</p>
+<ul class="simple">
+<li><p>Clone GitHub repository on remote server</p></li>
+</ul>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/SAND-Lab/Supercloud-David.git
+</pre></div>
+</div>
+<p>MEA pipeline directory called <code class="docutils literal notranslate"><span class="pre">MEA-NAP</span></code> will be downloaded to your current directory</p>
+<ul class="simple">
+<li><p>Lines indicating successful download of MEA pipeline GitHub repository should appear</p></li>
+</ul>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>Cloning<span class="w"> </span>into<span class="w"> </span><span class="s1">&#39;MEA-NAP&#39;</span>...
+remote:<span class="w"> </span>Enumerating<span class="w"> </span>objects:<span class="w"> </span><span class="m">2879</span>,<span class="w"> </span><span class="k">done</span>.
+remote:<span class="w"> </span>Counting<span class="w"> </span>objects:<span class="w"> </span><span class="m">100</span>%<span class="w"> </span><span class="o">(</span><span class="m">2879</span>/2879<span class="o">)</span>,<span class="w"> </span><span class="k">done</span>.
+remote:<span class="w"> </span>Compressing<span class="w"> </span>objects:<span class="w"> </span><span class="m">100</span>%<span class="w"> </span><span class="o">(</span><span class="m">1111</span>/1111<span class="o">)</span>,<span class="w"> </span><span class="k">done</span>.
+remote:<span class="w"> </span>Total<span class="w"> </span><span class="m">2879</span><span class="w"> </span><span class="o">(</span>delta<span class="w"> </span><span class="m">1806</span><span class="o">)</span>,<span class="w"> </span>reused<span class="w"> </span><span class="m">2823</span><span class="w"> </span><span class="o">(</span>delta<span class="w"> </span><span class="m">1760</span><span class="o">)</span>,<span class="w"> </span>pack-reused<span class="w"> </span><span class="m">0</span>
+Receiving<span class="w"> </span>objects:<span class="w"> </span><span class="m">100</span>%<span class="w"> </span><span class="o">(</span><span class="m">2879</span>/2879<span class="o">)</span>,<span class="w"> </span><span class="m">18</span>.35<span class="w"> </span>MiB<span class="w"> </span><span class="p">|</span><span class="w"> </span><span class="m">35</span>.46<span class="w"> </span>MiB/s,<span class="w"> </span><span class="k">done</span>.
+Resolving<span class="w"> </span>deltas:<span class="w"> </span><span class="m">100</span>%<span class="w"> </span><span class="o">(</span><span class="m">1806</span>/1806<span class="o">)</span>,<span class="w"> </span><span class="k">done</span>.
+Updating<span class="w"> </span>files:<span class="w"> </span><span class="m">100</span>%<span class="w"> </span><span class="o">(</span><span class="m">486</span>/486<span class="o">)</span>,<span class="w"> </span><span class="k">done</span>.
+</pre></div>
+</div>
+</li>
+<li><p>Download pre-existing, local MEA pipeline directory to your remote server</p>
+<ul class="simple">
+<li><p>Open another terminal window that is not logged into your remote server to use this command</p></li>
+<li><p>Download modified version of MEA pipeline directory to run on the remote server
+- Modified version of MEA pipeline directory designed to run on the remote SSH server: <cite>https://github.com/SAND-Lab/Supercloud-David/blob/main</cite></p></li>
+<li><p>Create secure copy of the local MEA pipeline directory on the remote server</p></li>
+</ul>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>scp<span class="w"> </span>-r<span class="w"> </span><span class="o">[</span>myDir<span class="o">]</span><span class="w"> </span>remote_username@remote_host:<span class="o">[</span>/remote/directory<span class="o">]</span>
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">myDir</span></code>: path of your local MEA pipeline directory
+<code class="docutils literal notranslate"><span class="pre">/remote/directory</span></code>: path of the remote server directory where you want to copy your local directory</p>
+<ul class="simple">
+<li><p>After successfully running the command, switch back to the terminal window that is logged into your remote server</p></li>
+</ul>
+</li>
+</ol>
+</section>
+<section id="change-your-current-directory-to-the-mea-pipeline-directory">
+<h2>3. Change your current directory to the MEA pipeline directory<a class="headerlink" href="#change-your-current-directory-to-the-mea-pipeline-directory" title="Link to this heading">#</a></h2>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span><span class="o">[</span>myDir<span class="o">]</span>
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">myDir</span></code>: path of the MEA pipeline directory on your remote server</p>
+</section>
+<section id="create-a-directory-for-mat-files-in-your-mea-nap-directory">
+<h2>4. Create a directory for mat files in your MEA-NAP directory<a class="headerlink" href="#create-a-directory-for-mat-files-in-your-mea-nap-directory" title="Link to this heading">#</a></h2>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>mkdir<span class="w"> </span><span class="o">[</span>mat_file_dir<span class="o">]</span>
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">mat_file_dir</span></code>: name of the directory where you will store mat files</p>
+</section>
+<section id="download-mat-files-locally">
+<h2>5. Download mat files locally<a class="headerlink" href="#download-mat-files-locally" title="Link to this heading">#</a></h2>
+<ul class="simple">
+<li><dl class="simple">
+<dt>Can convert the data acquired by the following systems into mat files</dt><dd><ul>
+<li><dl class="simple">
+<dt><strong>MEA Axion Maestro Acquisition System</strong></dt><dd><ol class="arabic simple">
+<li><p>Open MC_DataTool</p></li>
+<li><p>Select File - Open Multiple</p></li>
+<li><p>Select files of interest</p></li>
+<li><p>Click “bin”</p></li>
+<li><p>Click “All”</p></li>
+<li><p>Make sure “Write header” and “Signed 16bit” are checked in the lower right</p></li>
+<li><p>Click save</p></li>
+<li><p>When done, click close</p></li>
+<li><p>Open Matlab</p></li>
+<li><p>Add the analysis pipeline code to the path</p></li>
+<li><p>Navigate in Matlab to the folder containing the ‘.mcd’ files you want to convert</p></li>
+<li><p>In the Matlab command window, type <strong>MEAbatchConvert</strong> and press return to run</p></li>
+</ol>
+</dd>
+</dl>
+</li>
+<li><dl class="simple">
+<dt><strong>Multichannel Acquisition system</strong></dt><dd><ol class="arabic simple">
+<li><p>Save .raw files from MEA Axion Maeastro system to one folder</p></li>
+<li><p>Copy the directory path of the folder containing .raw files</p></li>
+<li><p>Check that rawConvert.m and fillBatchFile.m are installed and saved in the same folder as AxIS MATLAB Files</p></li>
+<li><p>Open rawConvert.m</p></li>
+<li><p>Fill out user parameters in Rawconvert.m according to instructions provided in rawConvert.m</p></li>
+<li><p>Click run</p></li>
+<li><p>When Rawconvert.m has successfully run, open the folder where .raw files were initially stored</p></li>
+<li><p>Navigate through the folder to check that all .mat files have been successfully created and saved</p></li>
+</ol>
+</dd>
+</dl>
+</li>
+</ul>
+</dd>
+</dl>
+</li>
+</ul>
+</section>
+<section id="upload-mat-files-to-the-remote-server">
+<h2>6. Upload mat files to the remote server<a class="headerlink" href="#upload-mat-files-to-the-remote-server" title="Link to this heading">#</a></h2>
+<p>There are <strong>3 ways</strong> to upload mat files:</p>
+<p><strong>For these methods, open another terminal window that is not logged into your remote server</strong></p>
+<ol class="arabic">
+<li><p>Upload one local mat file to the remote server</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>scp<span class="w"> </span><span class="o">[</span>mat_file<span class="o">]</span><span class="w"> </span>remote_username@DEST_HOST:<span class="o">[</span>mat_file_dir<span class="o">]</span>
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">mat_file</span></code>: path of a mat file on your local device
+<code class="docutils literal notranslate"><span class="pre">mat_file_dir</span></code>: path of the remote server directory where you store your mat files (see step 4 above)</p>
+</li>
+<li><p>Upload multiple local mat files to the remote server</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>scp<span class="w"> </span><span class="o">[</span>mat_file1<span class="w"> </span>mat_file2<span class="w"> </span>mat_file3<span class="w"> </span>...<span class="o">]</span><span class="w"> </span>remote_username@remote_host:<span class="o">[</span>mat_file_dir<span class="o">]</span>
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">mat_file1</span> <span class="pre">mat_file2</span> <span class="pre">mat_file3</span> <span class="pre">…</span></code>: paths of mat files on your local device</p>
+<ul class="simple">
+<li><p>The mat file paths should be separated by spaces</p></li>
+</ul>
+<p><code class="docutils literal notranslate"><span class="pre">mat_file_dir</span></code>: path of the remote server directory where you store your mat files (see step 4 above)</p>
+</li>
+<li><p>Upload a local directory containing mat files to the remote server</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>scp<span class="w"> </span>-r<span class="w"> </span><span class="o">[</span>myDir<span class="o">]</span><span class="w"> </span>remote_username@remote_host:<span class="o">[</span>mat_file_dir<span class="o">]</span>
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">myDir</span></code>: path of a local directory containing mat files
+<code class="docutils literal notranslate"><span class="pre">mat_file_dir</span></code>: path of the remote server directory where you store your mat files (see step 4 above)</p>
+</li>
+</ol>
+</section>
+<section id="on-your-local-device-create-csv-file-s-for-mat-files-that-you-plan-to-analyze">
+<h2>7. On your local device, create CSV file(s) for mat files that you plan to analyze<a class="headerlink" href="#on-your-local-device-create-csv-file-s-for-mat-files-that-you-plan-to-analyze" title="Link to this heading">#</a></h2>
+<ul class="simple">
+<li><p>More detailed documentation about CSV formatting: <cite>https://analysis-pipeline.readthedocs.io/en/latest/pipeline-steps.html#table-with-your-data-filenames-for-batch-analysis-with-age-and-group-identifiers</cite></p></li>
+<li><p>Example CSV file:</p></li>
+</ul>
+<img alt="Example CSV file" class="align-center" src="_images/csv_file_example.png" />
+</section>
+<section id="upload-csv-file-s-to-the-mea-pipeline-directory-on-the-remote-server">
+<h2>8. Upload CSV file(s) to the MEA pipeline directory on the remote server<a class="headerlink" href="#upload-csv-file-s-to-the-mea-pipeline-directory-on-the-remote-server" title="Link to this heading">#</a></h2>
+<p>There are <strong>3 ways</strong> to upload mat files:</p>
+<p><strong>For these methods, open another terminal window that is not logged into your remote server</strong></p>
+<ol class="arabic">
+<li><p>Upload a single CSV file to the MEA pipeline directory on the remote SSH server</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>scp<span class="w"> </span><span class="o">[</span>csv_file<span class="o">]</span><span class="w"> </span>remote_username@remote_host:<span class="o">[</span>/remote/directory<span class="o">]</span>
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">csv_file</span></code>: path of a local CSV file</p>
+</li>
+<li><p>Upload multiple CSV files to the MEA pipeline directory on the</p>
+<blockquote>
+<div><p>scp [csv_file1 csv_file2 csv_file3 …] <a class="reference external" href="mailto:remote_username&#37;&#52;&#48;remote_host">remote_username<span>&#64;</span>remote_host</a>:[/remote/directory]</p>
+</div></blockquote>
+<p><code class="docutils literal notranslate"><span class="pre">csv_file1</span> <span class="pre">csv_file2</span> <span class="pre">csv_file3</span> <span class="pre">...</span></code>: paths of local CSV files</p>
+<ul class="simple">
+<li><p>The CSV file paths should be separated by spaces</p></li>
+</ul>
+<p><strong>/remote/directory</strong>: path of the MEA pipeline directory on the remote server (see Step 2 above)</p>
+<p><strong>/remote/directory</strong>: path of the MEA pipeline directory on the remote server (see Step 2 above)</p>
+</li>
+<li><p>Move all CSV files located in a local directory to the remote server directory</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>scp<span class="w"> </span>-r<span class="w"> </span><span class="o">[</span>myDir<span class="o">]</span><span class="w"> </span>remote_username@remote_host:<span class="o">[</span>/remote/directory<span class="o">]</span>
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">myDir</span></code>: path of a local directory containing CSV files
+<code class="docutils literal notranslate"><span class="pre">/remote/directory</span></code>: path of the MEA pipeline directory on the remote server (see Step 2 above)</p>
+</li>
+</ol>
+</section>
+<section id="create-a-bash-script-to-submit-jobs-for-meapipeline-m">
+<h2>9. Create a bash script to submit jobs for MEApipeline.m<a class="headerlink" href="#create-a-bash-script-to-submit-jobs-for-meapipeline-m" title="Link to this heading">#</a></h2>
+<ul>
+<li><p>Check available MATLAB versions on your server</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>module<span class="w"> </span>avail<span class="w"> </span>matlab
+</pre></div>
+</div>
+</li>
+<li><p>If not available, check available R modules on your server</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>module<span class="w"> </span>avail<span class="w"> </span>R
+</pre></div>
+</div>
+</li>
+<li><p>Get the full path of your MEA pipeline directory on the remote server</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>/remote/directory
+<span class="nb">pwd</span>
+</pre></div>
+</div>
+</li>
+</ul>
+<p><code class="docutils literal notranslate"><span class="pre">/remote/directory</span></code>: path of the MEA pipeline directory on the remote server</p>
+<ul>
+<li><p>Create a new bash script</p>
+<blockquote>
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>nano<span class="w"> </span>bash_script_name.sh
+</pre></div>
+</div>
+</div></blockquote>
+</li>
+</ul>
+<p><code class="docutils literal notranslate"><span class="pre">bash_script_name</span></code>: name of the bash script
+- must end with .sh</p>
+<ul>
+<li><p>Example bash script:</p>
+<blockquote>
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="ch">#!/bin/bash</span>
+<span class="c1">#SBATCH -n 4</span>
+<span class="c1">#SBATCH -N 1</span>
+<span class="c1">#SBATCH -o MEApipeline.sh.log-%j</span>
+
+<span class="nb">cd</span><span class="w"> </span>/remote/directory
+
+<span class="c1"># Load the module</span>
+module<span class="w"> </span>load<span class="w"> </span>module_name
+
+<span class="c1"># Run MATLAB script</span>
+matlab<span class="w"> </span>-nodisplay<span class="w"> </span>-nosplash<span class="w"> </span>-r<span class="w"> </span><span class="s2">&quot;run(&#39;MEApipeline.m&#39;); exit;&quot;</span>
+</pre></div>
+</div>
+</div></blockquote>
+</li>
+</ul>
+<p><code class="docutils literal notranslate"><span class="pre">/remote/directory</span></code>: path of the MEA pipeline directory on the remote server (see Step 2 above)
+<code class="docutils literal notranslate"><span class="pre">module_name</span></code>: name of the MATLAB or R module that you chose</p>
+<ul class="simple">
+<li><dl class="simple">
+<dt>Line Overview</dt><dd><ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">cd</span> <span class="pre">/remote/directory</span></code> allows the remote server to easily access files necessary for running MEApipeline.m <strong>(required)</strong></p></li>
+<li><dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">#SBATCH</span> <span class="pre">-o</span> <span class="pre">MEApipeline.sh.log-%j</span></code>: include this line in your bash script to save log files that can be distinguished by their job ID <strong>(recommended)</strong></dt><dd><ul>
+<li><p>Log files are useful for viewing progress and error messages related to the MEApipeline.m</p></li>
+</ul>
+</dd>
+</dl>
+</li>
+</ul>
+</dd>
+</dl>
+</li>
+</ul>
+</section>
+<section id="change-the-working-directory-to-the-mea-pipeline-directory-on-the-remote-server">
+<h2>10. Change the working directory to the MEA pipeline directory on the remote server<a class="headerlink" href="#change-the-working-directory-to-the-mea-pipeline-directory-on-the-remote-server" title="Link to this heading">#</a></h2>
+<p><strong>Make sure the terminal window is logged into the SSH server</strong></p>
+<ul>
+<li><p>Change the working directory</p>
+<blockquote>
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span><span class="o">[</span>/remote/directory<span class="o">]</span>
+</pre></div>
+</div>
+</div></blockquote>
+</li>
+</ul>
+<p><code class="docutils literal notranslate"><span class="pre">/remote/directory</span></code>: path of the MEA pipeline directory on the remote server</p>
+</section>
+<section id="modify-meapipeline-m">
+<h2>11. Modify MEApipeline.m<a class="headerlink" href="#modify-meapipeline-m" title="Link to this heading">#</a></h2>
+<p>There are 3 <strong>ways</strong> to edit MEApipeline.m</p>
+<p>For all methods, edit MEApipeline.m according to this documentation: <cite>https://analysis-pipeline.readthedocs.io/en/latest/pipeline-steps.html</cite></p>
+<ol class="arabic">
+<li><p>Modify MEApipeline.m with the edit command</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>edit<span class="w"> </span><span class="o">[</span>/path/to/remote_MEApipeline.m<span class="o">]</span>
+</pre></div>
+</div>
+</li>
+</ol>
+<p><code class="docutils literal notranslate"><span class="pre">/path/to/remote_MEApipeline.m</span></code>: path of MEApipeline.m on your remote server</p>
+<ol class="arabic" start="2">
+<li><p>Modify MEApipeline.m with the nano command</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>nano<span class="w"> </span><span class="o">[</span>/path/to/remote_MEApipeline.m<span class="o">]</span>
+</pre></div>
+</div>
+</li>
+</ol>
+<p><code class="docutils literal notranslate"><span class="pre">/path/to/remote_MEApipeline.m</span></code>: path of MEApipeline.m on your remote server</p>
+<ol class="arabic" start="3">
+<li><p>Modify MEApipeline.m locally before transferring the file to the MEA pipeline directory on the remote server</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>scp<span class="w"> </span><span class="o">[</span>/path/to/local_MEApipeline.m<span class="o">]</span><span class="w"> </span>remote_username@remote_host:<span class="o">[</span>/remote/directory<span class="o">]</span>
+</pre></div>
+</div>
+</li>
+</ol>
+<p><code class="docutils literal notranslate"><span class="pre">/path/to/local_MEApipeline.m</span></code>: path of MEApipeline.m on your local device
+<code class="docutils literal notranslate"><span class="pre">/remote/directory</span></code>: path of the MEA pipeline directory on the remote server (see Step 2 above)</p>
+</section>
+<section id="id1">
+<h2>12. Create a bash script to submit jobs for MEApipeline.m<a class="headerlink" href="#id1" title="Link to this heading">#</a></h2>
+<ul>
+<li><p>Check available MATLAB versions on your server</p>
+<blockquote>
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>module<span class="w"> </span>avail<span class="w"> </span>matlab
+</pre></div>
+</div>
+</div></blockquote>
+</li>
+</ul>
+<p>Note the MATLAB module that you want to use</p>
+<ul>
+<li><p>If not available, check available R modules on your server</p>
+<blockquote>
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>module<span class="w"> </span>avail<span class="w"> </span>R
+</pre></div>
+</div>
+</div></blockquote>
+</li>
+</ul>
+<p>Note the R module that you want to use</p>
+<ul>
+<li><p>Get the full path of your MEA pipeline directory on the remote server</p>
+<blockquote>
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span><span class="o">[</span>/remote/directory<span class="o">]</span>
+<span class="nb">pwd</span>
+</pre></div>
+</div>
+</div></blockquote>
+</li>
+</ul>
+<p><code class="docutils literal notranslate"><span class="pre">/remote/directory</span></code>: path of the MEA pipeline directory on the remote server</p>
+<ul>
+<li><p>Create a new bash script</p>
+<blockquote>
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>nano<span class="w"> </span><span class="o">[</span>bash_script_name<span class="o">]</span>
+</pre></div>
+</div>
+</div></blockquote>
+</li>
+</ul>
+<p><code class="docutils literal notranslate"><span class="pre">bash_script_name</span></code>: name of the bash script</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>must end with .sh</p></li>
+</ul>
+</div></blockquote>
+<ul>
+<li><p>Example bash script:</p>
+<blockquote>
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="ch">#!/bin/bash</span>
+<span class="c1">#SBATCH -n 4</span>
+<span class="c1">#SBATCH -N 1</span>
+<span class="c1">#SBATCH -o MEApipeline.sh.log-%j</span>
+
+<span class="nb">cd</span><span class="w"> </span><span class="o">[</span>/remote/directory<span class="o">]</span>
+
+<span class="c1"># Load the module</span>
+module<span class="w"> </span>load<span class="w"> </span><span class="o">[</span>module_name<span class="o">]</span>
+
+<span class="c1"># Run MATLAB script</span>
+matlab<span class="w"> </span>-nodisplay<span class="w"> </span>-nosplash<span class="w"> </span>-r<span class="w"> </span><span class="s2">&quot;run(&#39;MEApipeline.m&#39;); exit;&quot;</span>
+</pre></div>
+</div>
+</div></blockquote>
+</li>
+</ul>
+<p><code class="docutils literal notranslate"><span class="pre">/remote/directory</span></code>: path of the MEA pipeline directory on the remote server (see Step 2 above)
+<code class="docutils literal notranslate"><span class="pre">module_name</span></code>: name of the MATLAB or R module that you chose</p>
+<ul class="simple">
+<li><dl class="simple">
+<dt>Line Overview</dt><dd><ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">cd</span> <span class="pre">[/remote/directory]</span></code> allows the remote server to easily access files necessary for running MEApipeline.m <strong>(required)</strong></p></li>
+<li><dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">#SBATCH</span> <span class="pre">-o</span> <span class="pre">MEApipeline.sh.log-%j</span></code>: include this line in your bash script to save log files that can be distinguished by their job ID <strong>(recommended)</strong></dt><dd><ul>
+<li><p>Log files are useful for viewing progress and error messages related to the MEApipeline.m</p></li>
+</ul>
+</dd>
+</dl>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">matlab</span> <span class="pre">-nodisplay</span> <span class="pre">-nosplash</span> <span class="pre">-r</span> <span class="pre">&quot;run('MEApipeline.m');</span> <span class="pre">exit;&quot;:</span></code> automatically runs MEApipeline.m once the job is submitted <strong>(required)</strong></p></li>
+</ul>
+</dd>
+</dl>
+</li>
+</ul>
+</section>
+<section id="submit-a-job-with-your-bash-script">
+<h2>13. Submit a job with your bash script<a class="headerlink" href="#submit-a-job-with-your-bash-script" title="Link to this heading">#</a></h2>
+<ul>
+<li><p>Submit the job</p>
+<blockquote>
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sbatch<span class="w"> </span><span class="o">[</span>bash_script<span class="o">]</span>
+</pre></div>
+</div>
+</div></blockquote>
+</li>
+</ul>
+<p><code class="docutils literal notranslate"><span class="pre">bash_script</span></code>: path of the bash script needed for job submission</p>
+<ul class="simple">
+<li><p>A Job ID (number) should appear on your screen</p></li>
+</ul>
+</section>
+<section id="check-log-files-to-view-progress-and-error-messages">
+<h2>14. Check log files to view progress and error messages<a class="headerlink" href="#check-log-files-to-view-progress-and-error-messages" title="Link to this heading">#</a></h2>
+<ul>
+<li><p>Open the log file</p>
+<blockquote>
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>nano<span class="w"> </span><span class="o">[</span>log_file<span class="o">]</span>
+</pre></div>
+</div>
+</div></blockquote>
+</li>
+</ul>
+<p><code class="docutils literal notranslate"><span class="pre">log_file</span></code>: path of the log file</p>
+<ul class="simple">
+<li><p>If you included <code class="docutils literal notranslate"><span class="pre">#SBATCH</span> <span class="pre">-o</span> <span class="pre">MEApipeline.sh.log-%j</span></code> in your bash script, the Job ID can be used to locate the relevant log file</p></li>
+</ul>
+</section>
+<section id="download-mea-pipeline-outputs-from-the-remote-ssh-server">
+<h2>15. Download MEA pipeline outputs from the remote SSH server<a class="headerlink" href="#download-mea-pipeline-outputs-from-the-remote-ssh-server" title="Link to this heading">#</a></h2>
+<p><strong>Open another terminal window that is not logged into your remote server</strong></p>
+<ul>
+<li><p>Download MEA pipeline outputs</p>
+<blockquote>
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>scp<span class="w"> </span>-r<span class="w"> </span>remote_username@remote_host:<span class="o">[</span>/remote/directory<span class="o">]</span><span class="w"> </span><span class="o">[</span>myDir<span class="o">]</span>
+</pre></div>
+</div>
+</div></blockquote>
+</li>
+</ul>
+<p><code class="docutils literal notranslate"><span class="pre">/remote/directory</span></code>: remote output directory to download to the local device</p>
+</section>
+</section>
+
+        </article>
+      </div>
+      <footer>
+        
+        <div class="related-pages">
+          <a class="next-page" href="meanap-methods.html">
+              <div class="page-info">
+                <div class="context">
+                  <span>Next</span>
+                </div>
+                <div class="title">MEA-NAP Methods</div>
+              </div>
+              <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
+            </a>
+          <a class="prev-page" href="guide-for-advanced-users.html">
+              <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
+              <div class="page-info">
+                <div class="context">
+                  <span>Previous</span>
+                </div>
+                
+                <div class="title">Guide for Advanced Users</div>
+                
+              </div>
+            </a>
+        </div>
+        <div class="bottom-of-page">
+          <div class="left-details">
+            <div class="copyright">
+                Copyright &#169; 2022, Timothy Sit, Rachael Feord, Alexander Dunn, Jeremy Chabros, Mierau SB and SAND group members
+            </div>
+            Made with <a href="https://www.sphinx-doc.org/">Sphinx</a> and <a class="muted-link" href="https://pradyunsg.me">@pradyunsg</a>'s
+            
+            <a href="https://github.com/pradyunsg/furo">Furo</a>
+            
+          </div>
+          <div class="right-details">
+            
+          </div>
+        </div>
+        
+      </footer>
+    </div>
+    <aside class="toc-drawer">
+      
+      
+      <div class="toc-sticky toc-scroll">
+        <div class="toc-title-container">
+          <span class="toc-title">
+            On this page
+          </span>
+        </div>
+        <div class="toc-tree-container">
+          <div class="toc-tree">
+            <ul>
+<li><a class="reference internal" href="#">Running MEA-NAP on High-Performance Computing (HPC)</a><ul>
+<li><a class="reference internal" href="#ssh-into-your-remote-server">1. SSH into your remote server</a></li>
+<li><a class="reference internal" href="#download-mea-pipeline-directory-to-your-remote-server">2. Download MEA pipeline directory to your remote server</a></li>
+<li><a class="reference internal" href="#change-your-current-directory-to-the-mea-pipeline-directory">3. Change your current directory to the MEA pipeline directory</a></li>
+<li><a class="reference internal" href="#create-a-directory-for-mat-files-in-your-mea-nap-directory">4. Create a directory for mat files in your MEA-NAP directory</a></li>
+<li><a class="reference internal" href="#download-mat-files-locally">5. Download mat files locally</a></li>
+<li><a class="reference internal" href="#upload-mat-files-to-the-remote-server">6. Upload mat files to the remote server</a></li>
+<li><a class="reference internal" href="#on-your-local-device-create-csv-file-s-for-mat-files-that-you-plan-to-analyze">7. On your local device, create CSV file(s) for mat files that you plan to analyze</a></li>
+<li><a class="reference internal" href="#upload-csv-file-s-to-the-mea-pipeline-directory-on-the-remote-server">8. Upload CSV file(s) to the MEA pipeline directory on the remote server</a></li>
+<li><a class="reference internal" href="#create-a-bash-script-to-submit-jobs-for-meapipeline-m">9. Create a bash script to submit jobs for MEApipeline.m</a></li>
+<li><a class="reference internal" href="#change-the-working-directory-to-the-mea-pipeline-directory-on-the-remote-server">10. Change the working directory to the MEA pipeline directory on the remote server</a></li>
+<li><a class="reference internal" href="#modify-meapipeline-m">11. Modify MEApipeline.m</a></li>
+<li><a class="reference internal" href="#id1">12. Create a bash script to submit jobs for MEApipeline.m</a></li>
+<li><a class="reference internal" href="#submit-a-job-with-your-bash-script">13. Submit a job with your bash script</a></li>
+<li><a class="reference internal" href="#check-log-files-to-view-progress-and-error-messages">14. Check log files to view progress and error messages</a></li>
+<li><a class="reference internal" href="#download-mea-pipeline-outputs-from-the-remote-ssh-server">15. Download MEA pipeline outputs from the remote SSH server</a></li>
+</ul>
+</li>
+</ul>
+
+          </div>
+        </div>
+      </div>
+      
+      
+    </aside>
+  </div>
+</div><script src="_static/jquery.js?v=5d32c60e"></script>
+    <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+    <script src="_static/documentation_options.js?v=44dfd65d"></script>
+    <script src="_static/doctools.js?v=888ff710"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/scripts/furo.js?v=32e29ea5"></script>
+    <script src="_static/js/hoverxref.js"></script>
+    <script src="_static/js/tooltipster.bundle.min.js"></script>
+    <script src="_static/js/micromodal.min.js"></script>
+    <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    </body>
+</html>
