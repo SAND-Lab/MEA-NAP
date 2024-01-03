@@ -1,10 +1,10 @@
 Introduction
 ============
 
-The MEA Network Analyis Pipeline (MEA-NAP): a diagnostic tool for studying network function
+The MEA Network Analyis Pipeline (MEA-NAP): a diagnostic tool for studying microscale functional connectivity, topology, and network dynamics
 --------------------------------------------------------------------------------------------
 
-The aim of this MATLAB-based network analysis pipeline (MEA-NAP) is to facilitate comparing the development of functional connectivity and other network features at the cellular scale from microelectrode array (MEA) recordings of spontaneous neuronal activity in neuronal cultures.  An overview of the pipeline is represented here:
+The aim of this MATLAB-based network analysis pipeline (MEA-NAP) is to facilitate comparing the development of functional connectivity and other network features at the microscale from microelectrode array (MEA) recordings of spontaneous neuronal activity in 3D human cerebral organoids or 2D human-derived or murine neuronal cultures.  An overview of the pipeline is represented here:
 
 
 .. image:: ../imgs/MEANAPoverview.png
