@@ -159,4 +159,23 @@ Tools - Plotting
      - notBoxPlotRF.m
      - `notBoxPlot <https://github.com/raacampbell/notBoxPlot>`__
       
+References 
+-----------
+
+1. Bassett, D. S., & Bullmore, E. T. (2009). Human brain networks in health and disease. Current Opinion in Neurology, 22(4), 340–347. https://doi.org/10.1097/WCO.0b013e32832d93dd
+2. Brandes, U. (2001). A faster algorithm for betweenness centrality. The Journal of Mathematical Sociology, 25(2), 163–177. https://doi.org/10.1080/0022250X.2001.9990249
+3. Brandes, U., Delling, D., Gaertler, M., Gorke, R., Hoefer, M., Nikoloski, Z., & Wagner, D. (2008). On Modularity Clustering. IEEE Transactions on Knowledge and Data Engineering, 20(2), 172–188. https://doi.org/10.1109/TKDE.2007.190689
+4. Cutts, C. S., & Eglen, S. J. (2014). Detecting pairwise correlations in spike trains: An objective comparison of methods and application to the study of retinal waves. The Journal of Neuroscience, 34(43), 14288–14303. https://doi.org/10.1523/JNEUROSCI.2767-14.2014
+5. Elsayed, G. F., & Cunningham, J. P. (2017). Structure in neural population recordings: An expected byproduct of simpler phenomena? Nature Neuroscience, 20(9), 1310–1318. https://doi.org/10.1038/nn.4617
+6. Fornito, A., Zalesky, A., & Bullmore, E. T. (Eds.). (2016). Chapter 11—Statistical Connectomics. In Fundamentals of Brain Network Analysis (pp. 383–419). Academic Press. https://doi.org/10.1016/B978-0-12-407908-3.00011-X
+7. Guimerà, R., & Nunes Amaral, L. A. (2005). Functional cartography of complex metabolic networks. Nature, 433(7028), 895–900. https://doi.org/10.1038/nature03288
+8. Humphries, M.D., Gurney, K., Prescott TJ. (2006). The brainstem reticular formation is a small-world, not scale-free, network. Proc Biol Sci 273(1585):503–11.
+9. Humphries, M.D., Gurney, K. (2008). Network ‘Small-World-Ness’: A Quantitative Method for Determining Canonical Network Equivalence. PLoS ONE 3(4): e0002051. https://doi.org/10.1371/journal.pone.0002051
+10. Latora, V., & Marchiori, M. (2001). Efficient Behavior of Small-World Networks. Physical Review Letters, 87(19), 198701. https://doi.org/10.1103/PhysRevLett.87.198701
+11. Lancichinetti, A., Fortunato, S. Consensus clustering in complex networks. Sci Rep 2, 336 (2012). https://doi.org/10.1038/srep00336
+12. Roy, O. & Vetterli, M. (2007), The effective rank: A measure of effective dimensionality. In ‘2007 15th European Signal Processing Conference’, pp. 606–610.
+13. Rubinov, M., & Sporns, O. (2010). Complex network measures of brain connectivity: Uses and interpretations. NeuroImage, 52(3), 1059–1069. https://doi.org/10.1016/j.neuroimage.2009.10.003
+14. Schroeter, M. S., Charlesworth, P., Kitzbichler, M. G., Paulsen, O., & Bullmore, E. T. (2015). Emergence of rich-club topology and coordinated dynamics in development of hippocampal functional networks in vitro. The Journal of Neuroscience, 35(14), 5459–5470. https://doi.org/10.1523/JNEUROSCI.4259-14.2015
+15. Serrano, M. Á., Boguñá, M., & Vespignani, A. (2009). Extracting the multiscale backbone of complex weighted networks. Proceedings of the National Academy of Sciences, 106(16), 6483–6488. https://doi.org/10.1073/pnas.0808904106
+16. Telesford, Q. K., Joyce, K. E., Hayasaka, S., Burdette, J. H., & Laurienti, P. J. (2011). The Ubiquity of Small-World Networks. Brain Connectivity, 1(5), 367–375. https://doi.org/10.1089/brain.2011.0038
 
