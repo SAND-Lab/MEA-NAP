@@ -1,6 +1,8 @@
 Running MEA-NAP on High-Performance Computing (HPC)
 ===================================================
 
+HPC can be useful when analysing large datasets (e.g., more than 100 recordings) with MEA-NAP.  We have adapted MEA-NAP for HPC and include the methods we used here for advanced users. These steps may need to be modified depending on the user's institution's HPC resources.  
+
 1. SSH into your remote server
 -------------------------------
 
