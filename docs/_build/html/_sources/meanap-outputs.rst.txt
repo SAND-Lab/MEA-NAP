@@ -28,12 +28,12 @@ MEA-NAP Outputs
 .. _Step 1 - Spike Detection:
 
 ``Step 1 - Spike Detection``
-===============================
+------------------------------------
 
 .. _Step 1A - Spike Detection Files:
 
 ``Step 1A - Spike Detection Files``
-====================================
+------------------------------------
 
 This folder contains the MATLAB file for each MEA recording with the spike times detected by each spike detection method and parameter selected.  This folder can be used by MEA-NAP to perform Steps 1B – Step 5 without repeating the spike detection.
 
@@ -49,7 +49,7 @@ spikeWaveforms: same format as spikeTimes, but where each field entry are the sp
 .. _Step 1B - Spike Detection Checks:
 
 ``Step 1B – Spike Detection Checks``
-=====================================
+------------------------------------
 
 This folder contains subfolders for each Group.  Each subfolder contains folders for each MEA recording by filename.
 
@@ -67,14 +67,15 @@ This folder contains subfolders for each Group.  Each subfolder contains folders
 .. _Step 2 - Neuronal Activity:
 
 ``Step 2 – Neuronal Activity``
-===============================
+-------------------------------
 
 This folder contains two subfolders, one to evaluate the individual recordings and one with comparisons by age and group.  The Step 2A folder contains subfolders for each group and, within each group folder, individual subfolders for each recording.  The Step 2B folder contains 4 subfolders that compare metrics by node (electrode) and recording for age and group.
 
 .. _Step 2A – Individual Neuronal Analysis (includes a subfolder for each MEA recording): 
 
-``Step 2A – Individual Neuronal Analysis (includes a subfolder for each MEA recording)``
-=============================================================================================
+``Step 2A – Individual Neuronal Analysis``
+-----------------------------------------------------------------------------------------
+
 
 **Figure 1. Firing Rate By Electrode.** Scatter plot (gray circles), mean ± s.e.m. (black circle with error bars) and density curve show the mean firing rate (MFR) for each electrode in the microelectrode array (MEA) recording in spikes per second (Hz). The MFR was calculated by dividing the number of action potentials detected by the length of the recording in seconds. Figure title (top) is the name of the recording.
 
@@ -86,7 +87,7 @@ This folder contains two subfolders, one to evaluate the individual recordings a
 .. _Step 2B – Group Comparison:
 
 ``Step 2B - Group Comparison``
-===============================
+-------------------------------
 
 .. _Subfolder 1 – Node by Group:
 
@@ -155,14 +156,14 @@ This folder contains two subfolders, one to evaluate the individual recordings a
 .. _Step 3 – Functional Connectivity Edge Thresholding Check:
 
 ``Step 3 – Functional Connectivity Edge Thresholding Check``
-==============================================================
+-------------------------------------------------------------
 
 **Figure 1. Edge Thresholding Check for Probabilistic Thresholding.** Top panel, line graphs for the average (green) and coefficient of variation (black) for the threshold value for significant functional connections (edges) as the number of repeats (iterations of circular shifts used to determine the threshold for significance edges) increases for an example MEA recording from the dataset. The filename includes the recording name and spike time tiling coefficient lag.  The green line represents the mean and the green shaded area the standard deviation. Middle panel, Threshold values for a sample of the individual edges (black lines) as the number of repeats increases. Most threshold values stabilize between 120-180 iterations of the circular shifts.  Bottom panel, adjacency matrices show the edges that are eliminated (below the threshold for a significant edge) as the number of repeats increases. 
 
 .. _Step 4 – Network Activity:
 
 ``Step 4 – Network Activity``
-===============================
+------------------------------
 
 This folder contains two subfolders, one to evaluate the individual recordings and one with comparisons by age and group.  The Step 4A folder contains individual subfolders for each recording.  The Step 4B folder contains 7 subfolders that compare metrics by node (electrode) and recording for age and group.
 
@@ -235,7 +236,7 @@ For each spike time tiling coefficient (STTC) lag used to determine the function
 .. _Step 4B – Network Activity – Group Comparisons:
 
 ``Step 4B – Network Activity – Group Comparisons``
-==================================================
+----------------------------------------------------
 
 .. _Subfolder 1 – Node by Group (with subfolders for each STTC lag): 
 
@@ -449,7 +450,7 @@ There will be one figure per spike time tiling coefficient (STTC) lag selected w
 .. _Step 5  – Statistical Comparisons:
 
 ``Step 5  – Statistical Comparisons``
-======================================
+--------------------------------------
 
 There will be one figure per spike time tiling coefficient (STTC) lag selected when MEA-NAP was run. The STTC lag (in milliseconds) is indicated in the figure filename.  
 
