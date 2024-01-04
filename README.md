@@ -25,7 +25,7 @@ Please see our [detailed documentation for MEA-NAP users at our read-the-docs pa
 
 ## Features
 
-![Network pipeline steps](/imgs/MEANAPoverview.png)
+![Network pipeline steps](docs/imgs/MEANAPoverview.png)
 
 Features include implementation of graph theoretical metrics from the Brain Connectivity Toolbox (commonly applied to study networks at the whole brain macro scale) to cellular-scale functional networks from MEA recordings of neuronal cultures or brain slices. The pipeline also includes new network features applied at the cellular-scale including node cartography for classifying nodal roles within the network and effective rank for calculating the number of subcommunities within the cellular-scale networks based on their activity patterns.  New features also include control theoretical metrics to identify nodes that can drive network activity and dimensionality reduction using non-negative matrix factorization to characterize patterns of activity observed in the network.  Expected new features to come include feature selection.
 
