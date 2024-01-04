@@ -25,10 +25,3 @@ Welcome to the MEA network analysis pipeline (MEA-NAP) documentation!
    frequently-asked-questions
    how-to-contribute
    sources
-
-Indices and tables
-==================
-
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
