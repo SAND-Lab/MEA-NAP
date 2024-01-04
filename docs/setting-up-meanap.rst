@@ -50,7 +50,9 @@ Setting up MEA-NAP
    - **Organizing data**:
    After preparing your data, it is essential to organize the `.mat` files you plan to analyze in a batch. Ensure that all relevant `.mat` files are saved in the same folder. This organized structure is crucial for the MEA-NAP pipeline to seamlessly process and compare the data during the analysis.
       - Keep all the `.mat` files intended for a specific batch analysis in a dedicated folder.
-      - Maintain a clear and consistent naming convention for these batch analysis folders.
+      - Maintain a concise and consistent naming convention for these batch analysis folders.
+      - As filenames and group names are included in many plots, it is important to keep the names concise and informative (e.g., NGN2230101_P1_A1_DIV14, where
+        NGN2 is the experiment code, 230101 is the date the culture was started, P1_A1 is the plate and well number, and DIV14 is the age).
 
 3. **Prepare batch analysis CSV file**:
 
