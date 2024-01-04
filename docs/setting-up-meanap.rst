@@ -57,8 +57,8 @@ Setting up MEA-NAP
    - Create a ``*.csv`` or ``*.xlsx`` file with the following columns:
 
       1. **Recording filename**: column containing filenames of the ``*.mat`` files for analysis, excluding extension (.mat).
-      2. **DIV group**: column containing the age information (should be a number for each file).
-      3. **Genotype**: column containing the genotype (e.g., WT or KO; do not put numbers in your names).
+      2. **Age group**: column containing the age (e.g., DIV group) (should be a number for each file).
+      3. **Group**: column containing the group (e.g., genotype such as WT or KO). Important, group names cannot start with a number.
       4. **Ground**: column containing any electrodes that should be grounded for each file.
 
    Here is an example spreadsheet in CSV format opened in Microsoft Excel:
