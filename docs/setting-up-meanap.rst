@@ -5,10 +5,14 @@ Setting up MEA-NAP
 
    - Navigate to the home page of the MEA-NAP GitHub repository using your web browser.
 
-   .. image:: ../imgs/github_repo.png
+   .. image:: imgs/github_repo.png
       :width: 600
       :align: center
       :alt: Screenshot of MEA-NAP GitHub repository home page.
+   
+   .. raw:: html
+
+      <div style="margin-bottom: 20px;"></div>
 
    - Once on the repository page, look for the **green "Code" button**. Click on it to reveal a dropdown menu.
 
@@ -19,7 +23,7 @@ Setting up MEA-NAP
 2. **Prepare your data for MEA-NAP**:
 
 
-   The MEA-NAP pipeline is currently optimized for single MEA recordings made on the Multi-channel Systems MEA2100 60-channel MEA system and for multi-well plates using the Axion Maestro MEA System. However, these recordings must be converted to `*.mat` files first.
+   The MEA-NAP pipeline is currently optimized for single MEA recordings made on the Multichannel Systems MEA2100 60-channel MEA system and for multi-well plates using the Axion Maestro MEA System. However, these recordings must be converted to `*.mat` files first.
 
    - **Converting .mcd files acquired from a Multichannel Systems MEA system with MC_Rack to .mat files**:
 
@@ -33,7 +37,7 @@ Setting up MEA-NAP
       8. When done, click close.
       9. Open MATLAB.
       10. Add the analysis pipeline code to the path.
-      11. Navigate in MATLAB to the folder containing the '.mcd' files you want to convert.
+      11. Navigate in MATLAB to the folder containing the ".mcd" files you want to convert.
       12. In the MATLAB command window, type ``MEAbatchConvert`` and press return to run.
 
    - **Converting .raw files acquired from an Axion Maestro MEA system to .mat files**:
@@ -55,6 +59,8 @@ Setting up MEA-NAP
         NGN2 is the experiment code, 230101 is the date the culture was started, P1_A1 is the plate and well number, and DIV14 is the age).
 
 3. **Prepare batch analysis CSV file**:
+   
+   .. _prepare-batch-analysis-csv-file:
 
    - Create a ``*.csv`` or ``*.xlsx`` file with the following columns:
 
@@ -63,17 +69,20 @@ Setting up MEA-NAP
       3. **Group**: column containing the group (e.g., genotype such as WT or KO). Important, group names cannot start with a number.
       4. **Ground**: column containing any electrodes that should be grounded for each file.
 
-   Here is an example spreadsheet in CSV format opened in Microsoft Excel:
+   Here is an example spreadsheet in CSV format opened in Microsoft Excel.
 
-   .. image:: ../imgs/example-spreadsheet-input.png
+   .. image:: imgs/example-spreadsheet-input.png
       :width: 500
       :align: center
-   
 
-   Note: If you using Axion Maestro MEA data, rawConvert.m will generate a batch analysis csv file for you. However, **you will still need to be modify the columns based on the descriptions above.**
+   .. raw:: html
+
+      <div style="margin-bottom: 20px;"></div>
+
+   **Note:** If you using Axion Maestro MEA data, rawConvert.m will generate a batch analysis csv file for you. However, **you will still need to be modify the columns based on the descriptions above.**
 
 
-Congratulations! With the completion of the data preparation steps outlined above, your data is now primed and ready for analysis using MEA-NAP. 
+Congratulations! With the completion of the data preparation steps outlined above, your data is now ready for analysis using MEA-NAP. 
 
 
 

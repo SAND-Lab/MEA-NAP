@@ -3,20 +3,20 @@
   <head><meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width,initial-scale=1"/>
     <meta name="color-scheme" content="light dark"><meta name="viewport" content="width=device-width, initial-scale=1" />
-<link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Setting up MEA-NAP" href="setting-up-meanap.html" /><link rel="prev" title="Introduction" href="introduction.html" />
+<link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Setting up MEA-NAP" href="setting-up-meanap.html" /><link rel="prev" title="Welcome to the MEA network analysis pipeline (MEA-NAP) documentation!" href="index.html" />
 
     <!-- Generated with Sphinx 7.2.6 and Furo 2023.09.10 -->
         <title>Setting up MATLAB - MEA pipeline 1.5.1 documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=362ab14a" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?v=135e06be" />
-    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster.custom.css" />
-    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster.bundle.min.css" />
-    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-shadow.min.css" />
-    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-punk.min.css" />
-    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-noir.min.css" />
-    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-light.min.css" />
-    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-borderless.min.css" />
-    <link rel="stylesheet" type="text/css" href="_static/css/micromodal.css" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster.custom.css?v=7bc2f056" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster.bundle.min.css?v=37217874" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-shadow.min.css?v=6227e517" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-punk.min.css?v=94669e23" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-noir.min.css?v=21a39f42" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-light.min.css?v=a18b2449" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-borderless.min.css?v=dbff53e4" />
+    <link rel="stylesheet" type="text/css" href="_static/css/micromodal.css?v=d7bf34ee" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?v=36a5483c" />
     
     
@@ -164,7 +164,6 @@
 <div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
   <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
 <ul class="current">
-<li class="toctree-l1"><a class="reference internal" href="introduction.html">Introduction</a></li>
 <li class="toctree-l1 current current-page"><a class="current reference internal" href="#">Setting up MATLAB</a></li>
 <li class="toctree-l1"><a class="reference internal" href="setting-up-meanap.html">Setting up MEA-NAP</a></li>
 <li class="toctree-l1"><a class="reference internal" href="guide-for-new-users.html">Guide for New Users</a></li>
@@ -257,10 +256,10 @@
 <li><p>Locate and click on the <strong>Add-Ons</strong> dropdown menu.</p></li>
 </ul>
 <a class="reference internal image-reference" href="_images/matlab_home_menu.png"><img alt="Home tab in MATLAB. Includes Add-Ons dropdown menu on **far right**." class="align-center" src="_images/matlab_home_menu.png" style="width: 800px;" /></a>
-</li>
+<div style="margin-bottom: 20px;"></div></li>
 <li><p><strong>Browse Available Add-Ons</strong>:</p>
 <a class="reference internal image-reference" href="_images/matlab_addon_dropdown_menu.png"><img alt="Add-ons dropdown menu" class="align-center" src="_images/matlab_addon_dropdown_menu.png" style="width: 200px;" /></a>
-<ul class="simple">
+<div style="margin-bottom: 20px;"></div><ul class="simple">
 <li><p>In the <strong>Add-Ons</strong> menu, you will find options to browse, install, and manage add-ons.</p></li>
 <li><p>Click <strong>Get Add-Ons</strong> to access the MATLAB Add-On Explorer.</p></li>
 </ul>
@@ -278,7 +277,7 @@
 </li>
 <li><p>You will also need the Brain Connectivity Toolbox, which cannot be installed through the Add-On Explorer:</p>
 <ul>
-<li><p>This toolbox is found in the <strong>MEA-NAP folder that you will download during step 8 of ‘Setting Up MATLAB’</strong></p></li>
+<li><p>This toolbox is found in the <strong>MEA-NAP folder that you will download during step 1 of “Setting Up MEA-NAP”</strong></p></li>
 </ul>
 </li>
 </ul>
@@ -288,41 +287,8 @@
 <li><p>Once the installation is complete, you can access the newly installed toolbox functions in your MATLAB environment.</p></li>
 </ul>
 </li>
-<li><p><strong>Install Git (if not already installed)</strong>:</p>
-<ul class="simple">
-<li><p>Downloading MEA-NAP from GitHub will require Git.</p></li>
-<li><p>If you do not have Git installed, you can download and install it from the official website (<a class="reference external" href="https://git-scm.com/downloads">https://git-scm.com/downloads</a>). Follow the installation instructions for your specific operating system (macOS, Windows, or Linux/Unix).</p></li>
-</ul>
-</li>
-<li><p><strong>Download MEA-NAP</strong>:</p>
-<ul>
-<li><p>Go to the home page of the MEA-NAP GitHub repository. To download the repository, you will need the repository’s URL. Click the green “&lt;&gt; Code” button to open the dropdown menu. In this dropdown menu, copy the URL found in the HTTPS tab.</p></li>
-<li><p>Open Terminal on your operating system.</p></li>
-<li><p>Use the following commands in your terminal to download the MEA-NAP folder to your local device:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span><span class="o">[</span>local_directory<span class="o">]</span>
-git<span class="w"> </span>clone<span class="w"> </span><span class="o">[</span>repository_url<span class="o">]</span>
-</pre></div>
-</div>
-<ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">local_directory</span></code>: local directory where the MEA-NAP folder will be placed.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">repository_url</span></code>: Specify the URL of the MEA-NAP GitHub repository you want to clone.</p></li>
-</ul>
-</li>
-</ul>
-</li>
-<li><p><strong>Locate and Open MEA-NAP folder</strong>:</p>
-<ul class="simple">
-<li><p>Locate and open the MEA-NAP folder that you downloaded to your local device during the previous step.</p></li>
-</ul>
-</li>
-<li><p><strong>Locate and Open MEApipeline.m</strong>:</p>
-<ul class="simple">
-<li><p>Locate MEApipeline.m in your MEA-NAP folder.</p></li>
-<li><p>Open MEApipeline.m in the MATLAB application that you installed in step 1.</p></li>
-</ul>
-</li>
 </ol>
-<p>Congratulations! You have successfully set up MATLAB and downloaded required toolboxes toextend MATLAB’s functionality.</p>
+<p>Congratulations! You have successfully set up MATLAB and downloaded the required toolboxes to extend MATLAB’s functionality. Proceed to <strong>“Setting up MEA-NAP”</strong>.</p>
 </section>
 
         </article>
@@ -339,14 +305,14 @@ git<span class="w"> </span>clone<span class="w"> </span><span class="o">[</span>
               </div>
               <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
             </a>
-          <a class="prev-page" href="introduction.html">
+          <a class="prev-page" href="index.html">
               <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
               <div class="page-info">
                 <div class="context">
                   <span>Previous</span>
                 </div>
                 
-                <div class="title">Introduction</div>
+                <div class="title">Home</div>
                 
               </div>
             </a>
@@ -380,9 +346,9 @@ git<span class="w"> </span>clone<span class="w"> </span><span class="o">[</span>
     <script src="_static/doctools.js?v=888ff710"></script>
     <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="_static/scripts/furo.js?v=32e29ea5"></script>
-    <script src="_static/js/hoverxref.js"></script>
-    <script src="_static/js/tooltipster.bundle.min.js"></script>
-    <script src="_static/js/micromodal.min.js"></script>
+    <script src="_static/js/hoverxref.js?v=82c55261"></script>
+    <script src="_static/js/tooltipster.bundle.min.js?v=18bf091b"></script>
+    <script src="_static/js/micromodal.min.js?v=04d6302d"></script>
     <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     </body>
 </html>

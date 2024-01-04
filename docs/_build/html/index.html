@@ -3,20 +3,20 @@
   <head><meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width,initial-scale=1"/>
     <meta name="color-scheme" content="light dark"><meta name="viewport" content="width=device-width, initial-scale=1" />
-<link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Introduction" href="introduction.html" />
+<link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Setting up MATLAB" href="setting-up-matlab.html" />
 
     <!-- Generated with Sphinx 7.2.6 and Furo 2023.09.10 -->
         <title>MEA pipeline 1.5.1 documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=362ab14a" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?v=135e06be" />
-    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster.custom.css" />
-    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster.bundle.min.css" />
-    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-shadow.min.css" />
-    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-punk.min.css" />
-    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-noir.min.css" />
-    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-light.min.css" />
-    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-borderless.min.css" />
-    <link rel="stylesheet" type="text/css" href="_static/css/micromodal.css" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster.custom.css?v=7bc2f056" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster.bundle.min.css?v=37217874" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-shadow.min.css?v=6227e517" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-punk.min.css?v=94669e23" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-noir.min.css?v=21a39f42" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-light.min.css?v=a18b2449" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-borderless.min.css?v=dbff53e4" />
+    <link rel="stylesheet" type="text/css" href="_static/css/micromodal.css?v=d7bf34ee" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?v=36a5483c" />
     
     
@@ -142,7 +142,7 @@
           <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
         </button>
       </div>
-      <label class="toc-overlay-icon toc-header-icon no-toc" for="__toc">
+      <label class="toc-overlay-icon toc-header-icon" for="__toc">
         <div class="visually-hidden">Toggle table of contents sidebar</div>
         <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
       </label>
@@ -164,7 +164,6 @@
 <div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
   <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="introduction.html">Introduction</a></li>
 <li class="toctree-l1"><a class="reference internal" href="setting-up-matlab.html">Setting up MATLAB</a></li>
 <li class="toctree-l1"><a class="reference internal" href="setting-up-meanap.html">Setting up MEA-NAP</a></li>
 <li class="toctree-l1"><a class="reference internal" href="guide-for-new-users.html">Guide for New Users</a></li>
@@ -204,7 +203,7 @@
               <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
             </button>
           </div>
-          <label class="toc-overlay-icon toc-content-icon no-toc" for="__toc">
+          <label class="toc-overlay-icon toc-content-icon" for="__toc">
             <div class="visually-hidden">Toggle table of contents sidebar</div>
             <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
           </label>
@@ -212,94 +211,23 @@
         <article role="main">
           <section id="welcome-to-the-mea-network-analysis-pipeline-mea-nap-documentation">
 <h1>Welcome to the MEA network analysis pipeline (MEA-NAP) documentation!<a class="headerlink" href="#welcome-to-the-mea-network-analysis-pipeline-mea-nap-documentation" title="Link to this heading">#</a></h1>
-<a class="reference internal image-reference" href="_images/MEANAPoverview.png"><img alt="_images/MEANAPoverview.png" src="_images/MEANAPoverview.png" style="width: 800px;" /></a>
+<section id="the-mea-network-analyis-pipeline-mea-nap-a-diagnostic-tool-for-studying-microscale-functional-connectivity-topology-and-network-dynamics">
+<h2>The MEA Network Analyis Pipeline (MEA-NAP): a diagnostic tool for studying microscale functional connectivity, topology, and network dynamics<a class="headerlink" href="#the-mea-network-analyis-pipeline-mea-nap-a-diagnostic-tool-for-studying-microscale-functional-connectivity-topology-and-network-dynamics" title="Link to this heading">#</a></h2>
+<p>The aim of this MATLAB-based network analysis pipeline (MEA-NAP) is to facilitate comparing the development of functional connectivity and other network features at the microscale from microelectrode array (MEA) recordings of spontaneous neuronal activity in 3D human cerebral organoids or 2D human-derived or murine neuronal cultures.  An overview of the pipeline is represented here:</p>
+<a class="reference internal image-reference" href="_images/MEANAPoverview.png"><img alt="_images/MEANAPoverview.png" class="align-center" src="_images/MEANAPoverview.png" style="width: 800px;" /></a>
+<p>The inputs to the pipeline are MEA recordings (raw or filtered time series) imported to MATLAB (blue box in diagram).  Spike detection is performed (green boxes) to identify action potentials detected from the multi-unit activity at individual electrodes (aka nodes). The significant functional connections between nodes (aka edges) is inferred by correlating multi-unit spiking activity between pairs of electrodes to generate an adjacency matrix. Next, analysis of the network topology and dynamics are performed (yellow boxes). Plots are then produced to compare age and group (e.g., genotype) features of functional connectivity, topology, and network dynamics (orange box).  The outputs are intended to be a diagnostic tool for examining microscale functional network activity in the MEA recordings. The outputs include figures of neuronal and network activity at the individual electrode and whole recording levels and summary spreadsheets on which statistical analyses can be performed.</p>
+<p>Note that the pipeline can be run as a whole from raw MEA data to comparison of network features.  Alternatively, the functions can be run independently. For example, the functions for analysing network activity (yellow) and comparing network features (orange) can be run on spike detected data.</p>
+</section>
+<section id="the-documentation">
+<h2>The documentation<a class="headerlink" href="#the-documentation" title="Link to this heading">#</a></h2>
+<p>This document is a short guide for running the pipeline and interpreting the outputs of network analysis and age-genotype comparisons.  For new MATLAB users, there are helpful tips for an introduction to MATLAB.  There is also more extensive document available for experienced MATLAB users.</p>
+</section>
+<section id="applications-for-basic-and-translational-research">
+<h2>Applications for basic and translational research<a class="headerlink" href="#applications-for-basic-and-translational-research" title="Link to this heading">#</a></h2>
+<p>Alterations in synaptic function, and other cellular processes that affect neuronal communication, can alter the trajectory of network development.  However, currently there is a gap for tools for studying network function at the microscale accessible to cellular neuro- and stem cell biologists working with 2D and 3D rodent and human neuronal cultures. This pipeline combines methods for studying network function using graph theoretical and other network metrics that are commonly used at the whole brain level (e.g., fMRI data) and in other fields of network science.  The aim of the pipeline is to facilitate comparisons in network function at the microscale in MEA recordings.  Network function at the microscale can provide a platform for testing new therapeutic strategies including pharmacologic therapies and stimulating specific nodes in the network to modulate network function.</p>
 <div class="toctree-wrapper compound">
-<p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
-<ul>
-<li class="toctree-l1"><a class="reference internal" href="introduction.html">Introduction</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="introduction.html#the-mea-network-analyis-pipeline-mea-nap-a-diagnostic-tool-for-studying-microscale-functional-connectivity-topology-and-network-dynamics">The MEA Network Analyis Pipeline (MEA-NAP): a diagnostic tool for studying microscale functional connectivity, topology, and network dynamics</a></li>
-<li class="toctree-l2"><a class="reference internal" href="introduction.html#the-documentation">The documentation</a></li>
-<li class="toctree-l2"><a class="reference internal" href="introduction.html#applications-for-basic-and-translational-research">Applications for basic and translational research</a></li>
-</ul>
-</li>
-<li class="toctree-l1"><a class="reference internal" href="setting-up-matlab.html">Setting up MATLAB</a></li>
-<li class="toctree-l1"><a class="reference internal" href="setting-up-meanap.html">Setting up MEA-NAP</a></li>
-<li class="toctree-l1"><a class="reference internal" href="guide-for-new-users.html">Guide for New Users</a></li>
-<li class="toctree-l1"><a class="reference internal" href="guide-for-advanced-users.html">Guide for Advanced Users</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="guide-for-advanced-users.html#overview-of-mea-nap">Overview of MEA-NAP</a></li>
-<li class="toctree-l2"><a class="reference internal" href="guide-for-advanced-users.html#starting-mea-nap">Starting MEA-NAP</a></li>
-<li class="toctree-l2"><a class="reference internal" href="guide-for-advanced-users.html#pipeline-settings">Pipeline settings</a></li>
-</ul>
-</li>
-<li class="toctree-l1"><a class="reference internal" href="running-MEANAP-on-HPC.html">Running MEA-NAP on High-Performance Computing (HPC)</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="running-MEANAP-on-HPC.html#ssh-into-your-remote-server">1. SSH into your remote server</a></li>
-<li class="toctree-l2"><a class="reference internal" href="running-MEANAP-on-HPC.html#download-mea-pipeline-directory-to-your-remote-server">2. Download MEA pipeline directory to your remote server</a></li>
-<li class="toctree-l2"><a class="reference internal" href="running-MEANAP-on-HPC.html#change-your-current-directory-to-the-mea-pipeline-directory">3. Change your current directory to the MEA pipeline directory</a></li>
-<li class="toctree-l2"><a class="reference internal" href="running-MEANAP-on-HPC.html#create-a-directory-for-mat-files-in-your-mea-nap-directory">4. Create a directory for mat files in your MEA-NAP directory</a></li>
-<li class="toctree-l2"><a class="reference internal" href="running-MEANAP-on-HPC.html#download-mat-files-locally">5. Download mat files locally</a></li>
-<li class="toctree-l2"><a class="reference internal" href="running-MEANAP-on-HPC.html#upload-mat-files-to-the-remote-server">6. Upload mat files to the remote server</a></li>
-<li class="toctree-l2"><a class="reference internal" href="running-MEANAP-on-HPC.html#on-your-local-device-create-csv-file-s-for-mat-files-that-you-plan-to-analyze">7. On your local device, create CSV file(s) for mat files that you plan to analyze</a></li>
-<li class="toctree-l2"><a class="reference internal" href="running-MEANAP-on-HPC.html#upload-csv-file-s-to-the-mea-pipeline-directory-on-the-remote-server">8. Upload CSV file(s) to the MEA pipeline directory on the remote server</a></li>
-<li class="toctree-l2"><a class="reference internal" href="running-MEANAP-on-HPC.html#create-a-bash-script-to-submit-jobs-for-meapipeline-m">9. Create a bash script to submit jobs for MEApipeline.m</a></li>
-<li class="toctree-l2"><a class="reference internal" href="running-MEANAP-on-HPC.html#change-the-working-directory-to-the-mea-pipeline-directory-on-the-remote-server">10. Change the working directory to the MEA pipeline directory on the remote server</a></li>
-<li class="toctree-l2"><a class="reference internal" href="running-MEANAP-on-HPC.html#modify-meapipeline-m">11. Modify MEApipeline.m</a></li>
-<li class="toctree-l2"><a class="reference internal" href="running-MEANAP-on-HPC.html#id1">12. Create a bash script to submit jobs for MEApipeline.m</a></li>
-<li class="toctree-l2"><a class="reference internal" href="running-MEANAP-on-HPC.html#submit-a-job-with-your-bash-script">13. Submit a job with your bash script</a></li>
-<li class="toctree-l2"><a class="reference internal" href="running-MEANAP-on-HPC.html#check-log-files-to-view-progress-and-error-messages">14. Check log files to view progress and error messages</a></li>
-<li class="toctree-l2"><a class="reference internal" href="running-MEANAP-on-HPC.html#download-mea-pipeline-outputs-from-the-remote-ssh-server">15. Download MEA pipeline outputs from the remote SSH server</a></li>
-</ul>
-</li>
-<li class="toctree-l1"><a class="reference internal" href="meanap-methods.html">MEA-NAP Methods</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="meanap-methods.html#spike-detection">Spike detection</a></li>
-<li class="toctree-l2"><a class="reference internal" href="meanap-methods.html#comparison-of-neuronal-activity">Comparison of neuronal activity</a></li>
-<li class="toctree-l2"><a class="reference internal" href="meanap-methods.html#inferring-functional-connectivity">Inferring functional connectivity</a></li>
-<li class="toctree-l2"><a class="reference internal" href="meanap-methods.html#comparison-of-network-activity">Comparison of network activity</a></li>
-<li class="toctree-l2"><a class="reference internal" href="meanap-methods.html#network-metrics-details">Network metrics details</a></li>
-</ul>
-</li>
-<li class="toctree-l1"><a class="reference internal" href="meanap-outputs.html">MEA-NAP Outputs</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="meanap-outputs.html#step-1-spike-detection">Step 1 - Spike Detection</a></li>
-<li class="toctree-l2"><a class="reference internal" href="meanap-outputs.html#step-1a-spike-detection-files">Step 1A - Spike Detection Files</a></li>
-<li class="toctree-l2"><a class="reference internal" href="meanap-outputs.html#step-1b-spike-detection-checks">Step 1B – Spike Detection Checks</a></li>
-<li class="toctree-l2"><a class="reference internal" href="meanap-outputs.html#step-2-neuronal-activity">Step 2 – Neuronal Activity</a></li>
-<li class="toctree-l2"><a class="reference internal" href="meanap-outputs.html#step-2a-individual-neuronal-analysis">Step 2A – Individual Neuronal Analysis</a></li>
-<li class="toctree-l2"><a class="reference internal" href="meanap-outputs.html#step-2b-group-comparison">Step 2B - Group Comparison</a></li>
-<li class="toctree-l2"><a class="reference internal" href="meanap-outputs.html#step-3-functional-connectivity-edge-thresholding-check">Step 3 – Functional Connectivity Edge Thresholding Check</a></li>
-<li class="toctree-l2"><a class="reference internal" href="meanap-outputs.html#step-4-network-activity">Step 4 – Network Activity</a></li>
-<li class="toctree-l2"><a class="reference internal" href="meanap-outputs.html#step-4b-network-activity-group-comparisons">Step 4B – Network Activity – Group Comparisons</a></li>
-<li class="toctree-l2"><a class="reference internal" href="meanap-outputs.html#step-5-statistical-comparisons">Step 5  – Statistical Comparisons</a></li>
-</ul>
-</li>
-<li class="toctree-l1"><a class="reference internal" href="system-requirements.html">System Requirements</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="system-requirements.html#operating-system">Operating system</a></li>
-<li class="toctree-l2"><a class="reference internal" href="system-requirements.html#mathworks-account-and-license">MathWorks account and license</a></li>
-<li class="toctree-l2"><a class="reference internal" href="system-requirements.html#matlab-versions-and-required-packages">MATLAB Versions and Required Packages</a></li>
-</ul>
-</li>
-<li class="toctree-l1"><a class="reference internal" href="frequently-asked-questions.html">Frequently Asked Questions</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="frequently-asked-questions.html#how-do-i-make-sure-i-have-the-correct-latest-version-of-the-pipeline">How do I make sure I have the correct / latest version of the pipeline?</a></li>
-<li class="toctree-l2"><a class="reference internal" href="frequently-asked-questions.html#what-do-i-do-if-i-am-experiencing-issues-with-the-pipeline">What do I do if I am experiencing issues with the pipeline?</a></li>
-</ul>
-</li>
-<li class="toctree-l1"><a class="reference internal" href="how-to-contribute.html">Contributing to the Project</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="how-to-contribute.html#documentation">Documentation</a></li>
-<li class="toctree-l2"><a class="reference internal" href="how-to-contribute.html#code">Code</a></li>
-<li class="toctree-l2"><a class="reference internal" href="how-to-contribute.html#suggestions-troubleshooting">Suggestions / Troubleshooting</a></li>
-</ul>
-</li>
-<li class="toctree-l1"><a class="reference internal" href="sources.html">Code Sources</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="sources.html#methods-spike-detection">Methods - Spike Detection</a></li>
-<li class="toctree-l2"><a class="reference internal" href="sources.html#methods-burst-analysis">Methods - Burst analysis</a></li>
-<li class="toctree-l2"><a class="reference internal" href="sources.html#methods-functional-connectivity">Methods - Functional connectivity</a></li>
-<li class="toctree-l2"><a class="reference internal" href="sources.html#methods-network-features">Methods - Network features</a></li>
-<li class="toctree-l2"><a class="reference internal" href="sources.html#methods-statistics">Methods - Statistics</a></li>
-<li class="toctree-l2"><a class="reference internal" href="sources.html#tools-gui">Tools - GUI</a></li>
-<li class="toctree-l2"><a class="reference internal" href="sources.html#tools-plotting">Tools - Plotting</a></li>
-<li class="toctree-l2"><a class="reference internal" href="sources.html#references">References</a></li>
-</ul>
-</li>
-</ul>
 </div>
+</section>
 </section>
 
         </article>
@@ -307,12 +235,12 @@
       <footer>
         
         <div class="related-pages">
-          <a class="next-page" href="introduction.html">
+          <a class="next-page" href="setting-up-matlab.html">
               <div class="page-info">
                 <div class="context">
                   <span>Next</span>
                 </div>
-                <div class="title">Introduction</div>
+                <div class="title">Setting up MATLAB</div>
               </div>
               <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
             </a>
@@ -335,8 +263,29 @@
         
       </footer>
     </div>
-    <aside class="toc-drawer no-toc">
+    <aside class="toc-drawer">
       
+      
+      <div class="toc-sticky toc-scroll">
+        <div class="toc-title-container">
+          <span class="toc-title">
+            On this page
+          </span>
+        </div>
+        <div class="toc-tree-container">
+          <div class="toc-tree">
+            <ul>
+<li><a class="reference internal" href="#">Welcome to the MEA network analysis pipeline (MEA-NAP) documentation!</a><ul>
+<li><a class="reference internal" href="#the-mea-network-analyis-pipeline-mea-nap-a-diagnostic-tool-for-studying-microscale-functional-connectivity-topology-and-network-dynamics">The MEA Network Analyis Pipeline (MEA-NAP): a diagnostic tool for studying microscale functional connectivity, topology, and network dynamics</a></li>
+<li><a class="reference internal" href="#the-documentation">The documentation</a></li>
+<li><a class="reference internal" href="#applications-for-basic-and-translational-research">Applications for basic and translational research</a></li>
+</ul>
+</li>
+</ul>
+
+          </div>
+        </div>
+      </div>
       
       
     </aside>
@@ -347,9 +296,9 @@
     <script src="_static/doctools.js?v=888ff710"></script>
     <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="_static/scripts/furo.js?v=32e29ea5"></script>
-    <script src="_static/js/hoverxref.js"></script>
-    <script src="_static/js/tooltipster.bundle.min.js"></script>
-    <script src="_static/js/micromodal.min.js"></script>
+    <script src="_static/js/hoverxref.js?v=82c55261"></script>
+    <script src="_static/js/tooltipster.bundle.min.js?v=18bf091b"></script>
+    <script src="_static/js/micromodal.min.js?v=04d6302d"></script>
     <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     </body>
 </html>

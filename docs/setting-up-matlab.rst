@@ -9,7 +9,6 @@ This page is for **users who do not already have MATLAB or the required toolboxe
 
    - If you do not currently have a Mathworks account, go to the [MathWorks website](https://www.mathworks.com/) and create one.
 
-
 2. **Download MATLAB**:
    
    - For people using institutional licenses:
@@ -31,18 +30,26 @@ This page is for **users who do not already have MATLAB or the required toolboxe
    - Click on the **Home** tab in MATLAB to access the main menu.
    - Locate and click on the **Add-Ons** dropdown menu.
 
-   .. image:: ../imgs/matlab_home_menu.png
+   .. image:: imgs/matlab_home_menu.png
       :width: 800
       :align: center
       :alt: Home tab in MATLAB. Includes Add-Ons dropdown menu on **far right**.
 
+   .. raw:: html
+
+      <div style="margin-bottom: 20px;"></div>
+
 
 5. **Browse Available Add-Ons**:
 
-   .. image:: ../imgs/matlab_addon_dropdown_menu.png
+   .. image:: imgs/matlab_addon_dropdown_menu.png
       :width: 200
       :align: center
       :alt: Add-ons dropdown menu
+
+   .. raw:: html
+
+      <div style="margin-bottom: 20px;"></div>
 
    - In the **Add-Ons** menu, you will find options to browse, install, and manage add-ons.
    - Click **Get Add-Ons** to access the MATLAB Add-On Explorer.
@@ -60,44 +67,14 @@ This page is for **users who do not already have MATLAB or the required toolboxe
 
    - You will also need the Brain Connectivity Toolbox, which cannot be installed through the Add-On Explorer:
 
-     - This toolbox is found in the **MEA-NAP folder that you will download during step 8 of 'Setting Up MATLAB'**
+     - This toolbox is found in the **MEA-NAP folder that you will download during step 1 of "Setting Up MEA-NAP"**
 
 7. **Access Installed Toolboxes**:
 
    - Once the installation is complete, you can access the newly installed toolbox functions in your MATLAB environment.
 
-8. **Install Git (if not already installed)**:
-
-   - Downloading MEA-NAP from GitHub will require Git. 
-
-   - If you do not have Git installed, you can download and install it from the official website (https://git-scm.com/downloads). Follow the installation instructions for your specific operating system (macOS, Windows, or Linux/Unix).
-
-9. **Download MEA-NAP**:
-
-   - Go to the home page of the MEA-NAP GitHub repository. To download the repository, you will need the repository's URL. Click the green "<> Code" button to open the dropdown menu. In this dropdown menu, copy the URL found in the HTTPS tab.
-
-   - Open Terminal on your operating system.
-
-   - Use the following commands in your terminal to download the MEA-NAP folder to your local device:
-
-     .. code-block:: bash
-
-         cd [local_directory]
-         git clone [repository_url]
-
-     - ``local_directory``: local directory where the MEA-NAP folder will be placed.
-     - ``repository_url``: Specify the URL of the MEA-NAP GitHub repository you want to clone.
-
-10. **Locate and Open MEA-NAP folder**:
-
-    - Locate and open the MEA-NAP folder that you downloaded to your local device during the previous step.
-
-11. **Locate and Open MEApipeline.m**:
-
-    - Locate MEApipeline.m in your MEA-NAP folder.
-
-    - Open MEApipeline.m in the MATLAB application that you installed in step 1.
+Congratulations! You have successfully set up MATLAB and downloaded the required toolboxes to extend MATLAB's functionality. Proceed to **"Setting up MEA-NAP"**.
 
 
 
-Congratulations! You have successfully set up MATLAB and downloaded required toolboxes toextend MATLAB's functionality.
+

@@ -19,7 +19,7 @@ Spike detection
 
 Microelectrode array (MEA) recordings offer the temporal resolution to identify individual action potentials from multi-unit activity detected at individual electrodes.  There are many different methods available for detecting action potentials from extracellular voltage recordings. The choice of methods and parameters need to be optimized for each data set, as type of tissue, level of activity, and level of electrical noise will affect the accuracy.  The gold standard for tuning spike detection is comparing MEA recordings from the same network before and after tetrodotoxin (TTX) administration (if your neuronal population is sensitive to action potential blockade by TTX, Figure 4.1). TTX inhibition is use-dependent, thus depending how frequently the neurons fire action potentials, it may take a few minutes before all neuronal firing stops in the presence of TTX.
 
-.. image:: ../imgs/spike_detection.png
+.. image:: imgs/spike_detection.png
     :width: 320
     :align: center
 
@@ -33,7 +33,7 @@ Spike detection methods in the pipeline
 The pipeline offers multiple options for spike detection including template-based and threshold-based methods (Figure 4.1.1). The template-based method uses a continuous wavelet transform to identify action potentials by their waveform. In our 2D primary murine cortical cultures, the template-based method outperforms threshold-based methods in both sensitivity and specificity (Dunn et al., FENS 2020, poster). However, depending on the signal-to-noise ratio and/or the fit of the template to action potentials in a recording, the template method may not perform well on all data.  In this case we recommend using a threshold-based method. The user selects the standard deviation multiplier for detecting spikes. Minimum and maximum spike amplitudes are included to remove noise and large electrical artifacts.
 
 
-.. image:: ../imgs/spike_detection_methods.png
+.. image:: imgs/spike_detection_methods.png
     :width: 400
     :align: center
 
@@ -47,7 +47,7 @@ At a biological level, the threshold method also has a challenge when comparing 
 The pipeline also produces plots of the voltage traces with spikes detected marked with arrows from a random selection of electrodes. These plots allow one to quickly visually inspect the quality of the spike detection **(Figure 4.1.1.1)**.  Sample waveforms from single electrodes for the different methods are also plotted in the pipeline. Plots with comparison of the number of spikes detected over time are also produced. The pipeline allows multiple threshold multipliers to be run and these plots facilitate comparison and selection of the threshold for spike detection for downstream analysis.  These plots are in the OutputData subfolder \1B_SpikeDetectionChecks organized by group and recording.
 
 
-.. image:: ../imgs/threshold_based_options_2.png
+.. image:: imgs/threshold_based_options_2.png
     :width: 700
     :align: center
 
@@ -62,7 +62,7 @@ The pipeline uses a continuous wavelet transform to identify spikes based on the
 
 For the custom electrode-specific wavelet method created for our pipeline, first the threshold method is run (e.g., SD 4.5). The waveforms of a random selection of 50 action potentials detected from an electrode are averaged to create a wavelet for that electrode. This electrode-specific custom wavelet is then used with the continuous wavelet transform to identify spikes in that electrode.  This method has the advantage of identifying spike waveforms for action potentials based on the characteristics of the neurons firing near the electrode and the specific properties of the individual electrodes that may affect the voltage reading. This can increase the sensitivity and specificity of the spike detection.  One essential assumption for this method is that there must be true action potentials detected with the threshold method in order for the wavelet to be based on action potentials and not detecting noise.  To address this, a minimum absolute amplitude is set for spikes to avoid creating a custom template for detecting noise.  Confirmation of spike detection with TTX is the gold standard.  
 
-.. image:: ../imgs/template_based_options_2.png 
+.. image:: imgs/template_based_options_2.png 
     :width: 600
     :align: center
 
@@ -88,13 +88,13 @@ One of the most common forms of analysis performed on MEA recordings from neuron
 
 **A.**
 
-.. image:: ../imgs/firing_rates.png
+.. image:: imgs/firing_rates.png
     :width: 450
     :align: center
 
 **B.**
 
-.. image:: ../imgs/firing_rates_2.png
+.. image:: imgs/firing_rates_2.png
     :width: 450
     :align: center
 
@@ -108,7 +108,7 @@ The term “burst” is used in multiple contexts within electrophysiology and w
 Metrics included in the pipeline for group comparison of network bursts include: 
 
 
-.. image:: ../imgs/burst_detection.png
+.. image:: imgs/burst_detection.png
     :width: 650
     :align: center
 
@@ -131,7 +131,7 @@ Probabilistic thresholding
 Determining where an edge (i.e., the functional connection between neurons near two electrodes) exists is key to all downstream network analysis. While the STTC provides an estimate of the strength of connectivity, we apply probabilistic thresholding to eliminate at-chance level correlations.  To do this, circular shifts are made in the spike trains for each electrode and the STTC is calculated for multiple iterations. A threshold is set (e.g., 95th percentile of edge values for this pair of electrodes from the set of synthetic matrices). Only the pairwise correlations that are above this threshold for each putative edge are included in the adjacency matrix.  The user has the option to set the number of iterations of circular shifts (MEApipeline.m, line 99). To check that the number of iterations for the circular shifts was sufficient, a validation step is included in the second output folder titled “Edge Threshold Check" **(Figure 4.3.2)**.
 
 
-.. image:: ../imgs/probabilistic_thresholding.png
+.. image:: imgs/probabilistic_thresholding.png
     :width: 600
     :align: center
 
@@ -160,27 +160,27 @@ Graph theoretical approaches are commonly used at the whole brain level, and les
    * - Feature
      - Description 
 
-   * - .. figure:: ../imgs/ND.png
+   * - .. figure:: imgs/ND.png
            
            Node degree
      - Number of connections (edges) with other nodes in the network.  Highly connected nodes may have more influence on network activity depending on their strength of connectivity and their placement in the network.
    
-   * - .. figure:: ../imgs/N_size.png 
+   * - .. figure:: imgs/N_size.png 
      
            Network size 
      - Number of active electrodes (defined by a minimum number or frequency of spikes detected).
    
-   * - .. figure::  ../imgs/EW.png
+   * - .. figure::  imgs/EW.png
 
            Edge weight
      - Strength of connectivity between two nodes.  Calculated using the spike-time tiling coefficient (Cutts & Eglen, 2014)
    
-   * - .. figure:: ../imgs/N_strength.png 
+   * - .. figure:: imgs/N_strength.png 
    
            Node strength
      - Sum of the edge weights for each node.
    
-   * - .. figure:: ../imgs/Dens.png 
+   * - .. figure:: imgs/Dens.png 
 
            Network density
      - Number of edges as a proportion (%) of the total possible edges that can be formed in the network.
@@ -192,17 +192,17 @@ Graph theoretical approaches are commonly used at the whole brain level, and les
    * - Feature
      - Description
 
-   * - .. figure:: ../imgs/local_efficiency.png 
+   * - .. figure:: imgs/local_efficiency.png 
      
            Local Efficiency
      - Efficiency defined at the level of individual nodes. The inverse of path length of the subgraph generated by removing the index node and its edges. (Latora & Marchiori, 2001)
    
-   * - .. figure::  ../imgs/CC.png
+   * - .. figure::  imgs/CC.png
            
            Clustering coefficient  
      - Probability that two nodes each directly connected to a third node will also be directly linked to each other.
    
-   * - .. figure::  ../imgs/nMod.png
+   * - .. figure::  imgs/nMod.png
           
           Number of modules
      - Number of subsets of nodes into which the network can be decomposed, where nodes in each subset are more densely connected to each other than to nodes in other subsets. Calculated based on Brandes et al. (2008).
@@ -210,12 +210,12 @@ Graph theoretical approaches are commonly used at the whole brain level, and les
    * - Affiliation vector
      - Vector containing number of module to which each node belongs
 
-   * - .. figure:: ../imgs/modularity_score.png
+   * - .. figure:: imgs/modularity_score.png
           
           Modularity score
      - A value between -0.5 and 1 that describes how well a network has been partitioned.  See Brandes et al. (2008).
    
-   * - .. figure:: ../imgs/within_module_deg_z_score.png
+   * - .. figure:: imgs/within_module_deg_z_score.png
           
           Within-module degree z-score
      - Measure of how well-connected a node is to other nodes in the module. Guimerà & Nunes Amaral, 2005.
@@ -226,26 +226,26 @@ Graph theoretical approaches are commonly used at the whole brain level, and les
 
    * - Feature
      - Description 
-   * - .. figure:: ../imgs/path_length.png
+   * - .. figure:: imgs/path_length.png
        
           Path length 
      - Characteristic path length is the minimum number of edges required to link any two nodes in the network averaged across nodes.
    
-   * - .. figure:: ../imgs/global_efficiency.png
+   * - .. figure:: imgs/global_efficiency.png
       
           Global efficiency
      - Efficiency of parallel information transfer between nodes in the network. Inverse of characteristic path length.  (Latora & Marchiori, 2001)
    
-   * - .. figure:: ../imgs/node_cartography_proportions.png
+   * - .. figure:: imgs/node_cartography_proportions.png
    
           Node cartography group proportions
      - Each node is assigned a role by node cartography group. (Guimerà & Nunes Amaral, 2005) (1) Peripheral nodes (2) Non-hub connectors (3) Non-hub kinless nodes (4) Provincial hubs (5) Connector hubs (6) Kinless hubs
    
-   * - .. figure:: ../imgs/betweenness_centrality.png
+   * - .. figure:: imgs/betweenness_centrality.png
       
           Betweenness centrality
      - Number of times a node lies on the shortest path between any two nodes in a network. (Brandes, 2001)
-   * - .. figure:: ../imgs/participation_coefficient.png
+   * - .. figure:: imgs/participation_coefficient.png
    
           Participation coefficient
      - Measure of how well-distributed a node’s edges are among different modules. (Guimerà & Nunes Amaral, 2005)
@@ -253,12 +253,12 @@ Graph theoretical approaches are commonly used at the whole brain level, and les
    * - Hub score
      - Hubs are nodes with high centrality in the network. Nodes are ranked based on node strength, betweenness centrality, local efficiency, and participation coefficient. Hubs rank in the top 10% of nodes in 3 or 4 of these features. (Schroeter et al., 2015)
    
-   * - .. figure:: ../imgs/small_world_coefficient_1.png
+   * - .. figure:: imgs/small_world_coefficient_1.png
 
           Small world coefficient method 1 (:math:`\sigma`)
      - Network topology with clusters of nodes connected to other clusters via hub nodes. This reduces path length and facilitates both local and global information processing. Calculated as clustering coefficient divided by characteristic path length. (Humphries et al, 2006; Humphries & Gurney, 2008)
    
-   * - .. figure:: ../imgs/small_world_coefficient_2.png
+   * - .. figure:: imgs/small_world_coefficient_2.png
    
           Small-world coefficient method 2 (:math:`w`)
      - Calculated using the normalized clustering coefficient and path length. Small-world network structure is at the midpoint (0) between a lattice (-1) and random (1) network structure. (Telesford et al., 2011)
@@ -282,13 +282,13 @@ To our knowledge, this is the first application of node cartography (Guimerà & 
 
 **A.**
 
-.. image:: ../imgs/node_cartography_2.png
+.. image:: imgs/node_cartography_2.png
     :width: 500
     :align: center
 
 **B.**
 
-.. image:: ../imgs/node_cartography_3.png
+.. image:: imgs/node_cartography_3.png
     :width: 500
     :align: center
 

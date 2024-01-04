@@ -9,14 +9,14 @@
         <title>Setting up MEA-NAP - MEA pipeline 1.5.1 documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=362ab14a" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?v=135e06be" />
-    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster.custom.css" />
-    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster.bundle.min.css" />
-    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-shadow.min.css" />
-    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-punk.min.css" />
-    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-noir.min.css" />
-    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-light.min.css" />
-    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-borderless.min.css" />
-    <link rel="stylesheet" type="text/css" href="_static/css/micromodal.css" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster.custom.css?v=7bc2f056" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster.bundle.min.css?v=37217874" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-shadow.min.css?v=6227e517" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-punk.min.css?v=94669e23" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-noir.min.css?v=21a39f42" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-light.min.css?v=a18b2449" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-borderless.min.css?v=dbff53e4" />
+    <link rel="stylesheet" type="text/css" href="_static/css/micromodal.css?v=d7bf34ee" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?v=36a5483c" />
     
     
@@ -164,7 +164,6 @@
 <div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
   <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
 <ul class="current">
-<li class="toctree-l1"><a class="reference internal" href="introduction.html">Introduction</a></li>
 <li class="toctree-l1"><a class="reference internal" href="setting-up-matlab.html">Setting up MATLAB</a></li>
 <li class="toctree-l1 current current-page"><a class="current reference internal" href="#">Setting up MEA-NAP</a></li>
 <li class="toctree-l1"><a class="reference internal" href="guide-for-new-users.html">Guide for New Users</a></li>
@@ -218,14 +217,14 @@
 <li><p>Navigate to the home page of the MEA-NAP GitHub repository using your web browser.</p></li>
 </ul>
 <a class="reference internal image-reference" href="_images/github_repo.png"><img alt="Screenshot of MEA-NAP GitHub repository home page." class="align-center" src="_images/github_repo.png" style="width: 600px;" /></a>
-<ul class="simple">
+<div style="margin-bottom: 20px;"></div><ul class="simple">
 <li><p>Once on the repository page, look for the <strong>green “Code” button</strong>. Click on it to reveal a dropdown menu.</p></li>
 <li><p>In the dropdown menu, select the <strong>“Download ZIP” option.</strong> This will prompt GitHub to compress the latest version of the MEA-NAP repository into a zip folder.</p></li>
 <li><p>Once the zip folder is downloaded, navigate to the location where you saved it and extract its contents.</p></li>
 </ul>
 </li>
 <li><p><strong>Prepare your data for MEA-NAP</strong>:</p>
-<p>The MEA-NAP pipeline is currently optimized for single MEA recordings made on the Multi-channel Systems MEA2100 60-channel MEA system and for multi-well plates using the Axion Maestro MEA System. However, these recordings must be converted to <cite>*.mat</cite> files first.</p>
+<p>The MEA-NAP pipeline is currently optimized for single MEA recordings made on the Multichannel Systems MEA2100 60-channel MEA system and for multi-well plates using the Axion Maestro MEA System. However, these recordings must be converted to <cite>*.mat</cite> files first.</p>
 <ul>
 <li><p><strong>Converting .mcd files acquired from a Multichannel Systems MEA system with MC_Rack to .mat files</strong>:</p>
 <blockquote>
@@ -240,7 +239,7 @@
 <li><p>When done, click close.</p></li>
 <li><p>Open MATLAB.</p></li>
 <li><p>Add the analysis pipeline code to the path.</p></li>
-<li><p>Navigate in MATLAB to the folder containing the ‘.mcd’ files you want to convert.</p></li>
+<li><p>Navigate in MATLAB to the folder containing the “.mcd” files you want to convert.</p></li>
 <li><p>In the MATLAB command window, type <code class="docutils literal notranslate"><span class="pre">MEAbatchConvert</span></code> and press return to run.</p></li>
 </ol>
 </div></blockquote>
@@ -272,7 +271,7 @@ NGN2 is the experiment code, 230101 is the date the culture was started, P1_A1 i
 </dl>
 </li>
 <li><p><strong>Prepare batch analysis CSV file</strong>:</p>
-<ul>
+<ul id="prepare-batch-analysis-csv-file">
 <li><p>Create a <code class="docutils literal notranslate"><span class="pre">*.csv</span></code> or <code class="docutils literal notranslate"><span class="pre">*.xlsx</span></code> file with the following columns:</p>
 <blockquote>
 <div><ol class="arabic simple">
@@ -284,12 +283,12 @@ NGN2 is the experiment code, 230101 is the date the culture was started, P1_A1 i
 </div></blockquote>
 </li>
 </ul>
-<p>Here is an example spreadsheet in CSV format opened in Microsoft Excel:</p>
+<p>Here is an example spreadsheet in CSV format opened in Microsoft Excel.</p>
 <a class="reference internal image-reference" href="_images/example-spreadsheet-input.png"><img alt="_images/example-spreadsheet-input.png" class="align-center" src="_images/example-spreadsheet-input.png" style="width: 500px;" /></a>
-<p>Note: If you using Axion Maestro MEA data, rawConvert.m will generate a batch analysis csv file for you. However, <strong>you will still need to be modify the columns based on the descriptions above.</strong></p>
+<div style="margin-bottom: 20px;"></div><p><strong>Note:</strong> If you using Axion Maestro MEA data, rawConvert.m will generate a batch analysis csv file for you. However, <strong>you will still need to be modify the columns based on the descriptions above.</strong></p>
 </li>
 </ol>
-<p>Congratulations! With the completion of the data preparation steps outlined above, your data is now primed and ready for analysis using MEA-NAP.</p>
+<p>Congratulations! With the completion of the data preparation steps outlined above, your data is now ready for analysis using MEA-NAP.</p>
 </section>
 
         </article>
@@ -347,9 +346,9 @@ NGN2 is the experiment code, 230101 is the date the culture was started, P1_A1 i
     <script src="_static/doctools.js?v=888ff710"></script>
     <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="_static/scripts/furo.js?v=32e29ea5"></script>
-    <script src="_static/js/hoverxref.js"></script>
-    <script src="_static/js/tooltipster.bundle.min.js"></script>
-    <script src="_static/js/micromodal.min.js"></script>
+    <script src="_static/js/hoverxref.js?v=82c55261"></script>
+    <script src="_static/js/tooltipster.bundle.min.js?v=18bf091b"></script>
+    <script src="_static/js/micromodal.min.js?v=04d6302d"></script>
     <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     </body>
 </html>
