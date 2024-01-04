@@ -21,7 +21,7 @@ Setting up MEA-NAP
 
    The MEA-NAP pipeline is currently optimized for single MEA recordings made on the Multi-channel Systems MEA2100 60-channel MEA system and for multi-well plates using the Axion Maestro MEA System. However, these recordings must be converted to `*.mat` files first.
 
-   - **Converting .mcd files from multichannel acquisition system to .mat files**:
+   - **Converting .mcd files acquired from a Multichannel Systems MEA system with MC_Rack to .mat files**:
 
       1. Open MC_DataTool.
       2. Select File - Open Multiple.
@@ -36,7 +36,7 @@ Setting up MEA-NAP
       11. Navigate in MATLAB to the folder containing the '.mcd' files you want to convert.
       12. In the MATLAB command window, type ``MEAbatchConvert`` and press return to run.
 
-   - **Converting .raw files from MEA Axion Maestro acquisition system to .mat files**:
+   - **Converting .raw files acquired from an Axion Maestro MEA system to .mat files**:
 
       1. Save `.raw` files from MEA Axion Maestro system to one folder.
       2. Copy the directory path of the folder containing `.raw` files.
