@@ -26,7 +26,7 @@ Starting MEA-NAP
 - To use the pipeline, open ``MEApipeline.m`` in MATLAB next. 
 
 Required user input in the first section of MEA-NAP
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 - The first section of ``MEApipeline.m`` sets many of the parameters that instruct the pipeline on how to do the following:
   
   - Find your data 
