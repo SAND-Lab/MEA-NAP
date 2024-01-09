@@ -34,13 +34,20 @@ end
 
 %% Square / Circle plot
 
+% make bluewhitecolormap 
+bwrRGB = zeros(100, 3);
+bwrRGB(1:50, 3) = 1; % linspace(1, 0, 50);
+bwrRGB(51:100, 1) = 1; %linspace(0, 1, 50);
+
+dprime_range = linspace(-1.5, 1.5, 100); 
+
 for lagIdx = 1:numLags
     
     lagTable = statsTable(statsTable.Lag == uniqueLags(lagIdx), :);
     
     sigMatrix = zeros(numTest, numMetric);
     pValueMatrix = zeros(numTest, numMetric);
-    effectMatrix = zeros(numTest, numMetric);
+    effectMatrix = zeros(numTest, numMetric) + nan;
 
     for testIdx = 1:numTest
         
@@ -52,7 +59,12 @@ for lagIdx = 1:numLags
         
         sigMatrix(testIdx, :) = testTable.Value < pValThreshold;
         pValueMatrix(testIdx, :) = testTable.Value;
-
+        
+        effectTable = lagTable(ismember(lagTable.Test, uniqueTests{testIdx}) & ...
+            ismember(lagTable.('Test-statistic'), 'd-prime'), :);
+        if size(effectTable, 1) > 1 
+            effectMatrix(testIdx, :) = effectTable.Value;
+        end
     end 
     
     % Circle plot 
@@ -92,7 +104,18 @@ for lagIdx = 1:numLags
                 logPVal = min(logPVal, maxLogPval);
                 dotSize = logPVal / maxLogPval * maxDotSize;
                 if pVal < pValThreshold
-                    scatter(metricIdx, testIdx, dotSize, 'filled', 'MarkerFaceColor', 'black')
+                    dprime = effectMatrix(testIdx, metricIdx);
+                    if isnan(dprime)
+                        dprime_color = [0, 0, 0];
+                        dprime_alpha = 1;
+                    else
+                        [~, dprime_color_idx] = min(abs(dprime_range - dprime));
+                        dprime_color = bwrRGB(dprime_color_idx, :);
+                        dprime_alpha = abs(length(dprime_range)/2 - dprime_color_idx) / length(dprime_range)/2;
+                    end
+                    scatter(metricIdx, testIdx, dotSize, 'filled', ...
+                        'MarkerFaceColor', dprime_color, 'MarkerFaceAlpha', dprime_alpha, ...
+                        'MarkerEdgeColor', 'black');
                 else 
                     scatter(metricIdx, testIdx, dotSize, 'MarkerFaceColor', 'white', 'MarkerEdgeColor', 'black')
                 end
@@ -125,6 +148,23 @@ for lagIdx = 1:numLags
     scatter(numMetric + 1.5, numTest - 2.5, log1dotSize, 'filled', 'MarkerFaceColor', 'white', 'MarkerEdgeColor', 'black')
     text(numMetric + 2, numTest - 2.5, 'p = 0.1', 'color', [0, 0, 0])
     set(gcf, 'color', 'white')
+    
+    % Add colorbar 
+    cbar_ax = axes('Position',[0.86 0.2 0.025 0.4]);
+    bwrRGB_img = repmat(bwrRGB, [1, 1, 100]);
+    bwrRGB_img = permute(bwrRGB_img, [1 3 2]);
+    im = image(flipud(bwrRGB_img));
+    alpha_mask = repmat(abs(linspace(-1, 1, 100)), [100, 1])';
+    im.AlphaData = alpha_mask;
+    
+    cbar_ax.XAxis.Visible = 'off';
+    cbar_ax.XTick([]);
+    ylabel('D prime');
+    set(cbar_ax,'YAxisLocation','right');
+    set(cbar_ax, 'box', 'off');
+    set(cbar_ax, 'TickDir','out');
+    yticks([1, 50, 100])
+    yticklabels([1.5, 0, -1.5])
     
     % Square Plot
     %{
