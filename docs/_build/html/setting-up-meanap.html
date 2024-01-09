@@ -9,14 +9,14 @@
         <title>Setting up MEA-NAP - MEA pipeline 1.5.1 documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=362ab14a" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?v=135e06be" />
-    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster.custom.css" />
-    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster.bundle.min.css" />
-    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-shadow.min.css" />
-    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-punk.min.css" />
-    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-noir.min.css" />
-    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-light.min.css" />
-    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-borderless.min.css" />
-    <link rel="stylesheet" type="text/css" href="_static/css/micromodal.css" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster.custom.css?v=7bc2f056" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster.bundle.min.css?v=37217874" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-shadow.min.css?v=6227e517" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-punk.min.css?v=94669e23" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-noir.min.css?v=21a39f42" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-light.min.css?v=a18b2449" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-borderless.min.css?v=dbff53e4" />
+    <link rel="stylesheet" type="text/css" href="_static/css/micromodal.css?v=d7bf34ee" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?v=36a5483c" />
     
     
@@ -142,7 +142,7 @@
           <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
         </button>
       </div>
-      <label class="toc-overlay-icon toc-header-icon no-toc" for="__toc">
+      <label class="toc-overlay-icon toc-header-icon" for="__toc">
         <div class="visually-hidden">Toggle table of contents sidebar</div>
         <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
       </label>
@@ -203,7 +203,7 @@
               <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
             </button>
           </div>
-          <label class="toc-overlay-icon toc-content-icon no-toc" for="__toc">
+          <label class="toc-overlay-icon toc-content-icon" for="__toc">
             <div class="visually-hidden">Toggle table of contents sidebar</div>
             <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
           </label>
@@ -211,8 +211,8 @@
         <article role="main">
           <section id="setting-up-mea-nap">
 <h1>Setting up MEA-NAP<a class="headerlink" href="#setting-up-mea-nap" title="Link to this heading">#</a></h1>
-<ol class="arabic">
-<li><p><strong>Download MEA-NAP folder from GitHub</strong>:</p>
+<section id="download-mea-nap-folder-from-github">
+<h2>1. Download MEA-NAP Folder from GitHub:<a class="headerlink" href="#download-mea-nap-folder-from-github" title="Link to this heading">#</a></h2>
 <ul class="simple">
 <li><p>Navigate to the home page of the MEA-NAP GitHub repository using your web browser.</p></li>
 </ul>
@@ -222,8 +222,9 @@
 <li><p>In the dropdown menu, select the <strong>“Download ZIP” option.</strong> This will prompt GitHub to compress the latest version of the MEA-NAP repository into a zip folder.</p></li>
 <li><p>Once the zip folder is downloaded, navigate to the location where you saved it and extract its contents.</p></li>
 </ul>
-</li>
-<li><p><strong>Prepare your data for MEA-NAP</strong>:</p>
+</section>
+<section id="prepare-your-data-for-mea-nap">
+<h2>2. Prepare Your Data for MEA-NAP:<a class="headerlink" href="#prepare-your-data-for-mea-nap" title="Link to this heading">#</a></h2>
 <p>The MEA-NAP pipeline is currently optimized for single MEA recordings made on the Multichannel Systems MEA2100 60-channel MEA system and for multi-well plates using the Axion Maestro MEA System. However, these recordings must be converted to <cite>*.mat</cite> files first.</p>
 <ul>
 <li><p><strong>Converting .mcd files acquired from a Multichannel Systems MEA system with MC_Rack to .mat files</strong>:</p>
@@ -258,20 +259,24 @@
 </ol>
 </div></blockquote>
 </li>
-<li><p><strong>Organizing data</strong>:</p></li>
 </ul>
-<dl class="simple">
-<dt>After preparing your data, it is essential to organize the <cite>.mat</cite> files you plan to analyze in a batch. Ensure that all relevant <cite>.mat</cite> files are saved in the same folder. This organized structure is crucial for the MEA-NAP pipeline to seamlessly process and compare the data during the analysis.</dt><dd><ul class="simple">
+</section>
+<section id="organize-your-data">
+<h2>3. Organize Your Data:<a class="headerlink" href="#organize-your-data" title="Link to this heading">#</a></h2>
+<p>After preparing your data, it is essential to organize the <cite>.mat</cite> files you plan to analyze in a batch. Ensure that all relevant <cite>.mat</cite> files are saved in the same folder. This organized structure is crucial for the MEA-NAP pipeline to seamlessly process and compare the data during the analysis.</p>
+<ul class="simple">
 <li><p>Keep all the <cite>.mat</cite> files intended for a specific batch analysis in a dedicated folder.</p></li>
 <li><p>Maintain a concise and consistent naming convention for these batch analysis folders.</p></li>
-<li><p>As filenames and group names are included in many plots, it is important to keep the names concise and informative (e.g., NGN2230101_P1_A1_DIV14, where
-NGN2 is the experiment code, 230101 is the date the culture was started, P1_A1 is the plate and well number, and DIV14 is the age).</p></li>
-</ul>
+<li><dl class="simple">
+<dt>As filenames and group names are included in many plots, it is important to keep the names concise and informative (e.g., NGN2230101_P1_A1_DIV14, where</dt><dd><p>NGN2 is the experiment code, 230101 is the date the culture was started, P1_A1 is the plate and well number, and DIV14 is the age).</p>
 </dd>
 </dl>
 </li>
-<li><p><strong>Prepare batch analysis CSV file</strong>:</p>
-<ul id="prepare-batch-analysis-csv-file">
+</ul>
+</section>
+<section id="prepare-batch-analysis-csv-file">
+<h2>4. Prepare Batch Analysis CSV File<a class="headerlink" href="#prepare-batch-analysis-csv-file" title="Link to this heading">#</a></h2>
+<ul id="id1">
 <li><p>Create a <code class="docutils literal notranslate"><span class="pre">*.csv</span></code> or <code class="docutils literal notranslate"><span class="pre">*.xlsx</span></code> file with the following columns:</p>
 <blockquote>
 <div><ol class="arabic simple">
@@ -286,9 +291,8 @@ NGN2 is the experiment code, 230101 is the date the culture was started, P1_A1 i
 <p>Here is an example spreadsheet in CSV format opened in Microsoft Excel.</p>
 <a class="reference internal image-reference" href="_images/example-spreadsheet-input.png"><img alt="_images/example-spreadsheet-input.png" class="align-center" src="_images/example-spreadsheet-input.png" style="width: 500px;" /></a>
 <div style="margin-bottom: 20px;"></div><p><strong>Note:</strong> If you using Axion Maestro MEA data, rawConvert.m will generate a batch analysis csv file for you. However, <strong>you will still need to be modify the columns based on the descriptions above.</strong></p>
-</li>
-</ol>
 <p>Congratulations! With the completion of the data preparation steps outlined above, your data is now ready for analysis using MEA-NAP.</p>
+</section>
 </section>
 
         </article>
@@ -334,8 +338,30 @@ NGN2 is the experiment code, 230101 is the date the culture was started, P1_A1 i
         
       </footer>
     </div>
-    <aside class="toc-drawer no-toc">
+    <aside class="toc-drawer">
       
+      
+      <div class="toc-sticky toc-scroll">
+        <div class="toc-title-container">
+          <span class="toc-title">
+            On this page
+          </span>
+        </div>
+        <div class="toc-tree-container">
+          <div class="toc-tree">
+            <ul>
+<li><a class="reference internal" href="#">Setting up MEA-NAP</a><ul>
+<li><a class="reference internal" href="#download-mea-nap-folder-from-github">1. Download MEA-NAP Folder from GitHub:</a></li>
+<li><a class="reference internal" href="#prepare-your-data-for-mea-nap">2. Prepare Your Data for MEA-NAP:</a></li>
+<li><a class="reference internal" href="#organize-your-data">3. Organize Your Data:</a></li>
+<li><a class="reference internal" href="#prepare-batch-analysis-csv-file">4. Prepare Batch Analysis CSV File</a></li>
+</ul>
+</li>
+</ul>
+
+          </div>
+        </div>
+      </div>
       
       
     </aside>
@@ -346,9 +372,9 @@ NGN2 is the experiment code, 230101 is the date the culture was started, P1_A1 i
     <script src="_static/doctools.js?v=888ff710"></script>
     <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="_static/scripts/furo.js?v=32e29ea5"></script>
-    <script src="_static/js/hoverxref.js"></script>
-    <script src="_static/js/tooltipster.bundle.min.js"></script>
-    <script src="_static/js/micromodal.min.js"></script>
+    <script src="_static/js/hoverxref.js?v=82c55261"></script>
+    <script src="_static/js/tooltipster.bundle.min.js?v=18bf091b"></script>
+    <script src="_static/js/micromodal.min.js?v=04d6302d"></script>
     <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     </body>
 </html>

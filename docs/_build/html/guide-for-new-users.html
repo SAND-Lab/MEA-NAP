@@ -9,14 +9,14 @@
         <title>Guide for New Users - MEA pipeline 1.5.1 documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=362ab14a" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?v=135e06be" />
-    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster.custom.css" />
-    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster.bundle.min.css" />
-    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-shadow.min.css" />
-    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-punk.min.css" />
-    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-noir.min.css" />
-    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-light.min.css" />
-    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-borderless.min.css" />
-    <link rel="stylesheet" type="text/css" href="_static/css/micromodal.css" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster.custom.css?v=7bc2f056" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster.bundle.min.css?v=37217874" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-shadow.min.css?v=6227e517" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-punk.min.css?v=94669e23" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-noir.min.css?v=21a39f42" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-light.min.css?v=a18b2449" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-borderless.min.css?v=dbff53e4" />
+    <link rel="stylesheet" type="text/css" href="_static/css/micromodal.css?v=d7bf34ee" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?v=36a5483c" />
     
     
@@ -142,7 +142,7 @@
           <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
         </button>
       </div>
-      <label class="toc-overlay-icon toc-header-icon no-toc" for="__toc">
+      <label class="toc-overlay-icon toc-header-icon" for="__toc">
         <div class="visually-hidden">Toggle table of contents sidebar</div>
         <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
       </label>
@@ -203,7 +203,7 @@
               <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
             </button>
           </div>
-          <label class="toc-overlay-icon toc-content-icon no-toc" for="__toc">
+          <label class="toc-overlay-icon toc-content-icon" for="__toc">
             <div class="visually-hidden">Toggle table of contents sidebar</div>
             <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
           </label>
@@ -213,9 +213,99 @@
 <h1>Guide for New Users<a class="headerlink" href="#guide-for-new-users" title="Link to this heading">#</a></h1>
 <p>If you have <strong>limited or no experience with MATLAB</strong>, we recommend using our interactive GUI mode.
 This mode simplifies the process of selecting directory paths and adjusting parameters for the pipeline.</p>
-<p>If you are happy to use the pre-set parameters, you can use the GUI (guided user interface) by pressing run in <code class="docutils literal notranslate"><span class="pre">MEApipeline.m</span></code>.  The GUI will guide you through selecting the folder locations of the MEA-NAP folder, your MEA data, your batch analysis file (.csv or .xlsx), and indicating what type of MEA data (i.e.,
-Multichannel Systems 60 electrode or Axion Biosystems 64 electrode) you acquired.  Once complete, you can run the pipeline and it does the analysis and produces the figures and tables on its own.</p>
-<a class="reference internal image-reference" href="_images/gui.png"><img alt="_images/gui.png" class="align-center" src="_images/gui.png" style="width: 500px;" /></a>
+<p>The GUI will guide you through the following aspects of MEA-NAP:
+- Selecting the folder locations of the MEA-NAP folder, your MEA data, your batch analysis file (.csv or .xlsx)
+- Indicating what type of MEA data (i.e., Multichannel Systems 60 electrode or Axion Biosystems 64 electrode)
+- Adjusting spike detection, network connectivity, and plotting settings</p>
+<section id="overview-of-mea-nap">
+<h2>Overview of MEA-NAP<a class="headerlink" href="#overview-of-mea-nap" title="Link to this heading">#</a></h2>
+<p>The pipeline has the following steps:</p>
+<ol class="arabic simple">
+<li><p>Spike detection (this step can be skipped if done previously)</p></li>
+<li><p>Comparison of the neuronal activity (e.g., firing rates, burst rates)</p></li>
+<li><p>Inferring the functional connectivity</p></li>
+<li><p>Comparison of the network activity (i.e., graph theoretical metric)</p></li>
+<li><p>Statistical analysis (e.g., feature correlation and classification)</p></li>
+</ol>
+</section>
+<section id="starting-mea-nap">
+<h2>Starting MEA-NAP<a class="headerlink" href="#starting-mea-nap" title="Link to this heading">#</a></h2>
+<ul class="simple">
+<li><p>Open MEApipeline.m</p></li>
+<li><p>Set <strong>Params.guiMode = 1</strong> (line 76 of MEApipeline.m)</p></li>
+</ul>
+<a class="reference internal image-reference" href="_images/param_gui.png"><img alt="_images/param_gui.png" class="align-center" src="_images/param_gui.png" style="width: 400px;" /></a>
+<ul class="simple">
+<li><p>Start GUI by clicking green “Run” button in “Editor” submenu at the top of your screen</p></li>
+</ul>
+<a class="reference internal image-reference" href="_images/run_button.png"><img alt="_images/run_button.png" class="align-center" src="_images/run_button.png" style="width: 200px;" /></a>
+</section>
+<section id="user-input-for-gui">
+<h2>User input for GUI<a class="headerlink" href="#user-input-for-gui" title="Link to this heading">#</a></h2>
+<div style="margin-bottom: 20px;"></div><section id="general-mea-nap-parameters">
+<h3>1. General MEA-NAP Parameters<a class="headerlink" href="#general-mea-nap-parameters" title="Link to this heading">#</a></h3>
+<a class="reference internal image-reference" href="_images/general_gui.png"><img alt="_images/general_gui.png" class="align-center" src="_images/general_gui.png" style="width: 500px;" /></a>
+<div style="margin-bottom: 20px;"></div><p>Required parameters</p>
+<ul class="simple">
+<li><p><strong>MEA-NAP Folder</strong>: Location of the MEA-NAP folder with the AnalysisPipeline scripts (Best not to save in Program Files)</p></li>
+<li><p><strong>Optional Steps to Run</strong>: Optional step to run downstream required steps of the pipeline (steps 1-4)</p></li>
+<li><p><strong>Output Data Folder</strong>: Location of the folder where your output data will be saved</p></li>
+<li><p><strong>Raw Data Folder</strong>: Location of the folder with the raw data .mat files</p></li>
+<li><p><strong>Spreadsheet filename</strong>: Input file with a list of recordings with their age and genotype</p></li>
+<li><p><strong>Spreadsheet Range</strong>: Range (<code class="docutils literal notranslate"><span class="pre">[StartRow</span> <span class="pre">EndRow]</span></code>)of CSV file to read data from (e.g. <code class="docutils literal notranslate"><span class="pre">[2</span> <span class="pre">Inf]</span></code> would start reading data from row 2)</p></li>
+<li><p><strong>Start Analysis Step</strong>: Step of MEA-NAP that you would to start running from. Steps 2-4 all require spike detection (step 1) to run. Step 4 requires Step 3. Step 5 requires step 4.</p></li>
+</ul>
+<p>Optional parameters (if previous analysis has been performed)</p>
+<ul class="simple">
+<li><p><strong>Previous Analysis Date</strong>: Prior analysis date in format given in output data folder e.g., ‘27Sep2021’</p></li>
+<li><p><strong>Previous Analysis Folder</strong>: Location of the previous output folder generated by MEA-NAP</p></li>
+<li><p><strong>Spike Data Folder</strong>: Location of the folder containing spike .mat files generated during spike detection (step 1)</p></li>
+</ul>
+<div style="margin-bottom: 20px;"></div></section>
+<section id="spike-detection-parameters">
+<h3>2. Spike Detection Parameters<a class="headerlink" href="#spike-detection-parameters" title="Link to this heading">#</a></h3>
+<a class="reference internal image-reference" href="_images/spike_detection_gui.png"><img alt="_images/spike_detection_gui.png" class="align-center" src="_images/spike_detection_gui.png" style="width: 500px;" /></a>
+<div style="margin-bottom: 20px;"></div><ul class="simple">
+<li><p><strong>Channel Layout</strong>: MCS60 (for MEA2100), Axion64 (for 6-well plates), or MCS60old (for MEA6100)</p></li>
+<li><p><strong>Down Sample Frequency</strong>: Downsampling factor for your recording. Its value should match the sampling frequency.</p></li>
+<li><p><strong>Potential Difference Unit</strong>: Unit for voltage signal (e.g., MCS: uV, Axion: V)</p></li>
+<li><p><strong>Sampling Frequency</strong>: Sampling frequency of your recording</p></li>
+<li><p><strong>Spike Method for Analysis</strong>: Spike detection method to use for steps 2-4 of the pipeline</p></li>
+<li><p><strong>Thresholds</strong>: Standard deviation multiplier threshold(s) to use for threshold-based spike detection (e.g., <code class="docutils literal notranslate"><span class="pre">[3,</span> <span class="pre">4,</span> <span class="pre">5]</span></code>)</p></li>
+<li><p><strong>Wavelet Cost</strong>: false positive / false negative tradeoff for wavelet spike detection. Value must be between -2 to 2</p></li>
+<li><p><strong>Wavelets</strong>: Wavelet methods to use for wavelet-based spike detection</p></li>
+</ul>
+</section>
+<section id="connectivity-parameters">
+<h3>3. Connectivity Parameters<a class="headerlink" href="#connectivity-parameters" title="Link to this heading">#</a></h3>
+<a class="reference internal image-reference" href="_images/connectivity_gui.png"><img alt="_images/connectivity_gui.png" class="align-center" src="_images/connectivity_gui.png" style="width: 500px;" /></a>
+<div style="margin-bottom: 20px;"></div><ul class="simple">
+<li><p><strong>Adjacency matrix type</strong>: Type of adjacency matrix to obtain during functional connectivity analysis</p></li>
+<li><p><strong>Node cartography lag values</strong>: List of lag values (in ms) for functional connectivity analysis. Default is [10, 15, 25].</p></li>
+<li><p><strong>Prob. thresholding iterations</strong>: Number of repeats for probabilistic thresholding</p></li>
+<li><p><strong>Prob. thresholding num checks</strong>: Number of random checks to plot during proabilistic thresholding</p></li>
+<li><p><strong>Prob. thresholding tail</strong>: Probabilistic thresholding percentile threshold</p></li>
+<li><p><strong>STTC Lag (s)</strong>: List of spike time tiling coefficient lag values. Default is [10, 25, 50]</p></li>
+<li><p><strong>Truncation length (s)</strong>: Length (in s) for shortened recordings. This parameter can significantly change the connectivity estimates.</p></li>
+</ul>
+</section>
+<section id="plotting-parameters">
+<h3>4. Plotting Parameters<a class="headerlink" href="#plotting-parameters" title="Link to this heading">#</a></h3>
+<a class="reference internal image-reference" href="_images/plotting_gui.png"><img alt="_images/plotting_gui.png" class="align-center" src="_images/plotting_gui.png" style="width: 500px;" /></a>
+<div style="margin-bottom: 20px;"></div><ul class="simple">
+<li><p><strong>Figure formats</strong>: Format of the plots that MEA-NAP produces. Options are <code class="docutils literal notranslate"><span class="pre">.fig</span></code>, <code class="docutils literal notranslate"><span class="pre">.png</span></code>, and <code class="docutils literal notranslate"><span class="pre">.svg</span></code>.</p></li>
+<li><p><strong>Raster Map Upper Percentile</strong>: Value <strong>between 0 and 1</strong> that is used as maximum value for scaled firing rates. Firing rates in raster plots are scaled from 0 spikes/s to this percentile.</p></li>
+</ul>
+</section>
+</section>
+<section id="saving-and-loading-parameters">
+<h2>Saving and Loading Parameters<a class="headerlink" href="#saving-and-loading-parameters" title="Link to this heading">#</a></h2>
+<ul class="simple">
+<li><p>Once all the required parameters have been set, the button at the bottom of your window should switch from red to green.</p></li>
+<li><p>Before running MEA-NAP, click “Save parameters” at the bottom of your window to save your selected parameters. <strong>In subsequent runs, click “Load parameters” to reuse these parameters.</strong></p></li>
+</ul>
+<a class="reference internal image-reference" href="_images/save_parameters_gui.png"><img alt="_images/save_parameters_gui.png" class="align-center" src="_images/save_parameters_gui.png" style="width: 400px;" /></a>
+<div style="margin-bottom: 20px;"></div></section>
 </section>
 
         </article>
@@ -261,8 +351,36 @@ Multichannel Systems 60 electrode or Axion Biosystems 64 electrode) you acquired
         
       </footer>
     </div>
-    <aside class="toc-drawer no-toc">
+    <aside class="toc-drawer">
       
+      
+      <div class="toc-sticky toc-scroll">
+        <div class="toc-title-container">
+          <span class="toc-title">
+            On this page
+          </span>
+        </div>
+        <div class="toc-tree-container">
+          <div class="toc-tree">
+            <ul>
+<li><a class="reference internal" href="#">Guide for New Users</a><ul>
+<li><a class="reference internal" href="#overview-of-mea-nap">Overview of MEA-NAP</a></li>
+<li><a class="reference internal" href="#starting-mea-nap">Starting MEA-NAP</a></li>
+<li><a class="reference internal" href="#user-input-for-gui">User input for GUI</a><ul>
+<li><a class="reference internal" href="#general-mea-nap-parameters">1. General MEA-NAP Parameters</a></li>
+<li><a class="reference internal" href="#spike-detection-parameters">2. Spike Detection Parameters</a></li>
+<li><a class="reference internal" href="#connectivity-parameters">3. Connectivity Parameters</a></li>
+<li><a class="reference internal" href="#plotting-parameters">4. Plotting Parameters</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#saving-and-loading-parameters">Saving and Loading Parameters</a></li>
+</ul>
+</li>
+</ul>
+
+          </div>
+        </div>
+      </div>
       
       
     </aside>
@@ -273,9 +391,9 @@ Multichannel Systems 60 electrode or Axion Biosystems 64 electrode) you acquired
     <script src="_static/doctools.js?v=888ff710"></script>
     <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="_static/scripts/furo.js?v=32e29ea5"></script>
-    <script src="_static/js/hoverxref.js"></script>
-    <script src="_static/js/tooltipster.bundle.min.js"></script>
-    <script src="_static/js/micromodal.min.js"></script>
+    <script src="_static/js/hoverxref.js?v=82c55261"></script>
+    <script src="_static/js/tooltipster.bundle.min.js?v=18bf091b"></script>
+    <script src="_static/js/micromodal.min.js?v=04d6302d"></script>
     <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     </body>
 </html>
