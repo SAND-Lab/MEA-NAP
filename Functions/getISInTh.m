@@ -86,9 +86,13 @@ curve = n/sum(n);
 
 if length(pks) <= 1 
     % no peak or one peak, return default ISIn threshold value 
-    % ISInTh = 0.1; % in seconds, ie. 100ms (See Pasquale et al 2010) 
+    
+    if max(diff(SpikeTimes)) < 0.1
+        ISInTh = 0; % 2023-12-20 Tim Sit: no bursts of there is only one peak, and maximum ISI below 100 ms
+    else
+        ISInTh = 0.1; % in seconds, ie. 100ms (See Pasquale et al 2010) 
                   % actually also default value used in Bakkum et al 2014 
-    ISInTh = 0; % 2023-12-20 Tim Sit: no bursts of there is only one peak 
+    end    
     % eg. see the Pseudocode in Pasquale et al 2010: 
     % https://link.springer.com/article/10.1007/s10827-009-0175-1#MOESM1
 elseif length(pks) >= 2               
