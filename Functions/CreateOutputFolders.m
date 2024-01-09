@@ -64,13 +64,20 @@ mkdir('2_NodeByAge')
 mkdir('3_RecordingsByGroup')
 cd('3_RecordingsByGroup')
 mkdir('HalfViolinPlots')
-mkdir('NotBoxPlots')
+
+if Params.includeNotBoxPlots
+    mkdir('NotBoxPlots')
+end 
 cd(OutputDataFolder); cd(strcat('OutputData',Date)); 
 cd('2_NeuronalActivity'); cd('2B_GroupComparisons')
 mkdir('4_RecordingsByAge')
 cd('4_RecordingsByAge')
 mkdir('HalfViolinPlots')
-mkdir('NotBoxPlots')
+
+if Params.includeNotBoxPlots
+    mkdir('NotBoxPlots')
+end 
+
 cd(OutputDataFolder)
 cd(strcat('OutputData',Date))
 mkdir('3_EdgeThresholdingCheck')
@@ -89,13 +96,21 @@ mkdir('2_NodeByAge')
 mkdir('3_RecordingsByGroup')
 cd('3_RecordingsByGroup')
 mkdir('HalfViolinPlots')
-mkdir('NotBoxPlots')
+
+if Params.includeNotBoxPlots
+    mkdir('NotBoxPlots')
+end 
+
 cd(OutputDataFolder); cd(strcat('OutputData',Date)); 
 cd('4_NetworkActivity'); cd('4B_GroupComparisons')
 mkdir('4_RecordingsByAge')
 cd('4_RecordingsByAge')
 mkdir('HalfViolinPlots')
-mkdir('NotBoxPlots')
+
+if Params.includeNotBoxPlots
+    mkdir('NotBoxPlots')
+end 
+
 cd(OutputDataFolder); cd(strcat('OutputData',Date)); 
 cd('4_NetworkActivity'); cd('4B_GroupComparisons')
 mkdir('5_GraphMetricsByLag')
