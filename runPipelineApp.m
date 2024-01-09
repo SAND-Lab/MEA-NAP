@@ -1,6 +1,6 @@
 %% Script to run pipeline app and propagate settings back to Params
 clear app
-app = AnalysisPipelineApp;
+app = MEANAPApp;
 app.MEANAPStatusTextArea.Value = {'Welcome! The MEA-NAP GUI is launched.'};
 app.colorUITable.Data = [ ...
    1, 0.996, 0.670, 0.318; ...
