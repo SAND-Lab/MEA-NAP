@@ -101,7 +101,7 @@ ax = gca;
 ax.TitleFontSizeMultiplier = 0.7;
 
 %% save the figure
-figName = 'Raster';
+figName = '3_Raster';
 figPath = fullfile(figFolder, figName);
 
 if Params.showOneFig
