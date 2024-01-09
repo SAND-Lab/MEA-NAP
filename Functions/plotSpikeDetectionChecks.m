@@ -142,7 +142,7 @@ title({strcat(regexprep(Info.FN{1},'_','','emptymatch')),' '});
 legend boxoff
 
 % Export figure
-figName = 'SpikeFrequencies';
+figName = '2_SpikeFrequencies';
 figFullPath = fullfile(figFolder, figName);
 if ~Params.showOneFig
     pipelineSaveFig(figFullPath, Params.figExt, Params.fullSVG, F1);
@@ -231,7 +231,7 @@ title(t, {strcat(regexprep(Info.FN{1},'_','','emptymatch')),' '});
 
 
 % Export figure
-figName = 'ExampleTraces';
+figName = '1_ExampleTraces';
 figFullPath = fullfile(figFolder, figName);
 if ~Params.showOneFig
     pipelineSaveFig(figFullPath, Params.figExt, Params.fullSVG, F1);
@@ -302,7 +302,7 @@ end
 
 
 % Export figure
-figName = 'Waveforms';
+figName = '3_Waveforms';
 figFullPath = fullfile(figFolder, figName);
 if ~Params.showOneFig
     pipelineSaveFig(figFullPath, Params.figExt, Params.fullSVG, F1);
