@@ -1,4 +1,4 @@
-%% Advanced settings for batchInterface (only modify if you know what you are doing)
+%% Advanced settings for MEA-NAP (only modify if you know what you are doing)
 
 %% Output folder settings 
 if any(isnan(Params.outputDataFolder)) || isempty(Params.outputDataFolder)
@@ -108,6 +108,7 @@ Params.groupColors = [ ...
 ];
 
 Params.minNodeSize = 0.1;  % minimum node size in network plots
+Params.networkPlotEdgeThreshold = 0.0001; % minimum edge weight in network plots
 Params.kdeHeight = 0.3;  % height of the KDE curve, only affects plotting and not the kernel density estimate itself
 Params.kdeWidthForOnePoint = 0;  % bandwidth for KDE (in half violin plots) if there is only a single data point 
 % set to 0 to disable plotting of KDE if there is only a single data point,
@@ -130,7 +131,7 @@ Params.includeChannelNumberInPlots = 0;  % whether to plot channel ID in heatmap
 
 %% Plotting : colormap settings 
 % Network plot colormap bounds 
-Params.use_custom_bounds = 0;
+Params.use_custom_bounds = 1;  % Default value: 0
 Params.use_min_max_all_recording_bounds = 0;
 Params.use_min_max_per_genotype_bounds = 0;
 
