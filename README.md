@@ -4,6 +4,7 @@
 # MEA Network Analysis Pipeline (MEA-NAP)
 
 [**What is MEA-NAP?**](#mea-pipeline)
+| [**Documentation**](https://analysis-pipeline.readthedocs.io/en/latest/)
 | [**Features**](#features)
 | [**Installation**](#installation)
 | [**How to use the pipeline**](#how-to-use-the-pipeline)
@@ -17,12 +18,14 @@ Alterations in synaptic function, and other cellular processes that affect neuro
 
 MEA-NAP is a streamlined diagnostic and analytic tool for cellular-scale network activity data obtained using microelectrode arrays. MEA-NAP provides a straight forward way for new and experienced MATLAB users to quickly compare spike detection methods, neuronal activity (including firing rate and burst detection), and functional connectivity (including network metrics from graph and control theory). MEA-NAP performs batch analysis of an experimental dataset (e.g., MEA recordings from wild-type and knock-out cultures at multiple developmental time points). MEA-NAP produces summary plots and performs statistics on these features and organizes the output figures in a convenient file structure. The user can then identify network-level developmental or genotypic differences in their MEA dataset. The pipeline is written in `MATLAB` and was designed for experimentalists with little or no experience with network analysis.  Experienced users will find the batch analysis and automatic figure generation convenient for examining both individual network and group comparisons. 
 
+## Documentation
+
 Please see our [detailed documentation for MEA-NAP users at our read-the-docs page](https://analysis-pipeline.readthedocs.io/en/latest/).
 
 
 ## Features
 
-![Network pipeline steps](/imgs/MEANAPoverview.png)
+![Network pipeline steps](docs/imgs/MEANAPoverview.png)
 
 Features include implementation of graph theoretical metrics from the Brain Connectivity Toolbox (commonly applied to study networks at the whole brain macro scale) to cellular-scale functional networks from MEA recordings of neuronal cultures or brain slices. The pipeline also includes new network features applied at the cellular-scale including node cartography for classifying nodal roles within the network and effective rank for calculating the number of subcommunities within the cellular-scale networks based on their activity patterns.  New features also include control theoretical metrics to identify nodes that can drive network activity and dimensionality reduction using non-negative matrix factorization to characterize patterns of activity observed in the network.  Expected new features to come include feature selection.
 

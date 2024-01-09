@@ -1,0 +1,354 @@
+<!doctype html>
+<html class="no-js" lang="en" data-content_root="./">
+  <head><meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width,initial-scale=1"/>
+    <meta name="color-scheme" content="light dark"><meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Guide for New Users" href="guide-for-new-users.html" /><link rel="prev" title="Setting up MATLAB" href="setting-up-matlab.html" />
+
+    <!-- Generated with Sphinx 7.2.6 and Furo 2023.09.10 -->
+        <title>Setting up MEA-NAP - MEA pipeline 1.5.1 documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=362ab14a" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?v=135e06be" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster.custom.css" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster.bundle.min.css" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-shadow.min.css" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-punk.min.css" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-noir.min.css" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-light.min.css" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-borderless.min.css" />
+    <link rel="stylesheet" type="text/css" href="_static/css/micromodal.css" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?v=36a5483c" />
+    
+    
+
+
+<style>
+  body {
+    --color-code-background: #f8f8f8;
+  --color-code-foreground: black;
+  
+  }
+  @media not print {
+    body[data-theme="dark"] {
+      --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+    }
+    @media (prefers-color-scheme: dark) {
+      body:not([data-theme="light"]) {
+        --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+      }
+    }
+  }
+</style></head>
+  <body>
+    
+    <script>
+      document.body.dataset.theme = localStorage.getItem("theme") || "auto";
+    </script>
+    
+
+<svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+  <symbol id="svg-toc" viewBox="0 0 24 24">
+    <title>Contents</title>
+    <svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 1024 1024">
+      <path d="M408 442h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8zm-8 204c0 4.4 3.6 8 8 8h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56zm504-486H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zm0 632H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zM115.4 518.9L271.7 642c5.8 4.6 14.4.5 14.4-6.9V388.9c0-7.4-8.5-11.5-14.4-6.9L115.4 505.1a8.74 8.74 0 0 0 0 13.8z"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-menu" viewBox="0 0 24 24">
+    <title>Menu</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-menu">
+      <line x1="3" y1="12" x2="21" y2="12"></line>
+      <line x1="3" y1="6" x2="21" y2="6"></line>
+      <line x1="3" y1="18" x2="21" y2="18"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-arrow-right" viewBox="0 0 24 24">
+    <title>Expand</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-chevron-right">
+      <polyline points="9 18 15 12 9 6"></polyline>
+    </svg>
+  </symbol>
+  <symbol id="svg-sun" viewBox="0 0 24 24">
+    <title>Light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
+      <circle cx="12" cy="12" r="5"></circle>
+      <line x1="12" y1="1" x2="12" y2="3"></line>
+      <line x1="12" y1="21" x2="12" y2="23"></line>
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+      <line x1="1" y1="12" x2="3" y2="12"></line>
+      <line x1="21" y1="12" x2="23" y2="12"></line>
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon" viewBox="0 0 24 24">
+    <title>Dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" />
+    </svg>
+  </symbol>
+  <symbol id="svg-sun-half" viewBox="0 0 24 24">
+    <title>Auto light/dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-shadow">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M13 12h5" />
+      <path d="M13 15h4" />
+      <path d="M13 18h1" />
+      <path d="M13 9h4" />
+      <path d="M13 6h1" />
+    </svg>
+  </symbol>
+</svg>
+
+<input type="checkbox" class="sidebar-toggle" name="__navigation" id="__navigation">
+<input type="checkbox" class="sidebar-toggle" name="__toc" id="__toc">
+<label class="overlay sidebar-overlay" for="__navigation">
+  <div class="visually-hidden">Hide navigation sidebar</div>
+</label>
+<label class="overlay toc-overlay" for="__toc">
+  <div class="visually-hidden">Hide table of contents sidebar</div>
+</label>
+
+
+
+<div class="page">
+  <header class="mobile-header">
+    <div class="header-left">
+      <label class="nav-overlay-icon" for="__navigation">
+        <div class="visually-hidden">Toggle site navigation sidebar</div>
+        <i class="icon"><svg><use href="#svg-menu"></use></svg></i>
+      </label>
+    </div>
+    <div class="header-center">
+      <a href="index.html"><div class="brand">MEA pipeline 1.5.1 documentation</div></a>
+    </div>
+    <div class="header-right">
+      <div class="theme-toggle-container theme-toggle-header">
+        <button class="theme-toggle">
+          <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
+          <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
+          <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+          <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+        </button>
+      </div>
+      <label class="toc-overlay-icon toc-header-icon no-toc" for="__toc">
+        <div class="visually-hidden">Toggle table of contents sidebar</div>
+        <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
+      </label>
+    </div>
+  </header>
+  <aside class="sidebar-drawer">
+    <div class="sidebar-container">
+      
+      <div class="sidebar-sticky"><a class="sidebar-brand" href="index.html">
+  
+  
+  <span class="sidebar-brand-text">MEA pipeline 1.5.1 documentation</span>
+  
+</a><form class="sidebar-search-container" method="get" action="search.html" role="search">
+  <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
+  <input type="hidden" name="check_keywords" value="yes">
+  <input type="hidden" name="area" value="default">
+</form>
+<div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
+  <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="setting-up-matlab.html">Setting up MATLAB</a></li>
+<li class="toctree-l1 current current-page"><a class="current reference internal" href="#">Setting up MEA-NAP</a></li>
+<li class="toctree-l1"><a class="reference internal" href="guide-for-new-users.html">Guide for New Users</a></li>
+<li class="toctree-l1"><a class="reference internal" href="guide-for-advanced-users.html">Guide for Advanced Users</a></li>
+<li class="toctree-l1"><a class="reference internal" href="running-MEANAP-on-HPC.html">Running MEA-NAP on High-Performance Computing (HPC)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="meanap-methods.html">MEA-NAP Methods</a></li>
+<li class="toctree-l1"><a class="reference internal" href="meanap-outputs.html">MEA-NAP Outputs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="system-requirements.html">System Requirements</a></li>
+<li class="toctree-l1"><a class="reference internal" href="frequently-asked-questions.html">Frequently Asked Questions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="how-to-contribute.html">Contributing to the Project</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sources.html">Code Sources</a></li>
+</ul>
+
+</div>
+</div>
+
+      </div>
+      
+    </div>
+  </aside>
+  <div class="main">
+    <div class="content">
+      <div class="article-container">
+        <a href="#" class="back-to-top muted-link">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+            <path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8v12z"></path>
+          </svg>
+          <span>Back to top</span>
+        </a>
+        <div class="content-icon-container">
+          
+<div class="theme-toggle-container theme-toggle-content">
+            <button class="theme-toggle">
+              <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
+              <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
+              <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+              <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+            </button>
+          </div>
+          <label class="toc-overlay-icon toc-content-icon no-toc" for="__toc">
+            <div class="visually-hidden">Toggle table of contents sidebar</div>
+            <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
+          </label>
+        </div>
+        <article role="main">
+          <section id="setting-up-mea-nap">
+<h1>Setting up MEA-NAP<a class="headerlink" href="#setting-up-mea-nap" title="Link to this heading">#</a></h1>
+<ol class="arabic">
+<li><p><strong>Download MEA-NAP folder from GitHub</strong>:</p>
+<ul class="simple">
+<li><p>Navigate to the home page of the MEA-NAP GitHub repository using your web browser.</p></li>
+</ul>
+<a class="reference internal image-reference" href="_images/github_repo.png"><img alt="Screenshot of MEA-NAP GitHub repository home page." class="align-center" src="_images/github_repo.png" style="width: 600px;" /></a>
+<div style="margin-bottom: 20px;"></div><ul class="simple">
+<li><p>Once on the repository page, look for the <strong>green “Code” button</strong>. Click on it to reveal a dropdown menu.</p></li>
+<li><p>In the dropdown menu, select the <strong>“Download ZIP” option.</strong> This will prompt GitHub to compress the latest version of the MEA-NAP repository into a zip folder.</p></li>
+<li><p>Once the zip folder is downloaded, navigate to the location where you saved it and extract its contents.</p></li>
+</ul>
+</li>
+<li><p><strong>Prepare your data for MEA-NAP</strong>:</p>
+<p>The MEA-NAP pipeline is currently optimized for single MEA recordings made on the Multichannel Systems MEA2100 60-channel MEA system and for multi-well plates using the Axion Maestro MEA System. However, these recordings must be converted to <cite>*.mat</cite> files first.</p>
+<ul>
+<li><p><strong>Converting .mcd files acquired from a Multichannel Systems MEA system with MC_Rack to .mat files</strong>:</p>
+<blockquote>
+<div><ol class="arabic simple">
+<li><p>Open MC_DataTool.</p></li>
+<li><p>Select File - Open Multiple.</p></li>
+<li><p>Choose files of interest.</p></li>
+<li><p>Click “bin.”</p></li>
+<li><p>Click “All.”</p></li>
+<li><p>Ensure “Write header” and “Signed 16bit” are checked in the lower right.</p></li>
+<li><p>Click save.</p></li>
+<li><p>When done, click close.</p></li>
+<li><p>Open MATLAB.</p></li>
+<li><p>Add the analysis pipeline code to the path.</p></li>
+<li><p>Navigate in MATLAB to the folder containing the “.mcd” files you want to convert.</p></li>
+<li><p>In the MATLAB command window, type <code class="docutils literal notranslate"><span class="pre">MEAbatchConvert</span></code> and press return to run.</p></li>
+</ol>
+</div></blockquote>
+</li>
+<li><p><strong>Converting .raw files acquired from an Axion Maestro MEA system to .mat files</strong>:</p>
+<blockquote>
+<div><ol class="arabic simple">
+<li><p>Save <cite>.raw</cite> files from MEA Axion Maestro system to one folder.</p></li>
+<li><p>Copy the directory path of the folder containing <cite>.raw</cite> files.</p></li>
+<li><p>Verify that <cite>rawConvert.m</cite> and <cite>fillBatchFile.m</cite> are installed and saved in the same folder as AxIS MATLAB Files.</p></li>
+<li><p>Open <cite>rawConvert.m</cite>.</p></li>
+<li><p>Fill out user parameters in <cite>rawConvert.m</cite> according to instructions provided in <cite>rawConvert.m</cite>.</p></li>
+<li><p>Click run.</p></li>
+<li><p>When <cite>rawConvert.m</cite> has successfully run, open the folder where <cite>.raw</cite> files were initially stored.</p></li>
+<li><p>Navigate through the folder to check that all <cite>.mat</cite> files have been successfully created and saved.</p></li>
+</ol>
+</div></blockquote>
+</li>
+<li><p><strong>Organizing data</strong>:</p></li>
+</ul>
+<dl class="simple">
+<dt>After preparing your data, it is essential to organize the <cite>.mat</cite> files you plan to analyze in a batch. Ensure that all relevant <cite>.mat</cite> files are saved in the same folder. This organized structure is crucial for the MEA-NAP pipeline to seamlessly process and compare the data during the analysis.</dt><dd><ul class="simple">
+<li><p>Keep all the <cite>.mat</cite> files intended for a specific batch analysis in a dedicated folder.</p></li>
+<li><p>Maintain a concise and consistent naming convention for these batch analysis folders.</p></li>
+<li><p>As filenames and group names are included in many plots, it is important to keep the names concise and informative (e.g., NGN2230101_P1_A1_DIV14, where
+NGN2 is the experiment code, 230101 is the date the culture was started, P1_A1 is the plate and well number, and DIV14 is the age).</p></li>
+</ul>
+</dd>
+</dl>
+</li>
+<li><p><strong>Prepare batch analysis CSV file</strong>:</p>
+<ul id="prepare-batch-analysis-csv-file">
+<li><p>Create a <code class="docutils literal notranslate"><span class="pre">*.csv</span></code> or <code class="docutils literal notranslate"><span class="pre">*.xlsx</span></code> file with the following columns:</p>
+<blockquote>
+<div><ol class="arabic simple">
+<li><p><strong>Recording filename</strong>: column containing filenames of the <code class="docutils literal notranslate"><span class="pre">*.mat</span></code> files for analysis, excluding extension (.mat).</p></li>
+<li><p><strong>Age group</strong>: column containing the age (e.g., DIV group) (should be a number for each file).</p></li>
+<li><p><strong>Group</strong>: column containing the group (e.g., genotype such as WT or KO). Important, group names cannot start with a number.</p></li>
+<li><p><strong>Ground</strong>: column containing any electrodes that should be grounded for each file.</p></li>
+</ol>
+</div></blockquote>
+</li>
+</ul>
+<p>Here is an example spreadsheet in CSV format opened in Microsoft Excel.</p>
+<a class="reference internal image-reference" href="_images/example-spreadsheet-input.png"><img alt="_images/example-spreadsheet-input.png" class="align-center" src="_images/example-spreadsheet-input.png" style="width: 500px;" /></a>
+<div style="margin-bottom: 20px;"></div><p><strong>Note:</strong> If you using Axion Maestro MEA data, rawConvert.m will generate a batch analysis csv file for you. However, <strong>you will still need to be modify the columns based on the descriptions above.</strong></p>
+</li>
+</ol>
+<p>Congratulations! With the completion of the data preparation steps outlined above, your data is now ready for analysis using MEA-NAP.</p>
+</section>
+
+        </article>
+      </div>
+      <footer>
+        
+        <div class="related-pages">
+          <a class="next-page" href="guide-for-new-users.html">
+              <div class="page-info">
+                <div class="context">
+                  <span>Next</span>
+                </div>
+                <div class="title">Guide for New Users</div>
+              </div>
+              <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
+            </a>
+          <a class="prev-page" href="setting-up-matlab.html">
+              <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
+              <div class="page-info">
+                <div class="context">
+                  <span>Previous</span>
+                </div>
+                
+                <div class="title">Setting up MATLAB</div>
+                
+              </div>
+            </a>
+        </div>
+        <div class="bottom-of-page">
+          <div class="left-details">
+            <div class="copyright">
+                Copyright &#169; 2022, Timothy Sit, Rachael Feord, Alexander Dunn, Jeremy Chabros, Mierau SB and SAND group members
+            </div>
+            Made with <a href="https://www.sphinx-doc.org/">Sphinx</a> and <a class="muted-link" href="https://pradyunsg.me">@pradyunsg</a>'s
+            
+            <a href="https://github.com/pradyunsg/furo">Furo</a>
+            
+          </div>
+          <div class="right-details">
+            
+          </div>
+        </div>
+        
+      </footer>
+    </div>
+    <aside class="toc-drawer no-toc">
+      
+      
+      
+    </aside>
+  </div>
+</div><script src="_static/jquery.js?v=5d32c60e"></script>
+    <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+    <script src="_static/documentation_options.js?v=44dfd65d"></script>
+    <script src="_static/doctools.js?v=888ff710"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/scripts/furo.js?v=32e29ea5"></script>
+    <script src="_static/js/hoverxref.js"></script>
+    <script src="_static/js/tooltipster.bundle.min.js"></script>
+    <script src="_static/js/micromodal.min.js"></script>
+    <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    </body>
+</html>
