@@ -167,7 +167,7 @@ else
     set(oneFigureHandle, 'Position', p);
 end 
 
-tiledlayout(5,2,'TileSpacing','Compact');
+t = tiledlayout(5,2,'TileSpacing','Compact');
 
 % l iterates through the example traces
 numExampleTraces = 9;
@@ -227,7 +227,7 @@ hL = legend('Filtered voltage trace', methodsl{:});
 newPosition = [0.6 0.12 0.1 0.1];
 newUnits = 'normalized';
 set(hL,'Position', newPosition,'Units', newUnits,'Box','off');
-title({strcat(regexprep(Info.FN{1},'_','','emptymatch')),' '});
+title(t, {strcat(regexprep(Info.FN{1},'_','','emptymatch')),' '});
 
 
 % Export figure
