@@ -532,6 +532,8 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
             fileNameFolder = fullfile(Params.outputDataFolder, strcat('OutputData',Params.Date), ...
                                       '4_NetworkActivity', '4A_IndividualNetworkAnalysis', ...
                                       char(expData.Info.Grp), char(expData.Info.FN));
+            originalCoords = Params.coords{ExN};
+            originalChannels = Params.channels{ExN};
             NetMet = calNodeCartography(expData.adjMs, Params, expData.NetMet, expData.Info, originalCoords, originalChannels, ...
             HomeDir, fileNameFolder, oneFigureHandle);
             % save NetMet now that we have node cartography data as well
@@ -580,24 +582,39 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
     if strcmp(Params.startAnalysisSubStep, 'ALL') || strcmp(Params.startAnalysisSubStep, 'A')
         outputDataDateFolder = fullfile(Params.outputDataFolder, ...
             strcat('OutputData', Params.Date));
-        minMax = findMinMaxNetMetTable(outputDataDateFolder, Params);
+        
+        % Search current analysis folder for csv, if none found, then use
+        % the one from the previously analysed data
+        spreadsheetFname = strcat('NetworkActivity_RecordingLevel', '.csv');
+        if isfile(fullfile(outputDataDateFolder, spreadsheetFname))
+            minMax = findMinMaxNetMetTable(outputDataDateFolder, Params);
+        else
+            minMax = findMinMaxNetMetTable(Params.priorAnalysisPath, Params);
+        end
+        
         minMax.EW = [0.1, 1];
         Params.metricsMinMax = minMax;
         Params.useMinMaxBoundsForPlots = 1;
         Params.sideBySideBoundPlots = 1;
         for ExN = 1:length(ExpName) 
 
-            % Testing: make figure handle per recording 
+            % Make figure handle per recording 
             % Set up one figure handle to save all the figures
             oneFigureHandle = NaN;
             oneFigureHandle = checkOneFigureHandle(Params, oneFigureHandle);
 
             disp(ExpName(ExN))
             % load NetMet 
-            experimentMatFileFolder = fullfile(Params.outputDataFolder, ...
-                strcat('OutputData', Params.Date), 'ExperimentMatFiles');
-            experimentMatFilePath = fullfile(experimentMatFileFolder, ...
-                strcat(char(ExpName(ExN)),'_',Params.Date,'.mat'));
+            if isfile(fullfile(outputDataDateFolder, spreadsheetFname))
+                experimentMatFileFolder = fullfile(Params.outputDataFolder, ...
+                    strcat('OutputData', Params.Date), 'ExperimentMatFiles');
+                experimentMatFilePath = fullfile(experimentMatFileFolder, ...
+                    strcat(char(ExpName(ExN)),'_',Params.Date,'.mat'));
+            else
+                experimentMatFileFolder = fullfile(Params.priorAnalysisPath, 'ExperimentMatFiles');
+                ExpFPathSearchName = dir(fullfile(experimentMatFileFolder, [char(ExpName(ExN)), '*.mat'])).name;
+                experimentMatFilePath = fullfile(experimentMatFileFolder, ExpFPathSearchName);
+            end
 
             expData = load(experimentMatFilePath);
             idvNetworkAnalysisGrpFolder = fullfile(Params.outputDataFolder, ...
@@ -634,8 +651,13 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
         % 4A Part 2: NMF individual plot
         if Params.includeNMFcomponents
             % Plot NMF 
-            experimentMatFolder = fullfile(Params.outputDataFolder, ...
-                strcat('OutputData',Params.Date), 'ExperimentMatFiles');
+            if isfile(fullfile(outputDataDateFolder, spreadsheetFname))
+                experimentMatFolder = fullfile(Params.outputDataFolder, ...
+                    strcat('OutputData', Params.Date), 'ExperimentMatFiles');
+            else
+                experimentMatFolder = fullfile(Params.priorAnalysisPath, 'ExperimentMatFiles');
+            end
+            
             plotSaveFolder = fullfile(Params.outputDataFolder, ...
                 strcat('OutputData',Params.Date), '4_NetworkActivity', ...
                 '4A_IndividualNetworkAnalysis');
@@ -704,7 +726,9 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
                 % TODO: remove the analysis step in the function, already
                 % dealt with earlier
                 NetMet = plotNodeCartography(expData.adjMs, Params, expData.NetMet, expData.Info, originalCoords, originalChannels, ...
-                    HomeDir, fileNameFolder, oneFigureHandle);
+                      HomeDir, fileNameFolder, oneFigureHandle);
+                % plotNodeCartographyProportions(expData.NetMet, Params.FuncConLagval, char(expData.Info.FN), ...
+                % Params, fileNameFolder, oneFigureHandle)
                 % save NetMet now that we have node cartography data as well
                 experimentMatFileFolderToSaveTo = fullfile(Params.outputDataFolder, strcat('OutputData', Params.Date), 'ExperimentMatFiles');
                 experimentMatFilePathToSaveTo = fullfile(experimentMatFileFolderToSaveTo, strcat(char(expData.Info.FN),'_',Params.Date,'.mat'));
@@ -945,7 +969,6 @@ if any(strcmp(Params.optionalStepsToRun,'comparePrePostTTX'))
     
     find_best_spike_result(spike_folder, pre_post_ttx_plot_folder, Params)
 end 
-
 
 
 
