@@ -131,7 +131,7 @@ Params.includeChannelNumberInPlots = 0;  % whether to plot channel ID in heatmap
 
 %% Plotting : colormap settings 
 % Network plot colormap bounds 
-Params.use_custom_bounds = 1;  % Default value: 0
+Params.use_custom_bounds = 0;  % Default value: 0
 Params.use_min_max_all_recording_bounds = 0;
 Params.use_min_max_per_genotype_bounds = 0;
 
