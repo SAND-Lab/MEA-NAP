@@ -199,7 +199,7 @@ rawData = Params.rawData;
 detectSpikes = Params.detectSpikes;
 Params.output_spreadsheet_file_type = 'csv';
 
-%% Some stuff that were dealt with previously in biAdvancedSettings 
+%% Some stuff that were dealt with previously in AdvancedSettings 
 if any(isnan(Params.outputDataFolder)) || isempty(Params.outputDataFolder)
     Params.outputDataFolder = HomeDir;
 end 
