@@ -103,7 +103,7 @@ Options to start the pipeline at different steps
      - If you would like to start running the pipeline at a later step than spike detection (step 1) using the prior data, change to the corresponding number. See Section 3.1 for an overview of pipeline functions. If ``Params.priorAnalysis=0``, the default is to start with spike detection. N.B. Steps 2-4 all require spike detection to run. Step 4 requires Step 3. Step 5 requires step 4. 
    * - 31
      - Params.optionalStepsToRun 
-     - If you have completed steps 1 -4 of the pipeline, use this step to run optional downstream steps of the pipeline. You can set this setting equal to 'runStats' to perform statistical analysis that looks at feature correlations and classification across groups. You can also set it equal to 'combineDIVplots' to combine plots across DIVs. 
+     - If you have completed steps 1-4 of the pipeline, use this step to run optional downstream steps of the pipeline. You can set this setting equal to 'runStats' to perform statistical analysis that looks at feature correlations and classification across groups. You can also set it equal to 'combineDIVplots' to combine plots across DIVs. 
 
 Spike detection settings (lines 13 - 95)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -130,6 +130,9 @@ Spike detection settings (lines 13 - 95)
    * - 43
      - Params.thresholds
      - Choose one or more standard deviations (SD) if running threshold-based spike detection. This method identifies negative voltage deflections that exceed the threshold set based on the SD of the mean voltage signal. This method is fast. It works well for electrodes with a high signal-to-noise ratio and for recordings with similar firing rates. Threshold-based methods can underestimate spikes in electrodes with high firing rates and are susceptible to
+   * - 46 
+     - Params.SpikesMethod 
+     - Choose spike detection method to use for steps 2-4 of the pipeline (e.g., 'bior1p5', or 'mergedAll', or 'mergedWavelet').
 
 Functional connectivity settings
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

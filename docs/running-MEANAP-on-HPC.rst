@@ -219,8 +219,8 @@ There are **3 ways** to upload mat files:
      # Run MATLAB script
      matlab -nodisplay -nosplash -r "run('MEApipeline.m'); exit;"
 
-  ``/remote/directory``: path of the MEA-NAP directory on your remote server (:ref:`see step 2 above <HPC_step2>`)
-  ``module_name``: name of the MATLAB or R module that you chose
+  - ``/remote/directory``: path of the MEA-NAP directory on your remote server (:ref:`see step 2 above <HPC_step2>`)
+  - ``module_name``: name of the MATLAB or R module that you chose
 
 - Line Overview
     - ``cd /remote/directory`` allows your remote server to easily access files necessary for running MEApipeline.m **(required)**

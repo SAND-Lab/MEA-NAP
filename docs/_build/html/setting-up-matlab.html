@@ -142,7 +142,7 @@
           <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
         </button>
       </div>
-      <label class="toc-overlay-icon toc-header-icon no-toc" for="__toc">
+      <label class="toc-overlay-icon toc-header-icon" for="__toc">
         <div class="visually-hidden">Toggle table of contents sidebar</div>
         <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
       </label>
@@ -203,7 +203,7 @@
               <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
             </button>
           </div>
-          <label class="toc-overlay-icon toc-content-icon no-toc" for="__toc">
+          <label class="toc-overlay-icon toc-content-icon" for="__toc">
             <div class="visually-hidden">Toggle table of contents sidebar</div>
             <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
           </label>
@@ -212,14 +212,15 @@
           <section id="setting-up-matlab">
 <h1>Setting up MATLAB<a class="headerlink" href="#setting-up-matlab" title="Link to this heading">#</a></h1>
 <p>This page is for <strong>users who do not already have MATLAB or the required toolboxes installed</strong>. This guide will walk you through the process of setting up MATLAB and downloading toolboxes required for our pipeline as add-ons.</p>
-<ol class="arabic">
-<li><p><strong>Create a Free Mathworks Account</strong>:</p>
+<section id="create-a-free-mathworks-account">
+<h2>1. Create a Free Mathworks Account:<a class="headerlink" href="#create-a-free-mathworks-account" title="Link to this heading">#</a></h2>
 <ul class="simple">
 <li><p>You will need a free Mathworks account to conveniently install MATLAB toolboxes that MEA-NAP requires.</p></li>
 <li><p>If you do not currently have a Mathworks account, go to the [MathWorks website](<a class="reference external" href="https://www.mathworks.com/">https://www.mathworks.com/</a>) and create one.</p></li>
 </ul>
-</li>
-<li><p><strong>Download MATLAB</strong>:</p>
+</section>
+<section id="download-matlab">
+<h2>2. Download MATLAB:<a class="headerlink" href="#download-matlab" title="Link to this heading">#</a></h2>
 <ul class="simple">
 <li><dl class="simple">
 <dt>For people using institutional licenses:</dt><dd><ul>
@@ -237,8 +238,9 @@
 </dl>
 </li>
 </ul>
-</li>
-<li><p><strong>Launch MATLAB</strong>:</p>
+</section>
+<section id="launch-matlab">
+<h2>3. Launch MATLAB:<a class="headerlink" href="#launch-matlab" title="Link to this heading">#</a></h2>
 <ul class="simple">
 <li><p>Once MATLAB is installed, launch the application.</p></li>
 <li><dl class="simple">
@@ -249,46 +251,51 @@
 </dl>
 </li>
 </ul>
-</li>
-<li><p><strong>Access the Add-Ons Menu</strong>:</p>
+</section>
+<section id="access-the-add-ons-menu">
+<h2>4. Access the Add-Ons Menu:<a class="headerlink" href="#access-the-add-ons-menu" title="Link to this heading">#</a></h2>
 <ul class="simple">
 <li><p>Click on the <strong>Home</strong> tab in MATLAB to access the main menu.</p></li>
 <li><p>Locate and click on the <strong>Add-Ons</strong> dropdown menu.</p></li>
 </ul>
 <a class="reference internal image-reference" href="_images/matlab_home_menu.png"><img alt="Home tab in MATLAB. Includes Add-Ons dropdown menu on **far right**." class="align-center" src="_images/matlab_home_menu.png" style="width: 800px;" /></a>
-<div style="margin-bottom: 20px;"></div></li>
-<li><p><strong>Browse Available Add-Ons</strong>:</p>
+<div style="margin-bottom: 20px;"></div></section>
+<section id="browse-available-add-ons">
+<h2>5. Browse Available Add-Ons:<a class="headerlink" href="#browse-available-add-ons" title="Link to this heading">#</a></h2>
 <a class="reference internal image-reference" href="_images/matlab_addon_dropdown_menu.png"><img alt="Add-ons dropdown menu" class="align-center" src="_images/matlab_addon_dropdown_menu.png" style="width: 200px;" /></a>
 <div style="margin-bottom: 20px;"></div><ul class="simple">
 <li><p>In the <strong>Add-Ons</strong> menu, you will find options to browse, install, and manage add-ons.</p></li>
 <li><p>Click <strong>Get Add-Ons</strong> to access the MATLAB Add-On Explorer.</p></li>
 </ul>
-</li>
-<li><p><strong>Search for and Install Toolboxes</strong>:</p>
-<ul class="simple">
+</section>
+<section id="search-for-and-install-toolboxes">
+<h2>6. Search for and Install Toolboxes:<a class="headerlink" href="#search-for-and-install-toolboxes" title="Link to this heading">#</a></h2>
+<ul>
 <li><p>In the Add-On Explorer, you can search for specific toolboxes by entering keywords or browse the available categories.</p></li>
 <li><p>Search for and install the following toolboxes:</p>
-<ul>
+<blockquote>
+<div><ul class="simple">
 <li><p>Signal Processing Toolbox</p></li>
 <li><p>Statistics and Machine Learning Toolbox</p></li>
 <li><p>Parallel Computing Toolbox</p></li>
 <li><p>Curve Fitting Toolbox (for the calcium imaging pipeline)</p></li>
 </ul>
+</div></blockquote>
 </li>
 <li><p>You will also need the Brain Connectivity Toolbox, which cannot be installed through the Add-On Explorer:</p>
-<ul>
+<ul class="simple">
 <li><p>This toolbox is found in the <strong>MEA-NAP folder that you will download during step 1 of “Setting Up MEA-NAP”</strong></p></li>
 </ul>
 </li>
 </ul>
-</li>
-<li><p><strong>Access Installed Toolboxes</strong>:</p>
+</section>
+<section id="access-installed-toolboxes">
+<h2>7. Access Installed Toolboxes:<a class="headerlink" href="#access-installed-toolboxes" title="Link to this heading">#</a></h2>
 <ul class="simple">
 <li><p>Once the installation is complete, you can access the newly installed toolbox functions in your MATLAB environment.</p></li>
 </ul>
-</li>
-</ol>
 <p>Congratulations! You have successfully set up MATLAB and downloaded the required toolboxes to extend MATLAB’s functionality. Proceed to <strong>“Setting up MEA-NAP”</strong>.</p>
+</section>
 </section>
 
         </article>
@@ -334,8 +341,33 @@
         
       </footer>
     </div>
-    <aside class="toc-drawer no-toc">
+    <aside class="toc-drawer">
       
+      
+      <div class="toc-sticky toc-scroll">
+        <div class="toc-title-container">
+          <span class="toc-title">
+            On this page
+          </span>
+        </div>
+        <div class="toc-tree-container">
+          <div class="toc-tree">
+            <ul>
+<li><a class="reference internal" href="#">Setting up MATLAB</a><ul>
+<li><a class="reference internal" href="#create-a-free-mathworks-account">1. Create a Free Mathworks Account:</a></li>
+<li><a class="reference internal" href="#download-matlab">2. Download MATLAB:</a></li>
+<li><a class="reference internal" href="#launch-matlab">3. Launch MATLAB:</a></li>
+<li><a class="reference internal" href="#access-the-add-ons-menu">4. Access the Add-Ons Menu:</a></li>
+<li><a class="reference internal" href="#browse-available-add-ons">5. Browse Available Add-Ons:</a></li>
+<li><a class="reference internal" href="#search-for-and-install-toolboxes">6. Search for and Install Toolboxes:</a></li>
+<li><a class="reference internal" href="#access-installed-toolboxes">7. Access Installed Toolboxes:</a></li>
+</ul>
+</li>
+</ul>
+
+          </div>
+        </div>
+      </div>
       
       
     </aside>

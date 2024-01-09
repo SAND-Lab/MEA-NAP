@@ -12,7 +12,7 @@ restoredefaultpath
 % Directories
 HomeDir = '[INPUT_REQUIRED]'; % Where the MEA-NAP (MEA Network Analysis Pipeline) code is located
 Params.outputDataFolder = '';   % Where to save the output data, leave as '' if same as HomeDir 
-rawData = '[INPUT REQUIRED]';  % path to raw data .mat files
+rawData = '[INPUT_REQUIRED]';  % path to raw data .mat files
 Params.priorAnalysisPath = [''];  % path to prev analysis, leave as [''] if no prior anlaysis
 spikeDetectedData = ''; % path to spike-detected data, leave as '' if no previously detected spike data
 
@@ -40,7 +40,7 @@ Params.fs = 25000; % Sampling frequency you selected when acquiring data, e.g., 
 Params.dSampF = 25000; % down sampling factor for spike detection check, e.g., can set the same as the sampling frequency
 Params.potentialDifferenceUnit = 'uV';  % Unit for voltage signal, e.g., MCS: uV, Axion: V 
 Params.channelLayout = 'MCS60';  % 'MCS60' (for MEA2100), 'Axion64' (for 6-well plates), or 'MCS60old' (for MEA6100)
-Params.thresholds = {'4', '5'}; % standard deviation multiplier threshold(s), eg. {'2.5', '3.5', '4.5'}
+Params.thresholds = {'3', '4', '5'}; % standard deviation multiplier threshold(s), eg. {'2.5', '3.5', '4.5'}
 Params.wnameList = {'bior1.5', 'bior1.3', 'db2'}; % wavelet methods to use e.g., {'bior1.5', 'bior1.3', 'mea'}; 
 Params.costList = -0.12;
 Params.SpikesMethod = 'bior1p5';  % wavelet methods, e.g., 'bior1p5', or 'mergedAll', or 'mergedWavelet'

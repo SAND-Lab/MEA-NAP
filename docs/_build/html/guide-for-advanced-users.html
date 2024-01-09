@@ -341,7 +341,7 @@ Without the interactive GUI Mode (found under ‘Guide for New Users’), you wi
 </tr>
 <tr class="row-even"><td><p>31</p></td>
 <td><p>Params.optionalStepsToRun</p></td>
-<td><p>If you have completed steps 1 -4 of the pipeline, use this step to run optional downstream steps of the pipeline. You can set this setting equal to ‘runStats’ to perform statistical analysis that looks at feature correlations and classification across groups. You can also set it equal to ‘combineDIVplots’ to combine plots across DIVs.</p></td>
+<td><p>If you have completed steps 1-4 of the pipeline, use this step to run optional downstream steps of the pipeline. You can set this setting equal to ‘runStats’ to perform statistical analysis that looks at feature correlations and classification across groups. You can also set it equal to ‘combineDIVplots’ to combine plots across DIVs.</p></td>
 </tr>
 </tbody>
 </table>
@@ -382,6 +382,10 @@ Without the interactive GUI Mode (found under ‘Guide for New Users’), you wi
 <tr class="row-even"><td><p>43</p></td>
 <td><p>Params.thresholds</p></td>
 <td><p>Choose one or more standard deviations (SD) if running threshold-based spike detection. This method identifies negative voltage deflections that exceed the threshold set based on the SD of the mean voltage signal. This method is fast. It works well for electrodes with a high signal-to-noise ratio and for recordings with similar firing rates. Threshold-based methods can underestimate spikes in electrodes with high firing rates and are susceptible to</p></td>
+</tr>
+<tr class="row-odd"><td><p>46</p></td>
+<td><p>Params.SpikesMethod</p></td>
+<td><p>Choose spike detection method to use for steps 2-4 of the pipeline (e.g., ‘bior1p5’, or ‘mergedAll’, or ‘mergedWavelet’).</p></td>
 </tr>
 </tbody>
 </table>
