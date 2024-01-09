@@ -188,54 +188,6 @@ for i = 1:length(ExpName)
 end
 
 
-%% export to excel / csv
-% TODO: export to csv as well
-
-outputDataDateFolder = fullfile(Params.outputDataFolder, ...
-        strcat('OutputData',Params.Date));
-
-% network means
-for g = 1:length(Grps)
-    eGrp = cell2mat(Grps(g));
-    for d = 1:length(AgeDiv)
-        eDiv = strcat('TP',num2str(d));
-        VNe = strcat(eGrp,'.',eDiv);
-        VNet = strcat('TempStr.',eDiv);
-        for e = 1:length(NetMetricsE)
-            eval([VNet '.' char(NetMetricsE(e)) '=' VNe '.' char(NetMetricsE(e)) ';']);
-        end
-        eval(['DatTemp = ' VNet ';']);
-        spreadsheetFname = strcat('NeuronalActivity_RecordingLevel_',eGrp,'.xlsx');
-        spreadsheetFpath = fullfile(outputDataDateFolder, spreadsheetFname);
-        writetable(struct2table(DatTemp), spreadsheetFpath, ...
-            'FileType','spreadsheet','Sheet',strcat('Age',num2str(AgeDiv(d))));
-    end
-end
-
-clear DatTemp TempStr
-
-% electrode specific
-for g = 1:length(Grps)
-    eGrp = cell2mat(Grps(g));
-    for d = 1:length(AgeDiv)
-        eDiv = strcat('TP',num2str(d));
-        VNe = strcat(eGrp,'.',eDiv);
-        VNet = strcat('TempStr.',eDiv);
-        for e = 1:length(NetMetricsC)
-            eval([VNet '.' char(NetMetricsC(e)) '=' VNe '.' char(NetMetricsC(e)) ';']);
-        end
-        eval(['DatTemp = ' VNet ';']);
-
-        spreadsheetFname = strcat('NeuronalActivity_NodeLevel_',eGrp,'.xlsx');
-        spreadsheetFpath = fullfile(outputDataDateFolder, spreadsheetFname);
-        writetable(struct2table(DatTemp), spreadsheetFpath, ... 
-            'FileType','spreadsheet','Sheet',strcat('Age',num2str(AgeDiv(d))));
-    end
-end
-
-clear DatTemp TempStr
-
-
 %% notBoxPlots - plots by group
 
 notBoxPlotByGroupFolder = fullfile(Params.outputDataFolder, strcat('OutputData',Params.Date), ...
