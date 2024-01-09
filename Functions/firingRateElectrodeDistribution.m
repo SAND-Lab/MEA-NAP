@@ -43,7 +43,7 @@ max_ephys_fr = max([max_ephys_fr, 0.1]);  % ensures a minimum of 0.1
 ylim([0 max_ephys_fr+max_ephys_fr*0.15])
 
 %% save the figure
-figName = 'FiringRateByElectrode';
+figName = '1_FiringRateByElectrode';
 figPath = fullfile(figFolder, figName);
 
 if Params.showOneFig
