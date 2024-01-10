@@ -94,7 +94,7 @@ formatOut = 'ddmmmyyyy';
 Params.Date = datestr(now,formatOut); 
 clear formatOut
 
-biAdvancedSettings
+AdvancedSettings
 
 if Params.runSpikeCheckOnPrevSpikeData
     fprintf(['You specified to run spike detection check on previously extracted spikes, \n', ... 

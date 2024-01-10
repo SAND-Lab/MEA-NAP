@@ -3,7 +3,7 @@ Setting up MATLAB
 
 This page is for **users who do not already have MATLAB or the required toolboxes installed**. This guide will walk you through the process of setting up MATLAB and downloading toolboxes required for our pipeline as add-ons. 
 
-1. Create a Free Mathworks Account:
+1. Create a free Mathworks account:
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 - You will need a free Mathworks account to conveniently install MATLAB toolboxes that MEA-NAP requires.
@@ -28,7 +28,7 @@ This page is for **users who do not already have MATLAB or the required toolboxe
 - If you are launching MATLAB for the first time, you will encounter the following 
    - Activation and License Agreement: MATLAB will prompt you to activate your license or provide a license file if you have not already done so. You'll need a valid license to use MATLAB. You will also need to accept the MathWorks License Agreement.
 
-4. Access the Add-Ons Menu:
+4. Access the add-ons menu:
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 - Click on the **Home** tab in MATLAB to access the main menu.
@@ -44,7 +44,7 @@ This page is for **users who do not already have MATLAB or the required toolboxe
    <div style="margin-bottom: 20px;"></div>
 
 
-5. Browse Available Add-Ons:
+5. Browse available add-ons:
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. image:: imgs/matlab_addon_dropdown_menu.png
@@ -59,7 +59,7 @@ This page is for **users who do not already have MATLAB or the required toolboxe
 - In the **Add-Ons** menu, you will find options to browse, install, and manage add-ons.
 - Click **Get Add-Ons** to access the MATLAB Add-On Explorer.
 
-6. Search for and Install Toolboxes:
+6. Search for and install toolboxes:
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 - In the Add-On Explorer, you can search for specific toolboxes by entering keywords or browse the available categories.
@@ -76,7 +76,7 @@ This page is for **users who do not already have MATLAB or the required toolboxe
 
   - This toolbox is found in the **MEA-NAP folder that you will download during step 1 of "Setting Up MEA-NAP"**
 
-7. Access Installed Toolboxes:
+7. Access installed toolboxes:
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 - Once the installation is complete, you can access the newly installed toolbox functions in your MATLAB environment.
