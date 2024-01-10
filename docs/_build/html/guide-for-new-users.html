@@ -6,7 +6,7 @@
 <link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Guide for Advanced Users" href="guide-for-advanced-users.html" /><link rel="prev" title="Setting up MEA-NAP" href="setting-up-meanap.html" />
 
     <!-- Generated with Sphinx 7.2.6 and Furo 2023.09.10 -->
-        <title>Guide for New Users - MEA pipeline 1.5.1 documentation</title>
+        <title>Guide for New Users - MEA-NAP 1.5.1 documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=362ab14a" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?v=135e06be" />
     <link rel="stylesheet" type="text/css" href="_static/css/tooltipster.custom.css" />
@@ -131,7 +131,7 @@
       </label>
     </div>
     <div class="header-center">
-      <a href="index.html"><div class="brand">MEA pipeline 1.5.1 documentation</div></a>
+      <a href="index.html"><div class="brand">MEA-NAP 1.5.1 documentation</div></a>
     </div>
     <div class="header-right">
       <div class="theme-toggle-container theme-toggle-header">
@@ -154,7 +154,7 @@
       <div class="sidebar-sticky"><a class="sidebar-brand" href="index.html">
   
   
-  <span class="sidebar-brand-text">MEA pipeline 1.5.1 documentation</span>
+  <span class="sidebar-brand-text">MEA-NAP 1.5.1 documentation</span>
   
 </a><form class="sidebar-search-container" method="get" action="search.html" role="search">
   <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
@@ -231,10 +231,10 @@ This mode simplifies the process of selecting directory paths and adjusting para
 <section id="starting-mea-nap">
 <h2>Starting MEA-NAP<a class="headerlink" href="#starting-mea-nap" title="Link to this heading">#</a></h2>
 <ul class="simple">
+<li><p>Open MATLAB</p></li>
 <li><p>Open MEApipeline.m</p></li>
-<li><p>Set <strong>Params.guiMode = 1</strong> (line 76 of MEApipeline.m)</p></li>
 </ul>
-<a class="reference internal image-reference" href="_images/param_gui.png"><img alt="_images/param_gui.png" class="align-center" src="_images/param_gui.png" style="width: 400px;" /></a>
+<a class="reference internal image-reference" href="_images/MEApipeline.png"><img alt="_images/MEApipeline.png" class="align-center" src="_images/MEApipeline.png" style="width: 700px;" /></a>
 <ul class="simple">
 <li><p>Start GUI by clicking green “Run” button in “Editor” submenu at the top of your screen</p></li>
 </ul>
@@ -242,70 +242,76 @@ This mode simplifies the process of selecting directory paths and adjusting para
 </section>
 <section id="user-input-for-gui">
 <h2>User input for GUI<a class="headerlink" href="#user-input-for-gui" title="Link to this heading">#</a></h2>
-<div style="margin-bottom: 20px;"></div><section id="general-mea-nap-parameters">
-<h3>1. General MEA-NAP Parameters<a class="headerlink" href="#general-mea-nap-parameters" title="Link to this heading">#</a></h3>
-<a class="reference internal image-reference" href="_images/general_gui.png"><img alt="_images/general_gui.png" class="align-center" src="_images/general_gui.png" style="width: 500px;" /></a>
-<div style="margin-bottom: 20px;"></div><p>Required parameters</p>
-<ul class="simple">
-<li><p><strong>MEA-NAP Folder</strong>: Location of the MEA-NAP folder with the AnalysisPipeline scripts (Best not to save in Program Files)</p></li>
-<li><p><strong>Optional Steps to Run</strong>: Optional step to run downstream required steps of the pipeline (steps 1-4)</p></li>
-<li><p><strong>Output Data Folder</strong>: Location of the folder where your output data will be saved</p></li>
-<li><p><strong>Raw Data Folder</strong>: Location of the folder with the raw data .mat files</p></li>
-<li><p><strong>Spreadsheet filename</strong>: Input file with a list of recordings with their age and genotype</p></li>
-<li><p><strong>Spreadsheet Range</strong>: Range (<code class="docutils literal notranslate"><span class="pre">[StartRow</span> <span class="pre">EndRow]</span></code>)of CSV file to read data from (e.g. <code class="docutils literal notranslate"><span class="pre">[2</span> <span class="pre">Inf]</span></code> would start reading data from row 2)</p></li>
-<li><p><strong>Start Analysis Step</strong>: Step of MEA-NAP that you would to start running from. Steps 2-4 all require spike detection (step 1) to run. Step 4 requires Step 3. Step 5 requires step 4.</p></li>
-</ul>
-<p>Optional parameters (if previous analysis has been performed)</p>
-<ul class="simple">
-<li><p><strong>Previous Analysis Date</strong>: Prior analysis date in format given in output data folder e.g., ‘27Sep2021’</p></li>
+<div style="margin-bottom: 20px;"></div><section id="general-parameters">
+<h3>1. General parameters<a class="headerlink" href="#general-parameters" title="Link to this heading">#</a></h3>
+<a class="reference internal image-reference" href="_images/general_gui.png"><img alt="_images/general_gui.png" class="align-center" src="_images/general_gui.png" style="width: 350px;" /></a>
+<div style="margin-bottom: 20px;"></div><ul class="simple">
+<li><p><strong>MEA-NAP Folder:</strong> Location of the MEA-NAP folder you downloaded from our Github page.  Please move the note about recommend save in Documents Folder and not in Program Files to the Setting up MEA-NAP page.</p></li>
+<li><p><strong>Raw Data Folder:</strong> Location of the folder with your data.  All of the recordings that you want to analyze in one experiment should be in the same folder and should be raw or filtered MEA data in .mat format (see Setup MEA-NAP if you have not converted your files to .mat).</p></li>
+<li><p><strong>Output Data Folder:</strong> Location of the folder where the figures and analysis files will be saved.</p></li>
+<li><p><strong>Spreadsheet Filename:</strong> Your .csv file with the list of recording filenames you want analyzed, age and group (e.g., genotype).</p></li>
+<li><p><strong>Spreadsheet Range:</strong> Range (<code class="docutils literal notranslate"><span class="pre">[StartRow</span> <span class="pre">EndRow]</span></code>)of CSV file to read data from (e.g. <code class="docutils literal notranslate"><span class="pre">[2</span> <span class="pre">Inf]</span></code> would start reading data from row 2)</p></li>
+<li><p><strong>Start Analysis Step:</strong> MEA-NAP can be run starting at different steps using prior analysis.  Input should be a number.  1 - Spike Detection, 2 - Neuronal Activity (firing rate and burst properties), 3 - Functional Connectivity, 4 - Network Activity, 5 - Statistical comparisons.  Steps 2-5 require prior spike detection.  Steps 4-5 require step 3.</p></li>
+<li><p><strong>Optional Steps to Run:</strong> Optional step(s) to run downstream required steps of the pipeline (steps 1-4)</p></li>
+<li><p><strong>Previous Analysis Date:</strong> MEA-NAP output folders are name <code class="docutils literal notranslate"><span class="pre">OutputDataDDMonYYYY</span></code> (e.g., <code class="docutils literal notranslate"><span class="pre">27Sep2022</span></code>). If using prior analysis from MEA-NAP, enter date in this format.</p></li>
 <li><p><strong>Previous Analysis Folder</strong>: Location of the previous output folder generated by MEA-NAP</p></li>
-<li><p><strong>Spike Data Folder</strong>: Location of the folder containing spike .mat files generated during spike detection (step 1)</p></li>
+<li><p><strong>Spike Data Folder:</strong> Location of the folder containing spike .mat files generated during spike detection by MEA-NAP.  This folder is labeled Step 1A.</p></li>
 </ul>
 <div style="margin-bottom: 20px;"></div></section>
 <section id="spike-detection-parameters">
-<h3>2. Spike Detection Parameters<a class="headerlink" href="#spike-detection-parameters" title="Link to this heading">#</a></h3>
-<a class="reference internal image-reference" href="_images/spike_detection_gui.png"><img alt="_images/spike_detection_gui.png" class="align-center" src="_images/spike_detection_gui.png" style="width: 500px;" /></a>
+<h3>2. Spike detection parameters<a class="headerlink" href="#spike-detection-parameters" title="Link to this heading">#</a></h3>
+<a class="reference internal image-reference" href="_images/spike_detection_gui.png"><img alt="_images/spike_detection_gui.png" class="align-center" src="_images/spike_detection_gui.png" style="width: 350px;" /></a>
 <div style="margin-bottom: 20px;"></div><ul class="simple">
-<li><p><strong>Channel Layout</strong>: MCS60 (for MEA2100), Axion64 (for 6-well plates), or MCS60old (for MEA6100)</p></li>
-<li><p><strong>Down Sample Frequency</strong>: Downsampling factor for your recording. Its value should match the sampling frequency.</p></li>
-<li><p><strong>Potential Difference Unit</strong>: Unit for voltage signal (e.g., MCS: uV, Axion: V)</p></li>
-<li><p><strong>Sampling Frequency</strong>: Sampling frequency of your recording</p></li>
-<li><p><strong>Spike Method for Analysis</strong>: Spike detection method to use for steps 2-4 of the pipeline</p></li>
-<li><p><strong>Thresholds</strong>: Standard deviation multiplier threshold(s) to use for threshold-based spike detection (e.g., <code class="docutils literal notranslate"><span class="pre">[3,</span> <span class="pre">4,</span> <span class="pre">5]</span></code>)</p></li>
-<li><p><strong>Wavelet Cost</strong>: false positive / false negative tradeoff for wavelet spike detection. Value must be between -2 to 2</p></li>
-<li><p><strong>Wavelets</strong>: Wavelet methods to use for wavelet-based spike detection</p></li>
+<li><p><strong>Detect Spikes:</strong> Check if starting at Step 1 with Spike Detection or running spike detection checks on previous spike detection.  Uncheck if using prior spike detection</p></li>
+<li><p><strong>Sampling frequency:</strong> This is the acquisition rate (in hertz) used when you collected your data.  For example, with our MCS MEA systems, we collect data at 25000 Hz. For the Axion MEA system, we collect data at 12500 Hz.</p></li>
+<li><p><strong>Down Sample Frequency:</strong> Down-sampling factor for plotting spike detection checks in Step 1B. For most analyses, no down sampling is necessary. Thus, set this to be equal the Sampling Frequency.</p></li>
+<li><p><strong>Potential Difference Unit:</strong> Unit for voltage signal.  Enter V for volts or uV for microvolts.  Our MCS MEA systems record the data in uV.  Our Axion MEA system records the data in V.</p></li>
+<li><p><strong>Channel Layout:</strong> MCS60 (for MEA2100, 60-electrode MEA chip), Axion64 (for 6-well plates), or MCS60old (for MEA1600, 60-electrode MEA chip)</p></li>
+<li><p><strong>Thresholds:</strong> Mean absolute deviation multiplier threshold(s) to use for threshold-based spike detection (e.g., <code class="docutils literal notranslate"><span class="pre">[3,</span> <span class="pre">4,</span> <span class="pre">5]</span></code>)</p></li>
+<li><p><strong>Wavelets:</strong> For template-based spike detection, select one or more wavelets (e.g., bior1.5, bior1.3, db2) for continuous wavelet transform or swtteo for stationary wavelet transform method.  Bior1.5 works well for most neuronal data.</p></li>
+<li><p><strong>Wavelet Cost:</strong> The false positive / false negative tradeoff for template-based spike detection.   Value must be between -2 to 2.  Recommend starting with -0.12.</p></li>
+<li><p><strong>Spike Method for Analysis:</strong> Select spike detection method(s) to use for Steps 2-4.  To use one threshold, enter “thr” followed by the number entered in Threshold.  To use one wavelet, enter wavelet name substituting p for a period (e.g., bior1p5).  For multi-unit spike detection, enter mergedAll to combine spike detection from all methods selected (thresholds and wavelets) or mergedWavelet to combine spike detection from all the wavelets selected for template-based spike detection.</p></li>
+<li><p><strong>Run spike check on previous spike data:</strong> If starting with Step 1B, check this box to create the spike detection check plots on previously analyzed data.</p></li>
 </ul>
 </section>
 <section id="connectivity-parameters">
-<h3>3. Connectivity Parameters<a class="headerlink" href="#connectivity-parameters" title="Link to this heading">#</a></h3>
-<a class="reference internal image-reference" href="_images/connectivity_gui.png"><img alt="_images/connectivity_gui.png" class="align-center" src="_images/connectivity_gui.png" style="width: 500px;" /></a>
+<h3>3. Connectivity parameters<a class="headerlink" href="#connectivity-parameters" title="Link to this heading">#</a></h3>
+<a class="reference internal image-reference" href="_images/connectivity_gui.png"><img alt="_images/connectivity_gui.png" class="align-center" src="_images/connectivity_gui.png" style="width: 350px;" /></a>
 <div style="margin-bottom: 20px;"></div><ul class="simple">
-<li><p><strong>Adjacency matrix type</strong>: Type of adjacency matrix to obtain during functional connectivity analysis</p></li>
-<li><p><strong>Node cartography lag values</strong>: List of lag values (in ms) for functional connectivity analysis. Default is [10, 15, 25].</p></li>
-<li><p><strong>Prob. thresholding iterations</strong>: Number of repeats for probabilistic thresholding</p></li>
-<li><p><strong>Prob. thresholding num checks</strong>: Number of random checks to plot during proabilistic thresholding</p></li>
-<li><p><strong>Prob. thresholding tail</strong>: Probabilistic thresholding percentile threshold</p></li>
-<li><p><strong>STTC Lag (s)</strong>: List of spike time tiling coefficient lag values. Default is [10, 25, 50]</p></li>
-<li><p><strong>Truncation length (s)</strong>: Length (in s) for shortened recordings. This parameter can significantly change the connectivity estimates.</p></li>
+<li><p><strong>STTC Lag (ms)</strong>: Select one or more lag values (in milliseconds) for the spike time tiling coefficient. The STTC lag determines the time window for inferring functional connectivity.  Default is [10, 25, 50]</p></li>
+<li><p><strong>Adjacency matrix type:</strong> Weighted (default) uses edge weights (strength connectivity) for calculation of network metrics.  Binary treats all edges (strong or weak) as the same in calculation of network metrics.</p></li>
+<li><p><strong>Truncate Recording:</strong> Default unchecked.  Check if you want to analyze only the first part of your recordings.  This can speed up analysis time, especially if recordings are more than 10 minutes.</p></li>
+<li><p><strong>Truncation length:</strong> If Truncate Recording is checked, indicate length in seconds of recordings to analyze.  Truncating the recording can be useful for comparing spike detection methods.  However, it can significantly change the functional connectivity and downstream network metrics.</p></li>
+<li><p><strong>Prob. thresholding iterations:</strong> Number of times circular shifts (iterations) are performed for each edge for probabilistic thresholding,  Default is 200 repeats</p></li>
+<li><p><strong>Prob. thresholding tail:</strong> Percentile used for determining significant edge.  To determine significant edges where the real edge weight is greater than the 95th percentile of the edge weights from the circular shifts, enter 0.05. To determine significance where the real edge weight is greater than the 99th percentile, enter 0.01.</p></li>
+<li><p><strong>Prob. thresholding num. checks:</strong> Number of MEA recordings for which to plot the probabilistic thresholding check</p></li>
+<li><p><strong>Node cartography lag values:</strong> Subset of STTC Lag values (in ms) for performing the node cartography analysis. If node cartography should be calculated for all STTC lags performed, list all values from STTC Lag (ms). Default is [10, 15, 25].</p></li>
 </ul>
 </section>
 <section id="plotting-parameters">
-<h3>4. Plotting Parameters<a class="headerlink" href="#plotting-parameters" title="Link to this heading">#</a></h3>
-<a class="reference internal image-reference" href="_images/plotting_gui.png"><img alt="_images/plotting_gui.png" class="align-center" src="_images/plotting_gui.png" style="width: 500px;" /></a>
+<h3>4. Plotting parameters<a class="headerlink" href="#plotting-parameters" title="Link to this heading">#</a></h3>
+<a class="reference internal image-reference" href="_images/plotting_gui.png"><img alt="_images/plotting_gui.png" class="align-center" src="_images/plotting_gui.png" style="width: 350px;" /></a>
 <div style="margin-bottom: 20px;"></div><ul class="simple">
-<li><p><strong>Figure formats</strong>: Format of the plots that MEA-NAP produces. Options are <code class="docutils literal notranslate"><span class="pre">.fig</span></code>, <code class="docutils literal notranslate"><span class="pre">.png</span></code>, and <code class="docutils literal notranslate"><span class="pre">.svg</span></code>.</p></li>
-<li><p><strong>Raster Map Upper Percentile</strong>: Value <strong>between 0 and 1</strong> that is used as maximum value for scaled firing rates. Firing rates in raster plots are scaled from 0 spikes/s to this percentile.</p></li>
+<li><p><strong>Figure formats:</strong> Select one or more file formats for the plots that MEA-NAP produces. Options are .png (easy to view with web or picture browser), .svg (good for creating figures or presentations), and MATLAB format (.fig). For other image formats, see  <a class="hxr-hoverxref hxr-tooltip reference internal" href="guide-for-advanced-users.html#id1"><span class="std std-ref">Guide for Advanced Users</span></a>.</p></li>
+<li><p><strong>Do not compress SVG:</strong> Leave checked to create SVG files suitable for creating figures.</p></li>
+<li><p><strong>Display only one figure:</strong> Leave checked to prevent MATLAB from creating separate figure windows for each figure as MEA-NAP runs.</p></li>
+<li><p><strong>Raster Map Upper Percentile:</strong> In Step 2, the firing rates for each MEA recording are plotted using the same scale from 0 Hz to this upper percentile of the maximum firing rates for the entire dataset.  Enter an integer <strong>value between 0 and 99.</strong></p></li>
+<li><p><strong>Include NotBoxPlots:</strong> If checked, notBoxPlot figures will be generated in Step 2B and Step 4B in addition to the half-violin plots.</p></li>
+<li><p><strong>Include channel number in plots:</strong> If checked, will print the channel (electrode ) ID number over the node in select figures.  This can be useful if you want to confirm you have used the correct Channel Layout (Spike Detection Parameters).</p></li>
 </ul>
 </section>
 </section>
 <section id="saving-and-loading-parameters">
-<h2>Saving and Loading Parameters<a class="headerlink" href="#saving-and-loading-parameters" title="Link to this heading">#</a></h2>
+<h2>Saving and loading parameters<a class="headerlink" href="#saving-and-loading-parameters" title="Link to this heading">#</a></h2>
 <ul class="simple">
 <li><p>Once all the required parameters have been set, the button at the bottom of your window should switch from red to green.</p></li>
-<li><p>Before running MEA-NAP, click “Save parameters” at the bottom of your window to save your selected parameters. <strong>In subsequent runs, click “Load parameters” to reuse these parameters.</strong></p></li>
+<li><p>At any point before running MEA-NAP, click “Save parameters” at the bottom of your window to save your selected parameters. <strong>When using MEA-NAP again, click “Load parameters” to reuse these parameters.</strong>  This can be very useful when re-running different data sets.  A sample saved parameters for running Axion 64 electrode MEA data is included on the Github.</p></li>
 </ul>
 <a class="reference internal image-reference" href="_images/save_parameters_gui.png"><img alt="_images/save_parameters_gui.png" class="align-center" src="_images/save_parameters_gui.png" style="width: 400px;" /></a>
-<div style="margin-bottom: 20px;"></div></section>
+<div style="margin-bottom: 20px;"></div><ul class="simple">
+<li><p>If you have run MEA-NAP previously on the same day, MEA-NAP <strong>will prompt you to rename the first Output folder (e.g., v1) when it starts running.</strong></p></li>
+</ul>
+</section>
 </section>
 
         </article>
@@ -367,13 +373,13 @@ This mode simplifies the process of selecting directory paths and adjusting para
 <li><a class="reference internal" href="#overview-of-mea-nap">Overview of MEA-NAP</a></li>
 <li><a class="reference internal" href="#starting-mea-nap">Starting MEA-NAP</a></li>
 <li><a class="reference internal" href="#user-input-for-gui">User input for GUI</a><ul>
-<li><a class="reference internal" href="#general-mea-nap-parameters">1. General MEA-NAP Parameters</a></li>
-<li><a class="reference internal" href="#spike-detection-parameters">2. Spike Detection Parameters</a></li>
-<li><a class="reference internal" href="#connectivity-parameters">3. Connectivity Parameters</a></li>
-<li><a class="reference internal" href="#plotting-parameters">4. Plotting Parameters</a></li>
+<li><a class="reference internal" href="#general-parameters">1. General parameters</a></li>
+<li><a class="reference internal" href="#spike-detection-parameters">2. Spike detection parameters</a></li>
+<li><a class="reference internal" href="#connectivity-parameters">3. Connectivity parameters</a></li>
+<li><a class="reference internal" href="#plotting-parameters">4. Plotting parameters</a></li>
 </ul>
 </li>
-<li><a class="reference internal" href="#saving-and-loading-parameters">Saving and Loading Parameters</a></li>
+<li><a class="reference internal" href="#saving-and-loading-parameters">Saving and loading parameters</a></li>
 </ul>
 </li>
 </ul>

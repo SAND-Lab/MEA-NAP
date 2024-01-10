@@ -1,11 +1,11 @@
 Guide for Advanced Users
-======================== 
+=========================
 
-If you have **a solid background in MATLAB**, running the `MEApipeline.m` script involves fine-tuning parameters crucial for batch analysis of experimental files. 
-By customizing parameters in `MEApipeline.m`, users can tailor their data analysis to align with the specific requirements of your experiments. 
-Without the interactive GUI Mode (found under 'Guide for New Users'), you will be working with directly `MEApipeline.m`. 
+.. _Guide for Advanced Users:
 
-
+If you have **a solid background in MATLAB**, running the ``MEApipeline.m`` script involves fine-tuning parameters crucial for batch analysis of experimental files. 
+By customizing parameters in ``MEApipeline.m``, users can tailor their data analysis to align with the specific requirements of your experiments. 
+Without the interactive GUI Mode (found under 'Guide for New Users'), you will be working with directly ``MEApipeline.m``. 
 
 .. _overview: 
 
@@ -76,7 +76,7 @@ This section is also well annotated and does not require understanding of MATLAB
      - Confirm the sampling frequency is correct for your recording. We acquire data on the MCS 60 channel system at 25000 Hz and on the Axion Maestro at 12500 Hz.
    * - 40
      - Params.dSampF 
-     - Confirm the downsampling factor is correct for spike detection check in step 1 of the pipeline. Its value should match the sampling frequency.
+     - Down-sampling factor for plotting spike detection checks in Step 1B. For most analyses, no down sampling is necessary. Thus, set this to be equal to ``Params.fs``
    * - 42
      - Params.channelLayout 
      - Confirm the correct channel layout for your recording. Options: ``MCS60``, ``Axion64``, ``MCS60old``
@@ -105,7 +105,7 @@ Options to start the pipeline at different steps
      - Params.optionalStepsToRun 
      - If you have completed steps 1-4 of the pipeline, use this step to run optional downstream steps of the pipeline. You can set this setting equal to 'runStats' to perform statistical analysis that looks at feature correlations and classification across groups. You can also set it equal to 'combineDIVplots' to combine plots across DIVs. 
 
-Spike detection settings (lines 13 - 95)
+Spike detection parameters
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. list-table:: 
@@ -134,7 +134,7 @@ Spike detection settings (lines 13 - 95)
      - Params.SpikesMethod 
      - Choose spike detection method to use for steps 2-4 of the pipeline (e.g., 'bior1p5', or 'mergedAll', or 'mergedWavelet').
 
-Functional connectivity settings
+Functional connectivity parameters
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. list-table:: 
@@ -157,7 +157,7 @@ Functional connectivity settings
      - Params.ProbThresRepNum, Params.ProbThresTail, Params.ProbThresPlotChecks, Params.ProbThresPlotChecksN
      - Probabilistic thresholding is a method for determining above-chance correlation between activity observed in the electrodes.  It works by shuffling the real data many times (RepNum default = 200) and then calculating the STTC. If the STTC value for the real data is greater than expected by chance for a given electrode pair from the shuffles (e.g., Tail 0.1, aka 90%-tile), that pair is functionally connected. Depending on the number of shuffles and STTC lag, we may use ``Params.ProbThreshTail = 0.01`` (aka 99%-tile). To determine whether the number of shuffles (RepNum) is sufficient in a sample of the recordings, set ``Params.ProbThreshPlotChecks = 1`` (otherwise 0) and indicate the number of recordings to examine (PlotChecksN).
 
-Node cartography settings 
+Node cartography parameters 
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. list-table:: 
@@ -177,7 +177,7 @@ Node cartography settings
     - Params.autoSetCartographyBoundaries 
     - This setting specifies whether the pipeline should automatically determine the boundaries for hubs or use custom ones during the node 
 
-Statistics and machine learning settings
+Statistics and machine learning parameters
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. list-table:: 
@@ -202,8 +202,8 @@ Pipeline output preferences
                 
 
 .. list-table:: 
-   :widths: 15 25 50
-   :header-rows: 1         
+  :widths: 15 25 50
+  :header-rows: 1         
    
   * - Line
     - Variable
@@ -225,7 +225,7 @@ Run and wait
 
 After completing this list, no further changes are necessary to run the pipeline. Save your changes.  Press RUN and then wait!  The length of time will depend on the acquisition rate, length of recordings, number of files and processing power of the computer. Cluster computing when available is recommended for larger batch datasets.
 
-Pipeline settings
+Pipeline parameters
 ------------------
 
 Overview
@@ -360,7 +360,7 @@ Folder paths
 ``spreadsheet_filename``
 """""""""""""""""""""""""""""""
 
- * the name of spreadsheet containing information about the data to be analysed, including the file extension, usually in the form of 'spreadhsheet.csv' or 'spreadsheet.xlsx'
+ * The name of spreadsheet containing information about the data to be analysed, including the file extension, usually in the form of 'spreadhsheet.csv' or 'spreadsheet.xlsx'
  * this spreadsheet file is assumed to be located in the main analysis pipeline folder
  * argument type: string or character array
 
@@ -447,7 +447,7 @@ Spike detection
 ``Params.detectSpikes``
 """"""""""""""""""""""""""""""
 
- * determines whether to run spike detection in the pipeline
+ * Determines whether to run spike detection in the pipeline
  * argument type: boolean 
  * options: 0 : do not detect spikes, 1 : detect spikes
 
@@ -456,7 +456,7 @@ Spike detection
 ``Params.fs``
 """"""""""""""""""""""""""""""""'
 
- * the sampling rate of the recording electrodes, in samples per second (Hz)
+ * Sampling rate of the recording electrodes, in samples per second (Hz)
  * argument type: int
  * default : 25000
 
@@ -466,7 +466,7 @@ Spike detection
 ``Params.dSampF``
 """"""""""""""""""""""""""""""""""
 
- * the down sample frequency for spike detection check
+ * The down-sampling factor for plotting spike detection checks in Step 1B. For most analyses, no down sampling is necessary. Thus, set this to be equal to ``Params.fs``.
  * normally, this should be kept as the same value as `Params.fs`
  * argument type: int 
  * default: 25000
@@ -477,7 +477,7 @@ Spike detection
 ``Params.potentialDifferenceUnit``
 """""""""""""""""""""""""""""""""""""""
 
- * the unit of potential difference in which you are recording electrical signals
+ * The unit of potential difference in which you are recording electrical signals
  * options: 'mV' for millivolt, 'uV' for microvolt
  * default : 'uV'
  
@@ -487,7 +487,7 @@ Spike detection
 ``Params.channelLayout``
 """""""""""""""""""""""""""""""
 
- * which channel layout to use for plotting firing rate heatmaps, and other plots related to the layout of the electrodes
+ * The channel layout to use for plotting firing rate heatmaps, and other plots related to the layout of the electrodes
  * options: 'MCS60' = multichannel systems layout with 59 recording electrodes + 1 grounding electrode, 'Axion64' = axion recording layout in a 8 x 8 grid with 64 electrodes, 'Custom' = provide own custom layout by specifying the coordinate of each electrode in biAdvantedSettings.m, you will need to edit the block of code under strcmp(Params.channelLayout, 'Custom')
 
 .. _Params.coords:
@@ -495,7 +495,7 @@ Spike detection
 ``Params.coords``
 """"""""""""""""""""""""""""""
 
- * the x and y coordinates of each electrode to be used for visualisation purposes
+ * The x and y coordinates of each electrode to be used for visualisation purposes
  * this is automatically set of Params.channelLayout is one of the provided options 'MCS60' or 'Axion64', but will require to be set by the user if the option chosen the 'Custom' option
  * argument type : nUnit x 2 matrix where nUnit is the number of recorded units, such that each row contains the x and y coordinate of the corresponding recorded unit
  
@@ -505,7 +505,7 @@ Spike detection
 ``Params.wnameList``
 """"""""""""""""""""""""""""""
 
- * determines which wavelets to run the spike detection with 
+ * Determines which wavelets to run the spike detection with 
  * argument type: either string or a cell array of strings
  * options: bior1p5, bior1p3, db2, mea,
 
@@ -515,7 +515,7 @@ Spike detection
 ``Params.SpikesMethod``
 """"""""""""""""""""""""""""""
 
- * the spike method to used in downstream analysis
+ * The spike method to used in downstream analysis
  * argument type : char
  * options : 'bior1p5', 'bior1p3', 'merged', 'thr3p0', or other available wavelet names
 
@@ -529,7 +529,7 @@ Spike detection
 ``Params.costList``
 """"""""""""""""""""""""""""
 
- * the false positive / false negative tradeoff for wavelet spike detection
+ * The false positive / false negative tradeoff for wavelet spike detection
  * argument type : float value between -2 to 2
  * default value : -0.12
 
@@ -541,7 +541,7 @@ More negative values leads to less false negative but more false positives, reco
 ``Params.threshold_calculation_window``
 """""""""""""""""""""""""""""""""""""""""""
 
- * which part of the recording to do spike detection
+ * Which part of the recording to do spike detection
  * 0 : start of recording, 0.5 : middle of recording, 1 : end of recording
  * argument type : a matlab double with 2 elements
  * This is an advanced setting, modify this in biAdvancedSettings.m
@@ -553,7 +553,7 @@ More negative values leads to less false negative but more false positives, reco
 ``Params.refPeriod``
 """""""""""""""""""""""
 
- * the refractory period of spikes in milliseconds
+ * The refractory period of spikes in milliseconds
  * spikes that are smaller than this time period apart will be excluded
  * argument type : float
  * default value : 0.2
@@ -565,7 +565,7 @@ More negative values leads to less false negative but more false positives, reco
 ``Params.filterLowPass``
 """""""""""""""""""""""""""
 
- * the low pass frequency (Hz) to use on the raw signal before spike detection
+ * The low pass frequency (Hz) to use on the raw signal before spike detection
  * argument type : float
  * default value : 600
 
@@ -575,7 +575,7 @@ More negative values leads to less false negative but more false positives, reco
 ``Params.filterHighPass``
 """""""""""""""""""""""""""
 
- * the high pass frequency (Hz) to use on the raw signal before spike detection
+ * The high pass frequency (Hz) to use on the raw signal before spike detection
  * argument type : float
  * default value : 8000
 
@@ -596,7 +596,7 @@ Note that setting this to 1 automatically sets `detectSpikes` to 0.
 ``Params.remove_artifacts``
 """"""""""""""""""""""""""""""
 
- * whether to run process to remove artifacts from recording
+ * Whether to run process to remove artifacts from recording
  * argument type : bool
  * options : 1 = yes, 0 = no
  * default : 0
@@ -636,7 +636,7 @@ Note that setting this to 1 automatically sets `detectSpikes` to 0.
 ``Params.multiplier``
 """""""""""""""""""""""""""""
 
- * the multiplier to use for extracting spikes for wavelet adaptation method (not for the spike detection itself)
+ * The multiplier to use for extracting spikes for wavelet adaptation method (not for the spike detection itself)
  * this is an advanced setting, and can be found in biAdvancedSettings.m
  * argument type: float
  * default: 3
@@ -724,8 +724,6 @@ Functional connectivity
  * Argument type : integer value greater than or equal to 1
  * Default : 5
 
-
-
  
 Network analysis
 ^^^^^^^^^^^^^^^^^^^^^
@@ -735,7 +733,7 @@ Network analysis
 ``Params.netMetToCal``
 """""""""""""""""""""""""""
 
- * list of network metrics to calculate
+ * List of network metrics to calculate
  * argument type : cell containing strings
  * options : ND, MEW, NS, aN, etc.
 
@@ -744,7 +742,7 @@ Network analysis
 ``Params.minNumberOfNodesToCalNetMet``
 """"""""""""""""""""""""""""""""""""""""
 
- * minimum number of nodes required to calculate network metrics
+ * Minimum number of nodes required to calculate network metrics
  * argument type : int
  * options : any integer value from 2 to the maximum number of nodes in your network
  * default value : 25
@@ -754,7 +752,7 @@ Network analysis
 ``Params.networkLevelNetMetToPlot``
 """""""""""""""""""""""""""""""""""""""""""
 
- * list of network metrics to plot, this should be the same or a subset as the list of network metrics to calculate, which is specified in Params.netMetToCal
+ * List of network metrics to plot, this should be the same or a subset as the list of network metrics to calculate, which is specified in Params.netMetToCal
  * argument type: cell array of strings / characters
  * eg. {'aN', 'Dens', 'effRank'}
 
@@ -763,7 +761,7 @@ Network analysis
 ``Params.networkLevelNetMetLabels``
 """"""""""""""""""""""""""""""""""""""""""""
 
- * list of labels corresponding to the network level metrics to plot
+ * List of labels corresponding to the network level metrics to plot
  * eg. 'aN' denotes network size and so the label given is 'network size'
  * argument type: cell array of strings / characters with the same length as `Params.networkLevelNetMetToPlot`
    
@@ -772,7 +770,7 @@ Network analysis
 ``Params.includeNMFcomponents``
 """"""""""""""""""""""""""""""""""""
 
- * whether to include the components as output when performing non-negative matrix factorisation on the spike rate matrix, which outputs a matrix of size (num_components, num_time_samples) and a matrix of size (num_components, num_units)
+ * Whether to include the components as output when performing non-negative matrix factorisation on the spike rate matrix, which outputs a matrix of size (num_components, num_time_samples) and a matrix of size (num_components, num_units)
  * argument type : bool
  * options : 0 = no, 1 = yes
  * default : 0
@@ -782,7 +780,7 @@ Network analysis
 ``Params.NMFdownSampleFreq``
 """""""""""""""""""""""""""""""""""""
 
- * how mcuh to downsample the spike rate matrix before performing non-negative matrix factorisation
+ * How mcuh to downsample the spike rate matrix before performing non-negative matrix factorisation
  * eg. 10 will mean downsampling from 25000 Hz to 2500 Hz
  * argument type : int 
  * default : 10 
@@ -792,7 +790,7 @@ Network analysis
 ``Params.effRankCalMethod``
 """""""""""""""""""""""""""""""
 
- * whether to use the covariance or correlation matrix for effective rank calculation
+ * Whether to use the covariance or correlation matrix for effective rank calculation
  * options: 'covariance' or 'correlation'
  * default: 'covariance'
  * this is an advanced setting and is located in biAdvancedSettings.m
@@ -811,7 +809,7 @@ Network analysis
 ``Params.hubBoundaryWMdDeg``
 """"""""""""""""""""""""""""""""""
 
- * boundary that separtes hub and non-hubs 
+ * Boundary that separtes hub and non-hubs 
  * default value: 0.25
  * argument type: float
  * this argument has no effect if Params.autoSetCartographyBoundaries = 1
@@ -821,7 +819,7 @@ Network analysis
 ``Params.periPartCoef``
 """""""""""""""""""""""""""""
 
- * boundary (in terms of participation coefficient) that separates peripheral node and non-hub connector
+ * Boundary (in terms of participation coefficient) that separates peripheral node and non-hub connector
  * default value: 0.525
  * argument type : float
  * this argument has no effect if Params.autoSetCartographyBoundaries = 1
@@ -831,7 +829,7 @@ Network analysis
 ``Params.proHubPartCoef``
 """"""""""""""""""""""""""""""
 
- * boundary (in terms of participation coefficient) that separates provincial hub and connector hub
+ * Boundary (in terms of participation coefficient) that separates provincial hub and connector hub
  * default value: 0.45
  * argument type: float
  * this argument has no effect if Params.autoSetCartographyBoundaries = 1
@@ -841,7 +839,7 @@ Network analysis
 ``Params.nonHubConnectorPartCoef``
 """"""""""""""""""""""""""""""""""""""
 
- * boundary (in terms of participation coefficient) that separates non-hub connector and non-hub kinless node
+ * Boundary (in terms of participation coefficient) that separates non-hub connector and non-hub kinless node
  * default value: 0.8
  * argument type: float
  * this argument has no effect if Params.autoSetCartographyBoundaries = 1
@@ -851,7 +849,7 @@ Network analysis
 ``Params.connectorHubPartCoef``
 """""""""""""""""""""""""""""""""""""""
 
- * boundary that separates connector hub and kinless hub
+ * Boundary that separates connector hub and kinless hub
  * default value: 0.75
  * argument type : float
  * this argument has no effect if Params.autoSetCartographyBoundaries = 1
@@ -893,7 +891,7 @@ Plot settings
 ``Params.groupColors``
 """"""""""""""""""""""""""""""""
 
- * colors to use for each group in group comparison plots
+ * Colors to use for each group in group comparison plots
  * this should be an nGroup x 3 matrix where nGroup is the number of groups you have, and each row is a RGB value (scaled from 0 to 1) denoting the color
    
 .. _Params.GrpNm:
@@ -901,7 +899,7 @@ Plot settings
 ``Params.GrpNm``
 """"""""""""""""""""""""
 
- * list of names corresponding to the different groups
+ * List of names corresponding to the different groups
  * this is automatically generated through the provided spreadsheet and requires no user input in most cases
  * argument type : cell array of string / characters with number of entries equal to the number of unique groups
 
@@ -911,6 +909,6 @@ Plot settings
 ``Params.DivNm``
 """"""""""""""""""""""""""
 
- * list of numbers corresponding to the days in vitro (or any quantification of development time point)
+ * List of numbers corresponding to the days in vitro (or any quantification of development time point)
  * this is automatically generated through the provided spreadsheet and requires no user input in most cases
  * argument type : cell array of integers or float with number of entries equal to the number of unique developmental time points 
