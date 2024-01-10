@@ -1,7 +1,7 @@
 Setting up MEA-NAP
 ======================================
 
-1. Download MEA-NAP Folder from GitHub:
+1. Download MEA-NAP folder from GitHub:
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 - Navigate to the home page of the MEA-NAP GitHub repository using your web browser.
@@ -21,7 +21,7 @@ Setting up MEA-NAP
 
 - Once the zip folder is downloaded, navigate to the location where you saved it and extract its contents.
 
-2. Prepare Your Data for MEA-NAP:
+2. Prepare your data for MEA-NAP:
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 
@@ -53,7 +53,7 @@ The MEA-NAP pipeline is currently optimized for single MEA recordings made on th
    7. When `rawConvert.m` has successfully run, open the folder where `.raw` files were initially stored.
    8. Navigate through the folder to check that all `.mat` files have been successfully created and saved.
 
-3. Organize Your Data:
+3. Organize your data:
 ^^^^^^^^^^^^^^^^^^^^^^^
 After preparing your data, it is essential to organize the `.mat` files you plan to analyze in a batch. Ensure that all relevant `.mat` files are saved in the same folder. This organized structure is crucial for the MEA-NAP pipeline to seamlessly process and compare the data during the analysis.
    
@@ -62,7 +62,7 @@ After preparing your data, it is essential to organize the `.mat` files you plan
 - As filenames and group names are included in many plots, it is important to keep the names concise and informative (e.g., NGN2230101_P1_A1_DIV14, where
    NGN2 is the experiment code, 230101 is the date the culture was started, P1_A1 is the plate and well number, and DIV14 is the age).
 
-4. Prepare Batch Analysis CSV File
+4. Prepare batch analysis CSV file
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
    
 .. _prepare-batch-analysis-csv-file:

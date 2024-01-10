@@ -18,7 +18,7 @@ MathWorks account and license
 
 MATLAB is a product of MathWorks and requires a license and personal MATLAB account.  Many Universities have institutional licenses.  If there is anyone interested in adapting the MATLAB scripts to an open source programming language (e.g., Julia, Python), please let us know.  We want the pipeline to be an open source resource to the neuroscience community.
   
-MATLAB Versions and Required Packages
+MATLAB versions and required packages
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This pipeline was written for the current  MATLAB version 2021b.  
