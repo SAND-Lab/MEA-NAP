@@ -1,9 +1,8 @@
 Guide for Advanced Users
 ======================== 
 
-If you have **a solid background in MATLAB**, running the `MEApipeline.m` script involves fine-tuning parameters crucial for batch analysis of experimental files. 
+If you have **a solid background in MATLAB**, you can turn off the GUI mode (line 76, change 1 to 0) and instead manually enter the required information prior to running the `MEApipeline.m` script for batch analysis of your experimental data. 
 By customizing parameters in `MEApipeline.m`, users can tailor their data analysis to align with the specific requirements of your experiments. 
-Without the interactive GUI Mode (found under 'Guide for New Users'), you will be working with directly `MEApipeline.m`. 
 
 
 
@@ -17,23 +16,23 @@ The pipeline has the following steps:
 1. Spike detection (this step can be skipped if done previously)
 2. Comparison of the neuronal activity (e.g., firing rates, burst rates)
 3. Inferring the functional connectivity
-4. Comparison of the network activity (i.e., graph theoretical metric)
+4. Comparison of the network activity (e.g., graph theoretical metrics)
 5. Statistical analysis (e.g., feature correlation and classification)
 
 Starting MEA-NAP
 --------------------------------
-- Make sure all of the recordings are in `*.mat` format and saved in the same folder first. 
-- To use the pipeline, open ``MEApipeline.m`` in MATLAB next. 
+- Make sure all of the recordings are in the correct `*.mat` format and saved in the same folder first. 
+- To use the pipeline, open ``MEApipeline.m`` in MATLAB. 
 
 Required user input in the first section of MEA-NAP
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-- The first section of ``MEApipeline.m`` sets many of the parameters that instruct the pipeline on how to do the following:
+- The first section of ``MEApipeline.m`` sets many of the parameters that instruct MEA-NAP on how to do the following:
   
   - Find your data 
   - Select which parts of the analysis pipeline to run
   - Save your outputs
   
-- Follow the prompts to set-up the pipeline for analysing a single or multiple MEA recording files in the same experiment.
+- Follow the prompts to set-up MEA-NAP for analysing a single or multiple MEA recording files in the same experiment.
 This section is also well annotated and does not require understanding of MATLAB in order to edit.  Save your edits and run.
 
 - **Descriptions and line numbers for each parameter can be found below.**
@@ -100,10 +99,10 @@ Options to start the pipeline at different steps
      - If you have already run the pipeline previously and wish to use some of the outputs from the earlier steps, set equal to 1 and give the location and date for the prior analysis (this format should match the folder name of the previous data analysis). N.B. If a previous OutputData folder for the Date already exists, the pipeline will prompt you when running to add a suffix to the previous version (e.g. “v1”). The pipeline will then rename the old folder and remove it from the path.
    * - 30
      - Params.startAnalysisStep
-     - If you would like to start running the pipeline at a later step than spike detection (step 1) using the prior data, change to the corresponding number. See Section 3.1 for an overview of pipeline functions. If ``Params.priorAnalysis=0``, the default is to start with spike detection. N.B. Steps 2-4 all require spike detection to run. Step 4 requires Step 3. Step 5 requires step 4. 
+     - If you would like to start running the pipeline at a later step than spike detection (step 1) using the prior data, change to the corresponding number. See Section 3.1 for an overview of pipeline functions. If ``Params.priorAnalysis=0``, the default is to start with spike detection. N.B. Steps 2-5 all require spike detection to run. Step 4 requires Step 3. Step 5 requires step 4. If you want to start with Step 1B (spike detection checks), enter 1 here, set detectSpikes (line 37) to 0, and Params.runSpikeCheckOnPrevSpikeData (line 38)
    * - 31
      - Params.optionalStepsToRun 
-     - If you have completed steps 1-4 of the pipeline, use this step to run optional downstream steps of the pipeline. You can set this setting equal to 'runStats' to perform statistical analysis that looks at feature correlations and classification across groups. You can also set it equal to 'combineDIVplots' to combine plots across DIVs. 
+     - If you have completed steps 1-4 of the pipeline, use this step to run optional downstream steps of the pipeline. You can set this setting equal to 'runStats' (Step 5) to perform statistical analysis that looks at feature correlations and classification across groups. You can also set it equal to 'combineDIVplots' to combine plots across DIVs, if the filenames for recordings from the same culture have the same filename except for the number (age) after DIV in the filenames (e.g, NGN2230408_P1A1_DIV14, NGN2230408_P1A1_DIV21, NGN2230408_P1A1_DIV28). 
 
 Spike detection settings (lines 13 - 95)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -129,10 +128,16 @@ Spike detection settings (lines 13 - 95)
      - If you were unable to generate spike detection check figures during step 1 of the pipeline to visualize the performance of your spike detection methods, set equal to "1". You must have already generated spike files for all of your recordings before using this setting.
    * - 43
      - Params.thresholds
-     - Choose one or more standard deviations (SD) if running threshold-based spike detection. This method identifies negative voltage deflections that exceed the threshold set based on the SD of the mean voltage signal. This method is fast. It works well for electrodes with a high signal-to-noise ratio and for recordings with similar firing rates. Threshold-based methods can underestimate spikes in electrodes with high firing rates and are susceptible to
+     - Choose one or more mean absolute deviations (MAD) if running threshold-based spike detection. This method identifies negative voltage deflections that exceed the threshold set based on the MAD of the voltage signal. This method is fast. It works well for electrodes with a high signal-to-noise ratio and for recordings with similar firing rates. Threshold-based methods can underestimate spikes in electrodes with high firing rates and are susceptible to counting artifacts as spikes.
+   * - 44
+     - Params.wnameList
+     - Choose one or more wavelets for template-based spike detection.  We routinely use MATLAB built-in wavelets bior1.5, bior1.3, and db2 (db2 is least spike-like). For custom electrode-specific templates created from 50 spikes detected by the threshold method, use mea.  This may require further tuning by advanced users to calibrate for your data.  The published SWTTEO method is also available (swetteo), but we have not tested it extensively with our data. 
+   * - 45
+     - Params.costList
+     - Cost parameter for wavelets in templated-based spike detection.  Determines balance of false positives to false negatives.  Can tune for your dataset.  We have found that -0.12 to -0.2 works well for most of our MEA data (when comparing spike detection pre- and post-TTX).
    * - 46 
      - Params.SpikesMethod 
-     - Choose spike detection method to use for steps 2-4 of the pipeline (e.g., 'bior1p5', or 'mergedAll', or 'mergedWavelet').
+     - Choose spike detection method to use for steps 2-4 of the pipeline (e.g., 'bior1p5', 'thr4', 'mergedAll', or 'mergedWavelet').  mergedAll combines all spike detection methods and parameters selected above.  mergedWavelets combines only the spikes detected by one or more of the wavelets selected above.
 
 Functional connectivity settings
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -146,7 +151,7 @@ Functional connectivity settings
      - User input required
    * - 49
      - Params.FuncConLagval
-     - The pipeline uses the spike time tiling coefficient (STTC; Cutts & Eglen, 2014) to estimate pairwise correlations between spiking activity observed in electrodes. Select one or more lag values (in milliseconds) for detecting coincident activity.  For MCS-acquired data, 25 ms is a good starting point. Pipeline works best if you choose 2 or 3 different lags to compare (although the computational time is longer).
+     - The pipeline uses the spike time tiling coefficient (STTC; Cutts & Eglen, 2014) to estimate pairwise correlations between spiking activity observed in electrodes. Select one or more lag values (in milliseconds) for detecting coincident activity.  For most neuronal cultures, 10 or 25 ms is a good starting point. Pipeline works best if you choose 2 or 3 different lags to compare (although the computational time is longer).
    * - 50, 51
      - Params.TrunRec, Params.TrunLength
      - Calculating the functional connectivity can be computationally intensive. If you wish to shorten (truncate) the recording change TrunRec to 1 and select a length in seconds. N.B. Shortening the recording can significantly change the connectivity estimates.
@@ -169,13 +174,13 @@ Node cartography settings
     - User input required
   * - 61
     - Params.autoSetCartographyBoudariesPerLag
-    - During step 4, our pipeline generates figures related to node cartography. Use this setting to choose whether to fir separate boundaries per lag value. 
+    - During step 4, our pipeline generates figures related to node cartography. Use this setting to choose whether there are separate boundaries per STTC lag value. 
   * - 62
     - Params.cartographyLagVal
-    - If ``Params.autoSetCartographyBoudariesPerLag = 0``, specifiy lag values (in ms) that you want to use to calculate PC-Z distribution. 
+    - If ``Params.autoSetCartographyBoudariesPerLag = 0``, specifiy lag values (in ms) that you want to use to calculate the hub boundaries (based on the PC-Z distribution).
   * - 63
     - Params.autoSetCartographyBoundaries 
-    - This setting specifies whether the pipeline should automatically determine the boundaries for hubs or use custom ones during the node 
+    - This setting specifies whether the pipeline should automatically determine the boundaries for hubs or use custom ones for the node cartography. 
 
 Statistics and machine learning settings
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -189,7 +194,7 @@ Statistics and machine learning settings
     - User input required
   * - 66
     - Params.classificationTarget
-    - Specify which property of your recordings that you wish to classify using machine learning based classification and regression models during step 5 (statisical analysis) of the pipeline. 
+    - Specify which property of your recordings that you wish to classify using machine-learning-based classification and regression models during step 5 (statisical analysis) of the pipeline. 
   * - 67 
     - Params.classification_models
     - Specify the classification models that you wish to classify recording property that you previously specified with ``Params.classificationTarget``.
@@ -478,7 +483,7 @@ Spike detection
 """""""""""""""""""""""""""""""""""""""
 
  * the unit of potential difference in which you are recording electrical signals
- * options: 'mV' for millivolt, 'uV' for microvolt
+ * options: 'V' for volt, 'mV' for millivolt, 'uV' for microvolt
  * default : 'uV'
  
 
