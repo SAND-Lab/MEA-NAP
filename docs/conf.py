@@ -17,7 +17,7 @@
 
 # -- Project information -----------------------------------------------------
 
-project = 'MEA-NAP'
+project = 'MEA pipeline'
 copyright = '2022, Timothy Sit, Rachael Feord, Alexander Dunn, Jeremy Chabros, Mierau SB and SAND group members'
 author = 'Timothy Sit, Rachael Feord, Alexander Dunn, Jeremy Chabros, Mierau SB, and SAND group members'
 
