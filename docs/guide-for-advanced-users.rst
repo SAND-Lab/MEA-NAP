@@ -1,5 +1,4 @@
 Guide for Advanced Users
-
 ======================== 
 
 If you have **a solid background in MATLAB**, you can turn off the GUI mode (line 76, change 1 to 0) and instead manually enter the required information prior to running the `MEApipeline.m` script for batch analysis of your experimental data. 
