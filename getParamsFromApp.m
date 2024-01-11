@@ -7,7 +7,7 @@ Params.outputDataFolder = app.OutputDataFolderEditField.Value;
 Params.rawData = app.RawDataFolderEditField.Value;
 Params.priorAnalysisPath = app.PreviousAnalysisFolderEditField.Value;
 Params.spikeDetectedData = app.SpikeDataFolderEditField.Value;
-Params.spreadSheetFileName = app.SpreadsheetfilenameEditField.Value;
+Params.spreadSheetFileName = app.SpreadsheetFilenameEditField.Value;
 
 Params.fs = app.SamplingFrequencyEditField.Value;
 Params.dSampF = app.DownSampleFrequencyEditField.Value;
