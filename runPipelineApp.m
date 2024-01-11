@@ -91,7 +91,7 @@ while app.RunPipelineButton.Value == 0
 
     % check if all required parameters are set
     homeDirSet = 1 - isempty(app.MEANAPFolderEditField.Value);
-    spreadsheetSet = 1 - isempty(app.SpreadsheetfilenameEditField.Value);
+    spreadsheetSet = 1 - isempty(app.SpreadsheetFilenameEditField.Value);
     
     if homeDirSet && spreadsheetSet
         app.AllrequiredparameterssetLamp.Color = [0 1 0];
@@ -124,7 +124,7 @@ while app.RunPipelineButton.Value == 0
     if app.SpreadsheetSelectButton.Value == 1
          [spreadsheetFilename, spreadsheetFolder] = uigetfile('.csv');
          spreadsheetFilePath = fullfile(spreadsheetFolder, spreadsheetFilename);
-         app.SpreadsheetfilenameEditField.Value = spreadsheetFilePath;
+         app.SpreadsheetFilenameEditField.Value = spreadsheetFilePath;
          app.SpreadsheetSelectButton.Value = 0;        
          figure(app.UIFigure)  % put app back to focus
          
