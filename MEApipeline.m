@@ -109,7 +109,9 @@ if length(Params.startAnalysisStep) > 1
     Params.startAnalysisSubStep = Params.startAnalysisStep(2);
     Params.startAnalysisStep = str2num(Params.startAnalysisStep(1));
 else
-    Params.startAnalysisStep = str2num(Params.startAnalysisStep);
+    if isstr(Params.startAnalysisStep)
+        Params.startAnalysisStep = str2num(Params.startAnalysisStep);
+    end
     Params.startAnalysisSubStep = 'ALL';
 end 
 
