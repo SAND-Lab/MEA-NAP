@@ -1,4 +1,4 @@
-function [] = CreateOutputFolders(HomeDir, OutputDataFolder, Date, GrpNm)
+function [] = CreateOutputFolders(HomeDir, OutputDataFolder, Date, GrpNm, Params)
 % this function creates the following output folder structure:
 %
 %   OutputData+Date

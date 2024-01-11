@@ -136,7 +136,7 @@ setUpSpreadSheet  % import metadata from spreadsheet
 [~,Params.DivNm] = findgroups(ExpDIV);
 
 % create output data folder if doesn't exist
-CreateOutputFolders(HomeDir, Params.outputDataFolder, Params.Date, Params.GrpNm)
+CreateOutputFolders(HomeDir, Params.outputDataFolder, Params.Date, Params.GrpNm, Params)
 
 % Set up one figure handle to save all the figures
 oneFigureHandle = NaN;
