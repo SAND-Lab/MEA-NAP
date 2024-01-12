@@ -257,10 +257,19 @@ if Params.use_custom_bounds
     cmap_bounds = Params.network_plot_cmap_bounds.(z2nameToShortHand(z2name));
     z2_min = cmap_bounds(1);
     z2_max = cmap_bounds(end);
+    
+    % Any values above maximum bound is set to the allowed max for
+    % plotting purposes 
+    z2(z2 > z2_max) = z2_max;
+    z2(z2 < z2_min) = z2_min; 
 elseif isfield(Params, 'useMinMaxBoundsForPlots')
     if Params.useMinMaxBoundsForPlots
         z2_max = max(Params.metricsMinMax.(z2nameToShortHand(z2name)));
         z2_min = min(Params.metricsMinMax.(z2nameToShortHand(z2name)));
+        
+        % Any values above maximum bound is set to the allowed max for
+        % plotting purposes 
+        z2(z2 > z2_max) = z2_max;
     else
         z2_max = max(z2);
         z2_min = min(z2);
@@ -269,6 +278,8 @@ else
     z2_max = max(z2);
     z2_min = min(z2);
 end 
+
+
 
 
 if strcmp(plotType,'MEA')
