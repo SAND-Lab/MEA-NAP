@@ -184,6 +184,14 @@ for lagIdx = 1:length(uniqueLags)
                     statsMetricStore{end+1} = 'P-value';
                     statsValueStore = [statsValueStore; p];
                     metricToTestStore{end+1} = metricToTest;
+                    
+                    % Also calculate d prime 
+                    lagValueStore = [lagValueStore; lag];
+                    testStore{end+1} = sprintf('%s-DIV-%.f-%.f-paired-ttest', subsetGrp, divA, divB);
+                    statsMetricStore{end+1} = 'd-prime';
+                    dprime = (mean(divBmetricVal) - mean(divAmetricVal)) / ((std(divBmetricVal) + std(divAmetricVal))/2);
+                    statsValueStore = [statsValueStore; dprime];
+                    metricToTestStore{end+1} = metricToTest;
 
                 end 
                 
@@ -212,11 +220,21 @@ for lagIdx = 1:length(uniqueLags)
                     grpB = grpPairs{pairIdx, 2};
                     grpAdata = divSubsetRecordingLevelData(strcmp(divSubsetRecordingLevelData.eGrp, grpA), :);
                     grpBdata = divSubsetRecordingLevelData(strcmp(divSubsetRecordingLevelData.eGrp, grpB), :);
-                    [h, p] = ttest2(grpAdata.(metricToTest), grpBdata.(metricToTest));
+                    grpAvalues = grpAdata.(metricToTest);
+                    grbBvalues = grpBdata.(metricToTest);
+                    [h, p] = ttest2(grpAvalues, grbBvalues);
                     lagValueStore = [lagValueStore; lag];
                     testStore{end+1} = sprintf('DIV-%.f-%s-vs-%s-ttest', divToSubset, grpA, grpB);
                     statsMetricStore{end+1} = 'P-value';
                     statsValueStore = [statsValueStore; p];
+                    metricToTestStore{end+1} = metricToTest;
+                    
+                    % d-prime
+                    lagValueStore = [lagValueStore; lag];
+                    testStore{end+1} = sprintf('DIV-%.f-%s-vs-%s-ttest', divToSubset, grpA, grpB);
+                    statsMetricStore{end+1} = 'd-prime';
+                    dprime = (mean(grbBvalues) - mean(grpAvalues)) / ((std(grbBvalues) + std(grpAvalues))/2);
+                    statsValueStore = [statsValueStore; dprime];
                     metricToTestStore{end+1} = metricToTest;
                 end 
                 
