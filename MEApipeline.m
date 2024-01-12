@@ -536,6 +536,7 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
                                       char(expData.Info.Grp), char(expData.Info.FN));
             originalCoords = Params.coords{ExN};
             originalChannels = Params.channels{ExN};
+            Params.ExpNameGroupUseCoord = 1;
             NetMet = calNodeCartography(expData.adjMs, Params, expData.NetMet, expData.Info, originalCoords, originalChannels, ...
             HomeDir, fileNameFolder, oneFigureHandle);
             % save NetMet now that we have node cartography data as well
