@@ -20,7 +20,7 @@ Spike detection
 Microelectrode array (MEA) recordings offer the temporal resolution to identify individual action potentials from multi-unit activity detected at individual electrodes.  There are many different methods available for detecting action potentials from extracellular voltage recordings. The choice of methods and parameters need to be optimized for each data set, as type of tissue, level of activity, and level of electrical noise will affect the accuracy.  The gold standard for tuning spike detection is comparing MEA recordings from the same network before and after tetrodotoxin (TTX) administration (if your neuronal population is sensitive to action potential blockade by TTX, Figure 4.1). TTX inhibition is use-dependent, thus depending how frequently the neurons fire action potentials, it may take a few minutes before all neuronal firing stops in the presence of TTX.
 
 .. image:: imgs/spike_detection.png
-    :width: 320
+    :width: 640
     :align: center
 
 
