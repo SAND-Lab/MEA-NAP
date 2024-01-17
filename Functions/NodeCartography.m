@@ -44,12 +44,12 @@ t.Title.String = strcat(regexprep(FN,'_','','emptymatch'),{' '},num2str(lagval(e
 
 %% define colour scheme
 
-c1 = [0.8 0.902 0.310]; % light green
-c2 = [0.580 0.706 0.278]; % medium green
-c3 = [0.369 0.435 0.122]; % dark green
-c4 = [0.2 0.729 0.949]; % light blue
-c5 = [0.078 0.424 0.835]; % medium blue
-c6 = [0.016 0.235 0.498]; % dark blue
+c1 = [0.8 0.902 0.310]; % light green, Peripheral node
+c2 = [0.580 0.706 0.278]; % medium green, Non-hub connector
+c3 = [0.369 0.435 0.122]; % dark green, Non-hub kinless node 
+c4 = [0.2 0.729 0.949]; % light blue, Provincial hub
+c5 = [0.078 0.424 0.835]; % medium blue, Connector hub
+c6 = [0.016 0.235 0.498]; % dark blue, Kinless hub
 
 %% create cartography boundaries
 
@@ -132,12 +132,12 @@ for j = 1:length(PC)
     end
 end
 
-PopNumNC(1) = length(PCp1);
-PopNumNC(2) = length(PCp2);
-PopNumNC(3) = length(PCp3);
-PopNumNC(4) = length(PCc1);
-PopNumNC(5) = length(PCc2);
-PopNumNC(6) = length(PCc3);
+PopNumNC(1) = length(PCp1); % Peripheral Node
+PopNumNC(2) = length(PCp2); % Non-hub connector
+PopNumNC(3) = length(PCp3); % Non-hub kinless node
+PopNumNC(4) = length(PCc1); % Provincial hub
+PopNumNC(5) = length(PCc2); % Connector hub 
+PopNumNC(6) = length(PCc3); % Kinless hub
 
 %% plot nodes
 
