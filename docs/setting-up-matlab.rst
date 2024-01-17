@@ -3,8 +3,10 @@ Setting up MATLAB
 
 This page is for **users who do not already have MATLAB or the required toolboxes installed**. This guide will walk you through the process of setting up MATLAB and downloading toolboxes required for our pipeline as add-ons. 
 
+=========================
+
 1. Create a free Mathworks account:
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 - You will need a free Mathworks account to conveniently install MATLAB toolboxes that MEA-NAP requires.
 
@@ -60,7 +62,7 @@ This page is for **users who do not already have MATLAB or the required toolboxe
 - Click **Get Add-Ons** to access the MATLAB Add-On Explorer.
 
 6. Search for and install toolboxes:
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 - In the Add-On Explorer, you can search for specific toolboxes by entering keywords or browse the available categories.
 

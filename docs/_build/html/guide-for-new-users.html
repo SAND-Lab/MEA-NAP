@@ -6,7 +6,7 @@
 <link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Guide for Advanced Users" href="guide-for-advanced-users.html" /><link rel="prev" title="Setting up MEA-NAP" href="setting-up-meanap.html" />
 
     <!-- Generated with Sphinx 7.2.6 and Furo 2023.09.10 -->
-        <title>Guide for New Users - MEA pipeline 1.5.1 documentation</title>
+        <title>Guide for New Users - MEA pipeline 1.5.0 documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=362ab14a" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?v=135e06be" />
     <link rel="stylesheet" type="text/css" href="_static/css/tooltipster.custom.css" />
@@ -131,7 +131,7 @@
       </label>
     </div>
     <div class="header-center">
-      <a href="index.html"><div class="brand">MEA pipeline 1.5.1 documentation</div></a>
+      <a href="index.html"><div class="brand">MEA pipeline 1.5.0 documentation</div></a>
     </div>
     <div class="header-right">
       <div class="theme-toggle-container theme-toggle-header">
@@ -154,7 +154,7 @@
       <div class="sidebar-sticky"><a class="sidebar-brand" href="index.html">
   
   
-  <span class="sidebar-brand-text">MEA pipeline 1.5.1 documentation</span>
+  <span class="sidebar-brand-text">MEA pipeline 1.5.0 documentation</span>
   
 </a><form class="sidebar-search-container" method="get" action="search.html" role="search">
   <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
@@ -217,6 +217,7 @@ This mode simplifies the process of selecting directory paths and adjusting para
 - Selecting the folder locations of the MEA-NAP folder, your MEA data, your batch analysis file (.csv or .xlsx)
 - Indicating what type of MEA data (i.e., Multichannel Systems 60 electrode or Axion Biosystems 64 electrode)
 - Adjusting spike detection, network connectivity, and plotting settings</p>
+<hr class="docutils" />
 <section id="overview-of-mea-nap">
 <h2>Overview of MEA-NAP<a class="headerlink" href="#overview-of-mea-nap" title="Link to this heading">#</a></h2>
 <p>The pipeline has the following steps:</p>
@@ -292,12 +293,13 @@ This mode simplifies the process of selecting directory paths and adjusting para
 <h3>4. Plotting parameters<a class="headerlink" href="#plotting-parameters" title="Link to this heading">#</a></h3>
 <a class="reference internal image-reference" href="_images/plotting_gui.png"><img alt="_images/plotting_gui.png" class="align-center" src="_images/plotting_gui.png" style="width: 350px;" /></a>
 <div style="margin-bottom: 20px;"></div><ul class="simple">
-<li><p><strong>Figure formats:</strong> Select one or more file formats for the plots that MEA-NAP produces. Options are .png (easy to view with web or picture browser), .svg (good for creating figures or presentations), and MATLAB format (.fig). For other image formats, see  <a class="hxr-hoverxref hxr-tooltip reference internal" href="guide-for-advanced-users.html#id1"><span class="std std-ref">Guide for Advanced Users</span></a>.</p></li>
+<li><p><strong>Figure formats:</strong> Select one or more file formats for the plots that MEA-NAP produces. Options are .png (easy to view with web or picture browser), .svg (good for creating figures or presentations), and MATLAB format (.fig). For other image formats, see  <span class="xref std std-ref">Guide for Advanced Users</span>.</p></li>
 <li><p><strong>Do not compress SVG:</strong> Leave checked to create SVG files suitable for creating figures.</p></li>
 <li><p><strong>Display only one figure:</strong> Leave checked to prevent MATLAB from creating separate figure windows for each figure as MEA-NAP runs.</p></li>
 <li><p><strong>Raster Map Upper Percentile:</strong> In Step 2, the firing rates for each MEA recording are plotted using the same scale from 0 Hz to this upper percentile of the maximum firing rates for the entire dataset.  Enter an integer <strong>value between 0 and 99.</strong></p></li>
 <li><p><strong>Include NotBoxPlots:</strong> If checked, notBoxPlot figures will be generated in Step 2B and Step 4B in addition to the half-violin plots.</p></li>
 <li><p><strong>Include channel number in plots:</strong> If checked, will print the channel (electrode ) ID number over the node in select figures.  This can be useful if you want to confirm you have used the correct Channel Layout (Spike Detection Parameters).</p></li>
+<li><p><strong>Colormap settings:</strong> In Step 4A plots with color bars, the scale is set to the individual recording or the entire dataset in the other plot. If “Use theoretical bounds” is checked, then the same scale bar will be used for both plots.  However, the scaling of the node size and edge weight (line thickness) will still be specific to the individual recording and the entire dataset.  “Use min max…” check boxes are potential feature requests that may be available in future versions of MEA-NAP</p></li>
 </ul>
 </section>
 </section>
@@ -343,7 +345,7 @@ This mode simplifies the process of selecting directory paths and adjusting para
         <div class="bottom-of-page">
           <div class="left-details">
             <div class="copyright">
-                Copyright &#169; 2022, Timothy Sit, Rachael Feord, Alexander Dunn, Jeremy Chabros, Mierau SB and SAND group members
+                Copyright &#169; 2022, Timothy Sit, Rachael Feord, Alexander Dunn, Jeremy Chabros, Susanna Mierau, and SAND group members
             </div>
             Made with <a href="https://www.sphinx-doc.org/">Sphinx</a> and <a class="muted-link" href="https://pradyunsg.me">@pradyunsg</a>'s
             
@@ -393,7 +395,7 @@ This mode simplifies the process of selecting directory paths and adjusting para
   </div>
 </div><script src="_static/jquery.js?v=5d32c60e"></script>
     <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-    <script src="_static/documentation_options.js?v=44dfd65d"></script>
+    <script src="_static/documentation_options.js?v=e0a75244"></script>
     <script src="_static/doctools.js?v=888ff710"></script>
     <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="_static/scripts/furo.js?v=32e29ea5"></script>

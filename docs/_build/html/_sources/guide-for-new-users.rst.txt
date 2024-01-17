@@ -9,6 +9,8 @@ The GUI will guide you through the following aspects of MEA-NAP:
 - Indicating what type of MEA data (i.e., Multichannel Systems 60 electrode or Axion Biosystems 64 electrode) 
 - Adjusting spike detection, network connectivity, and plotting settings 
 
+=========================
+
 Overview of MEA-NAP
 ----------------------------------------------------------------
 
@@ -131,7 +133,7 @@ User input for GUI
 - **Raster Map Upper Percentile:** In Step 2, the firing rates for each MEA recording are plotted using the same scale from 0 Hz to this upper percentile of the maximum firing rates for the entire dataset.  Enter an integer **value between 0 and 99.**
 - **Include NotBoxPlots:** If checked, notBoxPlot figures will be generated in Step 2B and Step 4B in addition to the half-violin plots.
 - **Include channel number in plots:** If checked, will print the channel (electrode ) ID number over the node in select figures.  This can be useful if you want to confirm you have used the correct Channel Layout (Spike Detection Parameters).
-
+- **Colormap settings:** In Step 4A plots with color bars, the scale is set to the individual recording or the entire dataset in the other plot. If "Use theoretical bounds" is checked, then the same scale bar will be used for both plots.  However, the scaling of the node size and edge weight (line thickness) will still be specific to the individual recording and the entire dataset.  "Use min max..." check boxes are potential feature requests that may be available in future versions of MEA-NAP
 Saving and loading parameters 
 ------------------------------
 - Once all the required parameters have been set, the button at the bottom of your window should switch from red to green.

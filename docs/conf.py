@@ -18,11 +18,11 @@
 # -- Project information -----------------------------------------------------
 
 project = 'MEA pipeline'
-copyright = '2022, Timothy Sit, Rachael Feord, Alexander Dunn, Jeremy Chabros, Mierau SB and SAND group members'
-author = 'Timothy Sit, Rachael Feord, Alexander Dunn, Jeremy Chabros, Mierau SB, and SAND group members'
+copyright = '2022, Timothy Sit, Rachael Feord, Alexander Dunn, Jeremy Chabros, Susanna Mierau, and SAND group members'
+author = 'Timothy Sit, Rachael Feord, Alexander Dunn, Jeremy Chabros, Susanna Mierau, and SAND group members'
 
 # The full version, including alpha/beta/rc tags
-release = '1.5.1'
+release = '1.5.0'
 
 
 # -- General configuration ---------------------------------------------------
