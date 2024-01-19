@@ -20,7 +20,7 @@ Params.costList = str2double(app.WaveletCostEditField.Value);
 Params.SpikesMethod = app.SpikeMethodforAnalysisEditField.Value;  % wavelet methods, eg. 'bior1p5', or 'mergedAll', or 'mergedWavelet'
 
 % Functional connectivity inference settings
-Params.FuncConLagval = str2num(app.STTCLagsEditField.Value); % set the different lag values (in ms), default to [10, 15, 25]
+Params.FuncConLagval = str2num(app.STTCLagmsEditField.Value); % set the different lag values (in ms), default to [10, 15, 25]
 Params.TruncRec = app.TruncateRecordingCheckBox.Value; % truncate recording? 1 = yes, 0 = no
 Params.TruncLength = app.TruncationlengthsecEditField.Value; % length of truncated recordings (in seconds)
 Params.adjMtype = lower(app.AdjacencymatrixtypeButtonGroup.SelectedObject.Text); % 'weighted'; % 'weighted' or 'binary'

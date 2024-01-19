@@ -20,7 +20,7 @@ app.DetectSpikesCheckBox.Value = Params.detectSpikes;
 app.RunspikecheckonpreviousspikedataCheckBox.Value = Params.runSpikeCheckOnPrevSpikeData;
 
 %% Connectivity settings 
-app.STTCLagsEditField.Value = num2str(Params.FuncConLagval);
+app.STTCLagmsEditField.Value = num2str(Params.FuncConLagval);
 
 %% Plotting settings
 
