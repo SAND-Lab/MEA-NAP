@@ -127,7 +127,7 @@ User input for GUI
 
    <div style="margin-bottom: 20px;"></div>
 
-- **Figure formats:** Select one or more file formats for the plots that MEA-NAP produces. Options are .png (easy to view with web or picture browser), .svg (good for creating figures or presentations), and MATLAB format (.fig). For other image formats, see  :ref:`Guide for Advanced Users <Guide for Advanced Users>`.
+- **Figure formats:** Select one or more file formats for the plots that MEA-NAP produces. Options are .png (easy to view with web or picture browser), .svg (good for creating figures or presentations), and MATLAB format (.fig). For other image formats, see  :ref:`Guide for Advanced Users <https://analysis-pipeline.readthedocs.io/en/latest/guide-for-advanced-users.html>`.
 - **Do not compress SVG:** Leave checked to create SVG files suitable for creating figures.
 - **Display only one figure:** Leave checked to prevent MATLAB from creating separate figure windows for each figure as MEA-NAP runs.
 - **Raster Map Upper Percentile:** In Step 2, the firing rates for each MEA recording are plotted using the same scale from 0 Hz to this upper percentile of the maximum firing rates for the entire dataset.  Enter an integer **value between 0 and 99.**
@@ -152,7 +152,7 @@ Saving and loading parameters
 
 Notes on selecting parameters for new users
 ------------------------------
-- The choice of parameters depends on your data and scientific question. Thus, it is helpful to use the validation plots in MEA-NAP to confirm which parameter choices are appropriate for your data (see <a href="https://analysis-pipeline.readthedocs.io/en/latest/meanap-methods.html">MEA-NAP methods</a> for more detail).  
+- The choice of parameters depends on your data and scientific question. Thus, it is helpful to use the validation plots in MEA-NAP to confirm which parameter choices are appropriate for your data (see MEA-NAP methods, https://analysis-pipeline.readthedocs.io/en/latest/meanap-methods.html, for more detail).  
 - One strategy is to run MEA-NAP in steps to help you determine the choice of parameters.
 - First, we recommend identifying the spike detection parameters that have the best sensitivity and specificity for your data.  For example, start with Step 1 with multiple threshold (e.g., 4, 5) and wavelets (bior1.5, bior1.3, db2) selected. Then stop MEA-NAP after Step 1B is completed. (If you have the Output Folder open in your file browser, you can see when MEA-NAP has started to add plots to Step 2, and you can hit the stop button on MATLAB). You can then look at the plots in Step 1B - Spike Detection checks. Spike Detection, particularly for multiple methods/parameters, is typically the longest step to run in MEA-NAP.  For example, using a desktop computer (Intel i5-4570 CPU 3.20Ghz processor with 32 GB RAM running Windows 10 Pro), the spike detection for 2 thresholds and 3 wavelets on 10-minute-long recordings collected at 12.5kHz from 64-electrode MEAs took about 24 minutes per recording. 
 - You will then be able to start MEA-NAP again using the previously spike detected data and choose the appropriate Spike Detection method/parameter for the downstream analysis (Step 2 - 5). 
