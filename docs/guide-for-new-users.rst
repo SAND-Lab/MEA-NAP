@@ -134,6 +134,7 @@ User input for GUI
 - **Include NotBoxPlots:** If checked, notBoxPlot figures will be generated in Step 2B and Step 4B in addition to the half-violin plots.
 - **Include channel number in plots:** If checked, will print the channel (electrode ) ID number over the node in select figures.  This can be useful if you want to confirm you have used the correct Channel Layout (Spike Detection Parameters).
 - **Colormap settings:** In Step 4A plots with color bars, the scale is set to the individual recording or the entire dataset in the other plot. If "Use theoretical bounds" is checked, then the same scale bar will be used for both plots.  However, the scaling of the node size and edge weight (line thickness) will still be specific to the individual recording and the entire dataset.  "Use min max..." check boxes are potential feature requests that may be available in future versions of MEA-NAP
+
 Saving and loading parameters 
 ------------------------------
 - Once all the required parameters have been set, the button at the bottom of your window should switch from red to green.
@@ -148,3 +149,10 @@ Saving and loading parameters
    <div style="margin-bottom: 20px;"></div>
 
 - If you have run MEA-NAP previously on the same day, MEA-NAP **will prompt you to rename the first Output folder (e.g., v1) when it starts running.**
+
+Notes on selecting parameters for new users
+------------------------------
+- The choice of parameters depends on your data and scientific question. Thus, it is helpful to use the validation plots in MEA-NAP to confirm which parameter choices are appropriate for your data.  MEA-NAP can run autonomously from Step 1-5.  MEA-NAP can also be run in steps to help you determine the choice of parameters.
+- First, we recommend identifying the spike detection parameters that have the best sensitivity and specificity for your data.  For example, start with Step 1 with multiple threshold (e.g., 4, 5) and wavelets (bior1.5, bior1.3, db2) selected and then stopping MEA-NAP after Step 1B is completed. (If you have the Output Folder open, you can see when it has started to add plots to Step 2 and you can hit the stop button on MATLAB). You can then look at the plots in Step 1B - Spike Detection checks. Under Plotting parameters, it would be best to choose only one (e.g., .png) format so it will run faster and minimize number of plots produced.  When performing Spike Detection for multiple methods/parameters, this is typically the longest step to run in MEA-NAP.  Running spike detection for 2 thresholds and 3 wavelets on 10 minute long recordings collected at 12.5kHz from 64-electrode MEAs took about 24 minutes per recording using a desktop computer (Intel i5-4570 CPU 3.20Ghz processor with 32 GB RAM running Windows 10 Pro). 
+- You will then be able to start MEA-NAP again using the previously spike detected data and choose the appropriate Spike Detection method/parameter for the downstream analysis (Step 2 - 5). 
+- With your next MEA-NAP run, you can determine what spike time tiling lag (STTC) is appropriate for your data.  You can run for 10, 25, and 50 ms, for example.  Here again, selecting only one image type (e.g., .png) is helpful to reduce run time.  After looking through comparison plots by lag, you can could rerun the pipeline starting at Step 4 for one lag and select plot output type as .svg, for example, to be able to use these plots in creating figures in Illustrator, Powerpoint, or other software. 
