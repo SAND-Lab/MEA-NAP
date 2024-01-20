@@ -127,7 +127,7 @@ User input for GUI
 
    <div style="margin-bottom: 20px;"></div>
 
-- **Figure formats:** Select one or more file formats for the plots that MEA-NAP produces. Options are .png (easy to view with web or picture browser), .svg (good for creating figures or presentations), and MATLAB format (.fig). For other image formats, see  :ref:`Guide for Advanced Users <https://analysis-pipeline.readthedocs.io/en/latest/guide-for-advanced-users.html>`.
+- **Figure formats:** Select one or more file formats for the plots that MEA-NAP produces. Options are .png (easy to view with web or picture browser), .svg (good for creating figures or presentations), and MATLAB format (.fig). For other image formats, see Guide for Advanced Users.
 - **Do not compress SVG:** Leave checked to create SVG files suitable for creating figures.
 - **Display only one figure:** Leave checked to prevent MATLAB from creating separate figure windows for each figure as MEA-NAP runs.
 - **Raster Map Upper Percentile:** In Step 2, the firing rates for each MEA recording are plotted using the same scale from 0 Hz to this upper percentile of the maximum firing rates for the entire dataset.  Enter an integer **value between 0 and 99.**
