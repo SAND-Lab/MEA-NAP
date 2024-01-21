@@ -138,7 +138,7 @@ User input for GUI
 Saving and loading parameters 
 ------------------------------
 - Once all the required parameters have been set, the button at the bottom of your window should switch from red to green.
-- At any point before running MEA-NAP, click “Save parameters” at the bottom of your window to save your selected parameters. **When using MEA-NAP again, click “Load parameters” to reuse these parameters.**  This can be very useful when re-running different data sets.  Sample saved parameter files for running Axion 64-electrode MEA data starting from Step1 (MEANAP-Params-Axion64MEA.mat) and Step2 (MEANAP-Params-Axion64MEA-startStep2.mat) are included on the Github.  
+- At any point before running MEA-NAP, click “Save parameters” at the bottom of your window to save your selected parameters. **When using MEA-NAP again, click “Load parameters” to reuse these parameters.**  This can be very useful when re-running different data sets.  
 
 .. image:: imgs/save_parameters_gui.png
    :width: 400 
@@ -147,7 +147,7 @@ Saving and loading parameters
 .. raw:: html
 
    <div style="margin-bottom: 20px;"></div>
-
+- Sample saved parameter files for running Axion 64-electrode MEA data starting from Step1 (MEANAP-Params-Axion64MEA.mat) and Step2 (MEANAP-Params-Axion64MEA-startStep2.mat) are included on the Github.  
 - If you have run MEA-NAP previously on the same day, MEA-NAP **will prompt you to rename the first Output folder (e.g., v1) when it starts running.**
 
 Notes on selecting parameters for new users
