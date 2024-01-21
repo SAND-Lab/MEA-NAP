@@ -147,7 +147,7 @@ Saving and loading parameters
 .. raw:: html
 
    <div style="margin-bottom: 20px;"></div>
-- Sample saved parameter files for running Axion 64-electrode MEA data starting from Step1 (MEANAP-Params-Axion64MEA.mat) and Step2 (MEANAP-Params-Axion64MEA-startStep2.mat) are included on the Github.  
+- Sample saved parameter files for running Axion 64-electrode MEA data starting from Step 1 (MEANAP-Params-Axion64MEA.mat) and Step 2 (MEANAP-Params-Axion64MEA-startStep2.mat) are included on the Github.  
 - If you have run MEA-NAP previously on the same day, MEA-NAP **will prompt you to rename the first Output folder (e.g., v1) when it starts running.**
 
 Notes on selecting parameters for new users
