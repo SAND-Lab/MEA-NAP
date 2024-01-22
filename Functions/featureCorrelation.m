@@ -93,8 +93,15 @@ for eGrpIdx = 1:num_eGrp
         featureCorr = corr(table2array(subsetRecordingLevelData), 'rows','complete');
         columnNames = subsetRecordingLevelData.Properties.VariableNames;
         imagesc(featureCorr, [-1, 1]);
-        set(gca, 'XTick', 1:length(columnNames), 'XTickLabel', columnNames) 
-        set(gca, 'YTick', 1:length(columnNames), 'YTickLabel', columnNames) 
+        
+        if length(columnNames) > 20 
+            tickmark_fontsize = 4;
+        else
+            tickmark_fontsize = 9;
+        end
+        
+        set(gca, 'XTick', 1:length(columnNames), 'XTickLabel', columnNames, 'fontsize', tickmark_fontsize, 'TickLabelInterpreter', 'none') 
+        set(gca, 'YTick', 1:length(columnNames), 'YTickLabel', columnNames, 'fontsize', tickmark_fontsize, 'TickLabelInterpreter', 'none') 
         title(sprintf('%s %.f', unique_eGrp{eGrpIdx}, unique_AgeDiv(AgeDivIdx)))
         hold on
 
