@@ -110,14 +110,13 @@ else
         disp('no bursts detected')
     end 
     sp_in_bst=0;
-    
     Ephys.meanNBstLengthS = nan; % mean length burst in s
-    Ephys.numNbursts = nan;
+    Ephys.numNbursts = 0;
     Ephys.meanNumChansInvolvedInNbursts = nan;
     Ephys.meanISIWithinNbursts_ms = nan;
     Ephys.meanISIoutsideNbursts_ms = nan;
     Ephys.CVofINBI = nan; %3 decimal places
-    Ephys.NBurstRate = nan;
+    Ephys.NBurstRate = 0;
     Ephys.fracInNburst = nan;
     
 end
