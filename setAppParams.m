@@ -12,7 +12,7 @@ app.UsePreviousAnalysisCheckBox.Value = Params.priorAnalysis;
 app.PreviousAnalysisDateEditField.Value = Params.priorAnalysisDate;
 
 app.SpikeDataFolderEditField.Value = Params.spikeDetectedData;
-app.SpreadsheetfilenameEditField.Value = Params.spreadSheetFileName;
+app.SpreadsheetFilenameEditField.Value = Params.spreadSheetFileName;
 app.StartAnalysisStepEditField.Value = Params.startAnalysisStep;
 
 % Spike Detection 
