@@ -77,16 +77,16 @@ elseif strcmp(classificationMode, 'allDIV')
     subsetColumnIdx = find(~ismember(lagRecordingLevelData.Properties.VariableNames, columnsToExclude));
     lagRecordingLevelDataFeatures = lagRecordingLevelData(:,subsetColumnIdx);
     
+    y = lagRecordingLevelData.(classificationTarget);
+    
     X = table2array(lagRecordingLevelDataFeatures);
     subset_feature_bool = var(X)~=0;
     subset_feature_names = lagRecordingLevelDataFeatures.Properties.VariableNames(subset_feature_bool);
     X_processed = X(:, subset_feature_bool);
     X_processed = zscore(X_processed, 1);
-    
-    y = lagRecordingLevelData.(classificationTarget);
-
+   
     % Linear dicriminant analysis
-    Mdl = fitcdiscr(X_processed, y);
+    Mdl = fitcdiscr(X_processed, y, 'discrimType', 'pseudoLinear');  % 'pseudoLinear' allows for zero within class variance
     [W, LAMBDA] = eig(Mdl.BetweenSigma, Mdl.Sigma); %Must be in the right order! 
     lambda = diag(LAMBDA);
     [lambda, SortOrder] = sort(lambda, 'descend');
