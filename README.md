@@ -40,7 +40,7 @@ You can see our [MEA-NAP FENS poster](https://www.dropbox.com/s/by23wlgch4oyygm/
 To install MEA-NAP, clone the github repository to a location of your choice (e.g., your desktop folder):
 
 ```
-git clone https://github.com/SAND-Lab/MEA-NAP -b v1.4.1
+git clone https://github.com/SAND-Lab/MEA-NAP -b v1.6.0
 ```
 
 To confirm you have the appropriate version of Matlab and Matlab toolboxes installed, please [see the MEA-NAP systems requirments](https://analysis-pipeline.readthedocs.io/en/latest/system-requirements.html). Our [detailed documentation for MEA-NAP](https://analysis-pipeline.readthedocs.io/en/latest/) provides step-by-step instructions for formatting your data and running MEA-NAP.
