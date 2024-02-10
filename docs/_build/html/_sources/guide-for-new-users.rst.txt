@@ -56,10 +56,10 @@ User input for GUI
 
    <div style="margin-bottom: 20px;"></div>
 
-- **MEA-NAP Folder:** Location of the MEA-NAP folder you downloaded from our Github page.  Please move the note about recommend save in Documents Folder and not in Program Files to the Setting up MEA-NAP page.
+- **MEA-NAP Folder:** Location of the MEA-NAP folder you downloaded from our Github page. *Important: there may be a brief pause before the file browser appears after you click the select buttons in the GUI. Do not click on other parts of the GUI during this pause. Otherwise, you may need to close the GUI, clear the workspace, and run MEA-NAP again.*
 - **Raw Data Folder:** Location of the folder with your data.  All of the recordings that you want to analyze in one experiment should be in the same folder and should be raw or filtered MEA data in .mat format (see Setup MEA-NAP if you have not converted your files to .mat).
 - **Output Data Folder:** Location of the folder where the figures and analysis files will be saved.
-- **Spreadsheet Filename:** Your .csv file with the list of recording filenames you want analyzed, age and group (e.g., genotype).
+- **Spreadsheet Filename:** Your .csv file with the list of recording filenames you want analyzed, age and group (e.g., genotype). *Important: There will be a few seconds long pause while MEA-NAP imports data from the .csv file. Do not click on anything else in the GUI while it is uploading. Otherwise, you may need to close the GUI, clear the workspace, and run MEA-NAP again.*
 - **Spreadsheet Range:** Range (``[StartRow EndRow]``)of CSV file to read data from (e.g. ``[2 Inf]`` would start reading data from row 2)
 - **Start Analysis Step:** MEA-NAP can be run starting at different steps using prior analysis.  Input should be a number.  1 - Spike Detection, 2 - Neuronal Activity (firing rate and burst properties), 3 - Functional Connectivity, 4 - Network Activity, 5 - Statistical comparisons.  Steps 2-5 require prior spike detection.  Steps 4-5 require step 3.
 - **Optional Steps to Run:** Optional step(s) to run downstream required steps of the pipeline (steps 1-4)
@@ -127,17 +127,18 @@ User input for GUI
 
    <div style="margin-bottom: 20px;"></div>
 
-- **Figure formats:** Select one or more file formats for the plots that MEA-NAP produces. Options are .png (easy to view with web or picture browser), .svg (good for creating figures or presentations), and MATLAB format (.fig). For other image formats, see  :ref:`Guide for Advanced Users <Guide for Advanced Users>`.
+- **Figure formats:** Select one or more file formats for the plots that MEA-NAP produces. Options are .png (easy to view with web or picture browser), .svg (good for creating figures or presentations), and MATLAB format (.fig). For other image formats, see Guide for Advanced Users.
 - **Do not compress SVG:** Leave checked to create SVG files suitable for creating figures.
 - **Display only one figure:** Leave checked to prevent MATLAB from creating separate figure windows for each figure as MEA-NAP runs.
 - **Raster Map Upper Percentile:** In Step 2, the firing rates for each MEA recording are plotted using the same scale from 0 Hz to this upper percentile of the maximum firing rates for the entire dataset.  Enter an integer **value between 0 and 99.**
 - **Include NotBoxPlots:** If checked, notBoxPlot figures will be generated in Step 2B and Step 4B in addition to the half-violin plots.
 - **Include channel number in plots:** If checked, will print the channel (electrode ) ID number over the node in select figures.  This can be useful if you want to confirm you have used the correct Channel Layout (Spike Detection Parameters).
 - **Colormap settings:** In Step 4A plots with color bars, the scale is set to the individual recording or the entire dataset in the other plot. If "Use theoretical bounds" is checked, then the same scale bar will be used for both plots.  However, the scaling of the node size and edge weight (line thickness) will still be specific to the individual recording and the entire dataset.  "Use min max..." check boxes are potential feature requests that may be available in future versions of MEA-NAP
+
 Saving and loading parameters 
 ------------------------------
 - Once all the required parameters have been set, the button at the bottom of your window should switch from red to green.
-- At any point before running MEA-NAP, click “Save parameters” at the bottom of your window to save your selected parameters. **When using MEA-NAP again, click “Load parameters” to reuse these parameters.**  This can be very useful when re-running different data sets.  A sample saved parameters for running Axion 64 electrode MEA data is included on the Github.
+- At any point before running MEA-NAP, click “Save parameters” at the bottom of your window to save your selected parameters. **When using MEA-NAP again, click “Load parameters” to reuse these parameters.**  This can be very useful when re-running different data sets.  
 
 .. image:: imgs/save_parameters_gui.png
    :width: 400 
@@ -146,5 +147,13 @@ Saving and loading parameters
 .. raw:: html
 
    <div style="margin-bottom: 20px;"></div>
-
+- Sample saved parameter files for running Axion 64-electrode MEA data starting from Step 1 (MEANAP-Params-Axion64MEA.mat) and Step 2 (MEANAP-Params-Axion64MEA-startStep2.mat) are included on the Github.  
 - If you have run MEA-NAP previously on the same day, MEA-NAP **will prompt you to rename the first Output folder (e.g., v1) when it starts running.**
+
+Notes on selecting parameters for new users
+------------------------------
+- The choice of parameters depends on your data and scientific question. Thus, it is helpful to use the validation plots in MEA-NAP to confirm which parameter choices are appropriate for your data (see MEA-NAP methods, https://analysis-pipeline.readthedocs.io/en/latest/meanap-methods.html, for more detail).  
+- One strategy is to run MEA-NAP in steps to help you determine the choice of parameters.
+- First, we recommend identifying the spike detection parameters that have the best sensitivity and specificity for your data.  For example, start with Step 1 with multiple threshold (e.g., 4, 5) and wavelets (bior1.5, bior1.3, db2) selected. Then stop MEA-NAP after Step 1B is completed. (If you have the Output Folder open in your file browser, you can see when MEA-NAP has started to add plots to Step 2, and you can hit the stop button on MATLAB). You can then look at the plots in Step 1B - Spike Detection checks. Spike Detection, particularly for multiple methods/parameters, is typically the longest step to run in MEA-NAP.  For example, using a desktop computer (Intel i5-4570 CPU 3.20Ghz processor with 32 GB RAM running Windows 10 Pro), the spike detection for 2 thresholds and 3 wavelets on 10-minute-long recordings collected at 12.5kHz from 64-electrode MEAs took about 24 minutes per recording. 
+- You will then be able to start MEA-NAP again using the previously spike detected data and choose the appropriate Spike Detection method/parameter for the downstream analysis (Step 2 - 5). 
+- With your next MEA-NAP run, you can determine what spike time tiling lag (STTC) is appropriate for your data.  You can run for 10, 25, and 50 ms, for example.  Here, selecting only one image type (e.g., .png) is helpful to reduce run time.  After looking through comparison plots by lag, you can could rerun the pipeline starting at Step 4 for one lag and select plot output type as .svg, for example, to be able to use these plots in creating figures in Illustrator, Powerpoint, or other software. 
