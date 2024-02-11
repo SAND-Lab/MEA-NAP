@@ -187,11 +187,33 @@ while app.RunPipelineButton.Value == 0
         figure(app.UIFigure)  % put app back to focus
     end 
     
+    if ~strcmp(app.FiletypeDropDown.Value, '.raw from Axion Maestro')
+        app.BatchCSVnameEditField.Enable = 0;
+        app.DIVincludedCheckBox.Enable = 0;
+        app.MorethanonegenotypeCheckBox.Enable = 0;
+        app.GenotypegroupsEditField.Enable = 0;
+    else 
+        app.BatchCSVnameEditField.Enable = 1;
+        app.DIVincludedCheckBox.Enable = 1;
+        app.MorethanonegenotypeCheckBox.Enable = 1;
+        app.GenotypegroupsEditField.Enable = 1;
+    end 
+    
     if app.RunfileconversionButton.Value == 1
+        
+        % add functions to file path 
+        addpath(genpath(fullfile(app.MEANAPFolderEditField.Value, 'Functions')))
+        
         app.MEANAPStatusTextArea.Value = ...
-            [app.MEANAPStatusTextArea.Value; 'Running file conversion!'];
-        if strcmp(app.FiletypeDropDown.Value, '.mcd from Multichannel Systems')
-            MEAbatchConvert(dataFolder);
+            [app.MEANAPStatusTextArea.Value; 'Running file conversion...'];
+        if strcmp(app.FiletypeDropDown.Value, '.mcd from Multichannel Systems')  
+            app.MEANAPStatusTextArea.Value = ...
+            [app.MEANAPStatusTextArea.Value; 'on MCD files...'];
+            MEAbatchConvert(app.FilelocationEditField.Value);
+        elseif strcmp(app.FiletypeDropDown.Value, '.raw from Axion Maestro')
+            rawConvertFunc(app.MEANAPFolderEditField.Value, app.FilelocationEditField.Value, ...
+                app.BatchCSVnameEditField.Value, app.DIVincludedCheckBox.Value, ...
+                (1 - app.MorethanonegenotypeCheckBox.Value), app.GenotypegroupsEditField.Value)
         end 
         app.MEANAPStatusTextArea.Value = ...
             [app.MEANAPStatusTextArea.Value; 'File conversion complete!'];
