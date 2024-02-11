@@ -31,27 +31,35 @@ The MEA-NAP pipeline is currently optimized for single MEA recordings made on th
 
    1. Open MC_DataTool.
    2. Select File - Open Multiple.
-   3. Choose files of interest.
+   3. Choose .mcd files of interest.
    4. Click "bin."
    5. Click "All."
    6. Ensure "Write header" and "Signed 16bit" are checked in the lower right.
    7. Click save.
    8. When done, click close.
    9. Open MATLAB.
-   10. Add the analysis pipeline code to the path.
-   11. Navigate in MATLAB to the folder containing the ".mcd" files you want to convert.
+   10. Add the analysis pipeline code to the path. 
+   11. Navigate in MATLAB to the folder containing the ".raw" files, which were produced by MC_DataTool, you want to convert.
    12. In the MATLAB command window, type ``MEAbatchConvert`` and press return to run.
 
 - **Converting .raw files acquired from an Axion Maestro MEA system to .mat files**:
 
    1. Save `.raw` files from MEA Axion Maestro system to one folder.
-   2. Copy the directory path of the folder containing `.raw` files.
-   3. Verify that `rawConvert.m` and `fillBatchFile.m` are installed and saved in the same folder as AxIS MATLAB Files.
-   4. Open `rawConvert.m`.
-   5. Fill out user parameters in `rawConvert.m` according to instructions provided in `rawConvert.m`.
-   6. Click run.
-   7. When `rawConvert.m` has successfully run, open the folder where `.raw` files were initially stored.
-   8. Navigate through the folder to check that all `.mat` files have been successfully created and saved.
+   2. Open `rawConvert.m` which is located in ConvertRawtoMat subfolder inside Functions folder.
+
+   .. image:: imgs/ConvertRawtoMat.png
+      :width: 300
+      :align: center
+
+   3. Fill out user parameters in `rawConvert.m` according to instructions provided in `rawConvert.m`.
+
+   .. image:: imgs/rawConvert.png
+      :width: 600
+      :align: center
+
+   4. Click run 
+   5. When `rawConvert.m` has successfully run, open the folder where `.raw` files were initially stored.
+   6. Navigate through the folder to check that all `.mat` files have been successfully created and saved.
 
 3. Organize your data:
 ^^^^^^^^^^^^^^^^^^^^^^^

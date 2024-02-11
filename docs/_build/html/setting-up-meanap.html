@@ -175,7 +175,7 @@
 <li class="toctree-l1"><a class="reference internal" href="frequently-asked-questions.html">Frequently Asked Questions</a></li>
 <li class="toctree-l1"><a class="reference internal" href="how-to-contribute.html">Contributing to the Project</a></li>
 <li class="toctree-l1"><a class="reference internal" href="sources.html">Code Sources</a></li>
-<li class="toctree-l1"><a class="reference internal" href="cite-MEANAP.html">Cite MEA-NAP</a></li>
+<li class="toctree-l1"><a class="reference internal" href="citing-MEANAP.html">Citing MEA-NAP</a></li>
 </ul>
 
 </div>
@@ -233,7 +233,7 @@
 <div><ol class="arabic simple">
 <li><p>Open MC_DataTool.</p></li>
 <li><p>Select File - Open Multiple.</p></li>
-<li><p>Choose files of interest.</p></li>
+<li><p>Choose .mcd files of interest.</p></li>
 <li><p>Click “bin.”</p></li>
 <li><p>Click “All.”</p></li>
 <li><p>Ensure “Write header” and “Signed 16bit” are checked in the lower right.</p></li>
@@ -241,7 +241,7 @@
 <li><p>When done, click close.</p></li>
 <li><p>Open MATLAB.</p></li>
 <li><p>Add the analysis pipeline code to the path.</p></li>
-<li><p>Navigate in MATLAB to the folder containing the “.mcd” files you want to convert.</p></li>
+<li><p>Navigate in MATLAB to the folder containing the “.raw” files, which were produced by MC_DataTool, you want to convert.</p></li>
 <li><p>In the MATLAB command window, type <code class="docutils literal notranslate"><span class="pre">MEAbatchConvert</span></code> and press return to run.</p></li>
 </ol>
 </div></blockquote>
@@ -250,11 +250,15 @@
 <blockquote>
 <div><ol class="arabic simple">
 <li><p>Save <cite>.raw</cite> files from MEA Axion Maestro system to one folder.</p></li>
-<li><p>Copy the directory path of the folder containing <cite>.raw</cite> files.</p></li>
-<li><p>Verify that <cite>rawConvert.m</cite> and <cite>fillBatchFile.m</cite> are installed and saved in the same folder as AxIS MATLAB Files.</p></li>
-<li><p>Open <cite>rawConvert.m</cite>.</p></li>
+<li><p>Open <cite>rawConvert.m</cite> which is located in ConvertRawtoMat subfolder inside Functions folder.</p></li>
+</ol>
+<a class="reference internal image-reference" href="_images/ConvertRawtoMat.png"><img alt="_images/ConvertRawtoMat.png" class="align-center" src="_images/ConvertRawtoMat.png" style="width: 300px;" /></a>
+<ol class="arabic simple" start="3">
 <li><p>Fill out user parameters in <cite>rawConvert.m</cite> according to instructions provided in <cite>rawConvert.m</cite>.</p></li>
-<li><p>Click run.</p></li>
+</ol>
+<a class="reference internal image-reference" href="_images/rawConvert.png"><img alt="_images/rawConvert.png" class="align-center" src="_images/rawConvert.png" style="width: 600px;" /></a>
+<ol class="arabic simple" start="4">
+<li><p>Click run</p></li>
 <li><p>When <cite>rawConvert.m</cite> has successfully run, open the folder where <cite>.raw</cite> files were initially stored.</p></li>
 <li><p>Navigate through the folder to check that all <cite>.mat</cite> files have been successfully created and saved.</p></li>
 </ol>

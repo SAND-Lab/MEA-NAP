@@ -9,14 +9,14 @@
         <title>MEA pipeline 1.5.0 documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=362ab14a" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?v=135e06be" />
-    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster.custom.css?v=7bc2f056" />
-    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster.bundle.min.css?v=37217874" />
-    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-shadow.min.css?v=6227e517" />
-    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-punk.min.css?v=94669e23" />
-    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-noir.min.css?v=21a39f42" />
-    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-light.min.css?v=a18b2449" />
-    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-borderless.min.css?v=dbff53e4" />
-    <link rel="stylesheet" type="text/css" href="_static/css/micromodal.css?v=d7bf34ee" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster.custom.css" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster.bundle.min.css" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-shadow.min.css" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-punk.min.css" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-noir.min.css" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-light.min.css" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-borderless.min.css" />
+    <link rel="stylesheet" type="text/css" href="_static/css/micromodal.css" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?v=36a5483c" />
     
     
@@ -175,7 +175,7 @@
 <li class="toctree-l1"><a class="reference internal" href="frequently-asked-questions.html">Frequently Asked Questions</a></li>
 <li class="toctree-l1"><a class="reference internal" href="how-to-contribute.html">Contributing to the Project</a></li>
 <li class="toctree-l1"><a class="reference internal" href="sources.html">Code Sources</a></li>
-<li class="toctree-l1"><a class="reference internal" href="cite-MEANAP.html">Cite MEA-NAP</a></li>
+<li class="toctree-l1"><a class="reference internal" href="citing-MEANAP.html">Citing MEA-NAP</a></li>
 </ul>
 
 </div>
@@ -212,12 +212,12 @@
         <article role="main">
           <section id="welcome-to-the-mea-network-analysis-pipeline-mea-nap-documentation">
 <h1>Welcome to the MEA network analysis pipeline (MEA-NAP) documentation!<a class="headerlink" href="#welcome-to-the-mea-network-analysis-pipeline-mea-nap-documentation" title="Link to this heading">#</a></h1>
-<section id="the-mea-network-analyis-pipeline-mea-nap-is-a-diagnostic-tool-for-studying-microscale-functional-connectivity-topology-and-network-dynamics">
-<h2>The MEA Network Analyis Pipeline (MEA-NAP) is a diagnostic tool for studying microscale functional connectivity, topology, and network dynamics<a class="headerlink" href="#the-mea-network-analyis-pipeline-mea-nap-is-a-diagnostic-tool-for-studying-microscale-functional-connectivity-topology-and-network-dynamics" title="Link to this heading">#</a></h2>
-<p>The aim of this MATLAB-based network analysis pipeline (MEA-NAP) is to facilitate comparing the development of functional connectivity and other network features at the microscale from microelectrode array (MEA) recordings of spontaneous neuronal activity in 3D human cerebral organoids or 2D human-derived or murine neuronal cultures.  An overview of the pipeline is represented here:</p>
+<section id="mea-nap-is-a-diagnostic-tool-for-studying-microscale-functional-connectivity-topology-and-network-dynamics">
+<h2>MEA-NAP is a diagnostic tool for studying microscale functional connectivity, topology, and network dynamics<a class="headerlink" href="#mea-nap-is-a-diagnostic-tool-for-studying-microscale-functional-connectivity-topology-and-network-dynamics" title="Link to this heading">#</a></h2>
+<p>The aim of MEA-NAP is to facilitate comparing the development of functional connectivity and other network features at the microscale from microelectrode array (MEA) recordings of spontaneous neuronal activity in 3D human cerebral organoids or 2D human-derived or murine neuronal cultures.  An overview of the MEA-NAP is represented here:</p>
 <a class="reference internal image-reference" href="_images/MEANAPoverview.png"><img alt="_images/MEANAPoverview.png" class="align-center" src="_images/MEANAPoverview.png" style="width: 800px;" /></a>
-<p>The inputs to the pipeline are MEA recordings (raw or filtered time series) imported to MATLAB (blue box in diagram).  Spike detection is performed (green boxes) to identify action potentials detected from the multi-unit activity at individual electrodes (aka nodes). The significant functional connections between nodes (aka edges) is inferred by correlating multi-unit spiking activity between pairs of electrodes to generate an adjacency matrix. Next, analysis of the network topology and dynamics are performed (yellow boxes). Plots are then produced to compare age and group (e.g., genotype) features of functional connectivity, topology, and network dynamics (orange box).  The outputs are intended to be a diagnostic tool for examining microscale functional network activity in the MEA recordings. The outputs include figures of neuronal and network activity at the individual electrode and whole recording levels and summary spreadsheets on which statistical analyses can be performed.</p>
-<p>Note that the pipeline can be run as a whole from raw MEA data to comparison of network features.  Alternatively, the functions can be run independently. For example, the functions for analysing network activity (yellow) and comparing network features (orange) can be run on spike detected data.</p>
+<p>The inputs to the pipeline are MEA recordings (raw or filtered time series) imported to MATLAB.  Spike detection is performed to identify action potentials detected from the multi-unit activity at individual electrodes (aka nodes). The significant functional connections between nodes (aka edges) are inferred by correlating multi-unit spiking activity between pairs of electrodes to generate an adjacency matrix. Next, analysis of the network topology and dynamics are performed. Plots are then produced to compare age and group (e.g., genotype) features of functional connectivity, topology, and network dynamics. Finally, statistical comparisons are performed to select key features.  The outputs are intended to be a diagnostic tool for examining microscale functional network activity in the MEA recordings. The outputs include figures of neuronal and network activity at the individual electrode and whole recording levels and summary spreadsheets on which statistical analyses can be performed.</p>
+<p>Note that the pipeline can be run as a whole from raw MEA data to comparison of network features.  Alternatively, the functions can be run independently. For example, the functions for analysing network activity and comparing network features can be run on spike detected data.</p>
 </section>
 <section id="the-documentation">
 <h2>The documentation<a class="headerlink" href="#the-documentation" title="Link to this heading">#</a></h2>
@@ -225,7 +225,11 @@
 </section>
 <section id="applications-for-basic-and-translational-research">
 <h2>Applications for basic and translational research<a class="headerlink" href="#applications-for-basic-and-translational-research" title="Link to this heading">#</a></h2>
-<p>Alterations in synaptic function, and other cellular processes that affect neuronal communication, can alter the trajectory of network development.  However, currently there is a gap for tools for studying network function at the microscale accessible to cellular neuro- and stem cell biologists working with 2D and 3D rodent and human neuronal cultures. This pipeline combines methods for studying network function using graph theoretical and other network metrics that are commonly used at the whole brain level (e.g., fMRI data) and in other fields of network science.  The aim of the pipeline is to facilitate comparisons in network function at the microscale in MEA recordings.  Network function at the microscale can provide a platform for testing new therapeutic strategies including pharmacologic therapies and stimulating specific nodes in the network to modulate network function.</p>
+<p>Alterations in synaptic function, and other cellular processes that affect neuronal communication, can alter the trajectory of network development.  However, currently there is a gap for tools for studying network function at the microscale accessible to cellular neuro- and stem cell biologists working with 2D and 3D rodent and human neuronal cultures. This pipeline combines methods for studying network function using graph theoretical and other network metrics that are commonly used at the whole brain level (e.g., fMRI data) and in other fields of network science.  The aim of the pipeline is to facilitate comparisons in network function at the microscale in MEA recordings.  Network function at the microscale can provide a platform for testing new therapeutic strategies including pharmacologic therapies and stimulating specific nodes in the network to modulate network function.  Applications to 2D or 3D, mouse or human-derived neuronal cultures are illustrated in our paper featuring MEA-NAP, now available at bioRxiv!</p>
+</section>
+<section id="citing-mea-nap">
+<h2>Citing MEA-NAP<a class="headerlink" href="#citing-mea-nap" title="Link to this heading">#</a></h2>
+<p>Timothy PH Sit, Rachael C Feord, Alexander WE Dunn, Jeremi Chabros, David Oluigbo, Hugo H Smith, Lance Burn, Elise Chang, Alessio Boschi, Yin Yuan, George M Gibbons, Mahsa Khayat-Khoei, Francesco De Angelis, Erik Hemberg, Martin Hemberg, Madeline A Lancaster, Andras Lakatos, Stephen J Eglen, Ole Paulsen, Susanna B Mierau. <strong>MEA-NAP compares microscale functional connectivity, topology, and network dynamics in organoid or monolayer neuronal cultures.</strong> _bioRxiv_ 2024.02.05.578738. doi: [<a class="reference external" href="https://doi.org/10.1101/2024.02.05.578738](https://doi.org/10.1101/2024.02.05.578738">https://doi.org/10.1101/2024.02.05.578738](https://doi.org/10.1101/2024.02.05.578738</a>)</p>
 <div class="toctree-wrapper compound">
 </div>
 </section>
@@ -277,9 +281,10 @@
           <div class="toc-tree">
             <ul>
 <li><a class="reference internal" href="#">Welcome to the MEA network analysis pipeline (MEA-NAP) documentation!</a><ul>
-<li><a class="reference internal" href="#the-mea-network-analyis-pipeline-mea-nap-is-a-diagnostic-tool-for-studying-microscale-functional-connectivity-topology-and-network-dynamics">The MEA Network Analyis Pipeline (MEA-NAP) is a diagnostic tool for studying microscale functional connectivity, topology, and network dynamics</a></li>
+<li><a class="reference internal" href="#mea-nap-is-a-diagnostic-tool-for-studying-microscale-functional-connectivity-topology-and-network-dynamics">MEA-NAP is a diagnostic tool for studying microscale functional connectivity, topology, and network dynamics</a></li>
 <li><a class="reference internal" href="#the-documentation">The documentation</a></li>
 <li><a class="reference internal" href="#applications-for-basic-and-translational-research">Applications for basic and translational research</a></li>
+<li><a class="reference internal" href="#citing-mea-nap">Citing MEA-NAP</a></li>
 </ul>
 </li>
 </ul>
@@ -297,9 +302,9 @@
     <script src="_static/doctools.js?v=888ff710"></script>
     <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="_static/scripts/furo.js?v=32e29ea5"></script>
-    <script src="_static/js/hoverxref.js?v=82c55261"></script>
-    <script src="_static/js/tooltipster.bundle.min.js?v=18bf091b"></script>
-    <script src="_static/js/micromodal.min.js?v=04d6302d"></script>
+    <script src="_static/js/hoverxref.js"></script>
+    <script src="_static/js/tooltipster.bundle.min.js"></script>
+    <script src="_static/js/micromodal.min.js"></script>
     <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     </body>
 </html>

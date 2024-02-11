@@ -51,4 +51,4 @@ Timothy PH Sit, Rachael C Feord, Alexander WE Dunn, Jeremi Chabros, David Oluigb
    frequently-asked-questions
    how-to-contribute
    sources
-   cite-MEANAP
+   citing-MEANAP
