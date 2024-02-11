@@ -25,9 +25,9 @@ Please see our [detailed documentation for MEA-NAP users at our read-the-docs pa
 
 ## Citing MEA-NAP
 
-Our manuscript describing MEA-NAP is now available as a pre-print on bioRxiv!  Please use the following when citing our work.
+**Our manuscript describing MEA-NAP is now available as a pre-print on bioRxiv!**  Please use the following when citing our work:
 
-Timothy PH Sit, Rachael C Feord, Alexander WE Dunn, Jeremi Chabros, David Oluigbo, Hugo H Smith, Lance Burn, Elise Chang, Alessio Boschi, Yin Yuan, George M Gibbons, Mahsa Khayat-Khoei, Francesco De Angelis, Erik Hemberg, Martin Hemberg, Madeline A Lancaster, Andras Lakatos, Stephen J Eglen, Ole Paulsen, Susanna B Mierau. MEA-NAP compares microscale functional connectivity, topology, and network dynamics in organoid or monolayer neuronal cultures. bioRxiv 2024.02.05.578738. doi: [https://doi.org/10.1101/2024.02.05.578738](https://doi.org/10.1101/2024.02.05.578738) 
+Timothy PH Sit, Rachael C Feord, Alexander WE Dunn, Jeremi Chabros, David Oluigbo, Hugo H Smith, Lance Burn, Elise Chang, Alessio Boschi, Yin Yuan, George M Gibbons, Mahsa Khayat-Khoei, Francesco De Angelis, Erik Hemberg, Martin Hemberg, Madeline A Lancaster, Andras Lakatos, Stephen J Eglen, Ole Paulsen, Susanna B Mierau. **MEA-NAP compares microscale functional connectivity, topology, and network dynamics in organoid or monolayer neuronal cultures.** _bioRxiv_ 2024.02.05.578738. doi: [https://doi.org/10.1101/2024.02.05.578738](https://doi.org/10.1101/2024.02.05.578738) 
 
 ## Features
 
