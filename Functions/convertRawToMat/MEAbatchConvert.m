@@ -1,4 +1,4 @@
-function MEA_batchConvert(ext)
+function MEA_batchConvert(ext, dataFolder)
 %form: MEA_batchConvert
 %
 %This function converts MEA bin (binary, RAW) files into mat files in a batch. It will
@@ -14,7 +14,14 @@ function MEA_batchConvert(ext)
 %6. Make sure "Write header" and "Signed 16bit" are checked in lower right
 %7. Click Save
 %8. when done, click Close
-
+% Parameters 
+% ----------
+% ext : str (optional)
+%       file extension of files to convert 
+%       defaults to '.raw'
+% dataFolder : str (optional)
+%       folder to files to convert 
+%       defaults to the current working directory in matlab
 % TODO: Improve the command line output of this
 
 % Last update: 20180626 
@@ -34,8 +41,12 @@ end;
 ext2='.raw';
 
 %% get files
+if ~exist('dataFolder', 'var')
+    d = dir;
+else
+    d = dir(dataFolder);
+end 
 
-d=dir;
 files=[];
 
 for i=1:length(d)

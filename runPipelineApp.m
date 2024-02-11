@@ -177,7 +177,27 @@ while app.RunPipelineButton.Value == 0
         app.SaveParametersButton.Value = 0;
         figure(app.UIFigure)  % put app back to focus
     end 
-
+    
+    % FILE CONVERSION 
+    
+    % Path to files to convert 
+    if app.FileConversionselectButton.Value == 1 
+        app.FilelocationEditField.Value = uigetdir;
+        app.FileConversionselectButton.Value = 0;
+        figure(app.UIFigure)  % put app back to focus
+    end 
+    
+    if app.RunfileconversionButton.Value == 1
+        app.MEANAPStatusTextArea.Value = ...
+            [app.MEANAPStatusTextArea.Value; 'Running file conversion!'];
+        if strcmp(app.FiletypeDropDown.Value, '.mcd from Multichannel Systems')
+            MEAbatchConvert(dataFolder);
+        end 
+        app.MEANAPStatusTextArea.Value = ...
+            [app.MEANAPStatusTextArea.Value; 'File conversion complete!'];
+        app.RunfileconversionButton.Value = 0;
+    end 
+    
     pause(0.1)
 end 
 
