@@ -5,7 +5,7 @@
 
 [**What is MEA-NAP?**](#mea-pipeline)
 | [**Documentation**](https://analysis-pipeline.readthedocs.io/en/latest/)
-| [**Citing MEA-NAP**](#citing)
+| [**Citing MEA-NAP**](#citing-mea-nap)
 | [**Features**](#features)
 | [**Installation**](#installation)
 | [**How to use the pipeline**](#how-to-use-the-pipeline)
