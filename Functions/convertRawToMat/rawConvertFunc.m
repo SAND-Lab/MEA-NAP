@@ -122,7 +122,7 @@ for i = 1:length(filenames)
 end
 
 createBatchCSVFile(raw_file_dir, batch_csv_fname, autofill_div, autofill_genotype, genotype); 
-%cd (HomeDir)
+cd(HomeDir)
 
 % The next step is to run the .mat file outputs through the network
 % analysis pipeline starting with the spike detection (Step 1).
