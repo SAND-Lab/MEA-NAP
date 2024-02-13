@@ -145,6 +145,18 @@ for k = 1:networkSize
     % D_store(k) = D;
 end
 
+% This deals with edge case where variance explained never reached
+% threshold
+if thresholdReached == 0
+    nmfFactorsVarThreshold = k_nmfFactors;
+    nmfWeightsVarThreshold = k_nmfWeights;
+end 
+
+if networkSize == 0 
+    nmfFactorsVarThreshold = nan;
+    nmfWeightsVarThreshold = nan;
+end 
+
 
 %% Make output 
 
