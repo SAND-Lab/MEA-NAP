@@ -107,7 +107,7 @@ Methods - Statistics
      - rm_anova2.m
      - https://www.mathworks.com/matlabcentral/fileexchange/6874-two-way-repeated-measures-anova
 
-Tools - Converting Raw Data to MATLAB
+Tools - Data Conversion
 ---------------------------------------
 
 .. list-table:: 
@@ -119,8 +119,8 @@ Tools - Converting Raw Data to MATLAB
      - Location in MEA-NAP 
      - Source code 
    * - Stahl D & Hayes H (2022). AxionFileLoader: A Matlab library capable of reading Axion's RAW and SPK files. GitHub. Retrieved February 10, 2024. 
-     - Converts .raw files to .mat format that are compatible with MEA-NAP
-     - Functions in AxIS MATLAB Files folder
+     - Reads Axion .raw multi-well recording to extract individual MEA recordings using the AxIS MATLAB function AxisFile.m.
+     - rawConvert.m utilizes functions from AxIS MATLAB Files folder
      - https://github.com/axionbio/AxionFileLoader
   
 
