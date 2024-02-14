@@ -361,7 +361,7 @@ for e = 1:length(lagval)
     if e == 1
         if any(strcmp(netMetToCal, 'num_nnmf_components'))
             fprintf('Calculating NMF \n')
-            minSpikeCount = 10;
+            minSpikeCount = 1;
             includeRandomMatrix = 1;
             nmfCalResults = calNMF(spikeMatrix, Params.fs, Params.NMFdownsampleFreq, ...
                                     Info.duration_s, minSpikeCount, includeRandomMatrix, ...
