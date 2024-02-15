@@ -26,20 +26,7 @@ Setting up MEA-NAP
 
 The MEA-NAP pipeline is currently optimized for single MEA recordings made on the Multichannel Systems MEA2100 60-channel MEA system and for multi-well plates using the Axion Maestro MEA System. However, these recordings must be converted to `*.mat` files first.
 
-- **Converting raw MEA data acquired with Multi Channel Experimenter to .mat files**:
-
-   1. Open Multi Channel Data Manager on the computer where your raw data is stored.
-   2. Select files and export as HDF5.  n.b. Although Multi Channel Experimenter may save multiple files per recording, the exported HDF5 should have all of the data necessary.
-   3. Open the MEA-NAP folder and navigate to Functions→ RawConvert
-   4. Open converter_hdf5.m in MATLAB.  
-   5. If you acquired data at a rate other than 25000 Hz, update line 58 (fs=25000) with your data acquisition rate.  Save.
-   6. Run script (click on green arrow in editor tab). 
-
 - **Converting .mcd files acquired from a Multichannel Systems MEA system with MC_Rack to .mat files**:
-
-   There are 2 ways to convert .raw files from Multichannel Systems MEA system. 
-   
-   **Method 1:**
 
    1. Open MC_DataTool.
    2. Select File - Open Multiple.
@@ -54,41 +41,7 @@ The MEA-NAP pipeline is currently optimized for single MEA recordings made on th
    11. Navigate in MATLAB to the folder containing the ".raw" files, which were produced by MC_DataTool, you want to convert.
    12. In the MATLAB command window, type ``MEAbatchConvert`` and press return to run.
 
-   **Method 2:**
-
-   1. Open MC_DataTool.
-   2. Select File - Open Multiple.
-   3. Choose .mcd files of interest.
-   4. Click "bin."
-   5. Click "All."
-   6. Ensure "Write header" and "Signed 16bit" are checked in the lower right.
-   7. Click "save" to save .raw files that are generated.
-   8. When done, click close.
-   9. Open MATLAB.
-   10. Open `MEApipeline.m`.
-   11. Run script (click green arrow in editor tab) to open GUI.
-   12. Specify MEA-NAP Folder in "General" tab.
-
-   .. image:: imgs/MEANAP_dir_gui.png
-      :width: 300
-      :align: center
-
-   - **MEA-NAP Folder:** Location of the MEA-NAP folder you downloaded from our Github page.
-   13. Navigate to "File Conversion" tab. 
-   14. Specify parameters for .raw file conversion.
-
-   .. image:: imgs/mcs_file_conversion_gui.png
-      :width: 300
-      :align: center
-
-   - **File Type:** The type of .raw file that you are converting. Make sure it is set to ".raw from Multichannel Systems".
-   - **File location:** Location of .raw file that you want to convert to .mat format.
-
 - **Converting .raw files acquired from an Axion Maestro MEA system to .mat files**:
-
-   There are 2 ways to convert .raw files acquired from Axion Maestro MEA system.
-
-   **Method 1:**
 
    1. Save `.raw` files from MEA Axion Maestro system to one folder.
    2. Open MATLAB.
@@ -107,36 +60,6 @@ The MEA-NAP pipeline is currently optimized for single MEA recordings made on th
    5. Run script (click green arrow in editor tab).
    6. When `rawConvert.m` has successfully run, open the folder where `.raw` files were initially stored.
    7. Navigate through the folder to check that all `.mat` files have been successfully created and saved.
-
-   **Method 2:** 
-
-   1. Open MATLAB.
-   2. Open `MEApipeline.m`.
-   3. Run script (click green arrow in editor tab) to open GUI.
-   4. Specify MEA-NAP Folder in "General" tab.
-
-   .. image:: imgs/MEANAP_dir_gui.png
-      :width: 300
-      :align: center
-
-   - **MEA-NAP Folder:** Location of the MEA-NAP folder you downloaded from our Github page.
-
-   5. Navigate to "File Conversion" tab. 
-   6. Specify parameters for .raw file conversion.
-
-   .. image:: imgs/axion_file_conversion_gui.png
-      :width: 300
-      :align: center
-
-   - **File Type:** The type of .raw file that you are converting. Make sure it is set to ".raw from Axion Maestro".
-   - **File location:** Location of .raw file that you want to convert to .mat format.
-   - **Batch CSV name:** Name of batch analysis CSV file that will be generated. See step 4 for more details.
-   - **DIV included?:** Specify whether you .raw file has DIV included.
-   - **One genotype?:** Specify whether you included only one genotype in your recording.
-   - **Genotype Group:** Name of genotype group that you used if you only included one
-
-   6. Click 'Run file conversion'.
-
 
 3. Organize your data:
 ^^^^^^^^^^^^^^^^^^^^^^^
