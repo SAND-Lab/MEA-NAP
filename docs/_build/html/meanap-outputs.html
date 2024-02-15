@@ -212,6 +212,7 @@
         <article role="main">
           <section id="mea-nap-outputs">
 <h1>MEA-NAP Outputs<a class="headerlink" href="#mea-nap-outputs" title="Link to this heading">#</a></h1>
+<p>Here is a list of the figures produced by MEA-NAP including sample figure legends. You can navigate to the different subfolders using these links:</p>
 <ul class="simple">
 <li><p><a class="hxr-hoverxref hxr-tooltip reference internal" href="#step-1-spike-detection"><span class="std std-ref">Step 1 - Spike Detection</span></a></p></li>
 <li><p><a class="hxr-hoverxref hxr-tooltip reference internal" href="#step-1a-spike-detection-files"><span class="std std-ref">Step 1A – Spike Detection</span></a></p></li>
@@ -267,11 +268,11 @@
 <p>Each matlab file contains the following variables:</p>
 <ul class="simple">
 <li><p>Channels: a vector containing the numeric identified for each channel</p></li>
+<li><p>spikeDetectionResult: a structure containing the parameters used for spike detection (e.g., sampling rate)</p></li>
+<li><p>spikeTimes : a cell with an entry per channel, each cell entry contains a structure where the field names are the spike detection method and the field entries are the spike times in seconds</p></li>
+<li><p>spikeWaveforms: same format as spikeTimes, but where each field entry are the spike waveforms detected</p></li>
+<li><p>Thresholds: same format as spikeTimes, but where each field entry are the absolute values of the threshold used for spike detection (in mV), they are NaN values for wavelet detection methods as they do not rely on a threshold</p></li>
 </ul>
-<p>spikeDetectionResult: a structure containing the parameters used for spike detection (e.g., sampling rate)
-- spikeTimes : a cell with an entry per channel, each cell entry contains a structure where the field names are the spike detection method and the field entries are the spike times in seconds
-spikeWaveforms: same format as spikeTimes, but where each field entry are the spike waveforms detected
-- Thresholds: same format as spikeTimes, but where each field entry are the absolute values of the threshold used for spike detection (in mV), they are NaN values for wavelet detection methods as they do not rely on a threshold</p>
 </section>
 <section id="step-1b-spike-detection-checks">
 <span id="id3"></span><h2>Step 1B – Spike Detection Checks<a class="headerlink" href="#step-1b-spike-detection-checks" title="Link to this heading">#</a></h2>

@@ -24,34 +24,36 @@ Microelectrode array (MEA) recordings offer the temporal resolution to identify 
     :align: center
 
 
-**Figure 4.1. Effect of tetrodotoxin (TTX) on spikes detected by MEA.** Histogram (upper) of spiked detected and raster plot for three electrodes before TTX (left) and after TTX was added (to the right of the dashed line) abolishing all action potentials.
+**Figure 1.1. Effect of tetrodotoxin (TTX) on spikes detected by MEA.** Histogram (upper) of spiked detected and raster plot for three electrodes before TTX (left) and after TTX was added (to the right of the dashed line) abolishing all action potentials.
 
 
 Spike detection methods in the pipeline
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The pipeline offers multiple options for spike detection including template-based and threshold-based methods (Figure 4.1.1). The template-based method uses a continuous wavelet transform to identify action potentials by their waveform. In our 2D primary murine cortical cultures, the template-based method outperforms threshold-based methods in both sensitivity and specificity (Dunn et al., FENS 2020, poster). However, depending on the signal-to-noise ratio and/or the fit of the template to action potentials in a recording, the template method may not perform well on all data.  In this case we recommend using a threshold-based method. The user selects the standard deviation multiplier for detecting spikes. Minimum and maximum spike amplitudes are included to remove noise and large electrical artifacts.
+The pipeline offers multiple options for spike detection including template-based and threshold-based methods (Figure 1.2). The template-based method uses a continuous wavelet transform to identify action potentials by their waveform. In our 2D primary murine cortical cultures, the template-based method outperforms threshold-based methods in both sensitivity and specificity (Dunn et al., FENS 2020, poster). However, depending on the signal-to-noise ratio and/or the fit of the template to action potentials in a recording, the template method may not perform well on all data.  In this case we recommend using a threshold-based method. The user selects the standard deviation multiplier for detecting spikes. Minimum and maximum spike amplitudes are included to remove noise and large electrical artifacts.
 
 
 .. image:: imgs/spike_detection_methods.png
     :width: 400
     :align: center
 
+**Figure 1.2. Template- and threshold-based methods for spike detection.** Sample voltage trace (black) with colored arrows for spikes detected with different templates (blue) or thresholds (red).  Sample template bior1.5 shown in blue box (inset).  Spike amplitude thresholds based on the standard deviation (SD) are shown as dashed lines. Some spikes are detected by 1, 2 or 4 of the methods.
+
 **Threshold-based options**
 
-For each electrode in an MEA recording, the mean or median standard deviation of the voltage signal is calculated.  In the threshold-based method used for this pipeline the user can set the standard deviation (SD) multiplier (e.g., 4.5, 5) as a threshold for detecting negative voltage deflections that exceed this threshold.  As the spike detection is based on the amplitude, it does not distinguish between changes in voltage that have a waveform consistent with action potentials versus electrical noise. Maximum absolute threshold values are added to avoid counting large electrical artifacts as spikes.  Minimum absolute thresholds can also be set by advanced users.
+For each electrode in an MEA recording, the median absolute deviation of the voltage signal is calculated. In the threshold-based method used for this pipeline the user can set the median absolute deviation (MAD) multiplier (e.g., 4.5, 5) as a threshold for detecting negative voltage deflections that exceed this threshold. As the spike detection is based on the amplitude, it does not distinguish between changes in voltage that have a waveform consistent with action potentials versus electrical noise. Maximum absolute threshold values are added to avoid counting large electrical artifacts as spikes. Minimum absolute thresholds can also be set by advanced users.  Advanced users can also use thresholds based on standard deviation (SD) multipliers if desired.
 
+At a biological level, the threshold method also has a challenge when comparing activity between electrodes within a recording, or comparing recordings, where there is a low level of activity versus a very high level of activity.  If there are infrequent spikes with a low noise level, the threshold multiplier based on the standard deviation will set the threshold for spike detection at a smaller absolute amplitude for detecting spikes. If there is a high firing rate of action potentials, or dense firing within the recording sensitivity of the electrode (increasing the background variation in voltage signal), this can increase the absolute amplitude for detecting spikes for the same standard deviation multiplier. This leads to action potentials that are the same absolute amplitude as those detected as spikes in electrodes, or recordings, with lower firing rates not being detected as action potentials in the electrodes, or recordings, with higher firing rate. 
+To address this, the pipeline saves the absolute voltage for each electrode based on the MAD multiplier.  If a TTX recording has been performed for the same culture, the absolute voltage for the MAD multiplier for each electrode can be used on the pre-TTX recordings to set a threshold based on the actual amplitude (rather than the MAD) in the post-TTX recording.  To compare pre- and post-TTX recordings using this approach, use the script at the end of the MEApipeline.m function (GUI mode off).
 
-At a biological level, the threshold method also has a challenge when comparing activity between electrodes within a recording, or comparing recordings, where there is a low level of activity versus a very high level of activity.  If there are infrequent spikes with a low noise level, the threshold multiplier based on the standard deviation will set the threshold for spike detection at a smaller absolute amplitude for detecting spikes. If there is a high firing rate of action potentials, or dense firing within the recording sensitivity of the electrode (increasing the background variation in voltage signal), this can increase the absolute amplitude for detecting spikes for the same standard deviation multiplier. This leads to action potentials that are the same absolute amplitude as those detected as spikes in electrodes, or recordings, with lower firing rates not being detected as action potentials in the electrodes, or recordings, with higher firing rate. To address this, the pipeline saves the absolute voltage for each electrode based on the standard deviation multiplier. If a TTX recording has been performed for the same culture, the absolute voltage for the standard deviation multiplier for each electrode can be used on the pre-TTX recordings to set a threshold based on the actual amplitude (rather than the SD). 
-
-The pipeline also produces plots of the voltage traces with spikes detected marked with arrows from a random selection of electrodes. These plots allow one to quickly visually inspect the quality of the spike detection **(Figure 4.1.1.1)**.  Sample waveforms from single electrodes for the different methods are also plotted in the pipeline. Plots with comparison of the number of spikes detected over time are also produced. The pipeline allows multiple threshold multipliers to be run and these plots facilitate comparison and selection of the threshold for spike detection for downstream analysis.  These plots are in the OutputData subfolder \1B_SpikeDetectionChecks organized by group and recording.
+The pipeline also produces plots of the voltage traces with spikes detected marked with arrows from a random selection of electrodes. These plots allow one to quickly visually inspect the quality of the spike detection **(Figure 1.3)**.  Sample waveforms from single electrodes for the different methods are also plotted in the pipeline. Plots with comparison of the number of spikes detected over time are also produced. The pipeline allows multiple threshold multipliers to be run and these plots facilitate comparison and selection of the threshold for spike detection for downstream analysis.  These plots are in the OutputData subfolder \1B_SpikeDetectionChecks organized by group and recording.
 
 
 .. image:: imgs/threshold_based_options_2.png
     :width: 700
     :align: center
 
-**Figure 4.1.1.1.** Evaluating spike detection at action potential scale in the pipeline. Sample 60 ms-long traces from 8 electrodes show individual spikes detected by a SD 3.5 threshold (red arrows).
+**Figure 1.3. Evaluating spike detection at action potential scale in the pipeline.** Sample 60 ms-long traces from 8 electrodes show individual spikes detected by a MAD 3.5 threshold (red arrows).
 
 
 **Template-based options**
@@ -60,31 +62,30 @@ The pipeline also produces plots of the voltage traces with spikes detected mark
 The pipeline uses a continuous wavelet transform to identify spikes based on their similarity to selected wavelets. The user can select from built-in MATLAB wavelets (e.g., bior1.5, bior1.3, db) or custom electrode-specific wavelets created by the pipeline to detect the specific spike waveform(s) in the acquired data.  The MATLAB bior1.5 wavelet had the highest sensitivity for action potentials in our 2D primary murine cortical cultures. Bior1.3 is similar and detects many of the same spikes as well as additional unique spikes.  Although the wavelet db itself does not have a spike-like waveform, it is reasonable at detecting an additional small number of spikes with a waveform consistent with action potentials.
 
 
-For the custom electrode-specific wavelet method created for our pipeline, first the threshold method is run (e.g., SD 4.5). The waveforms of a random selection of 50 action potentials detected from an electrode are averaged to create a wavelet for that electrode. This electrode-specific custom wavelet is then used with the continuous wavelet transform to identify spikes in that electrode.  This method has the advantage of identifying spike waveforms for action potentials based on the characteristics of the neurons firing near the electrode and the specific properties of the individual electrodes that may affect the voltage reading. This can increase the sensitivity and specificity of the spike detection.  One essential assumption for this method is that there must be true action potentials detected with the threshold method in order for the wavelet to be based on action potentials and not detecting noise.  To address this, a minimum absolute amplitude is set for spikes to avoid creating a custom template for detecting noise.  Confirmation of spike detection with TTX is the gold standard.  
+For the custom electrode-specific wavelet method created for our pipeline, first the threshold method is run (e.g., MAD 4).
 
 .. image:: imgs/template_based_options_2.png 
     :width: 600
     :align: center
 
-**Figure 4.1.1.2. Comparison of spike detection in 2D murine cortical culture before and after application of tetrodotoxin (TTX)**. Left panel, Heatmap of spike frequency (spikes per second) by electrode in the spatial organization of the MEA grid show spiking by electrode before and after TTX application. Right panel, scatter plots of spike rates by electrode shows higher specificity for the template method (blue) than threshold (red) based on few false spikes detected in the presence of TTX. (Figure adapted from Dunn et al.)
+**Figure 1.4. Comparison of spike detection in 2D murine cortical culture before and after application of tetrodotoxin (TTX)**. Left panel, Heatmap of spike frequency (spikes per second) by electrode in the spatial organization of the MEA grid show spiking by electrode before and after TTX application. Right panel, scatter plots of spike rates by electrode shows higher specificity for the template method (blue, bior1.5 wavelet) than threshold (red, SD 4.5) based on few false spikes detected in the presence of TTX. (Figure adapted from Dunn et al.)
 
 
 **Multi-unit spike detection**
 
-Microelectrode arrays detect action potentials from multiple neurons on or within a 5-10 um radius of each electrode.  The action potentials detected by the electrode from different neurons in the “multiunit” activity are likely to have different waveforms. Action potential kinetics vary due to cell-type and the distance from and orientation relative to the electrode. For example, the amplitude of action potentials from a neuron growing directly on the electrode is likely to be larger than the amplitude of a neuron growing 5 um away from the electrode.  To increase the sensitivity of spike detection for multi-unit activity, the pipeline allows the spikes detected by multiple templates to be merged.  This method identifies the peak negative amplitude for each spike and uses this to determine which spikes have been detected by multiple templates and which are unique spikes in order to avoid counting the same action potential multiple times when the spike detection is merged.  The merged method increases the sensitivity of the spike detection and accounts for the multiunit activity.
+Microelectrode arrays detect action potentials from multiple neurons on or within a 5-10 um radius of each electrode.  The action potentials detected by the electrode from different neurons in the multi-unit activity are likely to have different waveforms. Action potential kinetics vary due to cell-type and the distance from and orientation relative to the electrode. For example, the amplitude of action potentials from a neuron growing directly on the electrode is likely to be larger than the amplitude of a neuron growing 5 um away from the electrode.  To increase the sensitivity of spike detection for multi-unit activity, the pipeline allows the spikes detected by multiple templates to be merged.  This method identifies the peak negative amplitude for each spike and uses this to determine which spikes have been detected by multiple templates and which are unique spikes in order to avoid counting the same action potential multiple times when the spike detection is merged.  The merged method increases the sensitivity of the spike detection and accounts for the multi-unit activity.
 
 Future directions for spike detection in pipeline
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 We are currently working to integrate into the pipeline a spike detection tool that can be used to validate and optimize spike detection parameters. This is particularly helpful for recordings where you have blocked activity with tetrodotoxin (TTX) or increased activity with stimulation (e.g., optogenetic) and wish to calibrate and/or compare spike detection between different recording conditions. This can be used for selecting methods and parameters for running spike detection in the pipeline. 
 
-
 Comparison of neuronal activity
 ------------------------------------------------------------------------------
 
 Firing rates
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-One of the most common forms of analysis performed on MEA recordings from neuronal networks are estimates of the firing rate of action potentials detected at each electrode.  The pipeline facilitates these comparisons between electrodes within each recording and between recordings by age and genotype.  The figure outputs of the pipeline include heatmaps of the firing rate in the spatial organization of the electrodes as well as raster plots showing the temporal changes in firing rates (averaged in 1 second time bins) by electrodes.  In the figures the heat maps and rasters are plotted twice, the first plot is scaled to the minimum and maximum values in that recording and the plot (below or to the right) is scaled for all recordings in the batch analysis **(Figure 4.2.1)**.  The former allows the investigator to see the variation clearly within each recording. The latter facilitates comparison of firing rates across the whole dataset. 
+One of the most common forms of analysis performed on MEA recordings from neuronal networks are estimates of the firing rate of action potentials detected at each electrode.  The pipeline facilitates these comparisons between electrodes within each recording and between recordings by age and genotype.  The figure outputs of the pipeline include heatmaps of the firing rate in the spatial organization of the electrodes as well as raster plots showing the temporal changes in firing rates (in 1 second time bins) by electrodes.  In the figures, the heat maps (Figure 2.1A) and raster plots (Figure 2.1B) are plotted twice, the first plot is scaled to the minimum and maximum values in that recording and the second plot (right or bottom panel) is scaled for all recordings in the batch analysis. The former allows the investigator to see the variation clearly within each recording. The latter facilitates comparison of firing rates across the whole dataset. 
 
 **A.**
 
@@ -98,12 +99,13 @@ One of the most common forms of analysis performed on MEA recordings from neuron
     :width: 450
     :align: center
 
-**Figure 4.2.1. Firing rates for 12-minute recording plotted twice. A.** Raster plots scaled for this recording (top) and the entire dataset (bottom). **B.** Heat map of firing rates by electrode in spatial layout of MEA grid scaled for recording (left) and entire dataset (right). The plots are in the OutputData folder in \2_NeuronalActivity\2A_IndividualNetworkAnalysis.
+**Figure 2.1. Firing rates for 12-minute recording scaled for recording and entire dataset.** **A.** Heat map of firing rates by electrode in spatial layout of MEA grid scaled for recording (left) and entire dataset (right). **B.** Raster plots scaled for this recording (top) and the entire dataset (bottom). The plots are in the OutputData folder in 2_NeuronalActivity/2A_IndividualNeuronalAnalysis.
 
 Burst detection
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The term “burst” is used in multiple contexts within electrophysiology and within this pipeline.  Here we are concerned with two types of bursting activity in the MEA recordings.  As neurons develop in cultures, their action potential firing not only increases in frequency, but the timing of the action potentials comes in bursts.  Here burst is defined by a minimum number of action potentials occurring within a short inter-spike interval (ISI).  We do not currently have functions integrated into the pipeline for comparing bursting within individual electrodes. Instead, the pipeline currently analyzes “network bursts.” As neurons develop in culture, they not only change their pattern of firing over development, but they also fire more often when other neurons in the network are firing.  These network bursts are defined as a minimum number of action potentials occurring within a short ISI observed in a minimum number of electrodes.  Like the burst patterns observed in individual electrodes, the parameters for the network burst are chosen by the user and need to be optimized and validated to capture the temporally correlated spiking across multiple nodes in the network. There are many methods for network burst detection available.  For this pipeline, the scripts are based on the [insert] method (insert reference).
+The term “burst” is used in multiple contexts within electrophysiology and within this pipeline.  Here we are concerned with two types of bursting activity in the MEA recordings.  As neurons develop in cultures, their action potential firing not only increases in frequency, but the timing of the action potentials comes in bursts.  Here burst is defined by a minimum number of action potentials occurring within a short inter-spike interval (ISI).  
+There are many methods for network burst detection available. The default in MEA-NAP is to use the Bakkum method (Bakkum 2013) with N=10 (minimum number of spikes in a burst) in a minimum of the 3 seconds.  The method automatically determines the threshold (in milliseconds) based on the ISI distribution. Instead, the pipeline currently analyzes “network bursts.” As neurons develop in culture, they not only change their pattern of firing over development, but they also fire more often when other neurons in the network are firing.  These network bursts are defined as a minimum number of action potentials occurring within a short ISI observed in a minimum number of electrodes.  Like the burst patterns observed in individual electrodes, the parameters for the network burst are chosen by the user and need to be optimized and validated to capture the temporally correlated spiking across multiple nodes in the network. There are many methods for network burst detection available.  For this pipeline, the scripts are based on the [insert] method (insert reference).
 
 Metrics included in the pipeline for group comparison of network bursts include: 
 
@@ -128,14 +130,14 @@ Furthermore, in accordance with the delay inherent in chemical-synapse-driven sp
 Probabilistic thresholding
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Determining where an edge (i.e., the functional connection between neurons near two electrodes) exists is key to all downstream network analysis. While the STTC provides an estimate of the strength of connectivity, we apply probabilistic thresholding to eliminate at-chance level correlations.  To do this, circular shifts are made in the spike trains for each electrode and the STTC is calculated for multiple iterations. A threshold is set (e.g., 95th percentile of edge values for this pair of electrodes from the set of synthetic matrices). Only the pairwise correlations that are above this threshold for each putative edge are included in the adjacency matrix.  The user has the option to set the number of iterations of circular shifts (MEApipeline.m, line 99). To check that the number of iterations for the circular shifts was sufficient, a validation step is included in the second output folder titled “Edge Threshold Check" **(Figure 4.3.2)**.
-
+Determining where an edge (i.e., the functional connection between neurons near two electrodes) exists is key to all downstream network analysis. While the STTC provides an estimate of the strength of connectivity, we apply probabilistic thresholding to eliminate at-chance level correlations. 
+To do this, for each pair of electrodes, circular shifts are made in the spike train of one electrode and the STTC is calculated for multiple iterations. The edge is significant if the real STTC value for an edge is greater than the 95th percentile of the STTC values of the circular shifts. Only the pairwise correlations that are above this threshold for each putative edge are included in the adjacency matrix. In the Connectivity settings in the GUI, the user has the option to set the number of iterations and the tail (e.g., "0.01" to set the threshold for significance at the 99th percentile). To check that the number of iterations for the circular shifts was sufficient, a validation step is included in the OutputData folder in 3_Edge Thresholding Check **(Figure 3.1)**.
 
 .. image:: imgs/probabilistic_thresholding.png
     :width: 600
     :align: center
 
-**Figure 4.3.2. Edge Threshold Check.**  Example of an output figure from the pipeline run with 200 repeats of the circular shifts. The top panel showed the average threshold value (green) and coefficient of variance (black) as a function of increasing number of repeats.  Individual examples of the threshold values are shown in the middle panel. Here most of the values stabilize after 20 repeats, while 3 stabilize between 100 to 180 repeats.  The bottom panel shows the edges that will be discarded as the number of repeats increase.
+**Figure 3.1. Edge Thresholding Check.** Example of an output figure from the pipeline run with 200 repeats (iterations) of the circular shifts. The top panel showed the average threshold value (green) and coefficient of variance (black) as a function of increasing number of repeats. Individual examples of the threshold values (black lines) are shown in the middle panel. Here most of the values stabilize after 20 repeats, while 3 stabilize between 100 to 180 repeats. The bottom panel shows the edges that will be discarded as the number of repeats increase.
 
 
 Comparison of network activity
@@ -168,7 +170,7 @@ Graph theoretical approaches are commonly used at the whole brain level, and les
    * - .. figure:: imgs/N_size.png 
      
            Network size 
-     - Number of active electrodes (defined by a minimum number or frequency of spikes detected).
+     - Number of active electrodes (defined by a minimum number or frequency of spikes detected). 
    
    * - .. figure::  imgs/EW.png
 
@@ -205,20 +207,20 @@ Graph theoretical approaches are commonly used at the whole brain level, and les
    * - .. figure::  imgs/nMod.png
           
           Number of modules
-     - Number of subsets of nodes into which the network can be decomposed, where nodes in each subset are more densely connected to each other than to nodes in other subsets. Calculated based on Brandes et al. (2008).
+     - Number of subsets of nodes into which the network can be decomposed, where nodes in each subset are more densely connected to each other than to nodes in other subsets. (Brandes et al., 2008)
    
    * - Affiliation vector
-     - Vector containing number of module to which each node belongs
+     - Vector containing the number of the module to which each node belongs.
 
-   * - .. figure:: imgs/modularity_score.png
+   * - .. figure:: imgs/MS.png
           
           Modularity score
-     - A value between -0.5 and 1 that describes how well a network has been partitioned.  See Brandes et al. (2008).
+     - A value between -0.5 and 1 that describes how well a network has been partitioned.  (Lancichinetti & Fortunato, 2012)
    
-   * - .. figure:: imgs/within_module_deg_z_score.png
+   * - .. figure:: imgs/WMZ.png
           
           Within-module degree z-score
-     - Measure of how well-connected a node is to other nodes in the module. Guimerà & Nunes Amaral, 2005.
+     - Measure of how well-connected a node is to other nodes in the same module. Higher values indicate higher intramodular node degree. (Guimerà & Nunes Amaral, 2005)
 
 .. list-table:: **Global processing and nodal roles in the network**
    :widths: 25 50
@@ -226,7 +228,7 @@ Graph theoretical approaches are commonly used at the whole brain level, and les
 
    * - Feature
      - Description 
-   * - .. figure:: imgs/path_length.png
+   * - .. figure:: imgs/PL.png
        
           Path length 
      - Characteristic path length is the minimum number of edges required to link any two nodes in the network averaged across nodes.
@@ -241,11 +243,11 @@ Graph theoretical approaches are commonly used at the whole brain level, and les
           Node cartography group proportions
      - Each node is assigned a role by node cartography group. (Guimerà & Nunes Amaral, 2005) (1) Peripheral nodes (2) Non-hub connectors (3) Non-hub kinless nodes (4) Provincial hubs (5) Connector hubs (6) Kinless hubs
    
-   * - .. figure:: imgs/betweenness_centrality.png
+   * - .. figure:: imgs/BC.png
       
           Betweenness centrality
      - Number of times a node lies on the shortest path between any two nodes in a network. (Brandes, 2001)
-   * - .. figure:: imgs/participation_coefficient.png
+   * - .. figure:: imgs/PC.png
    
           Participation coefficient
      - Measure of how well-distributed a node’s edges are among different modules. (Guimerà & Nunes Amaral, 2005)
@@ -278,8 +280,7 @@ Graph theoretical approaches are commonly used at the whole brain level, and les
 Node cartography
 ^^^^^^^^^^^^^^^^^^
 
-To our knowledge, this is the first application of node cartography (Guimerà & Nunes Amaral, 2005) to the analysis of brain networks. These cartographic representations enable comparison of nodal roles, assigned according to their intra- and inter-module connectivity, over development and between different networks. These roles are determined to a large extent by two key metrics: within-module degree z-score (z) and participation coefficient (P) **(Figure 4.4.2A)**. Together, these describe connectivity of a node within and outside of its module. Six roles are defined according to the region occupied in the z, P parameter space **(Figure 4.4.2B)**.
-
+To our knowledge, this is the first application of node cartography (Guimerà & Nunes Amaral, 2005) to the analysis of microscale brain networks in MEA recordings. These cartographic representations enable comparison of nodal roles, assigned according to their intra- and inter-module connectivity, over development and between different networks. These roles are determined to a large extent by two key metrics: within-module degree z-score (z) and participation coefficient (P) **(Figure 4.1A)**. Together, these describe connectivity of a node within and outside of its module. Seven roles are defined according to the region occupied in the z, P parameter space **(Figure 4.1B)**.
 **A.**
 
 .. image:: imgs/node_cartography_2.png
@@ -292,9 +293,7 @@ To our knowledge, this is the first application of node cartography (Guimerà & 
     :width: 500
     :align: center
 
-**Figure 4.4.2. Node cartography for neuronal networks.  A.** Roles for individual nodes in the network are determined based on the within-module degree z-score and participation coefficient based on node cartography previously applied to metabolic and whole-brain networks.  The boundary line for the within-in module degree z-score is automatically scaled for each dataset based on the landscape density analysis.  **B.** Diagram illustrating the 7 types of node roles.
-
-
+**Figure 4.1. Node cartography for neuronal networks.** **A.** Roles for individual nodes in the network are determined based on the within-module degree z-score and participation coefficient based on node cartography previously applied to metabolic and whole-brain networks. In MEA-NAP, the boundary line for the within-in module degree z-score is automatically scaled for each dataset based on the landscape density analysis. **B.** Diagram illustrating the 7 types of nodal roles.
 
 
 
@@ -306,6 +305,9 @@ In addition to calculating spiking, bursting and network features at the level o
        
 Network metrics details
 -----------------------------------------------------
+
+For a description of the network metrics, how they are calculated, and applied to different MEA datasets, please see our paper describing MEA-NAP:
+Timothy PH Sit, Rachael C Feord, Alexander WE Dunn, Jeremi Chabros, David Oluigbo, Hugo H Smith, Lance Burn, Elise Chang, Alessio Boschi, Yin Yuan, George M Gibbons, Mahsa Khayat-Khoei, Francesco De Angelis, Erik Hemberg, Martin Hemberg, Madeline A Lancaster, Andras Lakatos, Stephen J Eglen, Ole Paulsen, Susanna B Mierau. MEA-NAP compares microscale functional connectivity, topology, and network dynamics in organoid or monolayer neuronal cultures. `bioRxiv` 2024.02.05.578738. doi: [https://doi.org/10.1101/2024.02.05.578738] 
 
 Mean node degree
 ^^^^^^^^^^^^^^^^^^^^^^^^^^

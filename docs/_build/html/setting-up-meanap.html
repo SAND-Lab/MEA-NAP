@@ -226,9 +226,20 @@
 </section>
 <section id="prepare-your-data-for-mea-nap">
 <h2>2. Prepare your data for MEA-NAP:<a class="headerlink" href="#prepare-your-data-for-mea-nap" title="Link to this heading">#</a></h2>
+<p>Ensure that all relevant recordings that you want to analyze are saved in the same folder (no subfolders). This will allow MEA-NAP to seamlessly process and compare the data during the analysis.</p>
+<ul class="simple">
+<li><p>Keep all the recording files intended for a specific batch analysis in a dedicated folder.</p></li>
+<li><p>Maintain a concise and consistent naming convention for the files in the batch analysis folder.</p></li>
+<li><p>As filenames and group names are included in many plots, it is important to keep the names concise and informative (e.g., NGN2230101_P1_A1_DIV14, where</p></li>
+<li><p>NGN2 is the experiment code, 230101 is the date the culture was started, P1_A1 is the plate and well number, and DIV14 is the age).</p></li>
+<li><p>Rename your files, if necessary, before converting your data to MATLAB format for MEA-NAP.</p></li>
+</ul>
+</section>
+<section id="convert-your-data-to-matlab-format-for-mea-nap">
+<h2>3. Convert your data to MATLAB format for MEA-NAP:<a class="headerlink" href="#convert-your-data-to-matlab-format-for-mea-nap" title="Link to this heading">#</a></h2>
 <p>The MEA-NAP pipeline is currently optimized for single MEA recordings made on the Multichannel Systems MEA2100 60-channel MEA system and for multi-well plates using the Axion Maestro MEA System. However, these recordings must be converted to <cite>*.mat</cite> files first.</p>
 <ul>
-<li><p><strong>Converting .mcd files acquired from a Multichannel Systems MEA system with MC_Rack to .mat files</strong>:</p>
+<li><p><strong>Converting .mcd files acquired from a Multichannel Systems MEA system with MC_Rack to .raw files:</strong></p>
 <blockquote>
 <div><ol class="arabic simple">
 <li><p>Open MC_DataTool.</p></li>
@@ -239,51 +250,33 @@
 <li><p>Ensure “Write header” and “Signed 16bit” are checked in the lower right.</p></li>
 <li><p>Click “save” to save .raw files that are generated.</p></li>
 <li><p>When done, click close.</p></li>
-<li><p>Open MATLAB.</p></li>
-<li><p>Add the analysis pipeline code to the path.</p></li>
-<li><p>Navigate in MATLAB to the folder containing the “.raw” files, which were produced by MC_DataTool, you want to convert.</p></li>
-<li><p>In the MATLAB command window, type <code class="docutils literal notranslate"><span class="pre">MEAbatchConvert</span></code> and press return to run.</p></li>
 </ol>
 </div></blockquote>
 </li>
-<li><p><strong>Converting .raw files acquired from an Axion Maestro MEA system to .mat files</strong>:</p>
+<li><p><strong>Converting .raw files acquired from Multichannel Systems or Axion Maestro MEA systems to .mat files for MEA-NAP:</strong></p>
 <blockquote>
 <div><ol class="arabic simple">
-<li><p>Save <cite>.raw</cite> files from MEA Axion Maestro system to one folder.</p></li>
 <li><p>Open MATLAB.</p></li>
-<li><p>Open <cite>rawConvert.m</cite> which is located in ConvertRawtoMat subfolder inside Functions folder.</p></li>
-</ol>
-<a class="reference internal image-reference" href="_images/ConvertRawtoMat.png"><img alt="_images/ConvertRawtoMat.png" class="align-center" src="_images/ConvertRawtoMat.png" style="width: 300px;" /></a>
-<ol class="arabic simple" start="4">
-<li><p>Fill out user parameters in <cite>rawConvert.m</cite> according to instructions provided in <cite>rawConvert.m</cite>.</p></li>
-</ol>
-<a class="reference internal image-reference" href="_images/rawConvert.png"><img alt="_images/rawConvert.png" class="align-center" src="_images/rawConvert.png" style="width: 600px;" /></a>
-<ol class="arabic simple" start="5">
-<li><p>Run script (click green arrow in editor tab).</p></li>
-<li><p>When <cite>rawConvert.m</cite> has successfully run, open the folder where <cite>.raw</cite> files were initially stored.</p></li>
-<li><p>Navigate through the folder to check that all <cite>.mat</cite> files have been successfully created and saved.</p></li>
+<li><p>Open MEApipeline.m.</p></li>
+<li><p>Start GUI by clicking green “Run” button in the Editor submenu at the top of your screen.</p></li>
+<li><p>In the GUI, navigate to the File Conversion tab.</p></li>
+<li><p>For File Type, select “.raw from Axion Maestro” for Axion data or “.raw from Multichannel Systems.”</p></li>
+<li><p>Click select button to select the Data Folder where your .raw data is.  All of your data must be in the same folder.</p></li>
+<li><p>Chose an informative name for your batch CVS file for this experiment.</p></li>
+<li><p>If the age is included in the .raw filenames as “DIV” followed by the age in numbers (e.g., “DIV21”), check box to automatically have the age populated in the batch CSV file.</p></li>
+<li><p>If you only have one group, check box “One Group?” and enter the desired group name in the box. The group name must start with a letter and should be short (e.g., NGN2).</p></li>
+<li><p>Click Run file conversion. This may take some time depending on the number and size of the files. When it is done, “Conversion Complete” will appear in the MEA-NAP Status on the right side of the GUI.</p></li>
 </ol>
 </div></blockquote>
-</li>
-</ul>
-</section>
-<section id="organize-your-data">
-<h2>3. Organize your data:<a class="headerlink" href="#organize-your-data" title="Link to this heading">#</a></h2>
-<p>After preparing your data, it is essential to organize the <cite>.mat</cite> files you plan to analyze in a batch. Ensure that all relevant <cite>.mat</cite> files are saved in the same folder. This organized structure is crucial for the MEA-NAP pipeline to seamlessly process and compare the data during the analysis.</p>
-<ul class="simple">
-<li><p>Keep all the <cite>.mat</cite> files intended for a specific batch analysis in a dedicated folder.</p></li>
-<li><p>Maintain a concise and consistent naming convention for these batch analysis folders.</p></li>
-<li><dl class="simple">
-<dt>As filenames and group names are included in many plots, it is important to keep the names concise and informative (e.g., NGN2230101_P1_A1_DIV14, where</dt><dd><p>NGN2 is the experiment code, 230101 is the date the culture was started, P1_A1 is the plate and well number, and DIV14 is the age).</p>
-</dd>
-</dl>
 </li>
 </ul>
 </section>
 <section id="prepare-batch-analysis-csv-file">
-<h2>4. Prepare batch analysis CSV file<a class="headerlink" href="#prepare-batch-analysis-csv-file" title="Link to this heading">#</a></h2>
-<ul id="id1">
-<li><p>Create a <code class="docutils literal notranslate"><span class="pre">*.csv</span></code> or <code class="docutils literal notranslate"><span class="pre">*.xlsx</span></code> file with the following columns:</p>
+<h2>4. Prepare batch analysis CSV file:<a class="headerlink" href="#prepare-batch-analysis-csv-file" title="Link to this heading">#</a></h2>
+<p id="id1">The File Conversion on the GUI will create a batch CSV file with a list of all the recording names in your data folder.</p>
+<ul>
+<li><p>Open the batch CSV in another application that can read spreadsheets.</p></li>
+<li><p>Ensure the following columns in the CSV file are filled out correctly for your data:</p>
 <blockquote>
 <div><ol class="arabic simple">
 <li><p><strong>Recording filename</strong>: column containing filenames of the <code class="docutils literal notranslate"><span class="pre">*.mat</span></code> files for analysis, excluding extension (.mat).</p></li>
@@ -359,8 +352,8 @@
 <li><a class="reference internal" href="#">Setting up MEA-NAP</a><ul>
 <li><a class="reference internal" href="#download-mea-nap-folder-from-github">1. Download MEA-NAP folder from GitHub:</a></li>
 <li><a class="reference internal" href="#prepare-your-data-for-mea-nap">2. Prepare your data for MEA-NAP:</a></li>
-<li><a class="reference internal" href="#organize-your-data">3. Organize your data:</a></li>
-<li><a class="reference internal" href="#prepare-batch-analysis-csv-file">4. Prepare batch analysis CSV file</a></li>
+<li><a class="reference internal" href="#convert-your-data-to-matlab-format-for-mea-nap">3. Convert your data to MATLAB format for MEA-NAP:</a></li>
+<li><a class="reference internal" href="#prepare-batch-analysis-csv-file">4. Prepare batch analysis CSV file:</a></li>
 </ul>
 </li>
 </ul>
