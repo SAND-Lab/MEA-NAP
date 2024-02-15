@@ -67,7 +67,13 @@ The MEA-NAP pipeline is currently optimized for single MEA recordings made on th
    9. Open MATLAB.
    10. Open `MEApipeline.m`.
    11. Run script (click green arrow in editor tab) to open GUI.
-   12. Specify HomeDir in "General Settings" tab.
+   12. Specify MEA-NAP Folder in "General" tab.
+
+   .. image:: imgs/MEANAP_dir_gui.png
+      :width: 300
+      :align: center
+
+   - **MEA-NAP Folder:** Location of the MEA-NAP folder you downloaded from our Github page.
    13. Navigate to "File Conversion" tab. 
    14. Specify parameters for .raw file conversion.
 
@@ -107,7 +113,14 @@ The MEA-NAP pipeline is currently optimized for single MEA recordings made on th
    1. Open MATLAB.
    2. Open `MEApipeline.m`.
    3. Run script (click green arrow in editor tab) to open GUI.
-   4. Specify HomeDir in "General Settings" tab.
+   4. Specify MEA-NAP Folder in "General" tab.
+
+   .. image:: imgs/MEANAP_dir_gui.png
+      :width: 300
+      :align: center
+
+   - **MEA-NAP Folder:** Location of the MEA-NAP folder you downloaded from our Github page.
+
    5. Navigate to "File Conversion" tab. 
    6. Specify parameters for .raw file conversion.
 
