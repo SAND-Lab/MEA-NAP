@@ -243,13 +243,13 @@ for e = 1:length(lagval)
         BCmeantop5 = mean(BC(BC >= BC95thpercentile));
     else
          fprintf('Not enough nodes to calculate network metrics! \n')
-         SW = nan;
-         SWw = nan;
-         CC = nan;
-         PL = nan;
-         Eloc = nan;
+         SW = nan(length(NS), 1);
+         SWw = nan(length(NS), 1);
+         CC = nan(length(NS), 1);
+         PL = nan(length(NS), 1);
+         Eloc = nan(length(NS), 1);
          ElocMean = nan;
-         BC = nan;
+         BC = nan(length(NS), 1);
          BCmeantop5 = nan;
      end
     
@@ -272,9 +272,8 @@ for e = 1:length(lagval)
         PCmeanBottom10 = mean(PC(PC <= PC10thpercentile));
         
     else 
-        PC = nan;
-        Z = nan;
-        
+        PC = nan(length(NS), 1);
+        Z = nan(length(NS), 1);
         percentZscoreGreaterThanZero = nan;
         percentZscoreLessThanZero = nan;
         PCmean = nan;
