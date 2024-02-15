@@ -24,7 +24,6 @@ Setting up MEA-NAP
 2. Prepare your data for MEA-NAP:
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-
 The MEA-NAP pipeline is currently optimized for single MEA recordings made on the Multichannel Systems MEA2100 60-channel MEA system and for multi-well plates using the Axion Maestro MEA System. However, these recordings must be converted to `*.mat` files first.
 
 - **Converting .mcd files acquired from a Multichannel Systems MEA system with MC_Rack to .mat files**:
@@ -35,7 +34,7 @@ The MEA-NAP pipeline is currently optimized for single MEA recordings made on th
    4. Click "bin."
    5. Click "All."
    6. Ensure "Write header" and "Signed 16bit" are checked in the lower right.
-   7. Click save.
+   7. Click "save" to save .raw files that are generated.
    8. When done, click close.
    9. Open MATLAB.
    10. Add the analysis pipeline code to the path. 
@@ -45,21 +44,22 @@ The MEA-NAP pipeline is currently optimized for single MEA recordings made on th
 - **Converting .raw files acquired from an Axion Maestro MEA system to .mat files**:
 
    1. Save `.raw` files from MEA Axion Maestro system to one folder.
-   2. Open `rawConvert.m` which is located in ConvertRawtoMat subfolder inside Functions folder.
+   2. Open MATLAB.
+   3. Open `rawConvert.m` which is located in ConvertRawtoMat subfolder inside Functions folder.
 
    .. image:: imgs/ConvertRawtoMat.png
       :width: 300
       :align: center
 
-   3. Fill out user parameters in `rawConvert.m` according to instructions provided in `rawConvert.m`.
+   4. Fill out user parameters in `rawConvert.m` according to instructions provided in `rawConvert.m`.
 
    .. image:: imgs/rawConvert.png
       :width: 600
       :align: center
 
-   4. Click run 
-   5. When `rawConvert.m` has successfully run, open the folder where `.raw` files were initially stored.
-   6. Navigate through the folder to check that all `.mat` files have been successfully created and saved.
+   5. Run script (click green arrow in editor tab).
+   6. When `rawConvert.m` has successfully run, open the folder where `.raw` files were initially stored.
+   7. Navigate through the folder to check that all `.mat` files have been successfully created and saved.
 
 3. Organize your data:
 ^^^^^^^^^^^^^^^^^^^^^^^
