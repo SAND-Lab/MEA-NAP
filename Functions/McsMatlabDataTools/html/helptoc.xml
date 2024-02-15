@@ -1,0 +1,11 @@
+<?xml version='1.0' encoding="utf-8"?>
+<toc version="2.0">
+
+    <tocitem target="helpIntro.html">The McsHDF5 Toolbox
+		<tocitem target="helpInstalling.html">Installation</tocitem>
+		<tocitem target="helpDataManager.html">DataManager</tocitem>
+		<tocitem target="helpCmosMea.html">CMOS-MEA</tocitem>
+    </tocitem>
+    
+
+</toc>

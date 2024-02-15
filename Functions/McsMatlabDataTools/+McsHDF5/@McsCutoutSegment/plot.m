@@ -1,0 +1,160 @@
+function plot(segStream,cfg,varargin)
+% Plot the contents of a McsSegmentStream object with spike cutouts.
+%
+% function plot(segStream,cfg,varargin)
+%
+% Produces for each segment a 3D plot of trials x samples and a time series
+% plot which overlays all trials.
+%
+% Input:
+%
+%   segStream     -   A McsSegmentStream object
+%
+%   cfg           -   Either empty (for default parameters) or a
+%                     structure with (some of) the following fields:
+%                     'segment': empty for all segments, otherwise a
+%                       vector of segment indices (default: all)
+%                     'mode': determines how the individual segments are shown. 
+%                       This can be either: 
+%                       'subplot', which plots all segments in a single figure
+%                       'figure', which plots one figure per segment
+%                       'iterative', which loops through all segments and
+%                       plots them one by one, prompting for input to move
+%                       to the next figure.
+%                       (default: 'subplot')
+%                     If fields are missing, their default values are used.
+%
+%   Optional inputs in varargin are passed to the plot function.
+%
+% Usage:
+%
+%   plot(segStream, cfg);
+%   plot(segStream, cfg, ...);
+%   segStream.plot(cfg);
+%   segStream.plot(cfg, ...);
+%
+% (c) 2016 by Multi Channel Systems MCS GmbH
+
+    clf
+    
+    [cfg, isDefault] = McsHDF5.checkParameter(cfg, 'mode', 'subplot');
+    [cfg, isDefault] = McsHDF5.checkParameter(cfg, 'segment', 1:length(segStream.SegmentData));
+    if ~isDefault
+        if any(cfg.segment < 1 | cfg.segment > length(segStream.SegmentData))
+            warning(['Using only segment indices between 1 and ' num2str(length(segStream.SegmentData)) '!'])
+            cfg.segment = cfg.segment(cfg.segment >= 1 & cfg.segment <= length(segStream.SegmentData));
+        end
+    end
+    
+    if strcmp(cfg.mode, 'figure') || strcmp(cfg.mode, 'iterative')
+        plotcfg = [];
+        first = true;
+        for segi = 1:length(cfg.segment)
+            id = cfg.segment(segi);
+            if isempty(segStream.SegmentData{id})
+                continue
+            end
+            plotcfg.segment = id;
+            if strcmp(cfg.mode, 'figure') && ~first
+                figure
+            end
+            first = false;
+            plot(segStream, plotcfg, varargin{:});    
+            if strcmp(cfg.mode, 'iterative')
+                input(['Plotting segment ' num2str(id) '. Press RETURN for next segment']);
+            end
+        end
+    elseif strcmp(cfg.mode, 'subplot')
+        for segi = 1:length(cfg.segment)
+            id = cfg.segment(segi);
+            if isempty(segStream.SegmentData{id})
+                continue
+            end
+            subplot(2,length(cfg.segment),segi);
+
+            if strcmp(segStream.DataType,'double')
+                data_to_plot = segStream.SegmentData{id};
+            else
+                conv_cfg = [];
+                conv_cfg.dataType = 'double';
+                data_to_plot = segStream.getConvertedData(id,conv_cfg);
+            end
+
+            orig_exp = log10(max(abs(data_to_plot(:))));
+            sourceChan = str2double(segStream.Info.SourceChannelIDs{segi});
+            if length(sourceChan) > 1 || numel(size(data_to_plot)) > 2
+                warning('Plots of multisegments are not yet supported!');
+                return;
+            end
+            channel_idx = find(segStream.SourceInfoChannel.ChannelID == sourceChan);
+            unit_exp = double(segStream.SourceInfoChannel.Exponent(channel_idx));
+
+            [fact,unit_string] = McsHDF5.ExponentToUnit(orig_exp+unit_exp,orig_exp);
+
+            data_to_plot = data_to_plot' * fact;
+
+            if all(size(data_to_plot) > 2) 
+                [X,Y] = meshgrid(1:size(data_to_plot,2),1:size(data_to_plot,1));
+                if isempty([varargin{:}])
+                    surf(X,Y,data_to_plot);
+                else
+                    surf(X,Y,data_to_plot,varargin{:});
+                end
+                shading interp
+                xlabel('samples')
+                ylabel('events')
+                unit = segStream.SourceInfoChannel.Unit{channel_idx};
+                zlabel([unit_string unit],'Interpreter','tex')
+                label = segStream.Info.Label{id};
+                if isempty(label)
+                    title(['Segment ID ' num2str(segStream.Info.SegmentID(id))]);
+                else
+                    title(['Segment label ' label])
+                end
+            else
+                if isempty(varargin)
+                    plot(data_to_plot');
+                else
+                    plot(data_to_plot',varargin{:});
+                end
+                xlabel('samples')
+                unit = segStream.SourceInfoChannel.Unit{channel_idx};
+                ylabel([unit_string unit],'Interpreter','tex')
+                label = segStream.Info.Label{id};
+                if isempty(label)
+                    title(['Segment ID ' num2str(segStream.Info.SegmentID(id))]);
+                else
+                    title(['Segment label ' label])
+                end
+            end
+
+            subplot(2,length(cfg.segment),segi+length(cfg.segment));
+
+            pre = double(segStream.Info.PreInterval(id));
+            post = double(segStream.Info.PostInterval(id));
+            if pre == 0 && post == 0
+                ts = 0;
+            else
+                tick = double(segStream.SourceInfoChannel.Tick(channel_idx));
+                ts = -pre : tick : (post - tick);
+            end
+            if length(ts) ~= size(data_to_plot,2)
+                warning('Pre- and post-interval does not match the number of samples!')
+                ts = (1:size(data_to_plot,2)).*double(segStream.SourceInfoChannel.Tick(channel_idx));
+            end
+
+            ts = McsHDF5.TickToSec(ts);
+            plot(ts,data_to_plot');
+
+            hold on
+            plot(ts,mean(data_to_plot),'-k','LineWidth',2);
+            hold off
+
+            axis tight
+            xlabel('Time [s]');
+            ylabel([unit_string unit],'Interpreter','tex')
+
+        end
+    end
+end
+        
