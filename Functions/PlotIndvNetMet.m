@@ -15,7 +15,12 @@ function PlotIndvNetMet(expData, Params, Info, originalCoords, originalChannels,
 lagval = expData.Params.FuncConLagval;
 
 % edge threshold for adjM
-edge_thresh = 0.0001;
+if isfield(Params, 'networkPlotEdgeThreshold')
+    edge_thresh = Params.networkPlotEdgeThreshold;
+else
+    edge_thresh = 0.0001;    
+end
+
 
 for e = 1:length(lagval)
     
@@ -116,6 +121,8 @@ for e = 1:length(lagval)
         
         % Loop through the metrics of interest to plot
         for networkPlotIdx = 1:length(colorMapMetricsToPlot)
+            
+            networkPlotIdx = 4; % temp for getting a plot
             
             if Params.timeProcesses
                 fprintf('Plotting network scaled to individual recording \n')

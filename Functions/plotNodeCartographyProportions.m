@@ -95,6 +95,10 @@ for l = 1:length(lagval)
         if lagNetMet.aN >= Params.minNumberOfNodesToCalNetMet
             NdPrp(l, i) = lagNetMet.(['NCpn' num2str(i)]);
             xlab{l} = num2str(lagval(l));
+        else
+            % Currently set to the same
+            NdPrp(l, i) = lagNetMet.(['NCpn' num2str(i)]);
+            xlab{l} = num2str(lagval(l));
         end
     end
 end

@@ -243,10 +243,10 @@ for e = 1:length(lagval)
         BCmeantop5 = mean(BC(BC >= BC95thpercentile));
     else
          fprintf('Not enough nodes to calculate network metrics! \n')
-         SW = nan(length(NS), 1);
-         SWw = nan(length(NS), 1);
-         CC = nan(length(NS), 1);
-         PL = nan(length(NS), 1);
+         SW = nan;
+         SWw = nan;
+         CC = nan;
+         PL = nan;
          Eloc = nan(length(NS), 1);
          ElocMean = nan;
          BC = nan(length(NS), 1);
