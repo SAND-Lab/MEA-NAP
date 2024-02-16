@@ -1,5 +1,8 @@
 MEA-NAP Outputs
 ===============
+
+Here is a list of the figures produced by MEA-NAP including sample figure legends. You can navigate to the different subfolders using these links:
+
 * :ref:`Step 1 - Spike Detection <Step 1 - Spike Detection>` 
 * :ref:`Step 1A – Spike Detection <Step 1A - Spike Detection Files>`
 * :ref:`Step 1B – Spike Detection Checks <Step 1A - Spike Detection Files>`
@@ -39,9 +42,9 @@ This folder contains the MATLAB file for each MEA recording with the spike times
 Each matlab file contains the following variables: 
 
 - Channels: a vector containing the numeric identified for each channel
-spikeDetectionResult: a structure containing the parameters used for spike detection (e.g., sampling rate)
+- spikeDetectionResult: a structure containing the parameters used for spike detection (e.g., sampling rate)
 - spikeTimes : a cell with an entry per channel, each cell entry contains a structure where the field names are the spike detection method and the field entries are the spike times in seconds 
-spikeWaveforms: same format as spikeTimes, but where each field entry are the spike waveforms detected
+- spikeWaveforms: same format as spikeTimes, but where each field entry are the spike waveforms detected
 - Thresholds: same format as spikeTimes, but where each field entry are the absolute values of the threshold used for spike detection (in mV), they are NaN values for wavelet detection methods as they do not rely on a threshold
 
 

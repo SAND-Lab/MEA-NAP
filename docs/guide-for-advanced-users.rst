@@ -4,6 +4,8 @@ Guide for Advanced Users
 If you have **a solid background in MATLAB**, you can turn off the GUI mode (line 76, change 1 to 0) and instead manually enter the required information prior to running the `MEApipeline.m` script for batch analysis of your experimental data. 
 By customizing parameters in `MEApipeline.m`, users can tailor their data analysis to align with the specific requirements of your experiments. 
 
+Advanced users may also find leaving the GUI mode on to be convenient, particularly for running MEA-NAP again on the same data with different parameters.  The Save and Load Parameters buttons on the GUI are particularly useful.  Advanced users can also conveniently edit additional parameters by checking "Show Advanced Settings" on the General settings tab in the GUI.  This will create additional tabs at the end of the GUI (use right arrow to navigate).   This "Guide for Advanced Users" provides explanations of some of the parameters.  However, advanced users may also need to examine the individual functions in MATLAB.
+
 =========================
 
 
