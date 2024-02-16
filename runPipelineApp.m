@@ -182,21 +182,21 @@ while app.RunPipelineButton.Value == 0
     
     % Path to files to convert 
     if app.FileConversionselectButton.Value == 1 
-        app.FilelocationEditField.Value = uigetdir;
+        app.DataFolderEditField.Value = uigetdir;
         app.FileConversionselectButton.Value = 0;
         figure(app.UIFigure)  % put app back to focus
     end 
     
-    if ~strcmp(app.FiletypeDropDown.Value, '.raw from Axion Maestro')
-        app.BatchCSVnameEditField.Enable = 0;
+    if ~strcmp(app.FileTypeDropDown.Value, '.raw from Axion Maestro')
+        app.BatchCSVNameEditField.Enable = 0;
         app.DIVincludedCheckBox.Enable = 0;
         app.OneGenotypeCheckBox.Enable = 0;
-        app.GenotypeGroupEditField.Enable = 0;
+        app.GroupNameEditField.Enable = 0;
     else 
-        app.BatchCSVnameEditField.Enable = 1;
+        app.BatchCSVNameEditField.Enable = 1;
         app.DIVincludedCheckBox.Enable = 1;
         app.OneGenotypeCheckBox.Enable = 1;
-        app.GenotypeGroupEditField.Enable = 1;
+        app.GroupNameEditField.Enable = 1;
     end 
     
     if app.RunfileconversionButton.Value == 1
@@ -206,17 +206,17 @@ while app.RunPipelineButton.Value == 0
         
         app.MEANAPStatusTextArea.Value = ...
             [app.MEANAPStatusTextArea.Value; 'Running file conversion...'];
-        if strcmp(app.FiletypeDropDown.Value, '.raw from Multichannel Systems')  
+        if strcmp(app.FileTypeDropDown.Value, '.raw from Multichannel Systems')  
             app.MEANAPStatusTextArea.Value = ...
             [app.MEANAPStatusTextArea.Value; 'on .raw files from Multichannel Systems...'];
-            MEAbatchConvert(app.FilelocationEditField.Value);
-        elseif strcmp(app.FiletypeDropDown.Value, '.raw from Axion Maestro')
+            MEAbatchConvert(app.DataFolderEditField.Value);
+        elseif strcmp(app.FileTypeDropDown.Value, '.raw from Axion Maestro')
              app.MEANAPStatusTextArea.Value = ...
             [app.MEANAPStatusTextArea.Value; 'on .raw files from Axion Maestro...'];
             drawnow;
-            rawConvertFunc(app.MEANAPFolderEditField.Value, app.FilelocationEditField.Value, ...
-                app.BatchCSVnameEditField.Value, app.DIVincludedCheckBox.Value, ...
-                app.OneGenotypeCheckBox.Value, app.GenotypeGroupEditField.Value)
+            rawConvertFunc(app.MEANAPFolderEditField.Value, app.DataFolderEditField.Value, ...
+                app.BatchCSVNameEditField.Value, app.DIVincludedCheckBox.Value, ...
+                app.OneGenotypeCheckBox.Value, app.GroupNameEditField.Value)
         end 
         app.MEANAPStatusTextArea.Value = ...
             [app.MEANAPStatusTextArea.Value; 'File conversion complete!'];
