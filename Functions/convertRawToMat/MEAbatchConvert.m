@@ -60,6 +60,7 @@ files=d(files);
 %% convert the files
 
 for i=1:length(files)
+    cd(files(i).folder);
     files(i).name
     skip=0;
     %find if file already converted
