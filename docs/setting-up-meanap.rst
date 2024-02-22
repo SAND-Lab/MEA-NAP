@@ -22,7 +22,7 @@ Setting up MEA-NAP
 - Once the zip folder is downloaded, navigate to the location where you saved it and extract its contents.
 
 2. Prepare your data for MEA-NAP:
-^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 Ensure that all relevant recordings that you want to analyze are saved in the same folder (no subfolders). This will allow MEA-NAP to seamlessly process and compare the data during the analysis.
 
 - Keep all the recording files intended for a specific batch analysis in a dedicated folder.
@@ -32,7 +32,7 @@ Ensure that all relevant recordings that you want to analyze are saved in the sa
 - Rename your files, if necessary, before converting your data to MATLAB format for MEA-NAP.
 
 3. Convert your data to MATLAB format for MEA-NAP:
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The MEA-NAP pipeline is currently optimized for single MEA recordings made on the Multichannel Systems MEA2100 60-channel MEA system and for multi-well plates using the Axion Maestro MEA System. However, these recordings must be converted to `*.mat` files first.
 

@@ -16,7 +16,7 @@ This page is for **users who do not already have MATLAB or the required toolboxe
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
    
 - For people using institutional licenses:
-   - Please follow the instructions that your institution has provided for MATLAB installation
+   - Please follow the instructions that your institution has provided for MATLAB installation.
 
 - For individual users:
    - Log in to your MathWorks account and download the MATLAB version installer suitable for your operating system (Windows, macOS, or Linux).
@@ -76,14 +76,14 @@ This page is for **users who do not already have MATLAB or the required toolboxe
 
 - You will also need the Brain Connectivity Toolbox, which cannot be installed through the Add-On Explorer:
 
-  - This toolbox is found in the **MEA-NAP folder that you will download during step 1 of "Setting Up MEA-NAP"**
+  - This toolbox is found in the **MEA-NAP folder that you will download during step 1 of "Setting Up MEA-NAP."**
 
 7. Access installed toolboxes:
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 - Once the installation is complete, you can access the newly installed toolbox functions in your MATLAB environment.
 
-Congratulations! You have successfully set up MATLAB and downloaded the required toolboxes to extend MATLAB's functionality. Proceed to **"Setting up MEA-NAP"**.
+Congratulations! You have successfully set up MATLAB and downloaded the required toolboxes to extend MATLAB's functionality. Proceed to **"Setting up MEA-NAP."**
 
 
 

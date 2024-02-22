@@ -17,7 +17,7 @@ Spike detection
 -----------------------------------------------------------------
 
 
-Microelectrode array (MEA) recordings offer the temporal resolution to identify individual action potentials from multi-unit activity detected at individual electrodes.  There are many different methods available for detecting action potentials from extracellular voltage recordings. The choice of methods and parameters need to be optimized for each data set, as type of tissue, level of activity, and level of electrical noise will affect the accuracy.  The gold standard for tuning spike detection is comparing MEA recordings from the same network before and after tetrodotoxin (TTX) administration (if your neuronal population is sensitive to action potential blockade by TTX, Figure 4.1). TTX inhibition is use-dependent, thus depending how frequently the neurons fire action potentials, it may take a few minutes before all neuronal firing stops in the presence of TTX.
+Microelectrode array (MEA) recordings offer the temporal resolution to identify individual action potentials from multi-unit activity detected at individual electrodes.  There are many different methods available for detecting action potentials from extracellular voltage recordings. The choice of methods and parameters need to be optimized for each data set, as type of tissue, level of activity, and level of electrical noise will affect the accuracy.  The gold standard for tuning spike detection is comparing MEA recordings from the same network before and after tetrodotoxin (TTX) administration (if your neuronal population is sensitive to action potential blockade by TTX, **Figure 1.1**). TTX inhibition is use-dependent, thus depending how frequently the neurons fire action potentials, it may take a few minutes before all neuronal firing stops in the presence of TTX.
 
 .. image:: imgs/spike_detection.png
     :width: 640
@@ -30,7 +30,7 @@ Microelectrode array (MEA) recordings offer the temporal resolution to identify 
 Spike detection methods in the pipeline
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The pipeline offers multiple options for spike detection including template-based and threshold-based methods (Figure 1.2). The template-based method uses a continuous wavelet transform to identify action potentials by their waveform. In our 2D primary murine cortical cultures, the template-based method outperforms threshold-based methods in both sensitivity and specificity (Dunn et al., FENS 2020, poster). However, depending on the signal-to-noise ratio and/or the fit of the template to action potentials in a recording, the template method may not perform well on all data.  In this case we recommend using a threshold-based method. The user selects the standard deviation multiplier for detecting spikes. Minimum and maximum spike amplitudes are included to remove noise and large electrical artifacts.
+The pipeline offers multiple options for spike detection including template-based and threshold-based methods **(Figure 1.2)**. The template-based method uses a continuous wavelet transform to identify action potentials by their waveform. In our 2D primary murine cortical cultures, the template-based method outperforms threshold-based methods in both sensitivity and specificity (Dunn et al., FENS 2020, poster). However, depending on the signal-to-noise ratio and/or the fit of the template to action potentials in a recording, the template method may not perform well on all data.  In this case we recommend using a threshold-based method. The user selects the standard deviation multiplier for detecting spikes. Minimum and maximum spike amplitudes are included to remove noise and large electrical artifacts.
 
 
 .. image:: imgs/spike_detection_methods.png
@@ -85,7 +85,7 @@ Comparison of neuronal activity
 
 Firing rates
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-One of the most common forms of analysis performed on MEA recordings from neuronal networks are estimates of the firing rate of action potentials detected at each electrode.  The pipeline facilitates these comparisons between electrodes within each recording and between recordings by age and genotype.  The figure outputs of the pipeline include heatmaps of the firing rate in the spatial organization of the electrodes as well as raster plots showing the temporal changes in firing rates (in 1 second time bins) by electrodes.  In the figures, the heat maps (Figure 2.1A) and raster plots (Figure 2.1B) are plotted twice, the first plot is scaled to the minimum and maximum values in that recording and the second plot (right or bottom panel) is scaled for all recordings in the batch analysis. The former allows the investigator to see the variation clearly within each recording. The latter facilitates comparison of firing rates across the whole dataset. 
+One of the most common forms of analysis performed on MEA recordings from neuronal networks are estimates of the firing rate of action potentials detected at each electrode.  The pipeline facilitates these comparisons between electrodes within each recording and between recordings by age and genotype.  The figure outputs of the pipeline include heatmaps of the firing rate in the spatial organization of the electrodes as well as raster plots showing the temporal changes in firing rates (in 1 second time bins) by electrodes.  In the figures, the heat maps **(Figure 2.1A)** and raster plots **(Figure 2.1B)** are plotted twice, the first plot is scaled to the minimum and maximum values in that recording and the second plot (right or bottom panel) is scaled for all recordings in the batch analysis. The former allows the investigator to see the variation clearly within each recording. The latter facilitates comparison of firing rates across the whole dataset. 
 
 **A.**
 
@@ -159,29 +159,24 @@ Graph theoretical approaches are commonly used at the whole brain level, and les
    * - Feature
      - Description 
 
-   * - .. figure:: imgs/ND.png
-           
-           Node degree
+   * - **Node degree**  
+        .. figure:: imgs/ND.png 
      - Number of connections (edges) with other nodes in the network.  Highly connected nodes may have more influence on network activity depending on their strength of connectivity and their placement in the network.
    
-   * - .. figure:: imgs/N_size.png 
-     
-           Network size 
+   * - **Network size**
+          .. figure:: imgs/N_size.png 
      - Number of active electrodes (defined by a minimum number or frequency of spikes detected). 
    
-   * - .. figure::  imgs/EW.png
-
-           Edge weight
+   * - **Edge weight**
+          .. figure::  imgs/EW.png
      - Strength of connectivity between two nodes.  Calculated using the spike-time tiling coefficient (Cutts & Eglen, 2014)
    
-   * - .. figure:: imgs/N_strength.png 
-   
-           Node strength
+   * - **Node strength**
+          .. figure:: imgs/N_strength.png 
      - Sum of the edge weights for each node.
    
-   * - .. figure:: imgs/Dens.png 
-
-           Network density
+   * - **Network density**
+          .. figure:: imgs/Dens.png 
      - Number of edges as a proportion (%) of the total possible edges that can be formed in the network.
 
 .. list-table:: **Local processing in the network**
@@ -191,32 +186,27 @@ Graph theoretical approaches are commonly used at the whole brain level, and les
    * - Feature
      - Description
 
-   * - .. figure:: imgs/local_efficiency.png 
-     
-           Local Efficiency
+   * - **Local Efficiency**
+          .. figure:: imgs/local_efficiency.png 
      - Efficiency defined at the level of individual nodes. The inverse of path length of the subgraph generated by removing the index node and its edges. (Latora & Marchiori, 2001)
    
-   * - .. figure::  imgs/CC.png
-           
-           Clustering coefficient  
+   * - **Clustering coefficient**
+          .. figure::  imgs/CC.png
      - Probability that two nodes each directly connected to a third node will also be directly linked to each other.
    
-   * - .. figure::  imgs/nMod.png
-          
-          Number of modules
+   * - **Number of modules**
+          .. figure::  imgs/nMod.png
      - Number of subsets of nodes into which the network can be decomposed, where nodes in each subset are more densely connected to each other than to nodes in other subsets. (Brandes et al., 2008)
    
-   * - Affiliation vector
+   * - **Affiliation vector**
      - Vector containing the number of the module to which each node belongs.
 
-   * - .. figure:: imgs/MS.png
-          
-          Modularity score
+   * - **Modularity score**
+          .. figure:: imgs/MS.png
      - A value between -0.5 and 1 that describes how well a network has been partitioned.  (Lancichinetti & Fortunato, 2012)
    
-   * - .. figure:: imgs/WMZ.png
-          
-          Within-module degree z-score
+   * - **Within-module degree z-score**
+          .. figure:: imgs/WMZ.png
      - Measure of how well-connected a node is to other nodes in the same module. Higher values indicate higher intramodular node degree. (Guimerà & Nunes Amaral, 2005)
 
 .. list-table:: **Global processing and nodal roles in the network**
@@ -225,41 +215,34 @@ Graph theoretical approaches are commonly used at the whole brain level, and les
 
    * - Feature
      - Description 
-   * - .. figure:: imgs/PL.png
-       
-          Path length 
+   * - **Path length**
+          .. figure:: imgs/PL.png
      - Characteristic path length is the minimum number of edges required to link any two nodes in the network averaged across nodes.
    
-   * - .. figure:: imgs/global_efficiency.png
-      
-          Global efficiency
+   * - **Global efficiency**
+          .. figure:: imgs/global_efficiency.png
      - Efficiency of parallel information transfer between nodes in the network. Inverse of characteristic path length.  (Latora & Marchiori, 2001)
    
-   * - .. figure:: imgs/node_cartography_proportions.png
-   
-          Node cartography group proportions
+   * - **Node cartography group proportions**
+          .. figure:: imgs/node_cartography_proportions.png
      - Each node is assigned a role by node cartography group. (Guimerà & Nunes Amaral, 2005) (1) Peripheral nodes (2) Non-hub connectors (3) Non-hub kinless nodes (4) Provincial hubs (5) Connector hubs (6) Kinless hubs
    
-   * - .. figure:: imgs/BC.png
-      
-          Betweenness centrality
+   * - **Betweenness centrality**
+          .. figure:: imgs/BC.png
      - Number of times a node lies on the shortest path between any two nodes in a network. (Brandes, 2001)
-   * - .. figure:: imgs/PC.png
-   
-          Participation coefficient
+   * - **Participation coefficient**
+          .. figure:: imgs/PC.png
      - Measure of how well-distributed a node’s edges are among different modules. (Guimerà & Nunes Amaral, 2005)
    
-   * - Hub score
+   * - **Hub score**
      - Hubs are nodes with high centrality in the network. Nodes are ranked based on node strength, betweenness centrality, local efficiency, and participation coefficient. Hubs rank in the top 10% of nodes in 3 or 4 of these features. (Schroeter et al., 2015)
    
-   * - .. figure:: imgs/small_world_coefficient_1.png
-
-          Small world coefficient method 1 (:math:`\sigma`)
+   * - **Small world coefficient method 1** (:math:`\sigma`)
+          .. figure:: imgs/small_world_coefficient_1.png
      - Network topology with clusters of nodes connected to other clusters via hub nodes. This reduces path length and facilitates both local and global information processing. Calculated as clustering coefficient divided by characteristic path length. (Humphries et al, 2006; Humphries & Gurney, 2008)
    
-   * - .. figure:: imgs/small_world_coefficient_2.png
-   
-          Small-world coefficient method 2 (:math:`w`)
+   * - **Small-world coefficient method 2** (:math:`w`)
+          .. figure:: imgs/small_world_coefficient_2.png
      - Calculated using the normalized clustering coefficient and path length. Small-world network structure is at the midpoint (0) between a lattice (-1) and random (1) network structure. (Telesford et al., 2011)
 
 .. list-table:: **Network dynamics**
@@ -268,9 +251,9 @@ Graph theoretical approaches are commonly used at the whole brain level, and les
                  
    * - Feature
      - Description
-   * - Non-negative matrix factorization (NMF)
+   * - **Non-negative matrix factorization (NMF)**
      - Dimensionality reduction approach identifies patterns of activity in the network and the number of electrodes participating in each pattern. 
-   * - Effective Rank
+   * - **Effective Rank**
      - Dimensionality reduction approach calculates the number of sub-communities within the network. (Roy & Vetterli, 2007)
 
 
@@ -278,6 +261,7 @@ Node cartography
 ^^^^^^^^^^^^^^^^^^
 
 To our knowledge, this is the first application of node cartography (Guimerà & Nunes Amaral, 2005) to the analysis of microscale brain networks in MEA recordings. These cartographic representations enable comparison of nodal roles, assigned according to their intra- and inter-module connectivity, over development and between different networks. These roles are determined to a large extent by two key metrics: within-module degree z-score (z) and participation coefficient (P) **(Figure 4.1A)**. Together, these describe connectivity of a node within and outside of its module. Seven roles are defined according to the region occupied in the z, P parameter space **(Figure 4.1B)**.
+
 **A.**
 
 .. image:: imgs/node_cartography_2.png
@@ -304,7 +288,8 @@ Network metrics details
 -----------------------------------------------------
 
 For a description of the network metrics, how they are calculated, and applied to different MEA datasets, please see our paper describing MEA-NAP:
-Timothy PH Sit, Rachael C Feord, Alexander WE Dunn, Jeremi Chabros, David Oluigbo, Hugo H Smith, Lance Burn, Elise Chang, Alessio Boschi, Yin Yuan, George M Gibbons, Mahsa Khayat-Khoei, Francesco De Angelis, Erik Hemberg, Martin Hemberg, Madeline A Lancaster, Andras Lakatos, Stephen J Eglen, Ole Paulsen, Susanna B Mierau. MEA-NAP compares microscale functional connectivity, topology, and network dynamics in organoid or monolayer neuronal cultures. `bioRxiv` 2024.02.05.578738. doi: [https://doi.org/10.1101/2024.02.05.578738] 
+Timothy PH Sit, Rachael C Feord, Alexander WE Dunn, Jeremi Chabros, David Oluigbo, Hugo H Smith, Lance Burn, Elise Chang, Alessio Boschi, Yin Yuan, George M Gibbons, Mahsa Khayat-Khoei, Francesco De Angelis, Erik Hemberg, Martin Hemberg, Madeline A Lancaster, 
+Andras Lakatos, Stephen J Eglen, Ole Paulsen, Susanna B Mierau. **MEA-NAP compares microscale functional connectivity, topology, and network dynamics in organoid or monolayer neuronal cultures.** `bioRxiv` 2024.02.05.578738. doi: [https://doi.org/10.1101/2024.02.05.578738] 
 
 Mean node degree
 ^^^^^^^^^^^^^^^^^^^^^^^^^^

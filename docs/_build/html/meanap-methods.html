@@ -225,12 +225,12 @@
 </ul>
 <section id="spike-detection">
 <h2>Spike detection<a class="headerlink" href="#spike-detection" title="Link to this heading">#</a></h2>
-<p>Microelectrode array (MEA) recordings offer the temporal resolution to identify individual action potentials from multi-unit activity detected at individual electrodes.  There are many different methods available for detecting action potentials from extracellular voltage recordings. The choice of methods and parameters need to be optimized for each data set, as type of tissue, level of activity, and level of electrical noise will affect the accuracy.  The gold standard for tuning spike detection is comparing MEA recordings from the same network before and after tetrodotoxin (TTX) administration (if your neuronal population is sensitive to action potential blockade by TTX, Figure 4.1). TTX inhibition is use-dependent, thus depending how frequently the neurons fire action potentials, it may take a few minutes before all neuronal firing stops in the presence of TTX.</p>
+<p>Microelectrode array (MEA) recordings offer the temporal resolution to identify individual action potentials from multi-unit activity detected at individual electrodes.  There are many different methods available for detecting action potentials from extracellular voltage recordings. The choice of methods and parameters need to be optimized for each data set, as type of tissue, level of activity, and level of electrical noise will affect the accuracy.  The gold standard for tuning spike detection is comparing MEA recordings from the same network before and after tetrodotoxin (TTX) administration (if your neuronal population is sensitive to action potential blockade by TTX, <strong>Figure 1.1</strong>). TTX inhibition is use-dependent, thus depending how frequently the neurons fire action potentials, it may take a few minutes before all neuronal firing stops in the presence of TTX.</p>
 <a class="reference internal image-reference" href="_images/spike_detection.png"><img alt="_images/spike_detection.png" class="align-center" src="_images/spike_detection.png" style="width: 640px;" /></a>
 <p><strong>Figure 1.1. Effect of tetrodotoxin (TTX) on spikes detected by MEA.</strong> Histogram (upper) of spiked detected and raster plot for three electrodes before TTX (left) and after TTX was added (to the right of the dashed line) abolishing all action potentials.</p>
 <section id="spike-detection-methods-in-the-pipeline">
 <h3>Spike detection methods in the pipeline<a class="headerlink" href="#spike-detection-methods-in-the-pipeline" title="Link to this heading">#</a></h3>
-<p>The pipeline offers multiple options for spike detection including template-based and threshold-based methods (Figure 1.2). The template-based method uses a continuous wavelet transform to identify action potentials by their waveform. In our 2D primary murine cortical cultures, the template-based method outperforms threshold-based methods in both sensitivity and specificity (Dunn et al., FENS 2020, poster). However, depending on the signal-to-noise ratio and/or the fit of the template to action potentials in a recording, the template method may not perform well on all data.  In this case we recommend using a threshold-based method. The user selects the standard deviation multiplier for detecting spikes. Minimum and maximum spike amplitudes are included to remove noise and large electrical artifacts.</p>
+<p>The pipeline offers multiple options for spike detection including template-based and threshold-based methods <strong>(Figure 1.2)</strong>. The template-based method uses a continuous wavelet transform to identify action potentials by their waveform. In our 2D primary murine cortical cultures, the template-based method outperforms threshold-based methods in both sensitivity and specificity (Dunn et al., FENS 2020, poster). However, depending on the signal-to-noise ratio and/or the fit of the template to action potentials in a recording, the template method may not perform well on all data.  In this case we recommend using a threshold-based method. The user selects the standard deviation multiplier for detecting spikes. Minimum and maximum spike amplitudes are included to remove noise and large electrical artifacts.</p>
 <a class="reference internal image-reference" href="_images/spike_detection_methods.png"><img alt="_images/spike_detection_methods.png" class="align-center" src="_images/spike_detection_methods.png" style="width: 400px;" /></a>
 <p><strong>Figure 1.2. Template- and threshold-based methods for spike detection.</strong> Sample voltage trace (black) with colored arrows for spikes detected with different templates (blue) or thresholds (red).  Sample template bior1.5 shown in blue box (inset).  Spike amplitude thresholds based on the standard deviation (SD) are shown as dashed lines. Some spikes are detected by 1, 2 or 4 of the methods.</p>
 <p><strong>Threshold-based options</strong></p>
@@ -257,7 +257,7 @@ To address this, the pipeline saves the absolute voltage for each electrode base
 <h2>Comparison of neuronal activity<a class="headerlink" href="#comparison-of-neuronal-activity" title="Link to this heading">#</a></h2>
 <section id="firing-rates">
 <h3>Firing rates<a class="headerlink" href="#firing-rates" title="Link to this heading">#</a></h3>
-<p>One of the most common forms of analysis performed on MEA recordings from neuronal networks are estimates of the firing rate of action potentials detected at each electrode.  The pipeline facilitates these comparisons between electrodes within each recording and between recordings by age and genotype.  The figure outputs of the pipeline include heatmaps of the firing rate in the spatial organization of the electrodes as well as raster plots showing the temporal changes in firing rates (in 1 second time bins) by electrodes.  In the figures, the heat maps (Figure 2.1A) and raster plots (Figure 2.1B) are plotted twice, the first plot is scaled to the minimum and maximum values in that recording and the second plot (right or bottom panel) is scaled for all recordings in the batch analysis. The former allows the investigator to see the variation clearly within each recording. The latter facilitates comparison of firing rates across the whole dataset.</p>
+<p>One of the most common forms of analysis performed on MEA recordings from neuronal networks are estimates of the firing rate of action potentials detected at each electrode.  The pipeline facilitates these comparisons between electrodes within each recording and between recordings by age and genotype.  The figure outputs of the pipeline include heatmaps of the firing rate in the spatial organization of the electrodes as well as raster plots showing the temporal changes in firing rates (in 1 second time bins) by electrodes.  In the figures, the heat maps <strong>(Figure 2.1A)</strong> and raster plots <strong>(Figure 2.1B)</strong> are plotted twice, the first plot is scaled to the minimum and maximum values in that recording and the second plot (right or bottom panel) is scaled for all recordings in the batch analysis. The former allows the investigator to see the variation clearly within each recording. The latter facilitates comparison of firing rates across the whole dataset.</p>
 <p><strong>A.</strong></p>
 <a class="reference internal image-reference" href="_images/firing_rates.png"><img alt="_images/firing_rates.png" class="align-center" src="_images/firing_rates.png" style="width: 450px;" /></a>
 <p><strong>B.</strong></p>
@@ -306,57 +306,57 @@ To do this, for each pair of electrodes, circular shifts are made in the spike t
 </tr>
 </thead>
 <tbody>
-<tr class="row-even"><td><figure class="align-default" id="id2">
+<tr class="row-even"><td><dl>
+<dt><strong>Node degree</strong></dt><dd><figure class="align-default">
 <img alt="_images/ND.png" src="_images/ND.png" />
-<figcaption>
-<p><span class="caption-text">Node degree</span><a class="headerlink" href="#id2" title="Link to this image">#</a></p>
-</figcaption>
 </figure>
+</dd>
+</dl>
 </td>
 <td><p>Number of connections (edges) with other nodes in the network.  Highly connected nodes may have more influence on network activity depending on their strength of connectivity and their placement in the network.</p></td>
 </tr>
-<tr class="row-odd"><td><figure class="align-default" id="id3">
+<tr class="row-odd"><td><dl>
+<dt><strong>Network size</strong></dt><dd><figure class="align-default">
 <img alt="_images/N_size.png" src="_images/N_size.png" />
-<figcaption>
-<p><span class="caption-text">Network size</span><a class="headerlink" href="#id3" title="Link to this image">#</a></p>
-</figcaption>
 </figure>
+</dd>
+</dl>
 </td>
 <td><p>Number of active electrodes (defined by a minimum number or frequency of spikes detected).</p></td>
 </tr>
-<tr class="row-even"><td><figure class="align-default" id="id4">
+<tr class="row-even"><td><dl>
+<dt><strong>Edge weight</strong></dt><dd><figure class="align-default">
 <img alt="_images/EW.png" src="_images/EW.png" />
-<figcaption>
-<p><span class="caption-text">Edge weight</span><a class="headerlink" href="#id4" title="Link to this image">#</a></p>
-</figcaption>
 </figure>
+</dd>
+</dl>
 </td>
 <td><p>Strength of connectivity between two nodes.  Calculated using the spike-time tiling coefficient (Cutts &amp; Eglen, 2014)</p></td>
 </tr>
-<tr class="row-odd"><td><figure class="align-default" id="id5">
+<tr class="row-odd"><td><dl>
+<dt><strong>Node strength</strong></dt><dd><figure class="align-default">
 <img alt="_images/N_strength.png" src="_images/N_strength.png" />
-<figcaption>
-<p><span class="caption-text">Node strength</span><a class="headerlink" href="#id5" title="Link to this image">#</a></p>
-</figcaption>
 </figure>
+</dd>
+</dl>
 </td>
 <td><p>Sum of the edge weights for each node.</p></td>
 </tr>
-<tr class="row-even"><td><figure class="align-default" id="id6">
+<tr class="row-even"><td><dl>
+<dt><strong>Network density</strong></dt><dd><figure class="align-default">
 <img alt="_images/Dens.png" src="_images/Dens.png" />
-<figcaption>
-<p><span class="caption-text">Network density</span><a class="headerlink" href="#id6" title="Link to this image">#</a></p>
-</figcaption>
 </figure>
+</dd>
+</dl>
 </td>
 <td><p>Number of edges as a proportion (%) of the total possible edges that can be formed in the network.</p></td>
 </tr>
 </tbody>
 </table>
 </div>
-<div class="table-wrapper colwidths-given docutils container" id="id7">
-<table class="docutils align-default" id="id7">
-<caption><span class="caption-text"><strong>Local processing in the network</strong></span><a class="headerlink" href="#id7" title="Link to this table">#</a></caption>
+<div class="table-wrapper colwidths-given docutils container" id="id2">
+<table class="docutils align-default" id="id2">
+<caption><span class="caption-text"><strong>Local processing in the network</strong></span><a class="headerlink" href="#id2" title="Link to this table">#</a></caption>
 <colgroup>
 <col style="width: 33%" />
 <col style="width: 67%" />
@@ -367,60 +367,60 @@ To do this, for each pair of electrodes, circular shifts are made in the spike t
 </tr>
 </thead>
 <tbody>
-<tr class="row-even"><td><figure class="align-default" id="id8">
+<tr class="row-even"><td><dl>
+<dt><strong>Local Efficiency</strong></dt><dd><figure class="align-default">
 <img alt="_images/local_efficiency.png" src="_images/local_efficiency.png" />
-<figcaption>
-<p><span class="caption-text">Local Efficiency</span><a class="headerlink" href="#id8" title="Link to this image">#</a></p>
-</figcaption>
 </figure>
+</dd>
+</dl>
 </td>
 <td><p>Efficiency defined at the level of individual nodes. The inverse of path length of the subgraph generated by removing the index node and its edges. (Latora &amp; Marchiori, 2001)</p></td>
 </tr>
-<tr class="row-odd"><td><figure class="align-default" id="id9">
+<tr class="row-odd"><td><dl>
+<dt><strong>Clustering coefficient</strong></dt><dd><figure class="align-default">
 <img alt="_images/CC.png" src="_images/CC.png" />
-<figcaption>
-<p><span class="caption-text">Clustering coefficient</span><a class="headerlink" href="#id9" title="Link to this image">#</a></p>
-</figcaption>
 </figure>
+</dd>
+</dl>
 </td>
 <td><p>Probability that two nodes each directly connected to a third node will also be directly linked to each other.</p></td>
 </tr>
-<tr class="row-even"><td><figure class="align-default" id="id10">
+<tr class="row-even"><td><dl>
+<dt><strong>Number of modules</strong></dt><dd><figure class="align-default">
 <img alt="_images/nMod.png" src="_images/nMod.png" />
-<figcaption>
-<p><span class="caption-text">Number of modules</span><a class="headerlink" href="#id10" title="Link to this image">#</a></p>
-</figcaption>
 </figure>
+</dd>
+</dl>
 </td>
 <td><p>Number of subsets of nodes into which the network can be decomposed, where nodes in each subset are more densely connected to each other than to nodes in other subsets. (Brandes et al., 2008)</p></td>
 </tr>
-<tr class="row-odd"><td><p>Affiliation vector</p></td>
+<tr class="row-odd"><td><p><strong>Affiliation vector</strong></p></td>
 <td><p>Vector containing the number of the module to which each node belongs.</p></td>
 </tr>
-<tr class="row-even"><td><figure class="align-default" id="id11">
+<tr class="row-even"><td><dl>
+<dt><strong>Modularity score</strong></dt><dd><figure class="align-default">
 <img alt="_images/MS.png" src="_images/MS.png" />
-<figcaption>
-<p><span class="caption-text">Modularity score</span><a class="headerlink" href="#id11" title="Link to this image">#</a></p>
-</figcaption>
 </figure>
+</dd>
+</dl>
 </td>
 <td><p>A value between -0.5 and 1 that describes how well a network has been partitioned.  (Lancichinetti &amp; Fortunato, 2012)</p></td>
 </tr>
-<tr class="row-odd"><td><figure class="align-default" id="id12">
+<tr class="row-odd"><td><dl>
+<dt><strong>Within-module degree z-score</strong></dt><dd><figure class="align-default">
 <img alt="_images/WMZ.png" src="_images/WMZ.png" />
-<figcaption>
-<p><span class="caption-text">Within-module degree z-score</span><a class="headerlink" href="#id12" title="Link to this image">#</a></p>
-</figcaption>
 </figure>
+</dd>
+</dl>
 </td>
 <td><p>Measure of how well-connected a node is to other nodes in the same module. Higher values indicate higher intramodular node degree. (Guimerà &amp; Nunes Amaral, 2005)</p></td>
 </tr>
 </tbody>
 </table>
 </div>
-<div class="table-wrapper colwidths-given docutils container" id="id13">
-<table class="docutils align-default" id="id13">
-<caption><span class="caption-text"><strong>Global processing and nodal roles in the network</strong></span><a class="headerlink" href="#id13" title="Link to this table">#</a></caption>
+<div class="table-wrapper colwidths-given docutils container" id="id3">
+<table class="docutils align-default" id="id3">
+<caption><span class="caption-text"><strong>Global processing and nodal roles in the network</strong></span><a class="headerlink" href="#id3" title="Link to this table">#</a></caption>
 <colgroup>
 <col style="width: 33%" />
 <col style="width: 67%" />
@@ -431,78 +431,78 @@ To do this, for each pair of electrodes, circular shifts are made in the spike t
 </tr>
 </thead>
 <tbody>
-<tr class="row-even"><td><figure class="align-default" id="id14">
+<tr class="row-even"><td><dl>
+<dt><strong>Path length</strong></dt><dd><figure class="align-default">
 <img alt="_images/PL.png" src="_images/PL.png" />
-<figcaption>
-<p><span class="caption-text">Path length</span><a class="headerlink" href="#id14" title="Link to this image">#</a></p>
-</figcaption>
 </figure>
+</dd>
+</dl>
 </td>
 <td><p>Characteristic path length is the minimum number of edges required to link any two nodes in the network averaged across nodes.</p></td>
 </tr>
-<tr class="row-odd"><td><figure class="align-default" id="id15">
+<tr class="row-odd"><td><dl>
+<dt><strong>Global efficiency</strong></dt><dd><figure class="align-default">
 <img alt="_images/global_efficiency.png" src="_images/global_efficiency.png" />
-<figcaption>
-<p><span class="caption-text">Global efficiency</span><a class="headerlink" href="#id15" title="Link to this image">#</a></p>
-</figcaption>
 </figure>
+</dd>
+</dl>
 </td>
 <td><p>Efficiency of parallel information transfer between nodes in the network. Inverse of characteristic path length.  (Latora &amp; Marchiori, 2001)</p></td>
 </tr>
-<tr class="row-even"><td><figure class="align-default" id="id16">
+<tr class="row-even"><td><dl>
+<dt><strong>Node cartography group proportions</strong></dt><dd><figure class="align-default">
 <img alt="_images/node_cartography_proportions.png" src="_images/node_cartography_proportions.png" />
-<figcaption>
-<p><span class="caption-text">Node cartography group proportions</span><a class="headerlink" href="#id16" title="Link to this image">#</a></p>
-</figcaption>
 </figure>
+</dd>
+</dl>
 </td>
 <td><p>Each node is assigned a role by node cartography group. (Guimerà &amp; Nunes Amaral, 2005) (1) Peripheral nodes (2) Non-hub connectors (3) Non-hub kinless nodes (4) Provincial hubs (5) Connector hubs (6) Kinless hubs</p></td>
 </tr>
-<tr class="row-odd"><td><figure class="align-default" id="id17">
+<tr class="row-odd"><td><dl>
+<dt><strong>Betweenness centrality</strong></dt><dd><figure class="align-default">
 <img alt="_images/BC.png" src="_images/BC.png" />
-<figcaption>
-<p><span class="caption-text">Betweenness centrality</span><a class="headerlink" href="#id17" title="Link to this image">#</a></p>
-</figcaption>
 </figure>
+</dd>
+</dl>
 </td>
 <td><p>Number of times a node lies on the shortest path between any two nodes in a network. (Brandes, 2001)</p></td>
 </tr>
-<tr class="row-even"><td><figure class="align-default" id="id18">
+<tr class="row-even"><td><dl>
+<dt><strong>Participation coefficient</strong></dt><dd><figure class="align-default">
 <img alt="_images/PC.png" src="_images/PC.png" />
-<figcaption>
-<p><span class="caption-text">Participation coefficient</span><a class="headerlink" href="#id18" title="Link to this image">#</a></p>
-</figcaption>
 </figure>
+</dd>
+</dl>
 </td>
 <td><p>Measure of how well-distributed a node’s edges are among different modules. (Guimerà &amp; Nunes Amaral, 2005)</p></td>
 </tr>
-<tr class="row-odd"><td><p>Hub score</p></td>
+<tr class="row-odd"><td><p><strong>Hub score</strong></p></td>
 <td><p>Hubs are nodes with high centrality in the network. Nodes are ranked based on node strength, betweenness centrality, local efficiency, and participation coefficient. Hubs rank in the top 10% of nodes in 3 or 4 of these features. (Schroeter et al., 2015)</p></td>
 </tr>
-<tr class="row-even"><td><figure class="align-default" id="id19">
+<tr class="row-even"><td><dl>
+<dt><strong>Small world coefficient method 1</strong> (<span class="math notranslate nohighlight">\(\sigma\)</span>)</dt><dd><figure class="align-default">
 <img alt="_images/small_world_coefficient_1.png" src="_images/small_world_coefficient_1.png" />
-<figcaption>
-<p><span class="caption-text">Small world coefficient method 1 (<span class="math notranslate nohighlight">\(\sigma\)</span>)</span><a class="headerlink" href="#id19" title="Link to this image">#</a></p>
-</figcaption>
 </figure>
+</dd>
+</dl>
 </td>
 <td><p>Network topology with clusters of nodes connected to other clusters via hub nodes. This reduces path length and facilitates both local and global information processing. Calculated as clustering coefficient divided by characteristic path length. (Humphries et al, 2006; Humphries &amp; Gurney, 2008)</p></td>
 </tr>
-<tr class="row-odd"><td><figure class="align-default" id="id20">
+<tr class="row-odd"><td><dl>
+<dt><strong>Small-world coefficient method 2</strong> (<span class="math notranslate nohighlight">\(w\)</span>)</dt><dd><figure class="align-default">
 <img alt="_images/small_world_coefficient_2.png" src="_images/small_world_coefficient_2.png" />
-<figcaption>
-<p><span class="caption-text">Small-world coefficient method 2 (<span class="math notranslate nohighlight">\(w\)</span>)</span><a class="headerlink" href="#id20" title="Link to this image">#</a></p>
-</figcaption>
 </figure>
+</dd>
+</dl>
 </td>
 <td><p>Calculated using the normalized clustering coefficient and path length. Small-world network structure is at the midpoint (0) between a lattice (-1) and random (1) network structure. (Telesford et al., 2011)</p></td>
 </tr>
 </tbody>
 </table>
 </div>
-<div class="table-wrapper colwidths-given docutils container" id="id21">
-<table class="docutils align-default" id="id21">
-<caption><span class="caption-text"><strong>Network dynamics</strong></span><a class="headerlink" href="#id21" title="Link to this table">#</a></caption>
+<div class="table-wrapper colwidths-given docutils container" id="id4">
+<table class="docutils align-default" id="id4">
+<caption><span class="caption-text"><strong>Network dynamics</strong></span><a class="headerlink" href="#id4" title="Link to this table">#</a></caption>
 <colgroup>
 <col style="width: 33%" />
 <col style="width: 67%" />
@@ -513,10 +513,10 @@ To do this, for each pair of electrodes, circular shifts are made in the spike t
 </tr>
 </thead>
 <tbody>
-<tr class="row-even"><td><p>Non-negative matrix factorization (NMF)</p></td>
+<tr class="row-even"><td><p><strong>Non-negative matrix factorization (NMF)</strong></p></td>
 <td><p>Dimensionality reduction approach identifies patterns of activity in the network and the number of electrodes participating in each pattern.</p></td>
 </tr>
-<tr class="row-odd"><td><p>Effective Rank</p></td>
+<tr class="row-odd"><td><p><strong>Effective Rank</strong></p></td>
 <td><p>Dimensionality reduction approach calculates the number of sub-communities within the network. (Roy &amp; Vetterli, 2007)</p></td>
 </tr>
 </tbody>
@@ -525,8 +525,8 @@ To do this, for each pair of electrodes, circular shifts are made in the spike t
 </section>
 <section id="node-cartography">
 <h3>Node cartography<a class="headerlink" href="#node-cartography" title="Link to this heading">#</a></h3>
-<p>To our knowledge, this is the first application of node cartography (Guimerà &amp; Nunes Amaral, 2005) to the analysis of microscale brain networks in MEA recordings. These cartographic representations enable comparison of nodal roles, assigned according to their intra- and inter-module connectivity, over development and between different networks. These roles are determined to a large extent by two key metrics: within-module degree z-score (z) and participation coefficient (P) <strong>(Figure 4.1A)</strong>. Together, these describe connectivity of a node within and outside of its module. Seven roles are defined according to the region occupied in the z, P parameter space <strong>(Figure 4.1B)</strong>.
-<strong>A.</strong></p>
+<p>To our knowledge, this is the first application of node cartography (Guimerà &amp; Nunes Amaral, 2005) to the analysis of microscale brain networks in MEA recordings. These cartographic representations enable comparison of nodal roles, assigned according to their intra- and inter-module connectivity, over development and between different networks. These roles are determined to a large extent by two key metrics: within-module degree z-score (z) and participation coefficient (P) <strong>(Figure 4.1A)</strong>. Together, these describe connectivity of a node within and outside of its module. Seven roles are defined according to the region occupied in the z, P parameter space <strong>(Figure 4.1B)</strong>.</p>
+<p><strong>A.</strong></p>
 <a class="reference internal image-reference" href="_images/node_cartography_2.png"><img alt="_images/node_cartography_2.png" class="align-center" src="_images/node_cartography_2.png" style="width: 500px;" /></a>
 <p><strong>B.</strong></p>
 <a class="reference internal image-reference" href="_images/node_cartography_3.png"><img alt="_images/node_cartography_3.png" class="align-center" src="_images/node_cartography_3.png" style="width: 500px;" /></a>
@@ -540,7 +540,8 @@ To do this, for each pair of electrodes, circular shifts are made in the spike t
 <section id="network-metrics-details">
 <h2>Network metrics details<a class="headerlink" href="#network-metrics-details" title="Link to this heading">#</a></h2>
 <p>For a description of the network metrics, how they are calculated, and applied to different MEA datasets, please see our paper describing MEA-NAP:
-Timothy PH Sit, Rachael C Feord, Alexander WE Dunn, Jeremi Chabros, David Oluigbo, Hugo H Smith, Lance Burn, Elise Chang, Alessio Boschi, Yin Yuan, George M Gibbons, Mahsa Khayat-Khoei, Francesco De Angelis, Erik Hemberg, Martin Hemberg, Madeline A Lancaster, Andras Lakatos, Stephen J Eglen, Ole Paulsen, Susanna B Mierau. MEA-NAP compares microscale functional connectivity, topology, and network dynamics in organoid or monolayer neuronal cultures. <cite>bioRxiv</cite> 2024.02.05.578738. doi: [<a class="reference external" href="https://doi.org/10.1101/2024.02.05.578738">https://doi.org/10.1101/2024.02.05.578738</a>]</p>
+Timothy PH Sit, Rachael C Feord, Alexander WE Dunn, Jeremi Chabros, David Oluigbo, Hugo H Smith, Lance Burn, Elise Chang, Alessio Boschi, Yin Yuan, George M Gibbons, Mahsa Khayat-Khoei, Francesco De Angelis, Erik Hemberg, Martin Hemberg, Madeline A Lancaster,
+Andras Lakatos, Stephen J Eglen, Ole Paulsen, Susanna B Mierau. <strong>MEA-NAP compares microscale functional connectivity, topology, and network dynamics in organoid or monolayer neuronal cultures.</strong> <cite>bioRxiv</cite> 2024.02.05.578738. doi: [<a class="reference external" href="https://doi.org/10.1101/2024.02.05.578738">https://doi.org/10.1101/2024.02.05.578738</a>]</p>
 <section id="mean-node-degree">
 <h3>Mean node degree<a class="headerlink" href="#mean-node-degree" title="Link to this heading">#</a></h3>
 <p>The code to calculate this is in <code class="docutils literal notranslate"><span class="pre">findNodeDegEdgeWeight.m</span></code>. Referred to in code as <code class="docutils literal notranslate"><span class="pre">ND</span></code></p>

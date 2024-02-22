@@ -22,8 +22,8 @@ The pipeline has the following steps:
 Starting MEA-NAP 
 ------------------
 
-- Open MATLAB
-- Open MEApipeline.m
+- Open MATLAB.
+- Open MEApipeline.m.
 
 .. image:: imgs/MEApipeline.png
    :width: 700 
@@ -134,7 +134,7 @@ User input for GUI
 - **Colormap settings:** In Step 4A plots with color bars, the scale is set to the individual recording or the entire dataset in the other plot. If "Use theoretical bounds" is checked, then the same scale bar will be used for both plots.  However, the scaling of the node size and edge weight (line thickness) will still be specific to the individual recording and the entire dataset.  "Use min max..." check boxes are potential feature requests that may be available in future versions of MEA-NAP
 
 Saving and loading parameters 
-------------------------------
+-------------------------------
 - Once all the required parameters have been set, the button at the bottom of your window should switch from red to green.
 - At any point before running MEA-NAP, click “Save parameters” at the bottom of your window to save your selected parameters. **When using MEA-NAP again, click “Load parameters” to reuse these parameters.**  This can be very useful when re-running different data sets.  
 
@@ -149,7 +149,7 @@ Saving and loading parameters
 - If you have run MEA-NAP previously on the same day, MEA-NAP **will prompt you to rename the first Output folder (e.g., v1) when it starts running.**
 
 Notes on selecting parameters for new users
-------------------------------
+---------------------------------------------
 - The choice of parameters depends on your data and scientific question. Thus, it is helpful to use the validation plots in MEA-NAP to confirm which parameter choices are appropriate for your data (see MEA-NAP methods, https://analysis-pipeline.readthedocs.io/en/latest/meanap-methods.html, for more detail).  
 - One strategy is to run MEA-NAP in steps to help you determine the choice of parameters.
 - First, we recommend identifying the spike detection parameters that have the best sensitivity and specificity for your data.  For example, start with Step 1 with multiple threshold (e.g., 4, 5) and wavelets (bior1.5, bior1.3, db2) selected. Then stop MEA-NAP after Step 1B is completed. (If you have the Output Folder open in your file browser, you can see when MEA-NAP has started to add plots to Step 2, and you can hit the stop button on MATLAB). You can then look at the plots in Step 1B - Spike Detection checks. Spike Detection, particularly for multiple methods/parameters, is typically the longest step to run in MEA-NAP.  For example, using a desktop computer (Intel i5-4570 CPU 3.20Ghz processor with 32 GB RAM running Windows 10 Pro), the spike detection for 2 thresholds and 3 wavelets on 10-minute-long recordings collected at 12.5kHz from 64-electrode MEAs took about 24 minutes per recording. 
