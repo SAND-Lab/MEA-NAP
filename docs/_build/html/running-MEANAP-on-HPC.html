@@ -216,38 +216,38 @@
 We have adapted MEA-NAP for HPC and include the methods we used here for advanced users. These
 steps may need to be modified depending on the user’s institution’s HPC resources.</p>
 <hr class="docutils" />
-<section id="ssh-into-your-remote-server">
-<span id="hpc-step1"></span><h2>1. SSH into your remote server<a class="headerlink" href="#ssh-into-your-remote-server" title="Link to this heading">#</a></h2>
+<section id="upload-the-hpc-version-of-mea-nap-to-your-remote-server">
+<span id="hpc-step1"></span><h2>1. Upload the HPC version of MEA-NAP to your remote server:<a class="headerlink" href="#upload-the-hpc-version-of-mea-nap-to-your-remote-server" title="Link to this heading">#</a></h2>
+<p>There are <strong>2 ways</strong> to download the HPC version of MEA-NAP to your remote server.</p>
+<ol class="arabic">
+<li><p>Upload HPC version of MEA-NAP directly to your remote server:</p>
+<ul>
+<li><p>Open a terminal window.</p></li>
+<li><p>SSH into your remote server.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ssh<span class="w"> </span>remote_username@remote_host
 </pre></div>
 </div>
 <ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">remote_username</span></code> and <code class="docutils literal notranslate"><span class="pre">remote_host</span></code> are specific to your remote server</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">remote_username</span></code> and <code class="docutils literal notranslate"><span class="pre">remote_host</span></code> are specific to your remote server.</p></li>
 </ul>
-</section>
-<section id="upload-the-hpc-version-of-mea-nap-to-your-remote-server">
-<span id="hpc-step2"></span><h2>2. Upload the HPC version of MEA-NAP to your remote server<a class="headerlink" href="#upload-the-hpc-version-of-mea-nap-to-your-remote-server" title="Link to this heading">#</a></h2>
-<p>There are <strong>2 ways</strong> to download the HPC version of MEA-NAP to your remote server</p>
-<ol class="arabic">
-<li><p>Upload HPC version of MEA-NAP directly to your remote server</p>
-<ul class="simple">
-<li><p>SSH into your remote server (<a class="hxr-hoverxref hxr-tooltip reference internal" href="#hpc-step1"><span class="std std-ref">see step 1 above</span></a>)</p></li>
-<li><p>Switch to your preferred working directory</p></li>
-</ul>
+</li>
+<li><p>Switch to your preferred working directory.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span><span class="o">[</span>myDir<span class="o">]</span>
 </pre></div>
 </div>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">myDir</span></code>: preferred working directory</p></li>
-<li><p>Clone HPC version of MEA-NAP on remote server</p></li>
 </ul>
+</li>
+<li><p>Clone HPC version of MEA-NAP on remote server.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/SAND-Lab/MEA-NAP-HPC.git
 </pre></div>
 </div>
 <ul class="simple">
-<li><p>MEA-NAP directory called <code class="docutils literal notranslate"><span class="pre">MEA-NAP-HPC</span></code> will be downloaded to your current directory</p></li>
-<li><p>Lines indicating successful download of HPC version of MEA-NAP should appear</p></li>
+<li><p>MEA-NAP directory called <code class="docutils literal notranslate"><span class="pre">MEA-NAP-HPC</span></code> will be downloaded to your current directory.</p></li>
 </ul>
+</li>
+<li><p>Verify that the following lines which indicate the successful download of HPC version of MEA-NAP appear.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>Cloning<span class="w"> </span>into<span class="w"> </span><span class="s1">&#39;MEA-NAP&#39;</span>...
 remote:<span class="w"> </span>Enumerating<span class="w"> </span>objects:<span class="w"> </span><span class="m">2879</span>,<span class="w"> </span><span class="k">done</span>.
 remote:<span class="w"> </span>Counting<span class="w"> </span>objects:<span class="w"> </span><span class="m">100</span>%<span class="w"> </span><span class="o">(</span><span class="m">2879</span>/2879<span class="o">)</span>,<span class="w"> </span><span class="k">done</span>.
@@ -259,25 +259,37 @@ Updating<span class="w"> </span>files:<span class="w"> </span><span class="m">10
 </pre></div>
 </div>
 </li>
-<li><p>Download HPC version of MEA-NAP locally and upload to your remote server</p>
-<ul class="simple">
-<li><p>Download <a class="reference external" href="https://github.com/SAND-Lab/MEA-NAP-HPC">here</a></p></li>
-<li><p>Open another terminal window that is not logged into your remote server to use this command</p></li>
-<li><p>Upload secure copy of the local directory to your remote server</p></li>
 </ul>
+</li>
+<li><p>Download HPC version of MEA-NAP locally and upload to your remote server:</p>
+<ul class="simple">
+<li><p>Download HPC version of MEA-NAP <a class="reference external" href="https://github.com/SAND-Lab/MEA-NAP-HPC">here</a>.</p></li>
+<li><p>Open a terminal window.</p></li>
+</ul>
+<ul id="hpc-step1-remote-directory">
+<li><p>Upload secure copy of the local directory to your remote server.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>scp<span class="w"> </span>-r<span class="w"> </span><span class="o">[</span>myDir<span class="o">]</span><span class="w"> </span>remote_username@remote_host:<span class="o">[</span>/remote/directory<span class="o">]</span>
 </pre></div>
 </div>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">myDir</span></code>: path of your local MEA-NAP directory</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">/remote/directory</span></code>: path of your remote server directory where you want to copy your local directory</p></li>
-<li><p>After successfully running the command, switch back to the terminal window that is logged into your remote server</p></li>
+</ul>
+</li>
+<li><p>After successfully running the command, SSH into your remote server.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ssh<span class="w"> </span>remote_username@remote_host
+</pre></div>
+</div>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">remote_username</span></code> and <code class="docutils literal notranslate"><span class="pre">remote_host</span></code> are specific to your remote server.</p></li>
+</ul>
+</li>
 </ul>
 </li>
 </ol>
 </section>
 <section id="change-your-current-directory-to-the-mea-nap-directory-on-your-remote-server">
-<span id="hpc-step3"></span><h2>3. Change your current directory to the MEA-NAP directory on your remote server<a class="headerlink" href="#change-your-current-directory-to-the-mea-nap-directory-on-your-remote-server" title="Link to this heading">#</a></h2>
+<span id="hpc-step2"></span><h2>2. Change your current directory to the MEA-NAP directory on your remote server:<a class="headerlink" href="#change-your-current-directory-to-the-mea-nap-directory-on-your-remote-server" title="Link to this heading">#</a></h2>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span><span class="o">[</span>myDir<span class="o">]</span>
 </pre></div>
 </div>
@@ -286,7 +298,7 @@ Updating<span class="w"> </span>files:<span class="w"> </span><span class="m">10
 </ul>
 </section>
 <section id="create-a-directory-for-mat-files-in-the-mea-nap-directory-on-your-remote-server">
-<span id="hpc-step4"></span><h2>4. Create a directory for mat files in the MEA-NAP directory on your remote server<a class="headerlink" href="#create-a-directory-for-mat-files-in-the-mea-nap-directory-on-your-remote-server" title="Link to this heading">#</a></h2>
+<span id="hpc-step3"></span><h2>3. Create a directory for mat files in the MEA-NAP directory on your remote server:<a class="headerlink" href="#create-a-directory-for-mat-files-in-the-mea-nap-directory-on-your-remote-server" title="Link to this heading">#</a></h2>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>mkdir<span class="w"> </span><span class="o">[</span>mat_file_dir<span class="o">]</span>
 </pre></div>
 </div>
@@ -295,49 +307,47 @@ Updating<span class="w"> </span>files:<span class="w"> </span><span class="m">10
 </ul>
 </section>
 <section id="upload-mat-files-to-your-remote-server">
-<span id="hpc-step5"></span><h2>5. Upload mat files to your remote server<a class="headerlink" href="#upload-mat-files-to-your-remote-server" title="Link to this heading">#</a></h2>
-<p>There are <strong>3 ways</strong> to upload mat files:</p>
-<p><strong>For these methods, open another terminal window that is not logged into your remote server</strong></p>
+<span id="hpc-step4"></span><h2>4. Upload mat files to your remote server:<a class="headerlink" href="#upload-mat-files-to-your-remote-server" title="Link to this heading">#</a></h2>
+<p>There are <strong>3 ways</strong> to upload mat files.</p>
+<p><strong>For these methods, open another terminal window that is not logged into your remote server</strong>.</p>
 <ol class="arabic">
-<li><p>Upload one local mat file to your remote server</p>
+<li><p>Upload one local mat file to your remote server:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>scp<span class="w"> </span><span class="o">[</span>mat_file<span class="o">]</span><span class="w"> </span>remote_username@DEST_HOST:<span class="o">[</span>mat_file_dir<span class="o">]</span>
 </pre></div>
 </div>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">mat_file</span></code>: path of a mat file on your local device</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">mat_file_dir</span></code>: path of your remote server directory where you store your mat files (<a class="hxr-hoverxref hxr-tooltip reference internal" href="#hpc-step4"><span class="std std-ref">see step 4 above</span></a>)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">mat_file_dir</span></code>: path of your remote server directory where you store your mat files (<a class="hxr-hoverxref hxr-tooltip reference internal" href="#hpc-step3"><span class="std std-ref">see step 3</span></a>)</p></li>
 </ul>
 </li>
-<li><p>Upload multiple local mat files to your remote server</p>
+<li><p>Upload multiple local mat files to your remote server:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>scp<span class="w"> </span><span class="o">[</span>mat_file1<span class="w"> </span>mat_file2<span class="w"> </span>mat_file3<span class="w"> </span>...<span class="o">]</span><span class="w"> </span>remote_username@remote_host:<span class="o">[</span>mat_file_dir<span class="o">]</span>
 </pre></div>
 </div>
 <ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">mat_file1</span> <span class="pre">mat_file2</span> <span class="pre">mat_file3</span> <span class="pre">…</span></code>: paths of mat files on your local device (<strong>should be separated by spaces</strong>)</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">mat_file_dir</span></code>: path of your remote server directory where you store your mat files (<a class="hxr-hoverxref hxr-tooltip reference internal" href="#hpc-step4"><span class="std std-ref">see step 4 above</span></a>)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">mat_file1</span> <span class="pre">mat_file2</span> <span class="pre">mat_file3</span> <span class="pre">…</span></code>: paths of mat files on your local device. <strong>These file paths should be separated by spaces.</strong></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">mat_file_dir</span></code>: path of your remote server directory where you store your mat files (<a class="hxr-hoverxref hxr-tooltip reference internal" href="#hpc-step3"><span class="std std-ref">see step 3</span></a>)</p></li>
 </ul>
 </li>
-<li><p>Upload a local directory containing mat files to your remote server</p>
+<li><p>Upload a local directory containing mat files to your remote server:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>scp<span class="w"> </span>-r<span class="w"> </span><span class="o">[</span>myDir<span class="o">]</span><span class="w"> </span>remote_username@remote_host:<span class="o">[</span>mat_file_dir<span class="o">]</span>
 </pre></div>
 </div>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">myDir</span></code>: path of a local directory containing mat files</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">mat_file_dir</span></code>: path of your remote server directory where you store your mat files (<a class="hxr-hoverxref hxr-tooltip reference internal" href="#hpc-step4"><span class="std std-ref">see step 4 above</span></a>)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">mat_file_dir</span></code>: path of your remote server directory where you store your mat files (<a class="hxr-hoverxref hxr-tooltip reference internal" href="#hpc-step3"><span class="std std-ref">see step 3</span></a>)</p></li>
 </ul>
 </li>
 </ol>
 </section>
 <section id="upload-csv-file-s-to-the-mea-nap-directory-to-your-remote-server">
-<span id="hpc-step6"></span><h2>6. Upload CSV file(s) to the MEA-NAP directory to your remote server<a class="headerlink" href="#upload-csv-file-s-to-the-mea-nap-directory-to-your-remote-server" title="Link to this heading">#</a></h2>
+<span id="hpc-step5"></span><h2>5. Upload CSV file(s) to the MEA-NAP directory to your remote server:<a class="headerlink" href="#upload-csv-file-s-to-the-mea-nap-directory-to-your-remote-server" title="Link to this heading">#</a></h2>
 <ul>
-<li><p>For more detailed documentation about CSV formatting, <a class="hxr-hoverxref hxr-tooltip reference internal" href="setting-up-meanap.html#id1"><span class="std std-ref">click here.</span></a></p></li>
-<li><p>There are <strong>3 ways</strong> to upload CSV files:</p>
-<ul class="simple">
-<li><p><strong>For these methods, open another terminal window that is not logged into your remote server</strong></p></li>
-</ul>
+<li><p>For more detailed documentation about CSV formatting, <a class="hxr-hoverxref hxr-tooltip reference internal" href="setting-up-meanap.html#id1"><span class="std std-ref">click here</span></a>.</p></li>
+<li><p>There are <strong>3 ways</strong> to upload CSV files.</p></li>
+<li><p><strong>For these methods, open another terminal window that is not logged into your remote server</strong>.</p>
 <ol class="arabic">
-<li><p>Upload a single CSV file</p>
+<li><p>Upload a single CSV file:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>scp<span class="w"> </span><span class="o">[</span>csv_file<span class="o">]</span><span class="w"> </span>remote_username@remote_host:<span class="o">[</span>/remote/directory<span class="o">]</span>
 </pre></div>
 </div>
@@ -345,55 +355,105 @@ Updating<span class="w"> </span>files:<span class="w"> </span><span class="m">10
 <li><p><code class="docutils literal notranslate"><span class="pre">csv_file</span></code>: path of a local CSV file</p></li>
 </ul>
 </li>
-<li><p>Upload multiple CSV files</p>
+<li><p>Upload multiple CSV files:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>scp<span class="w"> </span><span class="o">[</span>csv_file1<span class="w"> </span>csv_file2<span class="w"> </span>csv_file3<span class="w"> </span>...<span class="o">]</span><span class="w"> </span>remote_username@remote_host:<span class="o">[</span>/remote/directory<span class="o">]</span>
 </pre></div>
 </div>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">csv_file1</span> <span class="pre">csv_file2</span> <span class="pre">csv_file3</span> <span class="pre">...</span></code>: paths of local CSV files (<strong>should be separated by spaces</strong>)</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">/remote/directory</span></code>: path of the MEA-NAP directory on your remote server (<a class="hxr-hoverxref hxr-tooltip reference internal" href="#hpc-step2"><span class="std std-ref">see step 2 above</span></a>)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">/remote/directory</span></code>: path of the MEA-NAP directory on your remote server (<a class="hxr-hoverxref hxr-tooltip reference internal" href="#hpc-step1"><span class="std std-ref">see step 1</span></a>)</p></li>
 </ul>
 </li>
-<li><p>Upload all CSV files located in a local directory</p>
+<li><p>Upload all CSV files located in a local directory:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>scp<span class="w"> </span>-r<span class="w"> </span><span class="o">[</span>myDir<span class="o">]</span><span class="w"> </span>remote_username@remote_host:<span class="o">[</span>/remote/directory<span class="o">]</span>
 </pre></div>
 </div>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">myDir</span></code>: path of a local directory containing CSV files</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">/remote/directory</span></code>: path of the MEA-NAP directory on your remote server (<a class="hxr-hoverxref hxr-tooltip reference internal" href="#hpc-step2"><span class="std std-ref">see step 2 above</span></a>)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">/remote/directory</span></code>: path of the MEA-NAP directory on your remote server (<a class="hxr-hoverxref hxr-tooltip reference internal" href="#hpc-step1"><span class="std std-ref">see step 1</span></a>)</p></li>
 </ul>
 </li>
 </ol>
 </li>
 </ul>
 </section>
-<section id="create-a-bash-script-to-submit-jobs-for-meapipeline-m">
-<span id="hpc-step7"></span><h2>7. Create a bash script to submit jobs for MEApipeline.m<a class="headerlink" href="#create-a-bash-script-to-submit-jobs-for-meapipeline-m" title="Link to this heading">#</a></h2>
+<section id="change-the-working-directory-to-the-mea-nap-directory-on-your-remote-server">
+<span id="hpc-step6"></span><h2>6. Change the working directory to the MEA-NAP directory on your remote server:<a class="headerlink" href="#change-the-working-directory-to-the-mea-nap-directory-on-your-remote-server" title="Link to this heading">#</a></h2>
+<p><strong>Make sure the terminal window is logged into your remote server</strong>.</p>
 <ul>
-<li><p>Check available MATLAB versions on your remote server</p>
+<li><p>Change the working directory.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span><span class="o">[</span>/remote/directory<span class="o">]</span>
+</pre></div>
+</div>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">/remote/directory</span></code>: path of the MEA-NAP directory on your remote server</p></li>
+</ul>
+</li>
+</ul>
+</section>
+<section id="modify-meapipeline-m">
+<span id="hpc-step7"></span><h2>7. Modify MEApipeline.m<a class="headerlink" href="#modify-meapipeline-m" title="Link to this heading">#</a></h2>
+<p>There are 3 <strong>ways</strong> to edit MEApipeline.m.</p>
+<p>For all methods, edit MEApipeline.m according to this <a class="reference external" href="https://analysis-pipeline.readthedocs.io/en/latest/pipeline-steps.html">documentation</a>.</p>
+<ol class="arabic">
+<li><p>Modify MEApipeline.m with the edit command:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>edit<span class="w"> </span><span class="o">[</span>/path/to/remote_MEApipeline.m<span class="o">]</span>
+</pre></div>
+</div>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">/path/to/remote_MEApipeline.m</span></code>: path of MEApipeline.m on your remote server</p></li>
+</ul>
+</li>
+<li><p>Modify MEApipeline.m with the nano command:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>nano<span class="w"> </span><span class="o">[</span>/path/to/remote_MEApipeline.m<span class="o">]</span>
+</pre></div>
+</div>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">/path/to/remote_MEApipeline.m</span></code>: path of MEApipeline.m on your remote server</p></li>
+</ul>
+</li>
+<li><p>Modify MEApipeline.m locally before transferring the file to the MEA-NAP directory on your remote server:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>scp<span class="w"> </span><span class="o">[</span>/path/to/local_MEApipeline.m<span class="o">]</span><span class="w"> </span>remote_username@remote_host:<span class="o">[</span>/remote/directory<span class="o">]</span>
+</pre></div>
+</div>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">/path/to/local_MEApipeline.m</span></code>: path of MEApipeline.m on your local device</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">/remote/directory</span></code>: path of the MEA-NAP directory on your remote server (<a class="hxr-hoverxref hxr-tooltip reference internal" href="#hpc-step1"><span class="std std-ref">see step 1</span></a>)</p></li>
+</ul>
+</li>
+</ol>
+</section>
+<section id="create-a-bash-script-to-submit-jobs-for-meapipeline-m">
+<span id="hpc-step8"></span><h2>8. Create a bash script to submit jobs for MEApipeline.m:<a class="headerlink" href="#create-a-bash-script-to-submit-jobs-for-meapipeline-m" title="Link to this heading">#</a></h2>
+<ul>
+<li><p>Check available MATLAB versions on your remote server.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>module<span class="w"> </span>avail<span class="w"> </span>matlab
 </pre></div>
 </div>
 </li>
-<li><p>If not available, check available R modules on your remote server</p>
+<li><p>If not available, check available R modules on your remote server.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>module<span class="w"> </span>avail<span class="w"> </span>R
 </pre></div>
 </div>
 </li>
-<li><p>Get the full path of the MEA-NAP directory on your remote server</p>
+<li><p>Get the full path of the MEA-NAP directory on your remote server.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>/remote/directory
 <span class="nb">pwd</span>
 </pre></div>
 </div>
-<p><code class="docutils literal notranslate"><span class="pre">/remote/directory</span></code>: path of the MEA-NAP directory on your remote server</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">/remote/directory</span></code>: path of the MEA-NAP directory on your remote server</p></li>
+</ul>
 </li>
-<li><p>Create a new bash script</p>
+<li><p>Create a new bash script.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>nano<span class="w"> </span>bash_script_name.sh
 </pre></div>
 </div>
-<p><code class="docutils literal notranslate"><span class="pre">bash_script_name</span></code>: name of the bash script (<strong>must end with .sh</strong>)</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">bash_script_name</span></code>: name of the bash script (<strong>must end with .sh</strong>)</p></li>
+</ul>
 </li>
-<li><p>Example bash script:</p>
+<li><p>Use this example bash script for reference.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="ch">#!/bin/bash</span>
 <span class="c1">#SBATCH -n 4</span>
 <span class="c1">#SBATCH -N 1</span>
@@ -409,159 +469,39 @@ matlab<span class="w"> </span>-nodisplay<span class="w"> </span>-nosplash<span c
 </pre></div>
 </div>
 <ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">/remote/directory</span></code>: path of the MEA-NAP directory on your remote server (<a class="hxr-hoverxref hxr-tooltip reference internal" href="#hpc-step2"><span class="std std-ref">see step 2 above</span></a>)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">/remote/directory</span></code>: path of the MEA-NAP directory on your remote server (<a class="hxr-hoverxref hxr-tooltip reference internal" href="#hpc-step1"><span class="std std-ref">see step 1 above</span></a>)</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">module_name</span></code>: name of the MATLAB or R module that you chose</p></li>
-</ul>
-</li>
-<li><dl class="simple">
-<dt>Line Overview</dt><dd><ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">cd</span> <span class="pre">/remote/directory</span></code> allows your remote server to easily access files necessary for running MEApipeline.m <strong>(required)</strong></p></li>
-<li><dl class="simple">
-<dt><code class="docutils literal notranslate"><span class="pre">#SBATCH</span> <span class="pre">-o</span> <span class="pre">MEApipeline.sh.log-%j</span></code>: include this line in your bash script to save log files that can be distinguished by their job ID <strong>(recommended)</strong></dt><dd><ul>
-<li><p>Log files are useful for viewing progress and error messages related to the MEApipeline.m</p></li>
-</ul>
-</dd>
-</dl>
-</li>
-</ul>
-</dd>
-</dl>
-</li>
-</ul>
-</section>
-<section id="change-the-working-directory-to-the-mea-nap-directory-on-your-remote-server">
-<span id="hpc-step8"></span><h2>8. Change the working directory to the MEA-NAP directory on your remote server<a class="headerlink" href="#change-the-working-directory-to-the-mea-nap-directory-on-your-remote-server" title="Link to this heading">#</a></h2>
-<p><strong>Make sure the terminal window is logged into your remote server</strong></p>
+<li><p><strong>Line Overview</strong></p>
 <ul>
-<li><p>Change the working directory</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span><span class="o">[</span>/remote/directory<span class="o">]</span>
-</pre></div>
-</div>
-</li>
-</ul>
-<p><code class="docutils literal notranslate"><span class="pre">/remote/directory</span></code>: path of the MEA-NAP directory on your remote server</p>
-</section>
-<section id="modify-meapipeline-m">
-<span id="hpc-step9"></span><h2>9. Modify MEApipeline.m<a class="headerlink" href="#modify-meapipeline-m" title="Link to this heading">#</a></h2>
-<p>There are 3 <strong>ways</strong> to edit MEApipeline.m</p>
-<p>For all methods, edit MEApipeline.m according to this documentation: <cite>https://analysis-pipeline.readthedocs.io/en/latest/pipeline-steps.html</cite></p>
-<ol class="arabic">
-<li><p>Modify MEApipeline.m with the edit command</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>edit<span class="w"> </span><span class="o">[</span>/path/to/remote_MEApipeline.m<span class="o">]</span>
-</pre></div>
-</div>
-<ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">/path/to/remote_MEApipeline.m</span></code>: path of MEApipeline.m on your remote server</p></li>
-</ul>
-</li>
-<li><p>Modify MEApipeline.m with the nano command</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>nano<span class="w"> </span><span class="o">[</span>/path/to/remote_MEApipeline.m<span class="o">]</span>
-</pre></div>
-</div>
-<ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">/path/to/remote_MEApipeline.m</span></code>: path of MEApipeline.m on your remote server</p></li>
-</ul>
-</li>
-<li><p>Modify MEApipeline.m locally before transferring the file to the MEA-NAP directory on your remote server</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>scp<span class="w"> </span><span class="o">[</span>/path/to/local_MEApipeline.m<span class="o">]</span><span class="w"> </span>remote_username@remote_host:<span class="o">[</span>/remote/directory<span class="o">]</span>
-</pre></div>
-</div>
-<ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">/path/to/local_MEApipeline.m</span></code>: path of MEApipeline.m on your local device</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">/remote/directory</span></code>: path of the MEA-NAP directory on your remote server (<a class="hxr-hoverxref hxr-tooltip reference internal" href="#hpc-step2"><span class="std std-ref">see step 2 above</span></a>)</p></li>
-</ul>
-</li>
-</ol>
-</section>
-<section id="hpc-step10">
-<span id="id1"></span><h2>10. Create a bash script to submit jobs for MEApipeline.m<a class="headerlink" href="#hpc-step10" title="Link to this heading">#</a></h2>
+<li><p><code class="docutils literal notranslate"><span class="pre">cd</span> <span class="pre">/remote/directory</span></code> allows your remote server to easily access files necessary for running MEApipeline.m. <strong>(required)</strong></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">#SBATCH</span> <span class="pre">-o</span> <span class="pre">MEApipeline.sh.log-%j</span></code>: include this line in your bash script to save log files that can be distinguished by their job ID. <strong>(recommended)</strong></p>
 <ul>
-<li><p>Check available MATLAB versions on your remote server</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>module<span class="w"> </span>avail<span class="w"> </span>matlab
-</pre></div>
-</div>
-<ul class="simple">
-<li><p>Note the MATLAB module that you want to use</p></li>
+<li><p>Log files are useful for viewing progress and error messages related to the MEApipeline.m.</p></li>
 </ul>
 </li>
-<li><p>If not available, check available R modules on your remote server</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>module<span class="w"> </span>avail<span class="w"> </span>R
-</pre></div>
-</div>
-<ul class="simple">
-<li><p>Note the R module that you want to use</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">matlab</span> <span class="pre">-nodisplay</span> <span class="pre">-nosplash</span> <span class="pre">-r</span> <span class="pre">&quot;run('MEApipeline.m');</span> <span class="pre">exit;&quot;</span></code>: automatically runs MEApipeline.m once the job is submitted <strong>(required)</strong></p></li>
 </ul>
 </li>
-<li><p>Get the full path of the MEA-NAP directory on your remote server</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span><span class="o">[</span>/remote/directory<span class="o">]</span>
-<span class="nb">pwd</span>
-</pre></div>
-</div>
-<ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">/remote/directory</span></code>: path of the MEA-NAP directory on your remote server</p></li>
 </ul>
-</li>
-<li><p>Create a new bash script</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>nano<span class="w"> </span><span class="o">[</span>bash_script_name<span class="o">]</span>
-</pre></div>
-</div>
-<ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">bash_script_name</span></code>: name of the bash script (<strong>must end with .sh</strong>)</p></li>
-</ul>
-</li>
-<li><p>Example bash script:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="ch">#!/bin/bash</span>
-<span class="c1">#SBATCH -n 4</span>
-<span class="c1">#SBATCH -N 1</span>
-<span class="c1">#SBATCH -o MEApipeline.sh.log-%j</span>
-
-<span class="nb">cd</span><span class="w"> </span><span class="o">[</span>/remote/directory<span class="o">]</span>
-
-<span class="c1"># Load the module</span>
-module<span class="w"> </span>load<span class="w"> </span><span class="o">[</span>module_name<span class="o">]</span>
-
-<span class="c1"># Run MATLAB script</span>
-matlab<span class="w"> </span>-nodisplay<span class="w"> </span>-nosplash<span class="w"> </span>-r<span class="w"> </span><span class="s2">&quot;run(&#39;MEApipeline.m&#39;); exit;&quot;</span>
-</pre></div>
-</div>
-<ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">/remote/directory</span></code>: path of the MEA-NAP directory on your remote server (<a class="hxr-hoverxref hxr-tooltip reference internal" href="#hpc-step2"><span class="std std-ref">see step 2 above</span></a>)</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">module_name</span></code>: name of the MATLAB or R module that you chose</p></li>
-</ul>
-</li>
-<li><dl class="simple">
-<dt>Line Overview</dt><dd><ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">cd</span> <span class="pre">[/remote/directory]</span></code> allows your remote server to easily access files necessary for running MEApipeline.m <strong>(required)</strong></p></li>
-<li><dl class="simple">
-<dt><code class="docutils literal notranslate"><span class="pre">#SBATCH</span> <span class="pre">-o</span> <span class="pre">MEApipeline.sh.log-%j</span></code>: include this line in your bash script to save log files that can be distinguished by their job ID <strong>(recommended)</strong></dt><dd><ul>
-<li><p>Log files are useful for viewing progress and error messages related to the MEApipeline.m</p></li>
-</ul>
-</dd>
-</dl>
-</li>
-<li><p><code class="docutils literal notranslate"><span class="pre">matlab</span> <span class="pre">-nodisplay</span> <span class="pre">-nosplash</span> <span class="pre">-r</span> <span class="pre">&quot;run('MEApipeline.m');</span> <span class="pre">exit;&quot;:</span></code> automatically runs MEApipeline.m once the job is submitted <strong>(required)</strong></p></li>
-</ul>
-</dd>
-</dl>
 </li>
 </ul>
 </section>
 <section id="submit-a-job-with-your-bash-script">
-<span id="hpc-step11"></span><h2>11. Submit a job with your bash script<a class="headerlink" href="#submit-a-job-with-your-bash-script" title="Link to this heading">#</a></h2>
+<span id="hpc-step9"></span><h2>9. Submit a job with your bash script:<a class="headerlink" href="#submit-a-job-with-your-bash-script" title="Link to this heading">#</a></h2>
 <ul>
-<li><p>Submit the job</p>
+<li><p>Submit the job.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sbatch<span class="w"> </span><span class="o">[</span>bash_script<span class="o">]</span>
 </pre></div>
 </div>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">bash_script</span></code>: path of the bash script needed for job submission</p></li>
-<li><p>A Job ID (number) should appear on your screen</p></li>
+<li><p>A Job ID (number) should appear on your screen.</p></li>
 </ul>
 </li>
 </ul>
 </section>
 <section id="check-log-files-to-view-progress-and-error-messages">
-<span id="hpc-step12"></span><h2>12. Check log files to view progress and error messages<a class="headerlink" href="#check-log-files-to-view-progress-and-error-messages" title="Link to this heading">#</a></h2>
+<span id="hpc-step10"></span><h2>10. Check log files to view progress and error messages:<a class="headerlink" href="#check-log-files-to-view-progress-and-error-messages" title="Link to this heading">#</a></h2>
 <ul>
 <li><p>Open the log file</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>nano<span class="w"> </span><span class="o">[</span>log_file<span class="o">]</span>
@@ -569,16 +509,16 @@ matlab<span class="w"> </span>-nodisplay<span class="w"> </span>-nosplash<span c
 </div>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">log_file</span></code>: path of the log file</p></li>
-<li><p>If you included <code class="docutils literal notranslate"><span class="pre">#SBATCH</span> <span class="pre">-o</span> <span class="pre">MEApipeline.sh.log-%j</span></code> in your bash script, the Job ID can be used to locate the relevant log file</p></li>
+<li><p>If you included <code class="docutils literal notranslate"><span class="pre">#SBATCH</span> <span class="pre">-o</span> <span class="pre">MEApipeline.sh.log-%j</span></code> in your bash script, the Job ID can be used to locate the relevant log file.</p></li>
 </ul>
 </li>
 </ul>
 </section>
 <section id="download-mea-nap-outputs-from-your-remote-server">
-<span id="hpc-step13"></span><h2>13. Download MEA-NAP outputs from your remote server<a class="headerlink" href="#download-mea-nap-outputs-from-your-remote-server" title="Link to this heading">#</a></h2>
-<p><strong>Open another terminal window that is not logged into your remote server</strong></p>
+<span id="hpc-step11"></span><h2>11. Download MEA-NAP outputs from your remote server:<a class="headerlink" href="#download-mea-nap-outputs-from-your-remote-server" title="Link to this heading">#</a></h2>
+<p><strong>Open another terminal window that is not logged into your remote server</strong>.</p>
 <ul>
-<li><p>Download MEA-NAP outputs</p>
+<li><p>Download MEA-NAP outputs.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>scp<span class="w"> </span>-r<span class="w"> </span>remote_username@remote_host:<span class="o">[</span>/remote/directory<span class="o">]</span><span class="w"> </span><span class="o">[</span>myDir<span class="o">]</span>
 </pre></div>
 </div>
@@ -646,19 +586,17 @@ matlab<span class="w"> </span>-nodisplay<span class="w"> </span>-nosplash<span c
           <div class="toc-tree">
             <ul>
 <li><a class="reference internal" href="#">Running MEA-NAP on High-Performance Computing (HPC)</a><ul>
-<li><a class="reference internal" href="#ssh-into-your-remote-server">1. SSH into your remote server</a></li>
-<li><a class="reference internal" href="#upload-the-hpc-version-of-mea-nap-to-your-remote-server">2. Upload the HPC version of MEA-NAP to your remote server</a></li>
-<li><a class="reference internal" href="#change-your-current-directory-to-the-mea-nap-directory-on-your-remote-server">3. Change your current directory to the MEA-NAP directory on your remote server</a></li>
-<li><a class="reference internal" href="#create-a-directory-for-mat-files-in-the-mea-nap-directory-on-your-remote-server">4. Create a directory for mat files in the MEA-NAP directory on your remote server</a></li>
-<li><a class="reference internal" href="#upload-mat-files-to-your-remote-server">5. Upload mat files to your remote server</a></li>
-<li><a class="reference internal" href="#upload-csv-file-s-to-the-mea-nap-directory-to-your-remote-server">6. Upload CSV file(s) to the MEA-NAP directory to your remote server</a></li>
-<li><a class="reference internal" href="#create-a-bash-script-to-submit-jobs-for-meapipeline-m">7. Create a bash script to submit jobs for MEApipeline.m</a></li>
-<li><a class="reference internal" href="#change-the-working-directory-to-the-mea-nap-directory-on-your-remote-server">8. Change the working directory to the MEA-NAP directory on your remote server</a></li>
-<li><a class="reference internal" href="#modify-meapipeline-m">9. Modify MEApipeline.m</a></li>
-<li><a class="reference internal" href="#hpc-step10">10. Create a bash script to submit jobs for MEApipeline.m</a></li>
-<li><a class="reference internal" href="#submit-a-job-with-your-bash-script">11. Submit a job with your bash script</a></li>
-<li><a class="reference internal" href="#check-log-files-to-view-progress-and-error-messages">12. Check log files to view progress and error messages</a></li>
-<li><a class="reference internal" href="#download-mea-nap-outputs-from-your-remote-server">13. Download MEA-NAP outputs from your remote server</a></li>
+<li><a class="reference internal" href="#upload-the-hpc-version-of-mea-nap-to-your-remote-server">1. Upload the HPC version of MEA-NAP to your remote server:</a></li>
+<li><a class="reference internal" href="#change-your-current-directory-to-the-mea-nap-directory-on-your-remote-server">2. Change your current directory to the MEA-NAP directory on your remote server:</a></li>
+<li><a class="reference internal" href="#create-a-directory-for-mat-files-in-the-mea-nap-directory-on-your-remote-server">3. Create a directory for mat files in the MEA-NAP directory on your remote server:</a></li>
+<li><a class="reference internal" href="#upload-mat-files-to-your-remote-server">4. Upload mat files to your remote server:</a></li>
+<li><a class="reference internal" href="#upload-csv-file-s-to-the-mea-nap-directory-to-your-remote-server">5. Upload CSV file(s) to the MEA-NAP directory to your remote server:</a></li>
+<li><a class="reference internal" href="#change-the-working-directory-to-the-mea-nap-directory-on-your-remote-server">6. Change the working directory to the MEA-NAP directory on your remote server:</a></li>
+<li><a class="reference internal" href="#modify-meapipeline-m">7. Modify MEApipeline.m</a></li>
+<li><a class="reference internal" href="#create-a-bash-script-to-submit-jobs-for-meapipeline-m">8. Create a bash script to submit jobs for MEApipeline.m:</a></li>
+<li><a class="reference internal" href="#submit-a-job-with-your-bash-script">9. Submit a job with your bash script:</a></li>
+<li><a class="reference internal" href="#check-log-files-to-view-progress-and-error-messages">10. Check log files to view progress and error messages:</a></li>
+<li><a class="reference internal" href="#download-mea-nap-outputs-from-your-remote-server">11. Download MEA-NAP outputs from your remote server:</a></li>
 </ul>
 </li>
 </ul>

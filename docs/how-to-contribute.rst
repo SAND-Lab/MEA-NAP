@@ -16,7 +16,7 @@ These documents can be opened in any text editor of your choice, to learn more a
 Code
 -------------------------------------
 
-To contribute code to the project, create a new branch of the analysis pipeline from the `github site <https://github.com/SAND-Lab/AnalysisPipeline/>`_, make your changes, and create a `pull request <https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/about-pull-requests/>`_
+To contribute code to the project, create a new branch of the analysis pipeline from the `github site <https://github.com/SAND-Lab/AnalysisPipeline/>`_, make your changes, and create a `pull request <https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/about-pull-requests/>`_.
 
 
 
