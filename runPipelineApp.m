@@ -118,6 +118,9 @@ while app.RunPipelineButton.Value == 0
         app.RawDataFolderEditField.Value = uigetdir;
         app.RawDataSelectButton.Value = 0;
         figure(app.UIFigure)  % put app back to focus
+        
+        % Update spreadsheet tab as well 
+        app.RawDataFolderEditField_2.Value = app.RawDataFolderEditField.Value;
     end 
     
     % Load CSV
@@ -135,7 +138,16 @@ while app.RunPipelineButton.Value == 0
          app.MEANAPStatusTextArea.Value = [app.MEANAPStatusTextArea.Value; sprintf('Your data has %.f rows', size(csv_data, 1))];
          app.MEANAPStatusTextArea.Value = [app.MEANAPStatusTextArea.Value; 'And columns with names:'];
          app.MEANAPStatusTextArea.Value = [app.MEANAPStatusTextArea.Value; strjoin(csv_data.Properties.VariableNames, ', ')];
+         
+         % Update spreadsheet tab csvTable with loaded csv data
+         app.SpreadsheetFilepathEditField.Value = spreadsheetFilePath;
+         app.csvTable.Data = csv_data;
+         app.csvTable.ColumnName = csv_data.Properties.VariableNames;
+         % app.csvTable.ColumnEditable = true; % logical(ones(1, length(csv_data.Properties.VariableNames)));
     end
+    
+    % Spreadsheet Tab 
+    
     
     % Load previous analysis folder 
     if app.PrevAnalysisSelectButton.Value == 1
@@ -209,7 +221,8 @@ while app.RunPipelineButton.Value == 0
         if strcmp(app.FileTypeDropDown.Value, '.raw from Multichannel Systems')  
             app.MEANAPStatusTextArea.Value = ...
             [app.MEANAPStatusTextArea.Value; 'on .raw files from Multichannel Systems...'];
-            MEAbatchConvert(app.DataFolderEditField.Value);
+            MEAbatchConvert('.raw', app.DataFolderEditField.Value);
+            cd(app.MEANAPFolderEditField.Value); 
         elseif strcmp(app.FileTypeDropDown.Value, '.raw from Axion Maestro')
              app.MEANAPStatusTextArea.Value = ...
             [app.MEANAPStatusTextArea.Value; 'on .raw files from Axion Maestro...'];
