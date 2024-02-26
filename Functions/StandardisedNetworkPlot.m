@@ -109,7 +109,7 @@ if strcmp(plotType,'MEA')
     
     % threshold the edge width (in case edge values are lower than the
     % lower display bound) and colours
-    lineWidth(lineWidth < 0) = min_ew;
+    lineWidth(lineWidth <= 0) = min_ew;
     colour(colour > light_c(1)) = light_c(1);
     
     [~,order] = sort(colour(:,1),'descend');
