@@ -101,6 +101,13 @@ for i = 1:length(filenames)
                     end
                     if size(AllData, 1) * size(AllData, 2) == 48
                         channels = [11:14, 21:24, 31:34, 41:44];
+                    elseif size(AllData, 1) * size(AllData, 2) == 24
+                        % This creates channel variable for 16 electrode
+                        % in 24-well plate
+                        channels = [11, 12, 13, 14, ... 
+                                     21, 22, 23, 24, ...
+                                     31, 32, 33, 34, ...
+                                     41, 42, 43, 44];
                     else
                         warning('You need to manually add the channels variable for your plate configuration.')
                     end
