@@ -101,8 +101,14 @@ if strcmp(plotType,'MEA')
                 count = count +1;
                 xco(count,:) = [xc(elecA),xc(elecB)];
                 yco(count,:) = [yc(elecA),yc(elecB)];
-                lineWidth(count) = min_ew + (max_ew-min_ew)*((adjM(elecA,elecB)-minNonZeroEdge)/(threshMax-minNonZeroEdge));
-                colour(count,:) = [1 1 1]-(light_c*((adjM(elecA,elecB)-minNonZeroEdge)/(threshMax-minNonZeroEdge)));
+
+                if threshMax > minNonZeroEdge
+                    lineWidth(count) = min_ew + (max_ew-min_ew)*((adjM(elecA,elecB)-minNonZeroEdge)/(threshMax-minNonZeroEdge));
+                    colour(count,:) = [1 1 1]-(light_c*((adjM(elecA,elecB)-minNonZeroEdge)/(threshMax-minNonZeroEdge)));
+                else  % deal with case where threshMax == minNonZeroEdge because there is only one edge
+                    lineWidth(count) = min_ew + (max_ew-min_ew)*((adjM(elecA,elecB)-minNonZeroEdge)/(threshMax-min_ew));
+                    colour(count,:) = [1 1 1]-(light_c*((adjM(elecA,elecB)-minNonZeroEdge)/(threshMax-min_ew)));
+                end 
             end
         end
     end
@@ -219,14 +225,19 @@ if strcmp(plotType,'circular')
             end
             xco(count,:) = r*cos(theta)+x0;
             yco(count,:) = r*sin(theta)+y0;
-            lineWidth(count) = min_ew + (max_ew-min_ew)*((adjM(elecA,elecB)-minNonZeroEdge)/(threshMax-minNonZeroEdge));
-            colour (count,:) = [1 1 1]-(light_c*((adjM(elecA,elecB)-minNonZeroEdge)/(threshMax-minNonZeroEdge)));
-        end
+            if threshMax > minNonZeroEdge
+                lineWidth(count) = min_ew + (max_ew-min_ew)*((adjM(elecA,elecB)-minNonZeroEdge)/(threshMax-minNonZeroEdge));
+                colour(count,:) = [1 1 1]-(light_c*((adjM(elecA,elecB)-minNonZeroEdge)/(threshMax-minNonZeroEdge)));
+            else % deal with case where threshMax == minNonZeroEdge because there is only one edge
+                lineWidth(count) = min_ew + (max_ew-min_ew)*((adjM(elecA,elecB)-minNonZeroEdge)/(threshMax));
+                colour(count,:) = [1 1 1]-(light_c*((adjM(elecA,elecB)-minNonZeroEdge)/(threshMax)));
+            end 
+       end
     end
     
     % threshold the edge width (in case edge values are lower than the
     % lower display bound) and colours
-    lineWidth(lineWidth < 0) = min_ew;
+    lineWidth(lineWidth <= 0) = min_ew;
     colour(colour > light_c(1)) = light_c(1);
     
     [~,order] = sort(colour(:,1),'descend');
