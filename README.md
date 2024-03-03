@@ -9,6 +9,7 @@
 | [**Features**](#features)
 | [**Installation**](#installation)
 | [**How to use the pipeline**](#how-to-use-the-pipeline)
+| [**Example dataset**](#example-dataset)
 | [**Troubleshooting**](#troubleshooting)
 | [**Contributing**](#contributing)
 
@@ -75,6 +76,9 @@ Alternatively, in `MEApipeline.m` in matlab, you can read through the instructio
 
 You can find the [full documentation on our MEA-NAP read-the-docs website](https://analysis-pipeline.readthedocs.io/en/latest/).
 
+## Example dataset
+
+An example dataset with the batch analysis file is available at the Harvard Dataverse [https://doi.org/10.7910/DVN/Z14LWA](https://doi.org/10.7910/DVN/Z14LWA). The output folder including all the analysis and figures generated is also available at the Dataverse.
 
 ## Troubleshooting
 
