@@ -22,6 +22,7 @@ MEA-NAP is a streamlined diagnostic and analytic tool for cellular-scale network
 ## Documentation
 
 Please see our [detailed documentation for MEA-NAP users at our read-the-docs page](https://analysis-pipeline.readthedocs.io/en/latest/).
+
 You can view our video tutorial at [https://www.youtube.com/watch?v=oxFyqRyemRM](https://www.youtube.com/watch?v=oxFyqRyemRM) or download at the Harvard Dataverse [https://doi.org/10.7910/DVN/Z14LWA](https://doi.org/10.7910/DVN/Z14LWA). 
 
 ## Citing MEA-NAP
@@ -67,6 +68,8 @@ To quickly get started, open `MEApipeline.m` in matlab.
 You will first need to ensure that [your data has been converted to mat files](https://analysis-pipeline.readthedocs.io/en/latest/system-requirements.html#preparing-mea-data-for-the-pipeline) with the appropriate variables and that you have [created a spreadsheet](https://analysis-pipeline.readthedocs.io/en/latest/pipeline-steps.html#table-with-your-data-filenames-for-batch-analysis-with-age-and-group-identifiers) (csv or xlsx file) with the names of your mat files for each recording and their group and ages to guide the batch analysis.
 
 If your data is in the right format, you can then press run in `MEApipeline.m`.  The guided user interface (GUI) will prompt you to select the location of the folder where you downloaded MEA-NAP, the folder with your data, and the name and location of the batch analysis csv or xlsx file.  Then the batch analysis will run autonomously. 
+
+New users can watch our video tutorial at [https://www.youtube.com/watch?v=oxFyqRyemRM](https://www.youtube.com/watch?v=oxFyqRyemRM) or download the video at the Harvard Dataverse [https://doi.org/10.7910/DVN/Z14LWA](https://doi.org/10.7910/DVN/Z14LWA). 
 
 Alternatively, in `MEApipeline.m` in matlab, you can read through the instructions in Section 1 to [customize your choice of parameters](https://analysis-pipeline.readthedocs.io/en/latest/pipeline-steps.html#required-user-input-in-the-first-section). 
 
