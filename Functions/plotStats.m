@@ -140,13 +140,13 @@ for lagIdx = 1:numLags
     text(numMetric + 2, numTest - 1.5, 'p = 0.001', 'color', [0, 0, 0]) 
     
     log2dotSize = 2 / maxLogPval * maxDotSize;
-    scatter(numMetric + 1.5, numTest - 2, log2dotSize, 'filled', 'MarkerFaceColor', 'black')
-    text(numMetric + 2, numTest - 2, 'p = 0.01', 'color', [0, 0, 0])
+    scatter(numMetric + 1.5, numTest - 2.5, log2dotSize, 'filled', 'MarkerFaceColor', 'black')
+    text(numMetric + 2, numTest - 2.5, 'p = 0.01', 'color', [0, 0, 0])
     set(gcf, 'color', 'white')
     
     log1dotSize = 1 / maxLogPval * maxDotSize;
-    scatter(numMetric + 1.5, numTest - 2.5, log1dotSize, 'filled', 'MarkerFaceColor', 'white', 'MarkerEdgeColor', 'black')
-    text(numMetric + 2, numTest - 2.5, 'p = 0.1', 'color', [0, 0, 0])
+    scatter(numMetric + 1.5, numTest - 3.5, log1dotSize, 'filled', 'MarkerFaceColor', 'white', 'MarkerEdgeColor', 'black')
+    text(numMetric + 2, numTest - 3.5, 'p = 0.1', 'color', [0, 0, 0])
     set(gcf, 'color', 'white')
     
     % Add colorbar 
