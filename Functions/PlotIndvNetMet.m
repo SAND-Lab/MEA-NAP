@@ -122,8 +122,6 @@ for e = 1:length(lagval)
         % Loop through the metrics of interest to plot
         for networkPlotIdx = 1:length(colorMapMetricsToPlot)
             
-            networkPlotIdx = 4; % temp for getting a plot
-            
             if Params.timeProcesses
                 fprintf('Plotting network scaled to individual recording \n')
                 tic
