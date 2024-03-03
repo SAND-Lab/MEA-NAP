@@ -798,23 +798,9 @@ if any(strcmp(Params.optionalStepsToRun,'Stats'))
     
     recordingLevelFile = fullfile(statsDataFolder, 'NetworkActivity_RecordingLevel.csv');
     recordingLevelData = readtable(recordingLevelFile);
-    
-    %{
-    if sum(ismember(recordingLevelData.Properties.VariableNames, 'AgeDiv')) == 0 
-        if sum(ismember(recordingLevelData.Properties.VariableNames, 'DIV')) == 1
-            recordingLevelData.AgeDiv = recordingLevelData.DIV;
-        end 
-    end 
-
-    if sum(ismember(recordingLevelData.Properties.VariableNames, 'eGrp')) == 0 
-        if sum(ismember(recordingLevelData.Properties.VariableNames, 'Grp')) == 1
-            recordingLevelData.eGrp = recordingLevelData.Grp;
-        end 
-    end 
-    %}
 
     % Traditional Statistics
-    statsTable = doStats(0, recordingLevelData, Params);
+    statsTable = doStats(recordingLevelData, 'recordingLevel', Params);
     statsTableSavePath = fullfile(statsDataFolder, 'stats.csv');
     writetable(statsTable, statsTableSavePath);
     oneFigureHandle = NaN;
@@ -824,6 +810,9 @@ if any(strcmp(Params.optionalStepsToRun,'Stats'))
         mkdir(plotSaveFolder)
     end 
     plotStats(statsTable, plotSaveFolder, Params, oneFigureHandle)
+    
+    % nodeStatsTable = doStats(nodeLevelData, 'nodeLevel', Params);
+    
     
     % Classification and Regression 
     for lag_val = Params.FuncConLagval
