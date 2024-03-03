@@ -1,6 +1,8 @@
-function statsTable = doStats(nodeLevelData, recordingLevelData, Params)
+function statsTable = doStats(recordingLevelData, tableType, Params)
 %DOSTATS Summary of this function goes here
 %   Detailed explanation goes here
+%  statsTable : table 
+%     recording/node level metrics table with statistical results 
 
 uniqueLags = unique(recordingLevelData.Lag);
 
@@ -206,7 +208,7 @@ for lagIdx = 1:length(uniqueLags)
                 divSubsetRecordingLevelData = recordingLevelDataSubsetValid(recordingLevelDataSubsetValid.AgeDiv == divToSubset, :);
                 
                 % One-way ANOVA across all groups
-                [p,tbl] = anova1(divSubsetRecordingLevelData.(metricToTest), divSubsetRecordingLevelData.eGrp, figureDisplay');
+                [p,tbl] = anova1(divSubsetRecordingLevelData.(metricToTest), divSubsetRecordingLevelData.eGrp, figureDisplay);
                 lagValueStore = [lagValueStore; lag];
                 testStore{end+1} = sprintf('DIV-%.f-Grp-1-way-ANOVA', divToSubset);
                 statsMetricStore{end+1} = 'P-value';
@@ -247,67 +249,102 @@ for lagIdx = 1:length(uniqueLags)
             statsTable = nan;
         else 
             if numUniqueDiv > 1
-                % one way repeated measures ANOVA for DIV effect
-                % using the RMAOV1.m package here: https://uk.mathworks.com/matlabcentral/fileexchange/5576-rmaov1
-                % Input: (1) N x 3 data matrix, column 1 is the dependent
-                % variable, column 2 is the independent variable, column 3 is
-                % the subject ID, (2) alpha significance level (eg. 0.05)
-                rmanova_X = zeros(numRows, 3);
-                rmanova_X(:, 1) = recordingLevelDataSubset.(metricToTest);
-                rmanova_X(:, 2) = ageIDs; % recordingLevelDataSubset.('AgeDiv');
-                rmanova_X(:, 3) = subjectIDs;
-                alpha = 0.05;
-                [SSA, P1] = RMAOV1(rmanova_X, alpha);
                 
-                lagValueStore = [lagValueStore; lag];
-                testStore{end+1} = 'RM-1-ANOVA';
-                statsMetricStore{end+1} = 'P-value';
-                statsValueStore = [statsValueStore; P1];
-                metricToTestStore{end+1} = metricToTest;
-
-                % linear mixed effects model 
-                lmeValidRows = find(isfinite(recordingLevelDataSubset.(metricToTest)));
-                recordingLevelDataSubsetValid = recordingLevelDataSubset(lmeValidRows, :);
-
-                lme = fitlme(recordingLevelDataSubsetValid, ...
-                    sprintf('%s ~ AgeDiv + (1|recordingName)', metricToTest));
-                coefNames = lme.Coefficients.Name;
-                numNames = length(coefNames);
-                for nameIdx = 2:numNames % skip the first one (intercept)
-                    lagValueStore = [lagValueStore; lag];
-                    testStore{end+1} = sprintf('LME-%s', coefNames{nameIdx});
-                    statsMetricStore{end+1} = 'P-value';
-                    pVal = lme.Coefficients.pValue(nameIdx);
-                    statsValueStore = [statsValueStore; pVal];
-                    metricToTestStore{end+1} = metricToTest;
-                end 
-                
-    
-                % work in progress matlab version 
-                % within = table(recordingLevelData.eGrp, 'VariableNames', {'eGrp'});
-                % rm = fitrm(recordingLevelData, 'Dens ~ AgeDiv', 'WithinDesign', within);
-                % ranovatbl = ranova(rm);
-                
-                % TODO: also fit linear mixed effects model
-
-                % paired t-test : assume all recordings have all the DIV
-                % pairs...
-                divPairs = nchoosek(unique(recordingLevelDataSubset.AgeDiv), 2);
-
-                for divPairIdx = 1:size(divPairs, 1)
-                    divA = divPairs(divPairIdx, 1);
-                    divB = divPairs(divPairIdx, 2);
-                    divAmetricVal = recordingLevelDataSubset(recordingLevelDataSubset.AgeDiv == divA, :).(metricToTest);
-                    divBmetricVal = recordingLevelDataSubset(recordingLevelDataSubset.AgeDiv == divB, :).(metricToTest);
-                    [h, p, ci, stats] = ttest(divAmetricVal, divBmetricVal);
+                if strcmp(tableType, 'recordingLevel')
+                    % one way repeated measures ANOVA for DIV effect
+                    % using the RMAOV1.m package here: https://uk.mathworks.com/matlabcentral/fileexchange/5576-rmaov1
+                    % Input: (1) N x 3 data matrix, column 1 is the dependent
+                    % variable, column 2 is the independent variable, column 3 is
+                    % the subject ID, (2) alpha significance level (eg. 0.05)
+                    rmanova_X = zeros(numRows, 3);
+                    rmanova_X(:, 1) = recordingLevelDataSubset.(metricToTest);
+                    rmanova_X(:, 2) = ageIDs; % recordingLevelDataSubset.('AgeDiv');
+                    rmanova_X(:, 3) = subjectIDs;
+                    alpha = 0.05;
+                    [SSA, P1] = RMAOV1(rmanova_X, alpha);
 
                     lagValueStore = [lagValueStore; lag];
-                    testStore{end+1} = sprintf('DIV-%.f-%.f-paired-ttest', divA, divB);
+                    testStore{end+1} = 'RM-1-ANOVA';
                     statsMetricStore{end+1} = 'P-value';
-                    statsValueStore = [statsValueStore; p];
+                    statsValueStore = [statsValueStore; P1];
                     metricToTestStore{end+1} = metricToTest;
 
-                end 
+                    % linear mixed effects model 
+                    lmeValidRows = find(isfinite(recordingLevelDataSubset.(metricToTest)));
+                    recordingLevelDataSubsetValid = recordingLevelDataSubset(lmeValidRows, :);
+
+                    lme = fitlme(recordingLevelDataSubsetValid, ...
+                        sprintf('%s ~ AgeDiv + (1|recordingName)', metricToTest));
+                    coefNames = lme.Coefficients.Name;
+                    numNames = length(coefNames);
+                    for nameIdx = 2:numNames % skip the first one (intercept)
+                        lagValueStore = [lagValueStore; lag];
+                        testStore{end+1} = sprintf('LME-%s', coefNames{nameIdx});
+                        statsMetricStore{end+1} = 'P-value';
+                        pVal = lme.Coefficients.pValue(nameIdx);
+                        statsValueStore = [statsValueStore; pVal];
+                        metricToTestStore{end+1} = metricToTest;
+                    end 
+
+
+                    % work in progress matlab version 
+                    % within = table(recordingLevelData.eGrp, 'VariableNames', {'eGrp'});
+                    % rm = fitrm(recordingLevelData, 'Dens ~ AgeDiv', 'WithinDesign', within);
+                    % ranovatbl = ranova(rm);
+
+                    % TODO: also fit linear mixed effects model
+
+                    % paired t-test : assume all recordings have all the DIV
+                    % pairs...
+                    divPairs = nchoosek(unique(recordingLevelDataSubset.AgeDiv), 2);
+
+                    for divPairIdx = 1:size(divPairs, 1)
+                        divA = divPairs(divPairIdx, 1);
+                        divB = divPairs(divPairIdx, 2);
+                        divAmetricVal = recordingLevelDataSubset(recordingLevelDataSubset.AgeDiv == divA, :).(metricToTest);
+                        divBmetricVal = recordingLevelDataSubset(recordingLevelDataSubset.AgeDiv == divB, :).(metricToTest);
+                        [h, p, ci, stats] = ttest(divAmetricVal, divBmetricVal);
+                        
+                        % Paired t-test
+                        lagValueStore = [lagValueStore; lag];
+                        testStore{end+1} = sprintf('DIV-%.f-%.f-paired-ttest', divA, divB);
+                        statsMetricStore{end+1} = 'P-value';
+                        statsValueStore = [statsValueStore; p];
+                        metricToTestStore{end+1} = metricToTest;
+                        
+                        % D-prime 
+                        lagValueStore = [lagValueStore; lag];
+                        testStore{end+1} = sprintf('DIV-%.f-%.f-paired-ttest', divA, divB);
+                        statsMetricStore{end+1} = 'd-prime';
+                        dprime = (mean(divBmetricVal) - mean(divAmetricVal)) / ((std(divBmetricVal) + std(divAmetricVal))/2);
+                        statsValueStore = [statsValueStore; dprime];
+                        metricToTestStore{end+1} = metricToTest;
+
+                    end 
+                elseif strcmp(tableType, 'nodeLevel')
+                    
+                     % linear mixed effects model 
+                    lmeValidRows = find(isfinite(recordingLevelDataSubset.(metricToTest)));
+                    recordingLevelDataSubsetValid = recordingLevelDataSubset(lmeValidRows, :);
+
+                    % lme = fitlme(recordingLevelDataSubsetValid, ...
+                    %     sprintf('%s ~ AgeDiv + (1|recordingName)', metricToTest));
+                    lme = fitlme(recordingLevelDataSubsetValid, ...
+                         sprintf('%s ~ AgeDiv + (AgeDiv | recordingName)', metricToTest));
+                    coefNames = lme.Coefficients.Name;
+                    numNames = length(coefNames);
+                    for nameIdx = 2:numNames % skip the first one (intercept)
+                        lagValueStore = [lagValueStore; lag];
+                        testStore{end+1} = sprintf('LME-%s', coefNames{nameIdx});
+                        statsMetricStore{end+1} = 'P-value';
+                        pVal = lme.Coefficients.pValue(nameIdx);
+                        statsValueStore = [statsValueStore; pVal];
+                        metricToTestStore{end+1} = metricToTest;
+                    end 
+
+                    
+                    
+                end
                 
 
     
@@ -339,6 +376,8 @@ end
 statsTable = table(metricToTestStore', lagValueStore, ...
     testStore', statsMetricStore', statsValueStore);
 statsTable.Properties.VariableNames = {'Metric', 'Lag', 'Test', 'Test-statistic', 'Value'};
+
+
 
 
 end
