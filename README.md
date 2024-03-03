@@ -83,6 +83,8 @@ An example MEA dataset with the corresponding batch analysis file is available a
 
 ## Troubleshooting
 
+If you experience an error whilst running MEA-NAP, please download MEA-NAP again from our Github webpage.  We routinely update MEA-NAP as we add new features, solve errors created by edge cases, or fix other issues. 
+
 For most issues, please use the Issues tab on github and open a new issue,
 e.g., see an example issue [here](https://github.com/SAND-Lab/AnalysisPipeline/issues/1).
 
