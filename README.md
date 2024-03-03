@@ -22,6 +22,7 @@ MEA-NAP is a streamlined diagnostic and analytic tool for cellular-scale network
 ## Documentation
 
 Please see our [detailed documentation for MEA-NAP users at our read-the-docs page](https://analysis-pipeline.readthedocs.io/en/latest/).
+You can view our video tutorial at [https://www.youtube.com/watch?v=oxFyqRyemRM](https://www.youtube.com/watch?v=oxFyqRyemRM) or download at the Harvard Dataverse [https://doi.org/10.7910/DVN/Z14LWA](https://doi.org/10.7910/DVN/Z14LWA). 
 
 ## Citing MEA-NAP
 
