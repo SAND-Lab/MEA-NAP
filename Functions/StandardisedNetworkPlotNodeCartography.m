@@ -1,5 +1,5 @@
 function [] = StandardisedNetworkPlotNodeCartography(adjM, coords, edge_thresh, ...
-    NdCartDiv, plotType, FN, pNum, Params, lagval, e, figFolder, oneFigureHandle)
+    NdCartDiv, plotType, FN, pNum, Params, lagval, e, figFolder, oneFigureHandle, suffix)
 %
 % script to plot the graph network 
 % 
@@ -36,6 +36,11 @@ function [] = StandardisedNetworkPlotNodeCartography(adjM, coords, edge_thresh, 
 % -------
 % author RCFeord August 2021
 % Edited by Tim Sit 
+
+if ~exist('suffix', 'var')
+    suffix = '';
+end 
+
 %% plot
 p =  [50 100 700 550];
 
@@ -372,7 +377,7 @@ end
 
 %% save figure
 
-figName = strcat([pNum,'_', plotType, '_NetworkPlotNodeCartography']);
+figName = strcat([pNum,'_', plotType, '_NetworkPlotNodeCartography', suffix]);
 figPath = fullfile(figFolder, figName);
 
 if Params.showOneFig 

@@ -104,16 +104,16 @@ for e = 1:length(lagval)
         NdCartDivOrd = NdCartDiv(On);
         Params.channelsReordered = Params.netSubsetChannels(On);
         StandardisedNetworkPlotNodeCartography(adjMord, coords, ... 
-            edge_thresh, NdCartDivOrd, 'circular', char(Info.FN), '7', Params, lagval, e, lagFolder, oneFigureHandle)
+            edge_thresh, NdCartDivOrd, 'circular', char(Info.FN), '9', Params, lagval, e, lagFolder, oneFigureHandle, '_modules')
         
         % node cartography in circular plot same order across DIV
         Params.channelsReordered = Params.netSubsetChannels;  % back to original order
         StandardisedNetworkPlotNodeCartography(adjM, coords, ... 
-            edge_thresh, NdCartDiv, 'circular', char(Info.FN), '7b', Params, lagval, e, lagFolder, oneFigureHandle)
+            edge_thresh, NdCartDiv, 'circular', char(Info.FN), '9', Params, lagval, e, lagFolder, oneFigureHandle, '')
 
         % node cartography in grid plot 
         StandardisedNetworkPlotNodeCartography(adjM, coords, ... 
-            edge_thresh, NdCartDiv, 'MEA', char(Info.FN), '7', Params, lagval, e, lagFolder, oneFigureHandle)
+            edge_thresh, NdCartDiv, 'MEA', char(Info.FN), '9', Params, lagval, e, lagFolder, oneFigureHandle, '_modules')
 
         % add node cartography results to existing experiment file 
         nodeCartVarsToSave = {'NCpn1', 'NCpn2','NCpn3','NCpn4','NCpn5','NCpn6', ...
