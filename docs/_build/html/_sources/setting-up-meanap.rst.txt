@@ -53,6 +53,12 @@ The MEA-NAP pipeline is currently optimized for single MEA recordings made on th
    2. Open MEApipeline.m.
    3. Start GUI by clicking green "Run" button in the Editor submenu at the top of your screen.
    4. In the GUI, navigate to the File Conversion tab.
+   
+   .. image:: imgs/axion_file_conversion_gui.png
+      :width: 400
+      :align: center
+      :alt: File Conversion tab in GUI
+
    5. For File Type, select ".raw from Axion Maestro" for Axion data or ".raw from Multichannel Systems."
    6. Click select button to select the Data Folder where your .raw data is.  All of your data must be in the same folder.
    7. Chose an informative name for your batch CVS file for this experiment.
