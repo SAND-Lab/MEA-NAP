@@ -166,10 +166,14 @@ Params.includeNotBoxPlots = 0;
 Params.linePlotShadeMetric = 'sem';  % 'std' or 'sem'
 
 %% Network analysis settings 
+
+
 Params.netMetToCal = {'ND', 'EW', 'NS', 'aN', 'Dens', 'Ci', 'Q', 'nMod', 'Eglob', ...,
-        'CC', 'PL' 'SW','SWw' 'Eloc', 'BC', 'PC' , 'PC_raw', 'Cmcblty', 'Z', ...
-        'NE', 'effRank', 'num_nnmf_components', 'nComponentsRelNS', ...
-        'aveControl', 'modalControl'};
+    'CC', 'PL' 'SW','SWw' 'Eloc', 'BC', 'PC' , 'PC_raw', 'Cmcblty', 'Z', ...
+    'NE', 'effRank', 'num_nnmf_components', 'nComponentsRelNS', ...
+    'aveControl', 'modalControl'};
+
+
 % Other optional ones: SA_lambda, SA_inf, TA_regional, TA_global
  
 Params.excludeEdgesBelowThreshold = 1;
