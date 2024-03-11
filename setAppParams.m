@@ -1,5 +1,5 @@
 function app = setAppParams(app, Params)
-%SETAPPPARAMS Summary of this function goes here
+%SETAPPPARAMS Load saved parameterse and add them to GUI
 %   Detailed explanation goes here
 
 
@@ -21,6 +21,9 @@ app.RunspikecheckonpreviousspikedataCheckBox.Value = Params.runSpikeCheckOnPrevS
 
 %% Connectivity settings 
 app.STTCLagmsEditField.Value = num2str(Params.FuncConLagval);
+
+%% Network analysis settings 
+app.NetworkmetricstocalculateListBox.Value = Params.netMetToCal;
 
 %% Plotting settings
 
