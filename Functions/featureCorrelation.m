@@ -25,7 +25,7 @@ f.Position = [100 100 300*num_AgeDiv 300*num_eGrp];
 for eGrpIdx = 1:num_eGrp
     for AgeDivIdx = 1:num_AgeDiv
 
-        subplot(num_eGrp, num_AgeDiv, eGrpIdx+AgeDivIdx-1)
+        subplot(num_eGrp, num_AgeDiv, (eGrpIdx-1)*num_AgeDiv + AgeDivIdx)
         subset_idx = find(strcmpi(nodeLevelData.eGrp, unique_eGrp(eGrpIdx)) & ...
                           nodeLevelData.('AgeDiv') == unique_AgeDiv(AgeDivIdx) & ...
                           nodeLevelData.('Lag') == subset_lag);
