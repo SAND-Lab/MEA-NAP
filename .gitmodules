@@ -1,0 +1,3 @@
+[submodule "Functions/McsMatlabDataTools"]
+	path = Functions/McsMatlabDataTools
+	url = https://github.com/multichannelsystems/McsMatlabDataTools
