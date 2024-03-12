@@ -25,6 +25,9 @@ function rawConvertFunc(HomeDir, raw_file_dir, batch_csv_fname, autofill_div, au
 
 % Step 3 - Name of the batch csv file that will be created in directory containing raw files (raw_file_dir). 
 % This .csv file stores information about your recordings, including recording filename, DIV, genotype, and grounded electrodes.
+if ~contains(batch_csv_fname, '.csv')
+    batch_csv_fname = [batch_csv_fname, '.csv'];
+end 
 batch_csv_fname = [batch_csv_fname];
 
 % Step 4 - Adjust these additional settings to automatically fill certain columns of batch .csv file (batch_csv_fname).
