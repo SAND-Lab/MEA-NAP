@@ -2,6 +2,11 @@
 clear app
 app = MEANAPApp;
 app.MEANAPStatusTextArea.Value = {'Welcome! The MEA-NAP GUI is launched.'};
+
+% Default home directory 
+app.MEANAPFolderEditField.Value = pwd;
+
+% Default colours 
 app.colorUITable.Data = [ ...
    1, 0.996, 0.670, 0.318; ...
    2, 0.780, 0.114, 0.114; ... 
