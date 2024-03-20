@@ -292,6 +292,7 @@ rawData = Params.rawData;
 detectSpikes = Params.detectSpikes;
 Params.output_spreadsheet_file_type = 'csv';
 csvRange = str2num(app.SpreadsheetRangeEditField.Value);
+option = 'list';  % spike detection option
 
 %% Some stuff that were dealt with previously in AdvancedSettings 
 if any(isnan(Params.outputDataFolder)) || isempty(Params.outputDataFolder)
