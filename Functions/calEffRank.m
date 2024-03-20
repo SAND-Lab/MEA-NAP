@@ -17,13 +17,13 @@ http://ieeexplore.ieee.org/abstract/document/7098875
 %}
 
 % 1. compute covariance matrix 
-if strcmp(method, 'covariance')
+if strcmp(lower(method), 'covariance')
     if issparse(spikeMatrix)
         covM = sparseCov(spikeMatrix);
     else 
         covM = cov(spikeMatrix);
     end 
-elseif strcmp(method, 'correlation')
+elseif strcmp(lower(method), 'correlation')
     % Option B: use correlation matrix 
     covM = corr(spikeMatrix); 
     % PROBLEM: for electrodes where no spikes is detected, corre returns
