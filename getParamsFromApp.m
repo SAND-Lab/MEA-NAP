@@ -232,8 +232,10 @@ Params.singleChannelBurstMinSpike = app.MinspikeperchannelburstEditField.Value;
 
 %% Dimensionality calculation settings 
 Params.effRankCalMethod = app.effRankCalculationMethodDropDown.Value;
+Params.effRankDownsampleFreq = 10; 
 Params.NMFdownsampleFreq = app.NMFDownsamplingFrequencyHzEditField.Value;   % how much to downsample the spike matrix to (Hz) before doing non-negative matrix factorisation
 Params.includeNMFcomponents = app.IncludeNMFcomponentsCheckBox.Value;
+
 
 %% Node cartography settings 
 Params.hubBoundaryWMdDeg = app.hubBoundaryWMdDegEditField.Value; % boundary that separates hub and non-hubs (default 2.5)
@@ -256,6 +258,8 @@ Params.kdeWidthForOnePoint = app.KDEwidthforonepointEditField.Value;  % bandwidt
 Params.includeChannelNumberInPlots = app.IncludechannelnumberinplotsCheckBox.Value;  % whether to plot channel ID in heatmaps and node plots
 
 Params.includeNotBoxPlots = app.IncludeNotBoxPlotsCheckBox.Value;
+
+Params.linePlotShadeMetric = 'sem';  % 'std' or 'sem'
 
 %% Pipeline settings 
 Params.timeProcesses = app.TimeprocessesCheckBox.Value;
