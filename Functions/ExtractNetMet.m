@@ -463,11 +463,19 @@ for e = 1:length(lagval)
     %}
     % 'NCpn1', 'NCpn2','NCpn3','NCpn4','NCpn5','NCpn6' were moved
     
+    lagIndependentMetrics = {'effRank', 'num_nnmf_components', 'nComponentsRelNS', ...
+                             'nnmf_residuals', 'nnmf_var_explained', 'randResidualPerComponent', ... 
+                             'nmfFactors', 'nmfWeights', 'downSampleSpikeMatrix', 'nmfFactorsVarThreshold', ...
+                             'nmfWeightsVarThreshold'};
+    nodeCartographyMetrics = {'NCpn1', 'NCpn2','NCpn3','NCpn4','NCpn5','NCpn6'};
+    
     for i = 1:length(Var)
         % TODO: remove eval 
         VN = cell2mat(Var(i));
         VNs = strcat('NetMet.adjM',num2str(lagval(e)),'mslag.',VN);
-        eval([VNs '=' VN ';']);
+        if ~ismember(VN, lagIndependentMetrics) && ~ismember(VN, nodeCartographyMetrics)
+            eval([VNs '=' VN ';']);
+        end
     end
     
     % clear variables

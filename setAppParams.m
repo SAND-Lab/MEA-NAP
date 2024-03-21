@@ -31,7 +31,7 @@ app.NetworkmetricstocalculateListBox.Value = Params.netMetToCal;
 % this should be an nGroup x 3 matrix where nGroup is the number of groups
 % you have, and each row is a RGB value (scaled from 0 to 1) denoting the
 % color
-app.colorUITable.Data(:, 1:end) = Params.groupColors;
+app.colorUITable.Data(:, 2:end) = Params.groupColors;
 
 app.MinimumnodesizeEditField.Value = Params.minNodeSize;  % minimum node size in network plots
 app.KDEHeightEditField.Value = Params.kdeHeight;  % height of the KDE curve, only affects plotting and not the kernel density estimate itself
