@@ -168,7 +168,7 @@ Params.linePlotShadeMetric = 'sem';  % 'std' or 'sem'
 %% Network analysis settings 
 
 
-Params.netMetToCal = {'ND', 'EW', 'NS', 'aN', 'Dens', 'Ci', 'Q', 'nMod', 'Eglob', ...,
+Params.netMetToCal = {'ND', 'MEW', 'NS', 'aN', 'Dens', 'Ci', 'Q', 'nMod', 'Eglob', ...,
     'CC', 'PL' 'SW','SWw' 'Eloc', 'BC', 'PC' , 'PC_raw', 'Cmcblty', 'Z', ...
     'NE', 'effRank', 'num_nnmf_components', 'nComponentsRelNS', ...
     'aveControl', 'modalControl'};
