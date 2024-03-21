@@ -85,7 +85,7 @@ for i = 1:length(ExpName)
          end 
          
          for lag = Params.FuncConLagval
-            
+            lagField = strcat('adjM', num2str(lag), 'mslag');
             
             if contains(eMet, lagIndependentMets)
                 % 'effRank', 'num_nnmf_components', 'nComponentsRelNS'
