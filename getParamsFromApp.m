@@ -11,6 +11,7 @@ Params.rawData = app.RawDataFolderEditField.Value;
 Params.priorAnalysisPath = app.PreviousAnalysisFolderEditField.Value;
 Params.spikeDetectedData = app.SpikeDataFolderEditField.Value;
 Params.spreadSheetFileName = app.SpreadsheetFilenameEditField.Value;
+Params.spreadSheetRange = app.SpreadsheetRangeEditField.Value;
 
 Params.fs = app.SamplingFrequencyEditField.Value;
 Params.dSampF = app.DownSampleFrequencyEditField.Value;
@@ -64,6 +65,11 @@ end
 Params.figExt = figExts;
 Params.fullSVG = app.DonotcompressSVGCheckBox.Value;
 
+% Colormap settings
+Params.use_theoretical_bounds = app.UsetheoreticalboundsCheckBox.Value; 
+Params.use_min_max_all_recording_bounds = app.UseminmaxallrecordingboundsCheckBox.Value;
+Params.use_min_max_per_genotype_bounds = app.UseminmaxpergroupboundsCheckBox.Value;
+
 %%%%%%%%%%%%%%%%%%%%%%%%% ADVANCED SETTINGS %%%%%%%%%%%%%%%%%%%%
 Params.run_detection_in_chunks = app.RundetectioninchunksCheckBox.Value; % whether to run wavelet detection in chunks (0: no, 1:yes)
 Params.chunk_length = app.ChunklengthsecEditField.Value;  % in seconds, will be ignored if run_detection_in_chunks = 0
@@ -92,6 +98,12 @@ Params.multi_template_method = app.MultipletemplatemethodDropDown.Value;  % opti
 Params.filterLowPass = app.LowpassfilterHzEditField.Value;
 Params.filterHighPass = app.HighpassfilterHzEditField.Value;
 
+if Params.filterHighPass > Params.fs / 2
+    fprintf(['WARNING: high pass frequency specified is above \n ', ...
+        'nyquist frequency for given sampling rate, reducing it \n ' ...
+        sprintf('to a frequency of %.f \n', Params.fs/2-100)])
+    Params.filterHighPass = Params.fs/2-100;
+end 
 %% Which network metrics to calculate and plot 
 Params.netMetToCal = app.NetworkmetricstocalculateListBox.Value;
 
