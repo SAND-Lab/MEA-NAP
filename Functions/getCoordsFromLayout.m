@@ -2,7 +2,7 @@ function [channels,coords] = getCoordsFromLayout(channelLayout)
 %GETCOORDSFROMLAYOUT Specifies mapping from channel number to spatial
 %coordinates
 % We provide a few default coordinates from 
-% the Multichannel systems (MCS) (60 channel In Vitro MEA set up) and
+% the Multichannel systems (MCS) (60 electrode In Vitro MEA set up) and
 % the Axion system. Alternatively, you can specify your own layout 
 % by specifying giving the input arugment 'Custom' and editing 
 % the line after: 'elseif strcmp(channelLayout, 'Custom')'
@@ -10,10 +10,11 @@ function [channels,coords] = getCoordsFromLayout(channelLayout)
 % ----------
 % channelLayout : str 
 %      channel coordinate to use 
-%      'MCS60old' : old version of MCS 60 channel MEA 
-%      'MCS60' : lateset version of MCS 60 channel MEA 
-%      'MCS59' : MCS 60 channel MEA with grounded electrode removed 
-%      'Axion64' : Axion 64 channel MEA system
+%      'MCS60old' : old version of MCS 60 electrode MEA 
+%      'MCS60' : lateset version of MCS 60 electrode MEA 
+%      'MCS59' : MCS 60 electrode MEA with grounded electrode removed 
+%      'Axion64' : Axion 64 electrode MEA (6-well plate)
+%      'Axion16' : Axion 16 electrode MEA (48-well plate)
 %      'Custom' : specify your own channel layout
 if strcmp(channelLayout, 'MCS60old')
 
@@ -144,7 +145,15 @@ elseif strcmp(channelLayout, 'Axion64')
     coords(:, 2) = repmat(linspace(0, 1, 8), 1, 8);
     coords(:, 1) = repelem(linspace(0, 1, 8), 1, 8);
 
-
+elseif strcmp(channelLayout, 'Axion16')    
+    
+    channels = [11, 12, 13, 14, ...
+            21, 22, 23, 24, ...
+            31, 32, 33, 34, ...
+            41, 42, 43, 44];
+    coords = zeros(length(channels), 2);
+    coords(:, 2) = repmat(linspace(0, 1, 4), 1, 4);
+    coords(:, 1) = repelem(linspace(0, 1, 4), 1, 4);
 
 elseif strcmp(channelLayout, 'Custom')
     % Here you can specify your own custom channel layout by 
