@@ -111,8 +111,7 @@ for i = 1:length(filenames)
                         channels = [11:18, 21:28, 31:38, 41:48, 51:58, 61:68, 71:78, 81:88];
                     % This creates a channels variable with the names of
                     % the 16 electrodes for an MEA in a 48-well plate.
-                    end
-                    if size(AllData, 1) * size(AllData, 2) == 48
+                    elseif size(AllData, 1) * size(AllData, 2) == 48
                         channels = [11:14, 21:24, 31:34, 41:44];
                     elseif size(AllData, 1) * size(AllData, 2) == 24
                         % This creates channel variable for 16 electrode
