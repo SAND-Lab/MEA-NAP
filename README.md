@@ -61,6 +61,7 @@ To get the cutting edge of the pipeline, which includes the latest features / bu
 
 ```
 git clone https://github.com/SAND-Lab/MEA-NAP
+git checkout dev
 ```
 
 ## How to use the pipeline
