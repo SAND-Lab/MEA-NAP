@@ -1,16 +1,26 @@
-function rawConvertFunc(HomeDir, raw_file_dir, batch_csv_fname, autofill_div, autofill_genotype, genotype)
+function rawConvertFunc(HomeDir, raw_file_dir, batch_csv_fname, autofill_div, autofill_genotype, genotype, fs)
+% Parameters 
+% ----------
+% HomeDir : 
+% raw_file_dir : 
+% batch_csv_fname : 
+% autofill_div : 
+% autofill_genotype : 
+% genotype : 
+% fs : int 
+%      sampling frequency of your recording (Hz)
 % Use this script to convert raw data collected with the Axion Maestro MEA system
 % from plate to individual MEAs.  This is the first step to using the data with our 
 % analysis pipeline developed for MCS data.
 %
 % Function written by MH, Dec 2021; edited by SM, Jan 2022; edited by DO,
-% Nov 2023
+% Nov 2023. Edited by TS 2024
 
 % Overall aim of this script is to split raw data from multi-well plate
 % into a separate .mat file for each MEA in the plate.  It can currently
 % accommodate 6- up to 48-well plates.  
 % Function written by MH, Dec 2021; edited by SM, Jan 2022; edited by DO,
-% Nov 2023
+% Nov 2023. Edited by TS 2024
 
 % Overall aim of this script is to split raw data from multi-well plate
 % into a separate .mat file for each MEA in the plate.  It can currently
@@ -114,9 +124,6 @@ for i = 1:length(filenames)
                     else
                         warning('You need to manually add the channels variable for your plate configuration.')
                     end
-                    % This is hard coded for MEA recording acquisition rate (fs) 
-                    % of 12500 Hz. Change if data was acquired at a different rate.
-                    fs = 12500; 
                     % This is the step saves the .mat file for each MEA
                     % (well) with voltage vectors (dat), the names/location
                     % of the electrodes (channels) and  the acquisition rate (fs). 
