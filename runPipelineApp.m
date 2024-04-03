@@ -318,6 +318,9 @@ Params.spikeMethodColors = ...
 % Raster colormap 
 Params.rasterColormap = 'parula';  % 'parula' or 'gray'
 
+%% Optional step : statistics and classification 
+Params.pValThreshold = 0.01;  % p value threshold to consider effect as significant
+
 %% Some stuff that were dealt with previously in AdvancedSettings 
 if any(isnan(Params.outputDataFolder)) || isempty(Params.outputDataFolder)
     Params.outputDataFolder = HomeDir;
