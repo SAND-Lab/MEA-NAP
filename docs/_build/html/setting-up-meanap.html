@@ -253,7 +253,20 @@
 </ol>
 </div></blockquote>
 </li>
-<li><p><strong>Converting .raw files acquired from Multichannel Systems or Axion Maestro MEA systems to .mat files for MEA-NAP:</strong></p>
+<li><p><strong>Converting .mcd files acquired from a Multichannel Systems MEA system with Multi Channel Experimenter to .h5:</strong></p>
+<blockquote>
+<div><ol class="arabic simple">
+<li><p>Open Multi Channel DataManager.</p></li>
+<li><p>Click “Change” in the top right corner to change your input folder path to the folder containing your .mcd files.</p></li>
+<li><p>Click “Refresh List” in the top right corner to update the list of .mcd files displayed.</p></li>
+<li><p>Navigate to the bottom and click “Change” to adjust your output folder path, where the .h5 files will ultimately be stored.</p></li>
+<li><p>Click “Export to HDF5” to convert .mcd files to HDF5 format (.h5 files).</p></li>
+<li><p>When done, confirm that the .h5 files have been successfully saved in the output folder.</p></li>
+<li><p>Click close.</p></li>
+</ol>
+</div></blockquote>
+</li>
+<li><p><strong>Converting .raw and .h5 files acquired from Multichannel Systems or Axion Maestro MEA systems to .mat files for MEA-NAP:</strong></p>
 <blockquote>
 <div><ol class="arabic simple">
 <li><p>Open MATLAB.</p></li>
@@ -263,7 +276,7 @@
 </ol>
 <a class="reference internal image-reference" href="_images/axion_file_conversion_gui.png"><img alt="File Conversion tab in GUI" class="align-center" src="_images/axion_file_conversion_gui.png" style="width: 400px;" /></a>
 <ol class="arabic simple" start="5">
-<li><p>For File Type, select “.raw from Axion Maestro” for Axion data or “.raw from Multichannel Systems.”</p></li>
+<li><p>For File type, select “.raw from Axion Maestro” for Axion data, “.raw from Multichannel Systems” for MC Rack data, or “h5 from Multichannel Systems” for Multi Channel Experimenter data.</p></li>
 <li><p>Click select button to select the Data Folder where your .raw data is.  All of your data must be in the same folder.</p></li>
 <li><p>Chose an informative name for your batch CVS file for this experiment.</p></li>
 <li><p>If the age is included in the .raw filenames as “DIV” followed by the age in numbers (e.g., “DIV21”), check box to automatically have the age populated in the batch CSV file.</p></li>

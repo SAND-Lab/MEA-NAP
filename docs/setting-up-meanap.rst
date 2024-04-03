@@ -47,7 +47,17 @@ The MEA-NAP pipeline is currently optimized for single MEA recordings made on th
    7. Click "save" to save .raw files that are generated.
    8. When done, click close.
 
-- **Converting .raw files acquired from Multichannel Systems or Axion Maestro MEA systems to .mat files for MEA-NAP:**
+- **Converting .mcd files acquired from a Multichannel Systems MEA system with Multi Channel Experimenter to .h5:**
+
+   1. Open Multi Channel DataManager.
+   2. Click "Change" in the top right corner to change your input folder path to the folder containing your .mcd files.
+   3. Click "Refresh List" in the top right corner to update the list of .mcd files displayed.
+   4. Navigate to the bottom and click "Change" to adjust your output folder path, where the .h5 files will ultimately be stored.
+   5. Click "Export to HDF5" to convert .mcd files to HDF5 format (.h5 files). 
+   6. When done, confirm that the .h5 files have been successfully saved in the output folder.
+   7. Click close.
+
+- **Converting .raw and .h5 files acquired from Multichannel Systems or Axion Maestro MEA systems to .mat files for MEA-NAP:**
 
    1. Open MATLAB.
    2. Open MEApipeline.m.
@@ -59,13 +69,14 @@ The MEA-NAP pipeline is currently optimized for single MEA recordings made on th
       :align: center
       :alt: File Conversion tab in GUI
 
-   5. For File Type, select ".raw from Axion Maestro" for Axion data or ".raw from Multichannel Systems."
+   5. For File type, select “.raw from Axion Maestro” for Axion data, “.raw from Multichannel Systems” for MC Rack data, or “h5 from Multichannel Systems” for Multi Channel Experimenter data.
    6. Click select button to select the Data Folder where your .raw data is.  All of your data must be in the same folder.
    7. Chose an informative name for your batch CVS file for this experiment.
    8. If the age is included in the .raw filenames as "DIV" followed by the age in numbers (e.g., "DIV21"), check box to automatically have the age populated in the batch CSV file.
    9. If you only have one group, check box "One Group?" and enter the desired group name in the box. The group name must start with a letter and should be short (e.g., NGN2).
    10. Click Run file conversion. This may take some time depending on the number and size of the files. When it is done, "Conversion Complete" will appear in the MEA-NAP Status on the right side of the GUI.
 
+   
 4. Prepare batch analysis CSV file:
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
    
