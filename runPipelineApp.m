@@ -316,7 +316,7 @@ Params.spikeMethodColors = ...
     0.6350    0.0780    0.1840];
 
 % Raster colormap 
-Params.rasterColormap = 'parula';  % 'parula' or 'gray'
+Params.rasterColormap = app.RastercolormapDropDown.Value;  % 'parula' or 'gray'
 
 %% Optional step : statistics and classification 
 Params.pValThreshold = 0.01;  % p value threshold to consider effect as significant
