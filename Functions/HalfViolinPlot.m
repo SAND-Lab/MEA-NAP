@@ -46,13 +46,17 @@ if (length(data) > 1) && (std(data) > 10^-8)  % using value slightly above zero 
     % min_bandwidth = 0.03;
     min_bandwidth = (max(data) - min(data)) * 0.1;
     bandwidth = max([min_bandwidth, bandwidth]); 
-    
+
 else
     if strcmp(kdeWidthForOnePoint, 'auto')
         [~, ~, bandwidth] = ksdensity(data);
     else 
         bandwidth = kdeWidthForOnePoint;  % small value, or zero is recommended
     end 
+end 
+
+if bandwidth < 0
+    bandwidth = kdeWidthForOnePoint;  % small value, or zero is recommended
 end 
 
 % plot the violin
