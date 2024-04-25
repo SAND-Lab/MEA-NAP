@@ -55,8 +55,8 @@ else
     end 
 end 
 
-if bandwidth < 0
-    bandwidth = kdeWidthForOnePoint;  % small value, or zero is recommended
+if bandwidth <= 0
+    bandwidth = 0.0001;  % small value, or zero is recommended
 end 
 
 % plot the violin
