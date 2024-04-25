@@ -173,7 +173,7 @@ for recording = 1:numel(files)
             end 
             grd = groundElectrodeVec;
 
-            if (params.electrodesToGroundPerRecordingUseName == 1) && ~isnan(grd)
+            if (params.electrodesToGroundPerRecordingUseName == 1) && all(~isnan(grd))
                 % Convert from the channel name we want to ground, to the
                 % index within Params.channels
                 new_grd = zeros(length(grd), 1);
