@@ -1,3 +1,6 @@
 [submodule "Functions/McsMatlabDataTools"]
 	path = Functions/McsMatlabDataTools
 	url = https://github.com/multichannelsystems/McsMatlabDataTools
+[submodule "Functions/AxionFileLoader"]
+	path = Functions/AxionFileLoader
+	url = https://github.com/axionbio/AxionFileLoader
