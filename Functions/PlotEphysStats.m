@@ -19,25 +19,34 @@ function PlotEphysStats(ExpName, Params, HomeDir, oneFigureHandle)
 %% colours
 
 % colour scheme for age groups DIV
-ColOpt1 = [0.988 0.906 0.149];
-ColOpt2 = [0.710 0.871 0.173];
-ColOpt3 = [0.427 0.808 0.345];
-ColOpt4 = [0.208 0.718 0.478];
-ColOpt5 = [0.118 0.624 0.537];
-ColOpt6 = [0.145 0.514 0.557];
-ColOpt7 = [0.192 0.404 0.553];
-ColOpt8 = [0.239 0.290 0.541];
-ColOpt9 = [0.282 0.157 0.474];
-ColOpt10 = [0.267 0.051 0.325];
-nColOpt = 10;
+% ColOpt1 = [0.988 0.906 0.149];
+% ColOpt2 = [0.710 0.871 0.173];
+% ColOpt3 = [0.427 0.808 0.345];
+% ColOpt4 = [0.208 0.718 0.478];
+% ColOpt5 = [0.118 0.624 0.537];
+% ColOpt6 = [0.145 0.514 0.557];
+% ColOpt7 = [0.192 0.404 0.553];
+% ColOpt8 = [0.239 0.290 0.541];
+% ColOpt9 = [0.282 0.157 0.474];
+% ColOpt10 = [0.267 0.051 0.325];
+% nColOpt = 10;
 
 % specify colours to use on the basis of the number of time points
 nDIV = length(Params.DivNm);
+% if nDIV == 1
+%     cDiv1 = ColOpt5;
+% else
+%     for ii = 1:nDIV
+%         eval(['cDiv' num2str(ii) '= ColOpt' num2str(round(1+(nColOpt/nDIV)*(ii-1))) ';']);
+%     end
+% end
+
+divColorMap = flipud(viridis(nDIV)); 
 if nDIV == 1
-    cDiv1 = ColOpt5;
+    cDiv1 = divColorMap(1, :);
 else
     for ii = 1:nDIV
-        eval(['cDiv' num2str(ii) '= ColOpt' num2str(round(1+(nColOpt/nDIV)*(ii-1))) ';']);
+        eval(['cDiv' num2str(ii) '= divColorMap(' num2str(ii) ', :);']);
     end
 end
 
