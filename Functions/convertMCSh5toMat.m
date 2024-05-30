@@ -25,10 +25,10 @@ function convertMCSh5toMat(dataFolder)
         for channelIdx = 1:numChannels
             channelStr = split(label{channelIdx}, ' ');
             
-            if strcmp(channelStr{2}, 'Ref')
+            if strcmp(channelStr{end}, 'Ref')
                channelNumber = 15; 
             else
-               channelNumber = str2num(channelStr{2});
+               channelNumber = str2num(channelStr{end});
             end
             
             channels(channelIdx) = channelNumber;
@@ -48,7 +48,17 @@ function convertMCSh5toMat(dataFolder)
         fs = h5data.Recording{1}.AnalogStream{1}.getSamplingRate;
         
         savename = fullfile(fileList(fileIndex).folder, [fileName '.mat']);
-        save(savename, "dat", "channels", "fs");
+        
+        % get size of dat 
+        dt = whos('dat'); 
+        datMB = dt.bytes*9.53674e-7;  
+        
+        if datMB > 2000 
+            save(savename, "dat", "channels", "fs", '-v7.3');
+        else
+            save(savename, "dat", "channels", "fs");
+        end 
+          
         
         
     end
