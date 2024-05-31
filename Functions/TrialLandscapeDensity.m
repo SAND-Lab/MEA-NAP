@@ -130,21 +130,30 @@ elseif strcmp(boundarySelectionMethod, 'kmeans')
 
     % Compute the boundary vlaues for the non-hubs
     non_hub_pc_vals = PC(Z < z_boundary);
-    non_hub_cluster_idx = kmeans(non_hub_pc_vals, num_non_hub_partitions);
-    non_hub_group_pc_mins = zeros(num_non_hub_partitions, 1);
-    non_hub_group_pc_maxs = zeros(num_non_hub_partitions, 1);
-    for group_id = 1:num_non_hub_partitions
-        non_hub_group_pc_mins(group_id) = min(non_hub_pc_vals(non_hub_cluster_idx == group_id));
-        non_hub_group_pc_maxs(group_id) = max(non_hub_pc_vals(non_hub_cluster_idx == group_id));
+    
+    if length(non_hub_pc_vals) < num_non_hub_partitions
+        fprintf('Fewer than 3 non-hubs found, using default partition values instead of kmeans \n') 
+        non_hub_pc_boundaries = [Params.periPartCoef, Params.nonHubconnectorPartCoef]; 
+    else
+        % Usual k-means method of finding non hub pc boundaries
+        non_hub_cluster_idx = kmeans(non_hub_pc_vals, num_non_hub_partitions);
+        non_hub_group_pc_mins = zeros(num_non_hub_partitions, 1);
+        non_hub_group_pc_maxs = zeros(num_non_hub_partitions, 1);
+        for group_id = 1:num_non_hub_partitions
+            non_hub_group_pc_mins(group_id) = min(non_hub_pc_vals(non_hub_cluster_idx == group_id));
+            non_hub_group_pc_maxs(group_id) = max(non_hub_pc_vals(non_hub_cluster_idx == group_id));
+        end 
+        [non_hub_group_pc_maxs_sorted, non_hub_sort_idx] = sort(non_hub_group_pc_maxs);
+        non_hub_group_pc_mins_sorted = non_hub_group_pc_mins(non_hub_sort_idx);
+        non_hub_pc_boundaries = zeros(num_non_hub_partitions-1, 1);
+        for n_boundary = 1:num_non_hub_partitions-1
+            % boundary set to be halfway between the max of the "left" group 
+            % and the min of the "right" group
+            non_hub_pc_boundaries(n_boundary) = (non_hub_group_pc_maxs_sorted(n_boundary) + non_hub_group_pc_mins_sorted(n_boundary+1)) / 2;
+        end 
     end 
-    [non_hub_group_pc_maxs_sorted, non_hub_sort_idx] = sort(non_hub_group_pc_maxs);
-    non_hub_group_pc_mins_sorted = non_hub_group_pc_mins(non_hub_sort_idx);
-    non_hub_pc_boundaries = zeros(num_non_hub_partitions-1, 1);
-    for n_boundary = 1:num_non_hub_partitions-1
-        % boundary set to be halfway between the max of the "left" group 
-        % and the min of the "right" group
-        non_hub_pc_boundaries(n_boundary) = (non_hub_group_pc_maxs_sorted(n_boundary) + non_hub_group_pc_mins_sorted(n_boundary+1)) / 2;
-    end 
+    
+
 
 
     %% Plot the automatically generated partitions 
