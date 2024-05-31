@@ -4,11 +4,11 @@ function minMax = findMinMaxNetMetTable(outputDataDateFolder, Params)
 
 spreadsheetFname = strcat('NetworkActivity_RecordingLevel', '.csv');
 spreadsheetFpath = fullfile(outputDataDateFolder, spreadsheetFname);
-recordingLevelTable = readtable(spreadsheetFpath);
+recordingLevelTable = readtable(spreadsheetFpath, 'Delimiter','comma');
 
 electrodeSpreadsheetFname = strcat('NetworkActivity_NodeLevel','.csv');
 electrodeSpreadsheetFpath = fullfile(outputDataDateFolder, electrodeSpreadsheetFname);
-nodeLevelTable = readtable(electrodeSpreadsheetFpath);
+nodeLevelTable = readtable(electrodeSpreadsheetFpath, 'Delimiter','comma');
 
 % Find min max of each column and return structure
 
