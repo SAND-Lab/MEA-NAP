@@ -71,13 +71,33 @@ end
 
 nexttile
 
-partCoefRange = [0, 1];  % range of participation coefficient
-wMdDegRange = [-2, 4]; % range of within-module degree (z-score)
+% Old hard-coded ranges
+% partCoefRange = [0, 1];  % range of participation coefficient
+% wMdDegRange = [-2, 4]; % range of within-module degree (z-score)
+
+% Define participation coefficient range based on min max values
+partCoefRange = [min(PC), max(PC)]; 
+
+% Define within-module degree z-score (y axis) range
+wMdDegRange = [];
+if min(Z) < 0
+    wMdDegRange(1) = min(Z) * 1.1; 
+else
+    wMdDegRange(1) = min(Z) * 0.9; 
+end 
+
+if max(Z) > 0
+    wMdDegRange(2) = max(Z) * 1.1;
+else
+    wMdDegRange(2) = max(Z) * 0.9;
+end 
+
+
 
 plot(partCoefRange,[hubBoundaryWMdDeg  hubBoundaryWMdDeg ],'--k')
 hold on
-plot([periPartCoef periPartCoef],[-5 hubBoundaryWMdDeg ],'--k')
-plot([nonHubconnectorPartCoef nonHubconnectorPartCoef],[-5 hubBoundaryWMdDeg ],'--k')
+plot([periPartCoef periPartCoef],[wMdDegRange(1) hubBoundaryWMdDeg ],'--k')
+plot([nonHubconnectorPartCoef nonHubconnectorPartCoef],[wMdDegRange(1) hubBoundaryWMdDeg ],'--k')
 plot([proHubpartCoef  proHubpartCoef ],[hubBoundaryWMdDeg  wMdDegRange(2)],'--k')
 plot([connectorHubPartCoef connectorHubPartCoef],[hubBoundaryWMdDeg  wMdDegRange(2)],'--k')
 xlim(partCoefRange)
