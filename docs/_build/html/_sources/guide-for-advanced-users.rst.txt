@@ -8,6 +8,14 @@ Advanced users may also find leaving the GUI mode on to be convenient, particula
 
 =========================
 
+.. _custom_layout: 
+
+Creating a Custom MEA Layout 
+-----------------------------
+
+If your MEA has a different number of electrodes than currently supported in MEA-NAP, you can modify the biAdvancedSettings.m function (starting at line 250) and then select 'Custom' layout when you run MEA-NAP using the GUI.  Note that if your MEA has more than 64 electrodes, you may need a computer with higher RAM (or a HPC) for Step 3 where the functional connectivity is calculated. A 64-electrode array has 2,048 possible undirected edges (functional connections).  A 256-electrode array has 32,768 possible undirected edges.  To determine which functional connections are significant, MEA-NAP repeats this calculation with circular shifts 200 times for each potential edge (pair of electrodes). Thus, an increase from 64 to 256 electrodes increases the number of computations per recording from 400K to over 6.5 million.
+
+For high density (HD) MEA recordings, which may have 4096 electrodes, it is important to note that there is fundamental difference in the network analysis for HD MEA data from our standard density (SD) MEA data in MEA-NAP.  For SD MEAs, each electrode is treated a node in the network, although there may be more than one neuron near that electrode.  In contrast, in HD MEAs, there may be more than one electrode per cell.  Thus, it would not be appropriate to treat the 4096 electrodes each as nodes.  Instead, first the cells need to be identified and a single spike train per cell extracted.  Once this has been done, a custom layout in MEA-NAP could be created where each cells spatial location is indicated by the x,y coordinates of its location on the HD MEA.  Once that is complete, MEA-NAP could be used starting at Step 2 (Comparison of neuronal activity) or Step 3 (Inferring functional connectivity).
 
 .. _overview: 
 

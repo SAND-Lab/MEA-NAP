@@ -9,14 +9,14 @@
         <title>Guide for Advanced Users - MEA pipeline 1.6.0 documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=362ab14a" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?v=135e06be" />
-    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster.custom.css" />
-    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster.bundle.min.css" />
-    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-shadow.min.css" />
-    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-punk.min.css" />
-    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-noir.min.css" />
-    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-light.min.css" />
-    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-borderless.min.css" />
-    <link rel="stylesheet" type="text/css" href="_static/css/micromodal.css" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster.custom.css?v=7bc2f056" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster.bundle.min.css?v=37217874" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-shadow.min.css?v=6227e517" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-punk.min.css?v=94669e23" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-noir.min.css?v=21a39f42" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-light.min.css?v=a18b2449" />
+    <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-borderless.min.css?v=dbff53e4" />
+    <link rel="stylesheet" type="text/css" href="_static/css/micromodal.css?v=d7bf34ee" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?v=36a5483c" />
     
     
@@ -216,6 +216,11 @@
 By customizing parameters in <cite>MEApipeline.m</cite>, users can tailor their data analysis to align with the specific requirements of your experiments.</p>
 <p>Advanced users may also find leaving the GUI mode on to be convenient, particularly for running MEA-NAP again on the same data with different parameters.  The Save and Load Parameters buttons on the GUI are particularly useful.  Advanced users can also conveniently edit additional parameters by checking “Show Advanced Settings” on the General settings tab in the GUI.  This will create additional tabs at the end of the GUI (use right arrow to navigate).   This “Guide for Advanced Users” provides explanations of some of the parameters.  However, advanced users may also need to examine the individual functions in MATLAB.</p>
 <hr class="docutils" />
+<section id="creating-a-custom-mea-layout">
+<span id="custom-layout"></span><h2>Creating a Custom MEA Layout<a class="headerlink" href="#creating-a-custom-mea-layout" title="Link to this heading">#</a></h2>
+<p>If your MEA has a different number of electrodes than currently supported in MEA-NAP, you can modify the biAdvancedSettings.m function (starting at line 250) and then select ‘Custom’ layout when you run MEA-NAP using the GUI.  Note that if your MEA has more than 64 electrodes, you may need a computer with higher RAM (or a HPC) for Step 3 where the functional connectivity is calculated. A 64-electrode array has 2,048 possible undirected edges (functional connections).  A 256-electrode array has 32,768 possible undirected edges.  To determine which functional connections are significant, MEA-NAP repeats this calculation with circular shifts 200 times for each potential edge (pair of electrodes). Thus, an increase from 64 to 256 electrodes increases the number of computations per recording from 400K to over 6.5 million.</p>
+<p>For high density (HD) MEA recordings, which may have 4096 electrodes, it is important to note that there is fundamental difference in the network analysis for HD MEA data from our standard density (SD) MEA data in MEA-NAP.  For SD MEAs, each electrode is treated a node in the network, although there may be more than one neuron near that electrode.  In contrast, in HD MEAs, there may be more than one electrode per cell.  Thus, it would not be appropriate to treat the 4096 electrodes each as nodes.  Instead, first the cells need to be identified and a single spike train per cell extracted.  Once this has been done, a custom layout in MEA-NAP could be created where each cells spatial location is indicated by the x,y coordinates of its location on the HD MEA.  Once that is complete, MEA-NAP could be used starting at Step 2 (Comparison of neuronal activity) or Step 3 (Inferring functional connectivity).</p>
+</section>
 <section id="overview-of-mea-nap">
 <span id="overview"></span><h2>Overview of MEA-NAP<a class="headerlink" href="#overview-of-mea-nap" title="Link to this heading">#</a></h2>
 <p>The pipeline has the following steps:</p>
@@ -1308,6 +1313,7 @@ By customizing parameters in <cite>MEApipeline.m</cite>, users can tailor their 
           <div class="toc-tree">
             <ul>
 <li><a class="reference internal" href="#">Guide for Advanced Users</a><ul>
+<li><a class="reference internal" href="#creating-a-custom-mea-layout">Creating a Custom MEA Layout</a></li>
 <li><a class="reference internal" href="#overview-of-mea-nap">Overview of MEA-NAP</a></li>
 <li><a class="reference internal" href="#starting-mea-nap">Starting MEA-NAP</a><ul>
 <li><a class="reference internal" href="#required-user-input-in-the-first-section-of-mea-nap">Required user input in the first section of MEA-NAP</a></li>
@@ -1420,9 +1426,9 @@ By customizing parameters in <cite>MEApipeline.m</cite>, users can tailor their 
     <script src="_static/doctools.js?v=888ff710"></script>
     <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="_static/scripts/furo.js?v=32e29ea5"></script>
-    <script src="_static/js/hoverxref.js"></script>
-    <script src="_static/js/tooltipster.bundle.min.js"></script>
-    <script src="_static/js/micromodal.min.js"></script>
+    <script src="_static/js/hoverxref.js?v=82c55261"></script>
+    <script src="_static/js/tooltipster.bundle.min.js?v=18bf091b"></script>
+    <script src="_static/js/micromodal.min.js?v=04d6302d"></script>
     <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     </body>
 </html>
