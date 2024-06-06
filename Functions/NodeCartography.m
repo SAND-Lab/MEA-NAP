@@ -77,6 +77,9 @@ nexttile
 
 % Define participation coefficient range based on min max values
 partCoefRange = [min(PC), max(PC)]; 
+if (partCoefRange(1) == partCoefRange(2)) || all(isnan(PC)) 
+    partCoefRange = [0, 1];
+end 
 
 % Define within-module degree z-score (y axis) range
 wMdDegRange = [];
@@ -92,6 +95,9 @@ else
     wMdDegRange(2) = max(Z) * 0.9;
 end 
 
+if (wMdDegRange(1) == wMdDegRange(2)) || all(isnan(Z))
+    wMdDegRange = [-2, 4];
+end 
 
 
 plot(partCoefRange,[hubBoundaryWMdDeg  hubBoundaryWMdDeg ],'--k')
