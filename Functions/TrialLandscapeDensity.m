@@ -80,7 +80,7 @@ if ~Params.showOneFig
 end 
 
 %% Check length of Z is sufficient to perform clustering
-if length(Z) < 2
+if sum(~isnan(Z)) < 2
    fprintf('There are not enough values of Z, returning custom boundary values \n')
    hubBoundaryWMdDeg = nan; 
    periPartCoef = nan;
