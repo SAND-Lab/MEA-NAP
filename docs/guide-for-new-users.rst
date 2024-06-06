@@ -83,10 +83,10 @@ User input for GUI
 
 
 - **Detect Spikes:** Check if starting at Step 1 with Spike Detection or running spike detection checks on previous spike detection.  Uncheck if using prior spike detection
-- **Sampling frequency:** This is the acquisition rate (in hertz) used when you collected your data.  For example, with our MCS MEA systems, we collect data at 25000 Hz. For the Axion MEA system, we collect data at 12500 Hz.
+- **Sampling frequency:** This is the acquisition rate (in hertz) used when you collected your data.  For example, with our MCS MEA systems, we collect data at 25000 Hz. For the Axion MEA system, we collect data at 12500 Hz. If you converted your raw data files to .mat using MEA-NAP's conversion tool, you can open the .mat file in MATLAB and see the sampling frequency (data acquisition rate) in the variable labeled "fs." The sampling rate is calculated during the conversion process for our tool.
 - **Down Sample Frequency:** Down-sampling factor for plotting spike detection checks in Step 1B. For most analyses, no down sampling is necessary. Thus, set this to be equal the Sampling Frequency.
 - **Potential Difference Unit:** Unit for voltage signal.  Enter V for volts or uV for microvolts.  Our MCS MEA systems record the data in uV.  Our Axion MEA system records the data in V.
-- **Channel Layout:** MCS60 (for MEA2100, 60-electrode MEA chip), Axion64 (for 6-well plates), or MCS60old (for MEA1600, 60-electrode MEA chip)
+- **Channel Layout:** MCS60 (for MEA2100, 60-electrode MEA chip), Axion64 (for 6-well plates), or MCS60old (for MEA1600, 60-electrode MEA chip). "Custom Layout" can also be selected.  Instructions for creating a custom layout can be found :ref:`here <custom_layout>`.
 - **Thresholds:** Mean absolute deviation multiplier threshold(s) to use for threshold-based spike detection (e.g., ``[3, 4, 5]``)
 - **Wavelets:** For template-based spike detection, select one or more wavelets (e.g., bior1.5, bior1.3, db2) for continuous wavelet transform or swtteo for stationary wavelet transform method.  Bior1.5 works well for most neuronal data.
 - **Wavelet Cost:** The false positive / false negative tradeoff for template-based spike detection.   Value must be between -2 to 2.  Recommend starting with -0.12.

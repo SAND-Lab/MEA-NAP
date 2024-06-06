@@ -72,6 +72,7 @@ This page is for **users who do not already have MATLAB or the required toolboxe
    - Signal Processing Toolbox
    - Statistics and Machine Learning Toolbox
    - Parallel Computing Toolbox
+   - Wavelet Toolbox
    - Curve Fitting Toolbox (for the calcium imaging pipeline)
 
 - You will also need the Brain Connectivity Toolbox, which cannot be installed through the Add-On Explorer:
