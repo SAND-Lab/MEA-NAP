@@ -33,11 +33,13 @@ for e = 1:length(lagval)
     lagValStr = sprintf('adjM%.fmslag', lagval(e));
     lagNetMet = expData.NetMet.(lagValStr);
     
-    requiredMetrics = {'ND', 'NS', 'MEW', 'ELoc', 'BC', 'PC', 'Z'}; 
+    requiredMetrics = {'ND', 'NS', 'MEW', 'Eloc', 'BC', 'PC', 'Z'}; 
     if length(intersect(Params.netMetToCal, requiredMetrics)) == length(requiredMetrics)
        electrodeSpecificMetrics(lagNetMet.ND, lagNetMet.NS, lagNetMet.MEW, ...
         lagNetMet.Eloc, lagNetMet.BC, lagNetMet.PC, lagNetMet.Z, lagval, ... 
             e, char(Info.FN), Params, lagFolderName, oneFigureHandle)
+    else
+        fprintf('Warning: Not enough metrics to make plot 4A.7 \n') 
     end 
     
     
