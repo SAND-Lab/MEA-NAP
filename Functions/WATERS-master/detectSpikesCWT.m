@@ -216,7 +216,7 @@ elseif strcmp(wname, 'swtteo')
     detectionParams = struct();
     spikeTimes = SWTTEO(trace, fs, detectionParams);
 
-else
+else 
     % Detect spikes with wavelet method
     if run_detection_in_chunks
         j=1;
