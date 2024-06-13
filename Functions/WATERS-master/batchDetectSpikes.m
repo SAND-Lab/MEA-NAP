@@ -135,6 +135,9 @@ end
 
 wnameList = horzcat(wnameList, thrList);
 
+% Remove special 'None' specifier (for no wavelet spike detection)
+wnameList = wnameList(~strcmp(wnameList, 'None'));
+
 % check if custom threshold file is provided
 if isfield(params, 'custom_threshold_file')
     % params.custom_threshold_file.thresholds;
@@ -176,12 +179,16 @@ for recording = 1:numel(files)
             if (params.electrodesToGroundPerRecordingUseName == 1) && all(~isnan(grd))
                 % Convert from the channel name we want to ground, to the
                 % index within Params.channels
-                new_grd = zeros(length(grd), 1);
+                new_grd = zeros(length(grd), 1) + nan;
                 for grd_idx = 1:length(grd)
-                    new_grd(grd_idx) = find(params.channels{recording} == grd(grd_idx));
-
+                    new_idx = find(params.channels{recording} == grd(grd_idx));
+                    if ~isempty(new_idx)
+                        new_grd(grd_idx) = new_idx;
+                    else
+                        fprintf(sprintf('WARNING: you specified to ground electrode %.f, but it does not exist, skipping... \n', groundElectrodeVec(grd_idx)))
+                    end 
                 end 
-                grd = new_grd;
+                grd = new_grd(~isnan(new_grd));
             end 
 
         end 
@@ -219,7 +226,7 @@ for recording = 1:numel(files)
             params.L = L;
             tic
             disp('Detecting spikes...');
-            disp(['L = ' num2str(L)]);
+            % disp(['L = ' num2str(L)]);
             
             % Pre-allocate vectors for storing spike features
             spikeTimes = cell(1,num_channels);
