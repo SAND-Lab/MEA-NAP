@@ -118,8 +118,8 @@ for i = 1:length(methods)
         spk_vec(spk_times) = 1;
         spk_vec = spk_vec(1:num_samples);
         spk_vec_all = spk_vec_all+spk_vec;
-        spk_matrix(j,:) = nansum(reshape([spk_vec(:); ...
-            nan(mod(-numel(spk_vec),dSampF),1)],dSampF,[]));
+        spk_matrix(j,:) = sum(reshape([spk_vec(:); ...
+            nan(mod(-numel(spk_vec),dSampF),1)],dSampF,[]),"omitnan");
     end
     spike_counts.(method) = spike_count;
     spike_freq.(method) = spike_count/duration_s;
