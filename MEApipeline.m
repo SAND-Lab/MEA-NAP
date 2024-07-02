@@ -175,7 +175,11 @@ end
 %% Step 1 - spike detection
 
 if ((Params.priorAnalysis == 0) || (Params.runSpikeCheckOnPrevSpikeData)) && (Params.startAnalysisStep == 1) 
-
+    
+    if Params.timeProcesses
+        step1Start = tic;
+    end 
+    
     if (detectSpikes == 1) || (Params.runSpikeCheckOnPrevSpikeData)
         if iscell(rawData)
             for pathIdx = 1:length(rawData)
@@ -234,12 +238,21 @@ if ((Params.priorAnalysis == 0) || (Params.runSpikeCheckOnPrevSpikeData)) && (Pa
         checkIfAnySpikes(spikeTimes, ExpName{ExN});
 
     end
+    
+    if Params.timeProcesses
+        step1Duration = toc(step1Start);
+    end 
 
 end
 
 %% Step 2 - neuronal activity
 if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisStep<3
     fprintf('Running step 2 of MEA-NAP: neuronal activity \n')
+    
+    if Params.timeProcesses
+        step2Start = tic;
+    end 
+    
     % Format spike data
     experimentMatFolderPath = fullfile(Params.outputDataFolder, ...
         strcat('OutputData',Params.Date), 'ExperimentMatFiles');
@@ -333,6 +346,10 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
     PlotEphysStats(ExpName,Params,HomeDir, oneFigureHandle)
     saveEphysStats(ExpName, Params)
     cd(HomeDir)
+    
+    if Params.timeProcesses
+        step2Duration = toc(step2Start);
+    end 
 
 end
 
@@ -340,8 +357,12 @@ end
 %% Step 3 - functional connectivity, generate adjacency matrices
 
 if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisStep<4
-
-    disp('generating adjacency matrices')
+    
+    fprintf('Running step 3 of MEA-NAP: generating adjacency matrices \n')
+    
+    if Params.timeProcesses
+        step3Start = tic;
+    end 
     
     % Set up one figure handle to save all the figures
     oneFigureHandle = NaN;
@@ -372,12 +393,21 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
         infoFnFilePath = fullfile(ExpMatFolder, infoFnFname);
         save(infoFnFilePath, 'Info', 'Params', 'spikeTimes', 'Ephys', 'adjMs')
     end
+    
+    if Params.timeProcesses
+        step3Duration = toc(step3Start);
+    end 
 
 end
 
 %% Step 4 - network activity
 
 if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisStep<=4
+    
+    fprintf('Running step 4 of MEA-NAP: Analyzing network activity \n')
+    if Params.timeProcesses
+        step4Start = tic;
+    end 
     
     % Set up one figure handle to save all the figures
     oneFigureHandle = NaN;
@@ -760,6 +790,9 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
         end 
     end 
     
+    if Params.timeProcesses
+        step4Duration = toc(step4Start);
+    end 
 
 end
 
@@ -971,6 +1004,23 @@ if any(strcmp(Params.optionalStepsToRun,'comparePrePostTTX'))
     
     find_best_spike_result(spike_folder, pre_post_ttx_plot_folder, Params)
 end 
+
+%% Provide summary of MEA-NAP run 
+fprintf('MEA-NAP run completed succesfully \n')
+if Params.timeProcesses
+    if exist('step1Duration', 'var')
+        fprintf(sprintf('Step 1 duration (seconds): %.f \n', step1Duration))
+    end
+    if exist('step2Duration', 'var')
+        fprintf(sprintf('Step 2 duration (seconds): %.f \n', step2Duration))
+    end
+    if exist('step3Duration', 'var')
+        fprintf(sprintf('Step 3 duration (seconds): %.f \n', step3Duration))
+    end
+    if exist('step4Duration', 'var')
+        fprintf(sprintf('Step 4 duration (seconds): %.f \n', step4Duration))
+    end
+end
 
 
 
