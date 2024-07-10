@@ -273,9 +273,19 @@ Params.includeNotBoxPlots = app.IncludeNotBoxPlotsCheckBox.Value;
 
 Params.linePlotShadeMetric = 'sem';  % 'std' or 'sem'
 
+% Raster colormap 
+Params.rasterColormap = app.RastercolormapDropDown.Value;  % 'parula' or 'gray'
+
+% Order of groups to plot 
+Params.customGrpOrder = {}; 
+
 %% Pipeline settings 
 Params.timeProcesses = app.TimeprocessesCheckBox.Value;
 Params.verboseLevel = app.VerboseLevelDropDown.Value;
+
+%% MISC 
+Params.option = 'list';
+Params.output_spreadsheet_file_type = 'csv';
 
 %%%%%%%%%%%%%%%%%%%%%%%%%% GUI SPECIFIC SETTINGS %%%%%%%%%%%%%%%%%%%%%%%
 Params.showAdvancedSetting = app.ShowAdvancedSettingsCheckBox.Value; 

@@ -1,3 +1,4 @@
+function MEApipeline(InputParamsFilePath)
 % Process data from MEA recordings of 2D and 3D neuronal cultures
 % Created: RC Feord, May 2021
 % Authors: T Sit, RC Feord, AWE Dunn, J Chabros and other members of the Synaptic and Network Development (SAND) Group
@@ -6,7 +7,7 @@
 % No subsequent section requires user input.
 % Please refer to the documentation for guidance on parameter choice here:
 % https://analysis-pipeline.readthedocs.io/en/latest/pipeline-steps.html#pipeline-settings
-clear all 
+clearvars -except InputParamsFilePath 
 close all 
 restoredefaultpath
 % Directories
@@ -75,10 +76,31 @@ Params.showOneFig = 1;  % otherwise, 0 = pipeline shows plots as it runs, 1: sup
 
 %% GUI / Tutorial mode settings 
 Params.guiMode = 1;   % GUI mode? 1 = on, 0 = off
-if Params.guiMode == 1
+
+if (Params.guiMode == 1) && ~exist('InputParamsFilePath', 'var')
     runPipelineApp
     spikeDetectedData = Params.spikeDetectedData;
 end 
+
+%% Check if ParamsFilePath is specified
+if exist('InputParamsFilePath', 'var')
+   ParamDataFile = load(InputParamsFilePath);
+   Params = ParamDataFile.Params;
+   Params.guiMode = 1;
+   HomeDir = Params.HomeDir;
+   spreadsheet_filename = Params.spreadSheetFileName;
+   rawData = Params.rawData;
+   detectSpikes = Params.detectSpikes;
+   option = 'list';
+   Params.spikeMethodColors = ...
+    [  0    0.4470    0.7410; ...
+    0.8500    0.3250    0.0980; ...
+    0.9290    0.6940    0.1250; ...
+    0.4940    0.1840    0.5560; ... 
+    0.4660    0.6740    0.1880; ... 
+    0.3010    0.7450    0.9330; ... 
+    0.6350    0.0780    0.1840];
+end
 
 %% Paths 
 % add all relevant folders to path
@@ -171,6 +193,9 @@ if Params.ProbThreshPlotChecks == 1
     Params.randRepCheckLag = Params.FuncConLagval(randi([1 length(Params.FuncConLagval)],1,Params.ProbThreshPlotChecksN));
     Params.randRepCheckP = [Params.randRepCheckExN;Params.randRepCheckLag];
 end
+
+% Copy spreadsheet to output folder 
+copyfile(Params.spreadSheetFileName, outputDataWDatePath);
 
 %% Step 1 - spike detection
 
@@ -1022,5 +1047,5 @@ if Params.timeProcesses
     end
 end
 
-
+end 
 

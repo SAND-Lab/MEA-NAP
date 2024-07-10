@@ -289,21 +289,19 @@ end
 %% Moving settings to Params
 Params = getParamsFromApp(app);
 
-
+% TODO: Can this be moved to getParamsFromApp?
 Params.outputDataFolder = app.OutputDataFolderEditField.Value;
 Params.rawData = app.RawDataFolderEditField.Value;
 Params.priorAnalysisPath = app.PreviousAnalysisFolderEditField.Value;
 Params.spikeDetectedData = app.SpikeDataFolderEditField.Value;
 
 Params.guiMode = 1;
-Params.customGrpOrder = {};  % TODO: Put this in the GUI
 
 % some workspace varaibles 
 HomeDir = Params.HomeDir;  % TODO: just put this to Params
 spreadsheet_filename = Params.spreadSheetFileName;
 rawData = Params.rawData;
 detectSpikes = Params.detectSpikes;
-Params.output_spreadsheet_file_type = 'csv';
 csvRange = str2num(app.SpreadsheetRangeEditField.Value);
 option = 'list';  % spike detection option
 Params.spikeMethodColors = ...
@@ -315,8 +313,7 @@ Params.spikeMethodColors = ...
     0.3010    0.7450    0.9330; ... 
     0.6350    0.0780    0.1840];
 
-% Raster colormap 
-Params.rasterColormap = app.RastercolormapDropDown.Value;  % 'parula' or 'gray'
+
 
 %% Optional step : statistics and classification 
 Params.pValThreshold = 0.01;  % p value threshold to consider effect as significant
