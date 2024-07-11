@@ -10,10 +10,12 @@ app.MEANAPStatusTextArea.Value = ...
 
 % This is where you get the latest github version code
 url = 'https://raw.githubusercontent.com/SAND-Lab/MEA-NAP/main/version.txt';
+% Create options for webread to avoid using the cache
+options = weboptions('HeaderFields', {'Cache-Control', 'no-cache'; 'Pragma', 'no-cache'});
 
 % Read the content of the file from the URL
 try 
-    onlineVersion = webread(url);
+    onlineVersion = webread(url, options);
     onlineVersion = strtrim(onlineVersion);  % not sure why there is this end space
     
     if strcmp(localVersion, onlineVersion)
