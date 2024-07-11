@@ -6,6 +6,10 @@ app.MEANAPStatusTextArea.Value = {'Welcome! The MEA-NAP GUI is launched.'};
 % Default home directory 
 app.MEANAPFolderEditField.Value = pwd;
 
+% Check version 
+addpath(fullfile(app.MEANAPFolderEditField.Value, 'Functions', 'util'));
+getVersion(app.MEANAPFolderEditField.Value, app);
+
 % Default colours 
 app.colorUITable.Data = [ ...
    1, 0.996, 0.670, 0.318; ...
