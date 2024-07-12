@@ -182,6 +182,21 @@ while app.RunPipelineButton.Value == 0
          app.SpreadsheetFilepathEditField.Value = spreadsheetFilePath;
          app.csvTable.Data = csv_data;
          app.csvTable.ColumnName = csv_data.Properties.VariableNames;
+         
+         % Check for special characters in spreadsheet and group names that
+         % start with numbers
+         if size(csv_data, 2) >= 3 
+            [groupNameBeginsWnumber, groupNameContainsSpecial] = checkCSV(csv_data);
+            if groupNameBeginsWnumber
+                app.MEANAPStatusTextArea.Value = [app.MEANAPStatusTextArea.Value; ...
+                    'WARNING: at least one of the group names in your csv file start with a number, MEANAP may not run properly'];
+            end 
+            if groupNameContainsSpecial
+                app.MEANAPStatusTextArea.Value = [app.MEANAPStatusTextArea.Value; ...
+                    'WARNING: at least one of the group names in your csv file contain a special character, MEANAP may not run properly'];
+            end 
+         end
+         
          % app.csvTable.ColumnEditable = true; % logical(ones(1, length(csv_data.Properties.VariableNames)));
     end
     
@@ -211,6 +226,23 @@ while app.RunPipelineButton.Value == 0
         app = setAppParams(app, Params);
         app.MEANAPStatusTextArea.Value = [app.MEANAPStatusTextArea.Value; 'Loaded parameters from:'];
         app.MEANAPStatusTextArea.Value = [app.MEANAPStatusTextArea.Value; fullfile(ParamsFilePath, ParamsFileName)];
+        
+        % if csv data exists, load it and check it is okay 
+        if isfile(app.SpreadsheetFilenameEditField.Value)
+            csvRange = str2num(app.SpreadsheetRangeEditField.Value);
+            csv_data = pipelineReadCSV(app.SpreadsheetFilenameEditField.Value, csvRange);
+            if size(csv_data, 2) >= 3 
+                [groupNameBeginsWnumber, groupNameContainsSpecial] = checkCSV(csv_data);
+                if groupNameBeginsWnumber
+                    app.MEANAPStatusTextArea.Value = [app.MEANAPStatusTextArea.Value; ...
+                        'WARNING: at least one of the group names in your csv file start with a number, MEANAP may not run properly'];
+                end 
+                if groupNameContainsSpecial
+                    app.MEANAPStatusTextArea.Value = [app.MEANAPStatusTextArea.Value; ...
+                        'WARNING: at least one of the group names in your csv file contain a special character, MEANAP may not run properly'];
+                end 
+            end
+        end 
     end 
 
 
@@ -316,7 +348,6 @@ Params.spikeMethodColors = ...
     0.4660    0.6740    0.1880; ... 
     0.3010    0.7450    0.9330; ... 
     0.6350    0.0780    0.1840];
-
 
 
 %% Optional step : statistics and classification 
