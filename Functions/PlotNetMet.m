@@ -650,13 +650,13 @@ for l = 1:length(Params.FuncConLagval)
                 PlotDat = DatTemp(:,l);
                 PlotDat(isnan(PlotDat)) = [];
                 PlotDat(~isfinite(PlotDat)) = [];
+                xtlabtext{d} = num2str(AgeDiv(d));
                 if isempty(PlotDat)
                     continue
                 else
                     eval(['HalfViolinPlot(PlotDat,xt(d),cDiv' num2str(d) ',Params.kdeHeight, Params.kdeWidthForOnePoint)']);
                 end
                 clear DatTemp ValMean ValStd UpperStd LowerStd
-                xtlabtext{d} = num2str(AgeDiv(d));
             end
             xticks(xt)
             xticklabels(xtlabtext)
