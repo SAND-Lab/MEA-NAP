@@ -160,7 +160,7 @@ Notes on selecting parameters for new users
 Changing the number of electrodes used for network metric calculations
 -----------------------------------------------------------------------
 
-- Leave "Show Advanced Settings" option checked on GUI's General Tab.
+- Leave "Show Advanced Settings" option checked on GUI's General tab.
 
 .. image:: imgs/num_electrodes.png
   :width: 350 
