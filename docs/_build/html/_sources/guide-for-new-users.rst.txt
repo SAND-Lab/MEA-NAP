@@ -54,7 +54,7 @@ User input for GUI
    <div style="margin-bottom: 20px;"></div>
 
 - **MEA-NAP Folder:** Location of the MEA-NAP folder you downloaded from our Github page. *Important: there may be a brief pause before the file browser appears after you click the select buttons in the GUI. Do not click on other parts of the GUI during this pause. Otherwise, you may need to close the GUI, clear the workspace, and run MEA-NAP again.*
-- **Raw Data Folder:** Location of the folder with **your raw data in .mat format.** All of the recordings that you want to analyze in one experiment should be in the same folder. If you have not converted your raw data to .mat format (see Setup MEA-NAP for instructions on using the GUI's File Conversion tab).
+- **Raw Data Folder:** Location of the folder with **your raw data in .mat format.** All of the recordings that you want to analyze in one experiment should be in the same folder. If you have not converted your raw data to .mat format (see Setting up MEA-NAP for instructions on using the GUI's File Conversion tab).
 - **Output Data Folder:** Location of the folder where the figures and analysis files will be saved.
 - **Spreadsheet Filename:** Your .csv file with the list of recording filenames you want analyzed, age and group (e.g., genotype). *Important: There will be a few seconds long pause while MEA-NAP imports data from the .csv file. Do not click on anything else in the GUI while it is uploading. Otherwise, you may need to close the GUI, clear the workspace, and run MEA-NAP again.*
 - **Spreadsheet Range:** Range (``[StartRow EndRow]``)of CSV file to read data from (e.g. ``[2 Inf]`` would start reading data from row 2)
@@ -145,6 +145,7 @@ Saving and loading parameters
 .. raw:: html
 
    <div style="margin-bottom: 20px;"></div>
+
 - Sample saved parameter files for running Axion 64-electrode MEA data starting from Step 1 (MEANAP-Params-Axion64MEA.mat) and Step 2 (MEANAP-Params-Axion64MEA-startStep2.mat) are included on the Github.  
 - If you have run MEA-NAP previously on the same day, MEA-NAP **will prompt you to rename the first Output folder (e.g., v1) when it starts running.**
 
@@ -155,3 +156,31 @@ Notes on selecting parameters for new users
 - First, we recommend identifying the spike detection parameters that have the best sensitivity and specificity for your data.  For example, start with Step 1 with multiple threshold (e.g., 4, 5) and wavelets (bior1.5, bior1.3, db2) selected. Then stop MEA-NAP after Step 1B is completed. (If you have the Output Folder open in your file browser, you can see when MEA-NAP has started to add plots to Step 2, and you can hit the stop button on MATLAB). You can then look at the plots in Step 1B - Spike Detection checks. Spike Detection, particularly for multiple methods/parameters, is typically the longest step to run in MEA-NAP.  For example, using a desktop computer (Intel i5-4570 CPU 3.20Ghz processor with 32 GB RAM running Windows 10 Pro), the spike detection for 2 thresholds and 3 wavelets on 10-minute-long recordings collected at 12.5kHz from 64-electrode MEAs took about 24 minutes per recording. 
 - You will then be able to start MEA-NAP again using the previously spike detected data and choose the appropriate Spike Detection method/parameter for the downstream analysis (Step 2 - 5). 
 - With your next MEA-NAP run, you can determine what spike time tiling lag (STTC) is appropriate for your data.  You can run for 10, 25, and 50 ms, for example.  Here, selecting only one image type (e.g., .png) is helpful to reduce run time.  After looking through comparison plots by lag, you can could rerun the pipeline starting at Step 4 for one lag and select plot output type as .svg, for example, to be able to use these plots in creating figures in Illustrator, Powerpoint, or other software. 
+
+Changing the number of electrodes used for network metric calculations
+-----------------------------------------------------------------------
+
+- Leave "Show Advanced Settings" option checked on GUI's General tab.
+
+.. image:: imgs/num_electrodes.png
+  :width: 350 
+  :align: center
+
+.. raw:: html
+
+   <div style="margin-bottom: 20px;"></div>
+
+- Go to GUI's Advanced Connectivity tab and adjust parameters.
+
+.. image:: imgs/num_electrodes_2.png
+  :width: 350 
+  :align: center
+
+.. raw:: html
+   <div style="margin-bottom: 20px;"></div>
+
+- **Exclude edges below threshold:** Leave checked to exclude edges with weights below a defined threshold when calculating network metrics. 
+- **Minimum number of nodes:** Minimum number of nodes (electrodes) that must be connected to calculate network metrics. 
+- **Network metrics to calculate:** Select one or more network metrics to calculate during Step 4 (see MEA-NAP methods, https://analysis-pipeline.readthedocs.io/en/latest/meanap-methods.html, for more detail).
+
+
