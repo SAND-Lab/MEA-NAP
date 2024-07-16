@@ -13,7 +13,7 @@ function [figureHandle, cb] = StandardisedNetworkPlotNodeColourMap(adjM, coords,
 %    a value between 0 and 1 for the minimum correlation to plot
 % z : str
 %    the network metric used to determine the size of the plotted nodes
-%     eg: node degree or node strength
+%    eg: node degree or node strength
 %  zname : str
 %     name of the z network metric
 %   z2 : str
@@ -283,8 +283,12 @@ end
 
 
 if strcmp(plotType,'MEA')
-    uniqueXc = sort(unique(xc));
-    nodeScaleF = max_z / (uniqueXc(2)-uniqueXc(1));
+    % 2024-07-16, not sure why this was here...
+    % Seems to cause scaling issues, will replace with max_z for now
+    % uniqueXc = sort(unique(xc));
+    % nodeScaleF = max_z / (uniqueXc(2)-uniqueXc(1)); 
+    
+    nodeScaleF = max_z; 
     
     for i = 1:length(adjM)
         if z(i)>0
@@ -366,14 +370,23 @@ set(gca,'color','none')
 
 %% format plot
 
-if round(max_z * 1/3) >= 1
-    eval(['legdata = [''' num2str(round(max_z * 1/3),'%02d') '''; ''' num2str(round(max_z * 2/3),'%02d') '''; ''' num2str(round(max_z),'%02d') '''];']); % data for the legend
-elseif round(max_z * 1/3) < 1
-    eval(['legdata = [''' num2str(round(max_z * 1/3,4),'%.4f') '''; ''' num2str(round(max_z * 2/3,4),'%.4f') '''; ''' num2str(round(max_z,4),'%.4f') '''];']);
+% if round(max_z * 1/3) >= 1
+%     eval(['legdata = [''' num2str(round(max_z * 1/3),'%02d') '''; ''' num2str(round(max_z * 2/3),'%02d') '''; ''' num2str(round(max_z),'%02d') '''];']); % data for the legend
+% elseif round(max_z * 1/3) < 1
+%     eval(['legdata = [''' num2str(round(max_z * 1/3,4),'%.4f') '''; ''' num2str(round(max_z * 2/3,4),'%.4f') '''; ''' num2str(round(max_z,4),'%.4f') '''];']);
+% end
+
+legdata = {};
+legendNumDivisor = 3;
+for divisor = 1:legendNumDivisor
+    legdata{divisor} = num2str(round(max_z * divisor / legendNumDivisor), '%02d');
 end
+legdata = char(legdata);
 
 
 if strcmp(plotType,'MEA')
+    
+    % fprintf(sprintf('Inside Colourmap code, max xc: %.2f, max yc: %.2f\n', max(xc), max(yc)))
     
     text(max(xc)+1.5,max(yc),strcat(zname,':'))
     
