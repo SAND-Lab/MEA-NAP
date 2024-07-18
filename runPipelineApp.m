@@ -65,6 +65,11 @@ app.NetworkmetricstocalculateListBox.Value = {'aN','Dens','CC','nMod','Q','PL','
 
 %% Run pipeline app
 
+% Assigns minNode to 12 if Axion16 selected
+% but this is only done once, so you can reset it if you want
+channelLayoutCheck = 0; 
+usingLoadedParams = 0;
+
 while app.RunPipelineButton.Value == 0
 
     % previous analysis fields
@@ -227,6 +232,8 @@ while app.RunPipelineButton.Value == 0
         app.MEANAPStatusTextArea.Value = [app.MEANAPStatusTextArea.Value; 'Loaded parameters from:'];
         app.MEANAPStatusTextArea.Value = [app.MEANAPStatusTextArea.Value; fullfile(ParamsFilePath, ParamsFileName)];
         
+        usingLoadedParams = 1;
+        
         % if csv data exists, load it and check it is okay 
         if isfile(app.SpreadsheetFilenameEditField.Value)
             csvRange = str2num(app.SpreadsheetRangeEditField.Value);
@@ -318,6 +325,12 @@ while app.RunPipelineButton.Value == 0
     if 1 - any(strcmp(app.NetworkmetricstocalculateListBox.Value, 'ND'))
         app.NetworkmetricstocalculateListBox.Value{end+1} = 'ND';
     end 
+    
+    % Check if Axion16 layout selected, and set minNode to 12 by default 
+    if (usingLoadedParams == 0) && (channelLayoutCheck == 0) && strcmp(app.ChannelLayoutDropDown.Value, 'Axion16') 
+        channelLayoutCheck = 1;
+        app.MinimumnumberofnodesEditField.Value = 12;
+    end
     
     pause(0.1)
 end 
