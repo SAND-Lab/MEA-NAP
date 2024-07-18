@@ -324,21 +324,30 @@ This mode simplifies the process of selecting directory paths and adjusting para
 <li><p>With your next MEA-NAP run, you can determine what spike time tiling lag (STTC) is appropriate for your data.  You can run for 10, 25, and 50 ms, for example.  Here, selecting only one image type (e.g., .png) is helpful to reduce run time.  After looking through comparison plots by lag, you can could rerun the pipeline starting at Step 4 for one lag and select plot output type as .svg, for example, to be able to use these plots in creating figures in Illustrator, Powerpoint, or other software.</p></li>
 </ul>
 </section>
-<section id="changing-the-number-of-electrodes-used-for-network-metric-calculations">
-<h2>Changing the number of electrodes used for network metric calculations<a class="headerlink" href="#changing-the-number-of-electrodes-used-for-network-metric-calculations" title="Link to this heading">#</a></h2>
-<ul class="simple">
+<section id="notes-for-users-of-axion-48-well-mea-plates-with-16-electrodes-per-well">
+<h2>Notes for users of Axion 48-well MEA plates with 16 electrodes per well<a class="headerlink" href="#notes-for-users-of-axion-48-well-mea-plates-with-16-electrodes-per-well" title="Link to this heading">#</a></h2>
+<section id="changing-the-number-of-electrodes-nodes-used-for-network-metric-calculations">
+<h3>Changing the number of electrodes (nodes) used for network metric calculations<a class="headerlink" href="#changing-the-number-of-electrodes-nodes-used-for-network-metric-calculations" title="Link to this heading">#</a></h3>
+<ol class="arabic simple">
 <li><p>Leave “Show Advanced Settings” option checked on GUI’s General tab.</p></li>
-</ul>
+</ol>
 <a class="reference internal image-reference" href="_images/num_electrodes.png"><img alt="_images/num_electrodes.png" class="align-center" src="_images/num_electrodes.png" style="width: 350px;" /></a>
-<div style="margin-bottom: 20px;"></div><ul class="simple">
+<div style="margin-bottom: 20px;"></div><ol class="arabic simple" start="2">
 <li><p>Go to GUI’s Advanced Connectivity tab and adjust parameters.</p></li>
-</ul>
+</ol>
 <a class="reference internal image-reference" href="_images/num_electrodes_2.png"><img alt="_images/num_electrodes_2.png" class="align-center" src="_images/num_electrodes_2.png" style="width: 350px;" /></a>
 <ul class="simple">
 <li><p><strong>Exclude edges below threshold:</strong> Leave checked to exclude edges with weights below a defined threshold when calculating network metrics.</p></li>
 <li><p><strong>Minimum number of nodes:</strong> Minimum number of nodes (electrodes) that must be connected to calculate network metrics.</p></li>
-<li><p><strong>Network metrics to calculate:</strong> Select one or more network metrics to calculate during Step 4 (see MEA-NAP methods, <a class="reference external" href="https://analysis-pipeline.readthedocs.io/en/latest/meanap-methods.html">https://analysis-pipeline.readthedocs.io/en/latest/meanap-methods.html</a>, for more detail).</p></li>
+<li><dl class="simple">
+<dt><strong>Network metrics to calculate:</strong> Select one or more network metrics to calculate during Step 4 (see MEA-NAP methods, <a class="reference external" href="https://analysis-pipeline.readthedocs.io/en/latest/meanap-methods.html">https://analysis-pipeline.readthedocs.io/en/latest/meanap-methods.html</a>, for more detail).</dt><dd><ul>
+<li></li>
 </ul>
+</dd>
+</dl>
+</li>
+</ul>
+</section>
 </section>
 </section>
 
@@ -409,7 +418,10 @@ This mode simplifies the process of selecting directory paths and adjusting para
 </li>
 <li><a class="reference internal" href="#saving-and-loading-parameters">Saving and loading parameters</a></li>
 <li><a class="reference internal" href="#notes-on-selecting-parameters-for-new-users">Notes on selecting parameters for new users</a></li>
-<li><a class="reference internal" href="#changing-the-number-of-electrodes-used-for-network-metric-calculations">Changing the number of electrodes used for network metric calculations</a></li>
+<li><a class="reference internal" href="#notes-for-users-of-axion-48-well-mea-plates-with-16-electrodes-per-well">Notes for users of Axion 48-well MEA plates with 16 electrodes per well</a><ul>
+<li><a class="reference internal" href="#changing-the-number-of-electrodes-nodes-used-for-network-metric-calculations">Changing the number of electrodes (nodes) used for network metric calculations</a></li>
+</ul>
+</li>
 </ul>
 </li>
 </ul>

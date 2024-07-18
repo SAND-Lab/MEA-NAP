@@ -86,6 +86,28 @@ This page is for **users who do not already have MATLAB or the required toolboxe
 
 Congratulations! You have successfully set up MATLAB and downloaded the required toolboxes to extend MATLAB's functionality. Proceed to **"Setting up MEA-NAP."**
 
+8. Notes for users of older macOS versions: 
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- If you are using an older version of macOS, you may encounter issues with XCode, Apple's integrated development environment that integrates a C/C++ compiler crucial for MEA-NAP's downstream data analysis.
+- Specifically, you may encounter the following pop-up window: 
+
+.. image:: imgs/mexmaci64_error.png
+   :width: 200
+   :align: center
+   :alt: Add-ons dropdown menu
+
+.. raw:: html
+
+   <div style="margin-bottom: 20px;"></div>
+
+- If you encounter this window, complete the following steps: 
+   1. Click 'Cancel'
+   2. Open System Settings on your macOS device
+   3. Navigate to 'Security & Privacy'
+   4. Scroll down and click 'Allow Anyway' to enable the XCode command line tools to run on your device
+
+
 
 
 

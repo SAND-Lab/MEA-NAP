@@ -157,10 +157,15 @@ Notes on selecting parameters for new users
 - You will then be able to start MEA-NAP again using the previously spike detected data and choose the appropriate Spike Detection method/parameter for the downstream analysis (Step 2 - 5). 
 - With your next MEA-NAP run, you can determine what spike time tiling lag (STTC) is appropriate for your data.  You can run for 10, 25, and 50 ms, for example.  Here, selecting only one image type (e.g., .png) is helpful to reduce run time.  After looking through comparison plots by lag, you can could rerun the pipeline starting at Step 4 for one lag and select plot output type as .svg, for example, to be able to use these plots in creating figures in Illustrator, Powerpoint, or other software. 
 
-Changing the number of electrodes used for network metric calculations
------------------------------------------------------------------------
 
-- Leave "Show Advanced Settings" option checked on GUI's General tab.
+Notes for users of Axion 48-well MEA plates with 16 electrodes per well
+------------------------------------------------------------------------
+
+Changing the number of electrodes (nodes) used for network metric calculations
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
+1. Leave "Show Advanced Settings" option checked on GUI's General tab.
 
 .. image:: imgs/num_electrodes.png
   :width: 350 
@@ -170,7 +175,7 @@ Changing the number of electrodes used for network metric calculations
 
    <div style="margin-bottom: 20px;"></div>
 
-- Go to GUI's Advanced Connectivity tab and adjust parameters.
+2. Go to GUI's Advanced Connectivity tab and adjust parameters.
 
 .. image:: imgs/num_electrodes_2.png
   :width: 350 
@@ -182,5 +187,6 @@ Changing the number of electrodes used for network metric calculations
 - **Exclude edges below threshold:** Leave checked to exclude edges with weights below a defined threshold when calculating network metrics. 
 - **Minimum number of nodes:** Minimum number of nodes (electrodes) that must be connected to calculate network metrics. 
 - **Network metrics to calculate:** Select one or more network metrics to calculate during Step 4 (see MEA-NAP methods, https://analysis-pipeline.readthedocs.io/en/latest/meanap-methods.html, for more detail).
+   - 
 
 
