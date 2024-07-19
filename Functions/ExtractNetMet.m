@@ -33,7 +33,7 @@ function [NetMet] = ExtractNetMet(adjMs, spikeTimes, lagval,Info,HomeDir,Params,
 %     'aN' : Number of active nodes
 %     'Dens' : Density
 %     'Ci' : Community affiliation vector
-%     'Q' : Moudality index
+%     'Q' : Modularity index
 %     'nMod' : Number of modules
 %     'Eglob' : Global efficiency
 %     'CC' :  Clustering Coefficient

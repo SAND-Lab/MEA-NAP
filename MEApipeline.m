@@ -1032,7 +1032,7 @@ if any(strcmp(Params.optionalStepsToRun,'comparePrePostTTX'))
 end 
 
 %% Provide summary of MEA-NAP run 
-fprintf('MEA-NAP run completed succesfully \n')
+fprintf('MEA-NAP run completed successfully \n')
 if Params.timeProcesses
     if exist('step1Duration', 'var')
         fprintf(sprintf('Step 1 duration (seconds): %.f \n', step1Duration))
