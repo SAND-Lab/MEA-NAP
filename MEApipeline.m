@@ -734,6 +734,7 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
         % 4A Part 3: Node cartography individual plot
         % Plot node cartography plots using either custom bounds or
         % automatically determined bounds
+        nodeCartographyMetrics = {'NCpn1', 'NCpn2', 'NCpn3', 'NCpn4'};
         if length(intersect(Params.netMetToCal, nodeCartographyMetrics)) >= 1
             % Group the ExpNames by their file identity, to anchor coordinates to
             % the last DIV

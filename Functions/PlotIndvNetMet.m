@@ -327,15 +327,25 @@ for e = 1:length(lagval)
         end
         
         
-        % simple circular network plot
+        % Plot 4A.6: simple circular network plot
+        % Updated to be coloured by which module each node belongs to
         if Params.timeProcesses
             fprintf('Plotting circular network \n')
             tic
         end 
         
+        
         NDord = lagNetMet.ND(On);
-        StandardisedNetworkPlot(adjMord, coords, edge_thresh, NDord, ...
-            'circular', char(Info.FN),'6',Params,lagval,e, lagFolderName, oneFigureHandle);
+        % StandardisedNetworkPlot(adjMord, coords, edge_thresh, NDord, ...
+        %     'circular', char(Info.FN),'6',Params,lagval,e, lagFolderName, oneFigureHandle);
+        
+        moduleID = lagNetMet.Ci(On); 
+        Params.metricsMinMax.Ci = moduleID;
+        StandardisedNetworkPlotNodeColourMap(adjMord, coords, edge_thresh, ...
+                 NDord, 'Node degree', ...
+                 moduleID, 'Module', ...
+                'circular', char(Info.FN), '6', Params, lagval, e, lagFolderName, oneFigureHandle);
+            
         
         if Params.timeProcesses
             toc

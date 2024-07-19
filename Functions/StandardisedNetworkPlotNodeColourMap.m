@@ -76,6 +76,7 @@ z2nameToShortHand('Average controllability') = 'aveControl';
 z2nameToShortHand('Modal controllability') = 'modalControl';
 z2nameToShortHand('Node degree') = 'ND'; 
 z2nameToShortHand('Node strength') = 'NS'; 
+z2nameToShortHand('Module') = 'Ci'; 
 
 %% add edges
 
@@ -222,12 +223,18 @@ if strcmp(plotType,'circular')
         end
     end
     
+    % threshold the edge width (in case edge values are lower than the
+    % lower display bound) and colours
+    lineWidth(lineWidth < 0) = min_ew;
+    colour(colour > light_c(1)) = light_c(1);
+    
     [~,order] = sort(colour(:,1),'descend');
     lineWidthT = lineWidth(:,order);
     colourT = colour(order,:);
     xcot = xco(order,:);
     ycot = yco(order,:);
     for u = 1:size(xcot,1)
+        lineWidthT(u)
         plot(xcot(u,:),ycot(u,:),'LineWidth',lineWidthT(u),'Color',colourT(u,:));
         hold on
     end
