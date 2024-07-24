@@ -513,10 +513,10 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
 
     % Aggregate all files and run density analysis to determine boundaries
     % for node cartography
+    usePriorNetMet = 0;  % set to 0 by default
     nodeCartographyMetrics = {'NCpn1', 'NCpn2', 'NCpn3', 'NCpn4'};
     if length(intersect(Params.netMetToCal, nodeCartographyMetrics)) >= 1
         if Params.autoSetCartographyBoundaries
-            usePriorNetMet = 0;  % set to 0 by default
             if Params.priorAnalysis==1 && usePriorNetMet
                 experimentMatFileFolder = fullfile(Params.priorAnalysisPath, 'ExperimentMatFiles');
                 % cd(fullfile(Params.priorAnalysisPath, 'ExperimentMatFiles'));   
@@ -735,6 +735,13 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
         % Plot node cartography plots using either custom bounds or
         % automatically determined bounds
         nodeCartographyMetrics = {'NCpn1', 'NCpn2', 'NCpn3', 'NCpn4'};
+        if strcmp(Params.startAnalysisSubStep, 'A')
+           usePriorNetMet = 1; 
+           % transfer some of the previous obtained boundary values to the new Params file 
+           
+        else 
+           usePriorNetMet = 0;  % set to 0 by default 
+        end
         if length(intersect(Params.netMetToCal, nodeCartographyMetrics)) >= 1
             % Group the ExpNames by their file identity, to anchor coordinates to
             % the last DIV
