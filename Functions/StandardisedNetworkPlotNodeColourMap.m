@@ -241,7 +241,11 @@ if strcmp(plotType,'circular')
 end
 %% add nodes (and color them)
 
-mycolours = colormap;
+if strcmp(z2name, 'Module')
+    mycolours = plasma;
+else
+    mycolours = colormap;
+end
 
 % TODO: What is this rectangle, I guess this is the individual nodes but
 % made into circles?
@@ -385,8 +389,17 @@ set(gca,'color','none')
 
 legdata = {};
 legendNumDivisor = 3;
+
+if round(max_z * 1/3) >= 1
+    roundStr = '%02d';
+    numDeciPlace = 0;
+else
+    roundStr = '%.4f'; 
+    numDeciPlace = 4;
+end
+
 for divisor = 1:legendNumDivisor
-    legdata{divisor} = num2str(round(max_z * divisor / legendNumDivisor), '%02d');
+    legdata{divisor} = num2str(round(max_z * divisor / legendNumDivisor, numDeciPlace), roundStr);
 end
 legdata = char(legdata);
 
@@ -520,25 +533,44 @@ if strcmp(plotType,'circular')
     plot(posx,posy,'LineWidth',lineWidthL,'Color',colourL);
     text(1.7,(0.9-0.25)-(12*str2num(legdata(3,:))/nodeScaleF),num2str(round(threshMax,4)))
     
-    cb = colorbar;
-    cb.Ticks = [0 0.2 0.4 0.6 0.8 1]; % Specify the tick location
     
-    cbar_ticklabels = {};
-    num_ticks = length(cb.Ticks);
-    round_decimal_places = ceil(-log10(max(z2) - min(z2))) + 1;
-    tickVals = linspace(min(z2), max(z2), num_ticks);
-    
-    if min(z2) == 0 && max(z2) == 0
-        % fix for when all values are zeros
-        cbar_ticklabels = {'0', '1'};
-    else
-        for tickIndex = 1:num_ticks
-            cbar_ticklabels{tickIndex} = num2str(round(tickVals(tickIndex), round_decimal_places));
+    if ~strcmp(z2name, 'Module')
+        % COLORBAR
+        cb = colorbar;
+        cb.Ticks = [0 0.2 0.4 0.6 0.8 1]; % Specify the tick location
+
+        cbar_ticklabels = {};
+        num_ticks = length(cb.Ticks);
+        round_decimal_places = ceil(-log10(max(z2) - min(z2))) + 1;
+        tickVals = linspace(min(z2), max(z2), num_ticks);
+
+        if min(z2) == 0 && max(z2) == 0
+            % fix for when all values are zeros
+            cbar_ticklabels = {'0', '1'};
+        else
+            for tickIndex = 1:num_ticks
+                cbar_ticklabels{tickIndex} = num2str(round(tickVals(tickIndex), round_decimal_places));
+            end 
         end 
-    end 
-    
-    cb.TickLabels = cbar_ticklabels;
-    cb.Label.String = z2name;
+
+        cb.TickLabels = cbar_ticklabels;
+        cb.Label.String = z2name;
+    else
+        % No Colorbar for modules, instead just plot some circles 
+        text(1.4,-0.7,'Module')
+        module_legend_x_start_end = [1.2, 1.8];
+        numModules = length(unique(z2)); 
+        moduleCircleSize = (module_legend_x_start_end(2) - module_legend_x_start_end(1)) / numModules * 0.8;
+        moduleCircleCenters = linspace(module_legend_x_start_end(1), module_legend_x_start_end(2), numModules);
+        for moduleIdx = 1:numModules
+            circlePos = [moduleCircleCenters(moduleIdx), -0.9, moduleCircleSize, moduleCircleSize];
+            rectangle('Position',circlePos,'Curvature',[1 1],...
+                'FaceColor',mycolours(max([ceil(length(mycolours)*((moduleIdx-z2_min)/(z2_max-z2_min))), 1]),1:3), ...
+                'EdgeColor','w','LineWidth',0.01);
+            text(circlePos(1)+circlePos(3)/2,circlePos(2)+circlePos(4)/2, ...
+                num2str(moduleIdx),'HorizontalAlignment','center');
+        end
+    end
     
 end
 
