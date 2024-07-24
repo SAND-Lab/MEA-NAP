@@ -1,0 +1,34 @@
+function G_rewired = rewireNetwork(G, p)
+%REWIRENETWORK Summary of this function goes here
+%   G : network adjacency matrix
+%   p : re-wiring probability 
+
+% select edges to replace 
+numNodes = size(G, 1);
+edgePairs = nchoosek(1:numNodes, 2);
+edgePairIdx = 1:length(edgePairs);
+edgePairIdxRandomised = edgePairIdx(randperm(edgePairIdx));
+
+numEdgePairsToReplace = round(length(edgePairs) * p);
+
+edgePairIdxToReplace = edgePairIdxRandomised(1:numEdgePairsToReplace);
+
+% uniform [0, 1] distribution of edge weights
+edgePairReplacementValues = rand(numEdgePairsToReplace, 1);
+
+G_random = G;
+
+for edgeIdx = edgePairIdxToReplace
+    edgeCounter = 1;
+    node1 = edgePairs(edgeIdx, 1);
+    node2 = edgePairs(edgeIdx, 2);
+    
+    G_random(node1, node2) = edgePairReplacementValues(edgeCounter);
+    G_random(node2, node1) = edgePairReplacementValues(edgeCounter);
+    
+    edgeCounter = edgeCounter+1;
+end
+
+
+end
+
