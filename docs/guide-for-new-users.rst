@@ -161,9 +161,11 @@ Notes on selecting parameters for new users
 Notes for users of Axion 48-well MEA plates with 16 electrodes per well
 ------------------------------------------------------------------------
 
-Changing the number of electrodes (nodes) used for network metric calculations
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+The default minimum number of nodes for performing network analysis is 25 for 60- or 64-electrode MEAs and 12 for 16-electrode MEAs.
+Users can change the minimum number of nodes if desired in the Advanced Settings by following the steps below.
 
+Changing the number of nodes (electrodes) used for network analysis
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 1. Leave "Show Advanced Settings" option checked on GUI's General tab.
 
@@ -187,6 +189,6 @@ Changing the number of electrodes (nodes) used for network metric calculations
 - **Exclude edges below threshold:** Leave checked to exclude edges with weights below a defined threshold when calculating network metrics. 
 - **Minimum number of nodes:** Minimum number of nodes (electrodes) that must be connected to calculate network metrics. 
 - **Network metrics to calculate:** Select one or more network metrics to calculate during Step 4 (see MEA-NAP methods, https://analysis-pipeline.readthedocs.io/en/latest/meanap-methods.html, for more detail).
-   - 
+
 
 
