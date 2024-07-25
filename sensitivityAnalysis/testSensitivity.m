@@ -388,17 +388,20 @@ save('smallWorldOmegaSampleNetworks.mat', 'group1NetworkStore', 'group2NetworkSt
 
 numRewiringRepeats = 20;
 edgeReplacementProb = [0, 0.1, 0.2, 0.3, 0.4, 0.5]; 
+numPairs = size(swGroup1, 2);
 
 probRejectNullPerEdgeReplacementProb = zeros(length(edgeReplacementProb), numPairs) + nan; 
 
 progressbar()
-for pairIdx = 1:numPairs 
+parpool(8)
+for pairIdx = [3, 4]
+    tic
     for replaceIdx = 1:length(edgeReplacementProb)
        replaceProb = edgeReplacementProb(replaceIdx);
 
        reject_null_store = zeros(numRewiringRepeats, 1) + nan;
-
-       for rewiringIdx = 1:numRewiringRepeats
+       
+       parfor rewiringIdx = 1:numRewiringRepeats
            group1Metric = zeros(numNetworksToCompare, 1) + nan;
            group2Metric = zeros(numNetworksToCompare, 1) + nan;
 
@@ -438,9 +441,12 @@ for pairIdx = 1:numPairs
 
  
     end
+    toc
     progressbar(pairIdx / numPairs)
     fprintf('Sensitivity analysis complete for number of modules complete \n') 
 end 
+
+delete(gcp('nocreate'))
 
 %% Save results
 
@@ -448,8 +454,129 @@ save('smallWorldOmegaSampleNetworks.mat', 'probRejectNullPerEdgeReplacementProb'
      'numRewiringRepeats', 'edgeReplacementProb', '-append')
 
  
- %% Participation Coefficient 
+%% Participation Coefficient 
  
+%% Network Density (This shouldn't take long)
+maxNumRandomNetworks = 1000;
+numNetworksToCompare = 15;
+numNodes = 60;
+densityGroup1= {[0.095, 0.105], [0.095, 0.105], [0.095, 0.105], [0.095, 0.105]};
+densityGroup2 = {[0.095, 0.105], [0.095+0.005, 0.105+0.005], ...
+                 [0.095+0.01, 0.105+0.01], [0.095+0.015, 0.105+0.015]};
+
+
+pGroup1 = [0.1, 0.1, 0.1, 0.1];
+pGroup2 = [0.1, 0.105, 0.11, 0.115];
+
+numPairs = length(densityGroup1);
+
+group1NetworkStore = cell(numNetworksToCompare, numPairs);
+group2NetworkStore = cell(numNetworksToCompare, numPairs);
+networkMetricStore = zeros(maxNumRandomNetworks, numPairs, 2) + nan;
+
+for pairIdx = 1:numPairs 
+    
+    group1networkCounter = 1; 
+    group2networkCounter = 1;
+    densityGroup1Range = densityGroup1{pairIdx};
+    densityGroup2Range = densityGroup2{pairIdx};
+    
+    % sample networks until we get 15 with group 1 number of modules
+    for rand_idx = 1:maxNumRandomNetworks
+        
+        success = 0;
+        
+        G_random_1 = genRandNetwork(numNodes, pGroup1(pairIdx));
+        G_random_2 = genRandNetwork(numNodes, pGroup2(pairIdx));
+        
+        [Dens1, ~, ~] = density_und(G_random_1);
+        [Dens2, ~, ~] = density_und(G_random_2);
+        
+        networkMetricStore(rand_idx, pairIdx, 1) = Dens1;
+        networkMetricStore(rand_idx, pairIdx, 2) = Dens2;
+                
+        if (Dens1 > densityGroup1Range(1)) && (Dens1 < densityGroup1Range(2)) && (group1networkCounter <= numNetworksToCompare)
+            group1NetworkStore{group1networkCounter, pairIdx} = G_random_1;
+            group1networkCounter = group1networkCounter + 1;
+            fprintf('Group 1 hit! \n')
+        elseif (Dens2 > densityGroup2Range(1)) && (Dens2 < densityGroup2Range(2)) && (group2networkCounter <= numNetworksToCompare)
+            group2NetworkStore{group2networkCounter, pairIdx} = G_random_2;
+            group2networkCounter = group2networkCounter + 1;
+            fprintf('Group 2 hit! \n')
+        end
+        
+        if (group1networkCounter > numNetworksToCompare) && (group2networkCounter > numNetworksToCompare)
+           fprintf(sprintf('Finished finding networks at iteration %.f \n', rand_idx))
+           success = 1;
+           break  
+        end
+    end
+    
+    if success == 0
+        fprintf('Failed to find networks \n')
+    end
+    
+end
+
+%% Do the re-wiring
+numRewiringRepeats = 100;
+edgeReplacementProb = [0, 0.1, 0.2, 0.3, 0.4, 0.5]; 
+numPairs = size(densityGroup1, 2);
+
+probRejectNullPerEdgeReplacementProb = zeros(length(edgeReplacementProb), numPairs) + nan; 
+
+progressbar()
+for pairIdx = 1:numPairs
+    tic
+    for replaceIdx = 1:length(edgeReplacementProb)
+       replaceProb = edgeReplacementProb(replaceIdx);
+       
+       
+       reject_null_store = zeros(numRewiringRepeats, 1) + nan;
+       
+       for rewiringIdx = 1:numRewiringRepeats
+           group1Metric = zeros(numNetworksToCompare, 1) + nan;
+           group2Metric = zeros(numNetworksToCompare, 1) + nan;
+
+           for netIdx = 1:numNetworksToCompare
+               
+               group1networkRandomised = rewireNetwork(group1NetworkStore{netIdx, pairIdx}, replaceProb);
+               group2networkRandomised = rewireNetwork(group2NetworkStore{netIdx, pairIdx}, replaceProb);
+               
+               [Dens1, ~, ~] = density_und(group1networkRandomised);
+               [Dens2, ~, ~] = density_und(group2networkRandomised);
+                
+               group1Metric(netIdx) = Dens1;
+               group2Metric(netIdx) = Dens2;
+           end
+
+           % do significance test on the two sets of network (assume
+           % independence for now)
+           [reject_null, p_val] = ttest(group1Metric, group2Metric);
+           reject_null_store(rewiringIdx) = reject_null;
+
+       end
+
+       probRejectNullPerEdgeReplacementProb(replaceIdx, pairIdx) = mean(reject_null_store);
+
  
- 
+    end
+    toc 
+    progressbar(pairIdx / numPairs)
+    fprintf('Sensitivity analysis complete for number of modules complete \n') 
+end 
+
+%% Save results
+
+ save('networkDensitySampleNetworks.mat', ...
+     'group1NetworkStore', 'group2NetworkStore', ...
+     'networkMetricStore', ...
+     'numNetworksToCompare', 'densityGroup1', 'densityGroup2', ...
+     'numNodes', 'pGroup1', 'pGroup2', 'maxNumRandomNetworks', ...
+     'probRejectNullPerEdgeReplacementProb', ...
+     'numRewiringRepeats', 'edgeReplacementProb');
+
+ %% Plot results 
+
+
  
