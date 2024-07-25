@@ -106,6 +106,7 @@ Congratulations! You have successfully set up MATLAB and downloaded the required
    2. Open System Settings on your macOS device
    3. Navigate to 'Security & Privacy'
    4. Scroll down and click 'Allow Anyway' to enable the XCode command line tools to run on your device
+   5. Repeat steps 1-4 whenever you restart your macOS device and encounter the pop-up window again
 
 
 

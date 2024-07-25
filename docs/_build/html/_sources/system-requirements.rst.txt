@@ -31,7 +31,10 @@ The following packages provided by MATLAB need to be installed in order for the 
 
 - Statistics and Machine Learning Toolbox
 
+- Wavelet Toolbox
+
 - Curve Fitting Toolbox (for the calcium imaging pipeline)
+
 
 The following package must also be downloaded from the Brain Connectivity Toolbox (Rubinov & Sporns, 2010) website: https://sites.google.com/site/bctnet/ 
 
