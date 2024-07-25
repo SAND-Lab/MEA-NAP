@@ -9,7 +9,7 @@
 | [**Features**](#features)
 | [**Installation**](#installation)
 | [**How to use the pipeline**](#how-to-use-the-pipeline)
-| [**Video tutorial**](https://www.youtube.com/watch?v=oxFyqRyemRM)
+| [**Video tutorials**](https://youtube.com/playlist?list=PLdR-JtcxaofB_IrGrIOEamsXWPg8iBnIq&feature=shared)
 | [**Example dataset**](#example-dataset)
 | [**Troubleshooting**](#troubleshooting)
 | [**Contributing**](#contributing)
