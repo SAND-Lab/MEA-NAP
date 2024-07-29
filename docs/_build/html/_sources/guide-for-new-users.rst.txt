@@ -86,12 +86,14 @@ User input for GUI
 - **Sampling frequency:** This is the acquisition rate (in hertz) used when you collected your data.  For example, with our MCS MEA systems, we collect data at 25000 Hz. For the Axion MEA system, we collect data at 12500 Hz. If you converted your raw data files to .mat using MEA-NAP's conversion tool, you can open the .mat file in MATLAB and see the sampling frequency (data acquisition rate) in the variable labeled "fs." The sampling rate is calculated during the conversion process for our tool.
 - **Down Sample Frequency:** Down-sampling factor for plotting spike detection checks in Step 1B. For most analyses, no down sampling is necessary. Thus, set this to be equal the Sampling Frequency.
 - **Potential Difference Unit:** Unit for voltage signal.  Enter V for volts or uV for microvolts.  Our MCS MEA systems record the data in uV.  Our Axion MEA system records the data in V.
-- **Channel Layout:** MCS60 (for MEA2100, 60-electrode MEA chip), Axion64 (for 6-well plates), or MCS60old (for MEA1600, 60-electrode MEA chip). "Custom Layout" can also be selected.  Instructions for creating a custom layout can be found :ref:`here <custom_layout>`.
+- **Channel Layout:** MCS60 (for MEA2100, 60-electrode MEA chip), Axion64 (for 6-well plates), Axion16 (for 48-well plates), or MCS60old (for MEA1600, 60-electrode MEA chip). "Custom Layout" can also be selected.  Instructions for creating a custom layout can be found :ref:`here <custom_layout>`.
 - **Thresholds:** Mean absolute deviation multiplier threshold(s) to use for threshold-based spike detection (e.g., ``[3, 4, 5]``)
 - **Wavelets:** For template-based spike detection, select one or more wavelets (e.g., bior1.5, bior1.3, db2) for continuous wavelet transform or swtteo for stationary wavelet transform method.  Bior1.5 works well for most neuronal data.
 - **Wavelet Cost:** The false positive / false negative tradeoff for template-based spike detection.   Value must be between -2 to 2.  Recommend starting with -0.12.
 - **Spike Method for Analysis:** Select spike detection method(s) to use for Steps 2-4.  To use one threshold, enter "thr" followed by the number entered in Threshold.  To use one wavelet, enter wavelet name substituting p for a period (e.g., bior1p5).  For multi-unit spike detection, enter mergedAll to combine spike detection from all methods selected (thresholds and wavelets) or mergedWavelet to combine spike detection from all the wavelets selected for template-based spike detection.
 - **Run spike check on previous spike data:** If starting with Step 1B, check this box to create the spike detection check plots on previously analyzed data.
+
+**Note**: Even if you are not performing spike detection, **you must select the correct Channel Layout for your data.**  This is because the Channel Layout determines the number of electrodes and their spatial arrangement for the network analysis.
 
 3. Connectivity parameters
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -161,9 +163,11 @@ Notes on selecting parameters for new users
 Notes for users of Axion 48-well MEA plates with 16 electrodes per well
 ------------------------------------------------------------------------
 
-Changing the number of electrodes (nodes) used for network metric calculations
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+The default minimum number of nodes for performing network analysis is 25 for 60- or 64-electrode MEAs and 12 for 16-electrode MEAs.
+Users can change the minimum number of nodes if desired in the Advanced Settings by following the steps below.
 
+Changing the number of nodes (electrodes) used for network analysis
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 1. Leave "Show Advanced Settings" option checked on GUI's General tab.
 
@@ -187,6 +191,6 @@ Changing the number of electrodes (nodes) used for network metric calculations
 - **Exclude edges below threshold:** Leave checked to exclude edges with weights below a defined threshold when calculating network metrics. 
 - **Minimum number of nodes:** Minimum number of nodes (electrodes) that must be connected to calculate network metrics. 
 - **Network metrics to calculate:** Select one or more network metrics to calculate during Step 4 (see MEA-NAP methods, https://analysis-pipeline.readthedocs.io/en/latest/meanap-methods.html, for more detail).
-   - 
+
 
 

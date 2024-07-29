@@ -31,8 +31,47 @@ The following packages provided by MATLAB need to be installed in order for the 
 
 - Statistics and Machine Learning Toolbox
 
+- Wavelet Toolbox
+
 - Curve Fitting Toolbox (for the calcium imaging pipeline)
+
 
 The following package must also be downloaded from the Brain Connectivity Toolbox (Rubinov & Sporns, 2010) website: https://sites.google.com/site/bctnet/ 
 
 - Brain Connectivity Toolbox - This toolbox must be saved to the same folder as the network analysis pipeline folder, typically the user path folder, and added to the search path.
+
+
+.. list-table:: MEA-NAP Timing Benchmarks
+   :widths: 25 25 25 25 25 25 25 25 25 25
+   :header-rows: 1
+
+   * - Computer CPU 
+     - Computer RAM
+     - Operating System
+     - Matlab version
+     - Number of files
+     - Length of each MEA recording (minutes)
+     - Step 1 Duration (s)
+     - Step 2 Duration (s)
+     - Step 3 Duration (s)
+     - Step 4 Duration (s)
+   * - 11th Gen Intel i7-11700K (16) @ 4.9GHz
+     - 64
+     - Ubuntu 22.04.3 LTS
+     - R2021a
+     - 1
+     - 10
+     - 203
+     - 17
+     - 8
+     - 305
+   * - Apple M1 Pro
+     - 32
+     - macOS 14.0
+     - R2021b
+     - 1 
+     - 10
+     - 183
+     - 50
+     - 37
+     - 597

@@ -9,7 +9,7 @@
 | [**Features**](#features)
 | [**Installation**](#installation)
 | [**How to use the pipeline**](#how-to-use-the-pipeline)
-| [**Video tutorial**](https://www.youtube.com/watch?v=oxFyqRyemRM)
+| [**Video tutorials**](https://youtube.com/playlist?list=PLdR-JtcxaofB_IrGrIOEamsXWPg8iBnIq&feature=shared)
 | [**Example dataset**](#example-dataset)
 | [**Troubleshooting**](#troubleshooting)
 | [**Contributing**](#contributing)
@@ -25,7 +25,7 @@ MEA-NAP is a streamlined diagnostic and analytic tool for microscale network act
 
 Please see our [detailed documentation for MEA-NAP users at our read-the-docs page](https://analysis-pipeline.readthedocs.io/en/latest/).
 
-You can view **our video tutorial** at [YouTube](https://www.youtube.com/watch?v=oxFyqRyemRM) or download the video at the [Harvard Dataverse](https://doi.org/10.7910/DVN/Z14LWA). 
+You can view **our video tutorials** at [YouTube](https://youtube.com/playlist?list=PLdR-JtcxaofB_IrGrIOEamsXWPg8iBnIq&feature=shared) or download the MEA-NAP GUI tutorial video at the [Harvard Dataverse](https://doi.org/10.7910/DVN/Z14LWA). 
 
 ## Citing MEA-NAP
 

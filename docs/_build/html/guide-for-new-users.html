@@ -6,7 +6,7 @@
 <link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Guide for Advanced Users" href="guide-for-advanced-users.html" /><link rel="prev" title="Setting up MEA-NAP" href="setting-up-meanap.html" />
 
     <!-- Generated with Sphinx 7.2.6 and Furo 2024.01.29 -->
-        <title>Guide for New Users - MEA pipeline 1.6.0 documentation</title>
+        <title>Guide for New Users - MEA pipeline 1.7.0 documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=362ab14a" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?v=135e06be" />
     <link rel="stylesheet" type="text/css" href="_static/css/tooltipster.custom.css?v=7bc2f056" />
@@ -131,7 +131,7 @@
       </label>
     </div>
     <div class="header-center">
-      <a href="index.html"><div class="brand">MEA pipeline 1.6.0 documentation</div></a>
+      <a href="index.html"><div class="brand">MEA pipeline 1.7.0 documentation</div></a>
     </div>
     <div class="header-right">
       <div class="theme-toggle-container theme-toggle-header">
@@ -154,7 +154,7 @@
       <div class="sidebar-sticky"><a class="sidebar-brand" href="index.html">
   
   
-  <span class="sidebar-brand-text">MEA pipeline 1.6.0 documentation</span>
+  <span class="sidebar-brand-text">MEA pipeline 1.7.0 documentation</span>
   
 </a><form class="sidebar-search-container" method="get" action="search.html" role="search">
   <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
@@ -266,13 +266,14 @@ This mode simplifies the process of selecting directory paths and adjusting para
 <li><p><strong>Sampling frequency:</strong> This is the acquisition rate (in hertz) used when you collected your data.  For example, with our MCS MEA systems, we collect data at 25000 Hz. For the Axion MEA system, we collect data at 12500 Hz. If you converted your raw data files to .mat using MEA-NAP’s conversion tool, you can open the .mat file in MATLAB and see the sampling frequency (data acquisition rate) in the variable labeled “fs.” The sampling rate is calculated during the conversion process for our tool.</p></li>
 <li><p><strong>Down Sample Frequency:</strong> Down-sampling factor for plotting spike detection checks in Step 1B. For most analyses, no down sampling is necessary. Thus, set this to be equal the Sampling Frequency.</p></li>
 <li><p><strong>Potential Difference Unit:</strong> Unit for voltage signal.  Enter V for volts or uV for microvolts.  Our MCS MEA systems record the data in uV.  Our Axion MEA system records the data in V.</p></li>
-<li><p><strong>Channel Layout:</strong> MCS60 (for MEA2100, 60-electrode MEA chip), Axion64 (for 6-well plates), or MCS60old (for MEA1600, 60-electrode MEA chip). “Custom Layout” can also be selected.  Instructions for creating a custom layout can be found <a class="hxr-hoverxref hxr-tooltip reference internal" href="guide-for-advanced-users.html#custom-layout"><span class="std std-ref">here</span></a>.</p></li>
+<li><p><strong>Channel Layout:</strong> MCS60 (for MEA2100, 60-electrode MEA chip), Axion64 (for 6-well plates), Axion16 (for 48-well plates), or MCS60old (for MEA1600, 60-electrode MEA chip). “Custom Layout” can also be selected.  Instructions for creating a custom layout can be found <a class="hxr-hoverxref hxr-tooltip reference internal" href="guide-for-advanced-users.html#custom-layout"><span class="std std-ref">here</span></a>.</p></li>
 <li><p><strong>Thresholds:</strong> Mean absolute deviation multiplier threshold(s) to use for threshold-based spike detection (e.g., <code class="docutils literal notranslate"><span class="pre">[3,</span> <span class="pre">4,</span> <span class="pre">5]</span></code>)</p></li>
 <li><p><strong>Wavelets:</strong> For template-based spike detection, select one or more wavelets (e.g., bior1.5, bior1.3, db2) for continuous wavelet transform or swtteo for stationary wavelet transform method.  Bior1.5 works well for most neuronal data.</p></li>
 <li><p><strong>Wavelet Cost:</strong> The false positive / false negative tradeoff for template-based spike detection.   Value must be between -2 to 2.  Recommend starting with -0.12.</p></li>
 <li><p><strong>Spike Method for Analysis:</strong> Select spike detection method(s) to use for Steps 2-4.  To use one threshold, enter “thr” followed by the number entered in Threshold.  To use one wavelet, enter wavelet name substituting p for a period (e.g., bior1p5).  For multi-unit spike detection, enter mergedAll to combine spike detection from all methods selected (thresholds and wavelets) or mergedWavelet to combine spike detection from all the wavelets selected for template-based spike detection.</p></li>
 <li><p><strong>Run spike check on previous spike data:</strong> If starting with Step 1B, check this box to create the spike detection check plots on previously analyzed data.</p></li>
 </ul>
+<p><strong>Note</strong>: Even if you are not performing spike detection, <strong>you must select the correct Channel Layout for your data.</strong>  This is because the Channel Layout determines the number of electrodes and their spatial arrangement for the network analysis.</p>
 </section>
 <section id="connectivity-parameters">
 <h3>3. Connectivity parameters<a class="headerlink" href="#connectivity-parameters" title="Link to this heading">#</a></h3>
@@ -326,8 +327,10 @@ This mode simplifies the process of selecting directory paths and adjusting para
 </section>
 <section id="notes-for-users-of-axion-48-well-mea-plates-with-16-electrodes-per-well">
 <h2>Notes for users of Axion 48-well MEA plates with 16 electrodes per well<a class="headerlink" href="#notes-for-users-of-axion-48-well-mea-plates-with-16-electrodes-per-well" title="Link to this heading">#</a></h2>
-<section id="changing-the-number-of-electrodes-nodes-used-for-network-metric-calculations">
-<h3>Changing the number of electrodes (nodes) used for network metric calculations<a class="headerlink" href="#changing-the-number-of-electrodes-nodes-used-for-network-metric-calculations" title="Link to this heading">#</a></h3>
+<p>The default minimum number of nodes for performing network analysis is 25 for 60- or 64-electrode MEAs and 12 for 16-electrode MEAs.
+Users can change the minimum number of nodes if desired in the Advanced Settings by following the steps below.</p>
+<section id="changing-the-number-of-nodes-electrodes-used-for-network-analysis">
+<h3>Changing the number of nodes (electrodes) used for network analysis<a class="headerlink" href="#changing-the-number-of-nodes-electrodes-used-for-network-analysis" title="Link to this heading">#</a></h3>
 <ol class="arabic simple">
 <li><p>Leave “Show Advanced Settings” option checked on GUI’s General tab.</p></li>
 </ol>
@@ -339,13 +342,7 @@ This mode simplifies the process of selecting directory paths and adjusting para
 <ul class="simple">
 <li><p><strong>Exclude edges below threshold:</strong> Leave checked to exclude edges with weights below a defined threshold when calculating network metrics.</p></li>
 <li><p><strong>Minimum number of nodes:</strong> Minimum number of nodes (electrodes) that must be connected to calculate network metrics.</p></li>
-<li><dl class="simple">
-<dt><strong>Network metrics to calculate:</strong> Select one or more network metrics to calculate during Step 4 (see MEA-NAP methods, <a class="reference external" href="https://analysis-pipeline.readthedocs.io/en/latest/meanap-methods.html">https://analysis-pipeline.readthedocs.io/en/latest/meanap-methods.html</a>, for more detail).</dt><dd><ul>
-<li></li>
-</ul>
-</dd>
-</dl>
-</li>
+<li><p><strong>Network metrics to calculate:</strong> Select one or more network metrics to calculate during Step 4 (see MEA-NAP methods, <a class="reference external" href="https://analysis-pipeline.readthedocs.io/en/latest/meanap-methods.html">https://analysis-pipeline.readthedocs.io/en/latest/meanap-methods.html</a>, for more detail).</p></li>
 </ul>
 </section>
 </section>
@@ -419,7 +416,7 @@ This mode simplifies the process of selecting directory paths and adjusting para
 <li><a class="reference internal" href="#saving-and-loading-parameters">Saving and loading parameters</a></li>
 <li><a class="reference internal" href="#notes-on-selecting-parameters-for-new-users">Notes on selecting parameters for new users</a></li>
 <li><a class="reference internal" href="#notes-for-users-of-axion-48-well-mea-plates-with-16-electrodes-per-well">Notes for users of Axion 48-well MEA plates with 16 electrodes per well</a><ul>
-<li><a class="reference internal" href="#changing-the-number-of-electrodes-nodes-used-for-network-metric-calculations">Changing the number of electrodes (nodes) used for network metric calculations</a></li>
+<li><a class="reference internal" href="#changing-the-number-of-nodes-electrodes-used-for-network-analysis">Changing the number of nodes (electrodes) used for network analysis</a></li>
 </ul>
 </li>
 </ul>
@@ -435,7 +432,7 @@ This mode simplifies the process of selecting directory paths and adjusting para
   </div>
 </div><script src="_static/jquery.js?v=5d32c60e"></script>
     <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-    <script src="_static/documentation_options.js?v=72d88caf"></script>
+    <script src="_static/documentation_options.js?v=030dc6f6"></script>
     <script src="_static/doctools.js?v=888ff710"></script>
     <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="_static/scripts/furo.js?v=32e29ea5"></script>
