@@ -160,20 +160,20 @@ save('nModulesSampleNetworks.mat', 'probRejectNullPerEdgeReplacementProb', ...
 
 
 %% Plot results
-
+load('nModulesSampleNetworks.mat');
 % subplots: true number of differences in modules
 % x-axis : percentage of re-wiring
 % y-axis : number of times that the difference is statistically significant
 
-figure;
+figHandle = figure('units','inch','position',[0,0,14,3]); 
 for pairIdx = 1:numPairs
-    subplot(1, numPairs, pairIdx)
+    subplot(1, numPairs, numPairs-pairIdx+1)
     plot(edgeReplacementProb, probRejectNullPerEdgeReplacementProb(:, pairIdx), 'k', 'linewidth', 1.5)
     hold on
     scatter(edgeReplacementProb, probRejectNullPerEdgeReplacementProb(:, pairIdx), 'k', 'filled')
     title(sprintf('%.f vs %.f', numberOfModulesGroup1(pairIdx), numberOfModulesGroup2(pairIdx)))
     
-    if pairIdx == 1
+    if pairIdx == numPairs
         xlabel('Edge replacement probability')
         ylabel('Proportion of succesful detection')
     end
@@ -181,15 +181,10 @@ for pairIdx = 1:numPairs
     set(gca,'TickDir','out');
     box off
 end
-sgtitle('Number of modules')
+sgtitle('Number of modules', 'FontSize', 12)
 set(gcf, 'color', 'w')
-
-
-
-
-
-%% Participation coefficient
-
+print(figHandle, '-painters', '-dsvg', 'numModulesSensitivity.svg')
+print(figHandle, '-dpng', '-r300', 'numModulesSensitivity.png');
 
 
 %% Small-worldnes omega 
@@ -317,11 +312,12 @@ betaGroup2 = [0.3, 0.4, 0.5, 1];
 numPairs = length(betaGroup1);
 group2NetworkStore = cell(numNetworksToCompare, numPairs);
 networkMetricStore = zeros(maxNumRandomNetworks, numPairs, 2) + nan;
-
+% parpool(8)
 for pairIdx = 1:numPairs 
     
     group2networkCounter = 1;
     
+    swGroup1Range = swGroup1{pairIdx};
     swGroup2Range = swGroup2{pairIdx};
     
     % sample networks until we get 15 with group 1 number of modules
@@ -335,7 +331,7 @@ for pairIdx = 1:numPairs
         % G_random_1 = genRandSmallWorldNetwork(numNodes, K_edge, betaGroup1(pairIdx));
         G_random_2 = genRandSmallWorldNetwork(numNodes, K_edge, betaGroup2(pairIdx));
         
-        % ITER = 10000;
+        ITER = 10000;
         % Z = pdist(G_random_1);
         % D = squareform(Z);
         % [LatticeNetwork_1, Rrp, ind_rp, eff, met] = latmio_und_v2(G_random_1, ITER, D,'SW');
@@ -344,7 +340,7 @@ for pairIdx = 1:numPairs
         D = squareform(Z);
         [LatticeNetwork_2, Rrp, ind_rp, eff, met] = latmio_und_v2(G_random_2, ITER, D,'SW');
         
-        % ITER = 5000;
+        ITER = 5000;
         % [R, ~,met2] = randmio_und_v2(G_random_1, ITER,'SW');
         % [SW, SWw_group1, CC, PL] = small_worldness_RL_wu(G_random_1, R, LatticeNetwork_1);
         
@@ -387,21 +383,21 @@ save('smallWorldOmegaSampleNetworks.mat', 'group1NetworkStore', 'group2NetworkSt
 %% Do the re-wiring
 
 numRewiringRepeats = 20;
-edgeReplacementProb = [0, 0.1, 0.2, 0.3, 0.4, 0.5]; 
+% edgeReplacementProb = [0, 0.1, 0.2, 0.3, 0.4, 0.5]; 
+edgeReplacementProb = [0];
 numPairs = size(swGroup1, 2);
 
 probRejectNullPerEdgeReplacementProb = zeros(length(edgeReplacementProb), numPairs) + nan; 
 
 progressbar()
-parpool(8)
-for pairIdx = [3, 4]
+for pairIdx = 1:numPairs
     tic
     for replaceIdx = 1:length(edgeReplacementProb)
        replaceProb = edgeReplacementProb(replaceIdx);
 
        reject_null_store = zeros(numRewiringRepeats, 1) + nan;
        
-       parfor rewiringIdx = 1:numRewiringRepeats
+       for rewiringIdx = 1:numRewiringRepeats
            group1Metric = zeros(numNetworksToCompare, 1) + nan;
            group2Metric = zeros(numNetworksToCompare, 1) + nan;
 
@@ -577,6 +573,38 @@ end
      'numRewiringRepeats', 'edgeReplacementProb');
 
  %% Plot results 
+
+ load('networkDensitySampleNetworks.mat')
+ numPairs = length(densityGroup1);
+ 
+ figHandle = figure('units','inch','position',[0,0,14,3]); 
+for pairIdx = 1:numPairs
+    subplot(1, numPairs, numPairs+1-pairIdx)
+    plot(edgeReplacementProb, probRejectNullPerEdgeReplacementProb(:, pairIdx), 'k', 'linewidth', 1.5)
+    hold on
+    scatter(edgeReplacementProb, probRejectNullPerEdgeReplacementProb(:, pairIdx), 'k', 'filled')
+    title(sprintf('[%.3f - %.3f] vs [%.3f - %.3f]', densityGroup1{pairIdx}(1), densityGroup1{pairIdx}(2), ...
+        densityGroup2{pairIdx}(1), densityGroup2{pairIdx}(2)), 'FontSize',10)
+    
+    % plot the p-value 
+    yline(0.05, '--k');
+    
+    if pairIdx == numPairs
+        xlabel('Edge replacement probability')
+        ylabel('Proportion of succesful detection')
+    end
+    ylim([-0.05, 1.05]);
+    xlim([0, 0.5])
+    xticks([0, 0.1, 0.2, 0.3, 0.4, 0.5]);
+    set(gca,'TickDir','out');
+    box off
+end
+% figHandle.OuterPosition = [figHandle.OuterPosition(1), figHandle.OuterPosition(2), ...
+%                            figHandle.OuterPosition(3), figHandle.OuterPosition(4) + 0.1]; 
+sgtitle('Network density', 'FontSize', 12)
+set(gcf, 'color', 'w')
+print(figHandle, '-painters', '-dsvg', 'networkDensitySensitivity.svg')
+print(figHandle, '-dpng', '-r300', 'networkDensitySensitivity.png');
 
 
  
