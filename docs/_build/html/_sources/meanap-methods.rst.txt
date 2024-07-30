@@ -345,56 +345,56 @@ The second is randomised, available in ``randmio_und_v2.m`` (based on Brain Conn
    :widths: 25 50
    :header-rows: 1
 
-   * - Network Metrics
+   * - Network metric
      - Description
      
-   * - .. image:: imgs/CC.png
-       Clustering coefficient (CC)
+   * - **Clustering coefficient (CC)**
+          .. figure:: imgs/CC.png
      - CC is normalized with a lattice null model with preserved degree distribution *(Source: Brain Connectivity Toolbox, latmio_und.m; adapted as latmio_und_v2 in MEA-NAP)*
-   * - .. image:: imgs/PL.png
-       Path length (PL)
+   * - **Path length (PL)**
+          .. figure:: imgs/PL.png
      - PL is normalized with a randomized null model with preserved degree distribution *(Source: Brain Connectivity Toolbox, randmio_und.m; randmio_und_v2 in MEA-NAP)*
-   * - .. image:: imgs/small_world_coefficient_1.png
-       Small-world coefficient, Method 1 (σ)
+   * - **Small-world coefficient, Method 1 (σ)**
+          .. figure:: imgs/small_world_coefficient_1.png
      - σ is normalized using a randomized null model with preserved degree distribution *(Source: Brain Connectivity Toolbox, randmio_und.m; adapted as randmio_und_v2 in MEA-NAP)*
-   * - .. image:: imgs/small_world_coefficient_2.png
-       Small-world coefficient, Method 2 (ω)
+   * - **Small-world coefficient, Method 2 (ω)**
+          .. figure:: imgs/small_world_coefficient_2.png
      - ω is normalized using randomized and lattice null models with preserved degree distribution *(Source: Brain Connectivity Toolbox, randmio_und.m and latmio_und.m; adapted as randmio_und_v2 and latmio_und_v2 in MEA-NAP)*
 
 .. list-table:: **Network metrics calculated between 0 to 1**
    :widths: 25 50
    :header-rows: 1
 
-   * - Network Metrics
+   * - Network metric
      - Description
-   * - .. image:: imgs/BC.png
-       Betweenness centrality (BC)
+   * - **Betweenness centrality (BC)**
+        .. figure:: imgs/BC.png
      - BC is divided by [(N-1)(N-2)], where N is the number of nodes in the network. *(Source: Brain Connectivity Toolbox, betweenness_wei.m or betweenness_bin.m.)*
-   * - .. image:: imgs/PL.png
-       Global efficiency (GE)
+   * - **Global efficiency (GE)**
+        .. figure:: imgs/PL.png
      - GE is calculated as the inverse of the characteristic path length. *(Source: Brain Connectivity Toolbox, efficiency_wei.m or efficiency_bin.m.)*
-   * - .. image:: imgs/local_efficiency.png
-       Local efficiency (LE)
+   * - **Local efficiency (LE)**
+        .. figure:: imgs/local_efficiency.png
      - First the edge weights are normalized (scaled 0 to 1) before the LE is calculated with the efficiency function *(Source: Brain Connectivity Toolbox, weight_conversion.m and efficiency_wei.m)*
-   * - .. image:: imgs/PC.png
-       Participation coefficient (PC)
+   * - **Participation coefficient (PC)**
+        .. figure:: imgs/PC.png
      - PC is normalized using randomized networks with preserved degree distribution *(Source: Pederson et al, 2019, participation_coef_norm.m)*
 
 .. list-table:: **Network metrics normalized with other methods**
    :widths: 25 50
    :header-rows: 1
 
-   * - Network Metrics
+   * - Network metric
      - Description
-   * - .. image:: imgs/nMod.png
-       Number of modules
+   * - **Number of modules**
+          .. image:: imgs/nMod.png
      - Modular decomposition is post-processed using a consensus clustering method *(Source: Lancichinetti & Fortunato, 2012, mod_consensus_cluster_iterate.m)*
-   * - .. image:: imgs/MS.png 
-       Modularity score (Q)
+   * - **Modularity score (Q)**
+          .. image:: imgs/MS.png 
      - Q is an optimized community-structure statistic for consensus classification *(Source: Lancichinetti & Fortunato, 2012, mod_consensus_cluster_iterate.m)*
-   * - .. image:: imgs/WMZ.png
-       Within-module degree z-score
+   * - **Within-module degree z-score**
+          .. image:: imgs/WMZ.png 
      - Calculated based on the community affiliation vector, derived from the consensus clustering method. *(Source: Brain Connectivity Toolbox, module_degree_zscore.m)*
-   * - .. image:: imgs/node_cartography_4.png
-       Node cartography (NC)
+   * - **Node cartography (NC)**
+          .. image:: imgs/node_cartography_4.png
      - NC roles are assigned based on the participation coefficient and within-module degree z-score using custom code based on *(Guimerà & Nunes Amaral, 2005).
