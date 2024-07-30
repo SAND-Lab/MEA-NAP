@@ -571,16 +571,24 @@ if strcmp(plotType,'circular')
         moduleLabelYpos = -0.85;
         text(1.4,moduleLabelYpos,'Module')
         module_legend_x_start_end = [1.2, 1.8];
-        numModules = length(unique(z2)); 
+        uniqueModules = unique(z2);  % module number 0 = does not belong to any modules
+        numModules = length(uniqueModules); 
+        numModules
         moduleCircleSize = (module_legend_x_start_end(2) - module_legend_x_start_end(1)) / numModules * 0.8;
         moduleCircleCenters = linspace(module_legend_x_start_end(1), module_legend_x_start_end(2), numModules);
+   
         for moduleIdx = 1:numModules
             circlePos = [moduleCircleCenters(moduleIdx), moduleLabelYpos-0.2, moduleCircleSize, moduleCircleSize];
-            rectangle('Position',circlePos,'Curvature',[1 1],...
-                'FaceColor',mycolours(max([ceil(length(mycolours)*((moduleIdx-z2_min)/(z2_max-z2_min))), 1]),1:3), ...
+            moduleNumber = uniqueModules(moduleIdx);
+            if moduleNumber > 0
+                
+                nodeColor = mycolours(max([ceil(length(mycolours)*((moduleNumber-z2_min)/(z2_max-z2_min))), 1]),1:3); 
+                rectangle('Position',circlePos,'Curvature',[1 1],...
+                'FaceColor',nodeColor, ...
                 'EdgeColor','w','LineWidth',0.01);
-            text(circlePos(1)+circlePos(3)/2,circlePos(2)+circlePos(4)/2, ...
-                num2str(moduleIdx),'HorizontalAlignment','center');
+                text(circlePos(1)+circlePos(3)/2,circlePos(2)+circlePos(4)/2, ...
+                num2str(moduleNumber),'HorizontalAlignment','center');
+            end 
         end
     end
     

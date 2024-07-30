@@ -343,10 +343,32 @@ for e = 1:length(lagval)
         Params.metricsMinMax.Ci = moduleID;
         close all
         oneFigureHandle = checkOneFigureHandle(Params, oneFigureHandle);
-        StandardisedNetworkPlotNodeColourMap(adjMord, coords, edge_thresh, ...
+        
+        plotInactiveNodesInCircPlot = 1;
+
+        if plotInactiveNodesInCircPlot == 1
+            originaladjM = expData.adjMs.(lagValStr);
+            adjMordWithEmpty = zeros(length(originaladjM), length(originaladjM)); 
+            numActiveNodes = length(adjMord);
+            adjMordWithEmpty(1:numActiveNodes, 1:numActiveNodes) = adjMord; 
+            moduleIDwithEmpty = zeros(length(originaladjM), 1); 
+            moduleIDwithEmpty(1:numActiveNodes) = moduleID;
+            
+            NDordwithEmpty = zeros(length(originaladjM), 1);
+            NDordwithEmpty(1:numActiveNodes) = NDord;
+            
+            StandardisedNetworkPlotNodeColourMap(adjMordWithEmpty, coords, edge_thresh, ...
+                 NDordwithEmpty, 'Node degree', ...
+                 moduleIDwithEmpty, 'Module', ...
+                'circular', char(Info.FN), '6', Params, lagval, e, lagFolderName, oneFigureHandle);
+        else 
+        
+            StandardisedNetworkPlotNodeColourMap(adjMord, coords, edge_thresh, ...
                  NDord, 'Node degree', ...
                  moduleID, 'Module', ...
                 'circular', char(Info.FN), '6', Params, lagval, e, lagFolderName, oneFigureHandle);
+        end 
+        
             
         
         if Params.timeProcesses
