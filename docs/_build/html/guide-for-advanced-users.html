@@ -220,9 +220,129 @@ By customizing parameters in <cite>MEApipeline.m</cite>, users can tailor their 
 <span id="custom-layout"></span><h2>Creating a Custom MEA Layout<a class="headerlink" href="#creating-a-custom-mea-layout" title="Link to this heading">#</a></h2>
 <p>If your MEA has a different number of electrodes than currently supported in MEA-NAP, you can modify the biAdvancedSettings.m function (starting at line 250) and then select ‘Custom’ layout when you run MEA-NAP using the GUI.  Note that if your MEA has more than 64 electrodes, you may need a computer with higher RAM (or a HPC) for Step 3 where the functional connectivity is calculated. A 64-electrode array has 2,048 possible undirected edges (functional connections).  A 256-electrode array has 32,768 possible undirected edges.  To determine which functional connections are significant, MEA-NAP repeats this calculation with circular shifts 200 times for each potential edge (pair of electrodes). Thus, an increase from 64 to 256 electrodes increases the number of computations per recording from 400K to over 6.5 million.</p>
 <p>For high density (HD) MEA recordings, which may have 4096 electrodes, it is important to note that there is fundamental difference in the network analysis for HD MEA data from our standard density (SD) MEA data in MEA-NAP.  For SD MEAs, each electrode is treated a node in the network, although there may be more than one neuron near that electrode.  In contrast, in HD MEAs, there may be more than one electrode per cell.  Thus, it would not be appropriate to treat the 4096 electrodes each as nodes.  Instead, first the cells need to be identified and a single spike train per cell extracted.  Once this has been done, a custom layout in MEA-NAP could be created where each cells spatial location is indicated by the x,y coordinates of its location on the HD MEA.  Once that is complete, MEA-NAP could be used starting at Step 2 (Comparison of neuronal activity) or Step 3 (Inferring functional connectivity).</p>
+<hr class="docutils" />
 </section>
+<section id="changing-parameters-for-calculating-mea-nap-network-features">
+<span id="changing-parameters"></span><h2>Changing parameters for calculating MEA-NAP network features<a class="headerlink" href="#changing-parameters-for-calculating-mea-nap-network-features" title="Link to this heading">#</a></h2>
+<div class="table-wrapper docutils container">
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head" rowspan="2"><p>Network Metric</p></th>
+<th class="head" colspan="2"><p>Parameter</p></th>
+<th class="head" colspan="2"><p>How to change using the GUI</p></th>
+<th class="head" rowspan="2"><p>How to change in MEA-NAP function (line)</p></th>
+</tr>
+<tr class="row-even"><th class="head"><p>Name</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Location</p></th>
+<th class="head"><p>Adv. Set.*</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-odd"><td><p>Edge weight</p></td>
+<td><p>STTC lag(s)</p></td>
+<td><p>10,25,50</p></td>
+<td><p>Connectivity</p></td>
+<td><p>No</p></td>
+<td><p>MEApipeline.m (50)</p></td>
+</tr>
+<tr class="row-even"><td rowspan="2"><p># significant edges</p></td>
+<td><p>Prob. threshold iterations</p></td>
+<td><p>200</p></td>
+<td><p>Connectivity</p></td>
+<td><p>No</p></td>
+<td><p>MEApipeline.m (56)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Probabilistic
+thresholding tail</p></td>
+<td><p>0.05</p></td>
+<td><p>Connectivity</p></td>
+<td><p>No</p></td>
+<td><p>MEApipeline.m (57)</p></td>
+</tr>
+<tr class="row-even"><td><p>Network metrics</p></td>
+<td><p>Minimum # of nodes</p></td>
+<td><p>25</p></td>
+<td><p>Advanced Connectivity</p></td>
+<td><p>Yes</p></td>
+<td><p>AdvancedSettings.m (186)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Participation coefficient</p></td>
+<td><p>Iterations for normalization</p></td>
+<td><p>100</p></td>
+<td></td>
+<td><p>No</p></td>
+<td><p>participation_coef_norm.m (41)</p></td>
+</tr>
+<tr class="row-even"><td><p>Clustering coefficient</p></td>
+<td rowspan="2"><p>Lattice network
+null model iterations</p></td>
+<td rowspan="2"><p>10000</p></td>
+<td rowspan="2"></td>
+<td rowspan="2"><p>No</p></td>
+<td rowspan="2"><p>ExtractNetMet.m (202)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Small-world</p></td>
+</tr>
+<tr class="row-even"><td><p>Path Length</p></td>
+<td rowspan="2"><p>Random network
+null model iterations</p></td>
+<td rowspan="2"><p>5000</p></td>
+<td rowspan="2"></td>
+<td rowspan="2"><p>No</p></td>
+<td rowspan="2"><p>ExtractNetMet.m (209)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Small-world</p></td>
+</tr>
+<tr class="row-even"><td rowspan="3"><p>Node Cartography</p></td>
+<td><p>STTC lag(s)</p></td>
+<td><p>10,25,50</p></td>
+<td><p>Connectivity</p></td>
+<td><p>No</p></td>
+<td><p>MEApipeline.m (63)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Hub/non-hub**</p></td>
+<td><p>0.25</p></td>
+<td><p>Node Cartography</p></td>
+<td><p>Yes</p></td>
+<td><p>AdvancedSettings.m (90-94)</p></td>
+</tr>
+<tr class="row-even"><td><p>Nodal roles boundaries**</p></td>
+<td><p>multiple</p></td>
+<td></td>
+<td><p>No</p></td>
+<td></td>
+</tr>
+<tr class="row-odd"><td><p>NMF</p></td>
+<td><p>Down-sampling</p></td>
+<td><p>10</p></td>
+<td><p>Advanced Dimension.</p></td>
+<td><p>Yes</p></td>
+<td><p>AdvancedSettings.m (87)</p></td>
+</tr>
+<tr class="row-even"><td rowspan="2"><p>Effective rank</p></td>
+<td><p>Calculation method</p></td>
+<td><p>covariance</p></td>
+<td><p>Advanced Dimension.</p></td>
+<td><p>Yes</p></td>
+<td><p>AdvancedSettings.m (86,88)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Down-sampling</p></td>
+<td><p>10</p></td>
+<td><p>Advanced Dimension.</p></td>
+<td><p>Yes</p></td>
+<td></td>
+</tr>
+<tr class="row-even"><td colspan="6"><p><strong>Legend:</strong> GUI = graphical user interface, STTC = spike time tiling coefficient, * “Show Advanced Settings” must be checked on General tab in GUI for these tabs to appear,
+** Default values used here if insufficient number of MEA recordings to set experiment-specific boundaries using the density landscape.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<hr class="docutils" />
 <section id="overview-of-mea-nap">
-<span id="overview"></span><h2>Overview of MEA-NAP<a class="headerlink" href="#overview-of-mea-nap" title="Link to this heading">#</a></h2>
+<h2>Overview of MEA-NAP<a class="headerlink" href="#overview-of-mea-nap" title="Link to this heading">#</a></h2>
 <p>The pipeline has the following steps:</p>
 <ol class="arabic simple">
 <li><p>Spike detection (this step can be skipped if done previously)</p></li>
@@ -545,8 +665,8 @@ By customizing parameters in <cite>MEApipeline.m</cite>, users can tailor their 
 </section>
 <section id="pipeline-parameters">
 <h2>Pipeline parameters<a class="headerlink" href="#pipeline-parameters" title="Link to this heading">#</a></h2>
-<section id="id3">
-<h3>Overview<a class="headerlink" href="#id3" title="Link to this heading">#</a></h3>
+<section id="overview">
+<h3>Overview<a class="headerlink" href="#overview" title="Link to this heading">#</a></h3>
 <p>Folder paths:</p>
 <ul class="simple">
 <li><p><a class="hxr-hoverxref hxr-tooltip reference internal" href="#homedir"><span class="std std-ref">HomeDir</span></a></p></li>
@@ -630,7 +750,7 @@ By customizing parameters in <cite>MEApipeline.m</cite>, users can tailor their 
 <section id="folder-paths">
 <h3>Folder paths<a class="headerlink" href="#folder-paths" title="Link to this heading">#</a></h3>
 <section id="homedir">
-<span id="id4"></span><h4><code class="docutils literal notranslate"><span class="pre">HomeDir</span></code><a class="headerlink" href="#homedir" title="Link to this heading">#</a></h4>
+<span id="id3"></span><h4><code class="docutils literal notranslate"><span class="pre">HomeDir</span></code><a class="headerlink" href="#homedir" title="Link to this heading">#</a></h4>
 <blockquote>
 <div><ul class="simple">
 <li><p>Argument type : char</p></li>
@@ -640,7 +760,7 @@ By customizing parameters in <cite>MEApipeline.m</cite>, users can tailor their 
 </div></blockquote>
 </section>
 <section id="rawdata">
-<span id="id5"></span><h4><code class="docutils literal notranslate"><span class="pre">rawData</span></code><a class="headerlink" href="#rawdata" title="Link to this heading">#</a></h4>
+<span id="id4"></span><h4><code class="docutils literal notranslate"><span class="pre">rawData</span></code><a class="headerlink" href="#rawdata" title="Link to this heading">#</a></h4>
 <blockquote>
 <div><ul class="simple">
 <li><p>Argument type : char</p></li>
@@ -649,7 +769,7 @@ By customizing parameters in <cite>MEApipeline.m</cite>, users can tailor their 
 </div></blockquote>
 </section>
 <section id="params-prioranalysispath">
-<span id="id6"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.priorAnalysisPath</span></code><a class="headerlink" href="#params-prioranalysispath" title="Link to this heading">#</a></h4>
+<span id="id5"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.priorAnalysisPath</span></code><a class="headerlink" href="#params-prioranalysispath" title="Link to this heading">#</a></h4>
 <blockquote>
 <div><ul class="simple">
 <li><p>Optional (can leave as empty string)</p></li>
@@ -659,7 +779,7 @@ By customizing parameters in <cite>MEApipeline.m</cite>, users can tailor their 
 </div></blockquote>
 </section>
 <section id="spikedetecteddata">
-<span id="id7"></span><h4><code class="docutils literal notranslate"><span class="pre">spikeDetectedData</span></code><a class="headerlink" href="#spikedetecteddata" title="Link to this heading">#</a></h4>
+<span id="id6"></span><h4><code class="docutils literal notranslate"><span class="pre">spikeDetectedData</span></code><a class="headerlink" href="#spikedetecteddata" title="Link to this heading">#</a></h4>
 <blockquote>
 <div><ul class="simple">
 <li><p>Optional (can leave as empty string)</p></li>
@@ -669,7 +789,7 @@ By customizing parameters in <cite>MEApipeline.m</cite>, users can tailor their 
 </div></blockquote>
 </section>
 <section id="spreadsheet-filename">
-<span id="id8"></span><h4><code class="docutils literal notranslate"><span class="pre">spreadsheet_filename</span></code><a class="headerlink" href="#spreadsheet-filename" title="Link to this heading">#</a></h4>
+<span id="id7"></span><h4><code class="docutils literal notranslate"><span class="pre">spreadsheet_filename</span></code><a class="headerlink" href="#spreadsheet-filename" title="Link to this heading">#</a></h4>
 <blockquote>
 <div><ul class="simple">
 <li><p>The name of spreadsheet containing information about the data to be analysed, including the file extension, usually in the form of ‘spreadhsheet.csv’ or ‘spreadsheet.xlsx’</p></li>
@@ -682,7 +802,7 @@ By customizing parameters in <cite>MEApipeline.m</cite>, users can tailor their 
 <section id="input-and-output-filetypes">
 <h3>Input and output filetypes<a class="headerlink" href="#input-and-output-filetypes" title="Link to this heading">#</a></h3>
 <section id="spreadsheet-file-type">
-<span id="id9"></span><h4><code class="docutils literal notranslate"><span class="pre">spreadsheet_file_type</span></code><a class="headerlink" href="#spreadsheet-file-type" title="Link to this heading">#</a></h4>
+<span id="id8"></span><h4><code class="docutils literal notranslate"><span class="pre">spreadsheet_file_type</span></code><a class="headerlink" href="#spreadsheet-file-type" title="Link to this heading">#</a></h4>
 <blockquote>
 <div><ul class="simple">
 <li><p>Filetype of file which contains a table of recording data</p></li>
@@ -692,7 +812,7 @@ By customizing parameters in <cite>MEApipeline.m</cite>, users can tailor their 
 </div></blockquote>
 </section>
 <section id="params-output-spreadsheet-file-type">
-<span id="id10"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.output_spreadsheet_file_type</span></code><a class="headerlink" href="#params-output-spreadsheet-file-type" title="Link to this heading">#</a></h4>
+<span id="id9"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.output_spreadsheet_file_type</span></code><a class="headerlink" href="#params-output-spreadsheet-file-type" title="Link to this heading">#</a></h4>
 <blockquote>
 <div><ul class="simple">
 <li><p>Filetype of output file to create which contains a table of calculated features</p></li>
@@ -705,7 +825,7 @@ By customizing parameters in <cite>MEApipeline.m</cite>, users can tailor their 
 <section id="analysis-step-settings">
 <h3>Analysis step settings<a class="headerlink" href="#analysis-step-settings" title="Link to this heading">#</a></h3>
 <section id="params-prioranalysisdate">
-<span id="id11"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.priorAnalysisDate</span></code><a class="headerlink" href="#params-prioranalysisdate" title="Link to this heading">#</a></h4>
+<span id="id10"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.priorAnalysisDate</span></code><a class="headerlink" href="#params-prioranalysisdate" title="Link to this heading">#</a></h4>
 <blockquote>
 <div><ul class="simple">
 <li><p>Date of prior analysis, can leave empty or ignore this line if no prior analysis was performed</p></li>
@@ -714,7 +834,7 @@ By customizing parameters in <cite>MEApipeline.m</cite>, users can tailor their 
 </div></blockquote>
 </section>
 <section id="params-prioranalysis">
-<span id="id12"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.priorAnalysis</span></code><a class="headerlink" href="#params-prioranalysis" title="Link to this heading">#</a></h4>
+<span id="id11"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.priorAnalysis</span></code><a class="headerlink" href="#params-prioranalysis" title="Link to this heading">#</a></h4>
 <blockquote>
 <div><ul class="simple">
 <li><p>Whether to use previously analysed data</p></li>
@@ -723,7 +843,7 @@ By customizing parameters in <cite>MEApipeline.m</cite>, users can tailor their 
 </div></blockquote>
 </section>
 <section id="params-startanalysisstep">
-<span id="id13"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.startAnalysisStep</span></code><a class="headerlink" href="#params-startanalysisstep" title="Link to this heading">#</a></h4>
+<span id="id12"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.startAnalysisStep</span></code><a class="headerlink" href="#params-startanalysisstep" title="Link to this heading">#</a></h4>
 <blockquote>
 <div><ul class="simple">
 <li><p>Which step to start analysis</p></li>
@@ -733,7 +853,7 @@ By customizing parameters in <cite>MEApipeline.m</cite>, users can tailor their 
 </div></blockquote>
 </section>
 <section id="params-optionalstepstorun">
-<span id="id14"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.optionalStepsToRun</span></code><a class="headerlink" href="#params-optionalstepstorun" title="Link to this heading">#</a></h4>
+<span id="id13"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.optionalStepsToRun</span></code><a class="headerlink" href="#params-optionalstepstorun" title="Link to this heading">#</a></h4>
 <blockquote>
 <div><ul class="simple">
 <li><p>Which optional steps to run (after the main steps are performed)</p></li>
@@ -744,7 +864,7 @@ By customizing parameters in <cite>MEApipeline.m</cite>, users can tailor their 
 </div></blockquote>
 </section>
 <section id="params-date">
-<span id="id15"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.Date</span></code><a class="headerlink" href="#params-date" title="Link to this heading">#</a></h4>
+<span id="id14"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.Date</span></code><a class="headerlink" href="#params-date" title="Link to this heading">#</a></h4>
 <blockquote>
 <div><ul class="simple">
 <li><p>This specifies the date in which the analysis was performed</p></li>
@@ -757,7 +877,7 @@ By customizing parameters in <cite>MEApipeline.m</cite>, users can tailor their 
 <section id="spike-detection">
 <h3>Spike detection<a class="headerlink" href="#spike-detection" title="Link to this heading">#</a></h3>
 <section id="params-detectspikes">
-<span id="id16"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.detectSpikes</span></code><a class="headerlink" href="#params-detectspikes" title="Link to this heading">#</a></h4>
+<span id="id15"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.detectSpikes</span></code><a class="headerlink" href="#params-detectspikes" title="Link to this heading">#</a></h4>
 <blockquote>
 <div><ul class="simple">
 <li><p>Determines whether to run spike detection in the pipeline</p></li>
@@ -776,7 +896,7 @@ By customizing parameters in <cite>MEApipeline.m</cite>, users can tailor their 
 </div></blockquote>
 </section>
 <section id="params-dsampf">
-<span id="id17"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.dSampF</span></code><a class="headerlink" href="#params-dsampf" title="Link to this heading">#</a></h4>
+<span id="id16"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.dSampF</span></code><a class="headerlink" href="#params-dsampf" title="Link to this heading">#</a></h4>
 <blockquote>
 <div><ul class="simple">
 <li><p>The down-sampling factor for plotting spike detection checks in Step 1B. For most analyses, no down sampling is necessary. Thus, set this to be equal to <code class="docutils literal notranslate"><span class="pre">Params.fs</span></code>.</p></li>
@@ -787,7 +907,7 @@ By customizing parameters in <cite>MEApipeline.m</cite>, users can tailor their 
 </div></blockquote>
 </section>
 <section id="params-potentialdifferenceunit">
-<span id="id18"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.potentialDifferenceUnit</span></code><a class="headerlink" href="#params-potentialdifferenceunit" title="Link to this heading">#</a></h4>
+<span id="id17"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.potentialDifferenceUnit</span></code><a class="headerlink" href="#params-potentialdifferenceunit" title="Link to this heading">#</a></h4>
 <blockquote>
 <div><ul class="simple">
 <li><p>the unit of potential difference in which you are recording electrical signals</p></li>
@@ -797,7 +917,7 @@ By customizing parameters in <cite>MEApipeline.m</cite>, users can tailor their 
 </div></blockquote>
 </section>
 <section id="params-channellayout">
-<span id="id19"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.channelLayout</span></code><a class="headerlink" href="#params-channellayout" title="Link to this heading">#</a></h4>
+<span id="id18"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.channelLayout</span></code><a class="headerlink" href="#params-channellayout" title="Link to this heading">#</a></h4>
 <blockquote>
 <div><ul class="simple">
 <li><p>The channel layout to use for plotting firing rate heatmaps, and other plots related to the layout of the electrodes</p></li>
@@ -806,7 +926,7 @@ By customizing parameters in <cite>MEApipeline.m</cite>, users can tailor their 
 </div></blockquote>
 </section>
 <section id="params-coords">
-<span id="id20"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.coords</span></code><a class="headerlink" href="#params-coords" title="Link to this heading">#</a></h4>
+<span id="id19"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.coords</span></code><a class="headerlink" href="#params-coords" title="Link to this heading">#</a></h4>
 <blockquote>
 <div><ul class="simple">
 <li><p>The x and y coordinates of each electrode to be used for visualisation purposes</p></li>
@@ -816,7 +936,7 @@ By customizing parameters in <cite>MEApipeline.m</cite>, users can tailor their 
 </div></blockquote>
 </section>
 <section id="params-wnamelist">
-<span id="id21"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.wnameList</span></code><a class="headerlink" href="#params-wnamelist" title="Link to this heading">#</a></h4>
+<span id="id20"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.wnameList</span></code><a class="headerlink" href="#params-wnamelist" title="Link to this heading">#</a></h4>
 <blockquote>
 <div><ul class="simple">
 <li><p>Determines which wavelets to run the spike detection with</p></li>
@@ -826,7 +946,7 @@ By customizing parameters in <cite>MEApipeline.m</cite>, users can tailor their 
 </div></blockquote>
 </section>
 <section id="params-spikesmethod">
-<span id="id22"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.SpikesMethod</span></code><a class="headerlink" href="#params-spikesmethod" title="Link to this heading">#</a></h4>
+<span id="id21"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.SpikesMethod</span></code><a class="headerlink" href="#params-spikesmethod" title="Link to this heading">#</a></h4>
 <blockquote>
 <div><ul class="simple">
 <li><p>The spike method to used in downstream analysis</p></li>
@@ -839,7 +959,7 @@ By customizing parameters in <cite>MEApipeline.m</cite>, users can tailor their 
 </div></blockquote>
 </section>
 <section id="params-costlist">
-<span id="id23"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.costList</span></code><a class="headerlink" href="#params-costlist" title="Link to this heading">#</a></h4>
+<span id="id22"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.costList</span></code><a class="headerlink" href="#params-costlist" title="Link to this heading">#</a></h4>
 <blockquote>
 <div><ul class="simple">
 <li><p>The false positive / false negative tradeoff for wavelet spike detection</p></li>
@@ -850,7 +970,7 @@ By customizing parameters in <cite>MEApipeline.m</cite>, users can tailor their 
 <p>More negative values leads to less false negative but more false positives, recommended range is between -2 to 2, but usually we use -1 to 0. Note that this is in a log10 scale, meaning -1 will lead to 10 times more false positive compared to -0.1</p>
 </section>
 <section id="params-threshold-calculation-window">
-<span id="id24"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.threshold_calculation_window</span></code><a class="headerlink" href="#params-threshold-calculation-window" title="Link to this heading">#</a></h4>
+<span id="id23"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.threshold_calculation_window</span></code><a class="headerlink" href="#params-threshold-calculation-window" title="Link to this heading">#</a></h4>
 <blockquote>
 <div><ul class="simple">
 <li><p>Which part of the recording to do spike detection</p></li>
@@ -861,7 +981,7 @@ By customizing parameters in <cite>MEApipeline.m</cite>, users can tailor their 
 </div></blockquote>
 </section>
 <section id="params-refperiod">
-<span id="id25"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.refPeriod</span></code><a class="headerlink" href="#params-refperiod" title="Link to this heading">#</a></h4>
+<span id="id24"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.refPeriod</span></code><a class="headerlink" href="#params-refperiod" title="Link to this heading">#</a></h4>
 <blockquote>
 <div><ul class="simple">
 <li><p>The refractory period of spikes in milliseconds</p></li>
@@ -873,7 +993,7 @@ By customizing parameters in <cite>MEApipeline.m</cite>, users can tailor their 
 </div></blockquote>
 </section>
 <section id="params-filterlowpass">
-<span id="id26"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.filterLowPass</span></code><a class="headerlink" href="#params-filterlowpass" title="Link to this heading">#</a></h4>
+<span id="id25"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.filterLowPass</span></code><a class="headerlink" href="#params-filterlowpass" title="Link to this heading">#</a></h4>
 <blockquote>
 <div><ul class="simple">
 <li><p>The low pass frequency (Hz) to use on the raw signal before spike detection</p></li>
@@ -883,7 +1003,7 @@ By customizing parameters in <cite>MEApipeline.m</cite>, users can tailor their 
 </div></blockquote>
 </section>
 <section id="params-filterhighpass">
-<span id="id27"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.filterHighPass</span></code><a class="headerlink" href="#params-filterhighpass" title="Link to this heading">#</a></h4>
+<span id="id26"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.filterHighPass</span></code><a class="headerlink" href="#params-filterhighpass" title="Link to this heading">#</a></h4>
 <blockquote>
 <div><ul class="simple">
 <li><p>The high pass frequency (Hz) to use on the raw signal before spike detection</p></li>
@@ -893,7 +1013,7 @@ By customizing parameters in <cite>MEApipeline.m</cite>, users can tailor their 
 </div></blockquote>
 </section>
 <section id="params-runspikecheckonprevspikedata">
-<span id="id28"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.runSpikeCheckOnPrevSpikeData</span></code><a class="headerlink" href="#params-runspikecheckonprevspikedata" title="Link to this heading">#</a></h4>
+<span id="id27"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.runSpikeCheckOnPrevSpikeData</span></code><a class="headerlink" href="#params-runspikecheckonprevspikedata" title="Link to this heading">#</a></h4>
 <blockquote>
 <div><ul class="simple">
 <li><p>Whether to run spike detection check without spike detection</p></li>
@@ -905,7 +1025,7 @@ By customizing parameters in <cite>MEApipeline.m</cite>, users can tailor their 
 <p>Note that setting this to 1 automatically sets <cite>detectSpikes</cite> to 0.</p>
 </section>
 <section id="params-remove-artifacts">
-<span id="id29"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.remove_artifacts</span></code><a class="headerlink" href="#params-remove-artifacts" title="Link to this heading">#</a></h4>
+<span id="id28"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.remove_artifacts</span></code><a class="headerlink" href="#params-remove-artifacts" title="Link to this heading">#</a></h4>
 <blockquote>
 <div><ul class="simple">
 <li><p>Whether to run process to remove artifacts from recording</p></li>
@@ -916,7 +1036,7 @@ By customizing parameters in <cite>MEApipeline.m</cite>, users can tailor their 
 </div></blockquote>
 </section>
 <section id="params-minpeakthrmultiplier">
-<span id="id30"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.minPeakThrMultiplier</span></code><a class="headerlink" href="#params-minpeakthrmultiplier" title="Link to this heading">#</a></h4>
+<span id="id29"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.minPeakThrMultiplier</span></code><a class="headerlink" href="#params-minpeakthrmultiplier" title="Link to this heading">#</a></h4>
 <blockquote>
 <div><ul class="simple">
 <li><p>The minimal spike amplitude that is used for artifact removal</p></li>
@@ -927,7 +1047,7 @@ By customizing parameters in <cite>MEApipeline.m</cite>, users can tailor their 
 </div></blockquote>
 </section>
 <section id="params-maxpeakthrmultiplier">
-<span id="id31"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.maxPeakThrMultiplier</span></code><a class="headerlink" href="#params-maxpeakthrmultiplier" title="Link to this heading">#</a></h4>
+<span id="id30"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.maxPeakThrMultiplier</span></code><a class="headerlink" href="#params-maxpeakthrmultiplier" title="Link to this heading">#</a></h4>
 <blockquote>
 <div><ul class="simple">
 <li><p>The maximal spike amplitude in terms of negative peak that is used for artifact removal</p></li>
@@ -938,7 +1058,7 @@ By customizing parameters in <cite>MEApipeline.m</cite>, users can tailor their 
 </div></blockquote>
 </section>
 <section id="params-pospeakthrmultiplier">
-<span id="id32"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.posPeakThrMultiplier</span></code><a class="headerlink" href="#params-pospeakthrmultiplier" title="Link to this heading">#</a></h4>
+<span id="id31"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.posPeakThrMultiplier</span></code><a class="headerlink" href="#params-pospeakthrmultiplier" title="Link to this heading">#</a></h4>
 <blockquote>
 <div><ul class="simple">
 <li><p>The maximal spike amplitude in terms of positive peak that is used for artifact removal</p></li>
@@ -949,7 +1069,7 @@ By customizing parameters in <cite>MEApipeline.m</cite>, users can tailor their 
 </div></blockquote>
 </section>
 <section id="params-multiplier">
-<span id="id33"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.multiplier</span></code><a class="headerlink" href="#params-multiplier" title="Link to this heading">#</a></h4>
+<span id="id32"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.multiplier</span></code><a class="headerlink" href="#params-multiplier" title="Link to this heading">#</a></h4>
 <blockquote>
 <div><ul class="simple">
 <li><p>The multiplier to use for extracting spikes for wavelet adaptation method (not for the spike detection itself)</p></li>
@@ -963,7 +1083,7 @@ By customizing parameters in <cite>MEApipeline.m</cite>, users can tailor their 
 <section id="functional-connectivity">
 <h3>Functional connectivity<a class="headerlink" href="#functional-connectivity" title="Link to this heading">#</a></h3>
 <section id="params-funcconlagval">
-<span id="id34"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.FuncConLagval</span></code><a class="headerlink" href="#params-funcconlagval" title="Link to this heading">#</a></h4>
+<span id="id33"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.FuncConLagval</span></code><a class="headerlink" href="#params-funcconlagval" title="Link to this heading">#</a></h4>
 <blockquote>
 <div><ul class="simple">
 <li><p>List of lag values (in ms) to use to infer correlation of spike trains</p></li>
@@ -972,7 +1092,7 @@ By customizing parameters in <cite>MEApipeline.m</cite>, users can tailor their 
 </div></blockquote>
 </section>
 <section id="params-truncrec">
-<span id="id35"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.TruncRec</span></code><a class="headerlink" href="#params-truncrec" title="Link to this heading">#</a></h4>
+<span id="id34"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.TruncRec</span></code><a class="headerlink" href="#params-truncrec" title="Link to this heading">#</a></h4>
 <blockquote>
 <div><ul class="simple">
 <li><p>Whether or not to truncate the recording</p></li>
@@ -982,7 +1102,7 @@ By customizing parameters in <cite>MEApipeline.m</cite>, users can tailor their 
 </div></blockquote>
 </section>
 <section id="params-trunclength">
-<span id="id36"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.TruncLength</span></code><a class="headerlink" href="#params-trunclength" title="Link to this heading">#</a></h4>
+<span id="id35"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.TruncLength</span></code><a class="headerlink" href="#params-trunclength" title="Link to this heading">#</a></h4>
 <blockquote>
 <div><ul class="simple">
 <li><p>The duration (in seconds) of the recording to truncate</p></li>
@@ -991,7 +1111,7 @@ By customizing parameters in <cite>MEApipeline.m</cite>, users can tailor their 
 </div></blockquote>
 </section>
 <section id="params-adjmtype">
-<span id="id37"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.adjMtype</span></code><a class="headerlink" href="#params-adjmtype" title="Link to this heading">#</a></h4>
+<span id="id36"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.adjMtype</span></code><a class="headerlink" href="#params-adjmtype" title="Link to this heading">#</a></h4>
 <blockquote>
 <div><ul class="simple">
 <li><p>The type of adjacency matrix to obtain</p></li>
@@ -1001,7 +1121,7 @@ By customizing parameters in <cite>MEApipeline.m</cite>, users can tailor their 
 </div></blockquote>
 </section>
 <section id="params-probthreshrepnum">
-<span id="id38"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.ProbThreshRepNum</span></code><a class="headerlink" href="#params-probthreshrepnum" title="Link to this heading">#</a></h4>
+<span id="id37"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.ProbThreshRepNum</span></code><a class="headerlink" href="#params-probthreshrepnum" title="Link to this heading">#</a></h4>
 <blockquote>
 <div><ul class="simple">
 <li><p>Number of random shuffles to obtain for probabilistic thresholding</p></li>
@@ -1010,7 +1130,7 @@ By customizing parameters in <cite>MEApipeline.m</cite>, users can tailor their 
 </div></blockquote>
 </section>
 <section id="params-probthreshtail">
-<span id="id39"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.ProbThreshTail</span></code><a class="headerlink" href="#params-probthreshtail" title="Link to this heading">#</a></h4>
+<span id="id38"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.ProbThreshTail</span></code><a class="headerlink" href="#params-probthreshtail" title="Link to this heading">#</a></h4>
 <blockquote>
 <div><ul class="simple">
 <li><p>The percentile threshold to use for probabilistic thresholding</p></li>
@@ -1020,7 +1140,7 @@ By customizing parameters in <cite>MEApipeline.m</cite>, users can tailor their 
 </div></blockquote>
 </section>
 <section id="probthreshplotchecks">
-<span id="id40"></span><h4><code class="docutils literal notranslate"><span class="pre">ProbThreshPlotChecks</span></code><a class="headerlink" href="#probthreshplotchecks" title="Link to this heading">#</a></h4>
+<span id="id39"></span><h4><code class="docutils literal notranslate"><span class="pre">ProbThreshPlotChecks</span></code><a class="headerlink" href="#probthreshplotchecks" title="Link to this heading">#</a></h4>
 <blockquote>
 <div><ul class="simple">
 <li><p>Whether or not to plot probabilistic thresholding check</p></li>
@@ -1030,7 +1150,7 @@ By customizing parameters in <cite>MEApipeline.m</cite>, users can tailor their 
 </div></blockquote>
 </section>
 <section id="params-probthreshplotchecks">
-<span id="id41"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.ProbThreshPlotChecks</span></code><a class="headerlink" href="#params-probthreshplotchecks" title="Link to this heading">#</a></h4>
+<span id="id40"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.ProbThreshPlotChecks</span></code><a class="headerlink" href="#params-probthreshplotchecks" title="Link to this heading">#</a></h4>
 <blockquote>
 <div><ul class="simple">
 <li><p>Whether to randomly sample recordings to plot probabilistic thresholding check</p></li>
@@ -1040,7 +1160,7 @@ By customizing parameters in <cite>MEApipeline.m</cite>, users can tailor their 
 </div></blockquote>
 </section>
 <section id="params-probthreshplotchecksn">
-<span id="id42"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.ProbThreshPlotChecksN</span></code><a class="headerlink" href="#params-probthreshplotchecksn" title="Link to this heading">#</a></h4>
+<span id="id41"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.ProbThreshPlotChecksN</span></code><a class="headerlink" href="#params-probthreshplotchecksn" title="Link to this heading">#</a></h4>
 <blockquote>
 <div><ul class="simple">
 <li><p>Number of recordings to check (selected randomly) for probabilistic thresholding</p></li>
@@ -1053,7 +1173,7 @@ By customizing parameters in <cite>MEApipeline.m</cite>, users can tailor their 
 <section id="network-analysis">
 <h3>Network analysis<a class="headerlink" href="#network-analysis" title="Link to this heading">#</a></h3>
 <section id="params-netmettocal">
-<span id="id43"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.netMetToCal</span></code><a class="headerlink" href="#params-netmettocal" title="Link to this heading">#</a></h4>
+<span id="id42"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.netMetToCal</span></code><a class="headerlink" href="#params-netmettocal" title="Link to this heading">#</a></h4>
 <blockquote>
 <div><ul class="simple">
 <li><p>List of network metrics to calculate</p></li>
@@ -1063,7 +1183,7 @@ By customizing parameters in <cite>MEApipeline.m</cite>, users can tailor their 
 </div></blockquote>
 </section>
 <section id="params-minnumberofnodestocalnetmet">
-<span id="id44"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.minNumberOfNodesToCalNetMet</span></code><a class="headerlink" href="#params-minnumberofnodestocalnetmet" title="Link to this heading">#</a></h4>
+<span id="id43"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.minNumberOfNodesToCalNetMet</span></code><a class="headerlink" href="#params-minnumberofnodestocalnetmet" title="Link to this heading">#</a></h4>
 <blockquote>
 <div><ul class="simple">
 <li><p>Minimum number of nodes required to calculate network metrics</p></li>
@@ -1074,7 +1194,7 @@ By customizing parameters in <cite>MEApipeline.m</cite>, users can tailor their 
 </div></blockquote>
 </section>
 <section id="params-networklevelnetmettoplot">
-<span id="id45"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.networkLevelNetMetToPlot</span></code><a class="headerlink" href="#params-networklevelnetmettoplot" title="Link to this heading">#</a></h4>
+<span id="id44"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.networkLevelNetMetToPlot</span></code><a class="headerlink" href="#params-networklevelnetmettoplot" title="Link to this heading">#</a></h4>
 <blockquote>
 <div><ul class="simple">
 <li><p>List of network metrics to plot, this should be the same or a subset as the list of network metrics to calculate, which is specified in Params.netMetToCal</p></li>
@@ -1084,7 +1204,7 @@ By customizing parameters in <cite>MEApipeline.m</cite>, users can tailor their 
 </div></blockquote>
 </section>
 <section id="params-networklevelnetmetlabels">
-<span id="id46"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.networkLevelNetMetLabels</span></code><a class="headerlink" href="#params-networklevelnetmetlabels" title="Link to this heading">#</a></h4>
+<span id="id45"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.networkLevelNetMetLabels</span></code><a class="headerlink" href="#params-networklevelnetmetlabels" title="Link to this heading">#</a></h4>
 <blockquote>
 <div><ul class="simple">
 <li><p>List of labels corresponding to the network level metrics to plot</p></li>
@@ -1094,7 +1214,7 @@ By customizing parameters in <cite>MEApipeline.m</cite>, users can tailor their 
 </div></blockquote>
 </section>
 <section id="params-includenmfcomponents">
-<span id="id47"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.includeNMFcomponents</span></code><a class="headerlink" href="#params-includenmfcomponents" title="Link to this heading">#</a></h4>
+<span id="id46"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.includeNMFcomponents</span></code><a class="headerlink" href="#params-includenmfcomponents" title="Link to this heading">#</a></h4>
 <blockquote>
 <div><ul class="simple">
 <li><p>Whether to include the components as output when performing non-negative matrix factorisation on the spike rate matrix, which outputs a matrix of size (num_components, num_time_samples) and a matrix of size (num_components, num_units)</p></li>
@@ -1105,7 +1225,7 @@ By customizing parameters in <cite>MEApipeline.m</cite>, users can tailor their 
 </div></blockquote>
 </section>
 <section id="params-nmfdownsamplefreq">
-<span id="id48"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.NMFdownSampleFreq</span></code><a class="headerlink" href="#params-nmfdownsamplefreq" title="Link to this heading">#</a></h4>
+<span id="id47"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.NMFdownSampleFreq</span></code><a class="headerlink" href="#params-nmfdownsamplefreq" title="Link to this heading">#</a></h4>
 <blockquote>
 <div><ul class="simple">
 <li><p>How mcuh to downsample the spike rate matrix before performing non-negative matrix factorisation</p></li>
@@ -1116,7 +1236,7 @@ By customizing parameters in <cite>MEApipeline.m</cite>, users can tailor their 
 </div></blockquote>
 </section>
 <section id="params-effrankcalmethod">
-<span id="id49"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.effRankCalMethod</span></code><a class="headerlink" href="#params-effrankcalmethod" title="Link to this heading">#</a></h4>
+<span id="id48"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.effRankCalMethod</span></code><a class="headerlink" href="#params-effrankcalmethod" title="Link to this heading">#</a></h4>
 <blockquote>
 <div><ul class="simple">
 <li><p>Whether to use the covariance or correlation matrix for effective rank calculation</p></li>
@@ -1127,7 +1247,7 @@ By customizing parameters in <cite>MEApipeline.m</cite>, users can tailor their 
 </div></blockquote>
 </section>
 <section id="params-autosetcartographyboundaries">
-<span id="id50"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.autoSetCartographyBoundaries</span></code><a class="headerlink" href="#params-autosetcartographyboundaries" title="Link to this heading">#</a></h4>
+<span id="id49"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.autoSetCartographyBoundaries</span></code><a class="headerlink" href="#params-autosetcartographyboundaries" title="Link to this heading">#</a></h4>
 <blockquote>
 <div><ul class="simple">
 <li><p>Whether or not to automatically determine bounds in the participation coefficient vs. within module z-score space to classify different nodes (eg. hubs versus non-hubs)</p></li>
@@ -1136,7 +1256,7 @@ By customizing parameters in <cite>MEApipeline.m</cite>, users can tailor their 
 </div></blockquote>
 </section>
 <section id="params-hubboundarywmddeg">
-<span id="id51"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.hubBoundaryWMdDeg</span></code><a class="headerlink" href="#params-hubboundarywmddeg" title="Link to this heading">#</a></h4>
+<span id="id50"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.hubBoundaryWMdDeg</span></code><a class="headerlink" href="#params-hubboundarywmddeg" title="Link to this heading">#</a></h4>
 <blockquote>
 <div><ul class="simple">
 <li><p>Boundary that separtes hub and non-hubs</p></li>
@@ -1147,7 +1267,7 @@ By customizing parameters in <cite>MEApipeline.m</cite>, users can tailor their 
 </div></blockquote>
 </section>
 <section id="params-peripartcoef">
-<span id="id52"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.periPartCoef</span></code><a class="headerlink" href="#params-peripartcoef" title="Link to this heading">#</a></h4>
+<span id="id51"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.periPartCoef</span></code><a class="headerlink" href="#params-peripartcoef" title="Link to this heading">#</a></h4>
 <blockquote>
 <div><ul class="simple">
 <li><p>Boundary (in terms of participation coefficient) that separates peripheral node and non-hub connector</p></li>
@@ -1158,7 +1278,7 @@ By customizing parameters in <cite>MEApipeline.m</cite>, users can tailor their 
 </div></blockquote>
 </section>
 <section id="params-prohubpartcoef">
-<span id="id53"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.proHubPartCoef</span></code><a class="headerlink" href="#params-prohubpartcoef" title="Link to this heading">#</a></h4>
+<span id="id52"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.proHubPartCoef</span></code><a class="headerlink" href="#params-prohubpartcoef" title="Link to this heading">#</a></h4>
 <blockquote>
 <div><ul class="simple">
 <li><p>Boundary (in terms of participation coefficient) that separates provincial hub and connector hub</p></li>
@@ -1169,7 +1289,7 @@ By customizing parameters in <cite>MEApipeline.m</cite>, users can tailor their 
 </div></blockquote>
 </section>
 <section id="params-nonhubconnectorpartcoef">
-<span id="id54"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.nonHubConnectorPartCoef</span></code><a class="headerlink" href="#params-nonhubconnectorpartcoef" title="Link to this heading">#</a></h4>
+<span id="id53"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.nonHubConnectorPartCoef</span></code><a class="headerlink" href="#params-nonhubconnectorpartcoef" title="Link to this heading">#</a></h4>
 <blockquote>
 <div><ul class="simple">
 <li><p>Boundary (in terms of participation coefficient) that separates non-hub connector and non-hub kinless node</p></li>
@@ -1180,7 +1300,7 @@ By customizing parameters in <cite>MEApipeline.m</cite>, users can tailor their 
 </div></blockquote>
 </section>
 <section id="params-connectorhubpartcoef">
-<span id="id55"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.connectorHubPartCoef</span></code><a class="headerlink" href="#params-connectorhubpartcoef" title="Link to this heading">#</a></h4>
+<span id="id54"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.connectorHubPartCoef</span></code><a class="headerlink" href="#params-connectorhubpartcoef" title="Link to this heading">#</a></h4>
 <blockquote>
 <div><ul class="simple">
 <li><p>Boundary that separates connector hub and kinless hub</p></li>
@@ -1194,7 +1314,7 @@ By customizing parameters in <cite>MEApipeline.m</cite>, users can tailor their 
 <section id="plot-settings">
 <h3>Plot settings<a class="headerlink" href="#plot-settings" title="Link to this heading">#</a></h3>
 <section id="params-figext">
-<span id="id56"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.figExt</span></code><a class="headerlink" href="#params-figext" title="Link to this heading">#</a></h4>
+<span id="id55"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.figExt</span></code><a class="headerlink" href="#params-figext" title="Link to this heading">#</a></h4>
 <blockquote>
 <div><ul class="simple">
 <li><p>Which file formats to export figures as</p></li>
@@ -1205,7 +1325,7 @@ By customizing parameters in <cite>MEApipeline.m</cite>, users can tailor their 
 </div></blockquote>
 </section>
 <section id="params-fullsvg">
-<span id="id57"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.fullSVG</span></code><a class="headerlink" href="#params-fullsvg" title="Link to this heading">#</a></h4>
+<span id="id56"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.fullSVG</span></code><a class="headerlink" href="#params-fullsvg" title="Link to this heading">#</a></h4>
 <blockquote>
 <div><ul class="simple">
 <li><p>Whether to insist matlab to export to SVG in plots with large number of elements, otherwise matlab will compress figure as an image before saving to an SVG file</p></li>
@@ -1215,7 +1335,7 @@ By customizing parameters in <cite>MEApipeline.m</cite>, users can tailor their 
 </div></blockquote>
 </section>
 <section id="params-showonefig">
-<span id="id58"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.showOneFig</span></code><a class="headerlink" href="#params-showonefig" title="Link to this heading">#</a></h4>
+<span id="id57"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.showOneFig</span></code><a class="headerlink" href="#params-showonefig" title="Link to this heading">#</a></h4>
 <blockquote>
 <div><ul class="simple">
 <li><p>Whether to do all the plotting in the pipeline in one figure handle, this prevents multiple figure from popping out as the code runs, which may interrupt the user using the computer</p></li>
@@ -1225,7 +1345,7 @@ By customizing parameters in <cite>MEApipeline.m</cite>, users can tailor their 
 </div></blockquote>
 </section>
 <section id="params-groupcolors">
-<span id="id59"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.groupColors</span></code><a class="headerlink" href="#params-groupcolors" title="Link to this heading">#</a></h4>
+<span id="id58"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.groupColors</span></code><a class="headerlink" href="#params-groupcolors" title="Link to this heading">#</a></h4>
 <blockquote>
 <div><ul class="simple">
 <li><p>Colors to use for each group in group comparison plots</p></li>
@@ -1234,7 +1354,7 @@ By customizing parameters in <cite>MEApipeline.m</cite>, users can tailor their 
 </div></blockquote>
 </section>
 <section id="params-grpnm">
-<span id="id60"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.GrpNm</span></code><a class="headerlink" href="#params-grpnm" title="Link to this heading">#</a></h4>
+<span id="id59"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.GrpNm</span></code><a class="headerlink" href="#params-grpnm" title="Link to this heading">#</a></h4>
 <blockquote>
 <div><ul class="simple">
 <li><p>List of names corresponding to the different groups</p></li>
@@ -1244,7 +1364,7 @@ By customizing parameters in <cite>MEApipeline.m</cite>, users can tailor their 
 </div></blockquote>
 </section>
 <section id="params-divnm">
-<span id="id61"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.DivNm</span></code><a class="headerlink" href="#params-divnm" title="Link to this heading">#</a></h4>
+<span id="id60"></span><h4><code class="docutils literal notranslate"><span class="pre">Params.DivNm</span></code><a class="headerlink" href="#params-divnm" title="Link to this heading">#</a></h4>
 <blockquote>
 <div><ul class="simple">
 <li><p>List of numbers corresponding to the days in vitro (or any quantification of development time point)</p></li>
@@ -1314,6 +1434,7 @@ By customizing parameters in <cite>MEApipeline.m</cite>, users can tailor their 
             <ul>
 <li><a class="reference internal" href="#">Guide for Advanced Users</a><ul>
 <li><a class="reference internal" href="#creating-a-custom-mea-layout">Creating a Custom MEA Layout</a></li>
+<li><a class="reference internal" href="#changing-parameters-for-calculating-mea-nap-network-features">Changing parameters for calculating MEA-NAP network features</a></li>
 <li><a class="reference internal" href="#overview-of-mea-nap">Overview of MEA-NAP</a></li>
 <li><a class="reference internal" href="#starting-mea-nap">Starting MEA-NAP</a><ul>
 <li><a class="reference internal" href="#required-user-input-in-the-first-section-of-mea-nap">Required user input in the first section of MEA-NAP</a></li>
@@ -1327,7 +1448,7 @@ By customizing parameters in <cite>MEApipeline.m</cite>, users can tailor their 
 </ul>
 </li>
 <li><a class="reference internal" href="#pipeline-parameters">Pipeline parameters</a><ul>
-<li><a class="reference internal" href="#id3">Overview</a></li>
+<li><a class="reference internal" href="#overview">Overview</a></li>
 <li><a class="reference internal" href="#folder-paths">Folder paths</a><ul>
 <li><a class="reference internal" href="#homedir"><code class="docutils literal notranslate"><span class="pre">HomeDir</span></code></a></li>
 <li><a class="reference internal" href="#rawdata"><code class="docutils literal notranslate"><span class="pre">rawData</span></code></a></li>

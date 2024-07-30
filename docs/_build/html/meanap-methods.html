@@ -293,9 +293,9 @@ To do this, for each pair of electrodes, circular shifts are made in the spike t
 <section id="graph-theory-and-other-network-metrics">
 <h3>Graph theory and other network metrics<a class="headerlink" href="#graph-theory-and-other-network-metrics" title="Link to this heading">#</a></h3>
 <p>Graph theoretical approaches are commonly used at the whole brain level, and less commonly at the cellular scale, to characterise network pathology, as well as uncover systems-level changes associated with developmental processes (Bassett &amp; Bullmore, 2009). The following network features are currently included in the pipeline. Metrics which describe individual nodes (yellow) and entire network (white boxes).</p>
-<div class="table-wrapper colwidths-given docutils container" id="id1">
-<table class="docutils align-default" id="id1">
-<caption><span class="caption-text"><strong>Basic features of the network</strong></span><a class="headerlink" href="#id1" title="Link to this table">#</a></caption>
+<div class="table-wrapper colwidths-given docutils container" id="id3">
+<table class="docutils align-default" id="id3">
+<caption><span class="caption-text"><strong>Basic features of the network</strong></span><a class="headerlink" href="#id3" title="Link to this table">#</a></caption>
 <colgroup>
 <col style="width: 33%" />
 <col style="width: 67%" />
@@ -354,9 +354,9 @@ To do this, for each pair of electrodes, circular shifts are made in the spike t
 </tbody>
 </table>
 </div>
-<div class="table-wrapper colwidths-given docutils container" id="id2">
-<table class="docutils align-default" id="id2">
-<caption><span class="caption-text"><strong>Local processing in the network</strong></span><a class="headerlink" href="#id2" title="Link to this table">#</a></caption>
+<div class="table-wrapper colwidths-given docutils container" id="id4">
+<table class="docutils align-default" id="id4">
+<caption><span class="caption-text"><strong>Local processing in the network</strong></span><a class="headerlink" href="#id4" title="Link to this table">#</a></caption>
 <colgroup>
 <col style="width: 33%" />
 <col style="width: 67%" />
@@ -418,9 +418,9 @@ To do this, for each pair of electrodes, circular shifts are made in the spike t
 </tbody>
 </table>
 </div>
-<div class="table-wrapper colwidths-given docutils container" id="id3">
-<table class="docutils align-default" id="id3">
-<caption><span class="caption-text"><strong>Global processing and nodal roles in the network</strong></span><a class="headerlink" href="#id3" title="Link to this table">#</a></caption>
+<div class="table-wrapper colwidths-given docutils container" id="id5">
+<table class="docutils align-default" id="id5">
+<caption><span class="caption-text"><strong>Global processing and nodal roles in the network</strong></span><a class="headerlink" href="#id5" title="Link to this table">#</a></caption>
 <colgroup>
 <col style="width: 33%" />
 <col style="width: 67%" />
@@ -500,9 +500,9 @@ To do this, for each pair of electrodes, circular shifts are made in the spike t
 </tbody>
 </table>
 </div>
-<div class="table-wrapper colwidths-given docutils container" id="id4">
-<table class="docutils align-default" id="id4">
-<caption><span class="caption-text"><strong>Network dynamics</strong></span><a class="headerlink" href="#id4" title="Link to this table">#</a></caption>
+<div class="table-wrapper colwidths-given docutils container" id="id6">
+<table class="docutils align-default" id="id6">
+<caption><span class="caption-text"><strong>Network dynamics</strong></span><a class="headerlink" href="#id6" title="Link to this table">#</a></caption>
 <colgroup>
 <col style="width: 33%" />
 <col style="width: 67%" />
@@ -585,6 +585,114 @@ from -1 to 1, so negative weights (correlations) are ignored.</p>
 <p>Features of local and global processing are influenced by basic network topology, such as the number of nodes. Therefore this pipeline normalises several of these features in order to allow comparison between different networks, as well as the same network over developmental time. To do this, a number of artificial networks (null models) are created from each real network to provide a baseline from which to normalise. The structure of these null models is such that the influence of network topology is removed while network features such as size and connection density are retained. This pipeline uses two types of null model, and generates and saves figures to allow comparison by visual inspection of certain features of their network topology.</p>
 <p>The first is lattice-like, available in <code class="docutils literal notranslate"><span class="pre">latmio_und_v2.m</span></code> (based on Brain Connectivity Toolbox). These exhibit high clustering and high path lengths. In our pipeline, lattice-like models are used to normalise clustering coefficient, itself used in calculating the small world coefficient <span class="math notranslate nohighlight">\(w\)</span>.</p>
 <p>The second is randomised, available in <code class="docutils literal notranslate"><span class="pre">randmio_und_v2.m</span></code> (based on Brain Connectivity Toolbox). These exhibit low clustering and low path lengths. In our pipeline, randomised models are used to normalise path length, itself used in calculating the small world coefficient <span class="math notranslate nohighlight">\(w\)</span>. It is also used to calculate the small world coefficient <span class="math notranslate nohighlight">\(\sigma\)</span>.</p>
+<div class="table-wrapper colwidths-given docutils container" id="id7">
+<table class="docutils align-default" id="id7">
+<caption><span class="caption-text"><strong>Network metrics normalized with synthetic network counterparts</strong></span><a class="headerlink" href="#id7" title="Link to this table">#</a></caption>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 67%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Network Metrics</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><img alt="_images/CC.png" src="_images/CC.png" />
+<p>Clustering coefficient (CC)</p>
+</td>
+<td><p>CC is normalized with a lattice null model with preserved degree distribution <em>(Source: Brain Connectivity Toolbox, latmio_und.m; adapted as latmio_und_v2 in MEA-NAP)</em></p></td>
+</tr>
+<tr class="row-odd"><td><img alt="_images/PL.png" src="_images/PL.png" />
+<p>Path length (PL)</p>
+</td>
+<td><p>PL is normalized with a randomized null model with preserved degree distribution <em>(Source: Brain Connectivity Toolbox, randmio_und.m; randmio_und_v2 in MEA-NAP)</em></p></td>
+</tr>
+<tr class="row-even"><td><img alt="_images/small_world_coefficient_1.png" src="_images/small_world_coefficient_1.png" />
+<p>Small-world coefficient, Method 1 (σ)</p>
+</td>
+<td><p>σ is normalized using a randomized null model with preserved degree distribution <em>(Source: Brain Connectivity Toolbox, randmio_und.m; adapted as randmio_und_v2 in MEA-NAP)</em></p></td>
+</tr>
+<tr class="row-odd"><td><img alt="_images/small_world_coefficient_2.png" src="_images/small_world_coefficient_2.png" />
+<p>Small-world coefficient, Method 2 (ω)</p>
+</td>
+<td><p>ω is normalized using randomized and lattice null models with preserved degree distribution <em>(Source: Brain Connectivity Toolbox, randmio_und.m and latmio_und.m; adapted as randmio_und_v2 and latmio_und_v2 in MEA-NAP)</em></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="table-wrapper colwidths-given docutils container" id="id8">
+<table class="docutils align-default" id="id8">
+<caption><span class="caption-text"><strong>Network metrics calculated between 0 to 1</strong></span><a class="headerlink" href="#id8" title="Link to this table">#</a></caption>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 67%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Network Metrics</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><img alt="_images/BC.png" src="_images/BC.png" />
+<p>Betweenness centrality (BC)</p>
+</td>
+<td><p>BC is divided by [(N-1)(N-2)], where N is the number of nodes in the network. <em>(Source: Brain Connectivity Toolbox, betweenness_wei.m or betweenness_bin.m.)</em></p></td>
+</tr>
+<tr class="row-odd"><td><img alt="_images/PL.png" src="_images/PL.png" />
+<p>Global efficiency (GE)</p>
+</td>
+<td><p>GE is calculated as the inverse of the characteristic path length. <em>(Source: Brain Connectivity Toolbox, efficiency_wei.m or efficiency_bin.m.)</em></p></td>
+</tr>
+<tr class="row-even"><td><img alt="_images/local_efficiency.png" src="_images/local_efficiency.png" />
+<p>Local efficiency (LE)</p>
+</td>
+<td><p>First the edge weights are normalized (scaled 0 to 1) before the LE is calculated with the efficiency function <em>(Source: Brain Connectivity Toolbox, weight_conversion.m and efficiency_wei.m)</em></p></td>
+</tr>
+<tr class="row-odd"><td><img alt="_images/PC.png" src="_images/PC.png" />
+<p>Participation coefficient (PC)</p>
+</td>
+<td><p>PC is normalized using randomized networks with preserved degree distribution <em>(Source: Pederson et al, 2019, participation_coef_norm.m)</em></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="table-wrapper colwidths-given docutils container" id="id9">
+<table class="docutils align-default" id="id9">
+<caption><span class="caption-text"><strong>Network metrics normalized with other methods</strong></span><a class="headerlink" href="#id9" title="Link to this table">#</a></caption>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 67%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Network Metrics</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><img alt="_images/nMod.png" src="_images/nMod.png" />
+<p>Number of modules</p>
+</td>
+<td><p>Modular decomposition is post-processed using a consensus clustering method <em>(Source: Lancichinetti &amp; Fortunato, 2012, mod_consensus_cluster_iterate.m)</em></p></td>
+</tr>
+<tr class="row-odd"><td><img alt="_images/MS.png" src="_images/MS.png" />
+<p>Modularity score (Q)</p>
+</td>
+<td><p>Q is an optimized community-structure statistic for consensus classification <em>(Source: Lancichinetti &amp; Fortunato, 2012, mod_consensus_cluster_iterate.m)</em></p></td>
+</tr>
+<tr class="row-even"><td><img alt="_images/WMZ.png" src="_images/WMZ.png" />
+<p>Within-module degree z-score</p>
+</td>
+<td><p>Calculated based on the community affiliation vector, derived from the consensus clustering method. <em>(Source: Brain Connectivity Toolbox, module_degree_zscore.m)</em></p></td>
+</tr>
+<tr class="row-odd"><td><img alt="_images/node_cartography_4.png" src="_images/node_cartography_4.png" />
+<p>Node cartography (NC)</p>
+</td>
+<td><p>NC roles are assigned based on the participation coefficient and within-module degree z-score using custom code based on <a href="#id1"><span class="problematic" id="id2">*</span></a>(Guimerà &amp; Nunes Amaral, 2005).</p></td>
+</tr>
+</tbody>
+</table>
+</div>
 </section>
 </section>
 </section>

@@ -41,7 +41,7 @@ The following package must also be downloaded from the Brain Connectivity Toolbo
 - Brain Connectivity Toolbox - This toolbox must be saved to the same folder as the network analysis pipeline folder, typically the user path folder, and added to the search path.
 
 
-.. list-table:: MEA-NAP Timing Benchmarks
+.. list-table:: Sample computational times for MEA-NAP
    :widths: 25 25 25 25 25 25 25 25 25 25
    :header-rows: 1
 
@@ -75,3 +75,15 @@ The following package must also be downloaded from the Brain Connectivity Toolbo
      - 50
      - 37
      - 597
+   * - Intel i5-4570 @ 3.2GHz
+     - 32
+     - Windows 10 Pro
+     - R2021b
+     - 1
+     - 10
+     - 325
+     - 34
+     - 38
+     - 616
+      
+**N.B.** Step 1: Spike detection performed for 2 thresholds & 1 wavelet. Steps 3-4: Calculated for 3 STTC lags.
