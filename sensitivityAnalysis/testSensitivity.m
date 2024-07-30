@@ -17,7 +17,7 @@ G = (G + G') / 2;
 % remove diagonal elements
 G(logical(eye(size(G)))) = 0;
 
-%% Betweeness centrality
+%% Betweeness centrality (NOT DONE YET)
 numRandomNetworks = 100;
 numNodes = 60;
 p = 0.2;
@@ -110,7 +110,7 @@ save('nModulesSampleNetworks.mat', 'group1NetworkStore', 'group2NetworkStore', .
     'pGroup1', 'pGroup2', 'maxNumRandomNetworks', 'numNodes');
 
 
-%% do random re-wiring, then compute the number of modules 
+%% Number of modules : re-wiring
 
 probRejectNullPerEdgeReplacementProb = zeros(length(edgeReplacementProb), numPairs) + nan; 
 
@@ -152,14 +152,14 @@ for pairIdx = 1:numPairs
     fprintf('Sensitivity analysis complete for number of modules complete \n') 
 end 
 
-%% save results 
+%% Number of modules : save results 
 
 save('nModulesSampleNetworks.mat', 'probRejectNullPerEdgeReplacementProb', ...
      'numRewiringRepeats', 'edgeReplacementProb', '-append')
 
 
 
-%% Plot results
+%% Number of modules : Plot results
 load('nModulesSampleNetworks.mat');
 % subplots: true number of differences in modules
 % x-axis : percentage of re-wiring
@@ -177,6 +177,18 @@ for pairIdx = 1:numPairs
         xlabel('Edge replacement probability')
         ylabel('Proportion of succesful detection')
     end
+
+    % plot the p-value 
+    yline(0.05, '--k');
+    
+    if pairIdx == numPairs
+        xlabel('Edge replacement probability')
+        ylabel('Proportion of succesful detection')
+    end
+
+    xlim([0, 0.5])
+    xticks([0, 0.1, 0.2, 0.3, 0.4, 0.5]);
+
     ylim([-0.05, 1.05]);
     set(gca,'TickDir','out');
     box off
@@ -442,15 +454,207 @@ for pairIdx = 1:numPairs
     fprintf('Sensitivity analysis complete for number of modules complete \n') 
 end 
 
-delete(gcp('nocreate'))
 
-%% Save results
+%% Small-worldness : Save results
 
 save('smallWorldOmegaSampleNetworks.mat', 'probRejectNullPerEdgeReplacementProb', ...
      'numRewiringRepeats', 'edgeReplacementProb', '-append')
 
+
+%% Small-worldness : Plot results 
+
+load('smallWorldOmegaSampleNetworks.mat')
+
+figHandle = figure('units','inch','position',[0,0,14/4,3]); 
+
+plot(1:length(probRejectNullPerEdgeReplacementProb), fliplr(probRejectNullPerEdgeReplacementProb(1, :)), 'k', 'linewidth', 1.5)
+hold on 
+scatter(1:length(probRejectNullPerEdgeReplacementProb), fliplr(probRejectNullPerEdgeReplacementProb(1, :)), 'k', 'filled')
+xlabel('Small-worldness coefficient (\omega)')
+ylabel('Proportion of succesful detection')
+% plot the p-value 
+yline(0.05, '--k');
+
+xticklabelText = {};
+numPairs = length(swGroup1);
+for pairIdx = 1:numPairs
+    xticklabelText{numPairs - pairIdx + 1} = sprintf('%.2f vs. %.2f', mean(swGroup1{pairIdx}), mean(swGroup2{pairIdx}));
+end 
+xticks(1:length(probRejectNullPerEdgeReplacementProb)); 
+xticklabels(xticklabelText)
+set(gca,'TickDir','out');
+box off
+
+set(gcf, 'color', 'w')
+print(figHandle, '-painters', '-dsvg', 'smallWorldOmegaSensitivity.svg')
+print(figHandle, '-dpng', '-r300', 'smallWorldOmegaSensitivity.png');
  
-%% Participation Coefficient 
+%% Participation Coefficient : generate networks
+% mean participation coefficient of top 10%
+PCGroup1 = {[0.8, 0.9], [0.8, 0.9], [0.8, 0.9], [0.8, 0.9]};
+PCGroup2 = {[0.8, 0.9], [0.75, 0.85], [0.7, 0.8], [0.65, 0.75]};
+
+pGroup1 = [0.4, 0.4, 0.4, 0.4]; 
+pGroup2 = [0.4, 0.3, 0.2, 0.1];
+
+
+
+numNodes = 60;
+maxNumRandomNetworks = 100;
+numPairs = length(PCGroup1);
+numNetworksToCompare = 15;
+
+group1NetworkStore = cell(numNetworksToCompare, numPairs);
+group2NetworkStore = cell(numNetworksToCompare, numPairs);
+
+for pairIdx = 1:numPairs 
+    
+    group1networkCounter = 1; 
+    group2networkCounter = 1;
+
+    PCGroup1Range = PCGroup1{pairIdx};
+    PCGroup2Range = PCGroup2{pairIdx};
+    
+    % sample networks until we get 15 with group 1 number of modules
+    for rand_idx = 1:maxNumRandomNetworks
+        
+        success = 0;
+        
+        G_random_1 = genRandNetwork(numNodes, pGroup1(pairIdx));
+        G_random_2 = genRandNetwork(numNodes, pGroup2(pairIdx));
+        
+        [Ci1,Q,~] = mod_consensus_cluster_iterate(G_random_1,0.4,50);
+        [Ci2,Q,~] = mod_consensus_cluster_iterate(G_random_2,0.4,50);
+        
+        [G_1_PC,~,~,~] = participation_coef_norm(G_random_1,Ci1);
+        G_1_PC90thpercentile = prctile(G_1_PC, 90);
+        G_1_PCmeanTop10 = mean(G_1_PC(G_1_PC >= G_1_PC90thpercentile));
+        
+        [G_2_PC,~,~,~] = participation_coef_norm(G_random_2,Ci2);
+        G_2_PC90thpercentile = prctile(G_2_PC, 90);
+        G_2_PCmeanTop10 = mean(G_2_PC(G_2_PC >= G_2_PC90thpercentile));
+
+        networkMetricStore(rand_idx, pairIdx, 1) = G_1_PCmeanTop10;
+        networkMetricStore(rand_idx, pairIdx, 2) = G_2_PCmeanTop10;
+                
+        if (G_1_PCmeanTop10 >= PCGroup1Range(1)) && (G_1_PCmeanTop10 <= PCGroup1Range(2)) && (group1networkCounter <= numNetworksToCompare)
+            group1NetworkStore{group1networkCounter, pairIdx} = G_random_1;
+            group1networkCounter = group1networkCounter + 1;
+            fprintf('Group 1 hit! \n')
+        elseif (G_2_PCmeanTop10 >= PCGroup2Range(1)) && (G_2_PCmeanTop10 <= PCGroup2Range(2)) && (group2networkCounter <= numNetworksToCompare)
+            group2NetworkStore{group2networkCounter, pairIdx} = G_random_2;
+            group2networkCounter = group2networkCounter + 1;
+            fprintf('Group 2 hit! \n')
+        end
+        
+        if (group1networkCounter > numNetworksToCompare) && (group2networkCounter > numNetworksToCompare)
+           fprintf(sprintf('Finished finding networks at iteration %.f \n', rand_idx))
+           success = 1;
+           break  
+        end
+    end
+    
+    if success == 0
+        fprintf('Failed to find networks \n')
+    end
+    
+end
+
+%% PC: Save results 
+save('top10meanPCSampleNetworks.mat', 'group1NetworkStore', 'group2NetworkStore', ...
+    'networkMetricStore', ...
+    'numNetworksToCompare', 'PCGroup1', 'PCGroup2', ...
+    'numNodes', 'pGroup1', 'pGroup2', 'maxNumRandomNetworks');
+
+%% PC: Do the re-wiring 
+
+numRewiringRepeats = 20;
+% edgeReplacementProb = [0, 0.1, 0.2, 0.3, 0.4, 0.5]; 
+edgeReplacementProb = [0];
+numPairs = size(PCGroup1, 2);
+
+probRejectNullPerEdgeReplacementProb = zeros(length(edgeReplacementProb), numPairs) + nan; 
+
+progressbar()
+for pairIdx = 1:numPairs
+    tic
+    for replaceIdx = 1:length(edgeReplacementProb)
+       replaceProb = edgeReplacementProb(replaceIdx);
+
+       reject_null_store = zeros(numRewiringRepeats, 1) + nan;
+       
+       for rewiringIdx = 1:numRewiringRepeats
+           group1Metric = zeros(numNetworksToCompare, 1) + nan;
+           group2Metric = zeros(numNetworksToCompare, 1) + nan;
+
+           for netIdx = 1:numNetworksToCompare
+               
+               group1networkRandomised = rewireNetwork(group1NetworkStore{netIdx, pairIdx}, replaceProb);
+               group2networkRandomised = rewireNetwork(group2NetworkStore{netIdx, pairIdx}, replaceProb);
+               
+               [Ci1,Q,~] = mod_consensus_cluster_iterate(group1networkRandomised,0.4,50);
+               [Ci2,Q,~] = mod_consensus_cluster_iterate(group2networkRandomised,0.4,50);
+                
+               [G_1_PC,~,~,~] = participation_coef_norm(group1networkRandomised,Ci1);
+               G_1_PC90thpercentile = prctile(G_1_PC, 90);
+               G_1_PCmeanTop10 = mean(G_1_PC(G_1_PC >= G_1_PC90thpercentile));
+                
+               [G_2_PC,~,~,~] = participation_coef_norm(group2networkRandomised,Ci2);
+               G_2_PC90thpercentile = prctile(G_2_PC, 90);
+               G_2_PCmeanTop10 = mean(G_2_PC(G_2_PC >= G_2_PC90thpercentile));
+                        
+               group1Metric(netIdx) = G_1_PCmeanTop10;
+               group2Metric(netIdx) = G_2_PCmeanTop10;
+           end
+
+           % do significance test on the two sets of network (assume
+           % independence for now)
+           [reject_null, p_val] = ttest(group1Metric, group2Metric);
+           reject_null_store(rewiringIdx) = reject_null;
+
+       end
+
+       probRejectNullPerEdgeReplacementProb(replaceIdx, pairIdx) = mean(reject_null_store);
+
+ 
+    end
+    toc
+    progressbar(pairIdx / numPairs)
+    fprintf('Sensitivity analysis complete for number of modules complete \n') 
+end 
+
+%% PC: Save results 
+save('top10meanPCSampleNetworks.mat', 'probRejectNullPerEdgeReplacementProb', ...
+     'numRewiringRepeats', 'edgeReplacementProb', '-append')
+
+%% PC : Plot results
+% The plot here is different because we are not performing edge replacement
+load('top10meanPCSampleNetworks.mat')
+
+figHandle = figure('units','inch','position',[0,0,14/4,3]); 
+
+plot(1:length(probRejectNullPerEdgeReplacementProb), fliplr(probRejectNullPerEdgeReplacementProb(1, :)), 'k', 'linewidth', 1.5)
+hold on 
+scatter(1:length(probRejectNullPerEdgeReplacementProb), fliplr(probRejectNullPerEdgeReplacementProb(1, :)), 'k', 'filled')
+xlabel('Participation coefficient (top 10%)')
+ylabel('Proportion of succesful detection')
+% plot the p-value 
+yline(0.05, '--k');
+
+xticklabelText = {};
+numPairs = length(PCGroup1);
+for pairIdx = 1:length(PCGroup1)
+    xticklabelText{numPairs - pairIdx + 1} = sprintf('%.2f vs. %.2f', mean(PCGroup1{pairIdx}), mean(PCGroup2{pairIdx}));
+end 
+xticks(1:length(probRejectNullPerEdgeReplacementProb)); 
+xticklabels(xticklabelText)
+set(gca,'TickDir','out');
+box off
+
+set(gcf, 'color', 'w')
+print(figHandle, '-painters', '-dsvg', 'top10meanPCSensitivity.svg')
+print(figHandle, '-dpng', '-r300', 'top10meanPCSensitivity.png');
+
  
 %% Network Density (This shouldn't take long)
 maxNumRandomNetworks = 1000;
@@ -562,7 +766,7 @@ for pairIdx = 1:numPairs
     fprintf('Sensitivity analysis complete for number of modules complete \n') 
 end 
 
-%% Save results
+%% Network density: Save results
 
  save('networkDensitySampleNetworks.mat', ...
      'group1NetworkStore', 'group2NetworkStore', ...
@@ -572,7 +776,7 @@ end
      'probRejectNullPerEdgeReplacementProb', ...
      'numRewiringRepeats', 'edgeReplacementProb');
 
- %% Plot results 
+ %% Network Density: Plot results 
 
  load('networkDensitySampleNetworks.mat')
  numPairs = length(densityGroup1);
@@ -583,8 +787,8 @@ for pairIdx = 1:numPairs
     plot(edgeReplacementProb, probRejectNullPerEdgeReplacementProb(:, pairIdx), 'k', 'linewidth', 1.5)
     hold on
     scatter(edgeReplacementProb, probRejectNullPerEdgeReplacementProb(:, pairIdx), 'k', 'filled')
-    title(sprintf('[%.3f - %.3f] vs [%.3f - %.3f]', densityGroup1{pairIdx}(1), densityGroup1{pairIdx}(2), ...
-        densityGroup2{pairIdx}(1), densityGroup2{pairIdx}(2)), 'FontSize',10)
+    title(sprintf('[%.2f%% - %.2f%%] vs [%.2f%% - %.2f%%]', densityGroup1{pairIdx}(1)*100, densityGroup1{pairIdx}(2)*100, ...
+        densityGroup2{pairIdx}(1)*100, densityGroup2{pairIdx}(2)*100), 'FontSize',10)
     
     % plot the p-value 
     yline(0.05, '--k');
@@ -605,6 +809,183 @@ sgtitle('Network density', 'FontSize', 12)
 set(gcf, 'color', 'w')
 print(figHandle, '-painters', '-dsvg', 'networkDensitySensitivity.svg')
 print(figHandle, '-dpng', '-r300', 'networkDensitySensitivity.png');
+
+%% Mean edge weight : generate networks
+
+% Parameters used in the pipeline (by default)
+Params.excludeEdgesBelowThreshold = 1;
+if Params.excludeEdgesBelowThreshold 
+    exclude_zeros = 1;
+else 
+    exclude_zeros = 0;
+end 
+
+maxNumRandomNetworks = 10000;
+numNetworksToCompare = 15;
+numNodes = 60;
+mewGroup1= {[0.25, 0.3], [0.25, 0.3], [0.25, 0.3], [0.25, 0.3]};
+mewGroup2 = {[0.25, 0.3], [0.2, 0.25], [0.15, 0.2], [0.1, 0.15]};
+
+pGroup1 = [0.1, 0.1, 0.1, 0.1];
+pGroup2 = [0.1, 0.1, 0.1, 0.1];
+meanWeightGroup1 = [0.1, 0.1, 0.1, 0.1]; 
+meanWeightGroup2 = [0.1, 0.075, 0.05, 0.025]; 
+
+
+numPairs = length(mewGroup1);
+
+group1NetworkStore = cell(numNetworksToCompare, numPairs);
+group2NetworkStore = cell(numNetworksToCompare, numPairs);
+networkMetricStore = zeros(maxNumRandomNetworks, numPairs, 2) + nan;
+
+for pairIdx = 1:numPairs 
+    
+    group1networkCounter = 1; 
+    group2networkCounter = 1;
+    mewGroup1Range = mewGroup1{pairIdx};
+    mewGroup2Range = mewGroup2{pairIdx};
+    
+    % sample networks until we get 15 with group 1 number of modules
+    for rand_idx = 1:maxNumRandomNetworks
+        
+        success = 0;
+        
+        G_random_1 = genRandNetwork(numNodes, pGroup1(pairIdx), meanWeightGroup1(pairIdx));
+        G_random_2 = genRandNetwork(numNodes, pGroup2(pairIdx), meanWeightGroup2(pairIdx));
+        
+        % mean of the top 10 percentile of significant edges
+        sigEdges_1 = G_random_1(abs(G_random_1) > 0);
+        sigEdges90thpercentile_1 = prctile(sigEdges_1, 90); 
+        sigEdgesTop10_1 = mean(sigEdges_1(sigEdges_1 >= sigEdges90thpercentile_1));
+
+        sigEdges_2 = G_random_2(abs(G_random_2) > 0);
+        sigEdges90thpercentile_2 = prctile(sigEdges_2, 90); 
+        sigEdgesTop10_2 = mean(sigEdges_2(sigEdges_2 >= sigEdges90thpercentile_2));
+            
+        networkMetricStore(rand_idx, pairIdx, 1) = sigEdgesTop10_1;
+        networkMetricStore(rand_idx, pairIdx, 2) = sigEdgesTop10_2;
+                
+        if (sigEdgesTop10_1 > mewGroup1Range(1)) && (sigEdgesTop10_1 < mewGroup1Range(2)) && (group1networkCounter <= numNetworksToCompare)
+            group1NetworkStore{group1networkCounter, pairIdx} = G_random_1;
+            group1networkCounter = group1networkCounter + 1;
+            fprintf('Group 1 hit! \n')
+        elseif (sigEdgesTop10_2 > mewGroup2Range(1)) && (sigEdgesTop10_2 < mewGroup2Range(2)) && (group2networkCounter <= numNetworksToCompare)
+            group2NetworkStore{group2networkCounter, pairIdx} = G_random_2;
+            group2networkCounter = group2networkCounter + 1;
+            fprintf('Group 2 hit! \n')
+        end
+        
+        if (group1networkCounter > numNetworksToCompare) && (group2networkCounter > numNetworksToCompare)
+           fprintf(sprintf('Finished finding networks at iteration %.f \n', rand_idx))
+           success = 1;
+           break  
+        end
+    end
+    
+    if success == 0
+        fprintf('Failed to find networks \n')
+    end
+    
+end
+
+%% Mean edge weight : re-wiring 
+
+numRewiringRepeats = 100;
+edgeReplacementProb = [0, 0.1, 0.2, 0.3, 0.4, 0.5]; 
+numPairs = size(mewGroup1, 2);
+
+probRejectNullPerEdgeReplacementProb = zeros(length(edgeReplacementProb), numPairs) + nan; 
+
+progressbar()
+for pairIdx = 1:numPairs
+    tic
+    for replaceIdx = 1:length(edgeReplacementProb)
+       replaceProb = edgeReplacementProb(replaceIdx);
+       
+       
+       reject_null_store = zeros(numRewiringRepeats, 1) + nan;
+       
+       for rewiringIdx = 1:numRewiringRepeats
+           group1Metric = zeros(numNetworksToCompare, 1) + nan;
+           group2Metric = zeros(numNetworksToCompare, 1) + nan;
+
+           for netIdx = 1:numNetworksToCompare
+               
+               group1networkRandomised = rewireNetwork(group1NetworkStore{netIdx, pairIdx}, replaceProb);
+               group2networkRandomised = rewireNetwork(group2NetworkStore{netIdx, pairIdx}, replaceProb);
+               
+               % mean of the top 10 percentile of significant edges
+               sigEdges_1 = group1networkRandomised(abs(group1networkRandomised) > 0);
+               sigEdges90thpercentile_1 = prctile(sigEdges_1, 90); 
+               sigEdgesTop10_1 = mean(sigEdges_1(sigEdges_1 >= sigEdges90thpercentile_1));
+        
+               sigEdges_2 = group2networkRandomised(abs(group2networkRandomised) > 0);
+               sigEdges90thpercentile_2 = prctile(sigEdges_2, 90); 
+               sigEdgesTop10_2 = mean(sigEdges_2(sigEdges_2 >= sigEdges90thpercentile_2));
+                
+               group1Metric(netIdx) = sigEdgesTop10_1;
+               group2Metric(netIdx) = sigEdgesTop10_2;
+           end
+
+           % do significance test on the two sets of network (assume
+           % independence for now)
+           [reject_null, p_val] = ttest(group1Metric, group2Metric);
+           reject_null_store(rewiringIdx) = reject_null;
+
+       end
+
+       probRejectNullPerEdgeReplacementProb(replaceIdx, pairIdx) = mean(reject_null_store);
+
+ 
+    end
+    toc 
+    progressbar(pairIdx / numPairs)
+    fprintf('Sensitivity analysis complete for number of modules complete \n') 
+end 
+
+%% Mean edge weight : save results
+
+ save('meanEdgeWeightSampleNetworks.mat', ...
+     'group1NetworkStore', 'group2NetworkStore', ...
+     'networkMetricStore', ...
+     'numNetworksToCompare', 'mewGroup1', 'mewGroup2', ...
+     'numNodes', 'pGroup1', 'pGroup2', 'maxNumRandomNetworks', ...
+     'probRejectNullPerEdgeReplacementProb', ...
+     'numRewiringRepeats', 'edgeReplacementProb');
+
+ %% Mean edge weight : plot results 
+
+load('meanEdgeWeightSampleNetworks.mat')
+numPairs = length(mewGroup1);
+ 
+figHandle = figure('units','inch','position',[0,0,14,3]); 
+for pairIdx = 1:numPairs
+    subplot(1, numPairs, numPairs+1-pairIdx)
+    plot(edgeReplacementProb, probRejectNullPerEdgeReplacementProb(:, pairIdx), 'k', 'linewidth', 1.5)
+    hold on
+    scatter(edgeReplacementProb, probRejectNullPerEdgeReplacementProb(:, pairIdx), 'k', 'filled')
+    title(sprintf('[%.3f - %.3f] vs [%.3f - %.3f]', mewGroup1{pairIdx}(1), mewGroup1{pairIdx}(2), ...
+        mewGroup2{pairIdx}(1), mewGroup2{pairIdx}(2)), 'FontSize',10)
+    
+    % plot the p-value 
+    yline(0.05, '--k');
+    
+    if pairIdx == numPairs
+        xlabel('Edge replacement probability')
+        ylabel('Proportion of succesful detection')
+    end
+    ylim([-0.05, 1.05]);
+    xlim([0, 0.5])
+    xticks([0, 0.1, 0.2, 0.3, 0.4, 0.5]);
+    set(gca,'TickDir','out');
+    box off
+end
+% figHandle.OuterPosition = [figHandle.OuterPosition(1), figHandle.OuterPosition(2), ...
+%                            figHandle.OuterPosition(3), figHandle.OuterPosition(4) + 0.1]; 
+sgtitle('Mean edge weight (top 10%)', 'FontSize', 12)
+set(gcf, 'color', 'w')
+print(figHandle, '-painters', '-dsvg', 'meanEdgeWeightSensitivity.svg')
+print(figHandle, '-dpng', '-r300', 'meanEdgeWeightSensitivity.png');
 
 
  
