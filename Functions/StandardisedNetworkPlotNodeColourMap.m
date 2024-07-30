@@ -348,11 +348,13 @@ if strcmp(plotType,'circular')
         max_z = max(z);
     end 
     
+    circularPlotScaleFactor = 1; % arbitrary number to adjust min node size
+    % circularNodeScaleF = max_z * circularPlotScaleFactor; 
     nodeScaleF = max_z / sqrt((abs(cos(t(1))-cos(t(2))))^2 + (abs(sin(t(1))-sin(t(2))))^2);
     
     for i = 1:length(adjM)
         if z(i)>0
-            nodeSize = max(Params.minNodeSize, z(i)/nodeScaleF);
+            nodeSize = max(Params.minNodeSize/circularPlotScaleFactor, z(i)/nodeScaleF);
             pos = [cos(t(i))-(0.5*nodeSize) sin(t(i))-(0.5*nodeSize) nodeSize nodeSize];
             if z2(i)>0
                 try
@@ -495,6 +497,7 @@ if strcmp(plotType,'circular')
     
     text(1.4,0.9,strcat(zname,':'))
     
+    
     pos = [1.45-(str2num(legdata(1,:))/nodeScaleF)/2 0.9-0.25 str2num(legdata(1,:))/nodeScaleF str2num(legdata(1,:))/nodeScaleF];
     rectangle('Position',pos,'Curvature',[1 1],'FaceColor',[1 1 1],'EdgeColor','k','LineWidth',0.5);
     text(1.6,(0.9-0.25)+(0.5*str2num(legdata(1,:))/nodeScaleF),legdata(1,:))
@@ -507,7 +510,7 @@ if strcmp(plotType,'circular')
     rectangle('Position',pos,'Curvature',[1 1],'FaceColor',[1 1 1],'EdgeColor','k','LineWidth',0.5);
     text(1.6,(0.9-0.25)-(str2num(legdata(2,:))/nodeScaleF+5.5*str2num(legdata(1,:))/nodeScaleF),legdata(3,:))
     
-    text(1.4,(0.9-0.25)-(7*str2num(legdata(3,:))/nodeScaleF),'edge weight:')
+    
     
     range = threshMax - minNonZeroEdge;
     
@@ -515,23 +518,31 @@ if strcmp(plotType,'circular')
     
     colourL = [1 1 1] - light_c * ( (threshMax - 2/3*range - minNonZeroEdge) / (threshMax-minNonZeroEdge) );
     posx = [1.4 1.6];
-    posy = [(0.9-0.25)-(9*str2num(legdata(3,:))/nodeScaleF) (0.9-0.25)-(9*str2num(legdata(3,:))/nodeScaleF)];
+    
+    edgeWeightLabelStartYPos = 0.9; % originally 0.9 - 0.25;
+    text(1.4, edgeWeightLabelStartYPos - (7*str2num(legdata(3,:))/nodeScaleF),'edge weight:');
+    edgeWeightLabelYPos_1 = edgeWeightLabelStartYPos - (9*str2num(legdata(3,:))/nodeScaleF);
+    edgeWeightLabelYPos_2 = edgeWeightLabelStartYPos - (10.5*str2num(legdata(3,:))/nodeScaleF);
+    edgeWeightLabelYPos_3 = edgeWeightLabelStartYPos - (12*str2num(legdata(3,:))/nodeScaleF);
+    
+    posy = [edgeWeightLabelYPos_1 edgeWeightLabelYPos_1];
+    
     plot(posx,posy,'LineWidth',lineWidthL,'Color',colourL);
-    text(1.7,(0.9-0.25)-(9*str2num(legdata(3,:))/nodeScaleF),num2str(round(threshMax-2/3*range,4)))
+    text(1.7, edgeWeightLabelYPos_1, num2str(round(threshMax-2/3*range,4)))
     
     lineWidthL = min_ew + (max_ew-min_ew)*(((threshMax-1/3*range)-minNonZeroEdge)/(threshMax-minNonZeroEdge));
     colourL = [1 1 1] - light_c * ( (threshMax-1/3*range-minNonZeroEdge)/(threshMax-minNonZeroEdge) );
     posx = [1.4 1.6];
-    posy = [(0.9-0.25)-(10.5*str2num(legdata(3,:))/nodeScaleF) (0.9-0.25)-(10.5*str2num(legdata(3,:))/nodeScaleF)];
+    posy = [edgeWeightLabelYPos_2 edgeWeightLabelYPos_2];
     plot(posx,posy,'LineWidth',lineWidthL,'Color',colourL);
-    text(1.7,(0.9-0.25)-(10.5*str2num(legdata(3,:))/nodeScaleF),num2str(round(threshMax-1/3*range,4)))
+    text(1.7, edgeWeightLabelYPos_2, num2str(round(threshMax-1/3*range,4)))
     
     lineWidthL = min_ew + (max_ew-min_ew)*(((threshMax)-minNonZeroEdge)/(threshMax-minNonZeroEdge));
     colourL = [1 1 1]-(light_c*(((threshMax)-minNonZeroEdge)/(threshMax-minNonZeroEdge)));
     posx = [1.4 1.6];
-    posy = [(0.9-0.25)-(12*str2num(legdata(3,:))/nodeScaleF) (0.9-0.25)-(12*str2num(legdata(3,:))/nodeScaleF)];
+    posy = [edgeWeightLabelYPos_3 edgeWeightLabelYPos_3];
     plot(posx,posy,'LineWidth',lineWidthL,'Color',colourL);
-    text(1.7,(0.9-0.25)-(12*str2num(legdata(3,:))/nodeScaleF),num2str(round(threshMax,4)))
+    text(1.7, edgeWeightLabelYPos_3, num2str(round(threshMax,4)))
     
     
     if ~strcmp(z2name, 'Module')
@@ -557,13 +568,14 @@ if strcmp(plotType,'circular')
         cb.Label.String = z2name;
     else
         % No Colorbar for modules, instead just plot some circles 
-        text(1.4,-0.7,'Module')
+        moduleLabelYpos = -0.85;
+        text(1.4,moduleLabelYpos,'Module')
         module_legend_x_start_end = [1.2, 1.8];
         numModules = length(unique(z2)); 
         moduleCircleSize = (module_legend_x_start_end(2) - module_legend_x_start_end(1)) / numModules * 0.8;
         moduleCircleCenters = linspace(module_legend_x_start_end(1), module_legend_x_start_end(2), numModules);
         for moduleIdx = 1:numModules
-            circlePos = [moduleCircleCenters(moduleIdx), -0.9, moduleCircleSize, moduleCircleSize];
+            circlePos = [moduleCircleCenters(moduleIdx), moduleLabelYpos-0.2, moduleCircleSize, moduleCircleSize];
             rectangle('Position',circlePos,'Curvature',[1 1],...
                 'FaceColor',mycolours(max([ceil(length(mycolours)*((moduleIdx-z2_min)/(z2_max-z2_min))), 1]),1:3), ...
                 'EdgeColor','w','LineWidth',0.01);
