@@ -38,18 +38,21 @@ for eGrpIdx = 1:num_eGrp
         featureCorr = corr(table2array(subsetNodeLevelData), 'rows','complete');
         columnNames = subsetNodeLevelData.Properties.VariableNames;
 
-        if useFullName
+        if useFullName == 1
             for nameIdx = 1:length(columnNames)
                 if ismember(columnNames{nameIdx}, Params.NetMetLabelDict(:, 1))
                     newNameIdx = find(strcmp(Params.NetMetLabelDict(:, 1), columnNames{nameIdx}));
                     columnNames{nameIdx} = Params.NetMetLabelDict{newNameIdx, 2};
                 end 
             end
+            tickLabelInterpreter = 'tex';
+        else
+            tickLabelInterpreter = 'none';
         end 
 
         imagesc(featureCorr, [-1, 1]);
-        set(gca, 'XTick', 1:length(columnNames), 'XTickLabel', columnNames) 
-        set(gca, 'YTick', 1:length(columnNames), 'YTickLabel', columnNames) 
+        set(gca, 'XTick', 1:length(columnNames), 'XTickLabel', columnNames, 'TickLabelInterpreter', tickLabelInterpreter) 
+        set(gca, 'YTick', 1:length(columnNames), 'YTickLabel', columnNames, 'TickLabelInterpreter', tickLabelInterpreter) 
         title(sprintf('%s %.f', unique_eGrp{eGrpIdx}, unique_AgeDiv(AgeDivIdx)))
         hold on
 
@@ -112,18 +115,20 @@ for eGrpIdx = 1:num_eGrp
             tickmark_fontsize = 9;
         end
         
-        if useFullName
+        if useFullName == 1
             for nameIdx = 1:length(columnNames)
                 if ismember(columnNames{nameIdx}, Params.NetMetLabelDict(:, 1))
                     newNameIdx = find(strcmp(Params.NetMetLabelDict(:, 1), columnNames{nameIdx}));
                     columnNames{nameIdx} = Params.NetMetLabelDict{newNameIdx, 2};
                 end 
             end
+            tickLabelInterpreter = 'tex';
+        else
+            tickLabelInterpreter = 'none';
         end 
-
         
-        set(gca, 'XTick', 1:length(columnNames), 'XTickLabel', columnNames, 'fontsize', tickmark_fontsize, 'TickLabelInterpreter', 'none') 
-        set(gca, 'YTick', 1:length(columnNames), 'YTickLabel', columnNames, 'fontsize', tickmark_fontsize, 'TickLabelInterpreter', 'none') 
+        set(gca, 'XTick', 1:length(columnNames), 'XTickLabel', columnNames, 'fontsize', tickmark_fontsize, 'TickLabelInterpreter', tickLabelInterpreter) 
+        set(gca, 'YTick', 1:length(columnNames), 'YTickLabel', columnNames, 'fontsize', tickmark_fontsize, 'TickLabelInterpreter', tickLabelInterpreter) 
         title(sprintf('%s %.f', unique_eGrp{eGrpIdx}, unique_AgeDiv(AgeDivIdx)))
         hold on
 
