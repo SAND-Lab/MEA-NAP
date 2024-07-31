@@ -364,7 +364,7 @@ Normalization methods in MEA-NAP for comparing networks of different size and/or
           .. figure:: imgs/small_world_coefficient_2.png
      - ω is normalized using randomized and lattice null models with preserved degree distribution *(Source: Brain Connectivity Toolbox, randmio_und.m and latmio_und.m; adapted as randmio_und_v2 and latmio_und_v2 in MEA-NAP)*
 
-.. list-table:: **NNetwork metrics scaled between 0 and 1**
+.. list-table:: **Network metrics scaled between 0 and 1**
    :widths: 25 50
    :header-rows: 1
 
