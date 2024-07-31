@@ -16,17 +16,19 @@ Here is a list of the figures produced by MEA-NAP including sample figure legend
    * :ref:`Subfolder 4 – Recordings by Age <Subfolder 4 – Recordings by Age (Step 2)>`
 * :ref:`Step 3 – Functional Connectivity Edge Thresholding Check <Step 3 – Functional Connectivity Edge Thresholding Check>`
 * :ref:`Step 4 – Network Activity <Step 4 – Network Activity>`
-   * :ref:`Subfolders – Individual Recordings by Filename <Subfolders – Individual Recordings by Filename>`
-   * :ref:`Subfolders – Network Activity By Lag (in milliseconds) <Subfolders – Network Activity By Lag (in milliseconds)>`
-* :ref:`Step 4B – Network Activity – Group Comparisons <Step 4B – Network Activity – Group Comparisons>`
-   * :ref:`Subfolder 1 – Node by Group (with subfolders for each STTC lag) <Subfolder 1 – Node by Group (with subfolders for each STTC lag)>`
-   * :ref:`Subfolder 2 – Node by Age (with subfolders for each STTC lag) <Subfolder 2 – Node by Age (with subfolders for each STTC lag)>`
-   * :ref:`Subfolder 3 – Recordings by Group (with subfolders for each STTC lag) <Subfolder 3 – Recordings by Group (with subfolders for each STTC lag)>`
-   * :ref:`Subfolder 4 – Recordings by Age (with subfolders for each STTC lag) <Subfolder 4 – Recordings by Age (with subfolders for each STTC lag)>`
-   * :ref:`Subfolder 5 – Graph Metrics by Lag  <Subfolder 5 – Graph Metrics by Lag>`
-   * :ref:`Subfolder 6 – Node Cartography By Lag <Subfolder 6 – Node Cartography By Lag>`
-   * :ref:`Subfolder 7 – Density Landscape <Subfolder 7 – Density Landscape>`
+   * :ref:`Step 4A - Individual Network Analysis <Step 4A - Individual Network Analysis>`
+      * :ref:`Subfolders – Individual Recordings by Filename <Subfolders – Individual Recordings by Filename>`
+      * :ref:`Subfolders – Network Activity By Lag (in milliseconds) <Subfolders – Network Activity By Lag (in milliseconds)>`
+   * :ref:`Step 4B – Network Activity – Group Comparisons <Step 4B – Network Activity – Group Comparisons>`
+      * :ref:`Subfolder 1 – Node by Group (with subfolders for each STTC lag) <Subfolder 1 – Node by Group (with subfolders for each STTC lag)>`
+      * :ref:`Subfolder 2 – Node by Age (with subfolders for each STTC lag) <Subfolder 2 – Node by Age (with subfolders for each STTC lag)>`
+      * :ref:`Subfolder 3 – Recordings by Group (with subfolders for each STTC lag) <Subfolder 3 – Recordings by Group (with subfolders for each STTC lag)>`
+      * :ref:`Subfolder 4 – Recordings by Age (with subfolders for each STTC lag) <Subfolder 4 – Recordings by Age (with subfolders for each STTC lag)>`
+      * :ref:`Subfolder 5 – Graph Metrics by Lag  <Subfolder 5 – Graph Metrics by Lag>`
+      * :ref:`Subfolder 6 – Node Cartography By Lag <Subfolder 6 – Node Cartography By Lag>`
+      * :ref:`Subfolder 7 – Density Landscape <Subfolder 7 – Density Landscape>`
 * :ref:`Step 5 – Statistical Comparisons <Step 5 – Statistical Comparisons>`
+   :ref:`Subfolders  – Stats Figures by Lag <Subfolders  – Stats Figures by Lag>`
 
 .. _Step 1 - Spike Detection:
 
@@ -169,6 +171,13 @@ Step 4 – Network Activity
 
 This folder contains two subfolders, one to evaluate the individual recordings and one with comparisons by age and group.  The Step 4A folder contains individual subfolders for each recording.  The Step 4B folder contains 7 subfolders that compare metrics by node (electrode) and recording for age and group.
 
+.. _Step 4A - Individual Network Analysis:
+
+Step 4A - Individual Network Analysis 
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+This folder contains subfolder(s) for each group.  Within each group folder, there are subfolders for each recording from that group. Within each recording folder, there are subfolders for the network plots for each spike time tiling coefficient (STTC) lag used to determine the functional connectivity and two figures.
+
 .. _Subfolders – Individual Recordings by Filename: 
 
 Subfolders – Individual Recordings by Filename
@@ -211,7 +220,7 @@ For each spike time tiling coefficient (STTC) lag used to determine the function
 	
 **Figure 5. Combined MEA Network Plots with the Local Efficiency.** Graphs of the functional connectivity for an individual MEA recording (filename and STTC lag indicated in title).  The nodes (circles) represent the neuronal activity observed from neuron(s) at each electrode in the spatial arrangement of the MEA.  The node color represents the local efficiency, a metric of how well the node is connected to its nearest neighbors. The node degree (size of circle) represents the number of functional connections with other nodes.  The edges (lines) represent significant functional connections between nodes, and the edge weight (line thickness) represents the strength of connectivity. The local efficiency color bar, size of the nodes and thickness of the edges are scaled based on the distributions in this MEA recording (left) and the entire dataset (right) to facilitate comparison of the variation within the MEA recording and relative to other MEA recordings in the dataset.
 
-**Figure 6. Circular Network Plot.** Graph of functional connectivity for an individual MEA recording (filename and STTC lag indicated in title).  The nodes (circles) represent the neuronal activity observed from neuron(s) at each electrode arranged by module (subcommunities within the network).  The node degree (size of circle) represents the number of functional connections with other nodes.  The edges (lines) represent significant functional connections between nodes, and the edge weight (line thickness) represents the strength of connectivity.
+**Figure 6. Circular Network Plot with Modules.** Graph of functional connectivity for an individual MEA recording (filename and STTC lag indicated in title). The nodes (circles) represent the neuronal activity observed from neuron(s) at each electrode arranged by module (subcommunities within the network).  Nodes with the same color are part of the same module.  The node degree (size of circle) represents the number of functional connections with other nodes. The edges (lines) represent significant functional connections between nodes, and the edge weight (line thickness) represents the strength of connectivity.
 
 **Figure 7. Graph Theoretical Metrics By Node.**  Summary plots of nodal- and edge-level graph theoretical metrics for the MEA recording. Top row, diagram of network metrics.  Bottom row, Scatter plots, mean ± s.e.m. (black circles with error bars), and density curves for node degree, edge weight, node strength, within-module degree z-score, local efficiency, participation coefficient, and betweenness centrality. These graph metrics were calculated from the adjacency matrix for the MEA recording using the spike time tiling coefficient (STTC) lag indicated in the title. 
 
@@ -504,13 +513,18 @@ Step 5  – Statistical Comparisons
 
 There will be one figure per spike time tiling coefficient (STTC) lag selected when MEA-NAP was run. The STTC lag (in milliseconds) is indicated in the figure filename.  
 
-**Figure 1. Significance Table by Spike Time Tiling Coefficient (STTC) Lag.** Bubble plot show p-values (size of circle) for a linear mixed effect model (LME) with the group as the main effect and a random effect of the specific culture identity on the intercept (row 1) and a LME with the age as the main effect and a random effect of the specific culture identity on the intercept (row 2) for the network-level metrics (x-axis).  The rows below show the p-values for one (1)-way ANOVA tests and paired t-test with the group name and/or age in the row title.  The size of each circle is proportional to the p-value (see legend) with larger circles indicating smaller p-values.  For the LME and ANOVA tests, black indicates a p-value less than 0.05. However, it is up to the investigator to determine the relevant p-value for significance based on multiple comparisons.  For the paired t-tests, p-values less than 0.05 are colored based on the difference between the means with red indicating an increase in the mean and blue indicating a decrease in the mean (color bar, right bottom).
+.. _Subfolders – Stats Figures by Lag: 
 
+Subfolders - Stats Figures by Lag
+"""""""""""""""""""""""""""""""""""""
 
-**allclassifiersConfusionMatrix** This figure is generated if more than one time point (DIV) is provided in the dataset. It shows the confusion matrix for each classifier. The confusion matrix shows the number of samples that the classifier placed into each DIV group against the actual number of samples in each group.
+**Figure 1. Confusion Matrix for All Classifiers.** Confusion matrices for each classifier show true number of samples placed into each age group versus predicted class, the number the classifier placed into each age group. The color of each box indicates ?.  Red indicates ? and blue ?. Classifiers compared include the linear support-vector machine (SVM), k-nearest neighbors (kNN) algorithm, decision tree, and linear discriminant analysis (LDA). Note, this figure is only generated if more than one time point is provided in the dataset. 
 
-**allclassifiersMisclassificatoinRatePerKFold** This figure is generated if more than one time point (DIV) is provided in the dataset. It shows the misclassification rate of each classifier during k-fold cross validation (k is set to 5 by default), lower values indicate better classification performance. The gray horizontal line depicts the misclassification rate at chance level.
+**Figure 2. Misclassification Rate per K Fold for All Classifiers.** Scatter plot shows the misclassification rate for each classifier during k-fold cross validation (k is set to 5 by default). Lower values indicate better classification performance. The gray horizontal line depicts the misclassification rate at chance level. Classifiers compared include the linear support-vector machine (SVM), k-nearest neighbors (kNN) algorithm, decision tree, and linear discriminant analysis (LDA). Note, this figure is only generated if more than one time point is provided in the dataset. 
 
- 
+**Figure 3. Leave One Feature Out for All Classifiers.** Line graphs show different between leave one out loss and the original loss for four classifiers (colored lines) for network metrics including number of active nodes (aN), network density (Dens), clustering coefficient (CC), number of modules (nMod), modularity score (Q), path length (PL), global efficiency (Eglob), small-worldness coefficient (σ) and (ω), effective rank and the number of significant NMF components.  Higher values indicate better fit for the classifier.  Classifiers compared include the linear support-vector machine (SVM), k-nearest neighbors (kNN) algorithm, decision tree, and linear discriminant analysis (LDA). Note, this figure is only generated if more than one time point is provided in the dataset. 
 
+**Figure 4. Nodal-level Feature Correlation.** Correlation matrices for each group and age combination for nodal-level network features including node degree (ND), mean edge weight (MEW), node strength (NS), within-module z-score (Z), local efficiency (Eloc), participation coefficient (PC), and betweenness centrality (BC).  Color (scale bar) indicates correlation value (0-1).
+
+**Figure 5. Recording-level Feature Correlation.** Correlation matrices for each group and age combination for nodal-level network features including active nodes (aN), network density (Dens), clustering coefficient (CC), number of modules (nMod), modularity score (Q), path length (PL), global efficiency (Eglob), small-worldness coefficient σ (SW) and ω (SWw), effective rank (effRank), the number of significant NMF components (num_nnmf_components), number of ? NMF components (nComponentsReLNS), mean node degree (NDmean), mean top 25% (NDtop 25), mean of significant edge weights (sigEdgeMean), mean top 10% (sigEgdgeTop10), mean node strength (NSmean), mean local efficiency (ElocMean), mean participation coefficient (PCMean), mean top 10% (PCmeanTop10) and bottom 10% (PCmeanBottom10), percent of within-module z-score greater than 0 (percentZscoreGreaterThanZero) and less than zero (percentZscoreLessThanZero), and proportion of different hub and non-hub roles from node cartography (NC1-6). Node cartography identifes peripheral nodes (NC1), non-hub connectors (NC2), non-hub kinless (NC3), provincial hubs (NC4), connector hubs (NC5), and kinless hubs (NC6).  Color (scale bar) indicates correlation value (0-1).
 

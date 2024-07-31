@@ -341,6 +341,9 @@ The first is lattice-like, available in ``latmio_und_v2.m`` (based on Brain Conn
 
 The second is randomised, available in ``randmio_und_v2.m`` (based on Brain Connectivity Toolbox). These exhibit low clustering and low path lengths. In our pipeline, randomised models are used to normalise path length, itself used in calculating the small world coefficient :math:`w`. It is also used to calculate the small world coefficient :math:`\sigma`. 
  
+Normalization methods in MEA-NAP for comparing networks of different size and/or density
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
 .. list-table:: **Network metrics normalized with synthetic network counterparts**
    :widths: 25 50
    :header-rows: 1
@@ -361,7 +364,7 @@ The second is randomised, available in ``randmio_und_v2.m`` (based on Brain Conn
           .. figure:: imgs/small_world_coefficient_2.png
      - ω is normalized using randomized and lattice null models with preserved degree distribution *(Source: Brain Connectivity Toolbox, randmio_und.m and latmio_und.m; adapted as randmio_und_v2 and latmio_und_v2 in MEA-NAP)*
 
-.. list-table:: **Network metrics calculated between 0 to 1**
+.. list-table:: **NNetwork metrics scaled between 0 and 1**
    :widths: 25 50
    :header-rows: 1
 
@@ -388,10 +391,10 @@ The second is randomised, available in ``randmio_und_v2.m`` (based on Brain Conn
      - Description
    * - **Number of modules**
           .. image:: imgs/nMod.png
-     - Modular decomposition is post-processed using a consensus clustering method *(Source: Lancichinetti & Fortunato, 2012, mod_consensus_cluster_iterate.m)*
+     - Modular decomposition with the community Louvain method is post-processed with consensus clustering method *(Source: Lancichinetti & Fortunato, 2012, mod_consensus_cluster_iterate.m)*
    * - **Modularity score (Q)**
           .. image:: imgs/MS.png 
-     - Q is an optimized community-structure statistic for consensus classification *(Source: Lancichinetti & Fortunato, 2012, mod_consensus_cluster_iterate.m)*
+     - Q is a marker of community-structure optimization, here derived from the final consensurs clustering output *(Source: Brain Connectivity Toolbox, community_louvain.m)*
    * - **Within-module degree z-score**
           .. image:: imgs/WMZ.png 
      - Calculated based on the community affiliation vector, derived from the consensus clustering method. *(Source: Brain Connectivity Toolbox, module_degree_zscore.m)*

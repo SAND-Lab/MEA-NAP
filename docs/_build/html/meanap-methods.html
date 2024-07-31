@@ -585,6 +585,9 @@ from -1 to 1, so negative weights (correlations) are ignored.</p>
 <p>Features of local and global processing are influenced by basic network topology, such as the number of nodes. Therefore this pipeline normalises several of these features in order to allow comparison between different networks, as well as the same network over developmental time. To do this, a number of artificial networks (null models) are created from each real network to provide a baseline from which to normalise. The structure of these null models is such that the influence of network topology is removed while network features such as size and connection density are retained. This pipeline uses two types of null model, and generates and saves figures to allow comparison by visual inspection of certain features of their network topology.</p>
 <p>The first is lattice-like, available in <code class="docutils literal notranslate"><span class="pre">latmio_und_v2.m</span></code> (based on Brain Connectivity Toolbox). These exhibit high clustering and high path lengths. In our pipeline, lattice-like models are used to normalise clustering coefficient, itself used in calculating the small world coefficient <span class="math notranslate nohighlight">\(w\)</span>.</p>
 <p>The second is randomised, available in <code class="docutils literal notranslate"><span class="pre">randmio_und_v2.m</span></code> (based on Brain Connectivity Toolbox). These exhibit low clustering and low path lengths. In our pipeline, randomised models are used to normalise path length, itself used in calculating the small world coefficient <span class="math notranslate nohighlight">\(w\)</span>. It is also used to calculate the small world coefficient <span class="math notranslate nohighlight">\(\sigma\)</span>.</p>
+</section>
+<section id="normalization-methods-in-mea-nap-for-comparing-networks-of-different-size-and-or-density">
+<h3>Normalization methods in MEA-NAP for comparing networks of different size and/or density<a class="headerlink" href="#normalization-methods-in-mea-nap-for-comparing-networks-of-different-size-and-or-density" title="Link to this heading">#</a></h3>
 <div class="table-wrapper colwidths-given docutils container" id="id7">
 <table class="docutils align-default" id="id7">
 <caption><span class="caption-text"><strong>Network metrics normalized with synthetic network counterparts</strong></span><a class="headerlink" href="#id7" title="Link to this table">#</a></caption>
@@ -639,7 +642,7 @@ from -1 to 1, so negative weights (correlations) are ignored.</p>
 </div>
 <div class="table-wrapper colwidths-given docutils container" id="id8">
 <table class="docutils align-default" id="id8">
-<caption><span class="caption-text"><strong>Network metrics calculated between 0 to 1</strong></span><a class="headerlink" href="#id8" title="Link to this table">#</a></caption>
+<caption><span class="caption-text"><strong>NNetwork metrics scaled between 0 and 1</strong></span><a class="headerlink" href="#id8" title="Link to this table">#</a></caption>
 <colgroup>
 <col style="width: 33%" />
 <col style="width: 67%" />
@@ -707,14 +710,14 @@ from -1 to 1, so negative weights (correlations) are ignored.</p>
 </dd>
 </dl>
 </td>
-<td><p>Modular decomposition is post-processed using a consensus clustering method <em>(Source: Lancichinetti &amp; Fortunato, 2012, mod_consensus_cluster_iterate.m)</em></p></td>
+<td><p>Modular decomposition with the community Louvain method is post-processed with consensus clustering method <em>(Source: Lancichinetti &amp; Fortunato, 2012, mod_consensus_cluster_iterate.m)</em></p></td>
 </tr>
 <tr class="row-odd"><td><dl>
 <dt><strong>Modularity score (Q)</strong></dt><dd><img alt="_images/MS.png" src="_images/MS.png" />
 </dd>
 </dl>
 </td>
-<td><p>Q is an optimized community-structure statistic for consensus classification <em>(Source: Lancichinetti &amp; Fortunato, 2012, mod_consensus_cluster_iterate.m)</em></p></td>
+<td><p>Q is a marker of community-structure optimization, here derived from the final consensurs clustering output <em>(Source: Brain Connectivity Toolbox, community_louvain.m)</em></p></td>
 </tr>
 <tr class="row-even"><td><dl>
 <dt><strong>Within-module degree z-score</strong></dt><dd><img alt="_images/WMZ.png" src="_images/WMZ.png" />
@@ -818,6 +821,7 @@ from -1 to 1, so negative weights (correlations) are ignored.</p>
 <li><a class="reference internal" href="#mean-node-degree">Mean node degree</a></li>
 <li><a class="reference internal" href="#modularity">Modularity</a></li>
 <li><a class="reference internal" href="#null-models">Null models</a></li>
+<li><a class="reference internal" href="#normalization-methods-in-mea-nap-for-comparing-networks-of-different-size-and-or-density">Normalization methods in MEA-NAP for comparing networks of different size and/or density</a></li>
 </ul>
 </li>
 </ul>
