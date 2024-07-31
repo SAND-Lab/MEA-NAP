@@ -17,7 +17,55 @@ If your MEA has a different number of electrodes than currently supported in MEA
 
 For high density (HD) MEA recordings, which may have 4096 electrodes, it is important to note that there is fundamental difference in the network analysis for HD MEA data from our standard density (SD) MEA data in MEA-NAP.  For SD MEAs, each electrode is treated a node in the network, although there may be more than one neuron near that electrode.  In contrast, in HD MEAs, there may be more than one electrode per cell.  Thus, it would not be appropriate to treat the 4096 electrodes each as nodes.  Instead, first the cells need to be identified and a single spike train per cell extracted.  Once this has been done, a custom layout in MEA-NAP could be created where each cells spatial location is indicated by the x,y coordinates of its location on the HD MEA.  Once that is complete, MEA-NAP could be used starting at Step 2 (Comparison of neuronal activity) or Step 3 (Inferring functional connectivity).
 
-.. _overview: 
+==========================
+
+.. _changing_parameters:
+
+Changing parameters for calculating MEA-NAP network features   
+------------------------------------------------------------
+
++-----------------------------+-----------------------------+---------------------+----------------------+--------------------+----------------------------------------------------------+
+| Network Metric              |  Parameter                                        |  How to change using the GUI              | How to change in MEA-NAP function (line)                 |
+|                             +-----------------------------+---------------------+----------------------+--------------------+                                                          |
+|                             | Name                        |  Default            | Location             | Adv. Set.*         |                                                          |
++=============================+=============================+=====================+======================+====================+==========================================================+
+| Edge weight                 | STTC lag(s)                 | 10,25,50            | Connectivity         | No                 | MEApipeline.m (50)                                       |
++-----------------------------+-----------------------------+---------------------+----------------------+--------------------+----------------------------------------------------------+
+| # significant edges         | Prob. threshold iterations  | 200                 | Connectivity         | No                 | MEApipeline.m (56)                                       |
+|                             +-----------------------------+---------------------+----------------------+--------------------+----------------------------------------------------------+
+|                             | Probabilistic               | 0.05                | Connectivity         | No                 | MEApipeline.m (57)                                       |
+|                             | thresholding tail           |                     |                      |                    |                                                          |
++-----------------------------+-----------------------------+---------------------+----------------------+--------------------+----------------------------------------------------------+
+| Network metrics             | Minimum # of nodes          | 25                  | Advanced Connectivity| Yes                | AdvancedSettings.m (186)                                 |
++-----------------------------+-----------------------------+---------------------+----------------------+--------------------+----------------------------------------------------------+
+| Participation coefficient   | Iterations for normalization| 100                 |                      | No                 | participation_coef_norm.m (41)                           |
++-----------------------------+-----------------------------+---------------------+----------------------+--------------------+----------------------------------------------------------+
+| Clustering coefficient      | Lattice network             | 10000               |                      | No                 | ExtractNetMet.m (202)                                    |
+|                             | null model iterations       |                     |                      |                    |                                                          |
++-----------------------------+                             +                     +                      +                    +                                                          +
+| Small-world                 |                             |                     |                      |                    |                                                          |
++-----------------------------+-----------------------------+---------------------+----------------------+--------------------+----------------------------------------------------------+
+| Path Length                 | Random network              | 5000                |                      | No                 | ExtractNetMet.m (209)                                    |
++-----------------------------+ null model iterations       |                     |                      |                    |                                                          |
+| Small-world                 |                             |                     |                      |                    |                                                          |
++-----------------------------+-----------------------------+---------------------+----------------------+--------------------+----------------------------------------------------------+
+| Node Cartography            | STTC lag(s)                 | 10,25,50            | Connectivity         | No                 | MEApipeline.m (63)                                       |
+|                             +-----------------------------+---------------------+----------------------+--------------------+----------------------------------------------------------+
+|                             | Hub/non-hub**               | 0.25                | Node Cartography     | Yes                | AdvancedSettings.m (90-94)                               |
+|                             +-----------------------------+---------------------+----------------------+--------------------+----------------------------------------------------------+
+|                             | Nodal roles boundaries**    | multiple            |                      | No                 |                                                          |
++-----------------------------+-----------------------------+---------------------+----------------------+--------------------+----------------------------------------------------------+
+| NMF                         | Down-sampling               | 10                  | Advanced Dimension.  | Yes                | AdvancedSettings.m (87)                                  |
++-----------------------------+-----------------------------+---------------------+----------------------+--------------------+----------------------------------------------------------+
+| Effective rank              | Calculation method          | covariance          | Advanced Dimension.  | Yes                | AdvancedSettings.m (86,88)                               |
+|                             +-----------------------------+---------------------+----------------------+--------------------+----------------------------------------------------------+
+|                             | Down-sampling               | 10                  | Advanced Dimension.  | Yes                |                                                          |
++-----------------------------+-----------------------------+---------------------+----------------------+--------------------+----------------------------------------------------------+
+| **Legend:** GUI = graphical user interface, STTC = spike time tiling coefficient, * “Show Advanced Settings” must be checked on General tab in GUI for these tabs to appear,           |
+| ** Default values used here if insufficient number of MEA recordings to set experiment-specific boundaries using the density landscape.                                                |
++-----------------------------+-----------------------------+---------------------+----------------------+--------------------+----------------------------------------------------------+
+
+==========================
 
 Overview of MEA-NAP
 ----------------------------------------------------------------

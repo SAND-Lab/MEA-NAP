@@ -341,3 +341,63 @@ The first is lattice-like, available in ``latmio_und_v2.m`` (based on Brain Conn
 
 The second is randomised, available in ``randmio_und_v2.m`` (based on Brain Connectivity Toolbox). These exhibit low clustering and low path lengths. In our pipeline, randomised models are used to normalise path length, itself used in calculating the small world coefficient :math:`w`. It is also used to calculate the small world coefficient :math:`\sigma`. 
  
+Normalization methods in MEA-NAP for comparing networks of different size and/or density
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. list-table:: **Network metrics normalized with synthetic network counterparts**
+   :widths: 25 50
+   :header-rows: 1
+
+   * - Network metric
+     - Description
+     
+   * - **Clustering coefficient (CC)**
+          .. figure:: imgs/CC.png
+     - CC is normalized with a lattice null model with preserved degree distribution *(Source: Brain Connectivity Toolbox, latmio_und.m; adapted as latmio_und_v2 in MEA-NAP)*
+   * - **Path length (PL)**
+          .. figure:: imgs/PL.png
+     - PL is normalized with a randomized null model with preserved degree distribution *(Source: Brain Connectivity Toolbox, randmio_und.m; randmio_und_v2 in MEA-NAP)*
+   * - **Small-world coefficient, Method 1 (σ)**
+          .. figure:: imgs/small_world_coefficient_1.png
+     - σ is normalized using a randomized null model with preserved degree distribution *(Source: Brain Connectivity Toolbox, randmio_und.m; adapted as randmio_und_v2 in MEA-NAP)*
+   * - **Small-world coefficient, Method 2 (ω)**
+          .. figure:: imgs/small_world_coefficient_2.png
+     - ω is normalized using randomized and lattice null models with preserved degree distribution *(Source: Brain Connectivity Toolbox, randmio_und.m and latmio_und.m; adapted as randmio_und_v2 and latmio_und_v2 in MEA-NAP)*
+
+.. list-table:: **NNetwork metrics scaled between 0 and 1**
+   :widths: 25 50
+   :header-rows: 1
+
+   * - Network metric
+     - Description
+   * - **Betweenness centrality (BC)**
+        .. figure:: imgs/BC.png
+     - BC is divided by [(N-1)(N-2)], where N is the number of nodes in the network. *(Source: Brain Connectivity Toolbox, betweenness_wei.m or betweenness_bin.m.)*
+   * - **Global efficiency (GE)**
+        .. figure:: imgs/PL.png
+     - GE is calculated as the inverse of the characteristic path length. *(Source: Brain Connectivity Toolbox, efficiency_wei.m or efficiency_bin.m.)*
+   * - **Local efficiency (LE)**
+        .. figure:: imgs/local_efficiency.png
+     - First the edge weights are normalized (scaled 0 to 1) before the LE is calculated with the efficiency function *(Source: Brain Connectivity Toolbox, weight_conversion.m and efficiency_wei.m)*
+   * - **Participation coefficient (PC)**
+        .. figure:: imgs/PC.png
+     - PC is normalized using randomized networks with preserved degree distribution *(Source: Pederson et al, 2019, participation_coef_norm.m)*
+
+.. list-table:: **Network metrics normalized with other methods**
+   :widths: 25 50
+   :header-rows: 1
+
+   * - Network metric
+     - Description
+   * - **Number of modules**
+          .. image:: imgs/nMod.png
+     - Modular decomposition with the community Louvain method is post-processed with consensus clustering method *(Source: Lancichinetti & Fortunato, 2012, mod_consensus_cluster_iterate.m)*
+   * - **Modularity score (Q)**
+          .. image:: imgs/MS.png 
+     - Q is a marker of community-structure optimization, here derived from the final consensurs clustering output *(Source: Brain Connectivity Toolbox, community_louvain.m)*
+   * - **Within-module degree z-score**
+          .. image:: imgs/WMZ.png 
+     - Calculated based on the community affiliation vector, derived from the consensus clustering method. *(Source: Brain Connectivity Toolbox, module_degree_zscore.m)*
+   * - **Node cartography (NC)**
+          .. image:: imgs/node_cartography_4.png
+     - NC roles are assigned based on the participation coefficient and within-module degree z-score using custom code based on *(Guimerà & Nunes Amaral, 2005).
