@@ -183,7 +183,7 @@ set(gca, 'TickDir', 'Out');
 set(gca, 'box', 'off');
 set(gcf, 'color', 'white');
 
-saveName = 'classificationFeatureImportanceViaLeaveOneOut';
+saveName = '3_classificationFeatureImportanceViaLeaveOneOut';
 savePath = fullfile(plotSaveFolder, saveName);
 if ~Params.showOneFig
     pipelineSaveFig(savePath, Params.figExt, Params.fullSVG, F1);
@@ -232,7 +232,7 @@ set(gcf, 'color', 'white')
 set(gca, 'TickDir', 'Out');
 set(gca, 'box', 'off');
 
-saveName = 'allclassifiersMisclassificatoinRatePerKFold';
+saveName = '2_allclassifiersMisclassificationRatePerKFold';
 savePath = fullfile(plotSaveFolder, saveName);
 if ~Params.showOneFig
     pipelineSaveFig(savePath, Params.figExt, Params.fullSVG, F1);
@@ -263,7 +263,7 @@ for classifier_idx = 1:num_classification_models
 end 
 
 set(gcf, 'color', 'white')
-saveName = 'allclassifiersConfusionMatrix';
+saveName = '1_allclassifiersConfusionMatrix';
 savePath = fullfile(plotSaveFolder, saveName);
 if ~Params.showOneFig
     pipelineSaveFig(savePath, Params.figExt, Params.fullSVG, F1);

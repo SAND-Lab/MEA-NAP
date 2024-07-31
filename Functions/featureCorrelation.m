@@ -10,6 +10,8 @@ function featureCorrelation(nodeLevelData, recordingLevelData, Params, subset_la
 % Returns 
 % -------
 
+useFullName = 1;
+
 
 %% Look at feature correlation : node level
 unique_eGrp = unique(nodeLevelData.('eGrp'));
@@ -21,7 +23,7 @@ columnsToExclude = {'eGrp', 'AgeDiv', 'Lag', 'recordingName'};
 
 % TODO: figure creation needs to be tidied up here
 f = figure();
-f.Position = [100 100 300*num_AgeDiv 300*num_eGrp];
+f.Position = [100 100 400*num_AgeDiv 300*num_eGrp];
 for eGrpIdx = 1:num_eGrp
     for AgeDivIdx = 1:num_AgeDiv
 
@@ -35,6 +37,16 @@ for eGrpIdx = 1:num_eGrp
         subsetNodeLevelData = ageDivNodeLevel(:,subsetColumnIdx);
         featureCorr = corr(table2array(subsetNodeLevelData), 'rows','complete');
         columnNames = subsetNodeLevelData.Properties.VariableNames;
+
+        if useFullName
+            for nameIdx = 1:length(columnNames)
+                if ismember(columnNames{nameIdx}, Params.NetMetLabelDict(:, 1))
+                    newNameIdx = find(strcmp(Params.NetMetLabelDict(:, 1), columnNames{nameIdx}));
+                    columnNames{nameIdx} = Params.NetMetLabelDict{newNameIdx, 2};
+                end 
+            end
+        end 
+
         imagesc(featureCorr, [-1, 1]);
         set(gca, 'XTick', 1:length(columnNames), 'XTickLabel', columnNames) 
         set(gca, 'YTick', 1:length(columnNames), 'YTickLabel', columnNames) 
@@ -50,7 +62,7 @@ cbar.Position = [0.93, 0.15, 0.01, 0.7];
 ylabel(cbar, 'Correlation', 'FontSize', 14);
 % set(gcf, 'color', 'w')
 
-saveName = 'nodeLevelFeatureCorrelation';
+saveName = '4_nodeLevelFeatureCorrelation';
 
 savePath = fullfile(plotSaveFolder, saveName);
 
@@ -100,6 +112,16 @@ for eGrpIdx = 1:num_eGrp
             tickmark_fontsize = 9;
         end
         
+        if useFullName
+            for nameIdx = 1:length(columnNames)
+                if ismember(columnNames{nameIdx}, Params.NetMetLabelDict(:, 1))
+                    newNameIdx = find(strcmp(Params.NetMetLabelDict(:, 1), columnNames{nameIdx}));
+                    columnNames{nameIdx} = Params.NetMetLabelDict{newNameIdx, 2};
+                end 
+            end
+        end 
+
+        
         set(gca, 'XTick', 1:length(columnNames), 'XTickLabel', columnNames, 'fontsize', tickmark_fontsize, 'TickLabelInterpreter', 'none') 
         set(gca, 'YTick', 1:length(columnNames), 'YTickLabel', columnNames, 'fontsize', tickmark_fontsize, 'TickLabelInterpreter', 'none') 
         title(sprintf('%s %.f', unique_eGrp{eGrpIdx}, unique_AgeDiv(AgeDivIdx)))
@@ -114,7 +136,7 @@ cbar.Position = [0.93, 0.15, 0.01, 0.7];
 ylabel(cbar, 'Correlation', 'FontSize', 14);
 % set(gcf, 'color', 'w')
 
-saveName = 'recordingLevelFeatureCorrelation';
+saveName = '5_recordingLevelFeatureCorrelation';
 
 savePath = fullfile(plotSaveFolder, saveName);
 
