@@ -172,10 +172,12 @@ oneFigureHandle = checkOneFigureHandle(Params, oneFigureHandle);
 % plot electrode layout 
 plotElectrodeLayout(Params.outputDataFolder, Params, oneFigureHandle)
 
-% export parameters to csv file
+% export parameters to .mat and .csv file
 outputDataWDatePath = fullfile(Params.outputDataFolder, strcat('OutputData',Params.Date));
 ParamsTableSavePath = fullfile(outputDataWDatePath, strcat('Parameters_',Params.Date,'.csv'));
 writetable(struct2table(Params,'AsArray',true), ParamsTableSavePath)
+ParamsMatSavePath = fullfile(outputDataWDatePath, strcat('Parameters_',Params.Date,'.mat'));
+save(ParamsMatSavePath, 'Params');
 
 % save metadata
 metaDataSaveFolder = fullfile(outputDataWDatePath, 'ExperimentMatFiles');
