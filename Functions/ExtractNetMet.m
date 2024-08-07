@@ -143,9 +143,15 @@ for e = 1:length(lagval)
     end 
     
     [ND,MEW] = findNodeDegEdgeWeight(adjM, edge_thresh, exclude_zeros);
+    if isempty(adjM)
+        ND = double.empty([0, 1]);
+    end
     
     % Node strength
     NS = strengths_und(adjM)';
+    if isempty(adjM)
+        NS = double.empty([0, 1]);
+    end
     
     % plot properties
     plotConnectivityProperties(adjM, e, lagval, maxSTTC, meanSTTC, ...
@@ -398,7 +404,12 @@ for e = 1:length(lagval)
     end 
     %% Calculate average and modal controllability 
     if any(strcmp(netMetToCal, 'aveControl'))
-        aveControl = ave_control(adjM);
+        
+        if isempty(adjM) 
+            aveControl = double.empty([0, 1]);
+        else
+            aveControl = ave_control(adjM);
+        end
         
         aveControlMean = mean(aveControl);
         aveControl75thpercentile = prctile(aveControl, 75);
