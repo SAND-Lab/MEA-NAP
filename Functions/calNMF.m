@@ -8,10 +8,17 @@ function nmfResults = calNMF(spikeMatrix, fs, downsamplefreq, duration_s, ...
 %
 % spikeMatrix : matrix 
 %     matrix of shape (numTimeSamples, numElectrodes)
-% Params : structure 
+% fs : int
+%     sampling frequency (Hz) of spikeMatrix
+% downsamplefreq : int 
+
 % Info : structure 
 % minSpikeCount : int 
 %    minimum number of spike to count an electrode as active 
+% includeRandomMatrix : bool 
+% includeNMFcomponents : bool 
+%    whether to save the extracted NMF components in nmfResults
+%    useful for plotting, but takes up space
 % Returns
 % -------
 % nmfResults : struct 
@@ -162,8 +169,8 @@ end
 nmfResults.spikePercentile = spikePercentile;
 nmfResults.num_nnmf_components = num_nnmf_components;
 nmfResults.residual = residual;
-nmfResults.nComponentsRelNS = (k-1)/networkSize;
-nmfResults.nComponentsnRelNSsquared = (k-1)/networkSize^2;
+nmfResults.nComponentsRelNS = num_nnmf_components/networkSize;
+nmfResults.nComponentsnRelNSsquared = num_nnmf_components/networkSize^2;
 nmfResults.meanComponentSize = mean(componentSize);
 nmfResults.nnmf_residuals = nnmf_residuals;
 nmfResults.nnmf_var_explained = nnmf_var_explained;
