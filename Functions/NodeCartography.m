@@ -77,26 +77,31 @@ nexttile
 
 % Define participation coefficient range based on min max values
 partCoefRange = [min(PC), max(PC)]; 
-if (partCoefRange(1) == partCoefRange(2)) || all(isnan(PC)) 
+if isempty(PC)
+    partCoefRange = [0, 1];
+elseif (partCoefRange(1) == partCoefRange(2)) || all(isnan(PC)) 
     partCoefRange = [0, 1];
 end 
 
 % Define within-module degree z-score (y axis) range
 wMdDegRange = [];
-if min(Z) < 0
-    wMdDegRange(1) = min(Z) * 1.1; 
-else
-    wMdDegRange(1) = min(Z) * 0.9; 
-end 
 
-if max(Z) > 0
-    wMdDegRange(2) = max(Z) * 1.1;
-else
-    wMdDegRange(2) = max(Z) * 0.9;
-end 
-
-if (wMdDegRange(1) == wMdDegRange(2)) || all(isnan(Z))
+if isempty(Z)
     wMdDegRange = [-2, 4];
+elseif (wMdDegRange(1) == wMdDegRange(2)) || all(isnan(Z))
+    wMdDegRange = [-2, 4];
+else
+    if min(Z) < 0
+        wMdDegRange(1) = min(Z) * 1.1; 
+    else
+        wMdDegRange(1) = min(Z) * 0.9; 
+    end 
+
+    if max(Z) > 0
+        wMdDegRange(2) = max(Z) * 1.1;
+    else
+        wMdDegRange(2) = max(Z) * 0.9;
+    end 
 end 
 
 
