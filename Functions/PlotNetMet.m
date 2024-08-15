@@ -224,7 +224,7 @@ for i = 1:length(ExpName)
             for l = 1:length(Params.FuncConLagval)
                 eval(['DatTempT = DatTemp' num2str(l) ';']);
                 if length(DatTempT) < max(mL)
-                    DatTempT(length(DatTempT+1):max(mL)) = nan;
+                    DatTempT((length(DatTempT)+1):max(mL)) = nan;
                 end
                 DatTemp(:,l) = DatTempT;
             end
