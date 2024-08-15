@@ -88,8 +88,6 @@ wMdDegRange = [];
 
 if isempty(Z)
     wMdDegRange = [-2, 4];
-elseif (wMdDegRange(1) == wMdDegRange(2)) || all(isnan(Z))
-    wMdDegRange = [-2, 4];
 else
     if min(Z) < 0
         wMdDegRange(1) = min(Z) * 1.1; 
@@ -104,6 +102,9 @@ else
     end 
 end 
 
+if (wMdDegRange(1) == wMdDegRange(2)) || all(isnan(Z))
+    wMdDegRange = [-2, 4];
+end
 
 plot(partCoefRange,[hubBoundaryWMdDeg  hubBoundaryWMdDeg ],'--k')
 hold on
