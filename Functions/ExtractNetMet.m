@@ -145,6 +145,7 @@ for e = 1:length(lagval)
     [ND,MEW] = findNodeDegEdgeWeight(adjM, edge_thresh, exclude_zeros);
     if isempty(adjM)
         ND = double.empty([0, 1]);
+        MEW = double.empty([0, 1]);
     end
     
     % Node strength
