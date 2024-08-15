@@ -199,7 +199,8 @@ for i = 1:length(ExpName)
                 % eval(['DatTempT = DatTemp' num2str(l) ';']);
                 DatTempT = DatTemp{l};
                 if length(DatTempT) < max(mL)
-                    DatTempT(length(DatTempT+1):max(mL)) = nan;
+                    % DatTempT(length(DatTempT+1):max(mL)) = nan;
+                    DatTempT((length(DatTempT)+1):max(mL)) = nan;
                 end
                 
                 if size(DatTempT, 1) == 1
