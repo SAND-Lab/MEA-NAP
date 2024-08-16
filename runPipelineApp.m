@@ -3,6 +3,9 @@ clear app
 app = MEANAPApp;
 app.MEANAPStatusTextArea.Value = {'Welcome! The MEA-NAP GUI is launched.'};
 
+% GUI resizing 
+% app.UIFigure.SizeChangedFcn = createCallbackFcn(app, @updateAppLayout, true);
+
 % Default home directory 
 app.MEANAPFolderEditField.Value = pwd;
 
@@ -203,7 +206,11 @@ while app.RunPipelineButton.Value == 0
                 app.MEANAPStatusTextArea.Value = [app.MEANAPStatusTextArea.Value; ...
                     'WARNING: at least one of the group names in your csv file contain a special character, MEANAP may not run properly'];
             end 
+            % Update Custom Group Order with detected group names
+            uniqueGrpNames = unique(csv_data(:, 3));
+            app.CustomGroupOrderEditField.Value = strjoin(table2cell(uniqueGrpNames), ',');
          end
+         
          
          % app.csvTable.ColumnEditable = true; % logical(ones(1, length(csv_data.Properties.VariableNames)));
     end
@@ -255,7 +262,7 @@ while app.RunPipelineButton.Value == 0
         end 
     end 
 
-
+    % SAVING PARAMETERS
     if app.SaveParametersButton.Value == 1
         Params = getParamsFromApp(app);
         currDateTime = string(datetime);

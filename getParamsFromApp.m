@@ -277,7 +277,7 @@ Params.linePlotShadeMetric = 'sem';  % 'std' or 'sem'
 Params.rasterColormap = app.RastercolormapDropDown.Value;  % 'parula' or 'gray'
 
 % Order of groups to plot 
-Params.customGrpOrder = {}; 
+Params.customGrpOrder = cell(split(app.CustomGroupOrderEditField.Value , ','))'; 
 
 %% Pipeline settings 
 Params.timeProcesses = app.TimeprocessesCheckBox.Value;

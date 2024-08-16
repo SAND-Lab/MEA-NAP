@@ -78,6 +78,9 @@ app.KDEHeightEditField.Value = Params.kdeHeight;  % height of the KDE curve, onl
 app.KDEwidthforonepointEditField.Value = Params.kdeWidthForOnePoint;  % bandwidth for KDE (in half violin plots) if there is only a single data point 
 app.IncludechannelnumberinplotsCheckBox.Value = Params.includeChannelNumberInPlots;  % whether to plot channel ID in heatmaps and node plots
 
+app.CustomGroupOrderEditField.Value = strjoin(Params.customGrpOrder, ',');
+
+
 %% Dimensionality Analysis
 % app.IncludeNMFcomponentsCheckBox.Value = Params.includeNMFcomponents;
 
