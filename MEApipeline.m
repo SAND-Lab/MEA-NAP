@@ -80,6 +80,8 @@ Params.guiMode = 1;   % GUI mode? 1 = on, 0 = off
 if (Params.guiMode == 1) && ~exist('InputParamsFilePath', 'var')
     runPipelineApp
     spikeDetectedData = Params.spikeDetectedData;
+else
+    Params.spreadSheetFileName = spreadsheet_filename;
 end 
 
 %% Check if ParamsFilePath is specified
