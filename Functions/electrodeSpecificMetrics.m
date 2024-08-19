@@ -58,7 +58,9 @@ imshow('BC.png')
 %% half violin plots
 
 nexttile(8,[3,1])
-HalfViolinPlot(ND,1,[0.3 0.3 0.3], Params.kdeHeight, Params.kdeWidthForOnePoint)
+if length(ND) > 1
+    HalfViolinPlot(ND,1,[0.3 0.3 0.3], Params.kdeHeight, Params.kdeWidthForOnePoint)
+end 
 aesthetics
 set(gca,'TickDir','out');
 set(gca,'xtick',[])
@@ -84,7 +86,9 @@ max_mew = max([max_mew, 0.1]);
 ylim([0 max_mew+0.2*max_mew])
 
 nexttile(10,[3,1])
-HalfViolinPlot(NS,1,[0.3 0.3 0.3], Params.kdeHeight, Params.kdeWidthForOnePoint)
+if length(NS) > 1
+    HalfViolinPlot(NS,1,[0.3 0.3 0.3], Params.kdeHeight, Params.kdeWidthForOnePoint)
+end
 aesthetics
 set(gca,'TickDir','out');
 set(gca,'xtick',[])
@@ -97,8 +101,12 @@ ylim([0 max_ns+0.2*max_ns])
 
 % Plot within-module degree z-score
 nexttile(11,[3,1])
+if isempty(Z)
+    skipPlot = 1;
+else 
+    skipPlot = ((numel(Z) <= 1) && isnan(Z)) || (sum(isnan(Z)) == numel(Z));
+end 
 
-skipPlot = ((numel(Z) <= 1) && isnan(Z)) || (sum(isnan(Z)) == numel(Z));
 if ~skipPlot
     HalfViolinPlot(Z,1,[0.3 0.3 0.3], Params.kdeHeight, Params.kdeWidthForOnePoint)
     aesthetics
@@ -114,7 +122,11 @@ end
 
 % Plot local efficiency
 nexttile(12,[3,1])
-skipPlot = ((numel(Eloc) <= 1) && isnan(Eloc)) | (nanmax(Eloc) == 0) | (sum(isnan(Eloc)) == numel(Eloc));
+if isempty(Eloc)
+    skipPlot = 1;
+else 
+    skipPlot = ((numel(Eloc) <= 1) && isnan(Eloc)) | (nanmax(Eloc) == 0) | (sum(isnan(Eloc)) == numel(Eloc));
+end
 if ~skipPlot
     HalfViolinPlot(Eloc,1,[0.3 0.3 0.3], Params.kdeHeight, Params.kdeWidthForOnePoint)
     aesthetics
@@ -128,7 +140,12 @@ end
 
 % Plot participation coefficient 
 nexttile(13,[3,1])
-skipPlot = ((numel(PC) <= 1) && isnan(PC)) || (sum(isnan(PC)) == numel(PC));
+if isempty(PC)
+    skipPlot = 1;
+else 
+    skipPlot = ((numel(PC) <= 1) && isnan(PC)) || (sum(isnan(PC)) == numel(PC));
+end 
+
 if ~skipPlot
     HalfViolinPlot(PC,1,[0.3 0.3 0.3], Params.kdeHeight, Params.kdeWidthForOnePoint)
     aesthetics
@@ -142,7 +159,11 @@ if ~skipPlot
 end 
 
 % Plot betweeness centrality 
-skipPlot = ((numel(BC) <= 1) && isnan(BC)) || (sum(isnan(BC)) == numel(BC));
+if isempty(BC)
+    skipPlot = 1;
+else 
+    skipPlot = ((numel(BC) <= 1) && isnan(BC)) || (sum(isnan(BC)) == numel(BC));
+end 
 nexttile(14,[3,1])
 if ~skipPlot
     HalfViolinPlot(BC,1,[0.3 0.3 0.3], Params.kdeHeight, Params.kdeWidthForOnePoint)

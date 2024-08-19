@@ -81,14 +81,19 @@ for e = 1:length(lagval)
     nodeSizeMetricName = {...
                            'Node degree', ...
                            };
-                       
+    
+    nodeSizeMetricShortForm = {'ND'};
+    
     nodeSizeMetricsToPlot = {lagNetMet.ND, ... 
                              };
+                         
+    
     
     if any(strcmp(Params.unitLevelNetMetToPlot, 'BC'))
         plotPrefixes{end+1} = '3'; 
         nodeSizeMetricsToPlot{end+1} = lagNetMet.ND;
         nodeSizeMetricName{end+1} = 'Node degree';
+        nodeSizeMetricShortForm{end+1} = 'ND';
         colorMapMetricsToPlot{end+1} = lagNetMet.BC;
         colorMapMetricName{end+1} = 'Betweenness centrality';
     end 
@@ -97,6 +102,7 @@ for e = 1:length(lagval)
         plotPrefixes{end+1} = '4'; 
         nodeSizeMetricsToPlot{end+1} = lagNetMet.ND;
         nodeSizeMetricName{end+1} = 'Node degree';
+        nodeSizeMetricShortForm{end+1} = 'ND';
         colorMapMetricsToPlot{end+1} = lagNetMet.PC;
         colorMapMetricName{end+1} = 'Participation coefficient';
     end 
@@ -105,6 +111,7 @@ for e = 1:length(lagval)
         plotPrefixes{end+1} = '5'; 
         nodeSizeMetricsToPlot{end+1} = lagNetMet.NS;
         nodeSizeMetricName{end+1} = 'Node strength';
+        nodeSizeMetricShortForm{end+1} = 'NS';
         colorMapMetricsToPlot{end+1} = lagNetMet.Eloc;
         colorMapMetricName{end+1} = 'Local efficiency';
     end 
@@ -114,6 +121,7 @@ for e = 1:length(lagval)
         plotPrefixes{end+1} = '10';
         nodeSizeMetricsToPlot{end+1} = lagNetMet.ND;
         nodeSizeMetricName{end+1} = 'Node degree';
+        nodeSizeMetricShortForm{end+1} = 'ND';
         colorMapMetricsToPlot{end+1} = lagNetMet.aveControl;
         colorMapMetricName{end+1} = 'Average controllability';
         
@@ -124,6 +132,7 @@ for e = 1:length(lagval)
         plotPrefixes{end+1} = '11';
         nodeSizeMetricsToPlot{end+1} = lagNetMet.ND;
         nodeSizeMetricName{end+1} = 'Node degree';
+        nodeSizeMetricShortForm{end+1} = 'ND';
         colorMapMetricsToPlot{end+1} = lagNetMet.modalControl;
         colorMapMetricName{end+1} = 'Modal controllability';
         
@@ -152,13 +161,13 @@ for e = 1:length(lagval)
             % for plotNameIdx = 1:length(plotPathsToCombine)
             %     unscaledPlotPathsToCombine{plotNameIdx} = strrep(plotPathsToCombine{plotNameIdx}, '_scaled', '');
             %  end 
-
-            if sum(isnan(colorMapMetricsToPlot{networkPlotIdx}))
+            
+            if (sum(isnan(colorMapMetricsToPlot{networkPlotIdx}))) && (length(colorMapMetricsToPlot{networkPlotIdx}) == 1)
                 
                 plotType = 'MEA';
                 pNum = sprintf('%s', plotPrefixes{networkPlotIdx});
                 figureHandleOriginal = StandardisedNetworkPlot(adjM, coords, edge_thresh, ...
-                nodeSizeMetricsToPlot{networkPlotIdx}, plotType, ...
+                nodeSizeMetricsToPlot{networkPlotIdx}, nodeSizeMetricShortForm{networkPlotIdx}, plotType, ...
                 char(Info.FN),pNum,Params,lagval,e, lagFolderName, figureHandleOriginal);
                 
                 figName = strcat([pNum, '_', plotType, '_NetworkPlot.png']);
@@ -201,7 +210,7 @@ for e = 1:length(lagval)
 
             figureHandleScaled = figure('visible', 'off');
             Params.useMinMaxBoundsForPlots = 1;
-            if sum(isnan(colorMapMetricsToPlot{networkPlotIdx}))
+            if sum(isnan(colorMapMetricsToPlot{networkPlotIdx})) && (length(colorMapMetricsToPlot{networkPlotIdx}) == 1)
                 %
                 % figureHandleScaled = StandardisedNetworkPlot(adjM, coords, edge_thresh, ...
                 % nodeSizeMetricsToPlot{networkPlotIdx}, 'MEA', ...
@@ -210,7 +219,7 @@ for e = 1:length(lagval)
                 pNum = sprintf('%s_scaled', plotPrefixes{networkPlotIdx});
                 
                 figureHandleScaled = StandardisedNetworkPlot(adjM, coords, edge_thresh, ...
-                nodeSizeMetricsToPlot{networkPlotIdx}, plotType, ...
+                nodeSizeMetricsToPlot{networkPlotIdx}, nodeSizeMetricShortForm{networkPlotIdx}, plotType, ...
                 char(Info.FN), pNum, Params, lagval, e, lagFolderName, figureHandleScaled);
                 
                 figName = strcat([pNum, '_', plotType, '_NetworkPlot.png']);

@@ -120,6 +120,10 @@ if strcmp(plotType,'MEA')
     lineWidth(lineWidth < 0) = min_ew;
     colour(colour > light_c(1)) = light_c(1);
     
+    % deal with NaNs (in the case of empty networks)
+    lineWidth(isnan(lineWidth)) = min_ew;
+    colour(isnan(colour)) = 1;
+    
     [~,order] = sort(colour(:,1),'descend');
     lineWidthT = lineWidth(:,order);
     colourT = colour(order,:);
@@ -247,23 +251,22 @@ else
     mycolours = colormap;
 end
 
-% TODO: What is this rectangle, I guess this is the individual nodes but
-% made into circles?
 if isfield(Params, 'useMinMaxBoundsForPlots')
     if Params.useMinMaxBoundsForPlots
         % nodeScaleF = max(Params.metricsMinMax.ND); % hard-coding to ND for now because there is no quick fix
-        max_z = max(Params.metricsMinMax.(z2nameToShortHand(zname)));  % to be used in the legend 
+        max_z = nanmax(Params.metricsMinMax.(z2nameToShortHand(zname)));  % to be used in the legend 
     else
         % nodeScaleF = max(z);
-        max_z = max(z);
+        max_z = nanmax(z);
     end 
 else 
     % nodeScaleF = max(z);
-    max_z = max(z);
+    max_z = nanmax(z);
 end 
 
 % Theoretical bounds currently takes prescedence over using minMax bounds
 % for colors
+
 if Params.use_custom_bounds
     cmap_bounds = Params.network_plot_cmap_bounds.(z2nameToShortHand(z2name));
     z2_min = cmap_bounds(1);
@@ -274,7 +277,8 @@ if Params.use_custom_bounds
     z2(z2 > z2_max) = z2_max;
     z2(z2 < z2_min) = z2_min; 
 elseif isfield(Params, 'useMinMaxBoundsForPlots')
-    if Params.useMinMaxBoundsForPlots
+    
+    if Params.useMinMaxBoundsForPlots || all(isnan(z2))
         z2_max = max(Params.metricsMinMax.(z2nameToShortHand(z2name)));
         z2_min = min(Params.metricsMinMax.(z2nameToShortHand(z2name)));
         
@@ -282,15 +286,17 @@ elseif isfield(Params, 'useMinMaxBoundsForPlots')
         % plotting purposes 
         z2(z2 > z2_max) = z2_max;
     else
-        z2_max = max(z2);
-        z2_min = min(z2);
+        z2_max = nanmax(z2);
+        z2_min = nanmin(z2);
     end 
 else 
-    z2_max = max(z2);
-    z2_min = min(z2);
+    z2_max = nanmax(z2);
+    z2_min = nanmin(z2);
 end 
 
-
+if z2_max == z2_min
+    z2_min = z2_max - 0.001; % very small number to deal with edge case
+end 
 
 
 if strcmp(plotType,'MEA')
@@ -318,6 +324,8 @@ if strcmp(plotType,'MEA')
                         rectangle('Position',pos,'Curvature',[1 1],'FaceColor', ...
                              mycolours(ceil(length(mycolours)*((z2(i)-z2_min)/(z2_max-z2_min))+0.00001),1:3),'EdgeColor','w','LineWidth',0.1)
                     end
+                elseif isnan(z2(i))
+                    rectangle('Position',pos,'Curvature',[1 1],'FaceColor',[0.5, 0.5, 0.5],'EdgeColor','w','LineWidth',0.1)
                 else
                     rectangle('Position',pos,'Curvature',[1 1],'FaceColor',mycolours(1,1:3),'EdgeColor','w','LineWidth',0.1)
                 end
@@ -381,7 +389,7 @@ end
 set(gca,'color','none')
 
 
-%% format plot
+%% format plot : LEGENDS
 
 % if round(max_z * 1/3) >= 1
 %     eval(['legdata = [''' num2str(round(max_z * 1/3),'%02d') '''; ''' num2str(round(max_z * 2/3),'%02d') '''; ''' num2str(round(max_z),'%02d') '''];']); % data for the legend
@@ -408,8 +416,7 @@ legdata = char(legdata);
 
 if strcmp(plotType,'MEA')
     
-    % fprintf(sprintf('Inside Colourmap code, max xc: %.2f, max yc: %.2f\n', max(xc), max(yc)))
-    
+    % Z METRIC LEGEND 
     text(max(xc)+1.5,max(yc),strcat(zname,':'))
     
     pos = [(max(xc)+2)-(str2num(legdata(1,:))/nodeScaleF)/2 max(yc)-1 str2num(legdata(1,:))/nodeScaleF str2num(legdata(1,:))/nodeScaleF];
@@ -424,12 +431,18 @@ if strcmp(plotType,'MEA')
     rectangle('Position',pos,'Curvature',[1 1],'FaceColor',[1 1 1],'EdgeColor','k','LineWidth',0.5);
     text(max(xc)+3,(max(yc)-1)-(str2num(legdata(2,:))/nodeScaleF+2.5*str2num(legdata(1,:))/nodeScaleF),legdata(3,:))
     
+    % EDGE WEIGHT LEGEND
     text(max(xc)+1.5,max(yc)-(4*str2num(legdata(3,:))/nodeScaleF),'edge weight:')
     
     range = threshMax - minNonZeroEdge;
+    if range == 0 
+        range = threshMax - min_ew;
+        minNonZeroEdge = min_ew;
+    end 
     
     lineWidthL = min_ew + (max_ew-min_ew)*(((threshMax-2/3*range)-minNonZeroEdge)/(threshMax-minNonZeroEdge));
     colourL = [1 1 1]-(light_c*(((threshMax-2/3*range)-minNonZeroEdge)/(threshMax-minNonZeroEdge)));
+    
     posx = [max(xc)+1.5 max(xc)+2.5];
     posy = [max(yc)-(5*str2num(legdata(3,:))/nodeScaleF) max(yc)-(5*str2num(legdata(3,:))/nodeScaleF)];
     plot(posx,posy,'LineWidth',lineWidthL,'Color',colourL);
@@ -437,6 +450,7 @@ if strcmp(plotType,'MEA')
     
     lineWidthL = min_ew + (max_ew-min_ew)*(((threshMax-1/3*range)-minNonZeroEdge)/(threshMax-minNonZeroEdge));
     colourL = [1 1 1]-(light_c*(((threshMax-1/3*range)-minNonZeroEdge)/(threshMax-minNonZeroEdge)));
+        
     posx = [max(xc)+1.5 max(xc)+2.5];
     posy = [max(yc)-(6*str2num(legdata(3,:))/nodeScaleF) max(yc)-(6*str2num(legdata(3,:))/nodeScaleF)];
     plot(posx,posy,'LineWidth',lineWidthL,'Color',colourL);
@@ -444,6 +458,7 @@ if strcmp(plotType,'MEA')
     
     lineWidthL = min_ew + (max_ew-min_ew)*(((threshMax)-minNonZeroEdge)/(threshMax-minNonZeroEdge));
     colourL = [1 1 1]-(light_c*(((threshMax)-minNonZeroEdge)/(threshMax-minNonZeroEdge)));
+    
     posx = [max(xc)+1.5 max(xc)+2.5];
     posy = [max(yc)-(7*str2num(legdata(3,:))/nodeScaleF) max(yc)-(7*str2num(legdata(3,:))/nodeScaleF)];
     plot(posx,posy,'LineWidth',lineWidthL,'Color',colourL);
@@ -490,6 +505,11 @@ if strcmp(plotType,'MEA')
     
     cb.TickLabels = cbar_ticklabels;
     cb.Label.String = z2name;
+    
+    % set axis range 
+    ymin = max(yc)-(7*str2num(legdata(3,:))/nodeScaleF) * 1.05;
+    ymax = max(yc) * 1.05;
+    ylim([ymin, ymax])
 
 end
 

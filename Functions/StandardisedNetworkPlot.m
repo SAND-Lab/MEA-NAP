@@ -1,4 +1,4 @@
-function figureHandle = StandardisedNetworkPlot(adjM, coords, edge_thresh, z, plotType, FN, pNum, ...
+function figureHandle = StandardisedNetworkPlot(adjM, coords, edge_thresh, z, zShortForm, plotType, FN, pNum, ...
     Params, lagval, e, figFolder, figureHandle, saveFigure)
 % Plot the graph network 
 % Parameters
@@ -46,6 +46,7 @@ if ~exist('saveFigure', 'var')
 end 
 
 num_nodes = size(adjM, 2);
+
 
 %% plot
 p =  [50   100   660  550];
@@ -259,8 +260,8 @@ if strcmp(plotType,'MEA')
 
     if isfield(Params, 'useMinMaxBoundsForPlots')
         if Params.useMinMaxBoundsForPlots
-            nodeScaleF = max(Params.metricsMinMax.ND); % hard-coding to ND for now because there is no quick fix
-            max_z = max(Params.metricsMinMax.ND);   % to be used in the legend 
+            nodeScaleF = max(Params.metricsMinMax.(zShortForm)); 
+            max_z = max(Params.metricsMinMax.(zShortForm));   % to be used in the legend 
         else
             nodeScaleF = max(z);
             max_z = max(z);
@@ -269,6 +270,13 @@ if strcmp(plotType,'MEA')
         nodeScaleF = max(z);
         max_z = max(z);
     end 
+    
+    % Ensure max_z is 3 at minimum if using node degree (due to legend
+    % dividing by 3, so the minimum legend should be 01, 02, 03)
+    if strcmp(zShortForm, 'ND')
+       nodeScaleF = max([nodeScaleF, 3]);
+       max_z = max([max_z, 3]); 
+    end
     
     for i = 1:length(adjM)
         if z(i)>0
@@ -326,7 +334,7 @@ end
 set(gca,'color','none')
 
 
-%% format plot
+%% format plot : LEGENDS
 legdata = {};
 legendNumDivisor = 3;
 for divisor = 1:legendNumDivisor
@@ -360,30 +368,41 @@ if strcmp(plotType,'MEA')
     rectangle('Position',pos,'Curvature',[1 1],'FaceColor',nodeLegendColor,'EdgeColor','w','LineWidth',0.1);
     text(max(xc)+3,(max(yc)-1)-(str2num(legdata(2,:))/nodeScaleF+2.5*str2num(legdata(1,:))/nodeScaleF),legdata(3,:))
     
+    % EDGE WEIGHT LEGEND
+    
     text(max(xc)+1.5,max(yc)-(4*str2num(legdata(3,:))/nodeScaleF),'edge weight:')
     
     range = threshMax - minNonZeroEdge;
+    if range == 0 
+        range = threshMax - min_ew;
+        minNonZeroEdge = min_ew;
+    end 
     
-    lineWidthL = min_ew + (max_ew-min_ew)*(((threshMax - 2/3*range)-minNonZeroEdge)/(threshMax-minNonZeroEdge));
-    colourL = [1 1 1]-(light_c*(((threshMax-2/3*range)-minNonZeroEdge)/(threshMax-minNonZeroEdge)));
+    lineWidthL = min_ew + (max_ew-min_ew)*(((threshMax - 2/3*range)-minNonZeroEdge)/range);
+    colourL = [1 1 1]-(light_c*(((threshMax-2/3*range)-minNonZeroEdge)/range));
     posx = [max(xc)+1.5 max(xc)+2.5];
     posy = [max(yc)-(5*str2num(legdata(3,:))/nodeScaleF) max(yc)-(5*str2num(legdata(3,:))/nodeScaleF)];
     plot(posx,posy,'LineWidth',lineWidthL,'Color',colourL);
     text(max(xc)+3,max(yc)-(5*str2num(legdata(3,:))/nodeScaleF),num2str(round(threshMax-2/3*range,4)))
     
-    lineWidthL = min_ew + (max_ew-min_ew)*(((threshMax-1/3*range)-minNonZeroEdge)/(threshMax-minNonZeroEdge));
-    colourL = [1 1 1]-(light_c*(((threshMax - 1/3*range)-minNonZeroEdge)/(threshMax-minNonZeroEdge)));
+    lineWidthL = min_ew + (max_ew-min_ew)*(((threshMax-1/3*range)-minNonZeroEdge)/range);
+    colourL = [1 1 1]-(light_c*(((threshMax - 1/3*range)-minNonZeroEdge)/range));
     posx = [max(xc)+1.5 max(xc)+2.5];
     posy = [max(yc)-(6*str2num(legdata(3,:))/nodeScaleF) max(yc)-(6*str2num(legdata(3,:))/nodeScaleF)];
     plot(posx,posy,'LineWidth',lineWidthL,'Color',colourL);
     text(max(xc)+3,max(yc)-(6*str2num(legdata(3,:))/nodeScaleF),num2str(round(threshMax-1/3*range,4)))
     
-    lineWidthL = min_ew + (max_ew-min_ew)*((threshMax-minNonZeroEdge)/(threshMax-minNonZeroEdge));
-    colourL = [1 1 1]-(light_c*(((threshMax)-minNonZeroEdge)/(threshMax-minNonZeroEdge)));
+    lineWidthL = min_ew + (max_ew-min_ew)*((threshMax-minNonZeroEdge)/range);
+    colourL = [1 1 1]-(light_c*(((threshMax)-minNonZeroEdge)/range));
     posx = [max(xc)+1.5 max(xc)+2.5];
     posy = [max(yc)-(7*str2num(legdata(3,:))/nodeScaleF) max(yc)-(7*str2num(legdata(3,:))/nodeScaleF)];
     plot(posx,posy,'LineWidth',lineWidthL,'Color',colourL);
     text(max(xc)+3,max(yc)-(7*str2num(legdata(3,:))/nodeScaleF),num2str(round(threshMax,4)))
+    
+    % set axis range 
+    ymin = max(yc)-(7*str2num(legdata(3,:))/nodeScaleF) * 1.05;
+    ymax = max(yc) * 1.05;
+    ylim([ymin, ymax])
     
 end
 
@@ -436,6 +455,7 @@ if strcmp(plotType,'circular')
     text(1.7,(0.9-0.25)-(12*str2num(legdata(3,:))/nodeScaleF),num2str(round(threshMax, 4)))
     
 end
+
 
 %% save figure
 
