@@ -7,7 +7,7 @@ function [groupNameBeginsWnumber, groupNameContainsSpecial] = checkCSV(csv_data)
     groupNameBeginsWnumber = 0;
     groupNameContainsSpecial = 0;
     
-    charsToCheck = '+?-!';
+    charsToCheck = '+?-!()';
     
     for groupIdx = 1:length(groupNames)
         groupStr = groupNames{groupIdx}; 
