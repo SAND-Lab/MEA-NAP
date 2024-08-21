@@ -221,6 +221,13 @@ while app.RunPipelineButton.Value == 0
     % Load previous analysis folder 
     if app.PrevAnalysisSelectButton.Value == 1
         app.PreviousAnalysisFolderEditField.Value = uigetdir;
+        
+        % Get names and automatically populate spike detection folder
+        [~, folderName] = fileparts(app.PreviousAnalysisFolderEditField.Value);
+        app.PreviousAnalysisDateEditField.Value = erase(folderName, 'OutputData');
+        app.SpikeDataFolderEditField.Value = fullfile( ...
+            app.PreviousAnalysisFolderEditField.Value, '1_SpikeDetection', '1A_SpikeDetectedData');
+        
         app.PrevAnalysisSelectButton.Value = 0;
         figure(app.UIFigure)  % put app back to focus
     end 
