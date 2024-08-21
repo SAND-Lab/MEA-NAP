@@ -400,9 +400,8 @@ if strcmp(plotType,'MEA')
     text(max(xc)+3,max(yc)-(7*str2num(legdata(3,:))/nodeScaleF),num2str(round(threshMax,4)))
     
     % set axis range 
-    ymin = max(yc)-(7*str2num(legdata(3,:))/nodeScaleF) * 1.05;
-    ymax = max(yc) * 1.05;
-    ylim([ymin, ymax])
+    ylim([min(yc)-1 max(yc)+1])
+    xlim([min(xc)-1 max(xc)+3.75])
     
 end
 

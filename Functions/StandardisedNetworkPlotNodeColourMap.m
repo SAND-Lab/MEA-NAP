@@ -507,9 +507,8 @@ if strcmp(plotType,'MEA')
     cb.Label.String = z2name;
     
     % set axis range 
-    ymin = max(yc)-(7*str2num(legdata(3,:))/nodeScaleF) * 1.05;
-    ymax = max(yc) * 1.05;
-    ylim([ymin, ymax])
+    ylim([min(yc)-1 max(yc)+1])
+    xlim([min(xc)-1 max(xc)+3.75])
 
 end
 
@@ -593,7 +592,6 @@ if strcmp(plotType,'circular')
         module_legend_x_start_end = [1.2, 1.8];
         uniqueModules = unique(z2);  % module number 0 = does not belong to any modules
         numModules = length(uniqueModules); 
-        numModules
         moduleCircleSize = (module_legend_x_start_end(2) - module_legend_x_start_end(1)) / numModules * 0.8;
         moduleCircleCenters = linspace(module_legend_x_start_end(1), module_legend_x_start_end(2), numModules);
    
