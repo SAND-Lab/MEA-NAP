@@ -70,7 +70,7 @@ end
 
 %% groups and DIV for plotting 
 
-if ~isempty(Params.customGrpOrder)
+if ~isempty(Params.customGrpOrder{:})
     Grps = Params.customGrpOrder;
 else
     Grps = Params.GrpNm;
