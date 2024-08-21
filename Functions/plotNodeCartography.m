@@ -1,20 +1,35 @@
 function NetMet = plotNodeCartography(adjMs, Params, NetMet, Info, originalCoords, ...
     originalChannels, HomeDir, fileNameFolder, oneFigureHandle)
-%
+% Plot individual node cartography plots per recording. 
+% Part of Step 4A of MEANAP.
 % Parameters
 % ----------
 % adjMs : struct 
 %     structure where each field contains a cell, which represents the
 %     collection of adjacency matrices obtained from a particular time lag
-% 
 % Params : struct 
+%     Parameter structure
 % Info : struct
+%     File information structure 
+%     with fields: FN (filename without .mat extension, as a string), 
+%     DIV (days in vitro, as a integer) and Grp (group name, as a string)
 % HomeDir : str
 %     path to the home directory
-% 
+% originalCoords : double 
+%       matrix of size (numElectorde, 2) 
+%       with the coordinates of each electrode in a 8 x 8 grid 
+%       (ie. values are expected to be within 0 - 8)
+% originalChannels: double 
+%       vector of size (1, numElectrode)
+%       the integer ID of each channel 
+% fileNameFolder : str 
+%       path to the folder to save the step 4A plot
+% oneFigureHandle : matlab.ui.Figure
+%       matlab figure handle to make the node cartography plot
 % Returns 
 % -------
-
+% NetMet : struct 
+% 
 
 lagval = Params.FuncConLagval;
 edge_thresh = 0.0001;
@@ -29,8 +44,9 @@ for e = 1:length(lagval)
         mkdir(lagFolder)
     end 
     
-    % load adjM
+    % load adjM and Ci 
     adjM = adjMs.(strcat('adjM', num2str(lagval(e)), 'mslag'));
+    % Ci = NetMet.(strcat('adjM', num2str(lagval(e)), 'mslag')).Ci;
 
     adjM(adjM<0) = 0;
     adjM(isnan(adjM)) = 0;
@@ -81,6 +97,9 @@ for e = 1:length(lagval)
     NdCartDivFull = zeros(length(adjM), 1) + 7;
     NdCartDivFull(inclusionIndex) = NdCartDiv;
     NdCartDiv = NdCartDivFull;
+    
+    % TODO: these steps need to be moved and saved (esp. NdCartDivFull) in 
+    % earlier step 4 step to prevent having to re-analyze the data
 
     PopNumNCt(e,:) = PopNumNC;
     
