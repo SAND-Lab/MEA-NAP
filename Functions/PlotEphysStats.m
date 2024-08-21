@@ -69,7 +69,7 @@ metricsWCustomBounds = eMetCustomBounds(:, 1);
 
 %% groups and DIV
 
-if ~isempty(Params.customGrpOrder)
+if ~isempty(Params.customGrpOrder{:}) 
     Grps = Params.customGrpOrder;
 else
     Grps = Params.GrpNm;
