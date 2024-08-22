@@ -777,7 +777,7 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
                     if Params.priorAnalysis==1 && Params.startAnalysisStep==4 && usePriorNetMet
                         experimentMatFileFolder = fullfile(Params.priorAnalysisPath, 'ExperimentMatFiles');
                         experimentMatFilePath = fullfile(experimentMatFileFolder, strcat(char(ExpName(ExN)),'_',Params.priorAnalysisDate,'.mat'));
-                        expData = load(experimentMatFilePath, 'spikeTimes','Ephys','adjMs','Info', 'NetMet');
+                        expData = load(experimentMatFilePath, 'spikeTimes','Ephys','adjMs','Info', 'NetMet', 'Params');
                     else
                         experimentMatFileFolder = fullfile(Params.outputDataFolder, strcat('OutputData', Params.Date), 'ExperimentMatFiles');
                         experimentMatFilePath = fullfile(experimentMatFileFolder, strcat(char(ExpName(ExN)),'_',Params.Date,'.mat'));
@@ -803,6 +803,20 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
                     % note here the Params from expData is not used because there
                     % is a variable I want to preserve between runs... may come
                     % up with a better solution down the line...
+                    if usePriorNetMet
+                        % Adding expData.Params node cartography boundaries to
+                        % Params 
+                        boundaryNames = {'hubBoundaryWMdDeg', 'periPartCoef', 'proHubpartCoef', ...
+                                         'nonHubconnectorPartCoef', 'connectorHubPartCoef'};
+                        
+                        for lagIdx = 1:length(Params.FuncConLagval)             
+                            for boundaryIdx = 1:length(boundaryNames)
+                                boundaryFieldName = strcat(boundaryNames{boundaryIdx}, sprintf('_%.fmsLag', Params.FuncConLagval(lagIdx)));
+                                Params.(boundaryFieldName) = expData.Params.(boundaryFieldName);
+                            end
+                        end 
+                    end 
+
                     % TODO: remove the analysis step in the function, already
                     % dealt with earlier
                     NetMet = plotNodeCartography(expData.adjMs, Params, expData.NetMet, expData.Info, originalCoords, originalChannels, ...
