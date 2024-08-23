@@ -76,7 +76,7 @@ app.NetworkmetricstocalculateListBox.Value = {...
 channelLayoutCheck = 0; 
 usingLoadedParams = 0;
 
-while app.RunPipelineButton.Value == 0
+while isvalid(app)
 
     % previous analysis fields
     if app.UsePreviousAnalysisCheckBox.Value == 0
@@ -143,6 +143,8 @@ while app.RunPipelineButton.Value == 0
     homeDirSet = 1 - isempty(app.MEANAPFolderEditField.Value);
     spreadsheetSet = 1 - isempty(app.SpreadsheetFilenameEditField.Value);
     
+    % Toggle all required parameters set lamp and enable/disable run
+    % pipeline button 
     if homeDirSet && spreadsheetSet
         app.AllrequiredparameterssetLamp.Color = [0 1 0];
     else
@@ -201,11 +203,18 @@ while app.RunPipelineButton.Value == 0
             if groupNameBeginsWnumber
                 app.MEANAPStatusTextArea.Value = [app.MEANAPStatusTextArea.Value; ...
                     'WARNING: at least one of the group names in your csv file start with a number, MEANAP may not run properly'];
+                app.RunPipelineButton.Enable = 'off';
             end 
             if groupNameContainsSpecial
                 app.MEANAPStatusTextArea.Value = [app.MEANAPStatusTextArea.Value; ...
                     'WARNING: at least one of the group names in your csv file contain a special character, MEANAP may not run properly'];
+                app.RunPipelineButton.Enable = 'off';
             end 
+            
+            if (~groupNameBeginsWnumber) && (~groupNameContainsSpecial)
+                app.RunPipelineButton.Enable = 'on'; 
+            end
+            
             % Update Custom Group Order with detected group names
             uniqueGrpNames = unique(csv_data(:, 3));
             app.CustomGroupOrderEditField.Value = strjoin(table2cell(uniqueGrpNames), ',');
@@ -349,7 +358,16 @@ while app.RunPipelineButton.Value == 0
         app.MinimumnumberofnodesEditField.Value = 12;
     end
     
+    if app.RunPipelineButton.Value == 1
+        break 
+    end 
+    
     pause(0.1)
+end 
+
+if ~isvalid(app)
+    fprintf('MEANAP GUI closed \n')
+    return 
 end 
 
 %% Moving settings to Params
