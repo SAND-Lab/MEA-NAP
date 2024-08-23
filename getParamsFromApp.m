@@ -1,5 +1,5 @@
 function  Params = getParamsFromApp(app)
-%getParamsFromApp Sets the parameters from GUI input
+% Sets the parameters from GUI input
 %   INPUT 
 %   app : app object 
 %   OUTPUT
@@ -80,7 +80,8 @@ Params.remove_artifacts = app.RemoveartifactsCheckBox.Value;
 Params.nScales = app.WaveletnScalesEditField.Value;
 waveletWid = app.WaveletwidEditField.Value;  % TODO: convert this to array
 Params.wid = str2num(waveletWid);  
-Params.grd = [];
+Params.grd = []; % NOTE: This is not used anymore, see Params.electrodesToGroundPerRecording,
+% which is set by the csv 
 Params.unit = app.TimeUnitEditField.Value;
 Params.minPeakThrMultiplier = app.MinimumspikepeakmultiplierEditField.Value;
 Params.maxPeakThrMultiplier = app.MaximumspikepeakmultiplierEditField.Value;
@@ -286,6 +287,10 @@ Params.verboseLevel = app.VerboseLevelDropDown.Value;
 %% MISC 
 Params.option = 'list';
 Params.output_spreadsheet_file_type = 'csv';
+
+% Get pipeline version 
+versionFile = fullfile(Params.HomeDir, 'version.txt');
+Params.version = strtrim(fileread(versionFile));
 
 %%%%%%%%%%%%%%%%%%%%%%%%%% GUI SPECIFIC SETTINGS %%%%%%%%%%%%%%%%%%%%%%%
 Params.showAdvancedSetting = app.ShowAdvancedSettingsCheckBox.Value; 
