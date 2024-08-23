@@ -79,7 +79,11 @@ Params.guiMode = 1;   % GUI mode? 1 = on, 0 = off
 
 if (Params.guiMode == 1) && ~exist('InputParamsFilePath', 'var')
     runPipelineApp
-    spikeDetectedData = Params.spikeDetectedData;
+    if isvalid(app)
+        spikeDetectedData = Params.spikeDetectedData;
+    else
+        return 
+    end
 else
     Params.spreadSheetFileName = spreadsheet_filename;
 end 
@@ -433,7 +437,12 @@ end
 
 if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisStep<=4
     
-    fprintf('Running step 4 of MEA-NAP: Analyzing network activity \n')
+    step4startMessage = 'Running step 4 of MEA-NAP: Analyzing network activity';
+    fprintf([step4startMessage '\n'])
+    if Params.guiMode == 1
+        app.MEANAPStatusTextArea.Value = [app.MEANAPStatusTextArea.Value; step4startMessage];
+    end 
+    
     if Params.timeProcesses
         step4Start = tic;
     end 
