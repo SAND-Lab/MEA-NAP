@@ -21,17 +21,17 @@ try
     if strcmp(localVersion, onlineVersion)
         app.MEANAPStatusTextArea.Value = ...
             [app.MEANAPStatusTextArea.Value; ...
-            'Your MEANAP version is up to date!'];
+            'Your MEA-NAP version is up to date!'];
     else
         app.MEANAPStatusTextArea.Value = ...
             [app.MEANAPStatusTextArea.Value; ...
-            sprintf('Your MEANAP version is out of date, the latest version is %s', onlineVersion)];
+            sprintf('Your MEA-NAP version is out of date, the latest version is %s', onlineVersion)];
     end
     
 catch
    app.MEANAPStatusTextArea.Value = ...
             [app.MEANAPStatusTextArea.Value; ...
-            'You are not connected to the internet, cannot check the latest version of MEANAP'];
+            'You are not connected to the internet, cannot check the latest version of MEA-NAP'];
 end
 
 
