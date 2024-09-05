@@ -2,7 +2,7 @@ function combinedData = combineExpNetworkData(ExpName, Params, NetMetricsE, NetM
 % This function collects data from individual experiment analysis files and
 % combine them to create a dataset containing all of the metrics from each
 % experiment.
-
+% NOTE: This function also saves a csv file
 % Parameters
 % ----------
 % ExpName : cell
@@ -31,6 +31,8 @@ AgeDiv = Params.DivNm;
 output_spreadsheet_file_type = Params.output_spreadsheet_file_type;
 combinedData = struct();
 
+% Also add activeChannel to NetMetricsC
+NetMetricsC{end+1} = 'activeChannel';
 
 if strcmp(char(Grps{1}),'HET') && strcmp(char(Grps{2}),'KO') && strcmp(char(Grps{3}),'WT')
    clear Grps
@@ -111,10 +113,14 @@ for i = 1:length(ExpName)
             % clear DatTemp
      end
      
-     % add recording name 
-     fileNameSplit = split(Exp, '_');
-     recordingName = join(fileNameSplit(1:end-1), '_');
-     combinedData.(eGrp).(eDiv).recordingName{groupTypeCounter+1} = recordingName{1};
+    %  add recording name 
+     % Old version: excludes the last '_' and assumes file ends with
+     % _ DIVXX.mat
+     % fileNameSplit = split(Exp, '_');
+     % recordingName = join(fileNameSplit(1:end-1), '_');
+     % combinedData.(eGrp).(eDiv).recordingName{groupTypeCounter+1} = recordingName{1};
+     
+     combinedData.(eGrp).(eDiv).recordingName{groupTypeCounter+1} = Exp;
 end
 
 %% Data concerning single electrodes
@@ -135,6 +141,9 @@ for g = 1:length(Grps)
             combinedData.(VN1).(VN2).(VN3) = [];
             clear VN3
         end
+        % initialise channel field
+        % combinedData.(VN1).(VN2).Channel = [];
+        
         clear VN2
     end
     clear VN1
@@ -145,7 +154,6 @@ for i = 1:length(ExpName)
      % Exp = strcat(char(ExpName(i)),'_',Params.Date,'.mat');
      Exp = char(ExpName(i));
      
-     groupTypeCounterElectrode = 1;
      % if previously used showOneFig, then this prevents saved oneFigure 
      % handle from showing up when loading the matlab variable
      if Params.showOneFig 
@@ -221,12 +229,35 @@ for i = 1:length(ExpName)
             clear DatTemp
      end
      
+     % add node (electrode, channel etc.) name
+     % TODO: replace with activeChannel
+     % lagFields = fields(ExpData.NetMet);
+     % firstLagField = lagFields{1};
+     % combinedData.(eGrp).(eDiv).Channel = [combinedData.(eGrp).(eDiv).Channel ...
+     %                                      ExpData.NetMet.(firstLagField).activeChannel(:)];
+     
      % add recording name 
-     fileNameSplit = split(Exp, '_');
-     recordingName = join(fileNameSplit(1:end-1), '_');
-     numElectrode = length(combinedData.(eGrp).(eDiv).(eMet));
-     combinedData.(eGrp).(eDiv).recordingNamePerElectrode(groupTypeCounterElectrode:groupTypeCounterElectrode+numElectrode-1) = repmat(recordingName, numElectrode, 1);
-     groupTypeCounterElectrode = groupTypeCounterElectrode + numElectrode;
+     % fileNameSplit = split(Exp, '_');
+     % recordingName = join(fileNameSplit(1:end-1), '_');
+     recordingName = {Exp};
+     
+     % get number of electrode per lag
+     numElectrodePerLag = [];
+     lagFields = fields(ExpData.NetMet);
+     for lagFieldIdx = 1:length(lagFields)
+         numElectrodePerLag(end+1) = length(ExpData.NetMet.(lagFields{lagFieldIdx}).activeChannel);
+     end 
+     
+     numElectrode = max(numElectrodePerLag);
+     
+     if ~isfield(combinedData.(eGrp).(eDiv), 'recordingNamePerElectrode')
+         combinedData.(eGrp).(eDiv).recordingNamePerElectrode = {};
+     end
+     electrodeStartIdx = length(combinedData.(eGrp).(eDiv).recordingNamePerElectrode) + 1;
+     electrodeEndIdx = electrodeStartIdx + numElectrode - 1;
+     
+     combinedData.(eGrp).(eDiv).recordingNamePerElectrode(electrodeStartIdx:electrodeEndIdx) = ...
+         repmat(recordingName, numElectrode, 1);
      
      clear Info NetMet adjMs
 end
@@ -345,6 +376,8 @@ for g = 1:length(Grps)
                 DatTemp.AgeDiv = repmat(AgeDiv(d), numEntries, 1);
                 DatTemp.Lag = repmat(Params.FuncConLagval(l), numEntries, 1);
                 DatTemp.recordingName = convertCharsToStrings(combinedData.(eGrp).(eDiv).recordingNamePerElectrode)';
+                % DatTemp.Channel = combinedData.(eGrp).(eDiv).Channel(:); % [allElectrodeLevelData.Channel; expData.Info.channels(nodeIndices)'];
+                
                 electrode_table_obj = struct2table(DatTemp);
                 for table_row = 1:numEntries
                     electrode_main_table{n_row} = electrode_table_obj(table_row, :);
