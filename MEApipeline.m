@@ -451,6 +451,9 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
     oneFigureHandle = NaN;
     oneFigureHandle = checkOneFigureHandle(Params, oneFigureHandle);
     
+    % Set up node cartography metrics 
+    nodeCartographyMetrics = {'NCpn1', 'NCpn2', 'NCpn3', 'NCpn4', 'NCpn5','NCpn6'};
+    
     % Step 4 Analysis step
     if strcmp(Params.startAnalysisSubStep, 'ALL')
         for  ExN = 1:length(ExpName) 
@@ -527,7 +530,6 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
     % Aggregate all files and run density analysis to determine boundaries
     % for node cartography
     usePriorNetMet = 0;  % set to 0 by default
-    nodeCartographyMetrics = {'NCpn1', 'NCpn2', 'NCpn3', 'NCpn4'};
     if length(intersect(Params.netMetToCal, nodeCartographyMetrics)) >= 1
         if Params.autoSetCartographyBoundaries
             if Params.priorAnalysis==1 && usePriorNetMet

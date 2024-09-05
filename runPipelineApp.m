@@ -1,6 +1,7 @@
 %% Script to run pipeline app and propagate settings back to Params
 clear app
 app = MEANAPApp;
+app.UIFigure.Name = 'MEA-NAP';
 app.MEANAPStatusTextArea.Value = {'Welcome! The MEA-NAP GUI is launched.'};
 
 % GUI resizing 
@@ -358,7 +359,25 @@ while isvalid(app)
         app.MinimumnumberofnodesEditField.Value = 12;
     end
     
-    if app.RunPipelineButton.Value == 1
+    % Setting parameters for testing pipeline 
+    if app.TestPipelineButton.Value == 1
+        % Download data to run test 
+        downloadExampleData; 
+        
+        % Set Raw data folder 
+        app.RawDataFolderEditField.Value = fullfile(app.MEANAPFolderEditField.Value, 'ExampleData');
+        
+        % Set CSV path 
+        spreadsheetFilePath = fullfile(app.MEANAPFolderEditField.Value, 'ExampleData', 'exampleData.csv');
+        % spreadsheetFilePath
+        app.SpreadsheetFilenameEditField.Value = spreadsheetFilePath;
+        % app.SpreadsheetFilepathEditField.Value = spreadsheetFilePath;
+        % Set CSV range
+        app.SpreadsheetRangeEditField.Value = '[2, 3]';
+        break
+    end
+    
+    if (app.RunPipelineButton.Value == 1)
         break 
     end 
     
