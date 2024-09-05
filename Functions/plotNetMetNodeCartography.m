@@ -19,7 +19,7 @@ function plotNetMetNodeCartography(combinedData, ExpName, Params,HomeDir, figFol
 
 %% groups and DIV
 
-if ~isempty(Params.customGrpOrder)
+if ~isempty(Params.customGrpOrder{:})
     Grps = Params.customGrpOrder;
 else
     Grps = Params.GrpNm;
@@ -37,6 +37,7 @@ c4 = [0.2 0.729 0.949]; % light blue
 c5 = [0.078 0.424 0.835]; % medium blue
 c6 = [0.016 0.235 0.498]; % dark blue
 
+% TODO: Move this with node cartography metrics
 eMet = {'NCpn1','NCpn2','NCpn3','NCpn4','NCpn5','NCpn6'}; 
 
 p = [100 100 1200 800]; % this can be ammended accordingly
