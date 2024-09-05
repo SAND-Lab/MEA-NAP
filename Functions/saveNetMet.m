@@ -3,7 +3,9 @@ function saveNetMet(ExpName, Params, HomeDir)
 % Parameters
 % ----------
 % ExpName : str 
+%      Name of experiment file
 % Params : struct 
+%      Parameter structure used in MEANAP
 % HomeDir : str
 % Output 
 % -------
@@ -117,6 +119,8 @@ for i = 1:length(ExpName)
                 allElectrodeLevelData.FileName = [allElectrodeLevelData.FileName; repmat({expData.Info.FN{1}}, numElectrodes, 1)];
                 allElectrodeLevelData.Grp = [allElectrodeLevelData.Grp; repmat({expData.Info.Grp{1}}, numElectrodes, 1)];
                 allElectrodeLevelData.DIV = [allElectrodeLevelData.DIV; repmat(expData.Info.DIV{1}, numElectrodes, 1)];
+                
+                % Add channel ID to node level network activity data
                 if size(expData.Info.channels(1:numElectrodes), 1) == 1
                     allElectrodeLevelData.Channel = [allElectrodeLevelData.Channel; expData.Info.channels(nodeIndices)'];
                 else
