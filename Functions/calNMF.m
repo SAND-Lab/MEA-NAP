@@ -1,5 +1,5 @@
 function nmfResults = calNMF(spikeMatrix, fs, downsamplefreq, duration_s, ...
-    minSpikeCount, includeRandomMatrix, includeNMFcomponents)
+    minSpikeCount, includeRandomMatrix, includeNMFcomponents, verboseLevel)
 % calNMF calculates metrics related to non-negative matrix factorisation (NNMF) of
 % the spike matrix 
 %
@@ -26,6 +26,9 @@ function nmfResults = calNMF(spikeMatrix, fs, downsamplefreq, duration_s, ...
 %   num_nnmf_components : number of significant components from NMF
 %   nComponentsRelNS : number of components relative to network size
 
+if ~exist('verboseLevel', 'var')
+    verboseLevel = 'Normal';
+end 
 
 if issparse(spikeMatrix)
     spikeMatrix = full(spikeMatrix);
@@ -62,7 +65,10 @@ if includeRandomMatrix
 
 end 
 % downsampled original spike matrix
-fprintf('Downsampling spike matrix... \n')
+if strcmp(verboseLevel, 'High')
+    fprintf('Downsampling spike matrix... \n')
+end 
+
 downSampleSpikeMatrix = downSampleSum(spikeMatrix, downsamplefreq * duration_s);
             
 activeElectrodes = sum(spikeMatrix,1) > minSpikeCount;
@@ -70,11 +76,15 @@ spikePercentile =  prctile(spikeMatrix,95,'all');
 networkSize = sum(full(activeElectrodes));
 
 %% Do NNMF 
-fprintf('Doing non-negative matrix factorsiation with different components... \n')
+if strcmp(verboseLevel, 'High')
+    fprintf('Doing non-negative matrix factorsiation with different components... \n')
+end 
 residual = 0; randResidual = 1; k = 1;
 randResidualPerComponent = [];
 while residual < randResidual && k <= size(downSampleSpikeMatrix,2)
-    fprintf(sprintf('Searching k = %.f \n', k))
+    if strcmp(verboseLevel, 'High')
+        fprintf(sprintf('Searching k = %.f \n', k))
+    end 
     [nmfFactors, nmfWeights, residual] = nnmf(downSampleSpikeMatrix,k);
     [~, msgid] = lastwarn;
 
