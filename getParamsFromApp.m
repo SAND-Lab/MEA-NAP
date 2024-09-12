@@ -100,9 +100,10 @@ Params.filterLowPass = app.LowpassfilterHzEditField.Value;
 Params.filterHighPass = app.HighpassfilterHzEditField.Value;
 
 if Params.filterHighPass > Params.fs / 2
-    fprintf(['WARNING: high pass frequency specified is above \n ', ...
-        'nyquist frequency for given sampling rate, reducing it \n ' ...
-        sprintf('to a frequency of %.f \n', Params.fs/2-100)])
+    app.MEANAPStatusTextArea.Value = [app.MEANAPStatusTextArea.Value; ...
+       'WARNING: high pass frequency specified is above the nyquist frequency for given sampling rate, reducing it ' ...
+       sprintf('to a frequency of %.f \n', Params.fs/2-100)];
+   
     Params.filterHighPass = Params.fs/2-100;
 end 
 %% Which network metrics to calculate and plot 
