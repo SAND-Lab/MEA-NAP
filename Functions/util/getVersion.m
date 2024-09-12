@@ -1,12 +1,12 @@
-function getVersion(HomeDir, app)
+function localVersion = getVersion(HomeDir, app)
 
 localVersion = importdata(fullfile(HomeDir, 'version.txt')); 
 localVersion = localVersion{1};
 localVersion = strtrim(localVersion);
 
-app.MEANAPStatusTextArea.Value = ...
-            [app.MEANAPStatusTextArea.Value; ...
-            sprintf('You are using version %s of MEA-NAP \n', localVersion)];
+% app.MEANAPStatusTextArea.Value = ...
+%             [app.MEANAPStatusTextArea.Value; ...
+%             sprintf('You are using version %s of MEA-NAP \n', localVersion)];
 
 % This is where you get the latest github version code
 url = 'https://raw.githubusercontent.com/SAND-Lab/MEA-NAP/main/version.txt';
@@ -26,6 +26,10 @@ try
         app.MEANAPStatusTextArea.Value = ...
             [app.MEANAPStatusTextArea.Value; ...
             sprintf('Your MEA-NAP version is out of date, the latest version is %s', onlineVersion)];
+        
+        app.MEANAPStatusTextArea.Value = ...
+            [app.MEANAPStatusTextArea.Value; ...
+            'You can find the latest version here: https://github.com/SAND-Lab/MEA-NAP/releases'];
     end
     
 catch
