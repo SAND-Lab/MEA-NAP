@@ -1160,6 +1160,7 @@ if Params.guiMode == 1
             runMEANAPviewer;
             app.ViewOutputsButton.Value = 0;
         end 
+        pause(0.1);
     end
 end 
 
