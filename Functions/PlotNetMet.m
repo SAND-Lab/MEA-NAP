@@ -435,7 +435,7 @@ if Params.includeNotBoxPlots
 
             % Export figure
             for nFigExt = 1:length(Params.figExt)
-                figName = strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),Params.figExt{nFigExt});
+                figName = strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),  '_byGroup', Params.figExt{nFigExt});
                 figPath = fullfile(networkNotBoxPlotFolderPlusLag, figName);
                 saveas(gcf, figPath);
             end 
@@ -544,7 +544,7 @@ for l = 1:length(Params.FuncConLagval)
 
         % Export figure
         for nFigExt = 1:length(Params.figExt)
-            figName = strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''), Params.figExt{nFigExt});
+            figName = strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''), '_byGroup', Params.figExt{nFigExt});
             figPath = fullfile(halfViolinPlotByGroupFolderPlusLag, figName);
             figPath = strrep(figPath, '>', 'greater than');
             figPath = strrep(figPath, '<', 'less than');
@@ -626,7 +626,7 @@ if Params.includeNotBoxPlots
 
             % Export figure
             for nFigExt = 1:length(Params.figExt)
-                figName = strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),Params.figExt{nFigExt});
+                figName = strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''), '_byAge', Params.figExt{nFigExt});
                 figPath = fullfile(notBoxPlotByDivFolderPlusLag, figName);
                 figPath = strrep(figPath, '>', 'greater than');
                 figPath = strrep(figPath, '<', 'less than');
@@ -739,7 +739,7 @@ for l = 1:length(Params.FuncConLagval)
 
         % Export figure
         for nFigExt = 1:length(Params.figExt)
-            figName = strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),Params.figExt{nFigExt});
+            figName = strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''), '_byAge', Params.figExt{nFigExt});
             figPath = fullfile(halfViolinPlotByDivFolderPlusLag, figName);
             figPath = strrep(figPath, '>', 'greater than');
             figPath = strrep(figPath, '<', 'less than');
@@ -845,7 +845,7 @@ for l = 1:length(Params.FuncConLagval)
 
         % Export figure
         for nFigExt = 1:length(Params.figExt)
-            figName = strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),Params.figExt{nFigExt});
+            figName = strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''), '_byGroup', Params.figExt{nFigExt});
             figPath = fullfile(nodeByGroupFolderPlusLag, figName);
             figPath = strrep(figPath, '>', 'greater than');
             figPath = strrep(figPath, '<', 'less than');
@@ -953,7 +953,7 @@ for l = 1:length(Params.FuncConLagval)
         
         % Export figure
         for nFigExt = 1:length(Params.figExt)
-            figName = strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''),Params.figExt{nFigExt});
+            figName = strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''), '_byAge', Params.figExt{nFigExt});
             figPath = fullfile(halfViolinPlotByAgeFolderPlusLag, figName);
             figPath = strrep(figPath, '>', 'greater than');
             figPath = strrep(figPath, '<', 'less than');
