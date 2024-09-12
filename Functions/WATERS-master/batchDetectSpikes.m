@@ -1,4 +1,4 @@
-function batchDetectSpikes(dataPath, savePath, option, files, params)
+function batchDetectSpikes(dataPath, savePath, option, files, params, MEANAPapp)
 % Performs spike detection 
 % Runs spike detection through recordings, cost parameters, electrodes, and wavelets.
 % 
@@ -37,6 +37,7 @@ arguments
     option;
     files;
     params;
+    MEANAPapp; 
 end
 
 
@@ -55,6 +56,9 @@ else
     addpath(dataPath);
 end
 
+if ~exist('MEANAPapp', 'var')
+    MEANAPapp = struct();
+end 
 
 multiplier = params.multiplier;
 nSpikes = params.nSpikes;
@@ -195,9 +199,14 @@ for recording = 1:numel(files)
     end 
     
     % Load data
-    disp(['Loading ' fileName ' ...']);
+    if params.guiMode == 1
+        MEANAPapp.MEANAPStatusTextArea.Value = [MEANAPapp.MEANAPStatusTextArea.Value; ...
+                    'Loading ' fileName ' ...'];
+    else 
+        disp(['Loading ' fileName ' ...']);
+    end
+    
     file = load(fileName);
-    disp(['File loaded']);
     
     data = file.dat;
     channels = file.channels;
@@ -224,8 +233,17 @@ for recording = 1:numel(files)
         saveName = [savePath fileName(1:end-4) '_L_' num2str(L) '_spikes.mat'];
         if ~exist(saveName, 'file')
             params.L = L;
-            tic
-            disp('Detecting spikes...');
+            
+            if params.timeProcesses == 1
+                tic
+            end
+            
+            if params.guiMode == 1
+               MEANAPapp.MEANAPStatusTextArea.Value = [MEANAPapp.MEANAPStatusTextArea.Value; ...
+                    'Detecting spikes...'];
+            else 
+                disp('Detecting spikes...');
+            end 
             % disp(['L = ' num2str(L)]);
             
             % Pre-allocate vectors for storing spike features
@@ -340,9 +358,10 @@ for recording = 1:numel(files)
                 
             end
             
-            toc
+            if params.timeProcesses == 1
+                toc
+            end 
             
-          
             % Save results
             save_suffix = ['_' strrep(num2str(L), '.', 'p')];
             params.save_suffix = save_suffix;
@@ -356,7 +375,7 @@ for recording = 1:numel(files)
             spikeDetectionResult.params = params;
             
             saveName = fullfile(savePath,  strcat(fileName, '_spikes.mat'));
-            disp(['Saving results to: ' saveName]);
+            % disp(['Saving results to: ' saveName]);
             
             varsList = {'spikeTimes', 'channels', 'spikeDetectionResult', ...
                 'spikeWaveforms', 'thresholds'};
