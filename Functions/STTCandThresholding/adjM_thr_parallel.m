@@ -89,7 +89,8 @@ if parallelToolboxInstalled
     end
 
 else 
-  fprintf('Parallel computing toolbox not installed, running regular for loops \n')
+  % TODO: print this based on verbose level
+  % fprintf('Parallel computing toolbox not installed, running regular for loops \n')
   for i = 1:rep_num
         
         synth_spk = spikeTimes;
