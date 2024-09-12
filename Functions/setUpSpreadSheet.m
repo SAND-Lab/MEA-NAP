@@ -23,6 +23,12 @@ elseif strcmp(spreadsheet_file_type, 'csv')
     
     opts.DataLines = csvRange; % read the data in the range [StartRow EndRow]
     % csv_data = readtable(spreadsheet_filename, 'Delimiter','comma');
+    
+    % We will modify the column headers so that they are valid matlab
+    % variable names (and so we will suppress the warning for that)
+    opts.VariableNamingRule = 'modify';
+    warning('OFF', 'MATLAB:table:ModifiedAndSavedVarnames')
+    
     csv_data = readtable(spreadsheet_filename, opts);
     ExpName = csv_data{:, 1};
     ExpGrp = csv_data{:, 3};
