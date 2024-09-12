@@ -374,12 +374,14 @@ for e = 1:length(lagval)
     % do not depend on lag
     if e == 1
         if any(strcmp(netMetToCal, 'num_nnmf_components'))
-            fprintf('Calculating NMF \n')
+            if strcmp(Params.verboseLevel, 'High')
+                fprintf('Calculating NMF \n')
+            end 
             minSpikeCount = 1;
             includeRandomMatrix = 1;
             nmfCalResults = calNMF(spikeMatrix, Params.fs, Params.NMFdownsampleFreq, ...
                                     Info.duration_s, minSpikeCount, includeRandomMatrix, ...
-                                    Params.includeNMFcomponents);
+                                    Params.includeNMFcomponents, Params.verboseLevel);
             NetMet.(strcat('adjM',num2str(lagval(e)),'mslag')).num_nnmf_components = nmfCalResults.num_nnmf_components;
             NetMet.(strcat('adjM',num2str(lagval(e)),'mslag')).nComponentsRelNS = nmfCalResults.nComponentsRelNS; 
             NetMet.(strcat('adjM',num2str(lagval(e)),'mslag')).nnmf_residuals = nmfCalResults.nnmf_residuals; 
@@ -397,7 +399,9 @@ for e = 1:length(lagval)
 
         %% Calculate effective rank 
         if any(strcmp(netMetToCal,'effRank'))
-            fprintf('Calculating effective rank \n')
+            if strcmp(Params.verboseLevel, 'High')
+                fprintf('Calculating effective rank \n')
+            end
             downSampleMatrix = downSampleSum(full(spikeMatrix), Params.effRankDownsampleFreq * Info.duration_s);
             NetMet.(strcat('adjM',num2str(lagval(e)),'mslag')).effRank = ...
                 calEffRank(downSampleMatrix, Params.effRankCalMethod);
