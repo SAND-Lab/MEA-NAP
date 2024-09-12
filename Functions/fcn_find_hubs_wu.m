@@ -88,7 +88,9 @@ Y = mean(norm_metric_matrix,2);
 [B,I] = sort(Y,'descend');
 channels_sorted = channels(I); % descending order
 top5_channel_xy = channels_sorted(1:5);
-disp('Stimulate:'); disp(num2str(top5_channel_xy))
+
+% Print which channels to stimulate
+% disp('Stimulate:'); disp(num2str(top5_channel_xy))
 
 
 %% plot nodes normalised value for each metric in overall percentile order
