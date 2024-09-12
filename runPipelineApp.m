@@ -1,7 +1,6 @@
 %% Script to run pipeline app and propagate settings back to Params
 clear app
 app = MEANAPApp;
-app.UIFigure.Name = 'MEA-NAP';
 app.MEANAPStatusTextArea.Value = {'Welcome! The MEA-NAP GUI is launched.'};
 
 % GUI resizing 
@@ -12,7 +11,10 @@ app.MEANAPFolderEditField.Value = pwd;
 
 % Check version 
 addpath(fullfile(app.MEANAPFolderEditField.Value, 'Functions', 'util'));
-getVersion(app.MEANAPFolderEditField.Value, app);
+addpath(fullfile(app.MEANAPFolderEditField.Value, 'Functions', 'util', 'natsort'));  % for MEANAP viewer
+localVersion = getVersion(app.MEANAPFolderEditField.Value, app);
+
+app.UIFigure.Name = ['MEA-NAP ' localVersion];
 
 % Default colours 
 app.colorUITable.Data = [ ...
@@ -375,6 +377,12 @@ while isvalid(app)
         % Set CSV range
         app.SpreadsheetRangeEditField.Value = '[2, 3]';
         break
+    end
+    
+    % Launch MEANAP viewer 
+    if app.ViewOutputsButton.Value == 1
+        runMEANAPviewer;
+        app.ViewOutputsButton.Value = 0;
     end
     
     if (app.RunPipelineButton.Value == 1)
