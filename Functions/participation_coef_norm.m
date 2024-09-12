@@ -45,7 +45,7 @@ if nargin < 4 % if par_comp input is missing, then compute function without para
     par_comp = 0;
 end
  
-fprintf('\n - Running Normalized Participation Coefficient with %g randomizations... \n',n_iter);
+% fprintf('\n - Running Normalized Participation Coefficient with %g randomizations... \n',n_iter);
  
 %% First calculate the original Participation Coefficient
 n = length(W); %number of vertices
@@ -85,8 +85,8 @@ if par_comp == 0 % no parallel computing
          
         Kc2_rnd(:,ii) = sqrt(0.5.*Kc2_rnd_loop); % 0.5 * square root of intramodular degree between original and randomised network
          
-        msg = sprintf('\n - Randomization %d of %d (%g percent done) ...\n',ii,n_iter,round((ii/n_iter)*100)); % on-sceen progress report (including %-completed)
-        fprintf([reverseStr,msg]); reverseStr = repmat(sprintf('\b'),1,length(msg));
+        % msg = sprintf('\n - Randomization %d of %d (%g percent done) ...\n',ii,n_iter,round((ii/n_iter)*100)); % on-sceen progress report (including %-completed)
+        % fprintf([reverseStr,msg]); reverseStr = repmat(sprintf('\b'),1,length(msg));
     end
 else % parallel computing
     parfor ii = 1:n_iter % number of randomizations
