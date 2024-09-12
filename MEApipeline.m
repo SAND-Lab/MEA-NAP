@@ -209,6 +209,11 @@ copyfile(Params.spreadSheetFileName, outputDataWDatePath);
 
 if ((Params.priorAnalysis == 0) || (Params.runSpikeCheckOnPrevSpikeData)) && (Params.startAnalysisStep == 1) 
     
+    if Params.guiMode == 1
+        app.MEANAPStatusTextArea.Value = [app.MEANAPStatusTextArea.Value; ...
+        'Running step 1 of MEA-NAP: spike detection'];
+    end
+    
     if Params.timeProcesses
         step1Start = tic;
     end 
@@ -231,7 +236,11 @@ if ((Params.priorAnalysis == 0) || (Params.runSpikeCheckOnPrevSpikeData)) && (Pa
     
     % Run spike detection
     if detectSpikes == 1
-        batchDetectSpikes(rawData, savePath, option, ExpName, Params);
+        if Params.guiMode == 1
+            batchDetectSpikes(rawData, savePath, option, ExpName, Params, app);
+        else
+            batchDetectSpikes(rawData, savePath, option, ExpName, Params);
+        end
     end 
     
     % Specify where ExperimentMatFiles are stored
@@ -280,7 +289,13 @@ end
 
 %% Step 2 - neuronal activity
 if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisStep<3
-    fprintf('Running step 2 of MEA-NAP: neuronal activity \n')
+    
+    if Params.guiMode == 1
+        app.MEANAPStatusTextArea.Value = [app.MEANAPStatusTextArea.Value; ...
+        'Running step 2 of MEA-NAP: neuronal activity'];
+    else 
+        fprintf('Running step 2 of MEA-NAP: neuronal activity \n')
+    end
     
     if Params.timeProcesses
         step2Start = tic;
@@ -297,7 +312,7 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
         load(experimentMatFpath, 'Info')
 
         % extract spike matrix, spikes times and associated info
-        disp(char(Info.FN))
+        % disp(char(Info.FN))
 
         if Params.priorAnalysis==1 && Params.startAnalysisStep==2
             spikeDetectedDataFolder = spikeDetectedData;
@@ -330,8 +345,6 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
     % Set up one figure handle to save all the figures
     oneFigureHandle = NaN;
     oneFigureHandle = checkOneFigureHandle(Params, oneFigureHandle);
-
-    disp('Electrophysiological properties')
 
     spikeFreqMax = max(spikeFreqMax);
 
@@ -391,7 +404,12 @@ end
 
 if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisStep<4
     
-    fprintf('Running step 3 of MEA-NAP: generating adjacency matrices \n')
+    if Params.guiMode == 1
+        app.MEANAPStatusTextArea.Value = [app.MEANAPStatusTextArea.Value; ...
+        'Running step 3 of MEA-NAP: generating adjacency matrices'];
+    else 
+        fprintf('Running step 3 of MEA-NAP: generating adjacency matrices \n')
+    end
     
     if Params.timeProcesses
         step3Start = tic;
@@ -415,8 +433,15 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
             spikeDataFpath = fullfile(ExpMatFolder, spikeDataFname);
             load(spikeDataFpath, 'Info', 'Params', 'spikeTimes', 'Ephys')
         end
-
-        disp(char(Info.FN))
+        
+        if strcmp(Params.verboseLevel, 'High')
+            if Params.guiMode == 1
+                app.MEANAPStatusTextArea.Value = [app.MEANAPStatusTextArea.Value; ...
+                        sprintf('Generating adjacency matrix for: %s', char(Info.FN))];
+            else 
+                fprintf(sprintf('Generating adjacency matrix for: %s \n', char(Info.FN)))
+            end 
+        end
 
         adjMs = generateAdjMs(spikeTimes, ExN, Params, Info, oneFigureHandle);
 
@@ -438,9 +463,11 @@ end
 if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisStep<=4
     
     step4startMessage = 'Running step 4 of MEA-NAP: Analyzing network activity';
-    fprintf([step4startMessage '\n'])
+    
     if Params.guiMode == 1
         app.MEANAPStatusTextArea.Value = [app.MEANAPStatusTextArea.Value; step4startMessage];
+    else 
+        fprintf([step4startMessage '\n'])
     end 
     
     if Params.timeProcesses
@@ -470,8 +497,15 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
                 spikeDataFpath = fullfile(ExpMatFolder, spikeDataFname);
                 load(spikeDataFpath, 'Info', 'Params', 'spikeTimes', 'Ephys','adjMs')
             end
-
-            disp(char(Info.FN))
+            
+            if strcmp(Params.verboseLevel, 'High')
+                if Params.guiMode == 1
+                    app.MEANAPStatusTextArea.Value = [app.MEANAPStatusTextArea.Value; ...
+                            sprintf('Running network analysis on: %s', char(Info.FN))];
+                else 
+                    fprintf(sprintf('Running network analysis on: %s', char(Info.FN)))
+                end 
+            end
 
             idvNetworkAnalysisGrpFolder = fullfile(Params.outputDataFolder, ...
                 strcat('OutputData',Params.Date), '4_NetworkActivity', ...
@@ -684,8 +718,16 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
             % Set up one figure handle to save all the figures
             oneFigureHandle = NaN;
             oneFigureHandle = checkOneFigureHandle(Params, oneFigureHandle);
-
-            disp(ExpName(ExN))
+            
+            if strcmp(Params.verboseLevel, 'High')
+                if Params.guiMode == 1
+                    app.MEANAPStatusTextArea.Value = [app.MEANAPStatusTextArea.Value; ...
+                            sprintf('Plotting networks for %s', char(ExpName(ExN)))];
+                else
+                    disp(char(ExpName(ExN)))
+                end 
+            end
+            
             % load NetMet 
             if isfile(fullfile(outputDataDateFolder, spreadsheetFname))
                 experimentMatFileFolder = fullfile(Params.outputDataFolder, ...
@@ -758,6 +800,7 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
         else 
            usePriorNetMet = 0;  % set to 0 by default 
         end
+        
         if length(intersect(Params.netMetToCal, nodeCartographyMetrics)) >= 1
             % Group the ExpNames by their file identity, to anchor coordinates to
             % the last DIV
@@ -794,8 +837,6 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
                         experimentMatFilePath = fullfile(experimentMatFileFolder, strcat(char(ExpName(ExN)),'_',Params.Date,'.mat'));
                         expData = load(experimentMatFilePath,'Info','Params', 'spikeTimes','Ephys','adjMs', 'NetMet');
                     end
-
-                    disp(char(expData.Info.FN))
 
                     fileNameFolder = fullfile(Params.outputDataFolder, strcat('OutputData',Params.Date), ...
                                           '4_NetworkActivity', '4A_IndividualNetworkAnalysis', ...
@@ -1069,21 +1110,58 @@ if any(strcmp(Params.optionalStepsToRun,'comparePrePostTTX'))
 end 
 
 %% Provide summary of MEA-NAP run 
-fprintf('MEA-NAP run completed successfully \n')
+if Params.guiMode == 1
+    app.MEANAPStatusTextArea.Value = [app.MEANAPStatusTextArea.Value; ...
+        'MEA-NAP run completed successfully'];
+else
+    fprintf('MEA-NAP run completed successfully \n')
+end
+
 if Params.timeProcesses
     if exist('step1Duration', 'var')
-        fprintf(sprintf('Step 1 duration (seconds): %.f \n', step1Duration))
+        if Params.guiMode == 1
+            app.MEANAPStatusTextArea.Value = [app.MEANAPStatusTextArea.Value; ...
+                    sprintf('Step 1 duration (seconds): %.f \n', step1Duration)];
+        else 
+            fprintf(sprintf('Step 1 duration (seconds): %.f \n', step1Duration))
+        end
     end
     if exist('step2Duration', 'var')
-        fprintf(sprintf('Step 2 duration (seconds): %.f \n', step2Duration))
+        if Params.guiMode == 1
+            app.MEANAPStatusTextArea.Value = [app.MEANAPStatusTextArea.Value; ...
+                    sprintf('Step 2 duration (seconds): %.f \n', step2Duration)];
+        else 
+            fprintf(sprintf('Step 2 duration (seconds): %.f \n', step2Duration))
+        end
     end
     if exist('step3Duration', 'var')
-        fprintf(sprintf('Step 3 duration (seconds): %.f \n', step3Duration))
+        if Params.guiMode == 1
+            app.MEANAPStatusTextArea.Value = [app.MEANAPStatusTextArea.Value; ...
+                    sprintf('Step 3 duration (seconds): %.f \n', step3Duration)];
+        else 
+            fprintf(sprintf('Step 3 duration (seconds): %.f \n', step3Duration))
+        end
     end
     if exist('step4Duration', 'var')
-        fprintf(sprintf('Step 4 duration (seconds): %.f \n', step4Duration))
+        if Params.guiMode == 1
+            app.MEANAPStatusTextArea.Value = [app.MEANAPStatusTextArea.Value; ...
+                    sprintf('Step 4 duration (seconds): %.f \n', step4Duration)];
+        else 
+            fprintf(sprintf('Step 4 duration (seconds): %.f \n', step4Duration))
+        end
     end
 end
+
+%% Check if user wants to view outputs 
+if Params.guiMode == 1
+    while isvalid(app)
+       % Launch MEANAP viewer 
+        if app.ViewOutputsButton.Value == 1
+            runMEANAPviewer;
+            app.ViewOutputsButton.Value = 0;
+        end 
+    end
+end 
 
 end 
 
