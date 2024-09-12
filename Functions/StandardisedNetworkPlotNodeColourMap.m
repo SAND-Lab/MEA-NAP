@@ -238,7 +238,6 @@ if strcmp(plotType,'circular')
     xcot = xco(order,:);
     ycot = yco(order,:);
     for u = 1:size(xcot,1)
-        lineWidthT(u)
         plot(xcot(u,:),ycot(u,:),'LineWidth',lineWidthT(u),'Color',colourT(u,:));
         hold on
     end
