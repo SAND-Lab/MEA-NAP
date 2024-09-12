@@ -14,32 +14,12 @@ function PlotEphysStats(ExpName, Params, HomeDir, oneFigureHandle)
 % -------
 % None
 %
-% author RCFeord July 2021
+% Author : RCFeord July 2021
 % Updated by Tim Sit 
 %% colours
 
-% colour scheme for age groups DIV
-% ColOpt1 = [0.988 0.906 0.149];
-% ColOpt2 = [0.710 0.871 0.173];
-% ColOpt3 = [0.427 0.808 0.345];
-% ColOpt4 = [0.208 0.718 0.478];
-% ColOpt5 = [0.118 0.624 0.537];
-% ColOpt6 = [0.145 0.514 0.557];
-% ColOpt7 = [0.192 0.404 0.553];
-% ColOpt8 = [0.239 0.290 0.541];
-% ColOpt9 = [0.282 0.157 0.474];
-% ColOpt10 = [0.267 0.051 0.325];
-% nColOpt = 10;
-
 % specify colours to use on the basis of the number of time points
 nDIV = length(Params.DivNm);
-% if nDIV == 1
-%     cDiv1 = ColOpt5;
-% else
-%     for ii = 1:nDIV
-%         eval(['cDiv' num2str(ii) '= ColOpt' num2str(round(1+(nColOpt/nDIV)*(ii-1))) ';']);
-%     end
-% end
 
 divColorMap = flipud(viridis(nDIV)); 
 if nDIV == 1
@@ -258,7 +238,7 @@ if Params.includeNotBoxPlots
         h(1).XLim = [min(xt)-0.5 max(xt)+0.5];
         set(findall(gcf,'-property','FontSize'),'FontSize',9)
 
-        figName = strcat(num2str(n),'_',char(eMetl(n)));
+        figName = strcat(num2str(n),'_',char(eMetl(n)), '_byGroup');
         figPath = fullfile(notBoxPlotByGroupFolder, figName);
 
         if Params.showOneFig
@@ -351,7 +331,9 @@ for n = 1:length(eMet)
    
         if isnan(custom_bound_vec(2))
             if isempty(all_group_eMet_vals)
-                fprintf('WARNING: all_group_eMet_vals is empty, setting arbitrary bounds \n')
+                if strcmp(Params.verboseLevel, 'High')
+                    fprintf('WARNING: all_group_eMet_vals is empty, setting arbitrary bounds \n')
+                end 
                 custom_bound_vec(2) = 1;  % temp fix in rare case where all_group_eMet_vals is empty
             else
                 custom_bound_vec(2) = max(all_group_eMet_vals);
@@ -360,7 +342,9 @@ for n = 1:length(eMet)
         end 
         
         if custom_bound_vec(1) == custom_bound_vec(2)
-            fprintf('WARNING: custom bound first value and second value are equal, adding one to deal with this \n')
+            if strcmp(Params.verboseLevel, 'High')
+                fprintf('WARNING: custom bound first value and second value are equal, adding one to deal with this \n')
+            end
             custom_bound_vec(2) = custom_bound_vec(2) + 1;
         end 
         
@@ -369,7 +353,7 @@ for n = 1:length(eMet)
 
     set(findall(gcf,'-property','FontSize'),'FontSize',9)
     
-    figName = strcat(num2str(n),'_',char(eMetl(n)));
+    figName = strcat(num2str(n),'_',char(eMetl(n)), '_byGroup');
     figPath = fullfile(halfViolinPlotByGroupFolder, figName);
     
     if Params.showOneFig
@@ -463,7 +447,9 @@ if Params.includeNotBoxPlots
 
             if isnan(custom_bound_vec(2))
                 if isempty(all_group_eMet_vals)
-                    fprintf('WARNING: all_group_eMet_vals is empty, setting arbitrary bounds \n')
+                    if strcmp(Params.verboseLevel, 'High')
+                        fprintf('WARNING: all_group_eMet_vals is empty, setting arbitrary bounds \n')
+                    end 
                     custom_bound_vec(2) = 1;
                 else
                     custom_bound_vec(2) = max(all_group_eMet_vals);
@@ -471,7 +457,9 @@ if Params.includeNotBoxPlots
             end 
 
             if custom_bound_vec(1) == custom_bound_vec(2)
-                fprintf('WARNING: custom bound first value and second value are equal, adding one to deal with this \n')
+                if strcmp(Params.verboseLevel, 'High')
+                    fprintf('WARNING: custom bound first value and second value are equal, adding one to deal with this \n')
+                end
                 custom_bound_vec(2) = custom_bound_vec(2) + 1;
             end 
 
@@ -579,7 +567,9 @@ for n = 1:length(eMet)
    
         if isnan(custom_bound_vec(2))
             if isempty(all_group_eMet_vals)
-                fprintf('WARNING: all_group_eMet_vals is empty, setting arbitrary bounds \n')
+                if strcmp(Params.verboseLevel, 'High')
+                    fprintf('WARNING: all_group_eMet_vals is empty, setting arbitrary bounds \n')
+                end 
                 custom_bound_vec(2) = 1;
             else 
                 custom_bound_vec(2) = max(all_group_eMet_vals);
@@ -587,7 +577,9 @@ for n = 1:length(eMet)
         end 
         
         if custom_bound_vec(1) == custom_bound_vec(2)
-            fprintf('WARNING: custom bound first value and second value are equal, adding one to deal with this \n')
+            if strcmp(Params.verboseLevel, 'High')
+                fprintf('WARNING: custom bound first value and second value are equal, adding one to deal with this \n')
+            end 
             custom_bound_vec(2) = custom_bound_vec(2) + 1;
         end 
         h(1).YLim = custom_bound_vec;
@@ -597,7 +589,7 @@ for n = 1:length(eMet)
     set(gca,'TickDir','out');
     set(findall(gcf,'-property','FontSize'),'FontSize',9)
 
-    figName = strcat(num2str(n),'_',char(eMetl(n)));
+    figName = strcat(num2str(n),'_',char(eMetl(n)), '_byAge');
     figPath = fullfile(halfViolinPlotByDivFolder, figName);
     
     if Params.showOneFig
@@ -620,7 +612,7 @@ halfViolinPlotNodeByGroupFolder = fullfile(Params.outputDataFolder, strcat('Outp
     '2_NeuronalActivity', '2B_GroupComparisons', '1_NodeByGroup');
 
 eMet = NetMetricsC; 
-eMetl = {'mean firing rate per electrode (Hz)'}; 
+eMetl = {'mean_firing_rate_node_by_group'}; 
 
 p = [100 100 1300 600]; 
 set(0, 'DefaultFigurePosition', p)
@@ -680,7 +672,7 @@ for n = 1:length(eMet)
     end 
         
     ylim([0, maxPlotDat])
-    figName = strcat(num2str(n),'_',char(eMetl(n)));
+    figName = strcat(num2str(n),'_',char(eMetl(n)), '_byGroup');
     figPath = fullfile(halfViolinPlotNodeByGroupFolder, figName);
     
     if Params.showOneFig
@@ -701,7 +693,7 @@ halfViolinPlotByNodeDivFolder = fullfile(Params.outputDataFolder, strcat('Output
     '2_NeuronalActivity', '2B_GroupComparisons', '2_NodeByAge');
 
 eMet = NetMetricsC; 
-eMetl = {'mean firing rate per electrode (Hz)'}; 
+eMetl = {'mean_firing_rate_node_by_age'}; 
 
 p = [100 100 1300 600]; 
 set(0, 'DefaultFigurePosition', p)
