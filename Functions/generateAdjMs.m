@@ -20,7 +20,7 @@ for p = 1:length(Params.FuncConLagval)
     
     % lag value
     lag = Params.FuncConLagval(p);
-    disp(lag)
+    % disp(lag)
     
     %% plots for random checks of probabilistic thresholding
     
