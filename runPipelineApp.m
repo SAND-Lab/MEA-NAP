@@ -174,6 +174,11 @@ while isvalid(app)
         app.RawDataSelectButton.Value = 0;
         figure(app.UIFigure)  % put app back to focus
         
+        % Print out number of files found in raw data folder 
+        numRawDataFiles = length(dir(fullfile(app.RawDataFolderEditField.Value, '*.mat')));
+        app.MEANAPStatusTextArea.Value = [app.MEANAPStatusTextArea.Value; ...
+            sprintf('%.f mat files found in raw data folder', numRawDataFiles)];
+        
         % Update spreadsheet tab as well 
         app.RawDataFolderEditField_2.Value = app.RawDataFolderEditField.Value;
     end 
