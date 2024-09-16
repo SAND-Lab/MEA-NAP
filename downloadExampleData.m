@@ -8,6 +8,7 @@ downloadSource = 'Dropbox';
 
 app.MEANAPStatusTextArea.Value = [app.MEANAPStatusTextArea.Value; ...
         'Downloading example matlab files...'];
+pause(0.1);
 
 fileNames = { ...
   'exampleData.csv', ...
@@ -41,5 +42,6 @@ end
 
 app.MEANAPStatusTextArea.Value = [app.MEANAPStatusTextArea.Value; ...
         'Download complete!'];
+pause(0.1);
 
 
