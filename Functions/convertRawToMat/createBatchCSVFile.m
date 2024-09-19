@@ -1,12 +1,13 @@
-% Use this script to create batch .csv file containing information
-% (recording filenames, DIVs, genotypes, and ground electrodes). 
-
-% Function written by DO, Nov 2023
-
-% Overall aim of this script is to assist the functionality of
-% rawConvert.m. 
-
 function createBatchCSVFile(raw_file_dir, batch_csv_fname, autofill_div, autofill_genotype, genotype)
+    % Create batch .csv file containing information
+    % (recording filenames, DIVs, genotypes, and ground electrodes). 
+    % Function written by DO, Nov 2023
+    % Overall aim of this script is to assist the functionality of
+    % rawConvert.m. 
+    % Update log 
+    % ----------
+    % 2024-09-19 : 
+    % Also moves to the next row when autofill_div is not 'y' (Tim Sit)
 
     % Change to the specified directory
     cd(raw_file_dir);
@@ -58,6 +59,10 @@ function createBatchCSVFile(raw_file_dir, batch_csv_fname, autofill_div, autofil
             % Move to the next row
             row_number = row_number + 1;
             div_str = ''; % Reset div_str for the next iteration
+        else 
+            batch_csv_table.('DIV group'){row_number} = 0;
+            % Move to the next row
+            row_number = row_number + 1;
         end
     end
 
