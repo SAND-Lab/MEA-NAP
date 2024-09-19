@@ -4,7 +4,6 @@ function convertMCSh5toMat(dataFolder)
 % Adapted from code from Alessio 
 % Written by Tim Sit during March 2024
 % The code currently assumes that the reference electrode is number 15
-
     
     fileList = dir(fullfile(dataFolder, '*.h5'));
     
