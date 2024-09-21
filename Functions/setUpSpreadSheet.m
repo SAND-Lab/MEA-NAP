@@ -56,8 +56,11 @@ elseif strcmp(spreadsheet_file_type, 'csv')
     Params.coords = {};
     for nRecording = 1:size(csv_data, 1)
         [channels, coords] = getCoordsFromLayout(Params.channelLayoutPerRecording{nRecording});
-        Params.channels{nRecording} = channels;
-        Params.coords{nRecording} = coords;
+        recordingChannelData = load(fullfile(rawData, [ExpName{nRecording} '.mat']), 'channels');
+        recordingChannels = recordingChannelData.channels;
+        subsetIndex = find(ismember(channels, recordingChannels));
+        Params.channels{nRecording} = recordingChannels;
+        Params.coords{nRecording} = coords(subsetIndex, :);
     end
     
 end 
