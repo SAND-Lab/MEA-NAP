@@ -1,5 +1,4 @@
 function [spikeMatrix,spikeTimes,Params,Info] = formatSpikeTimes(File, Params, Info, spikeDataFolder, channelLayout)
-
 % this function loads in the spike detection result and creates a
 % spike matrix and spike times structure for the chosen spike detection
 % method and chosen length of recording
@@ -30,30 +29,10 @@ function [spikeMatrix,spikeTimes,Params,Info] = formatSpikeTimes(File, Params, I
 fileName = strcat(char(File),'_spikes.mat');
 fileFullPath = fullfile(spikeDataFolder, fileName);
 
-% try
 load(fileFullPath, 'spikeTimes', 'spikeDetectionResult', 'channels')
-% remove empty channels
 spikeTimes = spikeTimes(~cellfun(@isempty, spikeTimes));
-% catch
-%     load(strcat(char(File),'.mat'),'spikeTimes','spikeDetectionResult','channels')
-%     % remove empty channels
-%     spikeTimes = spikeTimes(~cellfun(@isempty, spikeTimes));
-% end
 
 Info.channels = channels;
-
-% 2022-10-07 : Temp hack to remove electrode 82 if 59 electrodes were used
-% with the MCS60 layout, in the future there should be manual specification
-% of which electrodes as "missing" from the standard layout, or ideally
-% none at all 
-
-if strcmp(channelLayout, 'MCS60') && length(spikeTimes) == 59
-    fprintf('Detected 59 electrodes with MCS60 layout, removing electrode 82 \n')
-    inclusionIndex = find(channels ~= 82);
-    Info.channels = channels(inclusionIndex);
-    Params.coords = Params.coords(inclusionIndex, :);
-end 
-
 
 %% merge spikes if using multiple spike detection methods
 
@@ -98,6 +77,8 @@ Params.fs = spikeDetectionResult.params.fs;
 %% create spike matrix
 
 spikeMatrix = SpikeTimesToMatrix(spikeTimes,spikeDetectionResult,Params.SpikesMethod,Info);
+
+% this while loop looks like it can be improved !!!
 while  floor(length(spikeMatrix)/Params.fs)~=Info.duration_s
     n2del = Params.fs*(length(spikeMatrix)/Params.fs - floor(length(spikeMatrix)/Params.fs));
     spikeMatrix=spikeMatrix(1:length(spikeMatrix)-(n2del),:);
