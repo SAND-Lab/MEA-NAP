@@ -311,18 +311,6 @@ while isvalid(app)
         figure(app.UIFigure)  % put app back to focus
     end 
     
-    if ~strcmp(app.FileTypeDropDown.Value, '.raw from Axion Maestro')
-        app.BatchCSVNameEditField.Enable = 0;
-        app.DIVincludedCheckBox.Enable = 0;
-        app.OneGenotypeCheckBox.Enable = 0;
-        app.GroupNameEditField.Enable = 0;
-    else 
-        app.BatchCSVNameEditField.Enable = 1;
-        app.DIVincludedCheckBox.Enable = 1;
-        app.OneGenotypeCheckBox.Enable = 1;
-        app.GroupNameEditField.Enable = 1;
-    end 
-    
     if app.RunfileconversionButton.Value == 1
         
         % add functions to file path 
@@ -333,7 +321,11 @@ while isvalid(app)
         if strcmp(app.FileTypeDropDown.Value, '.raw from Multichannel Systems')  
             app.MEANAPStatusTextArea.Value = ...
             [app.MEANAPStatusTextArea.Value; 'on .raw files from Multichannel Systems...'];
+            drawnow;
             MEAbatchConvert('.raw', app.DataFolderEditField.Value);
+            createBatchCSVFile(app.DataFolderEditField.Value, ...
+                app.BatchCSVNameEditField.Value, app.DIVincludedCheckBox.Value, ...
+                app.OneGenotypeCheckBox.Value, app.GroupNameEditField.Value); 
             cd(app.MEANAPFolderEditField.Value); 
         elseif strcmp(app.FileTypeDropDown.Value, '.raw from Axion Maestro')
              app.MEANAPStatusTextArea.Value = ...
@@ -349,6 +341,10 @@ while isvalid(app)
             [app.MEANAPStatusTextArea.Value; 'on .h5 files from Multichannel Systems...'];
             drawnow;
             convertMCSh5toMat(app.DataFolderEditField.Value);
+            createBatchCSVFile(app.DataFolderEditField.Value, ...
+                app.BatchCSVNameEditField.Value, app.DIVincludedCheckBox.Value, ...
+                app.OneGenotypeCheckBox.Value, app.GroupNameEditField.Value); 
+            cd(app.MEANAPFolderEditField.Value); 
         end 
         app.MEANAPStatusTextArea.Value = ...
             [app.MEANAPStatusTextArea.Value; 'File conversion complete!'];
