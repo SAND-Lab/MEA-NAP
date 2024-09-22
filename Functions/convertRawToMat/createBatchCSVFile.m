@@ -50,6 +50,9 @@ function createBatchCSVFile(raw_file_dir, batch_csv_fname, autofill_div, autofil
             while isstrprop(mat_fname(ii), 'digit')
                 div_str = append(div_str, mat_fname(ii));
                 ii = ii + 1;
+                if ii>length(mat_fname)
+                    break
+                end
             end
 
             % Fill DIV column in the current row
