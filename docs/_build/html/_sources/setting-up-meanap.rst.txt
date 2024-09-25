@@ -47,13 +47,13 @@ The MEA-NAP pipeline is currently optimized for single MEA recordings made on th
    7. Click "save" to save .raw files that are generated.
    8. When done, click close.
 
-- **Converting .mcd files acquired from a Multichannel Systems MEA system with Multi Channel Experimenter to .h5:**
+- **Converting .msrd files acquired from a Multichannel Systems MEA system with Multi Channel Experimenter to .h5:**
 
    1. Open Multi Channel DataManager.
-   2. Click "Change" in the top right corner to change your input folder path to the folder containing your .mcd files.
-   3. Click "Refresh List" in the top right corner to update the list of .mcd files displayed.
+   2. Click "Change" in the top right corner to change your input folder path to the folder containing your .msrd files.
+   3. Click "Refresh List" in the top right corner to update the list of .msrd files displayed.
    4. Navigate to the bottom and click "Change" to adjust your output folder path, where the .h5 files will ultimately be stored.
-   5. Click "Export to HDF5" to convert .mcd files to HDF5 format (.h5 files). 
+   5. Click "Export to HDF5" to convert .msrd files to HDF5 format (.h5 files). 
    6. When done, confirm that the .h5 files have been successfully saved in the output folder.
    7. Click close.
 
