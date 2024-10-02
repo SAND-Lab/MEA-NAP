@@ -41,14 +41,14 @@ NetMetricsC = {'FR'};
 %% Import data from all experiments - whole experiment  
 
 experimentMatFolderPath = fullfile(Params.outputDataFolder, ...
-        strcat('OutputData',Params.Date), 'ExperimentMatFiles');
+        Params.outputDataFolderName, 'ExperimentMatFiles');
 
 allRecordingLevelData = struct();
 allElectrodeLevelData = struct();
 
 % allocate numbers to relevant matrices
 for i = 1:length(ExpName)
-     Exp = strcat(char(ExpName(i)),'_',Params.Date,'.mat');
+     Exp = strcat(char(ExpName(i)),'_',Params.outputDataFolderName,'.mat');
      ExpFilePath = fullfile(experimentMatFolderPath, Exp);
      % Load to variable
      expData = load(ExpFilePath);
@@ -114,7 +114,7 @@ if length(ExpName) == 1 && size(allElectrodeLevelData.Channel, 1) == 1
 end 
 
 outputDataDateFolder = fullfile(Params.outputDataFolder, ...
-        strcat('OutputData',Params.Date));
+        Params.outputDataFolderName);
     
 % save recording level data 
 allRecordingLevelDataTable = struct2table(allRecordingLevelData);

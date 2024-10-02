@@ -7,7 +7,8 @@ function  Params = getParamsFromApp(app)
 
 Params.HomeDir = app.MEANAPFolderEditField.Value;
 Params.outputDataFolder = app.OutputDataFolderEditField.Value;
-Params.rawData = app.RawDataFolderEditField.Value;
+Params.outputDataFolderName = app.OutputFolderNameEditField.Value;
+Params.rawData = app.MEADataFolderEditField.Value;
 Params.priorAnalysisPath = app.PreviousAnalysisFolderEditField.Value;
 Params.spikeDetectedData = app.SpikeDataFolderEditField.Value;
 Params.spreadSheetFileName = app.SpreadsheetFilenameEditField.Value;
@@ -44,7 +45,10 @@ Params.autoSetCartographyBoundaries = app.Automaticallysetnodecartographyboundar
 % use previously analysed data?
 Params.priorAnalysis = app.UsePreviousAnalysisCheckBox.Value;
 Params.priorAnalysisPath = app.PreviousAnalysisFolderEditField.Value;
-Params.priorAnalysisDate = app.PreviousAnalysisDateEditField.Value;
+priorAnalysisPathParts = strsplit(Params.priorAnalysisPath, filesep);
+notEmptyParts = find(1 - cellfun(@isempty,priorAnalysisPathParts));
+priorAnalysisPathParts = priorAnalysisPathParts(notEmptyParts);
+Params.priorAnalysisFolderName = [filesep strjoin(priorAnalysisPathParts(1:end-1), filesep)];
 
 Params.startAnalysisStep = app.StartAnalysisStepEditField.Value;
 Params.optionalStepsToRun = app.OptionalStepstoRunListBox.Value;
@@ -109,6 +113,10 @@ end
 %% Which network metrics to calculate and plot 
 Params.netMetToCal = app.NetworkmetricstocalculateListBox.Value;
 
+%% Re-computation of network metrics 
+Params.recomputeMetrics = app.RecomputemetricsCheckBox.Value;
+Params.metricsToRecompute = {app.MetricstorecomputeEditField.Value};  % {} or {'all'} or {'metricNames'}
+
 %% Network analysis 
 Params.excludeEdgesBelowThreshold = app.ExcludeedgesbelowthresholdCheckBox.Value; 
 Params.minNumberOfNodesToCalNetMet = app.MinimumnumberofnodesEditField.Value;
@@ -151,6 +159,7 @@ Params.NetMetLabelDict = {
     'Eloc', 'local efficiency', 'node'; ...
     'Z',  'within-module degree z-score', 'node'; ...
     'BC', 'betweenness centrality', 'node'; ...
+    'BCmeantop5', 'Top 5% betweenness centrality mean' 'network'; ...
     'PC', 'participation coefficient', 'node'; ...
     'aveControl', 'Average Controllability', 'node'; ...
     'modalControl', 'Modal Controllability', 'node'; ...
@@ -199,6 +208,7 @@ Params.networkLevelNetMetCustomBounds.('Eloc') = [0, 1];
 Params.networkLevelNetMetCustomBounds.('EW') = [0, 1];
 Params.networkLevelNetMetCustomBounds.('NS') = [0, nan];
 Params.networkLevelNetMetCustomBounds.('BC') = [0, 1];
+Params.networkLevelNetMetCustomBounds.('BCmeantop5') = [0, 1];
 Params.networkLevelNetMetCustomBounds.('PC') = [0, 1];
 Params.networkLevelNetMetCustomBounds.('CC') = [0, nan];
 Params.networkLevelNetMetCustomBounds.('nMod') = [0, nan];
@@ -217,8 +227,7 @@ Params.networkLevelNetMetCustomBounds.('PCmean') = [0, 1];
 Params.networkLevelNetMetCustomBounds.('PCmeanTop10') = [0, 1];
 Params.networkLevelNetMetCustomBounds.('PCmeanBottom10') = [0, 1];
 
-Params.lagIndependentMets = {'effRank', 'num_nnmf_components', 'nComponentsRelNS'};
-
+Params.lagIndependentMets = {'effRank', 'num_nnmf_components', 'nComponentsRelNS', 'SVCA_alpha'};
 % Params.unitLevelNetMetToPlot = {'ND','MEW','NS','Z','Eloc','PC','BC'};
 % 'aveControl', 'modalControl'
 % Params.unitLevelNetMetLabels = {'node degree','edge weight','node strength', ... 
