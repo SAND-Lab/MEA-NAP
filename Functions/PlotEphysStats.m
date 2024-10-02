@@ -49,7 +49,7 @@ metricsWCustomBounds = eMetCustomBounds(:, 1);
 
 %% groups and DIV
 
-if ~isempty(Params.customGrpOrder{:}) 
+if ~isempty(Params.customGrpOrder) 
     Grps = Params.customGrpOrder;
 else
     Grps = Params.GrpNm;
@@ -84,7 +84,7 @@ NetMetricsC = {'FR'};
 %% Import data from all experiments - whole experiment  
 
 experimentMatFolderPath = fullfile(Params.outputDataFolder, ...
-        strcat('OutputData',Params.Date), 'ExperimentMatFiles');
+        Params.outputDataFolderName, 'ExperimentMatFiles');
 
 for g = 1:length(Grps)
     % create structure for each group
@@ -108,7 +108,7 @@ end
 
 % allocate numbers to relevant matrices
 for i = 1:length(ExpName)
-     Exp = strcat(char(ExpName(i)),'_',Params.Date,'.mat');
+     Exp = strcat(char(ExpName(i)),'_',Params.outputDataFolderName,'.mat');
      ExpFilePath = fullfile(experimentMatFolderPath, Exp);
      % TODO: load to variable
      load(ExpFilePath)
@@ -157,7 +157,7 @@ end
 
 % allocate numbers to relevant matrices
 for i = 1:length(ExpName)
-     Exp = strcat(char(ExpName(i)),'_',Params.Date,'.mat');
+     Exp = strcat(char(ExpName(i)),'_',Params.outputDataFolderName,'.mat');
      ExpFilePath = fullfile(experimentMatFolderPath, Exp);
      load(ExpFilePath)
      for g = 1:length(Grps)
@@ -185,7 +185,7 @@ end
 
 %% notBoxPlots - plots by group
 
-notBoxPlotByGroupFolder = fullfile(Params.outputDataFolder, strcat('OutputData',Params.Date), ...
+notBoxPlotByGroupFolder = fullfile(Params.outputDataFolder, Params.outputDataFolderName, ...
     '2_NeuronalActivity', '2B_GroupComparisons', '3_RecordingsByGroup', 'NotBoxPlots');
 
 eMet = NetMetricsE; 
@@ -258,7 +258,7 @@ end
 
 %% halfViolinPlots - plots by group
 
-halfViolinPlotByGroupFolder = fullfile(Params.outputDataFolder, strcat('OutputData',Params.Date), ...
+halfViolinPlotByGroupFolder = fullfile(Params.outputDataFolder, Params.outputDataFolderName, ...
     '2_NeuronalActivity', '2B_GroupComparisons', '3_RecordingsByGroup', 'HalfViolinPlots');
 
 eMet = NetMetricsE; 
@@ -286,6 +286,7 @@ for n = 1:length(eMet)
     
     eMeti = char(eMet(n));
     xt = 1:length(AgeDiv);
+    xtlabtext = {};
     for g = 1:length(Grps)
         h(g) = subplot(1,length(Grps),g);
         eGrp = cell2mat(Grps(g));
@@ -373,7 +374,7 @@ end
 
 %% notBoxPlots - plots by DIV
 
-notBoxPlotByDivFolder = fullfile(Params.outputDataFolder, strcat('OutputData',Params.Date), ...
+notBoxPlotByDivFolder = fullfile(Params.outputDataFolder, Params.outputDataFolderName, ...
     '2_NeuronalActivity', '2B_GroupComparisons', '4_RecordingsByAge', 'NotBoxPlots');
 
 eMet = NetMetricsE; 
@@ -492,7 +493,7 @@ end
 
 %% halfViolinPlots - plots by DIV
 
-halfViolinPlotByDivFolder = fullfile(Params.outputDataFolder, strcat('OutputData',Params.Date), ...
+halfViolinPlotByDivFolder = fullfile(Params.outputDataFolder, Params.outputDataFolderName, ...
     '2_NeuronalActivity', '2B_GroupComparisons', '4_RecordingsByAge', 'HalfViolinPlots');
 
 eMet = NetMetricsE; 
@@ -608,7 +609,7 @@ end
 
 %% halfViolinPlots - plots by group
 
-halfViolinPlotNodeByGroupFolder = fullfile(Params.outputDataFolder, strcat('OutputData',Params.Date), ...
+halfViolinPlotNodeByGroupFolder = fullfile(Params.outputDataFolder, Params.outputDataFolderName, ...
     '2_NeuronalActivity', '2B_GroupComparisons', '1_NodeByGroup');
 
 eMet = NetMetricsC; 
@@ -689,7 +690,7 @@ for n = 1:length(eMet)
 end
 
 %% halfViolinPlots - plots by DIV : mean firing rate per electrode 
-halfViolinPlotByNodeDivFolder = fullfile(Params.outputDataFolder, strcat('OutputData',Params.Date), ...
+halfViolinPlotByNodeDivFolder = fullfile(Params.outputDataFolder, Params.outputDataFolderName, ...
     '2_NeuronalActivity', '2B_GroupComparisons', '2_NodeByAge');
 
 eMet = NetMetricsC; 

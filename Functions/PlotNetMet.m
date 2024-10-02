@@ -43,7 +43,8 @@ function [] = PlotNetMet(ExpName, Params, experimentMatFileFolder, oneFigureHand
 % edited by Tim Sit
 % Update log 
 % ---------------
-% 2023-11-22: Cleaned up code comments (Tim Sit)
+% 2023-11-22 : Cleaned up code comments (Tim Sit)
+% 2024-09-26 : Massive clean up of repeated code to functions
 % Future features
 % ----------------
 % Some of the repeated plotting code will be simplified.
@@ -55,10 +56,8 @@ function [] = PlotNetMet(ExpName, Params, experimentMatFileFolder, oneFigureHand
 output_spreadsheet_file_type = Params.output_spreadsheet_file_type;
 
 %% colours
-
 % specify colours to use on the basis of the number of time points
 nDIV = length(Params.DivNm);
-
 divColorMap = flipud(viridis(nDIV)); 
 if nDIV == 1
     cDiv1 = divColorMap(1, :);
@@ -70,7 +69,7 @@ end
 
 %% groups and DIV for plotting 
 
-if ~isempty(Params.customGrpOrder{:})
+if ~isempty(Params.customGrpOrder)
     Grps = Params.customGrpOrder;
 else
     Grps = Params.GrpNm;
@@ -86,161 +85,14 @@ NetMetricsE = Params.networkLevelNetMetToPlot;
 % list of metrics that are obtained at the electrode level
 NetMetricsC = Params.unitLevelNetMetToPlot;
 
-%% Import data from all experiments - whole experiment  
-
-for g = 1:length(Grps)
-    % create structure for each group
-    VN1 = cell2mat(Grps(g));
-    eval([VN1 '= [];']);
-    
-    % add substructure for each DIV range
-    for d = 1:length(AgeDiv)
-        VN2 = strcat('TP',num2str(d));
-        
-        % add variable name
-        for e = 1:length(NetMetricsE)
-            VN3 = cell2mat(NetMetricsE(e));
-            eval([VN1 '.' VN2 '.' VN3 '= [];']);
-            clear VN3
-        end
-        clear VN2
-    end
-    clear VN1
-end
-
-% allocate numbers to relevant matrices
-for i = 1:length(ExpName)
-     %  Exp = strcat(char(ExpName(i)),'_',Params.Date,'.mat');
-     Exp = char(ExpName(i));
-
-     % if previously used showOneFig, then this prevents saved oneFigure 
-     % handle from showing up when loading the matlab variable
-     if Params.showOneFig 
-         % Make it so figure handle in oneFigure don't appear
-         set(0, 'DefaultFigureVisible', 'off')
-     end 
-     
-     % Search for any .mat file with the Exp str (regardless of date)
-     ExpFPathSearchName = dir(fullfile(experimentMatFileFolder, [Exp, '*.mat'])).name;
-     ExpFPath = fullfile(experimentMatFileFolder, ExpFPathSearchName);
-     expFileData = load(ExpFPath);  
-     % filepath contains Info structure
-     
-     if ~isfield(expFileData, 'NetMet')
-         fprintf(sprintf('%s has no NetMet field, file idx %.f', Exp, i))
-     end 
-
-     for g = 1:length(Grps)
-         if strcmp(cell2mat(Grps(g)),cell2mat(expFileData.Info.Grp))
-             eGrp = cell2mat(Grps(g));
-         end       
-     end
-     for d = 1:length(AgeDiv)
-         if cell2mat(expFileData.Info.DIV) == AgeDiv(d)
-             eDiv = strcat('TP',num2str(d));
-         end    
-     end
-     for e = 1:length(NetMetricsE)
-            eMet = cell2mat(NetMetricsE(e));
-            for l = 1:length(Params.FuncConLagval)
-                % VNs = strcat('NetMet.adjM',num2str(Params.FuncConLagval(l)),'mslag.',eMet);
-                
-                lagIndependentMets = {'effRank', 'num_nnmf_components', 'nComponentsRelNS'}; 
-                if contains(eMet, lagIndependentMets)
-                    firstLagField = sprintf('adjM%.fmslag', Params.FuncConLagval(1));
-                    DatTemp(l) = expFileData.NetMet.(firstLagField).(eMet);
-                else
-                    DatTemp(l) = expFileData.NetMet.(strcat('adjM', num2str(Params.FuncConLagval(l)), 'mslag')).(eMet);
-                end 
-                % eval(['DatTemp(l) =' VNs ';']);
-                clear VNs
-            end
-            VNe = strcat(eGrp,'.',eDiv,'.',eMet);
-            eval([VNe '= [' VNe '; DatTemp];']);
-            clear DatTemp
-     end
-     clear Info NetMet adjMs
-end
-
-%% Import data from all experiments - electrode-specific data 
-
-for g = 1:length(Grps)
-    % create structure for each group
-    VN1 = cell2mat(Grps(g));
-
-    % add substructure for each DIV range
-    for d = 1:length(AgeDiv)
-        VN2 = strcat('TP',num2str(d));
-        
-        % add variable name
-        for e = 1:length(NetMetricsC)
-            VN3 = cell2mat(NetMetricsC(e));
-            eval([VN1 '.' VN2 '.' VN3 '= [];']);
-            clear VN3
-        end
-        clear VN2
-    end
-    clear VN1
-end
-
-% allocate numbers to relevant matrices
-for i = 1:length(ExpName)
-     % Exp = strcat(char(ExpName(i)),'_',Params.Date,'.mat');
-     Exp = char(ExpName(i));
-     % if previously used showOneFig, then this prevents saved oneFigure 
-     % handle from showing up when loading the matlab variable
-     if Params.showOneFig 
-         % Make it so figure handle in oneFigure don't appear
-         set(0, 'DefaultFigureVisible', 'off')
-     end 
-     
-     % Load exp data to get which group and DIV it is from
-     % also load the netMet variable
-     % ExpFpath = fullfile(experimentMatFileFolder, Exp);
-     % Search for any .mat file with the Exp str (regardless of date)
-     ExpFPathSearchName = dir(fullfile(experimentMatFileFolder, [Exp, '*.mat'])).name;
-     ExpFpath = fullfile(experimentMatFileFolder, ExpFPathSearchName);
-     expFileData = load(ExpFpath);
-
-     for g = 1:length(Grps)
-         if strcmp(cell2mat(Grps(g)),cell2mat(expFileData.Info.Grp))
-             eGrp = cell2mat(Grps(g));
-         end       
-     end
-     for d = 1:length(AgeDiv)
-         if cell2mat(expFileData.Info.DIV) == AgeDiv(d)
-             eDiv = strcat('TP',num2str(d));
-         end    
-     end
-     for e = 1:length(NetMetricsC)
-            eMet = cell2mat(NetMetricsC(e));
-            for l = 1:length(Params.FuncConLagval)
-                VNs = strcat('expFileData.NetMet.adjM',num2str(Params.FuncConLagval(l)),'mslag.',eMet);
-                % DatTemp(l) = expFileData.NetMet.(strcat('adjM', num2str(Params.FuncConLagval(l)), 'mslag')).(eMet);
-                eval(['DatTemp' num2str(l) '= ' VNs ';']);
-                eval(['mL(l) = length(DatTemp' num2str(l) ');']);
-                clear VNs
-            end
-            for l = 1:length(Params.FuncConLagval)
-                eval(['DatTempT = DatTemp' num2str(l) ';']);
-                if length(DatTempT) < max(mL)
-                    DatTempT((length(DatTempT)+1):max(mL)) = nan;
-                end
-                DatTemp(:,l) = DatTempT;
-            end
-            VNe = strcat(eGrp,'.',eDiv,'.',eMet);
-            eval([VNe '= [' VNe '; DatTemp];']);
-            clear DatTemp
-     end
-     clear Info NetMet adjMs
-end
-
-clear DatTemp TempStr
+%% Import data from all experiments
+networkLevelData = compileAllExpData(ExpName, experimentMatFileFolder, Params, 'network');
+nodeLevelData = compileAllExpData(ExpName, experimentMatFileFolder, Params, 'node');
 
 %% GraphMetricsByLag plots
 
 graphMetricByLagFolder = fullfile(Params.outputDataFolder, ... 
-    strcat('OutputData',Params.Date), '4_NetworkActivity', ...
+    Params.outputDataFolderName, '4_NetworkActivity', ...
     '4B_GroupComparisons', '5_GraphMetricsByLag');
 
 eMet = Params.networkLevelNetMetToPlot;
@@ -277,57 +129,8 @@ for n = 1:length(eMet)
     end 
 
     eMeti = char(eMet(n));
-    xt = 1:length(Params.FuncConLagval);
-    for g = 1:length(Grps)
-        h(g) = subplot(length(Grps),1,g);
-        eGrp = cell2mat(Grps(g));
-        for d = 1:length(AgeDiv)
-            eval(['c = cDiv' num2str(d) ';']);
-            eDiv = strcat('TP',num2str(d));
-            VNe = strcat(eGrp,'.',eDiv,'.',eMeti);
-            eval(['DatTemp = ' VNe ';']);
-            
-            if isempty(DatTemp)
-                DatTemp = zeros(1, length(Params.FuncConLagval));
-            end 
-            
-            ValMean = nanmean(DatTemp,1);
-            
-            if strcmp(Params.linePlotShadeMetric, 'sem')
-                spreadVal = nanstd(DatTemp, 1) / sqrt(length(DatTemp));
-            elseif strcmp(Params.linePlotShadeMetric, 'std')
-                spreadVal = nanstd(DatTemp, 1);
-            end 
-            UpperStd = ValMean + spreadVal; % upper std or sem line
-            LowerStd = ValMean - spreadVal; % lower std or sem line
-            
-            Xf =[xt,fliplr(xt)]; % create continuous x value array for plotting
-            Yf =[UpperStd,fliplr(LowerStd)]; % create y values for out and then back
-
-            h1 = fill(Xf,Yf,c,'edgecolor','none'); 
-            
-            % Choose a number between 0 (invisible) and 1 (opaque) for facealpha.
-            set(h1,'facealpha',0.3)
-            hold on
-            line(d) = plot(xt,ValMean,'Color',c,'LineWidth',3);
-            set(gca, 'box', 'off') % remove borders
-            set(gcf,'color','w'); % white background
-            set(gca, 'TickDir', 'out')
-            xticks(xt)
-            xticklabels(LagValLabels)
-            xlabel('STTC lag (ms)')
-            ylabel(eMetl(n))
-            clear DatTemp ValMean UpperStd LowerStd
-        end
-        lgd = legend(line,num2str(AgeDiv));
-        lgd.Location = 'Northeastoutside';
-        title(eGrp)
-        aesthetics
-        set(gca,'TickDir','out');
-    end
-    linkaxes(h,'xy')
-    h(1).XLim = [min(xt)-0.5 max(xt)+0.5];
-    set(findall(gcf,'-property','FontSize'),'FontSize',8)
+    
+    plotGraphMetricsByLag(networkLevelData, eMeti, eMetl(n), Params)
 
     % Export figure
     for nFigExt = 1:length(Params.figExt)
@@ -350,7 +153,7 @@ end
 %% notBoxPlots - plots by group
 if Params.includeNotBoxPlots 
     networkNotBoxPlotFolder = fullfile(Params.outputDataFolder, ...
-        strcat('OutputData',Params.Date), '4_NetworkActivity', ...
+        Params.outputDataFolderName, '4_NetworkActivity', ...
         '4B_GroupComparisons', '3_RecordingsByGroup', 'NotBoxPlots');
 
     eMet = Params.networkLevelNetMetToPlot;
@@ -455,7 +258,7 @@ end
 %% halfViolinPlots - plots by group
 
 halfViolinPlotByGroupFolder = fullfile(Params.outputDataFolder, ... 
-    strcat('OutputData',Params.Date), '4_NetworkActivity', ...
+    Params.outputDataFolderName, '4_NetworkActivity', ...
     '4B_GroupComparisons', '3_RecordingsByGroup', 'HalfViolinPlots');
 
 eMet = Params.networkLevelNetMetToPlot;
@@ -468,9 +271,9 @@ if Params.showOneFig
     set(oneFigureHandle, 'Position', p);
 end 
 
-for l = 1:length(Params.FuncConLagval)
+for lagIdx = 1:length(Params.FuncConLagval)
     halfViolinPlotByGroupFolderPlusLag = fullfile(halfViolinPlotByGroupFolder, ...
-        strcat(num2str(Params.FuncConLagval(l)),'mslag'));
+        strcat(num2str(Params.FuncConLagval(lagIdx)),'mslag'));
     if ~isfolder(halfViolinPlotByGroupFolderPlusLag)
         mkdir(halfViolinPlotByGroupFolderPlusLag)
     end 
@@ -480,69 +283,10 @@ for l = 1:length(Params.FuncConLagval)
             F1 = figure;
         end 
         eMeti = char(eMet(n));
-        xt = 1:length(AgeDiv);
-        for g = 1:length(Grps)
-            h(g) = subplot(1,length(Grps),g);
-            eGrp = cell2mat(Grps(g));
-            for d = 1:length(AgeDiv)
-                eDiv = strcat('TP',num2str(d));
-                VNe = strcat(eGrp,'.',eDiv,'.',eMeti);
-                eval(['DatTemp = ' VNe ';']);
-                
-                % Make zero vector of DIV is empty 
-                if isempty(DatTemp)
-                    DatTemp = zeros(1, length(Params.FuncConLagval));
-                end 
-                
-                PlotDat = DatTemp(:,l);
-                PlotDat(isnan(PlotDat)) = [];
-                PlotDat(~isfinite(PlotDat)) = [];
-                xtlabtext{d} = num2str(AgeDiv(d));
-                if isempty(PlotDat)
-                    continue
-                else
-                    eval(['HalfViolinPlot(PlotDat,xt(d),cDiv' num2str(d) ',Params.kdeHeight, Params.kdeWidthForOnePoint)']);
-                end
-                clear DatTemp ValMean ValStd UpperStd LowerStd
-            end
-            xticks(xt)
-            xticklabels(xtlabtext)
-            xlabel('Age')
-            ylabel(eMetl(n))
-            title(eGrp)
-            aesthetics
-            set(gca,'TickDir','out');
-        end
-        linkaxes(h,'xy')
-
-        h(1).XLim = [min(xt)-0.5 max(xt)+0.5];
-        set(findall(gcf,'-property','FontSize'),'FontSize',9)
-
-        % Set custom y axis 
-        if isfield(Params.networkLevelNetMetCustomBounds, eMeti) 
-
-            boundVector = Params.networkLevelNetMetCustomBounds.(eMeti);
-
-            if ~isnan(boundVector(1))
-                yLowerBound = boundVector(1);
-            else
-                yLowerBound = h(1).YLim(1);
-            end 
-            
-            if ~isnan(boundVector(2))
-                yUpperBound = boundVector(2);
-            else
-                yUpperBound = h(1).YLim(2);
-            end  
-
-        else 
-            yLowerBound = h(1).YLim(1);
-            yUpperBound = h(1).YLim(2);
-        end 
         
-        ylim([yLowerBound, yUpperBound])
-
-        % Export figure
+        plotHalfViolinByX(networkLevelData, eMeti, eMetl(n), 'group', lagIdx, Params); 
+        
+        % Export figure (TODO replace with pipeline savefig)
         for nFigExt = 1:length(Params.figExt)
             figName = strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''), '_byGroup', Params.figExt{nFigExt});
             figPath = fullfile(halfViolinPlotByGroupFolderPlusLag, figName);
@@ -564,7 +308,7 @@ end
 %% notBoxPlots - plots by DIV
 if Params.includeNotBoxPlots 
     notBoxPlotByDivFolder = fullfile(Params.outputDataFolder, ...
-        strcat('OutputData',Params.Date), '4_NetworkActivity', '4B_GroupComparisons', ...
+        Params.outputDataFolderName, '4_NetworkActivity', '4B_GroupComparisons', ...
         '4_RecordingsByAge', 'NotBoxPlots');
 
     eMet = Params.networkLevelNetMetToPlot;
@@ -647,7 +391,7 @@ end
 
 %% halfViolinPlots - plots by DIV
 
-halfViolinPlotByDivFolder = fullfile(Params.outputDataFolder, strcat('OutputData',Params.Date), ...
+halfViolinPlotByDivFolder = fullfile(Params.outputDataFolder, Params.outputDataFolderName, ...
     '4_NetworkActivity', '4B_GroupComparisons', '4_RecordingsByAge', 'HalfViolinPlots');
 
 eMet = Params.networkLevelNetMetToPlot;
@@ -673,70 +417,9 @@ for l = 1:length(Params.FuncConLagval)
         if ~Params.showOneFig
             F1 = figure;
         end 
-        eMeti = char(eMet(n));
-        xt = 1:length(Grps);
-        for d = 1:length(AgeDiv)
-            h(d) = subplot(1,length(AgeDiv),d);
-            eDiv = num2str(AgeDiv(d));
-            for g = 1:length(Grps)
-                eGrp = cell2mat(Grps(g));
-                eDivTP = strcat('TP',num2str(d));
-                VNe = strcat(eGrp,'.',eDivTP,'.',eMeti);
-                eval(['DatTemp = ' VNe ';']);
-                % Tim: temp fix to make zero vector if DIV is empty 
-                if isempty(DatTemp)
-                    DatTemp = zeros(1, length(Params.FuncConLagval));
-                end 
-                PlotDat = DatTemp(:,l);
-                PlotDat(isnan(PlotDat)) = [];
-                PlotDat(~isfinite(PlotDat)) = [];
-                if (1 - isempty(PlotDat))
-                    HalfViolinPlot(PlotDat, xt(g), Params.groupColors(g, :), Params.kdeHeight, Params.kdeWidthForOnePoint);
-                end
-                hold on
-                % clear DatTemp ValMean ValStd UpperStd LowerStd
-                xtlabtext{g} = eGrp;
-            end
-            xticks(xt)
-            xticklabels(xtlabtext)
-            xlabel('Group')
-            ylabel(eMetl(n))
-            title(strcat('Age',eDiv))
-            aesthetics
-            set(gca,'TickDir','out');
-        end
-        linkaxes(h,'xy')
-
-        if isfield(Params.networkLevelNetMetCustomBounds, eMeti) 
-
-            boundVector = Params.networkLevelNetMetCustomBounds.(eMeti);
-
-            if ~isnan(boundVector(1))
-                yLowerBound = boundVector(1);
-            else
-                yLowerBound = h(1).YLim(1);
-            end 
-            
-            if ~isnan(boundVector(2))
-                yUpperBound = boundVector(2);
-            else
-                yUpperBound = h(1).YLim(2);
-            end  
-
-        else 
-            yLowerBound = h(1).YLim(1);
-            yUpperBound = h(1).YLim(2);
-        end 
-
-        ylim([yLowerBound, yUpperBound]);
         
-        xLowerBound = min(xt) - 0.5;
-        xUpperBound = max(xt) + 0.5;
-        set(gca, 'YLim', [yLowerBound, yUpperBound])
-        % h(1).YLim = [yLowerBound, yUpperBound];
-        h(1).XLim = [xLowerBound xUpperBound];
-        set(findall(gcf,'-property','FontSize'),'FontSize',12)
-
+        plotHalfViolinByX(networkLevelData, eMeti, eMetl(n), 'DIV', lagIdx, Params); 
+        
         % Export figure
         for nFigExt = 1:length(Params.figExt)
             figName = strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''), '_byAge', Params.figExt{nFigExt});
@@ -759,7 +442,7 @@ end
    
 %% halfViolinPlots - plots by group electrode specific data
 
-nodeByGroupFolder = fullfile(Params.outputDataFolder, strcat('OutputData',Params.Date), ...
+nodeByGroupFolder = fullfile(Params.outputDataFolder, Params.outputDataFolderName, ...
     '4_NetworkActivity', '4B_GroupComparisons', '1_NodeByGroup');
 
 eMet = Params.unitLevelNetMetToPlot; 
@@ -782,67 +465,9 @@ for l = 1:length(Params.FuncConLagval)
             F1 = figure;
         end 
         eMeti = char(eMet(n));
-        xt = 1:length(AgeDiv);
-        for g = 1:length(Grps)
-            h(g) = subplot(1,length(Grps),g);
-            eGrp = cell2mat(Grps(g));
-            for d = 1:length(AgeDiv)
-                eDiv = strcat('TP',num2str(d));
-                VNe = strcat(eGrp,'.',eDiv,'.',eMeti);
-                eval(['DatTemp = ' VNe ';']);
-                % Make zero vector if DIV is empty 
-                if isempty(DatTemp)
-                    DatTemp = zeros(1, length(Params.FuncConLagval));
-                end 
-                PlotDat = DatTemp(:,l);
-                PlotDat(isnan(PlotDat)) = [];
-                PlotDat(~isfinite(PlotDat)) = [];
-                if isempty(PlotDat)
-                    continue
-                else
-                    eval(['HalfViolinPlot(PlotDat,xt(d),cDiv' num2str(d) ', Params.kdeHeight, Params.kdeWidthForOnePoint)']);
-                    %  HalfViolinPlot(PlotDat, xt(d), Params.groupColors(d, :), Params.kdeHeight, Params.kdeWidthForOnePoint);
-                end
-                clear DatTemp ValMean UpperStd LowerStd
-                xtlabtext{d} = num2str(AgeDiv(d));
-            end
-            xticks(xt)
-            xticklabels(xtlabtext)
-            xlabel('Age')
-            ylabel(eMetl(n))
-            title(eGrp)
-            aesthetics
-            set(gca,'TickDir','out');
-        end
-        linkaxes(h,'xy')
-        h(1).XLim = [min(xt)-0.5 max(xt)+0.5];
         
-        % Set custom y axis 
-        if isfield(Params.networkLevelNetMetCustomBounds, eMeti) 
-
-            boundVector = Params.networkLevelNetMetCustomBounds.(eMeti);
-
-            if ~isnan(boundVector(1))
-                yLowerBound = boundVector(1);
-            else
-                yLowerBound = h(1).YLim(1);
-            end 
-
-            if ~isnan(boundVector(2))
-                yUpperBound = boundVector(2);
-            else
-                yUpperBound = h(1).YLim(2);
-            end  
-
-        else 
-            yLowerBound = h(1).YLim(1);
-            yUpperBound = h(1).YLim(2);
-        end 
-
-        ylim([yLowerBound, yUpperBound])
+        plotHalfViolinByX(nodeLevelData, eMeti, eMetl(n), 'group', lagIdx, Params); 
         
-        set(findall(gcf,'-property','FontSize'),'FontSize',9)
-
         % Export figure
         for nFigExt = 1:length(Params.figExt)
             figName = strcat(num2str(n),'_',regexprep(char(eMetl(n)),'\',''), '_byGroup', Params.figExt{nFigExt});
@@ -865,7 +490,7 @@ end
 
 %% halfViolinPlots - plots by DIV electrode specific data
 
-halfViolinPlotByAgeFolder = fullfile(Params.outputDataFolder, strcat('OutputData',Params.Date), ...
+halfViolinPlotByAgeFolder = fullfile(Params.outputDataFolder, Params.outputDataFolderName, ...
     '4_NetworkActivity', '4B_GroupComparisons', '2_NodeByAge');
 
 eMet = Params.unitLevelNetMetToPlot; 
@@ -890,66 +515,8 @@ for l = 1:length(Params.FuncConLagval)
             F1 = figure;
         end 
         eMeti = char(eMet(n));
-        xt = 1:length(Grps);
-        for d = 1:length(AgeDiv)
-            h(d) = subplot(1,length(AgeDiv),d);
-            eDiv = num2str(AgeDiv(d));
-            for g = 1:length(Grps)
-                eGrp = cell2mat(Grps(g));
-                eDivTP = strcat('TP',num2str(d));
-                VNe = strcat(eGrp,'.',eDivTP,'.',eMeti);
-                eval(['DatTemp = ' VNe ';']);
-                % Make zero vector if DIV is empty 
-                if isempty(DatTemp)
-                    DatTemp = zeros(1, length(Params.FuncConLagval));
-                end 
-                PlotDat = DatTemp(:,l);
-                PlotDat(isnan(PlotDat)) = [];
-                PlotDat(~isfinite(PlotDat)) = [];
-                if isempty(PlotDat)
-                    continue
-                else
-                    HalfViolinPlot(PlotDat, xt(g), Params.groupColors(g, :), Params.kdeHeight, Params.kdeWidthForOnePoint);
-                end
-                clear DatTemp ValMean ValStd UpperStd LowerStd
-                xtlabtext{g} = eGrp;
-            end
-            xticks(xt)
-            xticklabels(xtlabtext)
-            xlabel('Group')
-            ylabel(eMetl(n))
-            title(strcat('Age',eDiv))
-            aesthetics
-            set(gca,'TickDir','out');
-        end
-        linkaxes(h,'xy')
-        h(1).XLim = [min(xt)-0.5 max(xt)+0.5];
-        
-        % Set custom y axis 
-        if isfield(Params.networkLevelNetMetCustomBounds, eMeti) 
-
-            boundVector = Params.networkLevelNetMetCustomBounds.(eMeti);
-
-            if ~isnan(boundVector(1))
-                yLowerBound = boundVector(1);
-            else
-                yLowerBound = h(1).YLim(1);
-            end 
-
-            if ~isnan(boundVector(2))
-                yUpperBound = boundVector(2);
-            else
-                yUpperBound = h(1).YLim(2);
-            end  
-
-        else 
-            yLowerBound = h(1).YLim(1);
-            yUpperBound = h(1).YLim(2);
-        end 
-
-        ylim([yLowerBound, yUpperBound])
-
-        set(findall(gcf,'-property','FontSize'),'FontSize',12)
+      
+        plotHalfViolinByX(nodeLevelData, eMeti, eMetl(n), 'DIV', lagIdx, Params);
         
         % Export figure
         for nFigExt = 1:length(Params.figExt)

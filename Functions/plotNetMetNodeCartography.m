@@ -19,7 +19,7 @@ function plotNetMetNodeCartography(combinedData, ExpName, Params,HomeDir, figFol
 
 %% groups and DIV
 
-if ~isempty(Params.customGrpOrder{:})
+if ~isempty(Params.customGrpOrder)
     Grps = Params.customGrpOrder;
 else
     Grps = Params.GrpNm;
