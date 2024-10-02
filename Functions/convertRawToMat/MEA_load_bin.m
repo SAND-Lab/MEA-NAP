@@ -25,7 +25,7 @@ function [header,m,channels] = MEA_load_bin(binfile,plt, convertOption)
 
 %% initialize
 
-sprintf('MEA_load_bin')
+% sprintf('MEA_load_bin')
 
 if ~exist('plt','var')
     plt=0;
@@ -38,9 +38,9 @@ end
 
 
 %% get header
-[fid] =fopen(binfile)
-[filename, permission, machineformat, encoding] =fopen(fid);
-[m,count]=fread(fid,2000,'*char',0,machineformat);
+[fid] = fopen(binfile);
+[filename, permission, machineformat, encoding] = fopen(fid);
+[m,count] = fread(fid,2000,'*char',0,machineformat);
 fclose(fid);
 
 %% get key values from header
@@ -48,7 +48,7 @@ fclose(fid);
 m = m';
 f = findstr(m,'EOH');
 newstart=f+4;
-header=m(1:f-1)
+header = m(1:f-1);
 
 ADCzerof=findstr(m,'ADC');
 ADCz = str2num(m(ADCzerof+11:ADCzerof+16));
@@ -106,7 +106,7 @@ if plt
 end
 
 %% save
-sprintf('Saving data ...')
+% sprintf('Saving data ...') 
 
 % mkdir(binfile(1:length(binfile)-4))
 % the crux to not having folders is here 
@@ -120,7 +120,7 @@ if strcmp(convertOption, 'whole')
 elseif strcmp(convertOption, 'electrode')
     mkdir(binfile(1:length(binfile)-4))
     for i=1:length(channels)
-         sprintf('Channel: %d; ',channels(i))
+         % sprintf('Channel: %d; ',channels(i))
          dat=m(i,:);
          save([binfile(1:length(binfile)-4) filesep binfile(1:length(binfile)-4) '_' num2str(channels(i)) '.mat'],'dat','channels','header','uV','ADCz','fs')
     end 
