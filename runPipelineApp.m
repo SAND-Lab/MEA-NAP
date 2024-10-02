@@ -71,6 +71,10 @@ app.NetworkmetricstocalculateListBox.Value = {...
     'MEW', ...
     'aveControl', 'modalControl', 'aveControlMean'};
 
+% Default Output Folder name
+formatOut = 'ddmmmyyyy'; 
+todyDate = datestr(now,formatOut); 
+app.OutputFolderNameEditField.Value = ['OutputData' todyDate];
 
 %% Run pipeline app
 
@@ -83,8 +87,8 @@ while isvalid(app)
 
     % previous analysis fields
     if app.UsePreviousAnalysisCheckBox.Value == 0
-        app.PreviousAnalysisDateEditField.Enable = 'Off';
-        app.PreviousAnalysisDateEditFieldLabel.Enable = 'Off';
+        % app.PreviousAnalysisDateEditField.Enable = 'Off';
+        % app.PreviousAnalysisDateEditFieldLabel.Enable = 'Off';
         app.PreviousAnalysisFolderEditField.Enable = 'Off';
         app.PreviousAnalysisFolderEditFieldLabel.Enable = 'Off';
         app.SpikeDataFolderEditField.Enable = 'Off';
@@ -92,8 +96,6 @@ while isvalid(app)
         app.PrevAnalysisSelectButton.Enable = 'Off';
         app.SpikeDataSelectButton.Enable = 'Off';
     else
-        app.PreviousAnalysisDateEditField.Enable = 'On';
-        app.PreviousAnalysisDateEditFieldLabel.Enable = 'On';
         app.PreviousAnalysisFolderEditField.Enable = 'On';
         app.PreviousAnalysisFolderEditFieldLabel.Enable = 'On';
         app.SpikeDataFolderEditField.Enable = 'On';
@@ -170,17 +172,17 @@ while isvalid(app)
 
     % Load raw data folder 
     if app.RawDataSelectButton.Value == 1
-        app.RawDataFolderEditField.Value = uigetdir;
+        app.MEADataFolderEditField.Value = uigetdir;
         app.RawDataSelectButton.Value = 0;
         figure(app.UIFigure)  % put app back to focus
         
         % Print out number of files found in raw data folder 
-        numRawDataFiles = length(dir(fullfile(app.RawDataFolderEditField.Value, '*.mat')));
+        numRawDataFiles = length(dir(fullfile(app.MEADataFolderEditField.Value, '*.mat')));
         app.MEANAPStatusTextArea.Value = [app.MEANAPStatusTextArea.Value; ...
             sprintf('%.f mat files found in raw data folder', numRawDataFiles)];
         
         % Update spreadsheet tab as well 
-        app.RawDataFolderEditField_2.Value = app.RawDataFolderEditField.Value;
+        app.RawDataFolderEditField_2.Value = app.MEADataFolderEditField.Value;
     end 
     
     % Load CSV
@@ -241,7 +243,6 @@ while isvalid(app)
         
         % Get names and automatically populate spike detection folder
         [~, folderName] = fileparts(app.PreviousAnalysisFolderEditField.Value);
-        app.PreviousAnalysisDateEditField.Value = erase(folderName, 'OutputData');
         app.SpikeDataFolderEditField.Value = fullfile( ...
             app.PreviousAnalysisFolderEditField.Value, '1_SpikeDetection', '1A_SpikeDetectedData');
         
@@ -368,7 +369,7 @@ while isvalid(app)
         downloadExampleData; 
         
         % Set Raw data folder 
-        app.RawDataFolderEditField.Value = fullfile(app.MEANAPFolderEditField.Value, 'ExampleData');
+        app.MEADataFolderEditField.Value = fullfile(app.MEANAPFolderEditField.Value, 'ExampleData');
         
         % Set CSV path 
         spreadsheetFilePath = fullfile(app.MEANAPFolderEditField.Value, 'ExampleData', 'exampleData.csv');
@@ -400,12 +401,6 @@ end
 
 %% Moving settings to Params
 Params = getParamsFromApp(app);
-
-% TODO: Can this be moved to getParamsFromApp?
-Params.outputDataFolder = app.OutputDataFolderEditField.Value;
-Params.rawData = app.RawDataFolderEditField.Value;
-Params.priorAnalysisPath = app.PreviousAnalysisFolderEditField.Value;
-Params.spikeDetectedData = app.SpikeDataFolderEditField.Value;
 
 Params.guiMode = 1;
 
