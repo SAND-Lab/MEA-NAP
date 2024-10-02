@@ -1,4 +1,4 @@
-function combinedData = combineExpNetworkData(ExpName, Params, NetMetricsE, NetMetricsC, experimentMatFileFolder, NetworkDataFolder)
+function combinedData = combineExpNetworkData(ExpName, Params, NetMetricsE, NetMetricsC, experimentMatFileFolder)
 % This function collects data from individual experiment analysis files and
 % combine them to create a dataset containing all of the metrics from each
 % experiment.
