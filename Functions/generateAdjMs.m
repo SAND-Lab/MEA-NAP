@@ -13,7 +13,7 @@ function [adjMs, F1] = generateAdjMs(spikeTimes, ExN, Params, Info, oneFigureHan
 % adjMs : 
 
 figFolder = fullfile(Params.outputDataFolder, ...
-    strcat('OutputData',Params.Date), '3_EdgeThresholdingCheck');
+    Params.outputDataFolderName, '3_EdgeThresholdingCheck');
 
 
 for p = 1:length(Params.FuncConLagval)
