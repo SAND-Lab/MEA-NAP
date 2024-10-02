@@ -52,8 +52,8 @@ files=[];
 for i=1:length(d)
     if ~isempty(findstr(d(i).name,ext)) && ~isempty(findstr(d(i).name,ext2)) && length(d(i).name)>2 
         files=[files; i];
-    end;
-end;
+    end
+end
 
 files=d(files);
 
@@ -61,19 +61,19 @@ files=d(files);
 
 for i=1:length(files)
     cd(files(i).folder);
-    files(i).name
+    % files(i).name; 
     skip=0;
     %find if file already converted
     for j=1:length(d)
         if ~isempty(strmatch(files(i).name(1:length(files(i).name)-4),d(j).name)) && d(j).isdir
             d(j).name
             skip=1;
-        end;
-    end;
+        end
+    end
     if skip==0
-        MEA_load_bin(files(i).name, convertOption);
-    end;
-end;
+        MEA_load_bin(files(i).name, 0, convertOption);
+    end
+end
 
 
 
