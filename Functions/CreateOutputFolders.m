@@ -1,4 +1,4 @@
-function [] = CreateOutputFolders(HomeDir, OutputDataFolder, Date, GrpNm, Params)
+function [] = CreateOutputFolders(OutputDataFolder, GrpNm, Params)
 % this function creates the following output folder structure:
 %
 %   OutputData+Date
@@ -17,105 +17,55 @@ function [] = CreateOutputFolders(HomeDir, OutputDataFolder, Date, GrpNm, Params
 % -------
 % None
 
-%% make sure we start in the home directory
-cd(OutputDataFolder)
+%% Create the output folders
 
-%% does an output folder already exist for that date?
+foldersToCreate = {...
+    fullfile(OutputDataFolder, Params.outputDataFolderName), ... 
+    fullfile(OutputDataFolder, Params.outputDataFolderName, 'ExperimentMatFiles'), ...
+    fullfile(OutputDataFolder, Params.outputDataFolderName, '1_SpikeDetection'), ...
+    fullfile(OutputDataFolder, Params.outputDataFolderName, '1_SpikeDetection', '1A_SpikeDetectedData'), ...
+    fullfile(OutputDataFolder, Params.outputDataFolderName, '1_SpikeDetection', '1B_SpikeDetectionChecks'), ...
+    fullfile(OutputDataFolder, Params.outputDataFolderName, '2_NeuronalActivity'), ...
+    fullfile(OutputDataFolder, Params.outputDataFolderName, '2_NeuronalActivity', '2A_IndividualNeuronalAnalysis'), ...
+    fullfile(OutputDataFolder, Params.outputDataFolderName, '2_NeuronalActivity', '2B_GroupComparisons'), ...
+    fullfile(OutputDataFolder, Params.outputDataFolderName, '2_NeuronalActivity', '2B_GroupComparisons', '1_NodeByGroup'), ...
+    fullfile(OutputDataFolder, Params.outputDataFolderName, '2_NeuronalActivity', '2B_GroupComparisons', '2_NodeByAge'), ...
+    fullfile(OutputDataFolder, Params.outputDataFolderName, '2_NeuronalActivity', '2B_GroupComparisons', '3_RecordingsByGroup'), ...
+    fullfile(OutputDataFolder, Params.outputDataFolderName, '2_NeuronalActivity', '2B_GroupComparisons', '3_RecordingsByGroup', 'HalfViolinPlots'), ...
+    fullfile(OutputDataFolder, Params.outputDataFolderName, '2_NeuronalActivity', '2B_GroupComparisons', '4_RecordingsByAge'), ...
+    fullfile(OutputDataFolder, Params.outputDataFolderName, '2_NeuronalActivity', '2B_GroupComparisons', '4_RecordingsByAge', 'HalfViolinPlots'), ...
+    fullfile(OutputDataFolder, Params.outputDataFolderName, '3_EdgeThresholdingCheck'), ...
+    fullfile(OutputDataFolder, Params.outputDataFolderName, '4_NetworkActivity'), ...
+    fullfile(OutputDataFolder, Params.outputDataFolderName, '4_NetworkActivity', '4A_IndividualNetworkAnalysis'), ...
+    fullfile(OutputDataFolder, Params.outputDataFolderName, '4_NetworkActivity', '4B_GroupComparisons'), ...
+    fullfile(OutputDataFolder, Params.outputDataFolderName, '4_NetworkActivity', '4B_GroupComparisons', '1_NodeByGroup'), ...
+    fullfile(OutputDataFolder, Params.outputDataFolderName, '4_NetworkActivity', '4B_GroupComparisons', '2_NodeByAge'), ...
+    fullfile(OutputDataFolder, Params.outputDataFolderName, '4_NetworkActivity', '4B_GroupComparisons', '3_RecordingsByGroup'), ...
+    fullfile(OutputDataFolder, Params.outputDataFolderName, '4_NetworkActivity', '4B_GroupComparisons', '3_RecordingsByGroup', 'HalfViolinPlots'), ...
+    fullfile(OutputDataFolder, Params.outputDataFolderName, '4_NetworkActivity', '4B_GroupComparisons', '4_RecordingsByAge'), ...
+    fullfile(OutputDataFolder, Params.outputDataFolderName, '4_NetworkActivity', '4B_GroupComparisons', '4_RecordingsByAge', 'HalfViolinPlots'), ...
+    fullfile(OutputDataFolder, Params.outputDataFolderName, '4_NetworkActivity', '4B_GroupComparisons', '5_GraphMetricsByLag'), ...
+    fullfile(OutputDataFolder, Params.outputDataFolderName, '4_NetworkActivity', '4B_GroupComparisons', '6_NodeCartographyByLag'), ...
+    fullfile(OutputDataFolder, Params.outputDataFolderName, '4_NetworkActivity', '4B_GroupComparisons', '7_DensityLandscape'), ...
+    };
 
-if exist(strcat('OutputData',Date),'dir')
-    % if so, choose a suffix to rename previous analysis folder
-    NewFNsuffix = inputdlg({'An output data folder already exists for the date today, enter a suffix for the old folder to differentiate (i.e. v1)'});
-    NewFN = strcat('OutputData',Date,char(NewFNsuffix));
-    % rename the old folder
-    movefile(strcat('OutputData',Date),NewFN)
-end
 
-%% now we can create the output folders
-% TODO: remove cd from all of these
-outputDataDateFolder = fullfile(OutputDataFolder, strcat('OutputData', Date));
-spikeDetectionFolder = fullfile(outputDataDateFolder, '1_SpikeDetection');
-
-neuronalActivityFolder = fullfile(outputDataDateFolder, '2_NeuronalActivity');
-
-mkdir(strcat('OutputData',Date))
-cd(strcat('OutputData',Date))
-mkdir('ExperimentMatFiles')
-mkdir('1_SpikeDetection')
-cd('1_SpikeDetection')
-mkdir('1A_SpikeDetectedData')
-mkdir('1B_SpikeDetectionChecks')
-cd('1B_SpikeDetectionChecks')
 for i = 1:length(GrpNm)
-    mkdir(char(GrpNm{i}))
+    foldersToCreate{end+1} = fullfile(OutputDataFolder, Params.outputDataFolderName, '4_NetworkActivity', '4A_IndividualNetworkAnalysis', char(GrpNm{i}));
 end
-cd(OutputDataFolder); cd(strcat('OutputData',Date));
-mkdir('2_NeuronalActivity')
-cd('2_NeuronalActivity')
-mkdir('2A_IndividualNeuronalAnalysis')
-cd('2A_IndividualNeuronalAnalysis')
-for i = 1:length(GrpNm)
-    mkdir(char(GrpNm{i}))
-end
-cd(OutputDataFolder); cd(strcat('OutputData',Date)); cd('2_NeuronalActivity')
-mkdir('2B_GroupComparisons')
-cd('2B_GroupComparisons')
-mkdir('1_NodeByGroup')
-mkdir('2_NodeByAge')
-mkdir('3_RecordingsByGroup')
-cd('3_RecordingsByGroup')
-mkdir('HalfViolinPlots')
 
 if Params.includeNotBoxPlots
-    mkdir('NotBoxPlots')
-end 
-cd(OutputDataFolder); cd(strcat('OutputData',Date)); 
-cd('2_NeuronalActivity'); cd('2B_GroupComparisons')
-mkdir('4_RecordingsByAge')
-cd('4_RecordingsByAge')
-mkdir('HalfViolinPlots')
-
-if Params.includeNotBoxPlots
-    mkdir('NotBoxPlots')
+    foldersToCreate{end+1} = fullfile(OutputDataFolder, Params.outputDataFolderName, '2B_GroupComparisons', '3_RecordingsByGroup', 'NotBoxPlots');
+    foldersToCreate{end+1} = fullfile(OutputDataFolder, Params.outputDataFolderName, '2B_GroupComparisons', '4_RecordingsByAge', 'NotBoxPlots');
 end 
 
-cd(OutputDataFolder)
-cd(strcat('OutputData',Date))
-mkdir('3_EdgeThresholdingCheck')
-mkdir('4_NetworkActivity')
-cd('4_NetworkActivity')
-mkdir('4A_IndividualNetworkAnalysis')
-cd('4A_IndividualNetworkAnalysis')
-for i = 1:length(GrpNm)
-    mkdir(char(GrpNm{i}))
-end
-cd(OutputDataFolder); cd(strcat('OutputData',Date)); cd('4_NetworkActivity')
-mkdir('4B_GroupComparisons')
-cd('4B_GroupComparisons')
-mkdir('1_NodeByGroup')
-mkdir('2_NodeByAge')
-mkdir('3_RecordingsByGroup')
-cd('3_RecordingsByGroup')
-mkdir('HalfViolinPlots')
-
-if Params.includeNotBoxPlots
-    mkdir('NotBoxPlots')
+for folderIdx = 1:length(foldersToCreate)
+    if ~isfolder(foldersToCreate{folderIdx})
+        mkdir(foldersToCreate{folderIdx});
+    end
 end 
 
-cd(OutputDataFolder); cd(strcat('OutputData',Date)); 
-cd('4_NetworkActivity'); cd('4B_GroupComparisons')
-mkdir('4_RecordingsByAge')
-cd('4_RecordingsByAge')
-mkdir('HalfViolinPlots')
+addpath(genpath(fullfile(OutputDataFolder, Params.outputDataFolderName)))
 
-if Params.includeNotBoxPlots
-    mkdir('NotBoxPlots')
-end 
-
-cd(OutputDataFolder); cd(strcat('OutputData',Date)); 
-cd('4_NetworkActivity'); cd('4B_GroupComparisons')
-mkdir('5_GraphMetricsByLag')
-mkdir('6_NodeCartographyByLag')
-cd(HomeDir)
-addpath(genpath(fullfile(OutputDataFolder, strcat('OutputData',Date))))
 
 end
