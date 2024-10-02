@@ -1,9 +1,15 @@
 function app = setAppParams(app, Params)
-%SETAPPPARAMS Load saved parameterse and add them to GUI
-%   Detailed explanation goes here
+%SETAPPPARAMS Load saved parameters and add them to GUI
+% INPUTS 
+% -------------------------
+%  app : matlab app object 
+%  Params : structure 
+% OUTPUTS 
+% ------------------------
+%  app : matlab app object
 
 app.MEANAPFolderEditField.Value = Params.HomeDir;
-app.RawDataFolderEditField.Value = Params.rawData;
+app.MEADataFolderEditField.Value = Params.rawData;
 app.OutputDataFolderEditField.Value = Params.outputDataFolder;
 app.SpreadsheetFilenameEditField.Value = Params.spreadSheetFileName;
 app.SpreadsheetRangeEditField.Value = Params.spreadSheetRange;
@@ -11,7 +17,6 @@ app.StartAnalysisStepEditField.Value = Params.startAnalysisStep;
 app.OptionalStepstoRunListBox.Value = Params.optionalStepsToRun;
 
 app.UsePreviousAnalysisCheckBox.Value = Params.priorAnalysis;
-app.PreviousAnalysisDateEditField.Value = Params.priorAnalysisDate;
 app.PreviousAnalysisFolderEditField.Value = Params.priorAnalysisPath;
 app.SpikeDataFolderEditField.Value = Params.spikeDetectedData;
 
