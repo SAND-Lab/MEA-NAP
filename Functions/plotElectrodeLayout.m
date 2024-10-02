@@ -75,7 +75,7 @@ end
 set(gcf, 'color', 'w')
 
 % save figure
-figFolder = fullfile(HomeDir, strcat(['OutputData', Params.Date]));
+figFolder = fullfile(HomeDir, Params.outputDataFolderName);
 figName = 'channel_layout';
 figSavePath = fullfile(figFolder, figName);
 
