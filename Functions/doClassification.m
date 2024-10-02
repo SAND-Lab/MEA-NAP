@@ -87,7 +87,7 @@ for kfold_repeat_idx = 1:clf_num_kfold_repeat
         elseif strcmp(classifier_name, 'LDA')
             clf_model = fitcdiscr(X_processed, y);
         else 
-            fprinf('WARNING: no valid classifier specified')
+            fprintf('WARNING: no valid classifier specified')
         end 
         % TODO: do stratification via cv partition and setting 'stratifyOption', 1
         rng(Params.statsRandomSeed + kfold_repeat_idx);
@@ -340,6 +340,7 @@ else
 end 
 %}
 %% Do regression (currently only for DIVs)
+% TODO: only do this if there is more than one DIV
 if strcmp(classificationTarget, 'AgeDiv')
     regression_model_predictions = zeros(clf_num_kfold_repeat, num_classification_models, length(y));
     num_regressor_models = length(Params.regression_models);
@@ -438,10 +439,17 @@ if strcmp(classificationTarget, 'AgeDiv')
         xlabel('Observed')
         ylabel('Predicted')
     end 
+    
+    min_y = min(y);
+    max_y = max(y);
+    
+    if min_y == max_y
+        min_y = min_y - 1;
+        max_y = max_y + 1;
+    end
 
-
-    xlim([min(y), max(y)])
-    ylim([min(y), max(y)])
+    xlim([min_y, max_y])
+    ylim([min_y, max_y])
 
     set(gcf, 'color', 'white')
     saveName = 'allRegressorActualVsPredicted';
