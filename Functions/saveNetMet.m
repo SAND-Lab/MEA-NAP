@@ -43,14 +43,14 @@ NetMetricsC = Params.unitLevelNetMetToPlot;
 % and put them on separate tables 
 
 experimentMatFolderPath = fullfile(Params.outputDataFolder, ...
-        strcat('OutputData',Params.Date), 'ExperimentMatFiles');
+        Params.outputDataFolderName, 'ExperimentMatFiles');
 
 allRecordingLevelData = struct();
 allElectrodeLevelData = struct();
 
 % allocate numbers to relevant matrices
 for i = 1:length(ExpName)
-     Exp = strcat(char(ExpName(i)),'_',Params.Date,'.mat');
+     Exp = strcat(char(ExpName(i)),'_',Params.outputDataFolderName,'.mat');
      ExpFilePath = fullfile(experimentMatFolderPath, Exp);
      % Load to variable
      expData = load(ExpFilePath);
@@ -150,7 +150,7 @@ for i = 1:length(ExpName)
 end
 
 outputDataDateFolder = fullfile(Params.outputDataFolder, ...
-        strcat('OutputData',Params.Date));
+        Params.outputDataFolderName);
     
 
 % save recording level data 
