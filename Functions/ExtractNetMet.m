@@ -80,9 +80,23 @@ maxSTTC = zeros(length(lagval), 1);
 % Folder to save figures 
 networkActivityFolder = Params.networkActivityFolder;
 
+% Previous analysis data
+if (Params.priorAnalysis == 1)
+    priorAnalysisExpMatFolder = fullfile(Params.priorAnalysisPath, 'ExperimentMatFiles');
+    matFiles = dir(fullfile(priorAnalysisExpMatFolder, '*.mat'));
+    matFileNames = {matFiles.name};
+    prevNetMetFpathIdx = contains(matFileNames,Info.FN);
+    prevNetMetFpath = fullfile(priorAnalysisExpMatFolder, matFileNames{prevNetMetFpathIdx});
+    prevNetMetData = load(prevNetMetFpath);
+    prevNetMet = prevNetMetData.NetMet;
+else
+    prevNetMet = {};
+end
+
 for e = 1:length(lagval)
     
-    % load adjM
+    
+    %% load adjacency matrix
     % eval(['adjM = adjMs.adjM' num2str(lagval(e)) 'mslag;']);
     lagValStr = strcat('adjM', num2str(lagval(e)), 'mslag');
     adjM = adjMs.(lagValStr);
@@ -199,59 +213,81 @@ for e = 1:length(lagval)
     nMod = max(Ci);
     
     % global efficiency
-    if strcmp(Params.adjMtype,'weighted')
-        Eglob = efficiency_wei(adjM);
-    elseif strcmp(Params.adjMtype,'binary')
-        Eglob = efficiency_bin(adjM);
-    end
+    if checkIfRecomputeMetric(Params, prevNetMet, lagValStr, 'Eglob') == 1
+        if strcmp(Params.adjMtype,'weighted')
+            Eglob = efficiency_wei(adjM);
+        elseif strcmp(Params.adjMtype,'binary')
+            Eglob = efficiency_bin(adjM);
+        end
+    else 
+        Eglob = prevNetMet.(lagValStr).Eglob;
+    end 
     
     % Lattice-like model
     if length(adjM)> Params.minNumberOfNodesToCalNetMet
         ITER = 10000;
-        Z = pdist(adjM);
-        D = squareform(Z);
-        % TODO: rename L to Lattice to avoid confusion with path length
-        [LatticeNetwork,Rrp,ind_rp,eff,met] = latmio_und_v2(adjM,ITER,D,'SW');
-    
-        % Random rewiring model (d)
-        ITER = 5000;
-        [R, ~,met2] = randmio_und_v2(adjM, ITER,'SW');
-    
-        plotNullModelIterations(met, met2, lagval, e, char(Info.FN), ...
-            Params, lagFolderName, oneFigureHandle)
-    
-        %% Calculate network metrics (+normalization).
         
-        [SW, SWw, CC, PL] = small_worldness_RL_wu(adjM,R,LatticeNetwork);
+        if checkIfRecomputeMetric(Params, prevNetMet, lagValStr, 'SW') == 1
+            Z = pdist(adjM);
+            D = squareform(Z);
+
+            [LatticeNetwork,Rrp,ind_rp,eff,met] = latmio_und_v2(adjM,ITER,D,'SW');
+
+            % Random rewiring model (d)
+            ITER = 5000;
+            [R, ~,met2] = randmio_und_v2(adjM, ITER,'SW');
+
+            plotNullModelIterations(met, met2, lagval, e, char(Info.FN), ...
+                Params, lagFolderName, oneFigureHandle)
+    
+            % Calculate small-worldness (+normalization).
+        
+            [SW, SWw, CC, PL] = small_worldness_RL_wu(adjM,R,LatticeNetwork);
+        else
+            SW = prevNetMet.(lagValStr).SW;
+            SWw = prevNetMet.(lagValStr).SWw;
+            CC = prevNetMet.(lagValStr).CC;
+            PL = prevNetMet.(lagValStr).PL;
+        end
         
         % local efficiency
         %   For ease of interpretation of the local efficiency it may be
         %   advantageous to rescale all weights to lie between 0 and 1.
-        if strcmp(Params.adjMtype,'weighted')
-            adjM_nrm = weight_conversion(adjM, 'normalize');
-            Eloc = efficiency_wei(adjM_nrm,2);
-        elseif strcmp(Params.adjMtype,'binary')
-            adjM_nrm = weight_conversion(adjM, 'normalize');
-            Eloc = efficiency_bin(adjM_nrm,2);
+        if checkIfRecomputeMetric(Params, prevNetMet, lagValStr, 'Eloc') == 1
+            if strcmp(Params.adjMtype,'weighted')
+                adjM_nrm = weight_conversion(adjM, 'normalize');
+                Eloc = efficiency_wei(adjM_nrm,2);
+            elseif strcmp(Params.adjMtype,'binary')
+                adjM_nrm = weight_conversion(adjM, 'normalize');
+                Eloc = efficiency_bin(adjM_nrm,2);
+            end
+
+            % mean local efficiency across nodes
+            ElocMean = mean(Eloc);
+        else 
+            Eloc = prevNetMet.(lagValStr).Eloc;
+            ElocMean = prevNetMet.(lagValStr).ElocMean;
         end
-        
-        % mean local efficiency across nodes
-        ElocMean = mean(Eloc);
    
         % betweenness centrality
-        %   Note: Betweenness centrality may be normalised to the range [0,1] as
-        %   BC/[(N-1)(N-2)], where N is the number of nodes in the network.
-        if strcmp(Params.adjMtype,'weighted')
-            smallFactor = 0.01; % prevent division by zero
-            pathLengthNetwork = 1 ./ (adjM + smallFactor);   
-            BC = betweenness_wei(pathLengthNetwork);
-        elseif strcmp(Params.adjMtype,'binary')
-            BC = betweenness_bin(adjM);
+        if checkIfRecomputeMetric(Params, prevNetMet, lagValStr, 'BC') == 1
+            %   Note: Betweenness centrality may be normalised to the range [0,1] as
+            %   BC/[(N-1)(N-2)], where N is the number of nodes in the network.
+            if strcmp(Params.adjMtype,'weighted')
+                smallFactor = 0.01; % prevent division by zero
+                pathLengthNetwork = 1 ./ (adjM + smallFactor);   
+                BC = betweenness_wei(pathLengthNetwork);
+            elseif strcmp(Params.adjMtype,'binary')
+                BC = betweenness_bin(adjM);
+            end
+            BC = BC/((length(adjM)-1)*(length(adjM)-2));
+
+            BC95thpercentile = prctile(BC, 95);
+            BCmeantop5 = mean(BC(BC >= BC95thpercentile));
+        else 
+            BC = prevNetMet.(lagValStr).BC;
+            BCmeantop5 = prevNetMet.(lagValStr).BCmeantop5;
         end
-        BC = BC/((length(adjM)-1)*(length(adjM)-2));
-        
-        BC95thpercentile = prctile(BC, 95);
-        BCmeantop5 = mean(BC(BC >= BC95thpercentile));
     else
          fprintf('Not enough nodes to calculate network metrics! \n')
          SW = nan;
@@ -268,20 +304,31 @@ for e = 1:length(lagval)
     % PC = participation_coef(adjM,Ci,0);
     if any(strcmp(netMetToCal, 'PC')) || any(strcmp(netMetToCal, 'Hub3')) || any(strcmp(netMetToCal, 'Hub4'))
         if length(adjM) >= Params.minNumberOfNodesToCalNetMet
-            [PC,~,~,~] = participation_coef_norm(adjM,Ci);
-            % within module degree z-score
-            Z = module_degree_zscore(adjM,Ci,0);
+            
+            if checkIfRecomputeMetric(Params, prevNetMet, lagValStr, 'PC') == 1
+                [PC,~,~,~] = participation_coef_norm(adjM,Ci);
+                % within module degree z-score
+                Z = module_degree_zscore(adjM,Ci,0);
 
-            % percentage of within-module z-score greater and less than zero
-            percentZscoreGreaterThanZero = sum(Z > 0) / length(Z) * 100;
-            percentZscoreLessThanZero = sum(Z < 0) / length(Z) * 100;
+                % percentage of within-module z-score greater and less than zero
+                percentZscoreGreaterThanZero = sum(Z > 0) / length(Z) * 100;
+                percentZscoreLessThanZero = sum(Z < 0) / length(Z) * 100;
 
-            % mean participation coefficient 
-            PCmean = mean(PC);
-            PC90thpercentile = prctile(PC, 90);
-            PC10thpercentile = prctile(PC, 10);
-            PCmeanTop10 = mean(PC(PC >= PC90thpercentile));
-            PCmeanBottom10 = mean(PC(PC <= PC10thpercentile));
+                % mean participation coefficient 
+                PCmean = mean(PC);
+                PC90thpercentile = prctile(PC, 90);
+                PC10thpercentile = prctile(PC, 10);
+                PCmeanTop10 = mean(PC(PC >= PC90thpercentile));
+                PCmeanBottom10 = mean(PC(PC <= PC10thpercentile));
+            else 
+                PC = prevNetMet.(lagValStr).PC;
+                Z = prevNetMet.(lagValStr).Z;
+                PCmean = prevNetMet.(lagValStr).PCmean;
+                PC90thpercentile = prevNetMet.(lagValStr).PC90thpercentile;
+                PC10thpercentile = prevNetMet.(lagValStr).PC10thpercentile;
+                PCmeanTop10 = prevNetMet.(lagValStr).PCmeanTop10;
+                PCmeanBottom10 = prevNetMet.(lagValStr).PCmeanBottom10;
+            end
 
         else 
             PC = nan(length(NS), 1);
@@ -297,25 +344,28 @@ for e = 1:length(lagval)
 
     
     %% nodal efficiency
-    
-    if strcmp(Params.adjMtype,'weighted')
-        WCon = weight_conversion(adjM, 'lengths');
-        DistM = distance_wei(WCon);
-        mDist = mean(DistM,1);
-        NE = 1./mDist;
-        NE = NE';
-    elseif strcmp(Params.adjMtype,'binary')
-        DistM = distance_bin(adjM);
-        % exclude infinite distances (beware this treats disconnected nodes
-        % as having distance of 0, which is counterintuitive)
-        DistM = weight_conversion(DistM,'autofix');
-        % correct distances of disconnected nodes to make minimum distance
-        % of 1 because if they were connected path length would have to be
-        % at least 1
-        DistM(DistM==0) = 1;
-        mDist = mean(DistM,1);        
-        NE = 1./mDist;
-        NE = NE';
+    if checkIfRecomputeMetric(Params, prevNetMet, lagValStr, 'NE') == 1
+        if strcmp(Params.adjMtype,'weighted')
+            WCon = weight_conversion(adjM, 'lengths');
+            DistM = distance_wei(WCon);
+            mDist = mean(DistM,1);
+            NE = 1./mDist;
+            NE = NE';
+        elseif strcmp(Params.adjMtype,'binary')
+            DistM = distance_bin(adjM);
+            % exclude infinite distances (beware this treats disconnected nodes
+            % as having distance of 0, which is counterintuitive)
+            DistM = weight_conversion(DistM,'autofix');
+            % correct distances of disconnected nodes to make minimum distance
+            % of 1 because if they were connected path length would have to be
+            % at least 1
+            DistM(DistM==0) = 1;
+            mDist = mean(DistM,1);        
+            NE = 1./mDist;
+            NE = NE';
+        end
+    else 
+        NE = prevNetMet.(lagValStr).NE;
     end
     
     %% Hub classification (only works when number of nodes exeed criteria)
@@ -373,28 +423,45 @@ for e = 1:length(lagval)
     % note these are only calcualted for the first lag field because they
     % do not depend on lag
     if e == 1
+        firstLagField = strcat('adjM',num2str(lagval(e)),'mslag');
         if any(strcmp(netMetToCal, 'num_nnmf_components'))
             if strcmp(Params.verboseLevel, 'High')
                 fprintf('Calculating NMF \n')
             end 
             minSpikeCount = 1;
             includeRandomMatrix = 1;
-            nmfCalResults = calNMF(spikeMatrix, Params.fs, Params.NMFdownsampleFreq, ...
-                                    Info.duration_s, minSpikeCount, includeRandomMatrix, ...
-                                    Params.includeNMFcomponents, Params.verboseLevel);
-            NetMet.(strcat('adjM',num2str(lagval(e)),'mslag')).num_nnmf_components = nmfCalResults.num_nnmf_components;
-            NetMet.(strcat('adjM',num2str(lagval(e)),'mslag')).nComponentsRelNS = nmfCalResults.nComponentsRelNS; 
-            NetMet.(strcat('adjM',num2str(lagval(e)),'mslag')).nnmf_residuals = nmfCalResults.nnmf_residuals; 
-            NetMet.(strcat('adjM',num2str(lagval(e)),'mslag')).nnmf_var_explained = nmfCalResults.nnmf_var_explained;
-            NetMet.(strcat('adjM',num2str(lagval(e)),'mslag')).randResidualPerComponent = nmfCalResults.randResidualPerComponent;
-            if Params.includeNMFcomponents
-                NetMet.(strcat('adjM',num2str(lagval(e)),'mslag')).nmfFactors = nmfCalResults.nmfFactors;
-                NetMet.(strcat('adjM',num2str(lagval(e)),'mslag')).nmfWeights = nmfCalResults.nmfWeights;
-                NetMet.(strcat('adjM',num2str(lagval(e)),'mslag')).downSampleSpikeMatrix = nmfCalResults.downSampleSpikeMatrix;
-                NetMet.(strcat('adjM',num2str(lagval(e)),'mslag')).nmfFactorsVarThreshold = nmfCalResults.nmfFactorsVarThreshold;
-                NetMet.(strcat('adjM',num2str(lagval(e)),'mslag')).nmfWeightsVarThreshold = nmfCalResults.nmfWeightsVarThreshold;
-            end 
-
+            if checkIfRecomputeMetric(Params, prevNetMet, firstLagField, 'num_nnmf_components') == 1
+                nmfCalResults = calNMF(spikeMatrix, Params.fs, Params.NMFdownsampleFreq, ...
+                                        Info.duration_s, minSpikeCount, includeRandomMatrix, ...
+                                        Params.includeNMFcomponents, Params.verboseLevel);
+                NetMet.(firstLagField).num_nnmf_components = nmfCalResults.num_nnmf_components;
+                NetMet.(firstLagField).nComponentsRelNS = nmfCalResults.nComponentsRelNS; 
+                NetMet.(firstLagField).nnmf_residuals = nmfCalResults.nnmf_residuals; 
+                NetMet.(firstLagField).nnmf_var_explained = nmfCalResults.nnmf_var_explained;
+                NetMet.(firstLagField).randResidualPerComponent = nmfCalResults.randResidualPerComponent;
+                if Params.includeNMFcomponents
+                    NetMet.(firstLagField).nmfFactors = nmfCalResults.nmfFactors;
+                    NetMet.(firstLagField).nmfWeights = nmfCalResults.nmfWeights;
+                    NetMet.(firstLagField).downSampleSpikeMatrix = nmfCalResults.downSampleSpikeMatrix;
+                    NetMet.(firstLagField).nmfFactorsVarThreshold = nmfCalResults.nmfFactorsVarThreshold;
+                    NetMet.(firstLagField).nmfWeightsVarThreshold = nmfCalResults.nmfWeightsVarThreshold;
+                end 
+            else 
+                NetMet.(firstLagField).num_nnmf_components = prevNetMet.(firstLagField).num_nnmf_components;
+                NetMet.(firstLagField).nComponentsRelNS = prevNetMet.(firstLagField).nComponentsRelNS; 
+                NetMet.(firstLagField).nnmf_residuals = prevNetMet.(firstLagField).nnmf_residuals; 
+                NetMet.(firstLagField).nnmf_var_explained = prevNetMet.(firstLagField).nnmf_var_explained;
+                NetMet.(firstLagField).randResidualPerComponent = prevNetMet.(firstLagField).randResidualPerComponent;
+                
+                if Params.includeNMFcomponents
+                    NetMet.(firstLagField).nmfFactors = prevNetMet.(firstLagField).nmfFactors;
+                    NetMet.(firstLagField).nmfWeights = prevNetMet.(firstLagField).nmfWeights;
+                    NetMet.(firstLagField).downSampleSpikeMatrix = prevNetMet.(firstLagField).downSampleSpikeMatrix;
+                    NetMet.(firstLagField).nmfFactorsVarThreshold = prevNetMet.(firstLagField).nmfFactorsVarThreshold;
+                    NetMet.(firstLagField).nmfWeightsVarThreshold = prevNetMet.(firstLagField).nmfWeightsVarThreshold;
+                end 
+            end
+            
         end 
 
         %% Calculate effective rank 
@@ -402,40 +469,61 @@ for e = 1:length(lagval)
             if strcmp(Params.verboseLevel, 'High')
                 fprintf('Calculating effective rank \n')
             end
-            downSampleMatrix = downSampleSum(full(spikeMatrix), Params.effRankDownsampleFreq * Info.duration_s);
-            NetMet.(strcat('adjM',num2str(lagval(e)),'mslag')).effRank = ...
-                calEffRank(downSampleMatrix, Params.effRankCalMethod);
+            if checkIfRecomputeMetric(Params, prevNetMet, lagValStr, 'effRank') == 1
+                downSampleMatrix = downSampleSum(full(spikeMatrix), Params.effRankDownsampleFreq * Info.duration_s);
+                NetMet.(firstLagField).effRank = ...
+                    calEffRank(downSampleMatrix, Params.effRankCalMethod);
+            else 
+                NetMet.(firstLagField).effRank = prevNetMet.(firstLagField).effRank;
+            end
         end 
         
     end 
     %% Calculate average and modal controllability 
     if any(strcmp(netMetToCal, 'aveControl'))
-        
-        if isempty(adjM) 
-            aveControl = double.empty([0, 1]);
-        else
-            aveControl = ave_control(adjM);
+        lagFieldStr = strcat('adjM',num2str(lagval(e)),'mslag');
+        if checkIfRecomputeMetric(Params, prevNetMet, firstLagField, 'aveControl') == 1
+            
+            if isempty(adjM) 
+                aveControl = double.empty([0, 1]);
+            else
+                aveControl = ave_control(adjM);
+            end
+
+            aveControlMean = mean(aveControl);
+            aveControl75thpercentile = prctile(aveControl, 75);
+            aveControlTop25 = mean(aveControl(aveControl >= aveControl75thpercentile));
+                
+            NetMet.(lagFieldStr).aveControl = aveControl;
+            NetMet.(lagFieldStr).aveControlMean = aveControlMean;
+            NetMet.(lagFieldStr).aveControlTop25 = aveControlTop25;
+        else 
+            NetMet.(lagFieldStr).aveControl = prevNetMet.(lagFieldStr).aveControl;
+            NetMet.(lagFieldStr).aveControlMean = prevNetMet.(lagFieldStr).aveControlMean;
+            NetMet.(lagFieldStr).aveControlTop25 = prevNetMet.(lagFieldStr).aveControlTop25;
         end
-        
-        aveControlMean = mean(aveControl);
-        aveControl75thpercentile = prctile(aveControl, 75);
-        aveControlTop25 = mean(aveControl(aveControl >= aveControl75thpercentile));
-        
-        NetMet.(strcat('adjM',num2str(lagval(e)),'mslag')).aveControl = aveControl;
-        NetMet.(strcat('adjM',num2str(lagval(e)),'mslag')).aveControlMean = aveControlMean;
-        NetMet.(strcat('adjM',num2str(lagval(e)),'mslag')).aveControlTop25 = aveControlTop25;
     end 
 
     if any(strcmp(netMetToCal, 'modalControl'))
-        modalControl = modal_control(adjM);
+        lagFieldStr = strcat('adjM',num2str(lagval(e)),'mslag');
+        if checkIfRecomputeMetric(Params, prevNetMet, firstLagField, 'modalControl') == 1
         
-        modalControlMean = mean(modalControl);
-        modalControlThreshold = 0.975;
-        modalControlPrctLessThanThreshold = sum(modalControl < modalControlThreshold) / length(modalControl);
+            modalControl = modal_control(adjM);
+
+            modalControlMean = mean(modalControl);
+            modalControlThreshold = 0.975;
+            modalControlPrctLessThanThreshold = sum(modalControl < modalControlThreshold) / length(modalControl);
+
+            NetMet.(lagFieldStr).modalControl = modalControl;
+            NetMet.(lagFieldStr).modalControlMean = modalControlMean;
+            NetMet.(lagFieldStr).modalControlPrctLessThanThreshold = modalControlPrctLessThanThreshold;
+        else 
+            NetMet.(lagFieldStr).modalControl = prevNetMet.(lagFieldStr).modalControl;
+            NetMet.(lagFieldStr).modalControlMean = prevNetMet.(lagFieldStr).modalControlMean;
+            NetMet.(lagFieldStr).modalControlPrctLessThanThreshold = prevNetMet.(lagFieldStr).modalControlPrctLessThanThreshold;
+            
+        end 
         
-        NetMet.(strcat('adjM',num2str(lagval(e)),'mslag')).modalControl = modalControl;
-        NetMet.(strcat('adjM',num2str(lagval(e)),'mslag')).modalControlMean = modalControlMean;
-        NetMet.(strcat('adjM',num2str(lagval(e)),'mslag')).modalControlPrctLessThanThreshold = modalControlPrctLessThanThreshold;
     end 
     
     
