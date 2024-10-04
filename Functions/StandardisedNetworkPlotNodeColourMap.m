@@ -496,6 +496,8 @@ if strcmp(plotType,'MEA')
    if min(z2) == 0 && max(z2) == 0
         % fix for when all values are zeros
         cbar_ticklabels = {'0', '1'};
+   elseif isnan(z2_min) && isnan(z2_max)
+       cbar_ticklabels = {'0', '1'};
    else
        for tickIndex = 1:num_ticks
            cbar_ticklabels{tickIndex} = num2str(round(tickVals(tickIndex), round_decimal_places));
