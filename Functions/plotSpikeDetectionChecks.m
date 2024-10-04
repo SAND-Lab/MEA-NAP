@@ -293,7 +293,16 @@ for i = 1:length(methods)
         box off;
         axis tight
         pbaspect([1,2,1]);
-        ylim([-6*std(trace) 5*std(trace)]);
+        
+        ymin = -6*std(trace); 
+        ymax = 5*std(trace);
+        
+        if ymin == ymax 
+            ymin = ymin -1;
+            ymax = ymax + 1;
+        end 
+        
+        ylim([ymin ymax]);
         ylabel('Voltage [\muV]')
         set(gca, 'xcolor', 'none');
         aesthetics
