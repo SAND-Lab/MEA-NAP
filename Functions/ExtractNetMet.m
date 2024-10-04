@@ -85,10 +85,19 @@ if (Params.priorAnalysis == 1)
     priorAnalysisExpMatFolder = fullfile(Params.priorAnalysisPath, 'ExperimentMatFiles');
     matFiles = dir(fullfile(priorAnalysisExpMatFolder, '*.mat'));
     matFileNames = {matFiles.name};
-    prevNetMetFpathIdx = contains(matFileNames,Info.FN);
+    matFileBaseNames = {};
+    for fileIdx = 1:length(matFileNames)
+        matFileBaseNames{fileIdx} = erase(matFileNames{fileIdx}, ['_',  Params.priorAnalysisSubFolderName,'.mat']);
+    end 
+    prevNetMetFpathIdx = strcmp(matFileBaseNames,Info.FN);
     prevNetMetFpath = fullfile(priorAnalysisExpMatFolder, matFileNames{prevNetMetFpathIdx});
     prevNetMetData = load(prevNetMetFpath);
-    prevNetMet = prevNetMetData.NetMet;
+    
+    if isfield(prevNetMetData, 'NetMet')
+        prevNetMet = prevNetMetData.NetMet;
+    else 
+        prevNetMet = {};
+    end
 else
     prevNetMet = {};
 end
@@ -286,7 +295,9 @@ for e = 1:length(lagval)
             BCmeantop5 = mean(BC(BC >= BC95thpercentile));
         else 
             BC = prevNetMet.(lagValStr).BC;
-            BCmeantop5 = prevNetMet.(lagValStr).BCmeantop5;
+            BC95thpercentile = prctile(BC, 95);
+            BCmeantop5 = mean(BC(BC >= BC95thpercentile));
+            % BCmeantop5 = prevNetMet.(lagValStr).BCmeantop5;
         end
     else
          fprintf('Not enough nodes to calculate network metrics! \n')
@@ -324,10 +335,14 @@ for e = 1:length(lagval)
                 PC = prevNetMet.(lagValStr).PC;
                 Z = prevNetMet.(lagValStr).Z;
                 PCmean = prevNetMet.(lagValStr).PCmean;
-                PC90thpercentile = prevNetMet.(lagValStr).PC90thpercentile;
-                PC10thpercentile = prevNetMet.(lagValStr).PC10thpercentile;
-                PCmeanTop10 = prevNetMet.(lagValStr).PCmeanTop10;
-                PCmeanBottom10 = prevNetMet.(lagValStr).PCmeanBottom10;
+                % PC90thpercentile = prevNetMet.(lagValStr).PC90thpercentile;
+                % PC10thpercentile = prevNetMet.(lagValStr).PC10thpercentile;
+                % PCmeanTop10 = prevNetMet.(lagValStr).PCmeanTop10;
+                % PCmeanBottom10 = prevNetMet.(lagValStr).PCmeanBottom10;
+                PC90thpercentile = prctile(PC, 90);
+                PC10thpercentile = prctile(PC, 10);
+                PCmeanTop10 = mean(PC(PC >= PC90thpercentile));
+                PCmeanBottom10 = mean(PC(PC <= PC10thpercentile));
             end
 
         else 
