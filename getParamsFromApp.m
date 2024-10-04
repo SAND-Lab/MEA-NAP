@@ -49,6 +49,12 @@ priorAnalysisPathParts = strsplit(Params.priorAnalysisPath, filesep);
 notEmptyParts = find(1 - cellfun(@isempty,priorAnalysisPathParts));
 priorAnalysisPathParts = priorAnalysisPathParts(notEmptyParts);
 Params.priorAnalysisFolderName = [filesep strjoin(priorAnalysisPathParts(1:end-1), filesep)];
+if ~isempty(priorAnalysisPathParts)
+    Params.priorAnalysisSubFolderName = priorAnalysisPathParts{end}; 
+else
+    Params.priorAnalysisSubFolderName = '';
+end 
+
 
 Params.startAnalysisStep = app.StartAnalysisStepEditField.Value;
 Params.optionalStepsToRun = app.OptionalStepstoRunListBox.Value;
