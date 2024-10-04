@@ -1,4 +1,4 @@
-function [groupNameBeginsWnumber, groupNameContainsSpecial] = checkCSV(csv_data)
+function [groupNameBeginsWnumber, groupNameContainsSpecial, allDIVisValid] = checkCSV(csv_data)
 %CHECKCSV Summary of this function goes here
 %   Detailed explanation goes here
     groupNames = csv_data(:, 3); 
@@ -22,6 +22,19 @@ function [groupNameBeginsWnumber, groupNameContainsSpecial] = checkCSV(csv_data)
         
     end 
     
-
+    eachDIVisValid = 1 - cellfun(@isnan,table2cell(csv_data(:,2)));
+    allDIVisValid = (length(eachDIVisValid) == sum(eachDIVisValid));
+    
+    % Check ground electrode column
+    groundContainLetter = zeros(size(csv_data, 1), 1);
+    if size(csv_data, 2) >= 4
+        groundValues = csv_data{:, 4};
+        for rowIdx = 1:size(csv_data, 1)
+            groundContainLetter(rowIdx) = any(isletter(groundValues{rowIdx}));
+        end
+    end 
+    
+    anyGroundContainLetter = (sum(groundContainLetter) > 0);
+    
 end
 
