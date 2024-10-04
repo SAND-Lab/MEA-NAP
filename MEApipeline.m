@@ -198,6 +198,8 @@ for ExN = 1:length(ExpName)
     InfoSavePath = fullfile(metaDataSaveFolder, strcat(char(Info.FN),'_',Params.outputDataFolderName,'.mat'));
     if ~isfile(InfoSavePath)
         save(InfoSavePath,'Info')
+    else 
+        save(InfoSavePath,'Info', '-append')
     end 
 end
 
@@ -493,7 +495,7 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
 
             if Params.priorAnalysis==1 && Params.startAnalysisStep==4
                 priorAnalysisExpMatFolder = fullfile(Params.priorAnalysisPath, 'ExperimentMatFiles');
-                spikeDataFname = strcat(char(ExpName(ExN)),'_',Params.priorAnalysisDate,'.mat');
+                spikeDataFname = strcat(char(ExpName(ExN)),'_',Params.priorAnalysisSubFolderName,'.mat');
                 spikeDataFpath = fullfile(priorAnalysisExpMatFolder, spikeDataFname);
                 load(spikeDataFpath, 'spikeTimes', 'Ephys','adjMs','Info')
             else
@@ -589,13 +591,12 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
                 mkdir(fig_folder)
             end 
 
-            ExpList = dir(fullfile(experimentMatFileFolder, '*.mat'));
             add_fig_info = '';
 
             if Params.autoSetCartographyBoudariesPerLag
                 for lag_val = Params.FuncConLagval
                     [hubBoundaryWMdDeg, periPartCoef, proHubpartCoef, nonHubconnectorPartCoef, connectorHubPartCoef] = ...
-                    TrialLandscapeDensity(ExpList, fig_folder, add_fig_info, lag_val, oneFigureHandle);
+                    TrialLandscapeDensity(Params, ExpName, experimentMatFileFolder, fig_folder, add_fig_info, lag_val, oneFigureHandle);
 
                     if isnan(hubBoundaryWMdDeg)
                         hubBoundaryWMdDeg = Params.hubBoundaryWMdDeg;
@@ -616,7 +617,7 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
                 lagValIdx = 1;
                 lag_val = Params.FuncConLagval;
                 [hubBoundaryWMdDeg, periPartCoef, proHubpartCoef, nonHubconnectorPartCoef, connectorHubPartCoef] = ...
-                    TrialLandscapeDensity(ExpList, fig_folder, add_fig_info, lag_val(lagValIdx), oneFigureHandle);
+                    TrialLandscapeDensity(Params, ExpName, experimentMatFileFolder, fig_folder, add_fig_info, lag_val(lagValIdx), oneFigureHandle);
                 Params.hubBoundaryWMdDeg = hubBoundaryWMdDeg;
                 Params.periPartCoef = periPartCoef;
                 Params.proHubpartCoef = proHubpartCoef;
@@ -627,9 +628,9 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
             % save the newly set boundaries to the Params struct
             experimentMatFileFolderToSaveTo = fullfile(Params.outputDataFolder, ...
                     Params.outputDataFolderName, 'ExperimentMatFiles');
-            for nFile = 1:length(ExpList)
-                FN = ExpList(nFile).name;
-                FNPath = fullfile(experimentMatFileFolderToSaveTo, FN);
+            for nFile = 1:length(ExpName) 
+                FN = ExpName{nFile};
+                FNPath = fullfile(experimentMatFileFolderToSaveTo, [FN '_' Params.outputDataFolderName '.mat']);
                 save(FNPath, 'Params', '-append')
             end 
 
