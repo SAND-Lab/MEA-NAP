@@ -1,6 +1,4 @@
-function MEA_batchConvert(ext, dataFolder)
-%form: MEA_batchConvert
-%
+function MEAbatchConvert(ext, dataFolder)
 %This function converts MEA bin (binary, RAW) files into mat files in a batch. It will
 %attempt to convert all "raw" files in the directory, so make sure they are
 %all MEA files or enter an extension to select a few.
@@ -22,10 +20,10 @@ function MEA_batchConvert(ext, dataFolder)
 % dataFolder : str (optional)
 %       folder to files to convert 
 %       defaults to the current working directory in matlab
-% TODO: Improve the command line output of this
 
 % Last update: 20180626 
 % TS: Added the conversion options
+% 2024-10 : A bit of cleaning up code, removed calling plots
 
 %% Select conversion mode 
 
@@ -36,7 +34,7 @@ convertOption = 'electrode'; % save electrode by electrode in a MEA-specific fol
 
 if ~exist('ext','var')
     ext='.raw';
-end;
+end
 
 ext2='.raw';
 
