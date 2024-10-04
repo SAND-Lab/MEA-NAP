@@ -1,5 +1,5 @@
 function [hubBoundaryWMdDeg, periPartCoef, proHubpartCoef, nonHubconnectorPartCoef, connectorHubPartCoef] = ...
-    TrialLandscapeDensity(ExpList, fig_folder, add_fig_info, cartographyLagVal, oneFigureHandle)
+    TrialLandscapeDensity(Params, ExpName, experimentMatFileFolder, fig_folder, add_fig_info, cartographyLagVal, oneFigureHandle)
 % TrialLandscapeDensity calculates and plots the distribution 
 % of Within-module Z-score (Z) and participation coefficient (PC)
 % for each electrode across recordings.
@@ -56,18 +56,23 @@ bandw = [0.06, 0.08, 0.1];
 %% For each recording, load Z (within-module Z-score) and PC (participation coefficient)
 Var = {'PC','Z'};
 
-for n = 1:length(ExpList)
+for n = 1:length(ExpName)
     
-    FN = ExpList(n).name;
-    fileFolder = ExpList(n).folder;
-    filePath = fullfile(fileFolder, FN);
+    FN = ExpName{1};
+    filePath = fullfile(experimentMatFileFolder, [FN '_' Params.outputDataFolderName '.mat']);
     % TODO: suppress figure handle popping up when loading
     load(filePath)
     
+    % TODO: remove the eval in this
+    
+    lagFieldName = sprintf('adjM%.fmslag', cartographyLagVal);
+    
     for i = 1:length(Var)
-        VN = cell2mat(Var(i));
-        VNs = strcat(sprintf('NetMet.adjM%.fmslag.', cartographyLagVal), VN);
-        eval([VN '= [' VN ';' VNs '];']);
+        if isfield(NetMet.(lagFieldName), Var(i))
+            VN = cell2mat(Var(i));
+            VNs = strcat(sprintf('NetMet.adjM%.fmslag.', cartographyLagVal), VN);
+            eval([VN '= [' VN ';' VNs '];']);
+        end
     end
     
     clear Info NetMet adjMs
