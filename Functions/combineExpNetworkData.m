@@ -251,9 +251,14 @@ for i = 1:length(ExpName)
      numElectrode = max(numElectrodePerLag);
      
      if ~isfield(combinedData.(eGrp).(eDiv), 'recordingNamePerElectrode')
-         combinedData.(eGrp).(eDiv).recordingNamePerElectrode = {};
+         % 2024-10-04 Seems like this cannot be empty, updating from {} to
+         % {Exp}
+         combinedData.(eGrp).(eDiv).recordingNamePerElectrode = {Exp};
      end
-     electrodeStartIdx = length(combinedData.(eGrp).(eDiv).recordingNamePerElectrode) + 1;
+     % electrodeStartIdx = length(combinedData.(eGrp).(eDiv).recordingNamePerElectrode) + 1;
+     % electrodeEndIdx = electrodeStartIdx + numElectrode - 1;
+     
+     electrodeStartIdx = length(combinedData.(eGrp).(eDiv).recordingNamePerElectrode);
      electrodeEndIdx = electrodeStartIdx + numElectrode - 1;
      
      combinedData.(eGrp).(eDiv).recordingNamePerElectrode(electrodeStartIdx:electrodeEndIdx) = ...
@@ -359,11 +364,9 @@ for g = 1:length(Grps)
                 % eval(['metricVal' '=' VNe '.' char(NetMetricsC(e)) ';'])
                 metricVal = combinedData.(eGrp).(eDiv).(char(NetMetricsC(e)));
                 if length(metricVal) ~= 0
-                    % eval([VNet '.' char(NetMetricsC(e)) '=' 'metricVal(:,l);']);
                     TempStr.(eDiv).(char(NetMetricsC(e))) = metricVal(:, l);
                 else 
-                    % eval([VNet '.' char(NetMetricsC(e)) '=' '0']);
-                    TempStr.(eDiv).(char(NetMetricsC(e))) = 0;
+                    TempStr.(eDiv).(char(NetMetricsC(e))) = nan;
                 end 
             end
             % eval(['DatTemp = ' VNet ';']);
