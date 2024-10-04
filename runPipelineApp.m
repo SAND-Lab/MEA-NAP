@@ -81,7 +81,13 @@ app.OutputFolderNameEditField.Value = ['OutputData' todyDate];
 % Assigns minNode to 12 if Axion16 selected
 % but this is only done once, so you can reset it if you want
 channelLayoutCheck = 0; 
+
+% Update sampling frequency and units if multichannel systems selected 
+% But only done once 
+mcsSystemParamsCheck = 0;
+
 usingLoadedParams = 0;
+prevSpreadsheetRange = str2num(app.SpreadsheetRangeEditField.Value);
 
 while isvalid(app)
 
@@ -209,21 +215,9 @@ while isvalid(app)
          % Check for special characters in spreadsheet and group names that
          % start with numbers
          if size(csv_data, 2) >= 3 
-            [groupNameBeginsWnumber, groupNameContainsSpecial] = checkCSV(csv_data);
-            if groupNameBeginsWnumber
-                app.MEANAPStatusTextArea.Value = [app.MEANAPStatusTextArea.Value; ...
-                    'WARNING: at least one of the group names in your csv file start with a number, MEANAP may not run properly'];
-                app.RunPipelineButton.Enable = 'off';
-            end 
-            if groupNameContainsSpecial
-                app.MEANAPStatusTextArea.Value = [app.MEANAPStatusTextArea.Value; ...
-                    'WARNING: at least one of the group names in your csv file contain a special character, MEANAP may not run properly'];
-                app.RunPipelineButton.Enable = 'off';
-            end 
+            [groupNameBeginsWnumber, groupNameContainsSpecial, allDIVisValid] = checkCSV(csv_data);
             
-            if (~groupNameBeginsWnumber) && (~groupNameContainsSpecial)
-                app.RunPipelineButton.Enable = 'on'; 
-            end
+            updateCSVstatusInGui(app, groupNameBeginsWnumber, groupNameContainsSpecial, allDIVisValid);
             
             % Update Custom Group Order with detected group names
             uniqueGrpNames = unique(csv_data(:, 3));
@@ -233,6 +227,20 @@ while isvalid(app)
          
          % app.csvTable.ColumnEditable = true; % logical(ones(1, length(csv_data.Properties.VariableNames)));
     end
+    
+    % Check if CSV range has changed, if so, update custom groups
+    currSpreadsheetRange = str2num(app.SpreadsheetRangeEditField.Value);
+    if exist('csv_data', 'var') && (usingLoadedParams == 0)
+        if sum(prevSpreadsheetRange ~= currSpreadsheetRange) > 0
+            numRows = size(csv_data, 1);
+            currSpreadsheetRange(currSpreadsheetRange == inf) = numRows;
+            currSpreadsheetRange(currSpreadsheetRange > numRows) = numRows;
+            startRow = currSpreadsheetRange(1) - 1;  % ignore header row 
+            endRow = currSpreadsheetRange(2) - 1;
+            uniqueGrpNames = unique(csv_data(startRow:endRow, 3));
+            app.CustomGroupOrderEditField.Value = strjoin(table2cell(uniqueGrpNames), ',');
+        end 
+    end 
     
     % Spreadsheet Tab 
     
@@ -250,6 +258,7 @@ while isvalid(app)
         figure(app.UIFigure)  % put app back to focus
     end 
     
+   
     % Previous Spike Data Folder 
     if app.SpikeDataSelectButton.Value == 1 
         app.SpikeDataFolderEditField.Value = uigetdir;
@@ -274,16 +283,13 @@ while isvalid(app)
             csvRange = str2num(app.SpreadsheetRangeEditField.Value);
             csv_data = pipelineReadCSV(app.SpreadsheetFilenameEditField.Value, csvRange);
             if size(csv_data, 2) >= 3 
-                [groupNameBeginsWnumber, groupNameContainsSpecial] = checkCSV(csv_data);
-                if groupNameBeginsWnumber
-                    app.MEANAPStatusTextArea.Value = [app.MEANAPStatusTextArea.Value; ...
-                        'WARNING: at least one of the group names in your csv file start with a number, MEANAP may not run properly'];
-                end 
-                if groupNameContainsSpecial
-                    app.MEANAPStatusTextArea.Value = [app.MEANAPStatusTextArea.Value; ...
-                        'WARNING: at least one of the group names in your csv file contain a special character, MEANAP may not run properly'];
-                end 
+                [groupNameBeginsWnumber, groupNameContainsSpecial, allDIVisValid] = checkCSV(csv_data);
+                updateCSVstatusInGui(app, groupNameBeginsWnumber, groupNameContainsSpecial, allDIVisValid);
             end
+            % note here csv_data already subsetted based on range
+            uniqueGrpNames = unique(csv_data(:, 3));
+            app.CustomGroupOrderEditField.Value = strjoin(table2cell(uniqueGrpNames), ',');
+            
         end 
     end 
 
@@ -362,6 +368,15 @@ while isvalid(app)
         channelLayoutCheck = 1;
         app.MinimumnumberofnodesEditField.Value = 12;
     end
+    
+     % Update sampling frequency and units if multichannel systems layout selected 
+    if (usingLoadedParams == 0) && (mcsSystemParamsCheck == 0) && contains(app.ChannelLayoutDropDown.Value, 'MCS60') 
+        mcsSystemParamsCheck = 1;
+        app.SamplingFrequencyEditField.Value = 25000;
+        app.DownSampleFrequencyEditField.Value = 25000;
+        app.PotentialDifferenceUnitEditField.Value = 'uV';
+    end
+    
     
     % Setting parameters for testing pipeline 
     if app.TestPipelineButton.Value == 1
