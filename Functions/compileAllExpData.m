@@ -37,6 +37,7 @@ if strcmp(metricLevel, 'network')
 elseif strcmp(metricLevel, 'node') 
     % list of metrics that are obtained at the electrode level
     NetMetVarNames = Params.unitLevelNetMetToPlot;
+    NetMetVarNames{end+1} = 'activeChannel';
 end
 
 %% Import data from all experiments - whole experiment  
@@ -116,6 +117,7 @@ for i = 1:length(ExpName)
                         DatTempT((length(DatTempT)+1):max(maxLength)) = nan;
                     end
                     DatTemp(:,lagIdx) = DatTempT;
+                    numNodeInExp = size(DatTemp, 1);
                 end
             end 
 
@@ -123,6 +125,26 @@ for i = 1:length(ExpName)
             allExpData.(eGrp).(eDiv).(eMet); DatTemp];
             clear DatTemp
      end
+     
+     % Also include recording name 
+     if strcmp(metricLevel, 'node') 
+         if ~isfield(allExpData.(eGrp).(eDiv), 'recordingNamePerElectrode')
+             allExpData.(eGrp).(eDiv).recordingNamePerElectrode = {};
+         end
+         allExpData.(eGrp).(eDiv).recordingNamePerElectrode = [ ...
+             allExpData.(eGrp).(eDiv).recordingNamePerElectrode; ...
+             repmat({Exp}, numNodeInExp, 1) ...
+         ];
+     elseif strcmp(metricLevel, 'network') 
+         if ~isfield(allExpData.(eGrp).(eDiv), 'recordingName')
+             allExpData.(eGrp).(eDiv).recordingName = {};
+         end
+         allExpData.(eGrp).(eDiv).recordingName = [ ...
+             allExpData.(eGrp).(eDiv).recordingName; ...
+             {Exp}
+         ];
+     end 
+     
      clear Info NetMet adjMs
 end
 

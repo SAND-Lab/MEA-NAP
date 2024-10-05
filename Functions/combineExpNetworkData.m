@@ -42,233 +42,16 @@ end
 
 %% Data concerning the entire recording 
 
-% initialise the structure to store data
-for g = 1:length(Grps)
-    % create structure for each group
-    VN1 = cell2mat(Grps(g));
-    % eval([VN1 '= [];']);
-    combinedData.(VN1) = [];
-    
-    % add substructure for each DIV range
-    for d = 1:length(AgeDiv)
-        VN2 = strcat('TP',num2str(d));
-        
-        % add variable name
-        for e = 1:length(NetMetricsE)
-            VN3 = cell2mat(NetMetricsE(e));
-            % eval([VN1 '.' VN2 '.' VN3 '= [];']);
-            combinedData.(VN1).(VN2).(VN3) = [];
-            
-            clear VN3
-        end
-        clear VN2
-    end
-    clear VN1
-end
-
-% allocate numbers to relevant matrices
-for i = 1:length(ExpName)
-     % Exp = strcat(char(ExpName(i)),'_',Params.Date,'.mat');
-     Exp = char(ExpName(i));
-
-     % if previously used showOneFig, then this prevents saved oneFigure 
-     % handle from showing up when loading the matlab variable
-     if Params.showOneFig 
-         % Make it so figure handle in oneFigure don't appear
-         set(0, 'DefaultFigureVisible', 'off')
-     end 
-    
-     % ExpFilePath = fullfile(NetworkDataFolder, Exp);
-     ExpFPathSearchName = dir(fullfile(experimentMatFileFolder, [Exp, '*.mat'])).name;
-     ExpFpath = fullfile(experimentMatFileFolder, ExpFPathSearchName);
-     ExpData = load(ExpFpath); % mat file contains Info, NetMet 
-    
-     % TODO: no need loop here I think
-     for g = 1:length(Grps)
-         if strcmp(cell2mat(Grps(g)),cell2mat(ExpData.Info.Grp))
-             eGrp = cell2mat(Grps(g));
-         end       
-     end
-     for d = 1:length(AgeDiv)
-         if cell2mat(ExpData.Info.DIV) == AgeDiv(d)
-             eDiv = strcat('TP',num2str(d));
-         end    
-     end
-     for e = 1:length(NetMetricsE)
-            eMet = cell2mat(NetMetricsE(e));
-            groupTypeCounter = size(combinedData.(eGrp).(eDiv).(eMet), 1); % count occurences of a specific Grp-DIV
-            for l = 1:length(Params.FuncConLagval)
-                %VNs = strcat('NetMet.adjM',num2str(Params.FuncConLagval(l)),'mslag.',eMet);
-                %eval(['DatTemp(l) =' VNs ';']);
-                lagValStr = strcat('adjM', num2str(Params.FuncConLagval(l)),'mslag');
-                % DatTemp(l) = NetMet.(lagValStr).(eMet);
-                if isfield(ExpData.NetMet.(lagValStr), eMet)  % this is to exclude small networks where NCpn1 is not defined
-                    combinedData.(eGrp).(eDiv).(eMet)(groupTypeCounter+1, l) = ExpData.NetMet.(lagValStr).(eMet);
-                end 
-                %clear VNs
-            end
-            %VNe = strcat(eGrp,'.',eDiv,'.',eMet);
-            %eval([VNe '= [' VNe '; DatTemp];']);
-            % combinedData.(eGrp).(eDiv).(eMet)(i, l) = NetMet.(lagValStr).(eMet);
-            % clear DatTemp
-     end
-     
-    %  add recording name 
-     % Old version: excludes the last '_' and assumes file ends with
-     % _ DIVXX.mat
-     % fileNameSplit = split(Exp, '_');
-     % recordingName = join(fileNameSplit(1:end-1), '_');
-     % combinedData.(eGrp).(eDiv).recordingName{groupTypeCounter+1} = recordingName{1};
-     
-     combinedData.(eGrp).(eDiv).recordingName{groupTypeCounter+1} = Exp;
-end
+combineNetworkData = compileAllExpData(ExpName, experimentMatFileFolder, Params, 'network'); 
+combinedData = combineNetworkData;
 
 %% Data concerning single electrodes
 
-% initialise structures
-for g = 1:length(Grps)
-    % create structure for each group
-    VN1 = cell2mat(Grps(g));
+combineNodeData = compileAllExpData(ExpName, experimentMatFileFolder, Params, 'node'); 
 
-    % add substructure for each DIV range
-    for d = 1:length(AgeDiv)
-        VN2 = strcat('TP',num2str(d));
-        
-        % add variable name
-        for e = 1:length(NetMetricsC)
-            VN3 = cell2mat(NetMetricsC(e));
-            eval([VN1 '.' VN2 '.' VN3 '= [];']);
-            combinedData.(VN1).(VN2).(VN3) = [];
-            clear VN3
-        end
-        % initialise channel field
-        % combinedData.(VN1).(VN2).Channel = [];
-        
-        clear VN2
-    end
-    clear VN1
-end
-
-% allocate numbers to relevant matrices
-for i = 1:length(ExpName)
-     % Exp = strcat(char(ExpName(i)),'_',Params.Date,'.mat');
-     Exp = char(ExpName(i));
-     
-     % if previously used showOneFig, then this prevents saved oneFigure 
-     % handle from showing up when loading the matlab variable
-     if Params.showOneFig 
-         % Make it so figure handle in oneFigure don't appear
-         set(0, 'DefaultFigureVisible', 'off')
-     end 
-     % ExpFilePath = fullfile(NetworkDataFolder, Exp);
-     ExpFPathSearchName = dir(fullfile(experimentMatFileFolder, [Exp, '*.mat'])).name;
-     ExpFpath = fullfile(experimentMatFileFolder, ExpFPathSearchName);
-     
-     ExpData = load(ExpFpath);
-     for g = 1:length(Grps)
-         if strcmp(cell2mat(Grps(g)),cell2mat(ExpData.Info.Grp))
-             eGrp = cell2mat(Grps(g));
-         end       
-     end
-     for d = 1:length(AgeDiv)
-         if cell2mat(ExpData.Info.DIV) == AgeDiv(d)
-             eDiv = strcat('TP',num2str(d));
-         end    
-     end
-     
-     
-
-     for e = 1:length(NetMetricsC)
-            eMet = cell2mat(NetMetricsC(e));
-            DatTemp = cell(length(Params.FuncConLagval), 1);
-            mL = zeros(length(Params.FuncConLagval), 1);
-            for l = 1:length(Params.FuncConLagval)
-                % VNs = strcat('NetMet.adjM',num2str(Params.FuncConLagval(l)),'mslag.',eMet);
-                lagValStr = strcat('adjM', num2str(Params.FuncConLagval(l)),'mslag');
-                
-                % DatTemp = ExpData.NetMet.(lagValStr).(eMet);
-
-                % eval(['DatTemp' num2str(l) '= ' VNs ';']);
-                % metric should be nNode x 1, for some reason sometimes
-                % it's transposed...
-                metricVector = ExpData.NetMet.(lagValStr).(eMet);                
-                DatTemp{l} = metricVector;
-                
-                % eval(['DatTemp' num2str(l) '= ' VNs ';']);
-                % eval(['mL(l) = length(DatTemp' num2str(l) ');']);
-                mL(l) = length(DatTemp{l});
-
-                % clear VNs
-            end
-            % This is using the maximum number of nodes per recording
-            % And filling data with fewer nodes than that with NaNs 
-            % so that the node metric has the same size in all lags
-            for l = 1:length(Params.FuncConLagval)
-                % eval(['DatTempT = DatTemp' num2str(l) ';']);
-                DatTempT = DatTemp{l};
-                if length(DatTempT) < max(mL)
-                    % DatTempT(length(DatTempT+1):max(mL)) = nan;
-                    DatTempT((length(DatTempT)+1):max(mL)) = nan;
-                end
-                
-                if size(DatTempT, 1) == 1
-                    DatTempT = DatTempT';
-                end 
-                
-                % DatTemp(:,l) = DatTempT;
-                DatTemp{l} = DatTempT; 
-            end
-            
-            % Convert from cell back to matrix 
-            DatTemp = cell2mat(DatTemp');
-            % VNe = strcat(eGrp,'.',eDiv,'.',eMet);
-            % eval([VNe '= [' VNe '; DatTemp];']);
-
-            % Append to vector in field 
-            combinedData.(eGrp).(eDiv).(eMet) = [combinedData.(eGrp).(eDiv).(eMet); DatTemp];
-            clear DatTemp
-     end
-     
-     % add node (electrode, channel etc.) name
-     % TODO: replace with activeChannel
-     % lagFields = fields(ExpData.NetMet);
-     % firstLagField = lagFields{1};
-     % combinedData.(eGrp).(eDiv).Channel = [combinedData.(eGrp).(eDiv).Channel ...
-     %                                      ExpData.NetMet.(firstLagField).activeChannel(:)];
-     
-     % add recording name 
-     % fileNameSplit = split(Exp, '_');
-     % recordingName = join(fileNameSplit(1:end-1), '_');
-     recordingName = {Exp};
-     
-     % get number of electrode per lag
-     numElectrodePerLag = [];
-     lagFields = fields(ExpData.NetMet);
-     for lagFieldIdx = 1:length(lagFields)
-         numElectrodePerLag(end+1) = length(ExpData.NetMet.(lagFields{lagFieldIdx}).activeChannel);
-     end 
-     
-     numElectrode = max(numElectrodePerLag);
-     
-     if ~isfield(combinedData.(eGrp).(eDiv), 'recordingNamePerElectrode')
-         % 2024-10-04 Seems like this cannot be empty, updating from {} to
-         % {Exp}
-         combinedData.(eGrp).(eDiv).recordingNamePerElectrode = {Exp};
-     end
-     % electrodeStartIdx = length(combinedData.(eGrp).(eDiv).recordingNamePerElectrode) + 1;
-     % electrodeEndIdx = electrodeStartIdx + numElectrode - 1;
-     
-     electrodeStartIdx = length(combinedData.(eGrp).(eDiv).recordingNamePerElectrode);
-     electrodeEndIdx = electrodeStartIdx + numElectrode - 1;
-     
-     combinedData.(eGrp).(eDiv).recordingNamePerElectrode(electrodeStartIdx:electrodeEndIdx) = ...
-         repmat(recordingName, numElectrode, 1);
-     
-     clear Info NetMet adjMs
-end
 
 %% export to spreadsheet (excel or csv)
-csv_save_folder = fullfile(Params.outputDataFolder, strcat('OutputData', Params.Date));
+csv_save_folder = fullfile(Params.outputDataFolder, Params.outputDataFolderName);
 
 if strcmp(output_spreadsheet_file_type, 'csv')
     % make one main table for storing all data 
@@ -289,7 +72,7 @@ for g = 1:length(Grps)
             for e = 1:length(NetMetricsE)
                 % Only do the asignment if metricVal is not empty
                 %eval(['metricVal' '=' VNe '.' char(NetMetricsE(e)) ';'])
-                metricVal = combinedData.(eGrp).(eDiv).(char(NetMetricsE(e)));
+                metricVal = combineNetworkData.(eGrp).(eDiv).(char(NetMetricsE(e)));
                 if ~isempty(metricVal)
                     %eval([VNet '.' char(NetMetricsE(e)) '='  'metricVal(:,l);']);
                     if size(metricVal, 2) > 1  % lag dependent metrics
@@ -314,7 +97,8 @@ for g = 1:length(Grps)
                 DatTemp.eGrp = repmat(convertCharsToStrings(eGrp), numEntries, 1);
                 DatTemp.AgeDiv = repmat(AgeDiv(d), numEntries, 1);
                 DatTemp.Lag = repmat(Params.FuncConLagval(l), numEntries, 1);
-                DatTemp.recordingName = convertCharsToStrings(combinedData.(eGrp).(eDiv).recordingName)';
+                % DatTemp.recordingName = convertCharsToStrings(combineNetworkData.(eGrp).(eDiv).recordingName)';
+                DatTemp.recordingName = combineNetworkData.(eGrp).(eDiv).recordingName;
 
                 table_obj = struct2table(DatTemp);
                 for table_row = 1:numEntries
@@ -362,7 +146,7 @@ for g = 1:length(Grps)
             for e = 1:length(NetMetricsC)
                 % Only do the assignment if metricVal is not empty 
                 % eval(['metricVal' '=' VNe '.' char(NetMetricsC(e)) ';'])
-                metricVal = combinedData.(eGrp).(eDiv).(char(NetMetricsC(e)));
+                metricVal = combineNodeData.(eGrp).(eDiv).(char(NetMetricsC(e)));
                 if length(metricVal) ~= 0
                     TempStr.(eDiv).(char(NetMetricsC(e))) = metricVal(:, l);
                 else 
@@ -378,13 +162,18 @@ for g = 1:length(Grps)
                 DatTemp.eGrp = repmat(convertCharsToStrings(eGrp), numEntries, 1);
                 DatTemp.AgeDiv = repmat(AgeDiv(d), numEntries, 1);
                 DatTemp.Lag = repmat(Params.FuncConLagval(l), numEntries, 1);
-                DatTemp.recordingName = convertCharsToStrings(combinedData.(eGrp).(eDiv).recordingNamePerElectrode)';
+                % DatTemp.recordingName = convertCharsToStrings(combinedData.(eGrp).(eDiv).recordingNamePerElectrode)';
                 % DatTemp.Channel = combinedData.(eGrp).(eDiv).Channel(:); % [allElectrodeLevelData.Channel; expData.Info.channels(nodeIndices)'];
+                DatTemp.recordingName = combineNodeData.(eGrp).(eDiv).recordingNamePerElectrode;
                 
-                electrode_table_obj = struct2table(DatTemp);
-                for table_row = 1:numEntries
-                    electrode_main_table{n_row} = electrode_table_obj(table_row, :);
-                    n_row = n_row + 1;
+                % 2024-10-05 : checking for empty recordingName, to
+                % indicate inactive node
+                if ~isempty(DatTemp.recordingName)
+                    electrode_table_obj = struct2table(DatTemp);
+                    for table_row = 1:numEntries
+                        electrode_main_table{n_row} = electrode_table_obj(table_row, :);
+                        n_row = n_row + 1;
+                    end 
                 end 
             else
                 electrode_table_obj = struct2table(DatTemp);
