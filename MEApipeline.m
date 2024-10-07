@@ -9,7 +9,14 @@ function MEApipeline(InputParamsFilePath)
 % https://analysis-pipeline.readthedocs.io/en/latest/pipeline-steps.html#pipeline-settings
 clearvars -except InputParamsFilePath 
 close all 
+
+% Change to MEANAP folder 
+MEANAPscriptPath = which('MEApipeline.m');
+MEANAPfolder = fileparts(MEANAPscriptPath);
+cd(MEANAPfolder)
+
 restoredefaultpath
+
 % Directories
 HomeDir = '[INPUT_REQUIRED]'; % Where the MEA-NAP (MEA Network Analysis Pipeline) code is located
 Params.outputDataFolder = '';   % Where to save the output data, leave as '' if same as HomeDir 
@@ -431,9 +438,16 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
 
         if Params.priorAnalysis==1 && Params.startAnalysisStep==3
             priorAnalysisExpMatFolder = fullfile(Params.priorAnalysisPath, 'ExperimentMatFiles');
-            spikeDataFname = strcat(char(ExpName(ExN)),'_',Params.priorAnalysisDate,'.mat');
+            spikeDataFname = strcat(char(ExpName(ExN)),'_',Params.priorAnalysisSubFolderName, '.mat');
             spikeDataFpath = fullfile(priorAnalysisExpMatFolder, spikeDataFname);
-            load(spikeDataFpath, 'spikeTimes', 'Ephys', 'Info')
+            if isfile(spikeDataFpath)
+                load(spikeDataFpath, 'spikeTimes', 'Ephys', 'Info')
+            else 
+                % look for spike data in spike data folder 
+                spikeDataFpath = fullfile(Params.spikeDetectedData, ...
+                    strcat([char(ExpName(ExN)) '_spikes.mat']));
+                load(spikeDataFpath, 'spikeTimes', 'Info')
+            end 
         else
             ExpMatFolder = fullfile(Params.outputDataFolder, ...
                 Params.outputDataFolderName, 'ExperimentMatFiles');
