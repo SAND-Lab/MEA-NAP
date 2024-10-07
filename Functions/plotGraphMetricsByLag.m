@@ -61,7 +61,7 @@ for g = 1:length(Grps)
         ylabel(eMetl)
         clear DatTemp ValMean UpperStd LowerStd
     end
-    lgd = legend(line,strsplit(num2str(AgeDiv)));
+    lgd = legend(line,string(num2str(AgeDiv)));
     lgd.Location = 'Northeastoutside';
     title(lgd, 'DIV')
     title(eGrp)
