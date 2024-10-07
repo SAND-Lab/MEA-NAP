@@ -82,7 +82,7 @@ for g = 1:length(Grps)
                         TempStr.(eDiv).(char(NetMetricsE(e))) = metricVal(:);
                     end
                 else 
-                    TempStr.(eDiv).(char(NetMetricsE(e))) = 0;
+                    TempStr.(eDiv).(char(NetMetricsE(e))) = [];
                     % eval([VNet '.' char(NetMetricsE(e)) '='  '0;']);
                 end 
                 % netMetricToGet = char(NetMetricsE(e));
@@ -98,7 +98,9 @@ for g = 1:length(Grps)
                 DatTemp.AgeDiv = repmat(AgeDiv(d), numEntries, 1);
                 DatTemp.Lag = repmat(Params.FuncConLagval(l), numEntries, 1);
                 % DatTemp.recordingName = convertCharsToStrings(combineNetworkData.(eGrp).(eDiv).recordingName)';
-                DatTemp.recordingName = combineNetworkData.(eGrp).(eDiv).recordingName;
+                if numEntries > 0
+                    DatTemp.recordingName = combineNetworkData.(eGrp).(eDiv).recordingName;
+                end
 
                 table_obj = struct2table(DatTemp);
                 for table_row = 1:numEntries
@@ -150,7 +152,7 @@ for g = 1:length(Grps)
                 if length(metricVal) ~= 0
                     TempStr.(eDiv).(char(NetMetricsC(e))) = metricVal(:, l);
                 else 
-                    TempStr.(eDiv).(char(NetMetricsC(e))) = nan;
+                    TempStr.(eDiv).(char(NetMetricsC(e))) = [];
                 end 
             end
             % eval(['DatTemp = ' VNet ';']);
@@ -164,8 +166,11 @@ for g = 1:length(Grps)
                 DatTemp.Lag = repmat(Params.FuncConLagval(l), numEntries, 1);
                 % DatTemp.recordingName = convertCharsToStrings(combinedData.(eGrp).(eDiv).recordingNamePerElectrode)';
                 % DatTemp.Channel = combinedData.(eGrp).(eDiv).Channel(:); % [allElectrodeLevelData.Channel; expData.Info.channels(nodeIndices)'];
-                DatTemp.recordingName = combineNodeData.(eGrp).(eDiv).recordingNamePerElectrode;
-                
+                if numEntries > 0
+                    DatTemp.recordingName = combineNodeData.(eGrp).(eDiv).recordingNamePerElectrode;
+                else 
+                    DatTemp.recordingName = [];
+                end 
                 % 2024-10-05 : checking for empty recordingName, to
                 % indicate inactive node
                 if ~isempty(DatTemp.recordingName)
