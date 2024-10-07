@@ -509,14 +509,14 @@ for e = 1:length(lagval)
             aveControl75thpercentile = prctile(aveControl, 75);
             aveControlTop25 = mean(aveControl(aveControl >= aveControl75thpercentile));
                 
-            NetMet.(lagFieldStr).aveControl = aveControl;
-            NetMet.(lagFieldStr).aveControlMean = aveControlMean;
-            NetMet.(lagFieldStr).aveControlTop25 = aveControlTop25;
         else 
-            NetMet.(lagFieldStr).aveControl = prevNetMet.(lagFieldStr).aveControl;
-            NetMet.(lagFieldStr).aveControlMean = prevNetMet.(lagFieldStr).aveControlMean;
-            NetMet.(lagFieldStr).aveControlTop25 = prevNetMet.(lagFieldStr).aveControlTop25;
+            aveControl = prevNetMet.(lagFieldStr).aveControl;
+            aveControlMean = prevNetMet.(lagFieldStr).aveControlMean;
+            aveControlTop25 = prevNetMet.(lagFieldStr).aveControlTop25;
         end
+        NetMet.(lagFieldStr).aveControl = aveControl;
+        NetMet.(lagFieldStr).aveControlMean = aveControlMean;
+        NetMet.(lagFieldStr).aveControlTop25 = aveControlTop25;
     end 
 
     if any(strcmp(netMetToCal, 'modalControl'))
@@ -528,17 +528,16 @@ for e = 1:length(lagval)
             modalControlMean = mean(modalControl);
             modalControlThreshold = 0.975;
             modalControlPrctLessThanThreshold = sum(modalControl < modalControlThreshold) / length(modalControl);
-
-            NetMet.(lagFieldStr).modalControl = modalControl;
-            NetMet.(lagFieldStr).modalControlMean = modalControlMean;
-            NetMet.(lagFieldStr).modalControlPrctLessThanThreshold = modalControlPrctLessThanThreshold;
         else 
-            NetMet.(lagFieldStr).modalControl = prevNetMet.(lagFieldStr).modalControl;
-            NetMet.(lagFieldStr).modalControlMean = prevNetMet.(lagFieldStr).modalControlMean;
-            NetMet.(lagFieldStr).modalControlPrctLessThanThreshold = prevNetMet.(lagFieldStr).modalControlPrctLessThanThreshold;
+            modalControl = prevNetMet.(lagFieldStr).modalControl;
+            modalControlMean = prevNetMet.(lagFieldStr).modalControlMean;
+            modalControlPrctLessThanThreshold = prevNetMet.(lagFieldStr).modalControlPrctLessThanThreshold;
             
         end 
-        
+        NetMet.(lagFieldStr).modalControl = modalControl;
+        NetMet.(lagFieldStr).modalControlMean = modalControlMean;
+        NetMet.(lagFieldStr).modalControlPrctLessThanThreshold = modalControlPrctLessThanThreshold;
+      
     end 
     
     
