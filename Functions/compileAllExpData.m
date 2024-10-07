@@ -72,7 +72,7 @@ for i = 1:length(ExpName)
      Exp = char(ExpName(i));
      
      % Search for any .mat file with the Exp str (regardless of date)
-     ExpFPathSearchName = dir(fullfile(experimentMatFileFolder, [Exp, '*.mat'])).name;
+     ExpFPathSearchName = dir(fullfile(experimentMatFileFolder, [Exp, '_*.mat'])).name;
      ExpFPath = fullfile(experimentMatFileFolder, ExpFPathSearchName);
      expFileData = load(ExpFPath);  
      % filepath contains Info structure
@@ -82,12 +82,15 @@ for i = 1:length(ExpName)
      end 
      
      eGrp = expFileData.Info.Grp{1};
-
-     for d = 1:length(AgeDiv)
-         if cell2mat(expFileData.Info.DIV) == AgeDiv(d)
-             eDiv = strcat('TP',num2str(d));
-         end    
-     end
+     
+     if iscell(expFileData.Info.DIV)
+         expDiv = expFileData.Info.DIV{1};
+     else
+         expDiv = expFileData.Info.DIV;
+     end 
+     
+     divIdx = find(AgeDiv == expDiv);
+     eDiv = strcat('TP', num2str(divIdx));
      
      for e = 1:length(NetMetVarNames)
             eMet = cell2mat(NetMetVarNames(e));
