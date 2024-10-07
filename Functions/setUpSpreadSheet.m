@@ -54,15 +54,30 @@ elseif strcmp(spreadsheet_file_type, 'csv')
     end
     
     % Get coords and channels for each recording 
-    Params.channels = {};
-    Params.coords = {};
-    for nRecording = 1:size(csv_data, 1)
-        [channels, coords] = getCoordsFromLayout(Params.channelLayoutPerRecording{nRecording});
-        recordingChannelData = load(fullfile(rawData, [ExpName{nRecording} '.mat']), 'channels');
-        recordingChannels = recordingChannelData.channels;
-        subsetIndex = find(ismember(channels, recordingChannels));
-        Params.channels{nRecording} = recordingChannels;
-        Params.coords{nRecording} = coords(subsetIndex, :);
+    if Params.priorAnalysis == 1
+        prevParamFpath = fullfile(Params.priorAnalysisFolderName, Params.priorAnalysisSubFolderName, ...
+            sprintf('Parameters_%s.mat', Params.priorAnalysisSubFolderName));
+        prevParamFpathFound = isfile(prevParamFpath);
+    end 
+
+    if Params.priorAnalysis == 0
+        Params.channels = {};
+        Params.coords = {};
+        for nRecording = 1:size(csv_data, 1)
+            [channels, coords] = getCoordsFromLayout(Params.channelLayoutPerRecording{nRecording});
+            recordingChannelData = load(fullfile(rawData, [ExpName{nRecording} '.mat']), 'channels');
+            recordingChannels = recordingChannelData.channels;
+            subsetIndex = find(ismember(channels, recordingChannels));
+            Params.channels{nRecording} = recordingChannels;
+            Params.coords{nRecording} = coords(subsetIndex, :);
+        end
+    elseif prevParamFpathFound
+        prevParamData = load(prevParamFpath);
+        Params.channels = prevParamData.Params.channels;
+        Params.coords = prevParamData.Params.coords;
+    else 
+        % TODO: read channels and coordinates from spike detected data
+        todo = 1;
     end
     
 end 
