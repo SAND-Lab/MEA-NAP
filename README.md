@@ -59,7 +59,7 @@ For new users, please see [Setting up MEA-NAP](https://analysis-pipeline.readthe
 For experienced users, clone the github repository to a location of your choice (e.g., your desktop folder):
 
 ```
-git clone https://github.com/SAND-Lab/MEA-NAP 
+git clone --branch v1.9.0 https://github.com/SAND-Lab/MEA-NAP.git
 ```
 
 To confirm you have the appropriate version of Matlab and Matlab toolboxes installed, please [see the MEA-NAP systems requirments](https://analysis-pipeline.readthedocs.io/en/latest/system-requirements.html). Our [detailed documentation for MEA-NAP](https://analysis-pipeline.readthedocs.io/en/latest/) provides step-by-step instructions for formatting your data and running MEA-NAP.
@@ -68,7 +68,6 @@ To get the cutting edge of the pipeline, which includes the latest features / bu
 
 ```
 git clone https://github.com/SAND-Lab/MEA-NAP
-git checkout dev
 ```
 
 ## How to use the pipeline
