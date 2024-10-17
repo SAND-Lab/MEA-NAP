@@ -255,7 +255,7 @@ if Params.includeNotBoxPlots
 
 end
 
-%% halfViolinPlots - plots by group
+%% Network Level: halfViolinPlots - plots by group
 
 halfViolinPlotByGroupFolder = fullfile(Params.outputDataFolder, ... 
     Params.outputDataFolderName, '4_NetworkActivity', ...
@@ -284,7 +284,7 @@ for lagIdx = 1:length(Params.FuncConLagval)
         end 
         eMeti = char(eMet(n));
         
-        plotHalfViolinByX(networkLevelData, eMeti, eMetl(n), 'group', lagIdx, Params); 
+        plotHalfViolinByX(networkLevelData, eMeti, eMetl(n), 'group', lagIdx, Params, oneFigureHandle); 
         
         % Export figure (TODO replace with pipeline savefig)
         for nFigExt = 1:length(Params.figExt)
@@ -389,7 +389,7 @@ if Params.includeNotBoxPlots
     end
 end 
 
-%% halfViolinPlots - plots by DIV
+%% Network level halfViolinPlots - plots by DIV
 
 halfViolinPlotByDivFolder = fullfile(Params.outputDataFolder, Params.outputDataFolderName, ...
     '4_NetworkActivity', '4B_GroupComparisons', '4_RecordingsByAge', 'HalfViolinPlots');
@@ -407,9 +407,9 @@ if Params.showOneFig
     set(oneFigureHandle, 'Position', p);
 end 
 
-for l = 1:length(Params.FuncConLagval)
+for lagIdx = 1:length(Params.FuncConLagval)
     halfViolinPlotByDivFolderPlusLag = fullfile(halfViolinPlotByDivFolder, ...
-        strcat(num2str(Params.FuncConLagval(l)),'mslag'));
+        strcat(num2str(Params.FuncConLagval(lagIdx)),'mslag'));
     if ~isfolder(halfViolinPlotByDivFolderPlusLag)
         mkdir(halfViolinPlotByDivFolderPlusLag)
     end 
@@ -418,7 +418,7 @@ for l = 1:length(Params.FuncConLagval)
             F1 = figure;
         end 
         
-        plotHalfViolinByX(networkLevelData, eMeti, eMetl(n), 'DIV', lagIdx, Params); 
+        plotHalfViolinByX(networkLevelData, eMeti, eMetl(n), 'DIV', lagIdx, Params, oneFigureHandle); 
         
         % Export figure
         for nFigExt = 1:length(Params.figExt)
@@ -454,9 +454,9 @@ if Params.showOneFig
     set(oneFigureHandle, 'Position', p);
 end 
 
-for l = 1:length(Params.FuncConLagval)
+for lagIdx = 1:length(Params.FuncConLagval)
     nodeByGroupFolderPlusLag = fullfile(nodeByGroupFolder, ...
-        strcat(num2str(Params.FuncConLagval(l)),'mslag'));
+        strcat(num2str(Params.FuncConLagval(lagIdx)),'mslag'));
     if ~isfolder(nodeByGroupFolderPlusLag)
         mkdir(nodeByGroupFolderPlusLag)
     end 
@@ -466,7 +466,7 @@ for l = 1:length(Params.FuncConLagval)
         end 
         eMeti = char(eMet(n));
         
-        plotHalfViolinByX(nodeLevelData, eMeti, eMetl(n), 'group', lagIdx, Params); 
+        plotHalfViolinByX(nodeLevelData, eMeti, eMetl(n), 'group', lagIdx, Params, oneFigureHandle); 
         
         % Export figure
         for nFigExt = 1:length(Params.figExt)
@@ -502,9 +502,9 @@ if Params.showOneFig
     set(oneFigureHandle, 'Position', p);
 end 
 
-for l = 1:length(Params.FuncConLagval)
+for lagIdx = 1:length(Params.FuncConLagval)
     halfViolinPlotByAgeFolderPlusLag = fullfile(halfViolinPlotByAgeFolder, ...
-        strcat(num2str(Params.FuncConLagval(l)),'mslag'));
+        strcat(num2str(Params.FuncConLagval(lagIdx)),'mslag'));
     
     if ~isfolder(halfViolinPlotByAgeFolderPlusLag)
         mkdir(halfViolinPlotByAgeFolderPlusLag)
@@ -516,7 +516,7 @@ for l = 1:length(Params.FuncConLagval)
         end 
         eMeti = char(eMet(n));
       
-        plotHalfViolinByX(nodeLevelData, eMeti, eMetl(n), 'DIV', lagIdx, Params);
+        plotHalfViolinByX(nodeLevelData, eMeti, eMetl(n), 'DIV', lagIdx, Params, oneFigureHandle);
         
         % Export figure
         for nFigExt = 1:length(Params.figExt)

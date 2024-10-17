@@ -1,4 +1,4 @@
-function plotHalfViolinByX(compiledData, eMeti, eMetl, X, lagIdx,  Params)
+function plotHalfViolinByX(compiledData, eMeti, eMetl, X, lagIdx,  Params, figureHandle)
 %HALFVIOLINPLOTBYX Make half-violin by X, where X is either group or DIV
 %  eMeti : str 
 %         name of the network metric, eg. 'ND' 
