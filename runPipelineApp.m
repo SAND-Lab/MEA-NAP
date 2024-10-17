@@ -14,6 +14,9 @@ addpath(fullfile(app.MEANAPFolderEditField.Value, 'Functions', 'util'));
 addpath(fullfile(app.MEANAPFolderEditField.Value, 'Functions', 'util', 'natsort'));  % for MEANAP viewer
 localVersion = getVersion(app.MEANAPFolderEditField.Value, app);
 
+% Functions for checking suite2p mode 
+addpath(fullfile(app.MEANAPFolderEditField.Value, 'Functions', 'twoPhoton')); 
+
 app.UIFigure.Name = ['MEA-NAP ' localVersion];
 
 % Default colours 
@@ -75,6 +78,9 @@ app.NetworkmetricstocalculateListBox.Value = {...
 formatOut = 'ddmmmyyyy'; 
 todyDate = datestr(now,formatOut); 
 app.OutputFolderNameEditField.Value = ['OutputData' todyDate];
+
+% suite2p mode
+suite2pMode = 0;
 
 %% Run pipeline app
 
@@ -187,9 +193,16 @@ while isvalid(app)
         app.MEANAPStatusTextArea.Value = [app.MEANAPStatusTextArea.Value; ...
             sprintf('%.f mat files found in raw data folder', numRawDataFiles)];
         
+        % Check for suite2p data 
+        if numRawDataFiles == 0
+            suite2pMode = appCheckSuite2pData(app);
+        end 
+        
         % Update spreadsheet tab as well 
         app.RawDataFolderEditField_2.Value = app.MEADataFolderEditField.Value;
     end 
+    
+    
     
     % Load CSV
     if app.SpreadsheetSelectButton.Value == 1
@@ -242,7 +255,13 @@ while isvalid(app)
         end 
     end 
     
-    % Spreadsheet Tab 
+    %%%% Spreadsheet Tab %%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % Make spreadsheet from folder of .mat / suite2p files
+    if app.CreatespreadsheetButton.Value == 1
+        
+    end
+    
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     
     
     % Load previous analysis folder 
@@ -291,6 +310,10 @@ while isvalid(app)
             app.CustomGroupOrderEditField.Value = strjoin(table2cell(uniqueGrpNames), ',');
             
         end 
+        
+        % check suite2p mode 
+        suite2pMode = appCheckSuite2pData(app);
+        
     end 
 
     % SAVING PARAMETERS
@@ -429,6 +452,7 @@ end
 %% Moving settings to Params
 Params = getParamsFromApp(app);
 
+Params.suite2pMode = suite2pMode;
 Params.guiMode = 1;
 
 % some workspace varaibles 
