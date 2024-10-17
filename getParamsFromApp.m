@@ -300,6 +300,9 @@ Params.customGrpOrder = cell(split(app.CustomGroupOrderEditField.Value , ','))';
 Params.timeProcesses = app.TimeprocessesCheckBox.Value;
 Params.verboseLevel = app.VerboseLevelDropDown.Value;
 
+%% Python settings (for suite2p)
+Params.pythonPath = app.PythonpathEditField.Value;
+
 %% MISC 
 Params.option = 'list';
 Params.output_spreadsheet_file_type = 'csv';
