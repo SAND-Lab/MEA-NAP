@@ -303,7 +303,7 @@ if ((Params.priorAnalysis == 0) || (Params.runSpikeCheckOnPrevSpikeData)) && (Pa
 end
 
 %% Step 2 - neuronal activity
-if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisStep<3
+if Params.startAnalysisStep < 3
     
     if Params.guiMode == 1
         app.MEANAPStatusTextArea.Value = [app.MEANAPStatusTextArea.Value; ...
@@ -431,11 +431,14 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
     end 
     
     % Set up one figure handle to save all the figures
-    oneFigureHandle = NaN;
+    if ~exist('oneFigureHandle', 'var')
+        oneFigureHandle = NaN;
+    end
     oneFigureHandle = checkOneFigureHandle(Params, oneFigureHandle);
-
+    
     for  ExN = 1:length(ExpName)
-
+        
+        % Load spike / previous data
         if Params.priorAnalysis==1 && Params.startAnalysisStep==3
             priorAnalysisExpMatFolder = fullfile(Params.priorAnalysisPath, 'ExperimentMatFiles');
             spikeDataFname = strcat(char(ExpName(ExN)),'_',Params.priorAnalysisSubFolderName, '.mat');
@@ -455,7 +458,8 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
             spikeDataFpath = fullfile(ExpMatFolder, spikeDataFname);
             load(spikeDataFpath, 'Info', 'Params', 'spikeTimes', 'Ephys')
         end
-        
+ 
+            
         if strcmp(Params.verboseLevel, 'High')
             if Params.guiMode == 1
                 app.MEANAPStatusTextArea.Value = [app.MEANAPStatusTextArea.Value; ...
@@ -464,14 +468,29 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
                 fprintf(sprintf('Generating adjacency matrix for: %s \n', char(Info.FN)))
             end 
         end
-
-        adjMs = generateAdjMs(spikeTimes, ExN, Params, Info, oneFigureHandle);
+        
+        if Params.suite2pMode == 1
+            suite2pFolder = fullfile(Params.rawData, char(ExpName(ExN)));
+            [adjMs, coords, channels, F, spks, fs] = suite2pToAdjm(suite2pFolder, Params);
+            Params.FuncConLagval = round(1/fs * 1000);
+        else
+            adjMs = generateAdjMs(spikeTimes, ExN, Params, Info, oneFigureHandle);
+        end
 
         ExpMatFolder = fullfile(Params.outputDataFolder, ...
                 Params.outputDataFolderName, 'ExperimentMatFiles');
         infoFnFname = strcat(char(Info.FN),'_',Params.outputDataFolderName,'.mat');
         infoFnFilePath = fullfile(ExpMatFolder, infoFnFname);
-        save(infoFnFilePath, 'Info', 'Params', 'spikeTimes', 'Ephys', 'adjMs')
+        
+        if Params.suite2pMode == 1
+           Info.channels = channels;
+           Info.duration_s = size(spks, 1) / fs;
+           varsToSave = {'Info', 'Params', 'coords', 'channels', 'adjMs', 'F', 'spks', 'fs'}; 
+        else 
+           varsToSave = {'Info', 'Params', 'spikeTimes', 'Ephys', 'adjMs'};
+        end
+        
+        save(infoFnFilePath, varsToSave{:})
     end
     
     if Params.timeProcesses
@@ -511,13 +530,24 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
                 priorAnalysisExpMatFolder = fullfile(Params.priorAnalysisPath, 'ExperimentMatFiles');
                 spikeDataFname = strcat(char(ExpName(ExN)),'_',Params.priorAnalysisSubFolderName,'.mat');
                 spikeDataFpath = fullfile(priorAnalysisExpMatFolder, spikeDataFname);
-                load(spikeDataFpath, 'spikeTimes', 'Ephys','adjMs','Info')
+                expMatData = load(spikeDataFpath);
+                
+                if Params.suite2pMode == 0
+                    load(spikeDataFpath, 'spikeTimes', 'Ephys','adjMs','Info')
+                else 
+                    load(spikeDataFpath, 'spks', 'fs', 'adjMs','Info')
+                end
             else
                 ExpMatFolder = fullfile(Params.outputDataFolder, ...
                     Params.outputDataFolderName, 'ExperimentMatFiles');
                 spikeDataFname = strcat(char(ExpName(ExN)),'_',Params.outputDataFolderName,'.mat');
                 spikeDataFpath = fullfile(ExpMatFolder, spikeDataFname);
-                load(spikeDataFpath, 'Info', 'Params', 'spikeTimes', 'Ephys','adjMs')
+                expMatData = load(spikeDataFpath);
+                if Params.suite2pMode == 0
+                    load(spikeDataFpath, 'Info', 'Params', 'spikeTimes', 'Ephys','adjMs')
+                else
+                    load(spikeDataFpath, 'Info', 'Params', 'spks', 'fs', 'adjMs')
+                end 
             end
             
             if strcmp(Params.verboseLevel, 'High')
@@ -553,22 +583,46 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
             end 
 
             channelLayout = Params.channelLayoutPerRecording{ExN};
-            [spikeMatrix, spikeTimes, Params, Info] = formatSpikeTimes(char(Info.FN), ...
-                Params, Info, spikeDetectedDataFolder, channelLayout);
+            
+            if isfield(expMatData, 'spikeTimes')
+                [activityMatrix, spikeTimes, Params, Info] = formatSpikeTimes(char(Info.FN), ...
+                    Params, Info, spikeDetectedDataFolder, channelLayout);
+            elseif isfield(expMatData, 'spks')
+                activityMatrix = expMatData.spks;
+                Params.fs = expMatData.fs;
+                spikeTimes = [];
+            else
+                activityMatrix = [];
+                spikeTimes = [];
+            end
 
             Params.networkActivityFolder = idvNetworkAnalysisFNFolder;
-
-            coords = Params.coords{ExN};
-            channels = Params.channels{ExN};
-            NetMet = ExtractNetMet(adjMs, spikeTimes, ...
-                Params.FuncConLagval, Info, HomeDir, Params, spikeMatrix, coords, channels, oneFigureHandle);
+            
+            if isfield(expMatData, 'coords')
+                coords = expMatData.coords;
+                channels = expMatData.channels;
+            else 
+                coords = Params.coords{ExN};
+                channels = Params.channels{ExN}; 
+            end 
+            
+            NetMet = ExtractNetMet(adjMs, activityMatrix, ...
+                Params.FuncConLagval, Info, Params, coords, channels, oneFigureHandle);
 
             ExpMatFolder = fullfile(Params.outputDataFolder, ...
                     Params.outputDataFolderName, 'ExperimentMatFiles');
             infoFnFname = strcat(char(Info.FN),'_',Params.outputDataFolderName,'.mat');
             infoFnFilePath = fullfile(ExpMatFolder, infoFnFname);
+            
+            varsToSave = {'Info', 'Params', 'adjMs', 'NetMet', 'coords', 'channels'};
+            if exist('spikeTimes', 'var')
+                varsToSave{end+1} = 'spikeTimes';
+            end
+            if exist('Ephys', 'var')
+                varsToSave{end+1} = 'Ephys';
+            end
 
-            save(infoFnFilePath, 'Info', 'Params', 'spikeTimes', 'Ephys', 'adjMs','NetMet', '-append')
+            save(infoFnFilePath, varsToSave{:}, '-append')
 
             clear adjMs
 
@@ -655,29 +709,48 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
                 if Params.priorAnalysis==1 && Params.startAnalysisStep==4 && usePriorNetMet
                     experimentMatFileFolder = fullfile(Params.priorAnalysisPath, 'ExperimentMatFiles');
                     experimentMatFilePath = fullfile(experimentMatFileFolder, strcat(char(ExpName(ExN)),'_',Params.priorAnalysisDate,'.mat'));
-                    expData = load(experimentMatFilePath, 'spikeTimes','Ephys','adjMs','Info', 'NetMet');
+                    expData = load(experimentMatFilePath);
                 else
                     experimentMatFileFolder = fullfile(Params.outputDataFolder, Params.outputDataFolderName, 'ExperimentMatFiles');
                     experimentMatFilePath = fullfile(experimentMatFileFolder, strcat(char(ExpName(ExN)),'_',Params.outputDataFolderName,'.mat'));
-                    expData = load(experimentMatFilePath,'Info','Params', 'spikeTimes','Ephys','adjMs', 'NetMet');
+                    expData = load(experimentMatFilePath);
                 end
                 fileNameFolder = fullfile(Params.outputDataFolder, Params.outputDataFolderName, ...
                                           '4_NetworkActivity', '4A_IndividualNetworkAnalysis', ...
                                           char(expData.Info.Grp), char(expData.Info.FN));
-                originalCoords = Params.coords{ExN};
-                originalChannels = Params.channels{ExN};
+                
+                if isfield(expData, 'coords')
+                    originalCoords = expData.coords;
+                    originalChannels = expData.channels;
+                else 
+                    originalCoords = Params.coords{ExN};
+                    originalChannels = Params.channels{ExN}; 
+                end 
+
+                
                 Params.ExpNameGroupUseCoord = 1;
                 NetMet = calNodeCartography(expData.adjMs, Params, expData.NetMet, expData.Info, originalCoords, originalChannels, ...
                 HomeDir, fileNameFolder, oneFigureHandle);
                 % save NetMet now that we have node cartography data as well
                 experimentMatFileFolderToSaveTo = fullfile(Params.outputDataFolder, Params.outputDataFolderName, 'ExperimentMatFiles');
                 experimentMatFilePathToSaveTo = fullfile(experimentMatFileFolderToSaveTo, strcat(char(expData.Info.FN),'_',Params.outputDataFolderName,'.mat'));
-
-                spikeTimes = expData.spikeTimes;
-                Ephys = expData.Ephys;
+                
+                if isfield(expData, 'spikeTimes') 
+                    spikeTimes = expData.spikeTimes;
+                else
+                    spikeTimes = [];
+                end 
+                if isfield(expData, 'Ephys') 
+                    Ephys = expData.Ephys;
+                else
+                    Ephys = [];
+                end 
+                
+                varsToSave = {'Info', 'Params', 'spikeTimes', 'adjMs', 'NetMet', 'coords', 'channels'};
+                
                 adjMs = expData.adjMs;
                 Info = expData.Info;
-                save(experimentMatFilePathToSaveTo,'Info','Params','spikeTimes','Ephys','adjMs','NetMet')
+                save(experimentMatFilePathToSaveTo, varsToSave{:})
             end
     end 
         
@@ -772,9 +845,15 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
             end 
 
             Params.networkActivityFolder = idvNetworkAnalysisFNFolder;
-
-            originalCoords = Params.coords{ExN};
-            originalChannels = Params.channels{ExN};
+            
+            if isfield(expData, 'coords')
+                originalCoords = expData.coords;
+                originalChannels = expData.channels;
+            else 
+                originalCoords = Params.coords{ExN};
+                originalChannels = Params.channels{ExN};
+            end
+            
             PlotIndvNetMet(expData, Params, expData.Info, originalCoords, originalChannels,  oneFigureHandle)
 
             if Params.showOneFig
@@ -826,11 +905,12 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
             % Group the ExpNames by their file identity, to anchor coordinates to
             % the last DIV
             for ExN = 1:length(ExpName)
+                expData = loadExpData(ExpName{ExN}, Params, usePriorNetMet);
                 stringParts = strsplit(ExpName{ExN}, '_');
                 stringPartWithDIV_index = find(contains(stringParts, 'DIV'));
                 stringPartWithoutDIV_index = find(~contains(stringParts, 'DIV'));
                 ExpNamesWithoutDIV{ExN} = strjoin(stringParts(stringPartWithoutDIV_index), '_');
-                divPerExN(ExN) = str2num(stringParts{stringPartWithDIV_index}(4:end));  % first three characters are always 'DIV'
+                divPerExN(ExN) = expData.Info.DIV{1};  
             end
             ExpNameGroup = findgroups(ExpNamesWithoutDIV);
             ExpNameGroupUseCoord = zeros(length(ExpNamesWithoutDIV), 1);
@@ -863,8 +943,13 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
                                           '4_NetworkActivity', '4A_IndividualNetworkAnalysis', ...
                                           char(expData.Info.Grp), char(expData.Info.FN));
 
-                    originalCoords = Params.coords{ExN};
-                    originalChannels = Params.channels{ExN};
+                    if isfield(expData, 'coords')
+                        originalCoords = expData.coords;
+                        originalChannels = expData.channels;
+                    else 
+                        originalCoords = Params.coords{ExN};
+                        originalChannels = Params.channels{ExN};
+                    end
 
                     % apply the anchoring index used in previous recording
                     if Params.ExpNameGroupUseCoord == 0
@@ -900,8 +985,19 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
                     experimentMatFileFolderToSaveTo = fullfile(Params.outputDataFolder, Params.outputDataFolderName, 'ExperimentMatFiles');
                     experimentMatFilePathToSaveTo = fullfile(experimentMatFileFolderToSaveTo, strcat(char(expData.Info.FN),'_',Params.outputDataFolderName,'.mat'));
 
-                    spikeTimes = expData.spikeTimes;
-                    Ephys = expData.Ephys;
+                     if isfield(expData, 'spikeTimes') 
+                        spikeTimes = expData.spikeTimes;
+                     else
+                        spikeTimes = [];
+                     end 
+                     if isfield(expData, 'Ephys') 
+                        Ephys = expData.Ephys;
+                     else
+                        Ephys = [];
+                     end 
+
+                    varsToSave = {'Info', 'Params', 'spikeTimes', 'adjMs', 'NetMet', 'coords', 'channels'};
+
                     adjMs = expData.adjMs;
                     Info = expData.Info;
                     save(experimentMatFilePathToSaveTo,'Info','Params','spikeTimes','Ephys','adjMs','NetMet')
