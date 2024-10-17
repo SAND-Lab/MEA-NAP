@@ -58,9 +58,11 @@ elseif strcmp(spreadsheet_file_type, 'csv')
         prevParamFpath = fullfile(Params.priorAnalysisFolderName, Params.priorAnalysisSubFolderName, ...
             sprintf('Parameters_%s.mat', Params.priorAnalysisSubFolderName));
         prevParamFpathFound = isfile(prevParamFpath);
+    else 
+        prevParamFpathFound = 0;
     end 
 
-    if Params.priorAnalysis == 0
+    if Params.priorAnalysis == 0 && (Params.suite2pMode == 0)
         Params.channels = {};
         Params.coords = {};
         for nRecording = 1:size(csv_data, 1)
@@ -71,13 +73,26 @@ elseif strcmp(spreadsheet_file_type, 'csv')
             Params.channels{nRecording} = recordingChannels;
             Params.coords{nRecording} = coords(subsetIndex, :);
         end
-    elseif prevParamFpathFound
+    elseif (prevParamFpathFound == 1)
         prevParamData = load(prevParamFpath);
         Params.channels = prevParamData.Params.channels;
         Params.coords = prevParamData.Params.coords;
     else 
         % TODO: read channels and coordinates from spike detected data
         todo = 1;
+    end
+    
+    % Ensure channels and coordinates are cell (old versions of MEANAP have
+    % them as matrices)
+    if ~iscell(Params.channels)
+        channels = Params.channels; 
+        coords = Params.coords;
+        Params.channels = {};
+        Params.coords = {};
+        for nRecording = 1:size(csv_data, 1)
+            Params.channels{nRecording} = channels;
+            Params.coords{nRecording} = coords;
+        end
     end
     
 end 
