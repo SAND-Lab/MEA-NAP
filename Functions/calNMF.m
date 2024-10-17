@@ -1,12 +1,12 @@
-function nmfResults = calNMF(spikeMatrix, fs, downsamplefreq, duration_s, ...
-    minSpikeCount, includeRandomMatrix, includeNMFcomponents, verboseLevel)
+function nmfResults = calNMF(activityMatrix, fs, downsamplefreq, duration_s, ...
+    minSpikeCount, includeRandomMatrix, includeNMFcomponents, verboseLevel, suite2pMode)
 % calNMF calculates metrics related to non-negative matrix factorisation (NNMF) of
 % the spike matrix 
 %
 % Parameters
 % ----------
 %
-% spikeMatrix : matrix 
+% activityMatrix : matrix 
 %     matrix of shape (numTimeSamples, numElectrodes)
 % fs : int
 %     sampling frequency (Hz) of spikeMatrix
@@ -30,11 +30,11 @@ if ~exist('verboseLevel', 'var')
     verboseLevel = 'Normal';
 end 
 
-if issparse(spikeMatrix)
-    spikeMatrix = full(spikeMatrix);
+if issparse(activityMatrix)
+    activityMatrix = full(activityMatrix);
 end
 
-numUnits = size(spikeMatrix, 2);
+numUnits = size(activityMatrix, 2);
 
 %% Initialise output 
 nmfResults = struct();
@@ -53,15 +53,25 @@ if includeRandomMatrix
     %toc 
     %clear asdf2 randasdf2
     %randSpikeMatrix = downSampleSum(randSpikeMatrix, downsamplefreq * duration_s);
-    spikeTimes = spikeMatrixToSpikeTimes(spikeMatrix, fs);
-    randSpikeTimes = cell(numUnits, 1);
-    for unit = 1:numUnits
-        randSpikeTimes{unit} = randomiseSpikeTrain(spikeTimes{unit}, duration_s, 'wrap');
+    
+    if suite2pMode == 1
+        numTimePoints = size(activityMatrix, 1);
+        randSpikeMatrix = zeros(numTimePoints, numUnits) + nan;
+        for unit = 1:numUnits 
+            numShiftSample = randi(numTimePoints);
+            randSpikeMatrix(:, unit) = circshift(activityMatrix(:, unit), numShiftSample);
+        end
+    else
+        spikeTimes = spikeMatrixToSpikeTimes(activityMatrix, fs);
+        randSpikeTimes = cell(numUnits, 1);
+        for unit = 1:numUnits
+            randSpikeTimes{unit} = randomiseSpikeTrain(spikeTimes{unit}, duration_s, 'wrap');
+        end
+
+        randSpikeMatrix = spikeTimesToSpikeMatrix(randSpikeTimes, duration_s, fs); 
+
+        randSpikeMatrix = downSampleSum(randSpikeMatrix, round(downsamplefreq * duration_s));
     end
-
-    randSpikeMatrix = spikeTimesToSpikeMatrix(randSpikeTimes, duration_s, fs); 
-
-    randSpikeMatrix = downSampleSum(randSpikeMatrix, downsamplefreq * duration_s);
 
 end 
 % downsampled original spike matrix
@@ -69,10 +79,10 @@ if strcmp(verboseLevel, 'High')
     fprintf('Downsampling spike matrix... \n')
 end 
 
-downSampleSpikeMatrix = downSampleSum(spikeMatrix, downsamplefreq * duration_s);
+downSampleSpikeMatrix = downSampleSum(activityMatrix, round(downsamplefreq * duration_s));
             
-activeElectrodes = sum(spikeMatrix,1) > minSpikeCount;
-spikePercentile =  prctile(spikeMatrix,95,'all');
+activeElectrodes = sum(activityMatrix,1) > minSpikeCount;
+spikePercentile =  prctile(activityMatrix,95,'all');
 networkSize = sum(full(activeElectrodes));
 
 %% Do NNMF 
@@ -125,7 +135,7 @@ for nnmf_c = 1:num_nnmf_components
 end
 
 %% Do NNMF on each possible component 
-activeElectrodes = sum(spikeMatrix,1) > minSpikeCount;
+activeElectrodes = sum(activityMatrix,1) > minSpikeCount;
 networkSize = sum(full(activeElectrodes));
 downSampleSpikeMatrixActive = downSampleSpikeMatrix(:, activeElectrodes);
 % numTimeBins = size(downSampleSpikeMatrixActive, 1);
