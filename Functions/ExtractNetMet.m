@@ -1,14 +1,12 @@
-function [NetMet] = ExtractNetMet(adjMs, spikeTimes, lagval,Info,HomeDir,Params, spikeMatrix, originalCoords, channels, oneFigureHandle)
+function [NetMet] = ExtractNetMet(adjMs, activityMatrix, lagval, Info, Params, originalCoords, channels, oneFigureHandle)
 % EXTRACTNETMET Extract network metrics from adjacency matrices 
 % 
 % Parameters 
 % ----------
 % adjMs : N x N matrix
-% spikeTimes : 
 % lagval : int
 %     lag for use in STTC calculation (in ms)
 % Info : structure 
-% HomeDir :
 % Params : structure 
 %     contains parameters for analysis and plotting, notably, the key
 %     ones use are
@@ -335,6 +333,11 @@ for e = 1:length(lagval)
                 PC = prevNetMet.(lagValStr).PC;
                 Z = prevNetMet.(lagValStr).Z;
                 PCmean = prevNetMet.(lagValStr).PCmean;
+                
+                 % percentage of within-module z-score greater and less than zero
+                percentZscoreGreaterThanZero = sum(Z > 0) / length(Z) * 100;
+                percentZscoreLessThanZero = sum(Z < 0) / length(Z) * 100;
+                
                 % PC90thpercentile = prevNetMet.(lagValStr).PC90thpercentile;
                 % PC10thpercentile = prevNetMet.(lagValStr).PC10thpercentile;
                 % PCmeanTop10 = prevNetMet.(lagValStr).PCmeanTop10;
@@ -418,6 +421,7 @@ for e = 1:length(lagval)
 
     %% Find hubs and plot raster sorted by hubs 
     % convert spike times to spike matrix 
+    %{
     if aN >= Params.minNumberOfNodesToCalNetMet
         [hub_peripheral_xy, hub_metrics, hub_score_index] = ...
             fcn_find_hubs_wu(Info.channels,spikeMatrix,adjM,Params.fs);
@@ -433,6 +437,7 @@ for e = 1:length(lagval)
         PC_raw = nan;
         Cmcblty = nan;
     end 
+    %}
 
     %% Calculate non-negative matrix factorisation components
     % note these are only calcualted for the first lag field because they
@@ -446,9 +451,15 @@ for e = 1:length(lagval)
             minSpikeCount = 1;
             includeRandomMatrix = 1;
             if checkIfRecomputeMetric(Params, prevNetMet, firstLagField, 'num_nnmf_components') == 1
-                nmfCalResults = calNMF(spikeMatrix, Params.fs, Params.NMFdownsampleFreq, ...
+                
+                if Params.fs < Params.NMFdownsampleFreq
+                    Params.NMFdownsampleFreq = Params.fs;
+                end 
+                
+                nmfCalResults = calNMF(activityMatrix, Params.fs, Params.NMFdownsampleFreq, ...
                                         Info.duration_s, minSpikeCount, includeRandomMatrix, ...
-                                        Params.includeNMFcomponents, Params.verboseLevel);
+                                        Params.includeNMFcomponents, Params.verboseLevel, ...
+                                        Params.suite2pMode);
                 NetMet.(firstLagField).num_nnmf_components = nmfCalResults.num_nnmf_components;
                 NetMet.(firstLagField).nComponentsRelNS = nmfCalResults.nComponentsRelNS; 
                 NetMet.(firstLagField).nnmf_residuals = nmfCalResults.nnmf_residuals; 
@@ -485,7 +496,12 @@ for e = 1:length(lagval)
                 fprintf('Calculating effective rank \n')
             end
             if checkIfRecomputeMetric(Params, prevNetMet, lagValStr, 'effRank') == 1
-                downSampleMatrix = downSampleSum(full(spikeMatrix), Params.effRankDownsampleFreq * Info.duration_s);
+                
+                if Params.effRankDownsampleFreq > Params.fs 
+                   Params.effRankDownsampleFreq = Params.fs; 
+                end
+                
+                downSampleMatrix = downSampleSum(full(activityMatrix), Params.effRankDownsampleFreq * Info.duration_s);
                 NetMet.(firstLagField).effRank = ...
                     calEffRank(downSampleMatrix, Params.effRankCalMethod);
             else 
@@ -554,8 +570,8 @@ for e = 1:length(lagval)
         time_bin_size = 0.1; % in units of seconds 
         spikeMatrixBinned = 1; % TODO: resample spike matrix
         lag_corr_per_channel = zeros(length(inclusionIndex), 1);
-        for channel = 1:size(spikeMatrix, 1)
-            x = spikeMatrix(inclusionIndex, :);
+        for channel = 1:size(activityMatrix, 1)
+            x = activityMatrix(inclusionIndex, :);
             lag_corr_per_channel = temporal_autocorrelation(x);
         end
     end 
