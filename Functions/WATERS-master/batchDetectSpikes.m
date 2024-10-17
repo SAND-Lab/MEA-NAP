@@ -1,4 +1,4 @@
-function batchDetectSpikes(dataPath, savePath, option, files, params, MEANAPapp)
+function batchDetectSpikes(dataPath, savePath, option, files, Params, MEANAPapp)
 % Performs spike detection 
 % Runs spike detection through recordings, cost parameters, electrodes, and wavelets.
 % 
@@ -36,7 +36,7 @@ arguments
     savePath;
     option;
     files;
-    params;
+    Params;
     MEANAPapp; 
 end
 
@@ -60,45 +60,45 @@ if ~exist('MEANAPapp', 'var')
     MEANAPapp = struct();
 end 
 
-multiplier = params.multiplier;
-nSpikes = params.nSpikes;
-nScales = params.nScales;
-wid = params.wid;
-grd = params.grd;
-costList = params.costList;
-wnameList = params.wnameList;
-minPeakThrMultiplier = params.minPeakThrMultiplier;
-maxPeakThrMultiplier = params.maxPeakThrMultiplier;
-posPeakThrMultiplier = params.posPeakThrMultiplier;
-unit = params.unit;
+multiplier = Params.multiplier;
+nSpikes = Params.nSpikes;
+nScales = Params.nScales;
+wid = Params.wid;
+grd = Params.grd;
+costList = Params.costList;
+wnameList = Params.wnameList;
+minPeakThrMultiplier = Params.minPeakThrMultiplier;
+maxPeakThrMultiplier = Params.maxPeakThrMultiplier;
+posPeakThrMultiplier = Params.posPeakThrMultiplier;
+unit = Params.unit;
 
 % Setting some defaults
-if ~isfield(params, 'multiple_templates')
-    params.multiple_templates = 0;
+if ~isfield(Params, 'multiple_templates')
+    Params.multiple_templates = 0;
 end 
 
-if ~isfield(params, 'multi_template_method')
-    params.multi_template_method = 'PCA';
+if ~isfield(Params, 'multi_template_method')
+    Params.multi_template_method = 'PCA';
 end 
 
-if ~isfield(params, 'run_detection_in_chunks')
-    params.run_detection_in_chunks = 1;
+if ~isfield(Params, 'run_detection_in_chunks')
+    Params.run_detection_in_chunks = 1;
 end 
 
-if ~isfield(params, 'chunk_length')
-    params.chunk_length = 60;
+if ~isfield(Params, 'chunk_length')
+    Params.chunk_length = 60;
 end 
 
-if ~isfield(params, 'threshold_calculation_window')
+if ~isfield(Params, 'threshold_calculation_window')
     threshold_calculation_window = [0, 1];
 else
-    threshold_calculation_window = params.threshold_calculation_window;
+    threshold_calculation_window = Params.threshold_calculation_window;
 end 
 
-if ~isfield(params, 'plot_folder')
+if ~isfield(Params, 'plot_folder')
     plot_folder = ''; % won't save plot
 else 
-    plot_folder = params.plot_folder;
+    plot_folder = Params.plot_folder;
 end 
 
 
@@ -123,15 +123,15 @@ else
     end
 end
 
-params.numFilesForSpikeDetection = length(files);
+Params.numFilesForSpikeDetection = length(files);
 
-thresholds = params.thresholds;
+thresholds = Params.thresholds;
 thrList = strcat( 'thr', thresholds);
 thrList = strrep(thrList, '.', 'p');
 
 % 2021-06-07: adding absolute thresholds 
-if isfield(params, 'absThresholds')
-    absThresholds = params.absThresholds;
+if isfield(Params, 'absThresholds')
+    absThresholds = Params.absThresholds;
     absThrList = strcat('absthr', absThresholds);
     absThrList = strrep(absThrList, '.', 'p')';
     
@@ -143,14 +143,14 @@ wnameList = horzcat(wnameList, thrList);
 wnameList = wnameList(~strcmp(wnameList, 'None'));
 
 % check if custom threshold file is provided
-if isfield(params, 'custom_threshold_file')
+if isfield(Params, 'custom_threshold_file')
     % params.custom_threshold_file.thresholds;
-    custom_threshold_method_name = params.custom_threshold_method_name;
+    custom_threshold_method_name = Params.custom_threshold_method_name;
     for n_custom_threshold_method = 1:length(custom_threshold_method_name)
         custom_name = strcat('customAbs', custom_threshold_method_name{n_custom_threshold_method});
         wnameList = vertcat(wnameList, {custom_name});
     end 
-    customAbsThrPerChannel = params.custom_threshold_file.thresholds;
+    customAbsThrPerChannel = Params.custom_threshold_file.thresholds;
 else
     customAbsThrPerChannel = nan;
     custom_threshold_method_name = nan;
@@ -169,9 +169,9 @@ for recording = 1:numel(files)
     end
 
     % Set which electrodes to ground 
-    if isfield(params, 'electrodesToGroundPerRecording')
-        if ~isempty(params.('electrodesToGroundPerRecording'))
-            groundElectrodeStr = params.('electrodesToGroundPerRecording'){recording}; 
+    if isfield(Params, 'electrodesToGroundPerRecording')
+        if ~isempty(Params.('electrodesToGroundPerRecording'))
+            groundElectrodeStr = Params.('electrodesToGroundPerRecording'){recording}; 
             if isstr(groundElectrodeStr)
                 groundElectrodeCell = strsplit(groundElectrodeStr,', ');
                 groundElectrodeVec = str2double(groundElectrodeCell);
@@ -180,12 +180,12 @@ for recording = 1:numel(files)
             end 
             grd = groundElectrodeVec;
 
-            if (params.electrodesToGroundPerRecordingUseName == 1) && all(~isnan(grd))
+            if (Params.electrodesToGroundPerRecordingUseName == 1) && all(~isnan(grd))
                 % Convert from the channel name we want to ground, to the
                 % index within Params.channels
                 new_grd = zeros(length(grd), 1) + nan;
                 for grd_idx = 1:length(grd)
-                    new_idx = find(params.channels{recording} == grd(grd_idx));
+                    new_idx = find(Params.channels{recording} == grd(grd_idx));
                     if ~isempty(new_idx)
                         new_grd(grd_idx) = new_idx;
                     else
@@ -199,7 +199,7 @@ for recording = 1:numel(files)
     end 
     
     % Load data
-    if params.guiMode == 1
+    if Params.guiMode == 1
         MEANAPapp.MEANAPStatusTextArea.Value = [MEANAPapp.MEANAPStatusTextArea.Value; ...
                     'Loading ' fileName ' ...'];
     else 
@@ -213,32 +213,32 @@ for recording = 1:numel(files)
     num_channels = length(channels);  
     fs = file.fs;
     ttx = contains(fileName, 'TTX');
-    params.duration = length(data)/fs;
+    Params.duration = length(data)/fs;
     
     % Truncate the data if specified
-    if isfield(params, 'subsample_time')
-        if ~isempty(params.subsample_time)
-            if params.subsample_time(1) <= 1
+    if isfield(Params, 'subsample_time')
+        if ~isempty(Params.subsample_time)
+            if Params.subsample_time(1) <= 1
                 start_frame = 1;
             else
-                start_frame = params.subsample_time(1) * fs;
+                start_frame = Params.subsample_time(1) * fs;
             end
-            end_frame = params.subsample_time(2) * fs;
+            end_frame = Params.subsample_time(2) * fs;
         end
         data = data(start_frame:end_frame, :);
-        params.duration = length(data)/fs;
+        Params.duration = length(data)/fs;
     end
     
     for L = costList
         saveName = [savePath fileName(1:end-4) '_L_' num2str(L) '_spikes.mat'];
         if ~exist(saveName, 'file')
-            params.L = L;
+            Params.L = L;
             
-            if params.timeProcesses == 1
+            if Params.timeProcesses == 1
                 tic
             end
             
-            if params.guiMode == 1
+            if Params.guiMode == 1
                MEANAPapp.MEANAPStatusTextArea.Value = [MEANAPapp.MEANAPStatusTextArea.Value; ...
                     'Detecting spikes...'];
             else 
@@ -296,11 +296,11 @@ for recording = 1:numel(files)
                             detectSpikesCWT(trace,fs,wid,actual_wname,L,nScales, ...
                             multiplier,nSpikes,ttx, minPeakThrMultiplier, ...
                             maxPeakThrMultiplier, posPeakThrMultiplier, ...
-                            params.multiple_templates, params.multi_template_method, ...
-                            channelInfo, plot_folder, params.run_detection_in_chunks, ...
-                            params.chunk_length, threshold_calculation_window, ...
-                            customAbsThr, params.filterLowPass, params.filterHighPass, ...
-                            params.remove_artifacts, params.refPeriod, params.getTemplateRefPeriod);
+                            Params.multiple_templates, Params.multi_template_method, ...
+                            channelInfo, plot_folder, Params.run_detection_in_chunks, ...
+                            Params.chunk_length, threshold_calculation_window, ...
+                            customAbsThr, Params.filterLowPass, Params.filterHighPass, ...
+                            Params.remove_artifacts, Params.refPeriod, Params.getTemplateRefPeriod);
                         
                         thresholdStruct.(valid_wname) = threshold;
                         
@@ -358,27 +358,30 @@ for recording = 1:numel(files)
                 
             end
             
-            if params.timeProcesses == 1
+            if Params.timeProcesses == 1
                 toc
             end 
             
             % Save results
             save_suffix = ['_' strrep(num2str(L), '.', 'p')];
-            params.save_suffix = save_suffix;
-            params.fs = fs;
-            params.variance = variance;
-            params.mad = mad;
-            params.absThreshold = absThreshold;
+            Params.save_suffix = save_suffix;
+            Params.fs = fs;
+            Params.variance = variance;
+            Params.mad = mad;
+            Params.absThreshold = absThreshold;
             
             spikeDetectionResult = struct();
             % spikeDetectionResult.method = 'CWT';
-            spikeDetectionResult.params = params;
+            spikeDetectionResult.params = Params;
             
             saveName = fullfile(savePath,  strcat(fileName, '_spikes.mat'));
             % disp(['Saving results to: ' saveName]);
             
+            % Get coordinates for particular recording 
+            coords = Params.coords{recording};
+            
             varsList = {'spikeTimes', 'channels', 'spikeDetectionResult', ...
-                'spikeWaveforms', 'thresholds'};
+                'spikeWaveforms', 'thresholds', 'coords'};
             save(saveName, varsList{:}, '-v7.3');
         end
     end
