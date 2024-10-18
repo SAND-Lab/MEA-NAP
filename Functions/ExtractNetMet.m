@@ -89,7 +89,12 @@ if (Params.priorAnalysis == 1)
     end 
     prevNetMetFpathIdx = strcmp(matFileBaseNames,Info.FN);
     prevNetMetFpath = fullfile(priorAnalysisExpMatFolder, matFileNames{prevNetMetFpathIdx});
-    prevNetMetData = load(prevNetMetFpath);
+    
+    if isfile(prevNetMetFpath)
+        prevNetMetData = load(prevNetMetFpath);
+    else
+        prevNetMetData = struct();
+    end
     
     if isfield(prevNetMetData, 'NetMet')
         prevNetMet = prevNetMetData.NetMet;
