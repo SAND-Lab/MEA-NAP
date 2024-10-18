@@ -20,7 +20,7 @@ function [] = StandardisedNetworkPlotNodeCartography(adjM, coords, edge_thresh, 
 %       the network metric used to determine the colour of the plotted
 %       nodes, eg: betweeness centrality or participation coefficient
 %   z2name - name of the z2 network metric
-%   NdCartDiv : doubel array
+%   NdCartDiv : double array
 %   
 %   plotType : char 
 %        'MEA' to plot nodes with their respective electrode
