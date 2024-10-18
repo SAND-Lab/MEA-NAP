@@ -172,14 +172,20 @@ if strcmp(method, 'Bakkum')
     % N = 30; % N is the critical paramter here, 
     
     % ISI_N can be automatically selected (and this is dependent on N)
-    Steps = 10.^[-5:0.05:1.5]; 
+    Steps = 10 .^ (-5:0.05:1.5); % this is in ms (0 - 32 ms)
     % exact values of this doens't matter as long as its log scale, covers 
     % the possible spikeISI times,(but we don't care about values above
     % 0.1s anyway)
     plotFig = 0;
     
     if strcmp(ISInThreshold, 'automatic')
-        ISInTh = getISInTh(Spike.T, N, Steps, plotFig);
+        minUniqueITIs = 10;
+        defaultISInTh = 0.1;
+        if length(unique(diff(Spike.T))) > minUniqueITIs
+            ISInTh = getISInTh(Spike.T, N, Steps, plotFig);
+        else 
+            ISInTh = defaultISInTh;
+        end
     else
         ISInTh = ISInThreshold;
     end
@@ -197,8 +203,6 @@ if strcmp(method, 'Bakkum')
     % now, covert it to a cell structure, where each cell contain a matrix 
     % with the spike trains during a burst period 
     burstCell = cell(length(Burst.S), 1);
-    
-    
     
     for bb = 1:length(Burst.S)
         T_start_frame = round(Burst.T_start(bb) * samplingRate); % convert from s back to frame 

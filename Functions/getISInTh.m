@@ -51,10 +51,10 @@ for FRnum = N
         % I think it is because of the conversion to ms or something 
     end 
     
-    n = histc(ISI_N * 1000, Steps * 1000); % Sit 2018: not really sure
+    % n = histc(ISI_N * 1000, Steps * 1000); % Sit 2018: not really sure
     % what this 1000 is doing... I will just use my own hsitc method. Seems
     % to be some conversion of ms to s, but the input should be sec...
-    
+    n = histc(ISI_N * 1000, Steps);   % convert ISI_N from seconds to ms
     % n = histcounts(log10(ISI_N), Steps);
     
     
