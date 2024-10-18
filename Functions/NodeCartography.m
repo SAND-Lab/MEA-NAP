@@ -137,27 +137,27 @@ Zc2 = [];
 Zc3 = [];
 
 for j = 1:length(PC)
-    if (Z(j) < hubBoundaryWMdDeg) && (PC(j) < periPartCoef)
+    if (Z(j) <= hubBoundaryWMdDeg) && (PC(j) <= periPartCoef)
         NdCartDiv(j) = 1;
         PCp1 = [PCp1 PC(j)];
         Zp1 = [Zp1 Z(j)];
-    elseif (Z(j) < hubBoundaryWMdDeg) && (PC(j) >= periPartCoef) && (PC(j) < nonHubconnectorPartCoef)
+    elseif (Z(j) <= hubBoundaryWMdDeg) && (PC(j) >= periPartCoef) && (PC(j) <= nonHubconnectorPartCoef)
         NdCartDiv(j) = 2;
         PCp2 = [PCp2 PC(j)];
         Zp2 = [Zp2 Z(j)];
-    elseif (Z(j) < hubBoundaryWMdDeg) && (PC(j) >= nonHubconnectorPartCoef)
+    elseif (Z(j) <= hubBoundaryWMdDeg) && (PC(j) >= nonHubconnectorPartCoef)
         NdCartDiv(j) = 3;
         PCp3 = [PCp3 PC(j)];
         Zp3 = [Zp3 Z(j)];
-    elseif (Z(j) >= hubBoundaryWMdDeg) && (PC(j) < proHubpartCoef)
+    elseif (Z(j) >= hubBoundaryWMdDeg) && (PC(j) <= proHubpartCoef)
         NdCartDiv(j) = 4;
         PCc1 = [PCc1 PC(j)];
         Zc1 = [Zc1 Z(j)];
-    elseif (Z(j) >= hubBoundaryWMdDeg) && (PC(j) >= proHubpartCoef) && (PC(j) < connectorHubPartCoef)
+    elseif (Z(j) >= hubBoundaryWMdDeg) && (PC(j) >= proHubpartCoef) && (PC(j) <= connectorHubPartCoef)
         NdCartDiv(j) = 5;
         PCc2 = [PCc2 PC(j)];
         Zc2 = [Zc2 Z(j)];
-    elseif (Z(j) > hubBoundaryWMdDeg) && (PC(j) >= connectorHubPartCoef)
+    elseif (Z(j) >= hubBoundaryWMdDeg) && (PC(j) >= connectorHubPartCoef)
         NdCartDiv(j) = 6;
         PCc3 = [PCc3 PC(j)];
         Zc3 = [Zc3 Z(j)];
