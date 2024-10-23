@@ -243,11 +243,11 @@ for e = 1:length(lagval)
             Z = pdist(adjM);
             D = squareform(Z);
 
-            [LatticeNetwork,Rrp,ind_rp,eff,met] = latmio_und_v2(adjM,ITER,D,'SW');
+            [LatticeNetwork,Rrp,ind_rp,eff,met] = latmio_und_v2(adjM,ITER,D,'SW', 1000);
 
             % Random rewiring model (d)
             ITER = 5000;
-            [R, ~,met2] = randmio_und_v2(adjM, ITER,'SW');
+            [R, ~,met2] = randmio_und_v2(adjM, ITER,'SW', 1000);
 
             plotNullModelIterations(met, met2, lagval, e, char(Info.FN), ...
                 Params, lagFolderName, oneFigureHandle)
@@ -320,7 +320,11 @@ for e = 1:length(lagval)
         if length(adjM) >= Params.minNumberOfNodesToCalNetMet
             
             if checkIfRecomputeMetric(Params, prevNetMet, lagValStr, 'PC') == 1
-                [PC,~,~,~] = participation_coef_norm(adjM,Ci);
+                
+                matlabInstallation = ver;
+                toolboxNames = {matlabInstallation.Name};
+                parallelToolboxInstalled = any(strcmp(toolboxNames, 'Parallel Computing Toolbox'));
+                [PC,~,~,~] = participation_coef_norm(adjM, Ci, 100, parallelToolboxInstalled);
                 % within module degree z-score
                 Z = module_degree_zscore(adjM,Ci,0);
 
