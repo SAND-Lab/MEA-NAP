@@ -303,6 +303,10 @@ Params.verboseLevel = app.VerboseLevelDropDown.Value;
 %% Python settings (for suite2p)
 Params.pythonPath = app.PythonpathEditField.Value;
 
+%% suite2p analysis 
+Params.twopActivity = app.ActivityDropDown.Value;
+Params.twopRedoDenoising = app.RedodenoisingCheckBox.Value;
+
 %% MISC 
 Params.option = 'list';
 Params.output_spreadsheet_file_type = 'csv';
