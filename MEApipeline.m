@@ -470,9 +470,8 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
         end
         
         if Params.suite2pMode == 1
-            suite2pFolder = fullfile(Params.rawData, char(ExpName(ExN)));
-            [adjMs, coords, channels, F, spks, fs] = suite2pToAdjm(suite2pFolder, Params);
-            Params.FuncConLagval = round(1/fs * 1000);
+            suite2pFolder = fullfile(Params.rawData, char(ExpName(ExN)), 'suite2p');
+            [adjMs, coords, channels, F, spks, fs, Params] = suite2pToAdjm(suite2pFolder, Params);
         else
             adjMs = generateAdjMs(spikeTimes, ExN, Params, Info, oneFigureHandle);
         end
@@ -586,7 +585,7 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
             
             if isfield(expMatData, 'spikeTimes')
                 [activityMatrix, spikeTimes, Params, Info] = formatSpikeTimes(char(Info.FN), ...
-                    Params, Info, spikeDetectedDataFolder, channelLayout);
+                    Params, Info, spikeDetectedDataFolder, expMatData);
             elseif isfield(expMatData, 'spks')
                 activityMatrix = expMatData.spks;
                 Params.fs = expMatData.fs;
@@ -849,6 +848,7 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
             if isfield(expData, 'coords')
                 originalCoords = expData.coords;
                 originalChannels = expData.channels;
+                expData.Info.channels = originalChannels;
             else 
                 originalCoords = Params.coords{ExN};
                 originalChannels = Params.channels{ExN};
