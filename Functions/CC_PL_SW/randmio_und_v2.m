@@ -1,4 +1,4 @@
-function [R,eff,met]=randmio_und_v2(R, ITERATIONS, metric)
+function [R,eff,met]=randmio_und_v2(R, ITERATIONS, metric, plotIterations)
 %RANDMIO_UND_V2     Random graph with preserved degree distribution
 %
 %   R = randmio_und_v2(W,ITERATIONS,metric);
@@ -34,6 +34,10 @@ function [R,eff,met]=randmio_und_v2(R, ITERATIONS, metric)
 %             rewirings (Olaf Sporns)
 %   Nov 2020: Stops iteration every e.g. 10 iterations to calculate network
 %   metric & output an array. (Lance Burn)
+
+if ~exist('plotIterations', 'var') 
+   plotIterations = 10; 
+end
 
 
 n=size(R,1);
@@ -86,7 +90,7 @@ for iter=1:ITERATIONS
         att=att+1;
     end %while not rewired
     
-    if rem(iter,10)==0
+    if rem(iter,plotIterations)==0
         if metric == 'CC'
             CCa = clustering_coef_wu(R);
             CCm = mean(CCa);

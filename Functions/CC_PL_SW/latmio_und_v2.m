@@ -1,4 +1,4 @@
-function [Rlatt,Rrp,ind_rp,eff,met] = latmio_und_v2(R,ITERATIONS,D,metric)
+function [Rlatt,Rrp,ind_rp,eff,met] = latmio_und_v2(R,ITERATIONS,D,metric, plotIterations)
 %LATMIO_UND_V2     Lattice with preserved degree distribution
 %
 %   [Rlatt,Rrp,ind_rp,eff,met] = latmio_und_v2(R,ITERATIONS,D,metric);
@@ -39,6 +39,12 @@ function [Rlatt,Rrp,ind_rp,eff,met] = latmio_und_v2(R,ITERATIONS,D,metric)
 %             shuffled across mutliple runs (Olaf Sporns)
 %   Nov 2020: Stops iteration every e.g. 10 iterations to calculate network
 %   metric & output an array. (Lance Burn)
+
+
+if ~exist('plotIterations', 'var') 
+   plotIterations = 10; 
+end
+
 
 n=size(R,1);
 
@@ -109,7 +115,7 @@ for iter=1:ITERATIONS
         att=att+1;
     end %while not rewired
     
-    if rem(iter,10)==0
+    if rem(iter,plotIterations)==0
         if metric == 'CC'
             CCa = clustering_coef_wu(R);
             CCm = mean(CCa);
