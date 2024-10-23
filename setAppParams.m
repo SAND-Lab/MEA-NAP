@@ -89,6 +89,11 @@ app.CustomGroupOrderEditField.Value = strjoin(Params.customGrpOrder, ',');
 %% Dimensionality Analysis
 % app.IncludeNMFcomponentsCheckBox.Value = Params.includeNMFcomponents;
 
+%% Suite2p settings 
+if isfield(Params, 'twopActivity')
+    app.ActivityDropDown.Value = Params.twopActivity;
+end 
+
 %% Pipeline settings 
 
 app.TimeprocessesCheckBox.Value = Params.timeProcesses;
