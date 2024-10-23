@@ -1,4 +1,4 @@
-function [spikeMatrix,spikeTimes,Params,Info] = formatSpikeTimes(File, Params, Info, spikeDataFolder, channelLayout)
+function [spikeMatrix,spikeTimes,Params,Info] = formatSpikeTimes(File, Params, Info, spikeDataFolder, expMatData)
 % this function loads in the spike detection result and creates a
 % spike matrix and spike times structure for the chosen spike detection
 % method and chosen length of recording
@@ -29,7 +29,22 @@ function [spikeMatrix,spikeTimes,Params,Info] = formatSpikeTimes(File, Params, I
 fileName = strcat(char(File),'_spikes.mat');
 fileFullPath = fullfile(spikeDataFolder, fileName);
 
-load(fileFullPath, 'spikeTimes', 'spikeDetectionResult', 'channels')
+if isfile(fileFullPath)
+    load(fileFullPath, 'spikeTimes', 'spikeDetectionResult', 'channels')
+    if isfield(spikeDetectionResult, 'params')
+        duration_s = floor(spikeDetectionResult.params.duration);
+        fs = spikeDetectionResult.params.fs;
+    else 
+        duration_s = floor(spikeDetectionResult.Params.duration);
+        fs = spikeDetectionResult.Params.fs;
+    end
+    
+else 
+   spikeTimes = expMatData.spikeTimes; 
+   channels = expMatData.Info.channels;
+   duration_s = expMatData.Info.duration_s;
+   fs = expMatData.Params.fs;
+end
 spikeTimes = spikeTimes(~cellfun(@isempty, spikeTimes));
 
 Info.channels = channels;
@@ -53,7 +68,7 @@ end
 %% format full length or truncated recording
 
 if Params.TruncRec == 0
-    Info.duration_s = floor(spikeDetectionResult.params.duration);
+    Info.duration_s = duration_s;
 end
 
 % truncate spike times
@@ -72,11 +87,11 @@ if Params.TruncRec == 1
     end
 end
 
-Params.fs = spikeDetectionResult.params.fs;
+Params.fs = fs;
 
 %% create spike matrix
 
-spikeMatrix = SpikeTimesToMatrix(spikeTimes,spikeDetectionResult,Params.SpikesMethod,Info);
+spikeMatrix = SpikeTimesToMatrix(spikeTimes,fs,Params.SpikesMethod,Info);
 
 % this while loop looks like it can be improved !!!
 while  floor(length(spikeMatrix)/Params.fs)~=Info.duration_s
