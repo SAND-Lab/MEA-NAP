@@ -932,11 +932,11 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
                     if Params.priorAnalysis==1 && Params.startAnalysisStep==4 && usePriorNetMet
                         experimentMatFileFolder = fullfile(Params.priorAnalysisPath, 'ExperimentMatFiles');
                         experimentMatFilePath = fullfile(experimentMatFileFolder, strcat(char(ExpName(ExN)),'_',Params.priorAnalysisDate,'.mat'));
-                        expData = load(experimentMatFilePath, 'spikeTimes','Ephys','adjMs','Info', 'NetMet', 'Params');
+                        expData = load(experimentMatFilePath, 'spikeTimes','Ephys','adjMs','Info', 'NetMet', 'Params', 'coords', 'channels');
                     else
                         experimentMatFileFolder = fullfile(Params.outputDataFolder, Params.outputDataFolderName, 'ExperimentMatFiles');
                         experimentMatFilePath = fullfile(experimentMatFileFolder, strcat(char(ExpName(ExN)),'_',Params.outputDataFolderName,'.mat'));
-                        expData = load(experimentMatFilePath,'Info','Params', 'spikeTimes','Ephys','adjMs', 'NetMet');
+                        expData = load(experimentMatFilePath,'Info','Params', 'spikeTimes','Ephys','adjMs', 'NetMet', 'coords', 'channels');
                     end
 
                     fileNameFolder = fullfile(Params.outputDataFolder, Params.outputDataFolderName, ...
@@ -1230,6 +1230,7 @@ end
 if Params.guiMode == 1
     app.MEANAPStatusTextArea.Value = [app.MEANAPStatusTextArea.Value; ...
         'MEA-NAP run completed successfully'];
+    fprintf('MEA-NAP run completed successfully \n')
 else
     fprintf('MEA-NAP run completed successfully \n')
 end
