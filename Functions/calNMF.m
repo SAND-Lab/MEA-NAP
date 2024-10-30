@@ -141,7 +141,7 @@ downSampleSpikeMatrixActive = downSampleSpikeMatrix(:, activeElectrodes);
 % numTimeBins = size(downSampleSpikeMatrixActive, 1);
 
 v = ver;
-hasParallelToolbox = any(strcmp(cellstr(char(v.Name)), 'Parallel Processing Toolbox'));
+hasParallelToolbox = any(strcmp(cellstr(char(v.Name)), 'Parallel Computing Toolbox'));
 
 nnmf_residuals = zeros(networkSize, 1);
 nnmf_var_explained = zeros(networkSize, 1);
