@@ -282,19 +282,33 @@ Params.connectorHubPartCoef = app.connectorHubPartCoefEditField.Value;  % bounda
 Params.groupColors = app.colorUITable.Data(:, 2:end);
 
 Params.minNodeSize = app.MinimumnodesizeEditField.Value;  % minimum node size in network plots
+Params.maxNodeSize = app.MaximumnodesizeEditField.Value;
+Params.nodeScalingMethod = app.NodesizescalingDropDown.Value;
+Params.nodeScalingPower = app.NodescalingpowerEditField.Value;
+
 Params.kdeHeight = app.KDEHeightEditField.Value;  % height of the KDE curve, only affects plotting and not the kernel density estimate itself
 Params.kdeWidthForOnePoint = app.KDEwidthforonepointEditField.Value;  % bandwidth for KDE (in half violin plots) if there is only a single data point 
 Params.includeChannelNumberInPlots = app.IncludechannelnumberinplotsCheckBox.Value;  % whether to plot channel ID in heatmaps and node plots
 
 Params.includeNotBoxPlots = app.IncludeNotBoxPlotsCheckBox.Value;
 
-Params.linePlotShadeMetric = 'sem';  % 'std' or 'sem'
+Params.linePlotShadeMetric = app.ShadeMetricDropDown.Value;  % 'std' or 'sem'
 
 % Raster colormap 
 Params.rasterColormap = app.RastercolormapDropDown.Value;  % 'parula' or 'gray'
 
 % Order of groups to plot 
 Params.customGrpOrder = cell(split(app.CustomGroupOrderEditField.Value , ','))'; 
+
+% Which edges to plot
+Params.networkPlotEdgeThresholdMethod = app.EdgethresholdmethodDropDown.Value;
+Params.networkPlotEdgeThresholdPercentile = app.EdgeweightpercentileEditField.Value;
+Params.networkPlotEdgeThreshold = app.MinedgeweightEditField.Value;
+Params.maxNumEdgesToPlot = app.MaximumedgesEditField.Value;
+Params.edgeSubsamplingMethod = app.EdgesubsamplingmethodDropDown.Value;
+
+% Node layout 
+Params.nodeLayout = app.NodelayoutDropDown.Value;  
 
 %% Pipeline settings 
 Params.timeProcesses = app.TimeprocessesCheckBox.Value;
@@ -306,6 +320,7 @@ Params.pythonPath = app.PythonpathEditField.Value;
 %% suite2p analysis 
 Params.twopActivity = app.ActivityDropDown.Value;
 Params.twopRedoDenoising = app.RedodenoisingCheckBox.Value;
+Params.removeNodesWithNoPeaks = app.RemovenodeswithnopeaksCheckBox.Value;
 
 %% MISC 
 Params.option = 'list';

@@ -38,11 +38,12 @@ app.colorUITable.ColumnEditable = [true, true, true, true];
 advancedSpikeDetectionTabParent = app.AdvancedSpikeDetectionTab.Parent;
 advancedBurstDetectionTabParent = app.AdvancedBurstDetectionTab.Parent; 
 advancedDimensionalityTabParent = app.AdvancedDimensionalityTab.Parent; 
+advancedPlottingTabParent = app.AdvancedPlottingTab.Parent;
 colorsTabParent = app.ColorsTab.Parent; 
 artifactRemovalTabParent = app.ArtifactRemovalTab.Parent; 
-multipleTemplatesTabParent = app.MultipleTemplatesTab.Parent;
 advancedConnectivityTabParent = app.AdvancedConnectivityTab.Parent;
 nodeCartographyTabParent = app.NodeCartographyTab.Parent;
+catnapTabParent = app.CATNAPTab.Parent;
 
 % Set default network parameters to calculate
 
@@ -79,6 +80,9 @@ formatOut = 'ddmmmyyyy';
 todyDate = datestr(now,formatOut); 
 app.OutputFolderNameEditField.Value = ['OutputData' todyDate];
 
+% Modify some titles 
+% app.SpikeDetectionTab.Title = sprintf('\nSpike\nDetection');
+
 % suite2p mode
 suite2pMode = 0;
 
@@ -95,12 +99,13 @@ mcsSystemParamsCheck = 0;
 usingLoadedParams = 0;
 prevSpreadsheetRange = str2num(app.SpreadsheetRangeEditField.Value);
 
+% Update default STTC lag values if suite2p mode selected, only done once
+suite2pParamsCheck = 0;
+
 while isvalid(app)
 
     % previous analysis fields
     if app.UsePreviousAnalysisCheckBox.Value == 0
-        % app.PreviousAnalysisDateEditField.Enable = 'Off';
-        % app.PreviousAnalysisDateEditFieldLabel.Enable = 'Off';
         app.PreviousAnalysisFolderEditField.Enable = 'Off';
         app.PreviousAnalysisFolderEditFieldLabel.Enable = 'Off';
         app.SpikeDataFolderEditField.Enable = 'Off';
@@ -122,39 +127,33 @@ while isvalid(app)
         app.AdvancedSpikeDetectionTab.Parent = advancedSpikeDetectionTabParent;
         app.AdvancedBurstDetectionTab.Parent = advancedBurstDetectionTabParent;
         app.AdvancedDimensionalityTab.Parent = advancedDimensionalityTabParent;
+        app.AdvancedPlottingTab.Parent = advancedPlottingTabParent;
         app.ColorsTab.Parent = colorsTabParent; 
         app.ArtifactRemovalTab.Parent = artifactRemovalTabParent;
-        app.MultipleTemplatesTab.Parent = multipleTemplatesTabParent;
         app.AdvancedConnectivityTab.Parent = advancedConnectivityTabParent;
         app.NodeCartographyTab.Parent = nodeCartographyTabParent;
         % Not Tabs
-        app.MinimumnodesizeEditField.Visible = 'on';
-        app.MinimumnodesizeEditFieldLabel.Visible = 'on';
-        app.KDEwidthforonepointEditField.Visible = 'on';
-        app.KDEwidthforonepointEditFieldLabel.Visible = 'on';
-        app.KDEHeightEditField.Visible = 'on';
-        app.KDEHeightEditFieldLabel.Visible = 'on';
         app.ShadeMetricDropDown.Visible = 'on';
         app.ShadeMetricDropDownLabel.Visible = 'on';
     else
         app.AdvancedSpikeDetectionTab.Parent = [];
         app.AdvancedBurstDetectionTab.Parent = [];
         app.AdvancedDimensionalityTab.Parent = [];
+        app.AdvancedPlottingTab.Parent = [];
         app.ColorsTab.Parent = [];
         app.ArtifactRemovalTab.Parent = [];
-        app.MultipleTemplatesTab.Parent = [];
         app.AdvancedConnectivityTab.Parent = [];
         app.NodeCartographyTab.Parent = [];
         % Not Tabs 
-        app.MinimumnodesizeEditField.Visible = 'off';
-        app.MinimumnodesizeEditFieldLabel.Visible = 'off';
-        app.KDEwidthforonepointEditField.Visible = 'off';
-        app.KDEwidthforonepointEditFieldLabel.Visible = 'off';
-        app.KDEHeightEditField.Visible = 'off';
-        app.KDEHeightEditFieldLabel.Visible = 'off';
         app.ShadeMetricDropDown.Visible = 'off';
         app.ShadeMetricDropDownLabel.Visible = 'off';
     end 
+    
+    if suite2pMode == 0
+        app.CATNAPTab.Parent = [];
+    else 
+        app.CATNAPTab.Parent = catnapTabParent;
+    end
 
     % check if all required parameters are set
     homeDirSet = 1 - isempty(app.MEANAPFolderEditField.Value);
@@ -202,7 +201,14 @@ while isvalid(app)
         app.RawDataFolderEditField_2.Value = app.MEADataFolderEditField.Value;
     end 
     
-    
+    % Plotting settings 
+    if strcmp(app.EdgethresholdmethodDropDown.Value, 'Absolute Value')
+        app.EdgeweightpercentileEditField.Enable = 'off';
+        app.MinedgeweightEditField.Enable = 'on';
+    else 
+        app.EdgeweightpercentileEditField.Enable = 'on';
+        app.MinedgeweightEditField.Enable = 'off';
+    end
     
     % Load CSV
     if app.SpreadsheetSelectButton.Value == 1
@@ -315,6 +321,13 @@ while isvalid(app)
         suite2pMode = appCheckSuite2pData(app);
         
     end 
+    
+    % Suite2p mode default parameters 
+    if (suite2pMode == 1) && (suite2pParamsCheck == 0)
+       app.STTCLagmsEditField.Value = '[1000, 2500, 5000]';
+       app.NodecartographylagvaluesEditField.Value = '[1000, 2500, 5000]';
+       suite2pParamsCheck = 1; 
+    end
 
     % SAVING PARAMETERS
     if app.SaveParametersButton.Value == 1
@@ -450,10 +463,19 @@ if ~isvalid(app)
 end 
 
 %% Moving settings to Params
-Params = getParamsFromApp(app);
+% remove NMF calculation if running suite2p mode 
+if suite2pMode 
+    inclusionIndex = find(~ismember(app.NetworkmetricstocalculateListBox.Value, {'num_nnmf_components', 'nComponentsRelNS'}));
+    app.NetworkmetricstocalculateListBox.Value = app.NetworkmetricstocalculateListBox.Value(inclusionIndex);
+end
 
+Params = getParamsFromApp(app);
 Params.suite2pMode = suite2pMode;
+
 Params.guiMode = 1;
+
+
+
 
 % some workspace varaibles 
 HomeDir = Params.HomeDir;  % TODO: just put this to Params

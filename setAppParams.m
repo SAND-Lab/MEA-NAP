@@ -79,6 +79,39 @@ app.UseminmaxpergroupboundsCheckBox.Value = Params.use_min_max_per_genotype_boun
 app.colorUITable.Data(:, 2:end) = Params.groupColors;
 
 app.MinimumnodesizeEditField.Value = Params.minNodeSize;  % minimum node size in network plots
+if isfield(Params, 'maxNodeSize')
+    app.MaximumnodesizeEditField.Value = Params.maxNodeSize;
+end
+
+if isfield(Params, 'nodeScalingMethod')
+    app.NodesizescalingDropDown.Value = Params.nodeScalingMethod;
+end
+
+if isfield(Params, 'nodeLayout')
+    app.NodelayoutDropDown.Value = Params.nodeLayout;  
+end
+
+if isfield(Params, 'nodeScalingPower')
+    app.NodescalingpowerEditField.Value = Params.nodeScalingPower;
+end 
+
+% Edge plotting settings 
+if isfield(Params, 'networkPlotEdgeThresholdMethod')
+    app.EdgethresholdmethodDropDown.Value = Params.networkPlotEdgeThresholdMethod;
+end
+if isfield(Params, 'networkPlotEdgeThresholdPercentile') 
+    app.EdgeweightpercentileEditField.Value = Params.networkPlotEdgeThresholdPercentile;
+end
+if isfield(Params, 'networkPlotEdgeThreshold')
+     app.MinedgeweightEditField.Value = Params.networkPlotEdgeThreshold; 
+end
+if isfield(Params, 'maxNumEdgesToPlot')
+    app.MaximumedgesEditField.Value = Params.maxNumEdgesToPlot;
+end
+if isfield(Params, 'maxNumEdgesToPlot')
+    app.EdgesubsamplingmethodDropDown.Value = Params.edgeSubsamplingMethod;
+end 
+
 app.KDEHeightEditField.Value = Params.kdeHeight;  % height of the KDE curve, only affects plotting and not the kernel density estimate itself
 app.KDEwidthforonepointEditField.Value = Params.kdeWidthForOnePoint;  % bandwidth for KDE (in half violin plots) if there is only a single data point 
 app.IncludechannelnumberinplotsCheckBox.Value = Params.includeChannelNumberInPlots;  % whether to plot channel ID in heatmaps and node plots
@@ -92,6 +125,10 @@ app.CustomGroupOrderEditField.Value = strjoin(Params.customGrpOrder, ',');
 %% Suite2p settings 
 if isfield(Params, 'twopActivity')
     app.ActivityDropDown.Value = Params.twopActivity;
+end 
+
+if isfield(Params, 'removeNodesWithNoPeaks')
+    app.RemovenodeswithnopeaksCheckBox.Value = Params.removeNodesWithNoPeaks;
 end 
 
 %% Pipeline settings 
