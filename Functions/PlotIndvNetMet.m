@@ -14,12 +14,6 @@ function PlotIndvNetMet(expData, Params, Info, originalCoords, originalChannels,
  
 lagval = expData.Params.FuncConLagval;
 
-% edge threshold for adjM
-if isfield(Params, 'networkPlotEdgeThreshold')
-    edge_thresh = Params.networkPlotEdgeThreshold;
-else
-    edge_thresh = 0.0001;    
-end
 
 
 for e = 1:length(lagval)
@@ -57,6 +51,9 @@ for e = 1:length(lagval)
     adjM = adjM(inclusionIndex, inclusionIndex);
     coords = originalCoords(inclusionIndex, :);
     Params.netSubsetChannels = originalChannels(inclusionIndex);
+    
+    % edge threshold for adjM
+    edge_thresh = getEdgeThreshold(adjM, Params);
     
     Ci = expData.NetMet.(lagValStr).Ci;
     if length(adjM) > 0
@@ -293,7 +290,8 @@ for e = 1:length(lagval)
                 h1cbar.TickLabels = cbOriginal.TickLabels;
                 
                 h2cbar = colorbar(h(2));
-                h2cbar.Location = cbScaled.Location;
+               
+                h2cbar.Location = cbScaled.Location; 
                 h2cbar.Limits = cbScaled.Limits;
                 h2cbar.Label.String = cbScaled.Label.String;
                 h2cbar.Units = cbScaled.Units;
@@ -304,6 +302,12 @@ for e = 1:length(lagval)
             
             copyobj(allchild(get(figureHandleOriginal, 'Currentaxes')), h(1)); 
             copyobj(allchild(get(figureHandleScaled, 'Currentaxes')), h(2)); 
+            
+            if ~sum(isnan(colorMapMetricsToPlot{networkPlotIdx}))
+               % The default doesn't work sometimes, so hard-coding it now
+               h1cbar.Position = [0.51, 0.1109, 0.0123, 0.8145];
+               h2cbar.Position = [0.95, 0.1109, 0.0123, 0.8145];
+            end
             %}
             
             set(gcf, 'color', 'white');
