@@ -470,7 +470,7 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
         end
         
         if Params.suite2pMode == 1
-            suite2pFolder = fullfile(Params.rawData, char(ExpName(ExN)), 'suite2p');
+            suite2pFolder = fullfile(Params.rawData, char(ExpName(ExN)), 'suite2p', 'plane0');
             [adjMs, coords, channels, F, spks, fs, Params] = suite2pToAdjm(suite2pFolder, Params);
         else
             adjMs = generateAdjMs(spikeTimes, ExN, Params, Info, oneFigureHandle);
