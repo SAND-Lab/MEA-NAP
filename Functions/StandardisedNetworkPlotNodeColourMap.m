@@ -61,6 +61,12 @@ title(strcat(regexprep(FN,'_','','emptymatch'),{' '},num2str(lagval(e)),{' '},'m
 
 %% coordinates
 
+if isfield(Params, 'nodeLayout')
+    if ~strcmp(Params.nodeLayout, 'Original')
+        coords = getNodeCoords(adjM, Params);
+    end
+end
+
 xc = coords(:,1);
 yc = coords(:,2);
 
@@ -101,7 +107,7 @@ if strcmp(plotType,'MEA')
     max_ew = 4; % maximum edge width for plotting
     min_ew = 0.001; % min edge width
     light_c = [0.8 0.8 0.8]; % lightest edge colour
-    
+    lineWidth = [];
     count = 0;
     for elecA = 1:num_nodes
         for elecB = 1:num_nodes
@@ -115,23 +121,25 @@ if strcmp(plotType,'MEA')
         end
     end
     
-    % threshold the edge width (in case edge values are lower than the
-    % lower display bound) and colours
-    lineWidth(lineWidth < 0) = min_ew;
-    colour(colour > light_c(1)) = light_c(1);
-    
-    % deal with NaNs (in the case of empty networks)
-    lineWidth(isnan(lineWidth)) = min_ew;
-    colour(isnan(colour)) = 1;
-    
-    [~,order] = sort(colour(:,1),'descend');
-    lineWidthT = lineWidth(:,order);
-    colourT = colour(order,:);
-    xcot = xco(order,:);
-    ycot = yco(order,:);
-    for u = 1:length(xcot)
-        plot(xcot(u,:),ycot(u,:),'LineWidth',lineWidthT(u),'Color',colourT(u,:));
-    end
+    if ~isempty(lineWidth)
+        % threshold the edge width (in case edge values are lower than the
+        % lower display bound) and colours
+        lineWidth(lineWidth < 0) = min_ew;
+        colour(colour > light_c(1)) = light_c(1);
+
+        % deal with NaNs (in the case of empty networks)
+        lineWidth(isnan(lineWidth)) = min_ew;
+        colour(isnan(colour)) = 1;
+
+        [~,order] = sort(colour(:,1),'descend');
+        lineWidthT = lineWidth(:,order);
+        colourT = colour(order,:);
+        xcot = xco(order,:);
+        ycot = yco(order,:);
+        for u = 1:length(xcot)
+            plot(xcot(u,:),ycot(u,:),'LineWidth',lineWidthT(u),'Color',colourT(u,:));
+        end
+    end 
 end
 
 if strcmp(plotType,'circular')
@@ -139,7 +147,7 @@ if strcmp(plotType,'circular')
     max_ew = 2; % maximum edge width for plotting
     min_ew = 0.001; % min edge width
     light_c = [0.8 0.8 0.8]; % lightest edge colour
-    
+    lineWidth = [];
     adjMtril = tril(adjM,-1);
     [~,linpos] = sort(adjMtril(:));
     [xord,yord] = ind2sub(size(adjMtril),linpos);
@@ -227,20 +235,22 @@ if strcmp(plotType,'circular')
         end
     end
     
-    % threshold the edge width (in case edge values are lower than the
-    % lower display bound) and colours
-    lineWidth(lineWidth < 0) = min_ew;
-    colour(colour > light_c(1)) = light_c(1);
-    
-    [~,order] = sort(colour(:,1),'descend');
-    lineWidthT = lineWidth(:,order);
-    colourT = colour(order,:);
-    xcot = xco(order,:);
-    ycot = yco(order,:);
-    for u = 1:size(xcot,1)
-        plot(xcot(u,:),ycot(u,:),'LineWidth',lineWidthT(u),'Color',colourT(u,:));
-        hold on
-    end
+    if ~isempty(lineWidth)
+        % threshold the edge width (in case edge values are lower than the
+        % lower display bound) and colours
+        lineWidth(lineWidth < 0) = min_ew;
+        colour(colour > light_c(1)) = light_c(1);
+
+        [~,order] = sort(colour(:,1),'descend');
+        lineWidthT = lineWidth(:,order);
+        colourT = colour(order,:);
+        xcot = xco(order,:);
+        ycot = yco(order,:);
+        for u = 1:size(xcot,1)
+            plot(xcot(u,:),ycot(u,:),'LineWidth',lineWidthT(u),'Color',colourT(u,:));
+            hold on
+        end
+    end 
 end
 %% add nodes (and color them)
 
@@ -308,7 +318,9 @@ if strcmp(plotType,'MEA')
     
     for i = 1:length(adjM)
         if z(i)>0
-            nodeSize = max(Params.minNodeSize, z(i)/nodeScaleF);
+            
+            nodeSize = getNodeSize(z(i), nodeScaleF, Params);
+            
             pos = [xc(i)-(0.5*nodeSize) yc(i)-(0.5*nodeSize) nodeSize nodeSize];
             if length(z2) > 1   % deal with z2 is nan due to network size being too small
                 if z2(i)>0
@@ -398,7 +410,7 @@ set(gca,'color','none')
 
 legdata = {};
 legendNumDivisor = 3;
-
+edgeWeightLegendDecimalPlaces = 3;
 if round(max_z * 1/3) >= 1
     roundStr = '%02d';
     numDeciPlace = 0;
@@ -417,18 +429,40 @@ if strcmp(plotType,'MEA')
     
     % Z METRIC LEGEND 
     text(max(xc)+1.5,max(yc),strcat(zname,':'))
+
+    legItem1NodeSize = getNodeSize(str2num(legdata(1,:)), nodeScaleF, Params);
+    legItem2NodeSize = getNodeSize(str2num(legdata(2,:)), nodeScaleF, Params);
+    legItem3NodeSize = getNodeSize(str2num(legdata(3,:)), nodeScaleF, Params);
     
-    pos = [(max(xc)+2)-(str2num(legdata(1,:))/nodeScaleF)/2 max(yc)-1 str2num(legdata(1,:))/nodeScaleF str2num(legdata(1,:))/nodeScaleF];
-    rectangle('Position',pos,'Curvature',[1 1],'FaceColor',[1 1 1],'EdgeColor','k','LineWidth',0.5);
-    text(max(xc)+3,(max(yc)-1)+(0.5*str2num(legdata(1,:))/nodeScaleF),legdata(1,:))
+    legItem1NodeYloc = max(yc) - 1;
+    legItem2NodeYloc = max(yc) -1 - (0.5 * str2num(legdata(2,:))/ nodeScaleF + 1.5 * str2num(legdata(1,:))/nodeScaleF);
+    legItem3NodeYloc = (max(yc)-1)-(0.5*str2num(legdata(3,:))/nodeScaleF+str2num(legdata(2,:))/nodeScaleF+2.5*str2num(legdata(1,:))/nodeScaleF);
     
-    pos = [(max(xc)+2)-(str2num(legdata(2,:))/nodeScaleF)/2 (max(yc)-1)-(0.5*str2num(legdata(2,:))/nodeScaleF+1.5*str2num(legdata(1,:))/nodeScaleF) str2num(legdata(2,:))/nodeScaleF str2num(legdata(2,:))/nodeScaleF];
-    rectangle('Position',pos,'Curvature',[1 1],'FaceColor',[1 1 1],'EdgeColor','k','LineWidth',0.5);
-    text(max(xc)+3,(max(yc)-1)-(1.5*str2num(legdata(1,:))/nodeScaleF),legdata(2,:))
+    legItem1TextYloc = legItem1NodeYloc + legItem1NodeSize/2;
+    legItem2TextYloc = legItem2NodeYloc + legItem2NodeSize/2;
+    legItem3TextYloc = legItem3NodeYloc + legItem3NodeSize/2;
     
-    pos = [(max(xc)+2)-(str2num(legdata(3,:))/nodeScaleF)/2 (max(yc)-1)-(0.5*str2num(legdata(3,:))/nodeScaleF+str2num(legdata(2,:))/nodeScaleF+2.5*str2num(legdata(1,:))/nodeScaleF) str2num(legdata(3,:))/nodeScaleF str2num(legdata(3,:))/nodeScaleF];
+    pos = [(max(xc)+2)-legItem1NodeSize/2, ...
+           legItem1NodeYloc, ...
+           legItem1NodeSize ...
+           legItem1NodeSize];
     rectangle('Position',pos,'Curvature',[1 1],'FaceColor',[1 1 1],'EdgeColor','k','LineWidth',0.5);
-    text(max(xc)+3,(max(yc)-1)-(str2num(legdata(2,:))/nodeScaleF+2.5*str2num(legdata(1,:))/nodeScaleF),legdata(3,:))
+    text(max(xc)+3, legItem1TextYloc, legdata(1,:))
+    
+    pos = [(max(xc)+2)-legItem2NodeSize/2, ...
+           legItem2NodeYloc, ...
+           legItem2NodeSize, ...
+           legItem2NodeSize];
+    rectangle('Position',pos,'Curvature',[1 1],'FaceColor',[1 1 1],'EdgeColor','k','LineWidth',0.5);
+    text(max(xc)+3, legItem2TextYloc, legdata(2,:))
+    
+    pos = [(max(xc)+2)-legItem3NodeSize/2, ...
+            legItem3NodeYloc, ...
+            legItem3NodeSize, ...
+            legItem3NodeSize];
+        
+    rectangle('Position',pos,'Curvature',[1 1],'FaceColor',[1 1 1],'EdgeColor','k','LineWidth',0.5);
+    text(max(xc)+3, legItem3TextYloc, legdata(3,:))
     
     % EDGE WEIGHT LEGEND
     text(max(xc)+1.5,max(yc)-(4*str2num(legdata(3,:))/nodeScaleF),'edge weight:')
@@ -445,7 +479,7 @@ if strcmp(plotType,'MEA')
     posx = [max(xc)+1.5 max(xc)+2.5];
     posy = [max(yc)-(5*str2num(legdata(3,:))/nodeScaleF) max(yc)-(5*str2num(legdata(3,:))/nodeScaleF)];
     plot(posx,posy,'LineWidth',lineWidthL,'Color',colourL);
-    text(max(xc)+3,max(yc)-(5*str2num(legdata(3,:))/nodeScaleF),num2str(round(threshMax-2/3*range,4)))
+    text(max(xc)+3,max(yc)-(5*str2num(legdata(3,:))/nodeScaleF),num2str(round(threshMax-2/3*range,edgeWeightLegendDecimalPlaces)))
     
     lineWidthL = min_ew + (max_ew-min_ew)*(((threshMax-1/3*range)-minNonZeroEdge)/(threshMax-minNonZeroEdge));
     colourL = [1 1 1]-(light_c*(((threshMax-1/3*range)-minNonZeroEdge)/(threshMax-minNonZeroEdge)));
@@ -453,7 +487,7 @@ if strcmp(plotType,'MEA')
     posx = [max(xc)+1.5 max(xc)+2.5];
     posy = [max(yc)-(6*str2num(legdata(3,:))/nodeScaleF) max(yc)-(6*str2num(legdata(3,:))/nodeScaleF)];
     plot(posx,posy,'LineWidth',lineWidthL,'Color',colourL);
-    text(max(xc)+3,max(yc)-(6*str2num(legdata(3,:))/nodeScaleF),num2str(round(threshMax-1/3*range,4)))
+    text(max(xc)+3,max(yc)-(6*str2num(legdata(3,:))/nodeScaleF),num2str(round(threshMax-1/3*range,edgeWeightLegendDecimalPlaces)))
     
     lineWidthL = min_ew + (max_ew-min_ew)*(((threshMax)-minNonZeroEdge)/(threshMax-minNonZeroEdge));
     colourL = [1 1 1]-(light_c*(((threshMax)-minNonZeroEdge)/(threshMax-minNonZeroEdge)));
@@ -461,7 +495,14 @@ if strcmp(plotType,'MEA')
     posx = [max(xc)+1.5 max(xc)+2.5];
     posy = [max(yc)-(7*str2num(legdata(3,:))/nodeScaleF) max(yc)-(7*str2num(legdata(3,:))/nodeScaleF)];
     plot(posx,posy,'LineWidth',lineWidthL,'Color',colourL);
-    text(max(xc)+3,max(yc)-(7*str2num(legdata(3,:))/nodeScaleF),num2str(round(threshMax,4)))
+    text(max(xc)+3,max(yc)-(7*str2num(legdata(3,:))/nodeScaleF),num2str(round(threshMax,edgeWeightLegendDecimalPlaces)))
+    
+    % set axis range 
+    max_xc_yc = max([xc; yc]);
+    min_xc_yc = min([xc; yc]);
+    
+    ylim([min_xc_yc-1 max_xc_yc+1])
+    xlim([min_xc_yc-1 max_xc_yc+3.75])
     
     cb = colorbar;
     cb.Ticks = [0 0.2 0.4 0.6 0.8 1];
@@ -506,10 +547,10 @@ if strcmp(plotType,'MEA')
     
     cb.TickLabels = cbar_ticklabels;
     cb.Label.String = z2name;
+    % cb.Position = [0.9, 0.11, 0.029, 0.81];
     
-    % set axis range 
-    ylim([min(yc)-1 max(yc)+1])
-    xlim([min(xc)-1 max(xc)+3.75])
+    % ylim([min(yc)-1 max(yc)+1])
+    % xlim([min(xc)-1 max(xc)+3.75])
 
 end
 
