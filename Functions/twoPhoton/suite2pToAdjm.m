@@ -12,6 +12,7 @@ function [adjMs, coords, channels, FisCell, spksIsCell, fs, Params] = suite2pToA
 % Info.DIV = {1};
 
 % suite2pFolder = '/home/timothysit/testSuite2pData/';
+
 spksFpath = fullfile(suite2pFolder, 'spks.npy');
 spks = readNPY(spksFpath);
 iscellFpath = fullfile(suite2pFolder, 'iscell.npy');
@@ -21,6 +22,9 @@ spksIsCell = spks(logical(iscell(:, 1)), :)';
 Ffpath = fullfile(suite2pFolder, 'F.npy');
 F = readNPY(Ffpath);
 FisCell = F(logical(iscell(:, 1)), :)';
+
+channels = 1:size(F, 1);
+channels = channels(logical(iscell(:, 1)));
 
 % pythonPath = '/home/timothysit/anaconda3/envs/suite2p/bin/python';
 % pythonPath = '/home/timothysit/anaconda3/envs/msi/bin/python';
@@ -61,9 +65,18 @@ end
 
 terminate(pyenv)
 
-
-
 XYlocIsCell = XYloc(:, logical(iscell(:, 1)));
+
+if Params.removeNodesWithNoPeaks
+    % Subset only cells with peaks 
+    cellSubsetIndex = find(1 - all(isnan(peakStartFramesIsCell), 2));
+    FdenoisedIsCell = FdenoisedIsCell(:, cellSubsetIndex);
+    peakStartFramesIsCell = peakStartFramesIsCell(cellSubsetIndex, :);
+    FisCell = FisCell(:, cellSubsetIndex);
+    spksIsCell = spksIsCell(:, cellSubsetIndex);
+    channels = channels(cellSubsetIndex);
+end 
+
 
 % saveFolder = '/home/timothysit/AnalysisPipeline/OutputDataTestSuite2p/ExperimentMatFiles/';
 % saveName = 'suite2pFile1_OutputDataTestSuite2p';
@@ -75,7 +88,6 @@ maxXY = max(XYloc(:));
 minXY = min(XYloc(:));
 coords = (coords - minXY) / (maxXY - minXY);
 coords = coords * 8;
-channels = 1:sum(iscell(:, 1));
 
 % temporary subset
 %{

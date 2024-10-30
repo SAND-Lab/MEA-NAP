@@ -11,7 +11,7 @@ function suite2pMode = appCheckSuite2pData(app)
     numSuite2pFiles = 0;
     for subFolderIdx = 1:length(subfolderNames)
         subFolderFullPath = fullfile(app.MEADataFolderEditField.Value, subfolderNames{subFolderIdx});
-        if isfile(fullfile(subFolderFullPath, 'suite2p', 'stat.npy'))
+        if isfile(fullfile(subFolderFullPath, 'suite2p', 'plane0', 'stat.npy'))
             numSuite2pFiles = numSuite2pFiles + 1;
         end
     end
