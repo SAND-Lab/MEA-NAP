@@ -32,7 +32,6 @@ function NetMet = plotNodeCartography(adjMs, Params, NetMet, Info, originalCoord
 % 
 
 lagval = Params.FuncConLagval;
-edge_thresh = 0.0001;
 
 %% Individual node cartography plots 
 
@@ -86,6 +85,9 @@ for e = 1:length(lagval)
         On = NetMet.(sprintf('AnchoredReorderingIndex%.fmslag', lagval(e)));
         adjMord = adjM(On, On);
     end
+    
+    % Get edge threshold 
+    edge_thresh = getEdgeThreshold(adjMord, Params);
 
     % extract node cartography
     PC = NetMet.(strcat('adjM', num2str(lagval(e)), 'mslag')).PC;
