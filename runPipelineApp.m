@@ -221,28 +221,38 @@ while isvalid(app)
          % load csv to check if everything is alright 
          csvRange = str2num(app.SpreadsheetRangeEditField.Value);
          csv_data = pipelineReadCSV(spreadsheetFilePath, csvRange);
-         app.MEANAPStatusTextArea.Value = [app.MEANAPStatusTextArea.Value; 'Loaded spreadsheet succesfully!'];
-         app.MEANAPStatusTextArea.Value = [app.MEANAPStatusTextArea.Value; sprintf('Your data has %.f rows', size(csv_data, 1))];
-         app.MEANAPStatusTextArea.Value = [app.MEANAPStatusTextArea.Value; 'And columns with names:'];
-         app.MEANAPStatusTextArea.Value = [app.MEANAPStatusTextArea.Value; strjoin(csv_data.Properties.VariableNames, ', ')];
          
-         % Update spreadsheet tab csvTable with loaded csv data
-         app.SpreadsheetFilepathEditField.Value = spreadsheetFilePath;
-         app.csvTable.Data = csv_data;
-         app.csvTable.ColumnName = csv_data.Properties.VariableNames;
-         
-         % Check for special characters in spreadsheet and group names that
-         % start with numbers
-         if size(csv_data, 2) >= 3 
-            [groupNameBeginsWnumber, groupNameContainsSpecial, allDIVisValid] = checkCSV(csv_data);
-            
-            updateCSVstatusInGui(app, groupNameBeginsWnumber, groupNameContainsSpecial, allDIVisValid);
-            
-            % Update Custom Group Order with detected group names
-            uniqueGrpNames = unique(csv_data(:, 3));
-            app.CustomGroupOrderEditField.Value = strjoin(table2cell(uniqueGrpNames), ',');
-         end
-         
+         if istable(csv_data)
+             app.MEANAPStatusTextArea.Value = [app.MEANAPStatusTextArea.Value; 'Loaded spreadsheet succesfully!'];
+             app.MEANAPStatusTextArea.Value = [app.MEANAPStatusTextArea.Value; sprintf('Your data has %.f rows', size(csv_data, 1))];
+             app.MEANAPStatusTextArea.Value = [app.MEANAPStatusTextArea.Value; 'And columns with names:'];
+             app.MEANAPStatusTextArea.Value = [app.MEANAPStatusTextArea.Value; strjoin(csv_data.Properties.VariableNames, ', ')];
+
+             % Update spreadsheet tab csvTable with loaded csv data
+             app.SpreadsheetFilepathEditField.Value = spreadsheetFilePath;
+             app.csvTable.Data = csv_data;
+             app.csvTable.ColumnName = csv_data.Properties.VariableNames;
+
+             % Check for special characters in spreadsheet and group names that
+             % start with numbers
+             if size(csv_data, 2) >= 3 
+                [groupNameBeginsWnumber, groupNameContainsSpecial, allDIVisValid] = checkCSV(csv_data);
+
+                updateCSVstatusInGui(app, groupNameBeginsWnumber, groupNameContainsSpecial, allDIVisValid);
+
+                % Update Custom Group Order with detected group names
+                uniqueGrpNames = unique(csv_data(:, 3));
+                app.CustomGroupOrderEditField.Value = strjoin(table2cell(uniqueGrpNames), ',');
+             end
+             
+         elseif csv_data == 0
+             
+             app.MEANAPStatusTextArea.Value = [app.MEANAPStatusTextArea.Value; 'Spreadsheet failed to load. ', ...
+                                               'Please check your csv has at least 3 columns, ', ...
+                                               'and at least one entry (not counting the header). ', ...
+                                               'Read the documentation for details.'];
+             
+         end 
          
          % app.csvTable.ColumnEditable = true; % logical(ones(1, length(csv_data.Properties.VariableNames)));
     end
