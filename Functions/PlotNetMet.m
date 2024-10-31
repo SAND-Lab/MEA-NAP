@@ -157,7 +157,6 @@ if Params.includeNotBoxPlots
     eMetl = Params.networkLevelNetMetLabels;
 
     p = [100 100 1300 600]; 
-    set(0, 'DefaultFigurePosition', p)
 
     if Params.showOneFig
         set(oneFigureHandle, 'Position', p);
@@ -259,7 +258,6 @@ eMet = Params.networkLevelNetMetToPlot;
 eMetl = Params.networkLevelNetMetLabels;
 
 p = [100 100 1300 600]; 
-set(0, 'DefaultFigurePosition', p)
 
 if Params.showOneFig
     set(oneFigureHandle, 'Position', p);
@@ -393,7 +391,7 @@ for n = 1:length(eMetl)
 end 
 
 p = [100 100 1300 600]; 
-set(0, 'DefaultFigurePosition', p)
+
 if Params.showOneFig
     set(oneFigureHandle, 'Position', p);
 end 
@@ -405,6 +403,7 @@ for lagIdx = 1:length(Params.FuncConLagval)
         mkdir(halfViolinPlotByDivFolderPlusLag)
     end 
     for n = 1:length(eMet)
+        eMeti = char(eMet(n));
         if ~Params.showOneFig
             F1 = figure;
         end 
