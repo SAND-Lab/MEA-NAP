@@ -484,9 +484,6 @@ Params.suite2pMode = suite2pMode;
 
 Params.guiMode = 1;
 
-
-
-
 % some workspace varaibles 
 HomeDir = Params.HomeDir;  % TODO: just put this to Params
 spreadsheet_filename = Params.spreadSheetFileName;
@@ -511,7 +508,6 @@ Params.pValThreshold = 0.01;  % p value threshold to consider effect as signific
 if any(isnan(Params.outputDataFolder)) || isempty(Params.outputDataFolder)
     Params.outputDataFolder = HomeDir;
 end 
-
 
 
 %% Start analysis message

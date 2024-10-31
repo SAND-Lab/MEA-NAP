@@ -91,16 +91,18 @@ if strcmp(plotType,'MEA')
         end
     end
     
-    [~,order] = sort(colour(:,1),'descend');
-    lineWidthT = lineWidth(:,order);
-    colourT = colour(order,:);
-    xcot = xco(order,:);
-    ycot = yco(order,:);
-    
-    % TODO: this does not require a loop I think... 
-    for u = 1:length(xcot)
-        plot(xcot(u,:),ycot(u,:),'LineWidth',lineWidthT(u),'Color',colourT(u,:));
-    end
+    if count > 0
+        [~,order] = sort(colour(:,1),'descend');
+        lineWidthT = lineWidth(:,order);
+        colourT = colour(order,:);
+        xcot = xco(order,:);
+        ycot = yco(order,:);
+
+        % TODO: this does not require a loop I think... 
+        for u = 1:length(xcot)
+            plot(xcot(u,:),ycot(u,:),'LineWidth',lineWidthT(u),'Color',colourT(u,:));
+        end
+    end 
 end
 
 if strcmp(plotType,'circular')
@@ -192,19 +194,21 @@ if strcmp(plotType,'circular')
             xco(count,:) = r*cos(theta)+x0;
             yco(count,:) = r*sin(theta)+y0;
             lineWidth(count) = min_ew + (max_ew-min_ew)*((adjM(elecA,elecB)-minNonZeroEdge)/(threshMax-minNonZeroEdge));
-            colour (count,:) = [1 1 1]-(light_c*((adjM(elecA,elecB)-minNonZeroEdge)/(threshMax-minNonZeroEdge)));
+            colour(count,:) = [1 1 1]-(light_c*((adjM(elecA,elecB)-minNonZeroEdge)/(threshMax-minNonZeroEdge)));
         end
     end
     
-    [~,order] = sort(colour(:,1),'descend');
-    lineWidthT = lineWidth(:,order);
-    colourT = colour(order,:);
-    xcot = xco(order,:);
-    ycot = yco(order,:);
-    for u = 1:size(xcot,1)
-        plot(xcot(u,:),ycot(u,:),'LineWidth',lineWidthT(u),'Color',colourT(u,:));
-        hold on
-    end
+    if count > 0
+        [~,order] = sort(colour(:,1),'descend');
+        lineWidthT = lineWidth(:,order);
+        colourT = colour(order,:);
+        xcot = xco(order,:);
+        ycot = yco(order,:);
+        for u = 1:size(xcot,1)
+            plot(xcot(u,:),ycot(u,:),'LineWidth',lineWidthT(u),'Color',colourT(u,:));
+            hold on
+        end
+    end 
 end
 %% add nodes
 % specify the colors of the different node types 

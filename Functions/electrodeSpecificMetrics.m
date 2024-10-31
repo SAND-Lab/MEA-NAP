@@ -13,7 +13,6 @@ function [] = electrodeSpecificMetrics(ND, NS, MEW, Eloc, BC, PC, Z, lagval, e, 
 %% figure
 
 p = [100 100 1400 550];
-set(0, 'DefaultFigurePosition', p)
 
 if ~Params.showOneFig
     F1 = figure;

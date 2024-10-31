@@ -41,18 +41,17 @@ c6 = [0.016 0.235 0.498]; % dark blue
 eMet = {'NCpn1','NCpn2','NCpn3','NCpn4','NCpn5','NCpn6'}; 
 
 p = [100 100 1200 800]; % this can be ammended accordingly
-set(0, 'DefaultFigurePosition', p)
 
 if Params.showOneFig
-        if isgraphics(oneFigureHandle)
-            set(oneFigureHandle, 'Position', p);
-        else 
-            oneFigureHandle = figure;
-            set(oneFigureHandle, 'Position', p);
-        end 
-    else
-        figure
-        set(gcf, 'Position', p);
+    if isgraphics(oneFigureHandle)
+        set(oneFigureHandle, 'Position', p);
+    else 
+        oneFigureHandle = figure;
+        set(oneFigureHandle, 'Position', p);
+    end 
+else
+    figure
+    set(gcf, 'Position', p);
 end
 
 

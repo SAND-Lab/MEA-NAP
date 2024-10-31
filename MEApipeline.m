@@ -358,7 +358,9 @@ if Params.startAnalysisStep < 3
     % extract and plot neuronal activity
     
     % Set up one figure handle to save all the figures
-    oneFigureHandle = NaN;
+    if ~exist('oneFigureHandle', 'var')
+        oneFigureHandle = NaN;
+    end
     oneFigureHandle = checkOneFigureHandle(Params, oneFigureHandle);
 
     spikeFreqMax = max(spikeFreqMax);
@@ -515,7 +517,9 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
     end 
     
     % Set up one figure handle to save all the figures
-    oneFigureHandle = NaN;
+    if ~exist('oneFigureHandle', 'var')
+        oneFigureHandle = NaN;
+    end
     oneFigureHandle = checkOneFigureHandle(Params, oneFigureHandle);
     
     % Set up node cartography metrics 
@@ -632,7 +636,9 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
  
     
         % Set up one figure handle to save all the figures
-        oneFigureHandle = NaN;
+        if ~exist('oneFigureHandle', 'var')
+            oneFigureHandle = NaN;
+        end
         oneFigureHandle = checkOneFigureHandle(Params, oneFigureHandle);
 
 
@@ -809,7 +815,9 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
 
             % Make figure handle per recording 
             % Set up one figure handle to save all the figures
-            oneFigureHandle = NaN;
+            if ~exist('oneFigureHandle', 'var')
+                oneFigureHandle = NaN;
+            end
             oneFigureHandle = checkOneFigureHandle(Params, oneFigureHandle);
             
             if strcmp(Params.verboseLevel, 'High')
@@ -892,6 +900,10 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
         % 4A Part 3: Node cartography individual plot
         % Plot node cartography plots using either custom bounds or
         % automatically determined bounds
+        if ~exist('oneFigureHandle', 'var')
+            oneFigureHandle = NaN;
+        end
+        oneFigureHandle = checkOneFigureHandle(Params, oneFigureHandle);
         nodeCartographyMetrics = {'NCpn1', 'NCpn2', 'NCpn3', 'NCpn4'};
         if strcmp(Params.startAnalysisSubStep, 'A')
            usePriorNetMet = 1; 

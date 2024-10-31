@@ -119,9 +119,6 @@ else
 end 
 
 for n = 1:length(eMet)
-    if ~isfield(Params, 'oneFigure')
-        F1 = figure;
-    end 
     
     % Skip lag-independent eMets
     if ismember(eMet, Params.lagIndependentMets)
@@ -175,9 +172,6 @@ if Params.includeNotBoxPlots
         end 
 
         for n = 1:length(eMet)
-            if ~isfield(Params, 'oneFigure')
-                F1 = figure;
-            end 
             eMeti = char(eMet(n));
             xt = 1:0.5:1+(length(AgeDiv)-1)*0.5;
             for g = 1:length(Grps)
@@ -279,9 +273,6 @@ for lagIdx = 1:length(Params.FuncConLagval)
     end 
 
     for n = 1:length(eMet)
-        if ~Params.showOneFig
-            F1 = figure;
-        end 
         eMeti = char(eMet(n));
         
         plotHalfViolinByX(networkLevelData, eMeti, eMetl(n), 'group', lagIdx, Params, oneFigureHandle); 
@@ -511,7 +502,7 @@ for lagIdx = 1:length(Params.FuncConLagval)
     end 
 
     for n = 1:length(eMet)
-        if ~isfield(Params, 'oneFigure')
+        if ~Params.showOneFig % 
             F1 = figure;
         end 
         eMeti = char(eMet(n));

@@ -354,7 +354,7 @@ for e = 1:length(lagval)
         
         moduleID = lagNetMet.Ci(On); 
         Params.metricsMinMax.Ci = moduleID;
-        close all
+        % close all
         oneFigureHandle = checkOneFigureHandle(Params, oneFigureHandle);
         
         plotInactiveNodesInCircPlot = 1;
