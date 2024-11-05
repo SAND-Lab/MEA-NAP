@@ -27,8 +27,8 @@ function MEAbatchConvert(ext, dataFolder)
 
 %% Select conversion mode 
 
-convertOption = 'electrode'; % save electrode by electrode in a MEA-specific folder
-% convertOption = 'whole'; % save the entire grid as one variable
+% convertOption = 'electrode'; % save electrode by electrode in a MEA-specific folder
+convertOption = 'whole'; % save the entire grid as one variable
 
 %% initialize
 
