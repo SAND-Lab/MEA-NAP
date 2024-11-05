@@ -388,7 +388,6 @@ if Params.showOneFig
     pipelineSaveFig(figPath, Params.figExt, Params.fullSVG, oneFigureHandle);
 else 
     pipelineSaveFig(figPath, Params.figExt, Params.fullSVG);
-
 end 
 
 if ~Params.showOneFig
