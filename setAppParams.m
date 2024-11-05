@@ -131,6 +131,10 @@ if isfield(Params, 'removeNodesWithNoPeaks')
     app.RemovenodeswithnopeaksCheckBox.Value = Params.removeNodesWithNoPeaks;
 end 
 
+if isfield(Params, 'num2ptraces')
+   app.CellstoplotperrecordingEditField.Value = Params.num2ptraces;
+end 
+
 %% Pipeline settings 
 
 app.TimeprocessesCheckBox.Value = Params.timeProcesses;

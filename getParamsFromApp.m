@@ -321,6 +321,7 @@ Params.pythonPath = app.PythonpathEditField.Value;
 Params.twopActivity = app.ActivityDropDown.Value;
 Params.twopRedoDenoising = app.RedodenoisingCheckBox.Value;
 Params.removeNodesWithNoPeaks = app.RemovenodeswithnopeaksCheckBox.Value;
+Params.num2ptraces = app.CellstoplotperrecordingEditField.Value;
 
 %% MISC 
 Params.option = 'list';

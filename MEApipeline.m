@@ -474,6 +474,18 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
         if Params.suite2pMode == 1
             suite2pFolder = fullfile(Params.rawData, char(ExpName(ExN)), 'suite2p', 'plane0');
             [adjMs, coords, channels, F, spks, fs, Params] = suite2pToAdjm(suite2pFolder, Params);
+            % Plot original and denoised traces
+            stepFolder = fullfile(Params.outputDataFolder, Params.outputDataFolderName, ...
+                '2_NeuronalActivity', '2A_IndividualNeuronalAnalysis');
+            groupFolder = fullfile(stepFolder, Info.Grp{1});
+            if ~isfolder(groupFolder)
+                mkdir(groupFolder)
+            end 
+            figFolder = fullfile(groupFolder, Info.FN{1});
+            if ~isfolder(figFolder)
+                mkdir(figFolder)
+            end 
+            plot2ptraces(suite2pFolder, Params, Info.FN{1}, figFolder, oneFigureHandle);
         else
             adjMs = generateAdjMs(spikeTimes, ExN, Params, Info, oneFigureHandle);
         end
