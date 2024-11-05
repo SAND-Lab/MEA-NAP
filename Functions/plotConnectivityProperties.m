@@ -50,7 +50,7 @@ aesthetics
 set(gca,'TickDir','out');
 
 nexttile(t, 19,[3 1]);
-bar(maxSTTC(e))
+bar(maxSTTC(e), 'FaceColor', [0 0.4470 0.7410])
 
 max_adjM = max(adjM(:));
 max_adjM = max([max_adjM, 0.0001]);
@@ -62,7 +62,7 @@ set(gca,'TickDir','out');
 set(gca,'xtick',[])
 
 nexttile(t, 20,[3 1]);
-bar(meanSTTC(e))
+bar(meanSTTC(e), 'FaceColor', [0 0.4470 0.7410])
 ylim([0 max_adjM + 0.15 * max_adjM])
 title('mean corr. value')
 aesthetics
@@ -70,14 +70,14 @@ set(gca,'TickDir','out');
 set(gca,'xtick',[])
 
 nexttile(t, 4,[2 3]);
-histogram(ND,50)
+histogram(ND, 50, 'FaceColor', [0.3010 0.7450 0.9330])
 xlabel('node degree')
 ylabel('frequency')
 aesthetics
 set(gca,'TickDir','out');
 
 nexttile(t, 16,[2 3]);
-histogram(NS,50)
+histogram(NS, 50, 'FaceColor', [0.3010 0.7450 0.9330])
 xlabel('node strength')
 ylabel('frequency')
 aesthetics
