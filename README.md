@@ -25,7 +25,7 @@ Alterations in synaptic function, and other cellular processes that affect neuro
 
 MEA-NAP is a streamlined diagnostic and analytic tool for microscale network activity data obtained using microelectrode arrays. MEA-NAP provides a straight forward way for new and experienced MATLAB users to quickly compare spike detection methods, neuronal activity (including firing rate and burst detection), functional connectivity, network topology (including network metrics from graph theory), and network dynamics. MEA-NAP performs batch analysis of an experimental dataset (e.g., MEA recordings from wild-type and knock-out cultures at multiple developmental time points). MEA-NAP produces summary plots and performs statistics on these features and organizes the output figures in a convenient file structure. The user can then identify network-level developmental or genotypic differences in their MEA dataset. The pipeline is written in `MATLAB` and was designed for experimentalists with little or no experience with network analysis.  Experienced users will find the batch analysis and automatic figure generation convenient for examining both individual network and group comparisons. 
 
-![image](https://github.com/user-attachments/assets/d8408560-e85e-4555-96bf-0c8c0a28bc6c)
+![image](https://github.com/user-attachments/assets/2c9703c9-308f-4a9a-a7fe-e6c974e8b1c7)
 Here is an example screenshot of MEA-NAP, on the left, you have the interface to set your parmeters for performing analysis, and on the right, you have a viewer that allows you to browse through the outputs of MEA-NAP.
 
 ## Documentation
