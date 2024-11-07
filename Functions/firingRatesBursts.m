@@ -6,14 +6,11 @@ function [Ephys] = firingRatesBursts(spikeMatrix,Params,Info)
 
 verbose = 0;  % 1 : prints out status, 0 : keep quiet
 
-
-% set firing rate threshold in Hz
-FR_threshold = 0.01; % in Hz or spikes/s
 % get spike counts
 FiringRates = full(sum(spikeMatrix))/Info.duration_s;
 
 % calculate firing rates  
-active_chanIndex = FiringRates      >= FR_threshold;
+active_chanIndex = (FiringRates >= Params.minActivityLevel);
 ActiveFiringRates = FiringRates(active_chanIndex);  %spikes of only active channels ('active'= >7)
 
 % Ephys.FR = ActiveFiringRates;
