@@ -438,6 +438,8 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
     end
     oneFigureHandle = checkOneFigureHandle(Params, oneFigureHandle);
     
+    spikeFreqMax2p = 0;
+    
     for  ExN = 1:length(ExpName)
         
         % Load spike / previous data
@@ -473,7 +475,7 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
         
         if Params.suite2pMode == 1
             suite2pFolder = fullfile(Params.rawData, char(ExpName(ExN)), 'suite2p', 'plane0');
-            [adjMs, coords, channels, F, spks, fs, Params] = suite2pToAdjm(suite2pFolder, Params);
+            [adjMs, coords, channels, F, denoisedF, spks, spikeTimes, fs, Params] = suite2pToAdjm(suite2pFolder, Params);
             % Plot original and denoised traces
             stepFolder = fullfile(Params.outputDataFolder, Params.outputDataFolderName, ...
                 '2_NeuronalActivity', '2A_IndividualNeuronalAnalysis');
@@ -485,7 +487,13 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
             if ~isfolder(figFolder)
                 mkdir(figFolder)
             end 
+            Info.duration_s = size(spks, 1) / fs;
+            
             plot2ptraces(suite2pFolder, Params, Info.FN{1}, figFolder, oneFigureHandle);
+            resamplingRate = 1;  % resample spike matrix for raster plotting
+            twopActivityMatrix = get2pActivityMatrix(F, denoisedF, spks, spikeTimes, resamplingRate, Info, Params); 
+            spikeFreqMax2p = max([spikeFreqMax2p, max(twopActivityMatrix)]);
+            
         else
             adjMs = generateAdjMs(spikeTimes, ExN, Params, Info, oneFigureHandle);
         end
@@ -497,13 +505,29 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
         
         if Params.suite2pMode == 1
            Info.channels = channels;
-           Info.duration_s = size(spks, 1) / fs;
-           varsToSave = {'Info', 'Params', 'coords', 'channels', 'adjMs', 'F', 'spks', 'fs'}; 
+           varsToSave = {'Info', 'Params', 'coords', 'channels', 'adjMs', 'spikeTimes', 'F', 'denoisedF', 'spks', 'fs'}; 
         else 
            varsToSave = {'Info', 'Params', 'spikeTimes', 'Ephys', 'adjMs'};
         end
         
-        save(infoFnFilePath, varsToSave{:})
+        save(infoFnFilePath, varsToSave{:}, '-append')
+    end
+    
+    % Raster plot for suite2p data
+    if Params.suite2pMode == 1
+        for ExN = 1:length(ExpName)
+            expData = loadExpData(char(ExpName(ExN)), Params, 0);
+            resamplingRate = 1;  % resample spike matrix for raster plotting
+            twopActivityMatrix = get2pActivityMatrix(expData.F, expData.denoisedF, ...
+                expData.spks, expData.spikeTimes, resamplingRate, expData.Info, Params); 
+            stepFolder = fullfile(Params.outputDataFolder, Params.outputDataFolderName, ...
+                '2_NeuronalActivity', '2A_IndividualNeuronalAnalysis');
+            groupFolder = fullfile(stepFolder, expData.Info.Grp{1});
+            figFolder = fullfile(groupFolder, expData.Info.FN{1});
+            Params.fs = fs;
+            rasterPlot(expData.Info.FN{1}, twopActivityMatrix, Params, spikeFreqMax2p, figFolder, oneFigureHandle)
+        end
+        
     end
     
     if Params.timeProcesses
@@ -599,16 +623,23 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
 
             channelLayout = Params.channelLayoutPerRecording{ExN};
             
-            if isfield(expMatData, 'spikeTimes')
+            if Params.suite2pMode
+                if strcmp(Params.twopActivity, 'denoised F')
+                    activityMatrix = expMatData.denoisedF;
+                    Params.fs = expMatData.fs;
+                    spikeTimes = [];
+                elseif strcmp(Params.twopActivity, 'spks')
+                    activityMatrix = expMatData.spks;
+                    Params.fs = expMatData.fs;
+                    spikeTimes = [];
+                elseif strcmp(Params.twopActivity, 'peaks')
+                    Params.fs = expMatData.fs;
+                    [activityMatrix, spikeTimes, Params, Info] = formatSpikeTimes(char(Info.FN), ...
+                    Params, Info, spikeDetectedDataFolder, expMatData);
+                end
+            else 
                 [activityMatrix, spikeTimes, Params, Info] = formatSpikeTimes(char(Info.FN), ...
                     Params, Info, spikeDetectedDataFolder, expMatData);
-            elseif isfield(expMatData, 'spks')
-                activityMatrix = expMatData.spks;
-                Params.fs = expMatData.fs;
-                spikeTimes = [];
-            else
-                activityMatrix = [];
-                spikeTimes = [];
             end
 
             Params.networkActivityFolder = idvNetworkAnalysisFNFolder;
@@ -630,6 +661,7 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
             infoFnFilePath = fullfile(ExpMatFolder, infoFnFname);
             
             varsToSave = {'Info', 'Params', 'adjMs', 'NetMet', 'coords', 'channels'};
+            
             if exist('spikeTimes', 'var')
                 varsToSave{end+1} = 'spikeTimes';
             end
