@@ -52,6 +52,7 @@ for g = 1:length(Grps)
         set(h1,'facealpha',0.3)
         hold on
         line(d) = plot(xt, ValMean, 'Color', divColorMap(d, :), 'LineWidth', 3);
+        scatter(xt, ValMean, 'MarkerFaceColor', divColorMap(d, :));
         set(gca, 'box', 'off') % remove borders
         set(gcf,'color','w'); % white background
         set(gca, 'TickDir', 'out')
