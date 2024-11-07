@@ -15,12 +15,28 @@ function rasterPlot(File,spikeMatrix,Params,spikeFreqMax, figFolder, oneFigureHa
 fs = Params.fs;
 
 % duration of the recording
-duration_s = length(spikeMatrix)/fs; % in seconds
+duration_s = size(spikeMatrix, 1) / fs; % in seconds
+numChannels = size(spikeMatrix, 2);
+if Params.suite2pMode == 0 
+    % Resampling spike data
+    spikeMatrix = full(spikeMatrix);
+    % downsample matrix to 1 frame per second
+    downSpikeMatrix = downSampleSum(spikeMatrix, duration_s);
+else 
+    timesToInterpolate = 1:floor(duration_s);
+    newSampleCount = length(timesToInterpolate);
+    if strcmp(Params.twopActivity, 'peaks')
+        downSpikeMatrix = spikeMatrix;
+    else
+        originalTimes = linspace(1, duration_s, size(spikeMatrix, 1));
+        downSpikeMatrix = zeros(newSampleCount, numChannels);
+        for channel_idx = 1:numChannels 
+            downSpikeMatrix(:, channel_idx) = interp1(originalTimes, spikeMatrix(:, channel_idx), timesToInterpolate);
+        end
+    end 
+end
 
-spikeMatrix = full(spikeMatrix);
 
-% downsample matrix to 1 frame per second
-downSpikeMatrix = downSampleSum(spikeMatrix, duration_s);
 
 %% plot the raster
 
@@ -42,19 +58,34 @@ tiledlayout(2,1)
 
 nexttile
 h = imagesc(downSpikeMatrix');
-        
-xticks((duration_s)/(duration_s/60):(duration_s)/(duration_s/60):duration_s)
-xticklabels({'1','2','3','4','5','6','7','8','9','10','11','12','13','14','15'})
+
+sec_in_min = 60;
+duration_min = duration_s / sec_in_min;
+xticklabel_txt = 1:floor(duration_min);
+xticks(sec_in_min:sec_in_min:duration_s)
+xticklabels(xticklabel_txt);
 
 c = parula;
 c = c(1:round(length(c)*.85),:);
 colormap(c);
 
+if Params.suite2pMode 
+   ylabel_txt = 'Unit';
+   cbar_label = 'Activity';
+else 
+   ylabel_txt = 'Electrode';
+   cbar_label = 'Firing Rate (Hz)';
+end
+
+numYticks = 7;
+ytickValues = linspace(1, numChannels, numYticks);
+ytickValues = round(ytickValues);
+
 aesthetics
-ylabel('Electrode')
+ylabel(ylabel_txt)
 xlabel('Time (min)')
 cb = colorbar;
-ylabel(cb, 'Firing Rate (Hz)')
+ylabel(cb, cbar_label)
 cb.TickDirection = 'out';
 set(gca,'TickDir','out');
 cb.Location = 'Eastoutside';
@@ -64,7 +95,7 @@ ylimit_cbar = prctile(downSpikeMatrix(:),Params.rasterPlotUpperPercentile,'all')
 ylimit_cbar = max([ylimit_cbar, 1]);  % ensures it is minimum of 1
 
 caxis([0,ylimit_cbar])
-yticks([1, 10:10:60])
+yticks(ytickValues)
 title({strcat(regexprep(File,'_','','emptymatch'),' raster scaled to recording'),' '});
 ax = gca;
 ax.TitleFontSizeMultiplier = 0.7;
@@ -73,7 +104,7 @@ nexttile
 h = imagesc(downSpikeMatrix');
         
 xticks((duration_s)/(duration_s/60):(duration_s)/(duration_s/60):duration_s)
-xticklabels({'1','2','3','4','5','6','7','8','9','10','11','12','13','14','15'})
+xticklabels(xticklabel_txt)
 
 if strcmp(Params.rasterColormap, 'parula')
     c = parula;c = c(1:round(length(c)*.85),:);
@@ -83,10 +114,10 @@ elseif strcmp(Params.rasterColormap, 'gray')
 end
 
 aesthetics
-ylabel('Electrode')
+ylabel(ylabel_txt)
 xlabel('Time (min)')
 cb = colorbar;
-ylabel(cb, 'Firing Rate (Hz)')
+ylabel(cb, cbar_label)
 cb.TickDirection = 'out';
 set(gca,'TickDir','out');
 cb.Location = 'Eastoutside';
@@ -95,7 +126,7 @@ set(gca, 'FontSize', 14)
 ylimit_cbar = spikeFreqMax;
 ylimit_cbar = max([ylimit_cbar, 1]);  % ensures it is minimum of 1
 caxis([0,ylimit_cbar])
-yticks([1, 10:10:60])
+yticks(ytickValues)
 title({strcat(regexprep(File,'_','','emptymatch'),' raster scaled to entire data batch'),' '});
 ax = gca;
 ax.TitleFontSizeMultiplier = 0.7;
