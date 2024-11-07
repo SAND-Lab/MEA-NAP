@@ -45,7 +45,7 @@ User input for GUI
 1. General parameters
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. image:: imgs/general_gui.png
+.. image:: imgs/v1p10p0/general_gui.png
    :width: 350 
    :align: center 
 
@@ -74,7 +74,7 @@ User input for GUI
 2. Spike detection parameters
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. image:: imgs/spike_detection_gui.png
+.. image:: imgs/v1p10p0/spike_detection_gui.png
    :width: 350 
    :align: center 
 
@@ -99,7 +99,7 @@ User input for GUI
 3. Connectivity parameters
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. image:: imgs/connectivity_gui.png
+.. image:: imgs/v1p10p0/connectivity_gui.png
    :width: 350 
    :align: center 
 
@@ -122,7 +122,7 @@ User input for GUI
 4. Plotting parameters
 ^^^^^^^^^^^^^^^^^^^^^^
 
-.. image:: imgs/plotting_gui.png
+.. image:: imgs/v1p10p0/plotting_gui.png
    :width: 350 
    :align: center 
 
@@ -133,6 +133,12 @@ User input for GUI
 - **Figure formats:** Select one or more file formats for the plots that MEA-NAP produces. Options are .png (easy to view with web or picture browser), .svg (good for creating figures or presentations), and MATLAB format (.fig). For other image formats, see Guide for Advanced Users.
 - **Do not compress SVG:** Leave checked to create SVG files suitable for creating figures.
 - **Display only one figure:** Leave checked to prevent MATLAB from creating separate figure windows for each figure as MEA-NAP runs.
+- **Custom Group Order:** Order in which groups are plotted, this will be automatically filled in alphabetical order after you load your csv. Make sure group names are separated by a comma.
+- **Minumum node size:** The minimum size of a node in network plots, regardless of the node metric value.
+- **Maximum node size:** The maximum size of a node in network plots. Adjusting this parameter may also influence the scaling of nodes so that they are proportional to the maximum node size. 
+- **Node size scaling:** This specifies the relationship between node metrics and node size (radius of the node). 
+- **Node scaling power:** Only applies if Node size scaling is set to "power", which scales node size as a power function of the node metric. Values above 1 will emphasize nodes with higher node metric values, whilst valuse below 1 will equalise the node sizes. Recommended range is between 0.1 - 10.
+- **Node layout:** Whether to plot nodes according to their relative physical location (Original), or a force-directed layout, which may more effectively show clusters in the network.
 - **Raster Map Upper Percentile:** In Step 2, the firing rates for each MEA recording are plotted using the same scale from 0 Hz to this upper percentile of the maximum firing rates for the entire dataset.  Enter an integer **value between 0 and 99.**
 - **Include NotBoxPlots:** If checked, notBoxPlot figures will be generated in Step 2B and Step 4B in addition to the half-violin plots.
 - **Include channel number in plots:** If checked, will print the channel (electrode ) ID number over the node in select figures.  This can be useful if you want to confirm you have used the correct Channel Layout (Spike Detection Parameters).
@@ -175,7 +181,7 @@ Changing the number of nodes (electrodes) used for network analysis
 
 1. Leave "Show Advanced Settings" option checked on GUI's General tab.
 
-.. image:: imgs/num_electrodes.png
+.. image:: imgs/v1p10p0/num_electrodes.png
   :width: 350 
   :align: center
 
@@ -185,7 +191,7 @@ Changing the number of nodes (electrodes) used for network analysis
 
 2. Go to GUI's Advanced Connectivity tab and adjust parameters.
 
-.. image:: imgs/num_electrodes_2.png
+.. image:: imgs/v1p10p0/num_electrodes_2.png
   :width: 350 
   :align: center
 

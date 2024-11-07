@@ -64,7 +64,7 @@ The MEA-NAP pipeline is currently optimized for single MEA recordings made on th
    3. Start GUI by clicking green "Run" button in the Editor submenu at the top of your screen.
    4. In the GUI, navigate to the File Conversion tab.
    
-   .. image:: imgs/axion_file_conversion_gui.png
+   .. image:: imgs/axion_file_conversion_gui_v1p10p0.png
       :width: 400
       :align: center
       :alt: File Conversion tab in GUI
