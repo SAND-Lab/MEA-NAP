@@ -154,19 +154,22 @@ outputDataDateFolder = fullfile(Params.outputDataFolder, ...
     
 
 % save recording level data 
-allRecordingLevelDataTable = struct2table(allRecordingLevelData);
-spreadsheetFname = strcat('NetworkActivity_RecordingLevel', '.csv');
-spreadsheetFpath = fullfile(outputDataDateFolder, spreadsheetFname);
-writetable(allRecordingLevelDataTable, spreadsheetFpath);
+try
+    allRecordingLevelDataTable = struct2table(allRecordingLevelData);
+    spreadsheetFname = strcat('NetworkActivity_RecordingLevel', '.csv');
+    spreadsheetFpath = fullfile(outputDataDateFolder, spreadsheetFname);
+    writetable(allRecordingLevelDataTable, spreadsheetFpath);
 
-% save electrode level data
-allElectrodeLevelDataTable = struct2table(allElectrodeLevelData);
-electrodeSpreadsheetFname = strcat('NetworkActivity_NodeLevel','.csv');
-electrodeSpreadsheetFpath = fullfile(outputDataDateFolder, electrodeSpreadsheetFname);
-writetable(allElectrodeLevelDataTable, electrodeSpreadsheetFpath);
-
-
-
+    % save electrode level data
+    allElectrodeLevelDataTable = struct2table(allElectrodeLevelData);
+    electrodeSpreadsheetFname = strcat('NetworkActivity_NodeLevel','.csv');
+    electrodeSpreadsheetFpath = fullfile(outputDataDateFolder, electrodeSpreadsheetFname);
+    writetable(allElectrodeLevelDataTable, electrodeSpreadsheetFpath);
+catch 
+    allRecordingLevelData
+    allElectrodeLevelData
+    error('Table conversion failed, here are what the data look like (see above), please open a github issue')
+end
 
 end
 
