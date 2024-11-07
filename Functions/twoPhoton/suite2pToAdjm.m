@@ -1,4 +1,4 @@
-function [adjMs, coords, channels, FisCell, spksIsCell, fs, Params] = suite2pToAdjm(suite2pFolder, Params)
+function [adjMs, coords, channels, FisCell, FdenoisedIsCell, spksIsCell, spikeTimes, fs, Params] = suite2pToAdjm(suite2pFolder, Params)
 %SUITE2PTOADJM Converts suite2p data to adjacency matrix 
 %   Detailed explanation goes here
 
@@ -48,6 +48,10 @@ XYloc = double(XYloc);
 opsFpath = fullfile(suite2pFolder, 'ops.npy');
 fs = readOpsNPY.getFs(opsFpath);
 
+% Update parameter struct with new fs (should be one per file)
+% This will be used in downstream steps for creating spikeMatrix
+Params.fs = fs;
+
 % do denoising and get peaks 
 if strcmp(Params.twopActivity, 'peaks') || strcmp(Params.twopActivity, 'denoised F')
     resampleHz = 0;
@@ -89,20 +93,8 @@ minXY = min(XYloc(:));
 coords = (coords - minXY) / (maxXY - minXY);
 coords = coords * 8;
 
-% temporary subset
-%{
-spksIsCell = spksIsCell(:, 1:100);
-channels = channels(1:100);
-coords = coords(1:100, :);
-FisCell = FisCell(:, 1:100);
-peakStartFramesIsCell = peakStartFramesIsCell(1:100, :);
-FdenoisedIsCell = FdenoisedIsCell(:, 1:100);
-%}
-
-
 lagVal = round(1 / fs * 1000);
 
-% TODO: for cell with no events
 
 
 %% Get adjacency matrix
@@ -110,17 +102,20 @@ lagVal = round(1 / fs * 1000);
 if strcmp(Params.twopActivity, 'F')
     adjMs.(strcat(['adjM', num2str(lagVal), 'mslag'])) = double(corr(FisCell));
     Params.FuncConLagval = round(1/fs * 1000);
+    spikeTimes = [];
 elseif strcmp(Params.twopActivity, 'spks')
     adjMs.(strcat(['adjM', num2str(lagVal), 'mslag'])) = double(corr(spksIsCell));
     Params.FuncConLagval = round(1/fs * 1000);
+    spikeTimes = [];
 elseif strcmp(Params.twopActivity, 'denoised F')
     adjMs.(strcat(['adjM', num2str(lagVal), 'mslag'])) = double(corr(FdenoisedIsCell));
     Params.FuncConLagval = round(1/fs * 1000);
+    spikeTimes = [];
 elseif strcmp(Params.twopActivity, 'peaks')
     % Make spike times structure
     numcell = size(peakStartFramesIsCell, 1);
     numTimeBins = size(FisCell, 1);
-    spikeTimes = cell(numcell, 1);
+    spikeTimes = cell(1, numcell);
     
     for cell_idx = 1:numcell
         cellPeakFrames = peakStartFramesIsCell(cell_idx, :);
