@@ -900,7 +900,7 @@ def do_suite2p_processing(suite2p_folder, resample_Hz=None, overwrite_existing=F
         ops_fpath = os.path.join(suite2p_folder, 'ops.npy')
         fs = get_suite2p_fs(ops_fpath)
 
-        time_points = fs * np.arange(np.shape(F)[1])
+        time_points = np.arange(np.shape(F)[1]) / fs
 
         F_denoised, peak_start_frames = denoise_suite2p_data(F, suite2p_folder, make_plots=False, denoise_methods=["rolling", "convolve", "filter", "poly"])
 
