@@ -154,9 +154,12 @@ for e = 1:length(lagval)
     %adjM(iN,:) = [];
     % adjM(:,iN) = [];
 
-    % Tim 2022-10-14 fix
+    % Subset based on node strength and activity level
     nodeStrength = sum(adjM, 1);
-    inclusionIndex = find(nodeStrength ~= 0);
+    activityLevelPerNode = full(sum(activityMatrix, 1)) / Info.duration_s;
+    inclusionIndex = find((nodeStrength ~= 0) & (activityLevelPerNode >= Params.minActivityLevel));
+    activeNodeIndices = inclusionIndex;  
+    
     adjM = adjM(inclusionIndex, inclusionIndex);
     coords = originalCoords(inclusionIndex, :);
     Params.netSubsetChannels = channels(inclusionIndex);
@@ -232,7 +235,22 @@ for e = 1:length(lagval)
             Eglob = efficiency_bin(adjM);
         end
     else 
+        if strcmp(Params.verboseLevel, 'High')
+           if Params.guiMode
+                app.MEANAPStatusTextArea.Value = [app.MEANAPStatusTextArea.Value; ...
+                        sprintf('Calculating global efficiency for %s', char(Info.FN))];
+           end
+        end
         Eglob = prevNetMet.(lagValStr).Eglob;
+        %{
+        WIP: time processes
+        if strcmp(Params.verboseLevel, 'High')
+           if Params.guiMode && Params.timeProcesses
+                app.MEANAPStatusTextArea.Value = [app.MEANAPStatusTextArea.Value; ...
+                        sprintf('Time elapsed: ', char(Info.FN))];
+           end
+        end
+        %}   
     end 
     
     % Lattice-like model
@@ -312,6 +330,7 @@ for e = 1:length(lagval)
          ElocMean = nan;
          BC = nan(length(NS), 1);
          BCmeantop5 = nan;
+         nMod = nan;
      end
     
     % participation coefficient
