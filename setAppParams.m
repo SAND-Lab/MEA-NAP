@@ -37,6 +37,11 @@ app.WaveletCostEditField.Value = num2str(Params.costList);
 app.SpikeMethodforAnalysisEditField.Value = Params.SpikesMethod;
 app.RunspikecheckonpreviousspikedataCheckBox.Value = Params.runSpikeCheckOnPrevSpikeData;
 
+if isfield(Params, 'minActivityLevel')
+    % minimum activity level to be considered active node 
+    app.MinactivitylevelspikessEditField.Value = Params.minActivityLevel;
+end 
+
 %% Connectivity settings 
 
 app.STTCLagmsEditField.Value = ['[', strjoin(cellstr(string(Params.FuncConLagval)), ', '), ']'];

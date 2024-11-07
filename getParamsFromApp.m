@@ -116,6 +116,11 @@ if Params.filterHighPass > Params.fs / 2
    
     Params.filterHighPass = Params.fs/2-100;
 end 
+
+% minimum activity level to be considered active node 
+Params.minActivityLevel = app.MinactivitylevelspikessEditField.Value;
+
+
 %% Which network metrics to calculate and plot 
 Params.netMetToCal = app.NetworkmetricstocalculateListBox.Value;
 
