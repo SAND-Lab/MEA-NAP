@@ -97,6 +97,7 @@ for l = 1:length(Params.FuncConLagval)
             set(h1,'facealpha',0.3)
             hold on
             eval(['y' num2str(n) '= plot(xt,meanTP,''Color'',c,''LineWidth'',3);']);   % TODO : fix this to not use eval
+            scatter(xt, meanTP, 'MarkerFaceColor', c);
             xticks(xt)
             xticklabels(xtlabtext)
             xlabel('Age')
