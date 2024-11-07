@@ -28,7 +28,6 @@ function [spikeMatrix,spikeTimes,Params,Info] = formatSpikeTimes(File, Params, I
 
 fileName = strcat(char(File),'_spikes.mat');
 fileFullPath = fullfile(spikeDataFolder, fileName);
-
 if isfile(fileFullPath)
     load(fileFullPath, 'spikeTimes', 'spikeDetectionResult', 'channels')
     if isfield(spikeDetectionResult, 'params')
@@ -45,6 +44,7 @@ else
    duration_s = expMatData.Info.duration_s;
    fs = expMatData.Params.fs;
 end
+
 spikeTimes = spikeTimes(~cellfun(@isempty, spikeTimes));
 
 Info.channels = channels;
@@ -93,11 +93,19 @@ Params.fs = fs;
 
 spikeMatrix = SpikeTimesToMatrix(spikeTimes,fs,Params.SpikesMethod,Info);
 
+% duration_s_rounded = floor(length(spikeMatrix)/Params.fs);
+% numSamplesToGet = floor(duration_s_rounded * Params.fs); 
+% spikeMatrix = spikeMatrix(numSamplesToGet, :);
+
 % this while loop looks like it can be improved !!!
+% 2024-11-07 : Actually I think this is unnecessary with some adjustement
+% downstream
+%{
 while  floor(length(spikeMatrix)/Params.fs)~=Info.duration_s
     n2del = Params.fs*(length(spikeMatrix)/Params.fs - floor(length(spikeMatrix)/Params.fs));
     spikeMatrix=spikeMatrix(1:length(spikeMatrix)-(n2del),:);
 end
+%}
 
 % make into sparse matrix to reduce size of variable
 spikeMatrix = sparse(spikeMatrix);
