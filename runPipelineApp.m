@@ -35,13 +35,13 @@ app.colorUITable.Data = [ ...
 app.colorUITable.ColumnEditable = [true, true, true, true];
 
 % get Original parents to hide/show them later 
-advancedSpikeDetectionTabParent = app.AdvancedSpikeDetectionTab.Parent;
-advancedBurstDetectionTabParent = app.AdvancedBurstDetectionTab.Parent; 
-advancedDimensionalityTabParent = app.AdvancedDimensionalityTab.Parent; 
-advancedPlottingTabParent = app.AdvancedPlottingTab.Parent;
+advancedSpikeDetectionTabParent = app.AdvSpikeDetectionTab.Parent;
+advancedBurstDetectionTabParent = app.AdvBurstDetectionTab.Parent; 
+advancedDimensionalityTabParent = app.AdvDimensionalityTab.Parent; 
+advancedPlottingTabParent = app.AdvPlottingTab.Parent;
 colorsTabParent = app.ColorsTab.Parent; 
 artifactRemovalTabParent = app.ArtifactRemovalTab.Parent; 
-advancedConnectivityTabParent = app.AdvancedConnectivityTab.Parent;
+advancedConnectivityTabParent = app.AdvConnectivityTab.Parent;
 nodeCartographyTabParent = app.NodeCartographyTab.Parent;
 catnapTabParent = app.CATNAPTab.Parent;
 
@@ -102,6 +102,34 @@ prevSpreadsheetRange = str2num(app.SpreadsheetRangeEditField.Value);
 % Update default STTC lag values if suite2p mode selected, only done once
 suite2pParamsCheck = 0;
 
+% Initial ordering of tabs (and hiding of advanced settings)
+tabStatus = 0;  % keeping track of whether advanced settings is shown (1) or not (0) to see when I need to update
+% Specify ordering of the tabs 
+tabOrder = [app.GeneralTab, app.SpikeDetectionTab, app.ConnectivityTab, ...
+       app.PlottingTab, app.ColorsTab, app.PipelineTab, app.FileConversionTab, ...
+       app.SpreadsheetTab,  ...
+       app.AdvSpikeDetectionTab, app.ArtifactRemovalTab, app.AdvBurstDetectionTab, ...
+       app.AdvConnectivityTab, app.NodeCartographyTab, app.AdvDimensionalityTab, app.AdvPlottingTab, ...
+       ];  
+% Reassign the Parent property to reorder
+for i = 1:length(tabOrder)
+    tabOrder(i).Parent = [];
+    tabOrder(i).Parent = app.TabGroup;
+end
+
+app.AdvSpikeDetectionTab.Parent = [];
+app.AdvBurstDetectionTab.Parent = [];
+app.AdvDimensionalityTab.Parent = [];
+app.AdvPlottingTab.Parent = [];
+app.ColorsTab.Parent = [];
+app.ArtifactRemovalTab.Parent = [];
+app.AdvConnectivityTab.Parent = [];
+app.NodeCartographyTab.Parent = [];
+% Not Tabs 
+app.ShadeMetricDropDown.Visible = 'off';
+app.ShadeMetricDropDownLabel.Visible = 'off';
+
+
 while isvalid(app)
 
     % previous analysis fields
@@ -122,31 +150,39 @@ while isvalid(app)
     end 
     
     % check whether to show advanced settings
-    if app.ShowAdvancedSettingsCheckBox.Value == 1
+    if (app.ShowAdvancedSettingsCheckBox.Value == 1) && (tabStatus == 0)
         % Tabs
-        app.AdvancedSpikeDetectionTab.Parent = advancedSpikeDetectionTabParent;
-        app.AdvancedBurstDetectionTab.Parent = advancedBurstDetectionTabParent;
-        app.AdvancedDimensionalityTab.Parent = advancedDimensionalityTabParent;
-        app.AdvancedPlottingTab.Parent = advancedPlottingTabParent;
-        app.ColorsTab.Parent = colorsTabParent; 
+        app.AdvSpikeDetectionTab.Parent = advancedSpikeDetectionTabParent;
         app.ArtifactRemovalTab.Parent = artifactRemovalTabParent;
-        app.AdvancedConnectivityTab.Parent = advancedConnectivityTabParent;
+        app.AdvBurstDetectionTab.Parent = advancedBurstDetectionTabParent;
+        app.AdvConnectivityTab.Parent = advancedConnectivityTabParent;
         app.NodeCartographyTab.Parent = nodeCartographyTabParent;
+        app.AdvDimensionalityTab.Parent = advancedDimensionalityTabParent;
+        app.AdvPlottingTab.Parent = advancedPlottingTabParent;
+        app.ColorsTab.Parent = colorsTabParent; 
+        
         % Not Tabs
         app.ShadeMetricDropDown.Visible = 'on';
         app.ShadeMetricDropDownLabel.Visible = 'on';
-    else
-        app.AdvancedSpikeDetectionTab.Parent = [];
-        app.AdvancedBurstDetectionTab.Parent = [];
-        app.AdvancedDimensionalityTab.Parent = [];
-        app.AdvancedPlottingTab.Parent = [];
+        
+        tabStatus = 1;
+        
+    elseif (app.ShowAdvancedSettingsCheckBox.Value == 0) && (tabStatus == 1)
+        
+        app.AdvSpikeDetectionTab.Parent = [];
+        app.AdvBurstDetectionTab.Parent = [];
+        app.AdvDimensionalityTab.Parent = [];
+        app.AdvPlottingTab.Parent = [];
         app.ColorsTab.Parent = [];
         app.ArtifactRemovalTab.Parent = [];
-        app.AdvancedConnectivityTab.Parent = [];
+        app.AdvConnectivityTab.Parent = [];
         app.NodeCartographyTab.Parent = [];
         % Not Tabs 
         app.ShadeMetricDropDown.Visible = 'off';
         app.ShadeMetricDropDownLabel.Visible = 'off';
+        
+        tabStatus = 0;
+        
     end 
     
     if suite2pMode == 0
@@ -336,6 +372,7 @@ while isvalid(app)
     if (suite2pMode == 1) && (suite2pParamsCheck == 0)
        app.STTCLagmsEditField.Value = '[1000, 2500, 5000]';
        app.NodecartographylagvaluesEditField.Value = '[1000, 2500, 5000]';
+       app.SpikeMethodforAnalysisEditField.Value = 'peak';
        suite2pParamsCheck = 1; 
     end
 
