@@ -132,8 +132,13 @@ elseif strcmp(Params.twopActivity, 'peaks')
     
     for p = 1:length(Params.FuncConLagval)
         lag = Params.FuncConLagval(p);
-        [~, adjMci] = adjM_thr_parallel(spikeTimes, 'peak', lag, Params.ProbThreshTail, fs,...
-                    duration_s, Params.ProbThreshRepNum);
+        
+        if length(spikeTimes) >= 2
+            [~, adjMci] = adjM_thr_parallel(spikeTimes, 'peak', lag, Params.ProbThreshTail, fs,...
+                        duration_s, Params.ProbThreshRepNum);
+        else 
+            adjMci = [];
+        end
         lagFieldName = strcat('adjM', num2str(lag), 'mslag');
         adjMs.(lagFieldName) = adjMci;
     end
