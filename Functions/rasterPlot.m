@@ -77,8 +77,8 @@ else
    cbar_label = 'Firing Rate (Hz)';
 end
 
-numYticks = 7;
-ytickValues = linspace(1, numChannels, numYticks);
+numYticks = min([max([numChannels, 1]), 7]);
+ytickValues = linspace(1, max([numChannels, numYticks]), numYticks);
 ytickValues = round(ytickValues);
 
 aesthetics
