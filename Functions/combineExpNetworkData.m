@@ -200,7 +200,11 @@ end
 if strcmp(output_spreadsheet_file_type, 'csv')
     electrode_combined_table = vertcat(electrode_main_table{:});
     electrode_table_savepath = fullfile(csv_save_folder, 'NetworkActivity_NodeLevel.csv');
-    writetable(electrode_combined_table, electrode_table_savepath);
+    if ~isempty(electrode_combined_table)
+        writetable(electrode_combined_table, electrode_table_savepath);
+    else 
+        fprintf('Warning: Node level table is empty, csv will not be saved. \n')
+    end
 end 
 
 
