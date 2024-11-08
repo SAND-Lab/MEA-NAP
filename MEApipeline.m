@@ -775,8 +775,7 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
                     originalCoords = Params.coords{ExN};
                     originalChannels = Params.channels{ExN}; 
                 end 
-
-                
+   
                 Params.ExpNameGroupUseCoord = 1;
                 NetMet = calNodeCartography(expData.adjMs, Params, expData.NetMet, expData.Info, originalCoords, originalChannels, ...
                 HomeDir, fileNameFolder, oneFigureHandle);
