@@ -74,12 +74,22 @@ for e = 1:length(lagval)
     coords = originalCoords;
     Params.netSubsetChannels = originalChannels;
 
-    [Ci,Q,~] = mod_consensus_cluster_iterate(adjM,0.4,50);
+    if length(adjM) > 1
+        [Ci,Q,~] = mod_consensus_cluster_iterate(adjM,0.4,50);
+    else 
+        Ci = 0;
+        Q = 0;
+    end 
         
     % NOTE: This currently works only if adjM has the same size across
     % DIVs...
     if Params.ExpNameGroupUseCoord == 1
-        [On,adjMord] = reorder_mod(adjM,Ci);  % On is the re-odering index
+        if length(adjM) > 1
+            [On,adjMord] = reorder_mod(adjM,Ci);  % On is the re-odering index
+        else 
+            On = [];
+            adjMord = []; 
+        end
         NetMet.(sprintf('AnchoredReorderingIndex%.fmslag', lagval(e))) = On;
     else 
         On = NetMet.(sprintf('AnchoredReorderingIndex%.fmslag', lagval(e)));

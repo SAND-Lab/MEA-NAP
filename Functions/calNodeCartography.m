@@ -58,8 +58,13 @@ for e = 1:length(lagval)
     % adjM = adjM(inclusionIndex, inclusionIndex);
     coords = originalCoords;
     Params.netSubsetChannels = originalChannels;
-
-    [Ci,Q,~] = mod_consensus_cluster_iterate(adjM,0.4,50);
+    
+    if length(adjM) > 1
+        [Ci,Q,~] = mod_consensus_cluster_iterate(adjM,0.4,50);
+    else 
+        Ci = 0;
+        Q = 0;
+    end 
 
     % extract node cartography
     PC = NetMet.(strcat('adjM', num2str(lagval(e)), 'mslag')).PC;
