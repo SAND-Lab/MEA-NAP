@@ -46,8 +46,9 @@ for e = 1:length(lagval)
     % adjM(:,iN) = [];
 
     % Tim 2022-10-14 fix
-    nodeStrength = sum(adjM, 1);
-    inclusionIndex = find(nodeStrength ~= 0);
+    % nodeStrength = sum(adjM, 1);
+    % inclusionIndex = find(nodeStrength ~= 0);
+    inclusionIndex = NetMet.(sprintf('adjM%.fmslag', lagval(e))).activeNodeIndices;
     
     % Exclude Inactive Electrodes
     % adjM = adjM(inclusionIndex, inclusionIndex);
