@@ -45,9 +45,11 @@ for e = 1:length(lagval)
     aNtemp = sum(adjM,1);
     iN = find(aNtemp==0);
     
-    nodeStrength = nansum(adjM, 1);  % where are there sometimes NaN in the adjM?
+    % nodeStrength = nansum(adjM, 1);  % where are there sometimes NaN in the adjM?
     % inclusionIndex = find(nodeStrength ~= 0);
-    inclusionIndex = find(abs(nodeStrength) > 1e-6);
+    % inclusionIndex = find(abs(nodeStrength) > 1e-6);
+    inclusionIndex = lagNetMet.activeNodeIndices;
+    
     adjM = adjM(inclusionIndex, inclusionIndex);
     coords = originalCoords(inclusionIndex, :);
     Params.netSubsetChannels = originalChannels(inclusionIndex);
