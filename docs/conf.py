@@ -22,7 +22,7 @@ copyright = '2022, Timothy Sit, Rachael Feord, Alexander Dunn, Jeremy Chabros, S
 author = 'Timothy Sit, Rachael Feord, Alexander Dunn, Jeremy Chabros, Susanna Mierau, and SAND group members'
 
 # The full version, including alpha/beta/rc tags
-release = '1.10.0'
+release = '1.10.1'
 
 
 # -- General configuration ---------------------------------------------------
