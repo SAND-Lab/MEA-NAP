@@ -89,32 +89,48 @@ for lagIdx = 1:length(uniqueLags)
              % linear mixed effects model 
              lmeValidRows = find(isfinite(recordingLevelDataSubset.(metricToTest)));
              recordingLevelDataSubsetValid = recordingLevelDataSubset(lmeValidRows, :);
-
-             lmeNoInt = fitlme(recordingLevelDataSubsetValid, sprintf('%s ~ AgeDiv + eGrp + (1|recordingName)', metricToTest));
-             lmeWInt = fitlme(recordingLevelDataSubsetValid, sprintf('%s ~ AgeDiv * eGrp + (1|recordingName)', metricToTest));
              
-             % always input smaller model first 
-             lmeComparison = compare(lmeNoInt, lmeWInt);
-             lmeComparisonAlpha = 0.01;
-            
-             % if lmeComparison.pValue < lmeComparisonAlpha
-             %    lme = lmeWInt;
-             % else
-             %    lme = lmeNoInt;
-             % end
-             
-             lme = lmeNoInt;
+             % LME does not work if all values are identical (ie. zero
+             % variance) 
+             if var(recordingLevelDataSubsetValid.(metricToTest)) > 0
+                 lmeNoInt = fitlme(recordingLevelDataSubsetValid, sprintf('%s ~ AgeDiv + eGrp + (1|recordingName)', metricToTest));
+                 lmeWInt = fitlme(recordingLevelDataSubsetValid, sprintf('%s ~ AgeDiv * eGrp + (1|recordingName)', metricToTest));
 
-             coefNames = lme.Coefficients.Name;
-             numNames = length(coefNames);
-             for nameIdx = 2:numNames % skip the first one (intercept)
-                 lagValueStore = [lagValueStore; lag];
-                 testStore{end+1} = sprintf('LME-noInteraction-%s', coefNames{nameIdx});
-                 statsMetricStore{end+1} = 'P-value';
-                 pVal = lme.Coefficients.pValue(nameIdx);
-                 statsValueStore = [statsValueStore; pVal];
-                 metricToTestStore{end+1} = metricToTest;
-             end 
+                 % always input smaller model first 
+                 lmeComparison = compare(lmeNoInt, lmeWInt);
+                 lmeComparisonAlpha = 0.01;
+
+                 % if lmeComparison.pValue < lmeComparisonAlpha
+                 %    lme = lmeWInt;
+                 % else
+                 %    lme = lmeNoInt;
+                 % end
+
+                 lme = lmeNoInt;
+
+                 coefNames = lme.Coefficients.Name;
+                 numNames = length(coefNames);
+                 for nameIdx = 2:numNames % skip the first one (intercept)
+                     lagValueStore = [lagValueStore; lag];
+                     testStore{end+1} = sprintf('LME-noInteraction-%s', coefNames{nameIdx});
+                     statsMetricStore{end+1} = 'P-value';
+                     pVal = lme.Coefficients.pValue(nameIdx);
+                     statsValueStore = [statsValueStore; pVal];
+                     metricToTestStore{end+1} = metricToTest;
+                 end 
+             else
+                 % This only works if at least the first metric is valid 
+                 % But is a temp hack to retrieve the names from the
+                 % previous metric until I think of something better
+                 for nameIdx = 2:numNames % skip the first one (intercept)
+                     lagValueStore = [lagValueStore; lag];
+                     testStore{end+1} = sprintf('LME-noInteraction-%s', coefNames{nameIdx});
+                     statsMetricStore{end+1} = 'P-value';
+                     pVal = nan;
+                     statsValueStore = [statsValueStore; pVal];
+                     metricToTestStore{end+1} = metricToTest;
+                 end 
+             end
              
              % Do one-way ANOVA and pairwise test in each gruop 
              uniqueGrps = unique(recordingLevelDataSubsetValid.eGrp);
@@ -163,7 +179,12 @@ for lagIdx = 1:length(uniqueLags)
                 end 
                 rmanova_X(:, 3) = subsetGrpsubjectIDs;
                 alpha = 0.05;
-                [SSA, P1] = RMAOV1(rmanova_X, alpha);
+                
+                if ~isempty(rmanova_X)
+                    [SSA, P1] = RMAOV1(rmanova_X, alpha);
+                else 
+                    P1 = nan;
+                end 
                 
                 lagValueStore = [lagValueStore; lag];
                 testStore{end+1} = [subsetGrp '-RM-1-ANOVA'];
