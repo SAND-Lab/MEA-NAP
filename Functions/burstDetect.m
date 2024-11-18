@@ -187,7 +187,7 @@ if strcmp(method, 'Bakkum')
             ISInTh = defaultISInTh;
         end
     else
-        ISInTh = ISInThreshold;
+        ISInTh = str2double(ISInThreshold);
     end
     
     [Burst SpikeBurstNumber] = BurstDetectISIn(Spike, N, ISInTh); 
