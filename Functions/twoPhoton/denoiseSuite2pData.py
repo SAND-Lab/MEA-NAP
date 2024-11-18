@@ -712,7 +712,8 @@ def combine_intensity_burst_plot_save(cell_id, raw_intensity, methods,
     if not show:
         plt.close(fig)
 
-def denoise_suite2p_data(F, output_dir, make_plots=False, image_output_dir=None, denoise_methods=["rolling", "convolve", "filter", "poly"]):
+def denoise_suite2p_data(F, output_dir, make_plots=False, image_output_dir=None,
+                         denoise_methods=["rolling", "convolve", "filter", "poly"], width=17, wlen=180):
     """
 
     Parameters
@@ -770,8 +771,8 @@ def denoise_suite2p_data(F, output_dir, make_plots=False, image_output_dir=None,
 
         denoised_trace = b + c
 
-        peaks, properties = signal.find_peaks(denoised_trace, height=0.0015, width=17, distance=50,
-                                              prominence=0.0015, rel_height=0.95, wlen=180)
+        peaks, properties = signal.find_peaks(denoised_trace, height=0.0015, width=width, distance=50,
+                                              prominence=0.0015, rel_height=0.95, wlen=wlen)
         #         peaks, properties = signal.find_peaks(denoised_trace, height=0.022, width=6.6, distance=40,
         #                                                   prominence=0.022, rel_height=0.83, wlen=160)
         #           peaks, properties = signal.find_peaks(denoised_trace, height=0.025, width=6.6, distance=48,
@@ -891,6 +892,9 @@ def do_suite2p_processing(suite2p_folder, resample_Hz=None, overwrite_existing=F
     peak_start_frames_savepath = os.path.join(suite2p_folder, 'peakStartFrames.npy')
     time_points_savepath = os.path.join(suite2p_folder, 'timePoints.npy')
 
+    denoising_width_sec = 1.13
+    denoising_wlen_sec = 12
+
     if (not os.path.exists(F_denoised_savepath)) or overwrite_existing:
 
         F_fpath = os.path.join(suite2p_folder, 'F.npy')
@@ -901,8 +905,12 @@ def do_suite2p_processing(suite2p_folder, resample_Hz=None, overwrite_existing=F
         fs = get_suite2p_fs(ops_fpath)
 
         time_points = np.arange(np.shape(F)[1]) / fs
+        width = int(fs * denoising_width_sec)
+        wlen = int(fs * denoising_wlen_sec)
 
-        F_denoised, peak_start_frames = denoise_suite2p_data(F, suite2p_folder, make_plots=False, denoise_methods=["rolling", "convolve", "filter", "poly"])
+        F_denoised, peak_start_frames = denoise_suite2p_data(F, suite2p_folder, make_plots=False,
+                                                             denoise_methods=["rolling", "convolve", "filter", "poly"],
+                                                             width=width, wlen=wlen)
 
         np.save(F_denoised_savepath, F_denoised)
         np.save(time_points_savepath, time_points)
