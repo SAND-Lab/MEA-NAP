@@ -16,11 +16,6 @@ function saveEphysStats(ExpName, Params)
 Grps = Params.GrpNm;
 AgeDiv = Params.DivNm;
 
-if strcmp(char(Grps{1}),'HET') && strcmp(char(Grps{2}),'KO') && strcmp(char(Grps{3}),'WT')
-   clear Grps
-   Grps{1} = 'WT'; Grps{2} = 'HET'; Grps{3} = 'KO';
-end
-
 %% Variable names
 
 % whole experiment metrics (1 value per experiment)

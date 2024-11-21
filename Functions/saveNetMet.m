@@ -1,4 +1,4 @@
-function saveNetMet(ExpName, Params, HomeDir)
+function saveNetMet(ExpName, Params)
 %SAVENETMET Summary of this function goes here
 % Parameters
 % ----------
@@ -6,7 +6,6 @@ function saveNetMet(ExpName, Params, HomeDir)
 %      Name of experiment file
 % Params : struct 
 %      Parameter structure used in MEANAP
-% HomeDir : str
 % Output 
 % -------
 % None
@@ -16,11 +15,6 @@ function saveNetMet(ExpName, Params, HomeDir)
 
 Grps = Params.GrpNm;
 AgeDiv = Params.DivNm;
-
-if strcmp(char(Grps{1}),'HET')&&strcmp(char(Grps{2}),'KO')&&strcmp(char(Grps{3}),'WT')
-   clear Grps
-   Grps{1} = 'WT'; Grps{2} = 'HET'; Grps{3} = 'KO';
-end
 
 %% Variable names
 

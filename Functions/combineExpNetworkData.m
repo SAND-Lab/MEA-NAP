@@ -34,11 +34,6 @@ combinedData = struct();
 % Also add activeChannel to NetMetricsC
 NetMetricsC{end+1} = 'activeChannel';
 
-if strcmp(char(Grps{1}),'HET') && strcmp(char(Grps{2}),'KO') && strcmp(char(Grps{3}),'WT')
-   clear Grps
-   Grps{1} = 'WT'; Grps{2} = 'HET'; Grps{3} = 'KO';
-end
-
 
 %% Data concerning the entire recording 
 
