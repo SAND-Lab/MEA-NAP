@@ -53,7 +53,7 @@ fs = readOpsNPY.getFs(opsFpath);
 Params.fs = fs;
 
 % do denoising and get peaks 
-if strcmp(Params.twopActivity, 'peaks') || strcmp(Params.twopActivity, 'denoised F')
+if strcmp(Params.twopActivity, 'peaks') || strcmp(Params.twopActivity, 'denoised F') || strcmp(Params.twopActivity, 'spks')
     resampleHz = 0;
     denoisePy.do_suite2p_processing(suite2pFolder, resampleHz, Params.twopRedoDenoising)
     peakStartFramesPath = fullfile(suite2pFolder, 'peakStartFrames.npy');
