@@ -57,17 +57,8 @@ for e = 1:length(lagval)
     aNtemp(aNtemp==0) = [];
     aN = length(aNtemp);
     
-    % adjM(iN,:) = [];
-    % adjM(:,iN) = [];
-
-    % Tim 2022-10-14 fix
-    nodeStrength = sum(adjM, 1);
-    inclusionIndex = find(nodeStrength ~= 0);
+    inclusionIndex = NetMet.(sprintf('adjM%.fmslag', lagval(e))).activeNodeIndices;
     
-    % Exclude Inactive Electrodes
-    % adjM = adjM(inclusionIndex, inclusionIndex);
-    % coords = originalCoords(inclusionIndex, :);
-    % Params.netSubsetChannels = originalChannels(inclusionIndex);
     
     % Use all coords and channels (will make them black/white instead)
     % adjM = adjM(inclusionIndex, inclusionIndex);
