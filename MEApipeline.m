@@ -660,7 +660,11 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
             infoFnFname = strcat(char(Info.FN),'_',Params.outputDataFolderName,'.mat');
             infoFnFilePath = fullfile(ExpMatFolder, infoFnFname);
             
-            varsToSave = {'Info', 'Params', 'adjMs', 'NetMet', 'coords', 'channels'};
+            varsToSave = {'Info', 'Params', 'adjMs', 'NetMet', 'coords', 'channels'}; 
+            
+            if Params.suite2pMode == 1
+               varsToSave{end+1} = 'fs'; 
+            end
             
             if exist('spikeTimes', 'var')
                 varsToSave{end+1} = 'spikeTimes';
@@ -676,9 +680,8 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
         end
 
         % save and export network data to spreadsheet
-        saveNetMet(ExpName, Params, HomeDir)
+        saveNetMet(ExpName, Params)
  
-    
         % Set up one figure handle to save all the figures
         if ~exist('oneFigureHandle', 'var')
             oneFigureHandle = NaN;
