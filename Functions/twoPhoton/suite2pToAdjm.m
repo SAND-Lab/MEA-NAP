@@ -1,4 +1,4 @@
-function [adjMs, coords, channels, FisCell, FdenoisedIsCell, spksIsCell, spikeTimes, fs, Params] = suite2pToAdjm(suite2pFolder, Params)
+function [adjMs, coords, channels, FisCell, FdenoisedIsCell, spksIsCell, spikeTimes, fs, Params, activityProperties] = suite2pToAdjm(suite2pFolder, Params)
 %SUITE2PTOADJM Converts suite2p data to adjacency matrix 
 %   Detailed explanation goes here
 
@@ -10,6 +10,8 @@ function [adjMs, coords, channels, FisCell, FdenoisedIsCell, spksIsCell, spikeTi
 % Info.Grp = {'suite2p'}; 
 % Info.FN = {'suite2pFile1'};
 % Info.DIV = {1};
+
+activityProperties = struct();
 
 % suite2pFolder = '/home/timothysit/testSuite2pData/';
 
@@ -57,35 +59,60 @@ if strcmp(Params.twopActivity, 'peaks') || strcmp(Params.twopActivity, 'denoised
     resampleHz = 0;
     denoisePy.do_suite2p_processing(suite2pFolder, resampleHz, Params.twopRedoDenoising)
     peakStartFramesPath = fullfile(suite2pFolder, 'peakStartFrames.npy');
+    peakEndFramesPath = fullfile(suite2pFolder, 'peakEndFrames.npy');
+    peakHeightsPath = fullfile(suite2pFolder, 'peakHeights.npy');
+    eventAreasPath = fullfile(suite2pFolder, 'eventAreas.npy');
+    
     FdenoisedPath = fullfile(suite2pFolder, 'Fdenoised.npy');
     timePointsPath = fullfile(suite2pFolder, 'timePoints.npy');
     timePoints = readNPY(timePointsPath);
     Fdenoised = readNPY(FdenoisedPath);
     peakStartFrames = readNPY(peakStartFramesPath);
+    peakEndFrames = readNPY(peakEndFramesPath);
+    peakHeights = readNPY(peakHeightsPath); 
+    eventAreas = readNPY(eventAreasPath);
+    peakDurationFrames = peakEndFrames - peakStartFrames;
+    
+    
     peakStartFramesIsCell = peakStartFrames(logical(iscell(:, 1)), :);
+    peakDurationFramesIsCell = peakDurationFrames(logical(iscell(:, 1)), :);
+    peakHeightsIsCell = peakHeights(logical(iscell(:, 1)), :);
+    eventAreasIsCell = eventAreas(logical(iscell(:, 1)), :);
+    
+    
+    
     FdenoisedIsCell = Fdenoised(logical(iscell(:, 1)), :)';
+    
+    
+    
 end
 
 
 terminate(pyenv)
 
 XYlocIsCell = XYloc(:, logical(iscell(:, 1)));
+coords = XYlocIsCell';
 
 if Params.removeNodesWithNoPeaks
     % Subset only cells with peaks 
     cellSubsetIndex = find(1 - all(isnan(peakStartFramesIsCell), 2));
     FdenoisedIsCell = FdenoisedIsCell(:, cellSubsetIndex);
+    
     peakStartFramesIsCell = peakStartFramesIsCell(cellSubsetIndex, :);
+    peakDurationFramesIsCell = peakDurationFramesIsCell(cellSubsetIndex, :);
+    peakHeightsIsCell = peakHeightsIsCell(cellSubsetIndex, :);
+    eventAreasIsCell = eventAreasIsCell(cellSubsetIndex, :);
+    
     FisCell = FisCell(:, cellSubsetIndex);
     spksIsCell = spksIsCell(:, cellSubsetIndex);
     channels = channels(cellSubsetIndex);
+    coords = coords(cellSubsetIndex);
 end 
 
-
-% saveFolder = '/home/timothysit/AnalysisPipeline/OutputDataTestSuite2p/ExperimentMatFiles/';
-% saveName = 'suite2pFile1_OutputDataTestSuite2p';
-
-coords = XYlocIsCell';
+% Get peak / event properties
+activityProperties.peakDurationFrames = peakDurationFramesIsCell;
+activityProperties.peakHeights = peakHeightsIsCell;
+activityProperties.eventAreas = eventAreasIsCell;
 
 % normalise to max, then scale by 8 
 maxXY = max(XYloc(:));

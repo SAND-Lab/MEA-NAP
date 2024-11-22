@@ -751,6 +751,9 @@ def denoise_suite2p_data(F, output_dir, make_plots=False, image_output_dir=None,
 
     F_denoised = np.zeros(np.shape(F)) + np.nan
     peak_start_frames = np.empty(num_cells, object)
+    peak_end_frames = np.empty(num_cells, object)
+    peak_heights = np.empty(num_cells, object)
+    event_areas = np.empty(num_cells, object)
 
     for cell_id in tqdm(np.arange(num_cells)):
 
@@ -783,7 +786,15 @@ def denoise_suite2p_data(F, output_dir, make_plots=False, image_output_dir=None,
         spike_threshold = 0.015  # unnormalised spike threshold
 
         cell_peak_start_frames = np.array([int(properties["left_ips"][x]) for x in np.arange(len(peaks))])
+        cell_peak_end_frames = np.array([int(properties["right_ips"][x]) for x in np.arange(len(peaks))])
+        cell_peak_heights = np.array([properties["peak_heights"][x] for x in np.arange(len(peaks))])
+
+        cell_event_areas = np.array([integrate.trapz(denoised_trace[x:y]) for (x, y) in zip(cell_peak_start_frames, cell_peak_end_frames)])
+
         peak_start_frames[cell_id] = cell_peak_start_frames
+        peak_end_frames[cell_id] = cell_peak_end_frames
+        peak_heights[cell_id] = cell_peak_heights
+        event_areas[cell_id] = cell_event_areas
         F_denoised[cell_id, :] = denoised_trace
 
 
@@ -871,11 +882,18 @@ def denoise_suite2p_data(F, output_dir, make_plots=False, image_output_dir=None,
     # Make peak_start_frames_matrix (easier to read into matlab)
     max_num_peaks = np.max(np.array([len(x) for x in peak_start_frames]))
     peak_start_frames_matrix = np.zeros((num_cells, max_num_peaks)) + np.nan
+    peak_end_frames_matrix = np.zeros((num_cells, max_num_peaks)) + np.nan
+    peak_heights_matrix = np.zeros((num_cells, max_num_peaks)) + np.nan
+    event_areas_matrix = np.zeros((num_cells, max_num_peaks)) + np.nan
+
     for cell_id in np.arange(num_cells):
         peak_start_frames_matrix[cell_id, 0:len(peak_start_frames[cell_id])] = peak_start_frames[cell_id]
+        peak_end_frames_matrix[cell_id, 0:len(peak_end_frames[cell_id])] = peak_end_frames[cell_id]
+        peak_heights_matrix[cell_id, 0:len(peak_heights[cell_id])] = peak_heights[cell_id]
+        event_areas_matrix[cell_id, 0:len(event_areas[cell_id])] = event_areas[cell_id]
 
 
-    return F_denoised, peak_start_frames_matrix
+    return F_denoised, peak_start_frames_matrix, peak_end_frames_matrix, peak_heights_matrix, event_areas_matrix
 
 
 def get_suite2p_fs(ops_fpath):
@@ -890,6 +908,9 @@ def do_suite2p_processing(suite2p_folder, resample_Hz=None, overwrite_existing=F
 
     F_denoised_savepath = os.path.join(suite2p_folder, 'Fdenoised.npy')
     peak_start_frames_savepath = os.path.join(suite2p_folder, 'peakStartFrames.npy')
+    peak_end_frames_savepath = os.path.join(suite2p_folder, 'peakEndFrames.npy')
+    peak_heights_savepath = os.path.join(suite2p_folder, 'peakHeights.npy')
+    event_areas_savepath = os.path.join(suite2p_folder, 'eventAreas.npy')
     time_points_savepath = os.path.join(suite2p_folder, 'timePoints.npy')
 
     denoising_width_sec = 1.13
@@ -899,7 +920,6 @@ def do_suite2p_processing(suite2p_folder, resample_Hz=None, overwrite_existing=F
 
         F_fpath = os.path.join(suite2p_folder, 'F.npy')
         F = np.load(F_fpath)  # F is cell by time
-        # F = F[0:20, :]  # temp : take first few cells
 
         ops_fpath = os.path.join(suite2p_folder, 'ops.npy')
         fs = get_suite2p_fs(ops_fpath)
@@ -908,17 +928,20 @@ def do_suite2p_processing(suite2p_folder, resample_Hz=None, overwrite_existing=F
         width = int(fs * denoising_width_sec)
         wlen = int(fs * denoising_wlen_sec)
 
-        F_denoised, peak_start_frames = denoise_suite2p_data(F, suite2p_folder, make_plots=False,
+        F_denoised, peak_start_frames, peak_end_frames, peak_heights, event_areas = denoise_suite2p_data(F, suite2p_folder, make_plots=False,
                                                              denoise_methods=["rolling", "convolve", "filter", "poly"],
                                                              width=width, wlen=wlen)
 
         np.save(F_denoised_savepath, F_denoised)
         np.save(time_points_savepath, time_points)
         np.save(peak_start_frames_savepath, peak_start_frames)
+        np.save(peak_end_frames_savepath, peak_end_frames)
+        np.save(peak_heights_savepath, peak_heights)
+        np.save(event_areas_savepath, event_areas)
 
 
 def main():
-    suite2p_folder = '/home/timothysit/testMultiSuite2pData/recordingB'
+    suite2p_folder = '/home/timothysit/testSuite2pData/recordingA/'
 
     do_suite2p_processing(suite2p_folder, resample_Hz=None, overwrite_existing=True)
 
