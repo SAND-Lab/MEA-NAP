@@ -510,11 +510,13 @@ if ~isvalid(app)
 end 
 
 %% Moving settings to Params
+%{
 % remove NMF calculation if running suite2p mode 
 if suite2pMode 
     inclusionIndex = find(~ismember(app.NetworkmetricstocalculateListBox.Value, {'num_nnmf_components', 'nComponentsRelNS'}));
     app.NetworkmetricstocalculateListBox.Value = app.NetworkmetricstocalculateListBox.Value(inclusionIndex);
 end
+%}
 
 Params = getParamsFromApp(app);
 Params.suite2pMode = suite2pMode;

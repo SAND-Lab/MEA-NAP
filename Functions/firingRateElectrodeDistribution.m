@@ -33,7 +33,11 @@ xlim([0.5 1.5])
 xticks([])
 xlabel(strcat('age',num2str(cell2mat(Info.DIV))))
 aesthetics
-ylabel('mean firing rate per electrode (Hz)')
+if Params.suite2pMode == 0
+    ylabel('mean firing rate per electrode (Hz)')
+else 
+    ylabel(sprintf('mean activity rate per unit (%s)', Params.twopActivity))
+end
 title({strcat(regexprep(File,'_','','emptymatch')),' '});
 ax = gca;
 ax.TitleFontSizeMultiplier = 0.7;

@@ -22,10 +22,15 @@ AgeDiv = Params.DivNm;
 
 % names of metrics
 ExpInfoE = {'Grp','DIV'}; % info for both age and genotype
-% list of metrics 
-NetMetricsE = {'numActiveElec','FRmean','FRmedian','NBurstRate','meanNumChansInvolvedInNbursts', ... 
-               'meanNBstLengthS','meanISIWithinNbursts_ms','meanISIoutsideNbursts_ms','CVofINBI','fracInNburst'}; 
-
+if Params.suite2pMode == 0
+    activityStatsFieldName = 'Ephys';  
+    % list of metrics 
+    NetMetricsE = {'numActiveElec','FRmean','FRmedian','NBurstRate','meanNumChansInvolvedInNbursts', ... 
+                   'meanNBstLengthS','meanISIWithinNbursts_ms','meanISIoutsideNbursts_ms','CVofINBI','fracInNburst'}; 
+else 
+    activityStatsFieldName = 'activityStats';
+    NetMetricsE = {'numActiveElec','FRmean','FRmedian'}; 
+end
 % single cell/node metrics (1 value per cell/node)
 
 % names of metrics
@@ -84,7 +89,7 @@ for i = 1:length(ExpName)
              allRecordingLevelData.(eMet) = [];
          end 
          
-         allRecordingLevelData.(eMet) = [allRecordingLevelData.(eMet); expData.('Ephys').(eMet)];
+         allRecordingLevelData.(eMet) = [allRecordingLevelData.(eMet); expData.(activityStatsFieldName).(eMet)];
      end 
      
      % electrode level data 
@@ -96,7 +101,7 @@ for i = 1:length(ExpName)
              allElectrodeLevelData.(eMet) = [];
          end 
          
-         allElectrodeLevelData.(eMet) = [allElectrodeLevelData.(eMet); expData.('Ephys').(eMet)'];
+         allElectrodeLevelData.(eMet) = [allElectrodeLevelData.(eMet); expData.(activityStatsFieldName).(eMet)'];
          
      end 
      

@@ -61,25 +61,46 @@ AgeDiv = Params.DivNm;
 
 %% Variable names
 
-% whole experiment metrics (1 value per experiment)
+if Params.suite2pMode == 0
+   activityStatsFieldName = 'Ephys';  
+   % this is for legacy purposes, future implementation should name the field 
+   % as activityStats all the time
+   % list of metrics 
+   NetMetricsE = {'numActiveElec','FRmean','FRmedian','NBurstRate','meanNumChansInvolvedInNbursts', ... 
+                   'meanNBstLengthS','meanISIWithinNbursts_ms','meanISIoutsideNbursts_ms','CVofINBI','fracInNburst'}; 
+   eMetl = {'number of active electrodes','mean firing rate (Hz)','median firing rate (Hz)', ... 
+        'network burst rate (per minute)','mean number of channels involved in network bursts', ...
+        'mean network burst length (s)','mean ISI within network burst (ms)', ... 
+        'mean ISI outside network bursts (ms)','coefficient of variation of inter network burst intervals', ... 
+        'fraction of bursts in network bursts'}; 
+else 
+   activityStatsFieldName = 'activityStats';
+   NetMetricsE = {'numActiveElec','FRmean','FRmedian', ...
+                 'recHeightMean', 'recPeakDurMean', 'recEventAreaMean'}; 
+   eMetl = {'number of active units','mean firing rate (Hz)','median firing rate (Hz)', ...
+           'mean peak height', 'mean peak duration (s)', 'mean event area'}; 
+end
 
+
+% whole experiment metrics (1 value per experiment)
 % names of metrics
 ExpInfoE = {'Grp','DIV'}; % info for both age and genotype
-% list of metrics 
-NetMetricsE = {'numActiveElec','FRmean','FRmedian','NBurstRate','meanNumChansInvolvedInNbursts', ... 
-               'meanNBstLengthS','meanISIWithinNbursts_ms','meanISIoutsideNbursts_ms','CVofINBI','fracInNburst'}; 
-eMetl = {'number of active electrodes','mean firing rate (Hz)','median firing rate (Hz)', ... 
-    'network burst rate (per minute)','mean number of channels involved in network bursts', ...
-    'mean network burst length (s)','mean ISI within network burst (ms)', ... 
-    'mean ISI outside network bursts (ms)','coefficient of variation of inter network burst intervals', ... 
-    'fraction of bursts in network bursts'}; 
+
 
 % single cell/node metrics (1 value per cell/node)
 
 % names of metrics
 ExpInfoC = {'Grp','DIV'}; % info for both age and genotype
-% list of metrics 
-NetMetricsC = {'FR'};
+
+% list of cell level metrics 
+if Params.suite2pMode == 0
+    NetMetricsC = {'FR'};
+    cMetl = {'mean_firing_rate_node'};
+else 
+    NetMetricsC = {'FR', 'unitHeightMean', 'unitPeakDurMean', 'unitEventAreaMean'};
+    cMetl = {'mean_firing_rate_node', 'peak height', 'peak duration', 'event area'};
+end
+
 
 %% Import data from all experiments - whole experiment  
 
@@ -124,7 +145,7 @@ for i = 1:length(ExpName)
      end
      for e = 1:length(NetMetricsE)
          eMet = cell2mat(NetMetricsE(e));
-         VNs = strcat('Ephys.',eMet);
+         VNs = strcat([activityStatsFieldName '.' eMet]);
          eval(['DatTemp =' VNs ';']);
          clear VNs
          VNe = strcat(eGrp,'.',eDiv,'.',eMet);
@@ -172,7 +193,7 @@ for i = 1:length(ExpName)
      end
      for e = 1:length(NetMetricsC)
          eMet = cell2mat(NetMetricsC(e));
-         VNs = strcat('Ephys.',eMet);
+         VNs = strcat([activityStatsFieldName '.' eMet]);
          eval(['DatTemp =' VNs ';']);
          clear VNs
          VNe = strcat(eGrp,'.',eDiv,'.',eMet);
@@ -262,11 +283,6 @@ halfViolinPlotByGroupFolder = fullfile(Params.outputDataFolder, Params.outputDat
     '2_NeuronalActivity', '2B_GroupComparisons', '3_RecordingsByGroup', 'HalfViolinPlots');
 
 eMet = NetMetricsE; 
-eMetl = {'number of active electrodes','mean firing rate (Hz)','median firing rate (Hz)', ...
-    'network burst rate (per minute)','mean number of channels involved in network bursts', ...
-    'mean network burst length (s)','mean ISI within network burst (ms)', ... 
-    'mean ISI outside network bursts (ms)','coefficient of variation of inter network burst intervals', ...
-    'fraction of bursts in network bursts'}; 
 
 p = [100 100 1300 600]; 
 set(0, 'DefaultFigurePosition', p)
@@ -378,11 +394,6 @@ notBoxPlotByDivFolder = fullfile(Params.outputDataFolder, Params.outputDataFolde
     '2_NeuronalActivity', '2B_GroupComparisons', '4_RecordingsByAge', 'NotBoxPlots');
 
 eMet = NetMetricsE; 
-eMetl = {'number of active electrodes','mean firing rate (Hz)','median firing rate (Hz)', ... 
-    'network burst rate (per minute)','mean number of channels involved in network bursts', ... 
-    'mean network burst length (s)','mean ISI within network burst (ms)', ... 
-    'mean ISI outside network bursts (ms)','coefficient of variation of inter network burst intervals', ... 
-    'fraction of bursts in network bursts'}; 
 
 p = [100 100 1300 600]; 
 set(0, 'DefaultFigurePosition', p)
@@ -497,11 +508,6 @@ halfViolinPlotByDivFolder = fullfile(Params.outputDataFolder, Params.outputDataF
     '2_NeuronalActivity', '2B_GroupComparisons', '4_RecordingsByAge', 'HalfViolinPlots');
 
 eMet = NetMetricsE; 
-eMetl = {'number of active electrodes','mean firing rate (Hz)','median firing rate (Hz)', ...
-    'network burst rate (per minute)','mean number of channels involved in network bursts', ... 
-    'mean network burst length (s)','mean ISI within network burst (ms)', ... 
-    'mean ISI outside network bursts (ms)','coefficient of variation of inter network burst intervals', ...
-    'fraction of bursts in network bursts'}; 
 
 p = [100 100 1300 600]; 
 set(0, 'DefaultFigurePosition', p)
@@ -607,13 +613,12 @@ for n = 1:length(eMet)
     end 
 end
 
-%% halfViolinPlots - plots by group
+%% halfViolinPlots - plots by group (NODE LEVEL)
 
 halfViolinPlotNodeByGroupFolder = fullfile(Params.outputDataFolder, Params.outputDataFolderName, ...
     '2_NeuronalActivity', '2B_GroupComparisons', '1_NodeByGroup');
 
 eMet = NetMetricsC; 
-eMetl = {'mean_firing_rate_node_by_group'}; 
 
 p = [100 100 1300 600]; 
 set(0, 'DefaultFigurePosition', p)
@@ -655,7 +660,7 @@ for n = 1:length(eMet)
         xticks(xt)
         xticklabels(xtlabtext)
         xlabel('Age')
-        ylabel(eMetl(n))
+        ylabel(cMetl(n))
         title(eGrp)
         aesthetics
         set(gca,'TickDir','out');
@@ -670,10 +675,13 @@ for n = 1:length(eMet)
         maxPlotDat = 1;
     else 
         maxPlotDat = nanmax(PlotDat);
+        if maxPlotDat <= 0 
+            maxPlotDat = 1;
+        end 
     end 
         
     ylim([0, maxPlotDat])
-    figName = strcat(num2str(n),'_',char(eMetl(n)), '_byGroup');
+    figName = strcat(num2str(n),'_',char(cMetl(n)), '_byGroup');
     figPath = fullfile(halfViolinPlotNodeByGroupFolder, figName);
     
     if Params.showOneFig
@@ -694,7 +702,6 @@ halfViolinPlotByNodeDivFolder = fullfile(Params.outputDataFolder, Params.outputD
     '2_NeuronalActivity', '2B_GroupComparisons', '2_NodeByAge');
 
 eMet = NetMetricsC; 
-eMetl = {'mean_firing_rate_node_by_age'}; 
 
 p = [100 100 1300 600]; 
 set(0, 'DefaultFigurePosition', p)
@@ -741,7 +748,7 @@ for n = 1:length(eMet)
         xticks(xt)
         xticklabels(xtlabtext)
         xlabel('Group')
-        ylabel(eMetl(n))
+        ylabel(cMetl(n))
         title(strcat('Age',eDiv))
         aesthetics
         set(gca,'TickDir','out');
@@ -754,7 +761,7 @@ for n = 1:length(eMet)
     set(findall(gcf,'-property','FontSize'),'FontSize',9)
 
     % Export figure
-    figName = strcat(num2str(n),'_',char(eMetl(n)));
+    figName = strcat(num2str(n),'_',char(cMetl(n)));
     figPath = fullfile(halfViolinPlotByNodeDivFolder, figName);
     
     if Params.showOneFig
