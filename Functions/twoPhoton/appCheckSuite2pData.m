@@ -19,7 +19,7 @@ function suite2pMode = appCheckSuite2pData(app)
     if numSuite2pFiles > 0
         app.MEANAPStatusTextArea.Value = [app.MEANAPStatusTextArea.Value; ...
             sprintf('%.f folder found with suite2p files', numSuite2pFiles)];
-        app.StartAnalysisStepEditField.Value = '3';
+        app.StartAnalysisStepEditField.Value = '2';
         suite2pMode = 1;
 
         % get python path 
