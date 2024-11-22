@@ -106,7 +106,7 @@ if Params.removeNodesWithNoPeaks
     FisCell = FisCell(:, cellSubsetIndex);
     spksIsCell = spksIsCell(:, cellSubsetIndex);
     channels = channels(cellSubsetIndex);
-    coords = coords(cellSubsetIndex);
+    coords = coords(cellSubsetIndex, :);
 end 
 
 % Get peak / event properties
