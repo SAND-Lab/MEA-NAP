@@ -790,53 +790,55 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
 
 
         end 
-            % Run through each file to do node cartography analysis 
-            for ExN = 1:length(ExpName) 
-                if Params.priorAnalysis==1 && Params.startAnalysisStep==4 && usePriorNetMet
-                    experimentMatFileFolder = fullfile(Params.priorAnalysisPath, 'ExperimentMatFiles');
-                    experimentMatFilePath = fullfile(experimentMatFileFolder, strcat(char(ExpName(ExN)),'_',Params.priorAnalysisDate,'.mat'));
-                    expData = load(experimentMatFilePath);
-                else
-                    experimentMatFileFolder = fullfile(Params.outputDataFolder, Params.outputDataFolderName, 'ExperimentMatFiles');
-                    experimentMatFilePath = fullfile(experimentMatFileFolder, strcat(char(ExpName(ExN)),'_',Params.outputDataFolderName,'.mat'));
-                    expData = load(experimentMatFilePath);
-                end
-                fileNameFolder = fullfile(Params.outputDataFolder, Params.outputDataFolderName, ...
-                                          '4_NetworkActivity', '4A_IndividualNetworkAnalysis', ...
-                                          char(expData.Info.Grp), char(expData.Info.FN));
-                
-                if isfield(expData, 'coords')
-                    originalCoords = expData.coords;
-                    originalChannels = expData.channels;
-                else 
-                    originalCoords = Params.coords{ExN};
-                    originalChannels = Params.channels{ExN}; 
-                end 
-   
-                Params.ExpNameGroupUseCoord = 1;
-                NetMet = calNodeCartography(expData.adjMs, Params, expData.NetMet, expData.Info, originalCoords, originalChannels, ...
-                HomeDir, fileNameFolder, oneFigureHandle);
-                % save NetMet now that we have node cartography data as well
-                experimentMatFileFolderToSaveTo = fullfile(Params.outputDataFolder, Params.outputDataFolderName, 'ExperimentMatFiles');
-                experimentMatFilePathToSaveTo = fullfile(experimentMatFileFolderToSaveTo, strcat(char(expData.Info.FN),'_',Params.outputDataFolderName,'.mat'));
-                
-                if isfield(expData, 'spikeTimes') 
-                    spikeTimes = expData.spikeTimes;
-                else
-                    spikeTimes = [];
-                end 
-                if isfield(expData, 'Ephys') 
-                    Ephys = expData.Ephys;
-                else
-                    Ephys = [];
-                end 
-                
-                varsToSave = {'Info', 'Params', 'spikeTimes', 'adjMs', 'NetMet', 'coords', 'channels'};
-                
-                adjMs = expData.adjMs;
-                Info = expData.Info;
-                save(experimentMatFilePathToSaveTo, varsToSave{:})
+        % Run through each file to do node cartography analysis 
+        for ExN = 1:length(ExpName) 
+            if Params.priorAnalysis==1 && Params.startAnalysisStep==4 && usePriorNetMet
+                experimentMatFileFolder = fullfile(Params.priorAnalysisPath, 'ExperimentMatFiles');
+                experimentMatFilePath = fullfile(experimentMatFileFolder, strcat(char(ExpName(ExN)),'_',Params.priorAnalysisDate,'.mat'));
+                expData = load(experimentMatFilePath);
+            else
+                experimentMatFileFolder = fullfile(Params.outputDataFolder, Params.outputDataFolderName, 'ExperimentMatFiles');
+                experimentMatFilePath = fullfile(experimentMatFileFolder, strcat(char(ExpName(ExN)),'_',Params.outputDataFolderName,'.mat'));
+                expData = load(experimentMatFilePath);
             end
+            fileNameFolder = fullfile(Params.outputDataFolder, Params.outputDataFolderName, ...
+                                      '4_NetworkActivity', '4A_IndividualNetworkAnalysis', ...
+                                      char(expData.Info.Grp), char(expData.Info.FN));
+
+            if isfield(expData, 'coords')
+                coords = expData.coords;  % to be saved
+                channels = expData.channels; % to be saved
+                originalCoords = expData.coords;
+                originalChannels = expData.channels;
+            else 
+                originalCoords = Params.coords{ExN};
+                originalChannels = Params.channels{ExN}; 
+            end 
+
+            Params.ExpNameGroupUseCoord = 1;
+            NetMet = calNodeCartography(expData.adjMs, Params, expData.NetMet, expData.Info, originalCoords, originalChannels, ...
+            HomeDir, fileNameFolder, oneFigureHandle);
+            % save NetMet now that we have node cartography data as well
+            experimentMatFileFolderToSaveTo = fullfile(Params.outputDataFolder, Params.outputDataFolderName, 'ExperimentMatFiles');
+            experimentMatFilePathToSaveTo = fullfile(experimentMatFileFolderToSaveTo, strcat(char(expData.Info.FN),'_',Params.outputDataFolderName,'.mat'));
+
+            if isfield(expData, 'spikeTimes') 
+                spikeTimes = expData.spikeTimes;
+            else
+                spikeTimes = [];
+            end 
+            if isfield(expData, 'Ephys') 
+                Ephys = expData.Ephys;
+            else
+                Ephys = [];
+            end 
+
+            varsToSave = {'Info', 'Params', 'spikeTimes', 'adjMs', 'NetMet', 'coords', 'channels', 'Ephys'};
+
+            adjMs = expData.adjMs;  % evaluated here for saving purpose
+            Info = expData.Info;
+            save(experimentMatFilePathToSaveTo, varsToSave{:}, '-append')
+        end
     end 
         
     end
