@@ -1040,6 +1040,8 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
                     if isfield(expData, 'coords')
                         originalCoords = expData.coords;
                         originalChannels = expData.channels;
+                        coords = expMatData.coords;  % for saving purpose
+                        channels = expMatData.channels;
                     else 
                         originalCoords = Params.coords{ExN};
                         originalChannels = Params.channels{ExN};
@@ -1090,11 +1092,11 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
                         Ephys = [];
                      end 
 
-                    varsToSave = {'Info', 'Params', 'spikeTimes', 'adjMs', 'NetMet', 'coords', 'channels'};
+                    varsToSave = {'Info', 'Params', 'spikeTimes', 'adjMs', 'NetMet', 'coords', 'channels', 'Ephys'};
 
                     adjMs = expData.adjMs;
                     Info = expData.Info;
-                    save(experimentMatFilePathToSaveTo,'Info','Params','spikeTimes','Ephys','adjMs','NetMet')
+                    save(experimentMatFilePathToSaveTo, varsToSave{:})
 
                     % save the current in use reordering index 
                     for lagval = Params.FuncConLagval
