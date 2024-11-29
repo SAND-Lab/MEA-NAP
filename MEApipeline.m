@@ -208,6 +208,12 @@ for ExN = 1:length(ExpName)
     else 
         save(InfoSavePath,'Info', '-append')
     end 
+    
+    % Append cell type information 
+    if Params.suite2pMode == 1
+        
+    end 
+    
 end
 
 % create a random sample for checking the probabilistic thresholding
@@ -1040,8 +1046,8 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
                     if isfield(expData, 'coords')
                         originalCoords = expData.coords;
                         originalChannels = expData.channels;
-                        coords = expMatData.coords;  % for saving purpose
-                        channels = expMatData.channels;
+                        coords = expData.coords;  % for saving purpose
+                        channels = expData.channels;
                     else 
                         originalCoords = Params.coords{ExN};
                         originalChannels = Params.channels{ExN};
