@@ -800,7 +800,7 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
         for ExN = 1:length(ExpName) 
             if Params.priorAnalysis==1 && Params.startAnalysisStep==4 && usePriorNetMet
                 experimentMatFileFolder = fullfile(Params.priorAnalysisPath, 'ExperimentMatFiles');
-                experimentMatFilePath = fullfile(experimentMatFileFolder, strcat(char(ExpName(ExN)),'_',Params.priorAnalysisDate,'.mat'));
+                experimentMatFilePath = fullfile(experimentMatFileFolder, strcat(char(ExpName(ExN)),'_',Params.priorAnalysisSubFolderName,'.mat'));
                 expData = load(experimentMatFilePath);
             else
                 experimentMatFileFolder = fullfile(Params.outputDataFolder, Params.outputDataFolderName, 'ExperimentMatFiles');
@@ -859,7 +859,7 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
                 Params.outputDataFolderName, 'ExperimentMatFiles');
         elseif strcmp(Params.startAnalysisSubStep, 'B')
             experimentMatFileFolder =  fullfile(Params.outputDataFolder, ... 
-                strcat('OutputData', Params.priorAnalysisDate), 'ExperimentMatFiles');
+                strcat('OutputData', Params.priorAnalysisSubFolderName), 'ExperimentMatFiles');
         end
         % (everything except node cartography)
         PlotNetMet(ExpName, Params, experimentMatFileFolder, oneFigureHandle)
@@ -1031,7 +1031,7 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
                     Params.ExpNameGroupUseCoord = ExpNameGroupUseCoord(ExN);
                     if Params.priorAnalysis==1 && Params.startAnalysisStep==4 && usePriorNetMet
                         experimentMatFileFolder = fullfile(Params.priorAnalysisPath, 'ExperimentMatFiles');
-                        experimentMatFilePath = fullfile(experimentMatFileFolder, strcat(char(ExpName(ExN)),'_',Params.priorAnalysisDate,'.mat'));
+                        experimentMatFilePath = fullfile(experimentMatFileFolder, strcat(char(ExpName(ExN)),'_',Params.priorAnalysisSubFolderName,'.mat'));
                         expData = load(experimentMatFilePath, 'spikeTimes','Ephys','adjMs','Info', 'NetMet', 'Params', 'coords', 'channels');
                     else
                         experimentMatFileFolder = fullfile(Params.outputDataFolder, Params.outputDataFolderName, 'ExperimentMatFiles');
