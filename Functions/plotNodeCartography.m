@@ -52,13 +52,13 @@ for e = 1:length(lagval)
 
     % subset active nodes
     
-    aNtemp = sum(adjM,1);
-    iN = find(aNtemp==0);
-    aNtemp(aNtemp==0) = [];
-    aN = length(aNtemp);
+    % aNtemp = sum(adjM,1);
+    % iN = find(aNtemp==0);
+    % aNtemp(aNtemp==0) = [];
+    % aN = length(aNtemp);
     
     inclusionIndex = NetMet.(sprintf('adjM%.fmslag', lagval(e))).activeNodeIndices;
-    
+    aN = length(inclusionIndex);
     
     % Use all coords and channels (will make them black/white instead)
     % adjM = adjM(inclusionIndex, inclusionIndex);

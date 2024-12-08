@@ -142,14 +142,14 @@ for e = 1:length(lagval)
     
     %% active nodes
     
-    aNtemp = sum(adjM,1);
-    iN = find(aNtemp==0);
-    aNtemp(aNtemp==0) = [];  % ??? why remove the zeros?
-    aN = length(aNtemp);
+    % aNtemp = sum(adjM,1);
+    % iN = find(aNtemp==0);
+    % aNtemp(aNtemp==0) = [];  % ??? why remove the zeros?
+    % aN = length(aNtemp);
     
-    activeNodeIndices = find(aNtemp > 0);
+    % activeNodeIndices = find(aNtemp > 0);
     
-    clear aNtemp
+    % clear aNtemp
     
     %adjM(iN,:) = [];
     % adjM(:,iN) = [];
@@ -159,6 +159,9 @@ for e = 1:length(lagval)
     activityLevelPerNode = full(sum(activityMatrix, 1)) / Info.duration_s;
     inclusionIndex = find((nodeStrength ~= 0) & (activityLevelPerNode >= Params.minActivityLevel));
     activeNodeIndices = inclusionIndex;  
+    
+    % define number of active nodes (saved in NetMet)
+    aN = length(inclusionIndex);
     
     adjM = adjM(inclusionIndex, inclusionIndex);
     coords = originalCoords(inclusionIndex, :);
