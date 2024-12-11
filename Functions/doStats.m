@@ -90,26 +90,39 @@ for lagIdx = 1:length(uniqueLags)
              lmeValidRows = find(isfinite(recordingLevelDataSubset.(metricToTest)));
              recordingLevelDataSubsetValid = recordingLevelDataSubset(lmeValidRows, :);
              
+             % make custom lme coef names, in case a metric has all nans
+             lmeCustomCoefNames = {};
+             for uniqueGrpIdx = 2:length(uniqueGroups)
+                lmeCustomCoefNames{end+1} = string(strcat('eGrp_', uniqueGroups(uniqueGrpIdx)));
+             end
+             lmeCustomCoefNames{end+1} = 'AgeDiv';
+             
              % LME does not work if all values are identical (ie. zero
              % variance) 
              if var(recordingLevelDataSubsetValid.(metricToTest)) > 0
                  lmeNoInt = fitlme(recordingLevelDataSubsetValid, sprintf('%s ~ AgeDiv + eGrp + (1|recordingName)', metricToTest));
-                 lmeWInt = fitlme(recordingLevelDataSubsetValid, sprintf('%s ~ AgeDiv * eGrp + (1|recordingName)', metricToTest));
-
-                 % always input smaller model first 
-                 lmeComparison = compare(lmeNoInt, lmeWInt);
-                 lmeComparisonAlpha = 0.01;
-
-                 % if lmeComparison.pValue < lmeComparisonAlpha
-                 %    lme = lmeWInt;
-                 % else
-                 %    lme = lmeNoInt;
-                 % end
-
+                 
+                 dummyX = dummyvar(categorical(recordingLevelDataSubsetValid.eGrp));
+                 interactionMatrix = [recordingLevelDataSubsetValid.AgeDiv, dummyX, recordingLevelDataSubsetValid.AgeDiv .* dummyX];
+                 interactionMatrixNumCol = size(interactionMatrix, 2);
+                 if rank(interactionMatrix) == interactionMatrixNumCol
+                    lmeWInt = fitlme(recordingLevelDataSubsetValid, sprintf('%s ~ AgeDiv * eGrp + (1|recordingName)', metricToTest));
+                    % always input smaller model first 
+                    lmeComparison = compare(lmeNoInt, lmeWInt);
+                    lmeComparisonAlpha = 0.01;
+                    % if lmeComparison.pValue < lmeComparisonAlpha
+                    %    lme = lmeWInt;
+                    % else
+                    %    lme = lmeNoInt;
+                    % end
+                 end
+                     
                  lme = lmeNoInt;
-
+                 
+                 %{
                  coefNames = lme.Coefficients.Name;
                  numNames = length(coefNames);
+                 
                  for nameIdx = 2:numNames % skip the first one (intercept)
                      lagValueStore = [lagValueStore; lag];
                      testStore{end+1} = sprintf('LME-noInteraction-%s', coefNames{nameIdx});
@@ -118,7 +131,24 @@ for lagIdx = 1:length(uniqueLags)
                      statsValueStore = [statsValueStore; pVal];
                      metricToTestStore{end+1} = metricToTest;
                  end 
+                 %}
+                 
+                 for nameIdx = 1:length(lmeCustomCoefNames)
+                     lagValueStore = [lagValueStore; lag];
+                     testStore{end+1} = sprintf('LME-noInteraction-%s', lmeCustomCoefNames{nameIdx});
+                     statsMetricStore{end+1} = 'P-value';
+                     coefIdx = find(strcmp(lme.CoefficientNames, lmeCustomCoefNames{nameIdx}));
+                     if ~isempty(coefIdx)
+                        pVal = lme.Coefficients.pValue(coefIdx);
+                     else 
+                        pVal = nan;
+                     end 
+                     statsValueStore = [statsValueStore; pVal];
+                     metricToTestStore{end+1} = metricToTest;
+                 end
+                 
              else
+                 %{
                  % This only works if at least the first metric is valid 
                  % But is a temp hack to retrieve the names from the
                  % previous metric until I think of something better
@@ -130,58 +160,76 @@ for lagIdx = 1:length(uniqueLags)
                      statsValueStore = [statsValueStore; pVal];
                      metricToTestStore{end+1} = metricToTest;
                  end 
+                 %}
+                 % this should work 
+                 for nameIdx = 1:length(lmeCustomCoefNames)
+                     lagValueStore = [lagValueStore; lag];
+                     testStore{end+1} = sprintf('LME-noInteraction-%s', lmeCustomCoefNames{nameIdx});
+                     statsMetricStore{end+1} = 'P-value';
+                     pVal = nan; 
+                     statsValueStore = [statsValueStore; pVal];
+                     metricToTestStore{end+1} = metricToTest;
+                 end
+                 
              end
              
              % Do one-way ANOVA and pairwise test in each gruop 
-             uniqueGrps = unique(recordingLevelDataSubsetValid.eGrp);
+             % uniqueGrps = unique(recordingLevelDataSubsetValid.eGrp);
+             % numUniqueGrp = length(uniqueGrps);
+             uniqueGrps = unique(recordingLevelDataSubset.eGrp);
              for subsetGrpIdx = 1:numUniqueGrp
                  subsetGrp = uniqueGrps{subsetGrpIdx};
                  subsetGrpRecordingLevelData = recordingLevelDataSubsetValid(strcmp(recordingLevelDataSubsetValid.eGrp, subsetGrp), :);
+                
+                 
+                if ~isempty(subsetGrpRecordingLevelData)
+                    % Get recordings that share same set of DIV
+                    grpUniqueDIVs = unique(subsetGrpRecordingLevelData.AgeDiv);
+                    firstDIVdata = subsetGrpRecordingLevelData(subsetGrpRecordingLevelData.AgeDiv == grpUniqueDIVs(1), :);
+                    commonRecordings = unique(firstDIVdata.recordingName);
+                    for divIdx = 2:length(grpUniqueDIVs)
+                        divData = subsetGrpRecordingLevelData(subsetGrpRecordingLevelData.AgeDiv == grpUniqueDIVs(divIdx), :);
+                        commonRecordings = intersect(commonRecordings, divData.recordingName);
+                    end
 
-                % Get recordings that share same set of DIV
-                grpUniqueDIVs = unique(subsetGrpRecordingLevelData.AgeDiv);
-                firstDIVdata = subsetGrpRecordingLevelData(subsetGrpRecordingLevelData.AgeDiv == grpUniqueDIVs(1), :);
-                commonRecordings = unique(firstDIVdata.recordingName);
-                for divIdx = 2:length(grpUniqueDIVs)
-                    divData = subsetGrpRecordingLevelData(subsetGrpRecordingLevelData.AgeDiv == grpUniqueDIVs(divIdx), :);
-                    commonRecordings = intersect(commonRecordings, divData.recordingName);
-                end
-                
-                commonRecordingsGrpRecordingData = subsetGrpRecordingLevelData(...
-                    contains(subsetGrpRecordingLevelData.recordingName, commonRecordings), :);
-                % one way repeated measures ANOVA for DIV effect
-                % using the RMAOV1.m package here: https://uk.mathworks.com/matlabcentral/fileexchange/5576-rmaov1
-                % Input: (1) N x 3 data matrix, column 1 is the dependent
-                % variable, column 2 is the independent variable, column 3 is
-                % the subject ID, (2) alpha significance level (eg. 0.05)
-                rmanova_X = zeros(size(commonRecordingsGrpRecordingData, 1), 3);
-                rmanova_X(:, 1) = commonRecordingsGrpRecordingData.(metricToTest);
-                
-                % Make DIV group vector (cannot give continuous value /
-                % just actual DIV values, needs to be integer groups
-                % starting at 1)
-                subsetGrpAgeID = zeros(size(commonRecordingsGrpRecordingData, 1), 1);
-                uniqueAges = unique(commonRecordingsGrpRecordingData.AgeDiv);
-                
-                for recIdx = 1:length(subsetGrpAgeID)
-                    subsetGrpAgeID(recIdx) = find(commonRecordingsGrpRecordingData.AgeDiv(recIdx) == uniqueAges);
-                end 
-                
-                rmanova_X(:, 2) = subsetGrpAgeID;
-                
-                % get subset group subject ID 
-                subsetGrpuniqueNames = unique(commonRecordingsGrpRecordingData.recordingName);
-                subsetGrpsubjectIDs = zeros(size(commonRecordingsGrpRecordingData, 1), 1);
+                    commonRecordingsGrpRecordingData = subsetGrpRecordingLevelData(...
+                        contains(subsetGrpRecordingLevelData.recordingName, commonRecordings), :);
+                    % one way repeated measures ANOVA for DIV effect
+                    % using the RMAOV1.m package here: https://uk.mathworks.com/matlabcentral/fileexchange/5576-rmaov1
+                    % Input: (1) N x 3 data matrix, column 1 is the dependent
+                    % variable, column 2 is the independent variable, column 3 is
+                    % the subject ID, (2) alpha significance level (eg. 0.05)
+                    rmanova_X = zeros(size(commonRecordingsGrpRecordingData, 1), 3);
+                    rmanova_X(:, 1) = commonRecordingsGrpRecordingData.(metricToTest);
 
-                for recIdx = 1:length(commonRecordingsGrpRecordingData.recordingName)
-                    name = commonRecordingsGrpRecordingData.recordingName(recIdx);
-                    subsetGrpsubjectIDs(recIdx) = find(strcmp(subsetGrpuniqueNames, name));
-                end 
-                rmanova_X(:, 3) = subsetGrpsubjectIDs;
-                alpha = 0.05;
-                
-                if ~isempty(rmanova_X)
-                    [SSA, P1] = RMAOV1(rmanova_X, alpha);
+                    % Make DIV group vector (cannot give continuous value /
+                    % just actual DIV values, needs to be integer groups
+                    % starting at 1)
+                    subsetGrpAgeID = zeros(size(commonRecordingsGrpRecordingData, 1), 1);
+                    uniqueAges = unique(commonRecordingsGrpRecordingData.AgeDiv);
+
+                    for recIdx = 1:length(subsetGrpAgeID)
+                        subsetGrpAgeID(recIdx) = find(commonRecordingsGrpRecordingData.AgeDiv(recIdx) == uniqueAges);
+                    end 
+
+                    rmanova_X(:, 2) = subsetGrpAgeID;
+
+                    % get subset group subject ID 
+                    subsetGrpuniqueNames = unique(commonRecordingsGrpRecordingData.recordingName);
+                    subsetGrpsubjectIDs = zeros(size(commonRecordingsGrpRecordingData, 1), 1);
+
+                    for recIdx = 1:length(commonRecordingsGrpRecordingData.recordingName)
+                        name = commonRecordingsGrpRecordingData.recordingName(recIdx);
+                        subsetGrpsubjectIDs(recIdx) = find(strcmp(subsetGrpuniqueNames, name));
+                    end 
+                    rmanova_X(:, 3) = subsetGrpsubjectIDs;
+                    alpha = 0.05;
+
+                    if ~isempty(rmanova_X)
+                        [SSA, P1] = RMAOV1(rmanova_X, alpha);
+                    else 
+                        P1 = nan;
+                    end 
                 else 
                     P1 = nan;
                 end 
@@ -193,14 +241,35 @@ for lagIdx = 1:length(uniqueLags)
                 metricToTestStore{end+1} = metricToTest;
                 
                 % paired t-test : assume all recordings have all the DIV
-                % pairs
-                divPairs = nchoosek(unique(subsetGrpRecordingLevelData.AgeDiv), 2);
+                % pairs (when using subsetGrpRecrodingLevelData.AgeDiv)
+                % 2024-12-11 : modified to use
+                % recordinglevelDataSubset.AgeDiv, which doesn't need this
+                % assumption (handled later with the check empty)
+                
+                divPairs = nchoosek(unique(recordingLevelDataSubset.AgeDiv), 2);
+                %{
+                if length(unique(subsetGrpRecordingLevelData.AgeDiv)) > 1
+                    divPairs = nchoosek(unique(subsetGrpRecordingLevelData.AgeDiv), 2);
+                else
+                    % deal with case where there is only one unique DIV for
+                    % group, this is a dummy pair to make the code below
+                    % give nan
+                    divPairs = [999999, 99999]; % [subsetGrpRecordingLevelData.AgeDiv(1) 99999999];
+                end
+                %}
+                
+                
                 for divPairIdx = 1:size(divPairs, 1)
                     divA = divPairs(divPairIdx, 1);
                     divB = divPairs(divPairIdx, 2);
                     divAmetricVal = commonRecordingsGrpRecordingData(commonRecordingsGrpRecordingData.AgeDiv == divA, :).(metricToTest);
                     divBmetricVal = commonRecordingsGrpRecordingData(commonRecordingsGrpRecordingData.AgeDiv == divB, :).(metricToTest);
-                    [h, p, ci, stats] = ttest(divAmetricVal, divBmetricVal);
+                    
+                    if isempty(divAmetricVal) || isempty(divBmetricVal)
+                       p = nan; 
+                    else
+                        [h, p, ci, stats] = ttest(divAmetricVal, divBmetricVal);
+                    end
 
                     lagValueStore = [lagValueStore; lag];
                     testStore{end+1} = sprintf('%s-DIV-%.f-%.f-paired-ttest', subsetGrp, divA, divB);
