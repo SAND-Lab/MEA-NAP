@@ -35,26 +35,29 @@ for eGrpIdx = 1:num_eGrp
            
         subsetColumnIdx = find(~ismember(ageDivNodeLevel.Properties.VariableNames, columnsToExclude));
         subsetNodeLevelData = ageDivNodeLevel(:,subsetColumnIdx);
-        featureCorr = corr(table2array(subsetNodeLevelData), 'rows','complete');
-        columnNames = subsetNodeLevelData.Properties.VariableNames;
+        
+        if ~isempty(subsetNodeLevelData)
+            featureCorr = corr(table2array(subsetNodeLevelData), 'rows','complete');
+            columnNames = subsetNodeLevelData.Properties.VariableNames;
 
-        if useFullName == 1
-            for nameIdx = 1:length(columnNames)
-                if ismember(columnNames{nameIdx}, Params.NetMetLabelDict(:, 1))
-                    newNameIdx = find(strcmp(Params.NetMetLabelDict(:, 1), columnNames{nameIdx}));
-                    columnNames{nameIdx} = Params.NetMetLabelDict{newNameIdx, 2};
-                end 
-            end
-            tickLabelInterpreter = 'tex';
-        else
-            tickLabelInterpreter = 'none';
-        end 
+            if useFullName == 1
+                for nameIdx = 1:length(columnNames)
+                    if ismember(columnNames{nameIdx}, Params.NetMetLabelDict(:, 1))
+                        newNameIdx = find(strcmp(Params.NetMetLabelDict(:, 1), columnNames{nameIdx}));
+                        columnNames{nameIdx} = Params.NetMetLabelDict{newNameIdx, 2};
+                    end 
+                end
+                tickLabelInterpreter = 'tex';
+            else
+                tickLabelInterpreter = 'none';
+            end 
 
-        imagesc(featureCorr, [-1, 1]);
-        set(gca, 'XTick', 1:length(columnNames), 'XTickLabel', columnNames, 'TickLabelInterpreter', tickLabelInterpreter) 
-        set(gca, 'YTick', 1:length(columnNames), 'YTickLabel', columnNames, 'TickLabelInterpreter', tickLabelInterpreter) 
-        title(sprintf('%s %.f', unique_eGrp{eGrpIdx}, unique_AgeDiv(AgeDivIdx)))
-        hold on
+            imagesc(featureCorr, [-1, 1]);
+            set(gca, 'XTick', 1:length(columnNames), 'XTickLabel', columnNames, 'TickLabelInterpreter', tickLabelInterpreter) 
+            set(gca, 'YTick', 1:length(columnNames), 'YTickLabel', columnNames, 'TickLabelInterpreter', tickLabelInterpreter) 
+            title(sprintf('%s %.f', unique_eGrp{eGrpIdx}, unique_AgeDiv(AgeDivIdx)))
+            hold on
+        end
 
     end 
 
@@ -105,32 +108,35 @@ for eGrpIdx = 1:num_eGrp
            
         subsetColumnIdx = find(~ismember(ageDivRecordingLevel.Properties.VariableNames, columnsToExclude));
         subsetRecordingLevelData = ageDivRecordingLevel(:,subsetColumnIdx);
-        featureCorr = corr(table2array(subsetRecordingLevelData), 'rows','complete');
-        columnNames = subsetRecordingLevelData.Properties.VariableNames;
-        imagesc(featureCorr, [-1, 1]);
         
-        if length(columnNames) > 20 
-            tickmark_fontsize = 4;
-        else
-            tickmark_fontsize = 9;
-        end
-        
-        if useFullName == 1
-            for nameIdx = 1:length(columnNames)
-                if ismember(columnNames{nameIdx}, Params.NetMetLabelDict(:, 1))
-                    newNameIdx = find(strcmp(Params.NetMetLabelDict(:, 1), columnNames{nameIdx}));
-                    columnNames{nameIdx} = Params.NetMetLabelDict{newNameIdx, 2};
-                end 
+        if ~isempty(subsetRecordingLevelData)
+            featureCorr = corr(table2array(subsetRecordingLevelData), 'rows','complete');
+            columnNames = subsetRecordingLevelData.Properties.VariableNames;
+            imagesc(featureCorr, [-1, 1]);
+
+            if length(columnNames) > 20 
+                tickmark_fontsize = 4;
+            else
+                tickmark_fontsize = 9;
             end
-            tickLabelInterpreter = 'tex';
-        else
-            tickLabelInterpreter = 'none';
-        end 
-        
-        set(gca, 'XTick', 1:length(columnNames), 'XTickLabel', columnNames, 'fontsize', tickmark_fontsize, 'TickLabelInterpreter', tickLabelInterpreter) 
-        set(gca, 'YTick', 1:length(columnNames), 'YTickLabel', columnNames, 'fontsize', tickmark_fontsize, 'TickLabelInterpreter', tickLabelInterpreter) 
-        title(sprintf('%s %.f', unique_eGrp{eGrpIdx}, unique_AgeDiv(AgeDivIdx)))
-        hold on
+
+            if useFullName == 1
+                for nameIdx = 1:length(columnNames)
+                    if ismember(columnNames{nameIdx}, Params.NetMetLabelDict(:, 1))
+                        newNameIdx = find(strcmp(Params.NetMetLabelDict(:, 1), columnNames{nameIdx}));
+                        columnNames{nameIdx} = Params.NetMetLabelDict{newNameIdx, 2};
+                    end 
+                end
+                tickLabelInterpreter = 'tex';
+            else
+                tickLabelInterpreter = 'none';
+            end 
+
+            set(gca, 'XTick', 1:length(columnNames), 'XTickLabel', columnNames, 'fontsize', tickmark_fontsize, 'TickLabelInterpreter', tickLabelInterpreter) 
+            set(gca, 'YTick', 1:length(columnNames), 'YTickLabel', columnNames, 'fontsize', tickmark_fontsize, 'TickLabelInterpreter', tickLabelInterpreter) 
+            title(sprintf('%s %.f', unique_eGrp{eGrpIdx}, unique_AgeDiv(AgeDivIdx)))
+            hold on
+        end
 
     end 
 
