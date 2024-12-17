@@ -50,6 +50,14 @@ for e = 1:length(lagval)
     % inclusionIndex = find(abs(nodeStrength) > 1e-6);
     inclusionIndex = lagNetMet.activeNodeIndices;
     
+    if isfield(Info, 'CellTypes')
+       [cellTypeMatrix, cellTypeNames] = getCellTypeMatrix(Info.CellTypes, expData.channels); 
+       cellTypeMatrixActive = cellTypeMatrix(inclusionIndex, :);
+    else 
+        cellTypeMatrixActive = nan;
+        cellTypeNames = nan;
+    end
+    
     adjM = adjM(inclusionIndex, inclusionIndex);
     coords = originalCoords(inclusionIndex, :);
     Params.netSubsetChannels = originalChannels(inclusionIndex);
@@ -58,7 +66,7 @@ for e = 1:length(lagval)
     edge_thresh = getEdgeThreshold(adjM, Params);
     
     Ci = expData.NetMet.(lagValStr).Ci;
-    if length(adjM) > 0
+    if length(adjM) > 1
         [On,adjMord] = reorder_mod(adjM,Ci);
     end 
     
@@ -140,7 +148,7 @@ for e = 1:length(lagval)
     % temp settings for teseting 
     Params.includeChannelNumberInPlots = 0;
     
-    if length(adjM) > 0
+    if length(adjM) > 1
         
         % Loop through the metrics of interest to plot
         for networkPlotIdx = 1:length(colorMapMetricsToPlot)
@@ -167,7 +175,7 @@ for e = 1:length(lagval)
                 pNum = sprintf('%s', plotPrefixes{networkPlotIdx});
                 figureHandleOriginal = StandardisedNetworkPlot(adjM, coords, edge_thresh, ...
                 nodeSizeMetricsToPlot{networkPlotIdx}, nodeSizeMetricShortForm{networkPlotIdx}, plotType, ...
-                char(Info.FN),pNum,Params,lagval,e, lagFolderName, figureHandleOriginal);
+                char(Info.FN),pNum,Params,lagval, e, lagFolderName, figureHandleOriginal, 1, cellTypeMatrixActive, cellTypeNames);
                 
                 figName = strcat([pNum, '_', plotType, '_NetworkPlot.png']);
                 figPath = fullfile(lagFolderName, figName);
@@ -186,7 +194,8 @@ for e = 1:length(lagval)
                 [figureHandleOriginal, cbOriginal] = StandardisedNetworkPlotNodeColourMap(adjM, coords, edge_thresh, ...
                 nodeSizeMetricsToPlot{networkPlotIdx}, zname, ...
                 colorMapMetricsToPlot{networkPlotIdx}, z2name, ...
-                plotType, char(Info.FN), pNum, Params, lagval, e, lagFolderName, figureHandleOriginal);
+                plotType, char(Info.FN), pNum, Params, lagval, e, lagFolderName, figureHandleOriginal, 1, ...
+                cellTypeMatrixActive, cellTypeNames);
             
                 figName = strcat([pNum,'_',plotType,'_NetworkPlot',zname,z2name]);
                 figName = strrep(figName, ' ', '');
@@ -219,7 +228,8 @@ for e = 1:length(lagval)
                 
                 figureHandleScaled = StandardisedNetworkPlot(adjM, coords, edge_thresh, ...
                 nodeSizeMetricsToPlot{networkPlotIdx}, nodeSizeMetricShortForm{networkPlotIdx}, plotType, ...
-                char(Info.FN), pNum, Params, lagval, e, lagFolderName, figureHandleScaled);
+                char(Info.FN), pNum, Params, lagval, e, lagFolderName, figureHandleScaled, ...
+                1, cellTypeMatrixActive, cellTypeNames);
                 
                 figName = strcat([pNum, '_', plotType, '_NetworkPlot.png']);
                 figPath = fullfile(lagFolderName, figName);
@@ -232,7 +242,8 @@ for e = 1:length(lagval)
                 [figureHandleScaled, cbScaled] = StandardisedNetworkPlotNodeColourMap(adjM, coords, edge_thresh, ...
                  nodeSizeMetricsToPlot{networkPlotIdx}, zname, ...
                  colorMapMetricsToPlot{networkPlotIdx}, z2name, ...
-                plotType, char(Info.FN), pNum, Params, lagval, e, lagFolderName, figureHandleScaled);
+                plotType, char(Info.FN), pNum, Params, lagval, e, lagFolderName, figureHandleScaled, ...
+                1, cellTypeMatrixActive, cellTypeNames);
             
                 figName = strcat([pNum,'_',plotType,'_NetworkPlot',zname,z2name]);
                 figName = strrep(figName, ' ', '');
