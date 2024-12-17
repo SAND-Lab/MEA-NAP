@@ -153,18 +153,21 @@ elseif strcmp(channelLayout, 'Axion64')
 elseif strcmp(channelLayout, 'Axion16')    
     
     channels = []; 
+    coords = zeros(length(channels), 2);
+    
     numRow = 4;
     numCol = 4;
+    spacing_vals = linspace(0, 1, numRow);
     
+    channelIdx = 1;
     for rowIdx = 1:numRow 
         for colIdx = 1:numCol 
-           channels(end+1) = colIdx * 10 + rowIdx;
+           channels(channelIdx) = colIdx * 10 + rowIdx;
+           coords(channelIdx, 1) = spacing_vals(colIdx);
+           coords(channelIdx, 2) = spacing_vals(rowIdx);
+           channelIdx = channelIdx + 1;
        end 
     end 
-    
-    coords = zeros(length(channels), 2);
-    coords(:, 2) = repmat(linspace(0, 1, 4), 1, 4);
-    coords(:, 1) = repelem(linspace(0, 1, 4), 1, 4);
 
 elseif strcmp(channelLayout, 'Custom')
     % Here you can specify your own custom channel layout by 
