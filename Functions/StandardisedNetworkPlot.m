@@ -1,5 +1,5 @@
 function figureHandle = StandardisedNetworkPlot(adjM, coords, edge_thresh, z, zShortForm, plotType, FN, pNum, ...
-    Params, lagval, e, figFolder, figureHandle, saveFigure)
+    Params, lagval, e, figFolder, figureHandle, saveFigure, cellTypeMatrix, cellTypeNames)
 % Plot the graph network 
 % Parameters
 % ----------
@@ -44,6 +44,15 @@ function figureHandle = StandardisedNetworkPlot(adjM, coords, edge_thresh, z, zS
 if ~exist('saveFigure', 'var')
     saveFigure = 1;
 end 
+
+if ~exist('cellTypeMatrix', 'var')
+   cellTypeMatrix = nan; 
+end
+
+if ~exist('cellTypeNames', 'var') 
+   cellTypeNames = nan; 
+end
+
 
 num_nodes = size(adjM, 2);
 
@@ -295,7 +304,26 @@ if strcmp(plotType,'MEA')
             pos = [xc(i)-(0.5*nodeSize) yc(i)-(0.5*nodeSize) nodeSize nodeSize];
             
             rectangle('Position',pos,'Curvature',[1 1],'FaceColor',[0.020 0.729 0.859],'EdgeColor','w','LineWidth',0.1)
+            
+            % Add information about cell type (via circles)
+            if length(cellTypeMatrix) > 1
+                % edgeColors = {'black', 'blue', 'red', 'yellow', 'magenta'};
+                edgeColors = {'white', 'white', 'white', 'white', 'white'};
+                cellTypelineStyles = {'-', '--', ':', '-.', '-'};
+                cellTypeNodeSizes = linspace(0.9, 0.3, size(cellTypeMatrix, 2)) * nodeSize;
+                for cellTypeIdx = 1:size(cellTypeMatrix, 2)
+                    if cellTypeMatrix(i, cellTypeIdx) == 1
+                        newNodeSize = cellTypeNodeSizes(cellTypeIdx);
+                        pos = [xc(i)-(0.5*newNodeSize) yc(i)-(0.5*newNodeSize) newNodeSize newNodeSize];
+                        rectangle('Position',pos,'Curvature',[1 1],'FaceColor',[0.020 0.729 0.859], ...
+                            'EdgeColor',edgeColors{cellTypeIdx},'LineWidth',1, ...
+                            'LineStyle', cellTypelineStyles{cellTypeIdx})  % orignally 0.1
+                    end
+                end
+            end
+        
         end
+        
 
         % Add channel numbers on top of the nodes
         if Params.includeChannelNumberInPlots 
@@ -305,6 +333,9 @@ if strcmp(plotType,'MEA')
         end 
 
     end
+
+
+    
 
 end
 
@@ -436,12 +467,46 @@ if strcmp(plotType,'MEA')
     plot(posx,posy,'LineWidth',lineWidthL,'Color',colourL);
     text(max(xc)+3,max(yc)-(7*str2num(legdata(3,:))/nodeScaleF),num2str(round(threshMax,edgeWeightLegendDecimalPlaces)))
     
+    
+    % Cell type legend
+    if length(cellTypeMatrix) > 1
+        %{
+        cellTypeLegendYpos = linspace(0.5, -0.8, length(cellTypeNames));
+        for typeIdx = 1:length(cellTypeNames)
+            plot([9.3, 10.3], [cellTypeLegendYpos(typeIdx), cellTypeLegendYpos(typeIdx)], ... 
+                'LineWidth', 2, 'LineStyle', cellTypelineStyles{typeIdx}, 'Color', 'black')
+            text(max(xc)+3, cellTypeLegendYpos(typeIdx), cellTypeNames{typeIdx})
+        end
+        %}
+        cellTypeLegendXpos = linspace(0, 8, length(cellTypeNames));
+        cellTypeNodeSizes = linspace(0.9, 0.3, size(cellTypeMatrix, 2)) * legItem2NodeSize;
+        cellTypeLegendYpos = -0.8;
+        for cellTypeIdx = 1:length(cellTypeNames)
+            pos = [cellTypeLegendXpos(cellTypeIdx) - 0.5 * legItem2NodeSize, ...
+                   cellTypeLegendYpos - 0.5 * legItem2NodeSize, ...
+                    legItem2NodeSize, legItem2NodeSize];
+            rectangle('Position',pos,'Curvature',[1 1],'FaceColor',nodeLegendColor,'EdgeColor','w','LineWidth',0.1);
+            newNodeSize = cellTypeNodeSizes(cellTypeIdx);
+            innerCirclepos = [cellTypeLegendXpos(cellTypeIdx) - (0.5*newNodeSize) ...
+                              cellTypeLegendYpos - (0.5*newNodeSize) ... 
+                              newNodeSize newNodeSize];
+            rectangle('Position',innerCirclepos,'Curvature',[1 1],'FaceColor',[0.020 0.729 0.859], ...
+                       'EdgeColor',edgeColors{cellTypeIdx},'LineWidth',1, ...
+                        'LineStyle', cellTypelineStyles{cellTypeIdx}) 
+            text(cellTypeLegendXpos(cellTypeIdx) + 0.4, cellTypeLegendYpos, cellTypeNames{cellTypeIdx})
+        end
+    end
+    
     % set axis range 
     max_xc_yc = max([xc; yc]);
     min_xc_yc = min([xc; yc]);
     
     ylim([min_xc_yc-1 max_xc_yc+1])
     xlim([min_xc_yc-1 max_xc_yc+3.75])
+    
+    % turn off clipping
+    ax = gca;
+    ax.Clipping = "off";
     
     %ylim([min(yc)-1 max(yc)+1])
     %xlim([min(xc)-1 max(xc)+3.75])

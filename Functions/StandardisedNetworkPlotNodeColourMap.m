@@ -1,5 +1,5 @@
 function [figureHandle, cb] = StandardisedNetworkPlotNodeColourMap(adjM, coords, edge_thresh, z, zname, z2, z2name, plotType, ...
-                                                   FN, pNum, Params, lagval, e, figFolder, figureHandle, saveFigure)
+                                                   FN, pNum, Params, lagval, e, figFolder, figureHandle, saveFigure, cellTypeMatrix, cellTypeNames)
 % Plots graph network with node size proportional to some node-level variable of
 % choice and color-mapped based on some other node-level variable of choice
 % 
@@ -41,6 +41,13 @@ if ~exist('saveFigure', 'var')
     saveFigure = 1;
 end 
 
+if ~exist('cellTypeMatrix', 'var')
+   cellTypeMatrix = nan; 
+end
+
+if ~exist('cellTypeNames', 'var') 
+   cellTypeNames = nan; 
+end
 
 %% plot
 p =  [50   100   720  550];
@@ -340,6 +347,22 @@ if strcmp(plotType,'MEA')
                 else
                     rectangle('Position',pos,'Curvature',[1 1],'FaceColor',mycolours(1,1:3),'EdgeColor','w','LineWidth',0.1)
                 end
+                % Add information about cell type (via circles)
+                if length(cellTypeMatrix) > 1
+                    % edgeColors = {'black', 'blue', 'red', 'yellow', 'magenta'};
+                    edgeColors = {'white', 'white', 'white', 'white', 'white'};
+                    cellTypelineStyles = {'-', '--', ':', '-.', '-'};
+                    cellTypeNodeSizes = linspace(0.9, 0.3, size(cellTypeMatrix, 2)) * nodeSize;
+                    for cellTypeIdx = 1:size(cellTypeMatrix, 2)
+                        if cellTypeMatrix(i, cellTypeIdx) == 1
+                            newNodeSize = cellTypeNodeSizes(cellTypeIdx);
+                            pos = [xc(i)-(0.5*newNodeSize) yc(i)-(0.5*newNodeSize) newNodeSize newNodeSize];
+                            rectangle('Position',pos,'Curvature',[1 1],'FaceColor',[0.020 0.729 0.859], ...
+                                'EdgeColor',edgeColors{cellTypeIdx},'LineWidth',1, ...
+                                'LineStyle', cellTypelineStyles{cellTypeIdx})  % orignally 0.1
+                        end
+                    end
+                end
             end 
         end
         
@@ -548,6 +571,35 @@ if strcmp(plotType,'MEA')
     cb.TickLabels = cbar_ticklabels;
     cb.Label.String = z2name;
     % cb.Position = [0.9, 0.11, 0.029, 0.81];
+    
+       % Cell type legend
+    if length(cellTypeMatrix) > 1
+        %{
+        cellTypeLegendYpos = linspace(0.5, -0.8, length(cellTypeNames));
+        for typeIdx = 1:length(cellTypeNames)
+            plot([9.3, 10.3], [cellTypeLegendYpos(typeIdx), cellTypeLegendYpos(typeIdx)], ... 
+                'LineWidth', 2, 'LineStyle', cellTypelineStyles{typeIdx}, 'Color', 'black')
+            text(max(xc)+3, cellTypeLegendYpos(typeIdx), cellTypeNames{typeIdx})
+        end
+        %}
+        cellTypeLegendXpos = linspace(0, 8, length(cellTypeNames));
+        cellTypeNodeSizes = linspace(0.9, 0.3, size(cellTypeMatrix, 2)) * legItem2NodeSize;
+        cellTypeLegendYpos = -0.8;
+        for cellTypeIdx = 1:length(cellTypeNames)
+            pos = [cellTypeLegendXpos(cellTypeIdx) - 0.5 * legItem2NodeSize, ...
+                   cellTypeLegendYpos - 0.5 * legItem2NodeSize, ...
+                    legItem2NodeSize, legItem2NodeSize];
+            rectangle('Position',pos,'Curvature',[1 1],'FaceColor',nodeLegendColor,'EdgeColor','w','LineWidth',0.1);
+            newNodeSize = cellTypeNodeSizes(cellTypeIdx);
+            innerCirclepos = [cellTypeLegendXpos(cellTypeIdx) - (0.5*newNodeSize) ...
+                              cellTypeLegendYpos - (0.5*newNodeSize) ... 
+                              newNodeSize newNodeSize];
+            rectangle('Position',innerCirclepos,'Curvature',[1 1],'FaceColor',[0.020 0.729 0.859], ...
+                       'EdgeColor',edgeColors{cellTypeIdx},'LineWidth',1, ...
+                        'LineStyle', cellTypelineStyles{cellTypeIdx}) 
+            text(cellTypeLegendXpos(cellTypeIdx) + 0.4, cellTypeLegendYpos, cellTypeNames{cellTypeIdx})
+        end
+    end
     
     % ylim([min(yc)-1 max(yc)+1])
     % xlim([min(xc)-1 max(xc)+3.75])
