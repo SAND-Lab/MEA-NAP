@@ -29,14 +29,20 @@ if Params.suite2pMode == 0
                    'meanNBstLengthS','meanISIWithinNbursts_ms','meanISIoutsideNbursts_ms','CVofINBI','fracInNburst'}; 
 else 
     activityStatsFieldName = 'activityStats';
-    NetMetricsE = {'numActiveElec','FRmean','FRmedian'}; 
+    NetMetricsE = {'numActiveElec','FRmean','FRmedian', 'recHeightMean', 'recPeakDurMean', 'recEventAreaMean'}; 
 end
+
+% -------------------------------------------------
 % single cell/node metrics (1 value per cell/node)
 
 % names of metrics
 ExpInfoC = {'Grp','DIV'}; % info for both age and genotype
 % list of metrics 
-NetMetricsC = {'FR'};
+if Params.suite2pMode == 0
+    NetMetricsC = {'FR'};
+else 
+     NetMetricsC = {'FR', 'unitHeightMean', 'unitPeakDurMean', 'unitEventAreaMean'};
+end 
 
 %% Import data from all experiments - whole experiment  
 
