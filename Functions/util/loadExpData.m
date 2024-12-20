@@ -1,5 +1,8 @@
 function expData = loadExpData(ExpName, Params, usePriorNetMet)
 %LOADEXPDATA Summary of this function goes here
+% INPUT 
+% -----
+% ExpName : single experiment name (not a cell)
 %   Detailed explanation goes here
     if Params.priorAnalysis==1 && Params.startAnalysisStep==4 && usePriorNetMet
         experimentMatFileFolder = fullfile(Params.priorAnalysisPath, 'ExperimentMatFiles');
@@ -7,14 +10,14 @@ function expData = loadExpData(ExpName, Params, usePriorNetMet)
         expData = load(experimentMatFilePath);
     elseif Params.priorAnalysis==1 && Params.startAnalysisStep==3
         priorAnalysisExpMatFolder = fullfile(Params.priorAnalysisPath, 'ExperimentMatFiles');
-        spikeDataFname = strcat(char(ExpName(ExN)),'_',Params.priorAnalysisSubFolderName, '.mat');
+        spikeDataFname = strcat(char(ExpName),'_',Params.priorAnalysisSubFolderName, '.mat');
         spikeDataFpath = fullfile(priorAnalysisExpMatFolder, spikeDataFname);
         if isfile(spikeDataFpath)
             expData = load(spikeDataFpath, 'spikeTimes', 'Ephys', 'Info');
         else 
             % look for spike data in spike data folder 
             spikeDataFpath = fullfile(Params.spikeDetectedData, ...
-                strcat([char(ExpName(ExN)) '_spikes.mat']));
+                strcat([char(ExpName) '_spikes.mat']));
             expData = load(spikeDataFpath, 'spikeTimes', 'Info');
         end 
     else
