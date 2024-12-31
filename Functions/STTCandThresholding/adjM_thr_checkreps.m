@@ -1,4 +1,4 @@
-function [F1, adjM, adjMci] = adjM_thr_checkreps_capop(spikeTimes, method, lag_ms, tail, fs,...
+function [F1, adjM, adjMci] = adjM_thr_checkreps(spikeTimes, method, lag_ms, tail, fs,...
     duration_s, rep_num, oneFigureHandle)
 % Description: This function generates synthetic spike times from original
 % events and randomizes them using circular shift. All synthetic data is
@@ -23,18 +23,19 @@ function [F1, adjM, adjMci] = adjM_thr_checkreps_capop(spikeTimes, method, lag_m
 %            of probabilistic edge weights
 %----------
 % Author: RCFeord
-%   Updated by HSmith, Cambridge, Dec 2020
-%   Re-written to use event times by JChabros, Feb 2021
+%  Updated by HSmith, Cambridge, Dec 2020
+%  Re-written to use event times by JChabros, Feb 2021
+%  Updated by T Sit to use matlab version of sttc of c version fails, Dec 2024 
 
-a = 1:10:rep_num;
+a = 1:10:rep_num; 
 dist1 = cell(size(a));
 
 num_frames = duration_s*fs;
 num_nodes = length(spikeTimes);
 
 % adjMi = zeros(num_nodes,num_nodes,rep_num);
-
-adjM = get_sttc(spikeTimes, lag_ms, duration_s, method);
+use_c_code = test_sttc_c_code();  % test if ccode works
+adjM = get_sttc(spikeTimes, lag_ms, duration_s, method, use_c_code);
 
 for i = 1:rep_num
 

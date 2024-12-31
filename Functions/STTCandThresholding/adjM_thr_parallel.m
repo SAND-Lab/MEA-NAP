@@ -42,7 +42,8 @@ function [adjM, adjMci] = adjM_thr_parallel(spikeTimes, method, lag_ms, tail, fs
 num_frames = duration_s*fs;
 num_nodes = length(spikeTimes);
 
-adjM = get_sttc(spikeTimes, lag_ms, duration_s, method);
+use_c_code = test_sttc_c_code();  % test if ccode works
+adjM = get_sttc(spikeTimes, lag_ms, duration_s, method, use_c_code);
 
 matlabInstallation = ver;
 toolboxNames = {matlabInstallation.Name};
@@ -70,7 +71,7 @@ if parallelToolboxInstalled
             %       multiplication/division by 'fs' in lines 48 & 53
         end
         
-        adjMs = get_sttc(synth_spk, lag_ms, duration_s, method);
+        adjMs = get_sttc(synth_spk, lag_ms, duration_s, method, use_c_code);
         adjMs(1:num_nodes+1:end) = 0; % Faster than removing from adjMi
         adjMi(:,:,i) = adjMs;
     end
@@ -111,7 +112,7 @@ else
             %       multiplication/division by 'fs' in lines 48 & 53
         end
         
-        adjMs = get_sttc(synth_spk, lag_ms, duration_s, method);
+        adjMs = get_sttc(synth_spk, lag_ms, duration_s, method, use_c_code);
         adjMs(1:num_nodes+1:end) = 0; % Faster than removing from adjMi
         adjMi(:,:,i) = adjMs;
   end

@@ -1,4 +1,4 @@
-function adjM = get_sttc(spikeTimes, lag_ms, duration_s, method)
+function adjM = get_sttc(spikeTimes, lag_ms, duration_s, method, use_c_code)
 % Description: calculates pairwise correlation between pairs of neurons
 %              using spike time tiling coefficient
 %
@@ -38,7 +38,12 @@ for i = 1:length(combins)
     dtv = lag_ms/1000; % [s]
     dtv = double(dtv);
     Time = double([0 duration_s]);
-    tileCoef = sttc(N1v, N2v, dtv, Time, spike_times_1, spike_times_2);
+    
+    if use_c_code
+        tileCoef = sttc(N1v, N2v, dtv, Time, spike_times_1, spike_times_2);
+    else 
+        tileCoef = sttc_m(N1v, N2v, dtv, Time, spike_times_1, spike_times_2);
+    end
     A(i) = tileCoef; % Faster to only get upper triangle so might as well store as vector
 end
 
