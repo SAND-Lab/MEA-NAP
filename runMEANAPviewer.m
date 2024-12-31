@@ -5,7 +5,7 @@ MEANAPviewerApp.UIFigure.Name = 'MEA-NAP viewer';
 % Currently the ordering are 
 %(1) Left gap (2) File selection (3) Gap (4) Image (5) File manager button
 MEANAPviewerApp.GridLayout.ColumnWidth = {[79]  '0.5x'  [50]  '1x'  [125]};
-MEANAPviewerApp.GridLayout.RowHeight = {[22]  [20]  '1x'   'fit'  '0.5x'};
+MEANAPviewerApp.GridLayout.RowHeight = {[22]  [20]  '1x'   'fit'  '0.5x', [20], [20]};
 % Update viewer tree
 mainFolder = pwd;
 
@@ -50,6 +50,13 @@ imageAxes.YAxis.Visible = 'off';
 axis(imageAxes, 'equal'); 
 delete(MEANAPviewerApp.Image)
 
+recordingFpath = MEANAPviewerApp.RecordingEditField.Value;
+nodeColorMetric = MEANAPviewerApp.ListBox.Value;
+edgeThresh = MEANAPviewerApp.EdgethresholdEditField.Value;
+cellTypeToPlot = MEANAPviewerApp.CelltypesListBox.Value;
+expData = [];
+
+
 while isvalid(MEANAPviewerApp)
    
     % Output folder selection button 
@@ -71,6 +78,117 @@ while isvalid(MEANAPviewerApp)
         else 
             folderTree = nan;
         end
+    end
+    
+    % TODO: Use experiment mat file selection to plot network
+    if MEANAPviewerApp.RecordingSelectButton.Value == 1
+        [file, location] = uigetfile('*.mat');
+        MEANAPviewerApp.RecordingEditField.Value = fullfile(location, file);
+        MEANAPviewerApp.RecordingSelectButton.Value = 0;
+        figure(MEANAPviewerApp.UIFigure)  % put app back to focus
+        
+        MEANAPviewerApp.EdgethresholdEditField.Visible = 'on';
+        MEANAPviewerApp.EdgeThresholdLabel.Visible = 'on';
+    end
+    
+    recordingFpathChanged = ~strcmp(recordingFpath, MEANAPviewerApp.RecordingEditField.Value);
+    edgeThreshChanged = ~(edgeThresh == MEANAPviewerApp.EdgethresholdEditField.Value);
+    nodeColorMetricChanged = ~strcmp(nodeColorMetric, MEANAPviewerApp.ListBox.Value);
+    
+    if length(cellTypeToPlot) ~= length(MEANAPviewerApp.CelltypesListBox.Value)
+       cellTypeToPlotChanged = 1;
+    else 
+       cellTypeToPlotChanged = any(~strcmp(cellTypeToPlot, MEANAPviewerApp.CelltypesListBox.Value)); 
+    end
+    
+    
+    
+    if recordingFpathChanged
+        recordingFpath = MEANAPviewerApp.RecordingEditField.Value;
+        expData = load(recordingFpath);
+        adjM = expData.adjMs.adjM1000mslag;
+        inclusionIndex = expData.NetMet.adjM1000mslag.activeNodeIndices;
+        
+        if isfield(expData.Info, 'CellTypes')
+            [cellTypeMatrix, cellTypeNames] = getCellTypeMatrix(expData.Info.CellTypes, expData.channels); 
+            cellTypeMatrixActive = cellTypeMatrix(inclusionIndex, :);
+            MEANAPviewerApp.CelltypesListBox.Items = cellTypeNames;
+            MEANAPviewerApp.CelltypesListBox.Value = cellTypeNames{1};
+            MEANAPviewerApp.CelltypesListBox.Visible = 'on';
+            MEANAPviewerApp.CelltypesListBoxLabel.Visible = 'on';
+             
+        else 
+            cellTypeMatrix = nan; 
+            cellTypeNames = nan;
+        end
+    end
+    
+    if cellTypeToPlotChanged
+        
+        cellTypeToPlot = MEANAPviewerApp.CelltypesListBox.Value;
+        adjM = expData.adjMs.adjM1000mslag;
+        inclusionIndex = expData.NetMet.adjM1000mslag.activeNodeIndices;
+        [cellTypeMatrix, cellTypeNames] = getCellTypeMatrix(expData.Info.CellTypes, expData.channels); 
+        cellTypeMatrixActive = cellTypeMatrix(inclusionIndex, :);
+        
+        % do further subsetting based on cell type
+        subsetColumns = find(contains(cellTypeNames, cellTypeToPlot));
+        cellTypeSubsetIndex = find(sum(cellTypeMatrixActive(:, subsetColumns), 2) == length(cellTypeToPlot));
+        
+        inclusionIndex = inclusionIndex(cellTypeSubsetIndex);
+        cellTypeMatrixActive = cellTypeMatrixActive(cellTypeSubsetIndex, :);
+    end
+    
+    % TODO: max node size, node size scaling, node scaling power 
+    maxNodeSize = 1;  
+    
+    if recordingFpathChanged || nodeColorMetricChanged || edgeThreshChanged || cellTypeToPlotChanged
+        
+        nodeColorMetric = MEANAPviewerApp.ListBox.Value;
+        edgeThresh = MEANAPviewerApp.EdgethresholdEditField.Value;
+
+
+        adjMsubset = adjM(inclusionIndex, inclusionIndex);
+        coords = expData.coords;
+                
+        z = expData.NetMet.adjM1000mslag.ND; 
+        zname = 'Nodedegree';
+        
+        if strcmp(nodeColorMetric, 'None') 
+           z2 = zeros(length(inclusionIndex), 1) + nan;
+        else
+           z2 = expData.NetMet.adjM1000mslag.(nodeColorMetric); 
+        end
+
+        z2name = nodeColorMetric;
+        FN = 'temp'; 
+        pNum = '1';
+        plotType = 'MEA';
+        Params = expData.Params;
+        lagval = 1000;
+        e = 1;
+        figFolder = '/home/timothysit/AnalysisPipeline';
+        figureHandle = figure('visible', 'off');
+        saveFigure = 1;
+        
+        addpath(genpath('/home/timothysit/AnalysisPipeline/Functions'));
+        
+        StandardisedNetworkPlotNodeColourMap(adjMsubset, coords, edgeThresh, ...
+            z, zname, z2, z2name, plotType, ...
+            FN, pNum, Params, lagval, e, figFolder, figureHandle, saveFigure, cellTypeMatrixActive, cellTypeNames); 
+        close all
+        
+        FN = sprintf('%s_%s_NetworkPlot%s%s.png', pNum, plotType, zname, z2name);
+        imgPath = fullfile(figFolder, FN);
+        img = imread(imgPath);
+        set(hImage, 'CData', img);
+        
+    end
+    
+        
+    if ~isempty(recordingFpath)
+       MEANAPviewerApp.ListBox.Visible = 'on'; 
+       MEANAPviewerApp.NodeColorLabel.Visible = 'on';
     end
     
     % Get selected tree item 
