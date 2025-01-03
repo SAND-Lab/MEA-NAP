@@ -102,6 +102,9 @@ prevSpreadsheetRange = str2num(app.SpreadsheetRangeEditField.Value);
 % Update default STTC lag values if suite2p mode selected, only done once
 suite2pParamsCheck = 0;
 
+% Update Wid based on sampling frequency 
+samplingFrequencyCheck = 0;
+
 % Initial ordering of tabs (and hiding of advanced settings)
 tabStatus = 0;  % keeping track of whether advanced settings is shown (1) or not (0) to see when I need to update
 % Specify ordering of the tabs 
@@ -452,12 +455,23 @@ while isvalid(app)
         app.MinimumnumberofnodesEditField.Value = 12;
     end
     
-     % Update sampling frequency and units if multichannel systems layout selected 
+    % Update sampling frequency and units if multichannel systems layout selected 
     if (usingLoadedParams == 0) && (mcsSystemParamsCheck == 0) && contains(app.ChannelLayoutDropDown.Value, 'MCS60') 
         mcsSystemParamsCheck = 1;
         app.SamplingFrequencyEditField.Value = 25000;
         app.DownSampleFrequencyEditField.Value = 25000;
         app.PotentialDifferenceUnitEditField.Value = 'uV';
+    end
+    
+    % Update Wid settings if sampling frequecy too low 
+    if (samplingFrequencyCheck == 0) && (app.SamplingFrequencyEditField.Value <= 10000)
+        app.MEANAPStatusTextArea.Value = ...
+            [app.MEANAPStatusTextArea.Value; ...
+            'Sampling frequecy is too low for default spike detection parameters, ', ...
+            'updating Wid to [0.5, 1.0], you can manually adjust this in the advanced spike detection tab'];
+        drawnow;
+        app.WaveletwidEditField.Value = '[0.5, 1.0]';
+        samplingFrequencyCheck = 1;
     end
     
     
@@ -510,7 +524,7 @@ if ~isvalid(app)
 end 
 
 %% Moving settings to Params
-%{
+%
 % remove NMF calculation if running suite2p mode 
 if suite2pMode 
     inclusionIndex = find(~ismember(app.NetworkmetricstocalculateListBox.Value, {'num_nnmf_components', 'nComponentsRelNS'}));
