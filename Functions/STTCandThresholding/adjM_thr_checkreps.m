@@ -57,7 +57,7 @@ for i = 1:rep_num
         %       multiplication/division by 'fs' in lines 48 & 53
     end
     
-    adjMs = get_sttc(synth_spk, lag_ms, duration_s, method);
+    adjMs = get_sttc(synth_spk, lag_ms, duration_s, method, use_c_code);
     adjMs(1:num_nodes+1:end) = 0; % Faster than removing from adjMi
     adjMi(:,:,i) = adjMs;
     
