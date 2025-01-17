@@ -49,6 +49,7 @@ XYloc = double(XYloc);
 % get sampling rate 
 opsFpath = fullfile(suite2pFolder, 'ops.npy');
 fs = readOpsNPY.getFs(opsFpath);
+fs = double(fs);  % in case function returns Python int object
 
 % Update parameter struct with new fs (should be one per file)
 % This will be used in downstream steps for creating spikeMatrix
