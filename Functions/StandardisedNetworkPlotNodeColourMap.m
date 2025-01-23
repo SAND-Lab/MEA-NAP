@@ -334,18 +334,22 @@ if strcmp(plotType,'MEA')
                     % TODO: there is some subtracting / adding small
                     % numbers here because ceil() is a bit too sensitive
                     try
+                        nodeColor = mycolours(ceil(length(mycolours)*((z2(i)-z2_min)/(z2_max-z2_min)) - 0.00001),1:3);
                         rectangle('Position',pos,'Curvature',[1 1],'FaceColor', ... 
-                            mycolours(ceil(length(mycolours)*((z2(i)-z2_min)/(z2_max-z2_min)) - 0.00001),1:3), ...
+                            nodeColor, ...
                             'EdgeColor','w','LineWidth',0.1)
 
                     catch
+                        nodeColor = mycolours(ceil(length(mycolours)*((z2(i)-z2_min)/(z2_max-z2_min))+0.00001),1:3);
                         rectangle('Position',pos,'Curvature',[1 1],'FaceColor', ...
                              mycolours(ceil(length(mycolours)*((z2(i)-z2_min)/(z2_max-z2_min))+0.00001),1:3),'EdgeColor','w','LineWidth',0.1)
                     end
                 elseif isnan(z2(i))
-                    rectangle('Position',pos,'Curvature',[1 1],'FaceColor',[0.5, 0.5, 0.5],'EdgeColor','w','LineWidth',0.1)
+                    nodeColor = [0.5, 0.5, 0.5];
+                    rectangle('Position',pos,'Curvature',[1 1],'FaceColor',nodeColor,'EdgeColor','w','LineWidth',0.1)
                 else
-                    rectangle('Position',pos,'Curvature',[1 1],'FaceColor',mycolours(1,1:3),'EdgeColor','w','LineWidth',0.1)
+                    nodeColor = mycolours(1,1:3);
+                    rectangle('Position',pos,'Curvature',[1 1],'FaceColor',nodeColor,'EdgeColor','w','LineWidth',0.1)
                 end
                 % Add information about cell type (via circles)
                 if length(cellTypeMatrix) > 1
@@ -357,7 +361,8 @@ if strcmp(plotType,'MEA')
                         if cellTypeMatrix(i, cellTypeIdx) == 1
                             newNodeSize = cellTypeNodeSizes(cellTypeIdx);
                             pos = [xc(i)-(0.5*newNodeSize) yc(i)-(0.5*newNodeSize) newNodeSize newNodeSize];
-                            rectangle('Position',pos,'Curvature',[1 1],'FaceColor',[0.020 0.729 0.859], ...
+                            rectangle('Position',pos,'Curvature',[1 1], ...
+                                'FaceColor',nodeColor, ...
                                 'EdgeColor',edgeColors{cellTypeIdx},'LineWidth',1, ...
                                 'LineStyle', cellTypelineStyles{cellTypeIdx})  % orignally 0.1
                         end
@@ -572,7 +577,7 @@ if strcmp(plotType,'MEA')
     cb.Label.String = z2name;
     % cb.Position = [0.9, 0.11, 0.029, 0.81];
     
-       % Cell type legend
+    % Cell type legend
     if length(cellTypeMatrix) > 1
         %{
         cellTypeLegendYpos = linspace(0.5, -0.8, length(cellTypeNames));
@@ -582,6 +587,7 @@ if strcmp(plotType,'MEA')
             text(max(xc)+3, cellTypeLegendYpos(typeIdx), cellTypeNames{typeIdx})
         end
         %}
+        nodeLegendColor = [0.020 0.729 0.859];
         cellTypeLegendXpos = linspace(0, 8, length(cellTypeNames));
         cellTypeNodeSizes = linspace(0.9, 0.3, size(cellTypeMatrix, 2)) * legItem2NodeSize;
         cellTypeLegendYpos = -0.8;
@@ -600,6 +606,10 @@ if strcmp(plotType,'MEA')
             text(cellTypeLegendXpos(cellTypeIdx) + 0.4, cellTypeLegendYpos, cellTypeNames{cellTypeIdx})
         end
     end
+    
+    % turn off clipping
+    ax = gca;
+    ax.Clipping = "off";
     
     % ylim([min(yc)-1 max(yc)+1])
     % xlim([min(xc)-1 max(xc)+3.75])
