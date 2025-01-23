@@ -257,7 +257,7 @@ for e = 1:length(lagval)
     end 
     
     % Lattice-like model
-    if length(adjM)> Params.minNumberOfNodesToCalNetMet
+    if length(adjM) > Params.minNumberOfNodesToCalNetMet
         ITER = 10000;
         
         if checkIfRecomputeMetric(Params, prevNetMet, lagValStr, 'SW') == 1
