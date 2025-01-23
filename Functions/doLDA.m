@@ -53,7 +53,7 @@ if strcmp(classificationMode, 'genotypePerDIV')
         y = y(subsetIdx);
         
         % do genotype classification
-        Mdl = fitcdiscr(X_processed, y);
+        Mdl = fitcdiscr(X_processed, y, 'discrimType', 'pseudoLinear');
         [W, LAMBDA] = eig(Mdl.BetweenSigma, Mdl.Sigma); %Must be in the right order! 
         lambda = diag(LAMBDA);
         [lambda, SortOrder] = sort(lambda, 'descend');
