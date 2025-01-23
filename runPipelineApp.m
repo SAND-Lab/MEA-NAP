@@ -45,6 +45,10 @@ advancedConnectivityTabParent = app.AdvConnectivityTab.Parent;
 nodeCartographyTabParent = app.NodeCartographyTab.Parent;
 catnapTabParent = app.CATNAPTab.Parent;
 
+% Context menu for MEANAP Output viewer
+app.RecordingviewerMenu.MenuSelectedFcn = @(src, event) runMEANAPviewer;
+app.StatsviewerMenu.MenuSelectedFcn = @(src, event) runMEANAPstatsViewer;
+
 % Set default network parameters to calculate
 
 app.NetworkmetricstocalculateListBox.Items = {'aN','Dens','CC','nMod','Q','PL','Eglob', ...
