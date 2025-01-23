@@ -203,17 +203,26 @@ for ExN = 1:length(ExpName)
     Info.DIV = num2cell(ExpDIV(ExN));
     Info.Grp = ExpGrp(ExN);
     InfoSavePath = fullfile(metaDataSaveFolder, strcat(char(Info.FN),'_',Params.outputDataFolderName,'.mat'));
+    
+    
+    % Append cell type information, currently assumes to be contained 
+    % in folder where the 'suite2p' folder is located
+    if Params.suite2pMode == 1
+        fileFolder = fullfile(Params.rawData, Info.FN{1});
+        folderCsvFiles = dir(fullfile(fileFolder, '*csv'));
+        if length(folderCsvFiles) == 1
+            cellTypeTable = readtable(fullfile(fileFolder, folderCsvFiles(1).name));
+            Info.CellTypes = cellTypeTable;
+        end 
+    end 
+    
     if ~isfile(InfoSavePath)
         save(InfoSavePath,'Info')
     else 
         save(InfoSavePath,'Info', '-append')
     end 
     
-    % Append cell type information 
-    if Params.suite2pMode == 1
-        
-    end 
-    
+
 end
 
 % create a random sample for checking the probabilistic thresholding
@@ -886,6 +895,15 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
         outputDataDateFolder = fullfile(Params.outputDataFolder, ...
             Params.outputDataFolderName);
         
+        if strcmp(Params.verboseLevel, 'High')
+            if Params.guiMode == 1
+                app.MEANAPStatusTextArea.Value = [app.MEANAPStatusTextArea.Value; ...
+                        'Running step 4A : individual network plots'];
+            else
+                disp('Running step 4A : individual network plots')
+            end 
+        end
+        
         % Search current analysis folder for csv, if none found, then use
         % the one from the previously analysed data
         spreadsheetFname = strcat('NetworkActivity_RecordingLevel', '.csv');
@@ -900,7 +918,7 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
         Params.useMinMaxBoundsForPlots = 1;
         Params.sideBySideBoundPlots = 1;
         for ExN = 1:length(ExpName) 
-
+            
             % Make figure handle per recording 
             % Set up one figure handle to save all the figures
             if ~exist('oneFigureHandle', 'var')
@@ -1022,6 +1040,7 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
 
             % Loop through each group 
             for groupNum = unique(ExpNameGroup)
+                fprintf(sprintf('%.f \n', groupNum))
                 subsetIndex = find(ExpNameGroup == groupNum);
                 % Put the recording to be used as the anchor as the first recording
                 % to analyse
@@ -1079,7 +1098,8 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
 
                     % TODO: remove the analysis step in the function, already
                     % dealt with earlier
-                    NetMet = plotNodeCartography(expData.adjMs, Params, expData.NetMet, expData.Info, originalCoords, originalChannels, ...
+                    NetMet = plotNodeCartography(expData.adjMs, Params, expData.NetMet, ...
+                          expData.Info, originalCoords, originalChannels, ...
                           HomeDir, fileNameFolder, oneFigureHandle);
                     % plotNodeCartographyProportions(expData.NetMet, Params.FuncConLagval, char(expData.Info.FN), ...
                     % Params, fileNameFolder, oneFigureHandle)
@@ -1098,7 +1118,8 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
                         Ephys = [];
                      end 
 
-                    varsToSave = {'Info', 'Params', 'spikeTimes', 'adjMs', 'NetMet', 'coords', 'channels', 'Ephys'};
+                    varsToSave = {'Info', 'Params', 'spikeTimes', 'adjMs', ...
+                        'NetMet', 'coords', 'channels', 'Ephys'};
 
                     adjMs = expData.adjMs;
                     Info = expData.Info;
