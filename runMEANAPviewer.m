@@ -1,3 +1,4 @@
+function runMEANAPviewer()
 MEANAPviewerApp = MEANAPviewer;
 MEANAPviewerApp.UIFigure.Name = 'MEA-NAP viewer';
 
@@ -237,4 +238,6 @@ while isvalid(MEANAPviewerApp)
     
     
     pause(0.1)
+end
+
 end
