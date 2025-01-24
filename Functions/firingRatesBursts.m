@@ -1,8 +1,19 @@
 function [Ephys] = firingRatesBursts(spikeMatrix,Params,Info)
-%
 % Detects firing rate bursts
-
-%
+% INPUT
+% -----------------------
+% spikeMatrix : matlab double
+% Params : struct 
+% Info : struct
+% OUTPUT 
+% ----------------------
+% Ephys : struct
+% structure with fields relating to firing rate and burst properties 
+% Ephys.FR : mean firing rate (spike/s per electrode)
+% Ephys.FRmean : mean firing rate across electrodes 
+% Ephys.FRstd : standard deviation of firing rate across electrodes 
+% Ephys.FRsem : standard error of the mean of firing rate across electrodes
+% 
 
 verbose = 0;  % 1 : prints out status, 0 : keep quiet
 

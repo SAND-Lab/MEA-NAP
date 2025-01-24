@@ -47,6 +47,7 @@ function burstData = singleChannelBurstDetection(raster,N,samplingRate)
 warning('off','MATLAB:nearlySingularMatrix');
 
 method = 'Bakkum'; 
+ISInThreshold = 'automatic';
 minChan = 1;
 if ~exist('N')
     N = 3;
@@ -57,13 +58,7 @@ for elec = 1 : size(raster,2)
     spikeTrain = raster(:,elec);
     
     if sum(spikeTrain) >= N
-        try
-            [burstMatrix, burstTimes, burstChannels] = burstDetect(spikeTrain, method, samplingRate,N,minChan);
-        catch
-            burstMatrix     = 0;
-            burstTimes      = 0;
-            burstChannels   = 0;
-        end
+         [burstMatrix, burstTimes, burstChannels] = burstDetect(spikeTrain, method, samplingRate,N, minChan, ISInThreshold);
     else
         burstMatrix     = 0;
         burstTimes      = 0;
