@@ -1,4 +1,4 @@
-function pipelineSaveFig(figName, figExts, fullSVG, figHandle)
+function pipelineSaveFig(figName, figExts, fullSVG, figHandle, renderer)
 %
 % Saves figure with the provided figure extensions 
 %
@@ -24,37 +24,40 @@ if ~exist('figHandle','var')
     fprintf('Figure handle does not exist'); 
     figHandle = [];
 end 
+
+if ~exist('renderer', 'var')
+    renderer = 'default';
+end 
     
 for nFigExt = 1:length(figExts)
     figFileName = strcat([figName, figExts{nFigExt}]);
-    %{
-    if ispc && strcmp(figExts{nFigExt}, '.svg')
-        if isempty(figHandle)
-            try
-                saveas(gcf, figFileName, 'Renderer', 'painters');
-            catch
-                saveas(gcf, figFileName, 'Renderer', 'opengl');
-            end 
-        else
-            try 
-                saveas(figHandle, figFileName,  'Renderer', 'painters');
-            catch
-                saveas(figHandle, figFileName, 'Renderer', 'opengl');
-            end 
-        end 
-    %}
     if strcmp(figExts{nFigExt}, '.svg') && fullSVG
         if isempty(figHandle)
-            print('-painters', '-dsvg', figFileName); % note this saves gcf by default
+            if strcmp(renderer, 'opengl')
+                fprintf('Using opengl renderer \n')
+                print('-painters', '-dsvg', figFileName); % note this saves gcf by default
+            else
+                print('-painters', '-dsvg', '-opengl', figFileName); % note this saves gcf by default
+            end
         else 
-            print(figHandle, '-painters', '-dsvg', figFileName)
+            if strcmp(renderer, 'opengl')
+                fprintf('Using opengl renderer \n')
+                print(figHandle, '-painters', '-dsvg',  '-opengl',  figFileName)
+            else 
+                print(figHandle, '-painters', '-dsvg',  figFileName)
+            end 
         end 
     else
         if isempty(figHandle)
             saveas(gcf, figFileName);
         else
             %saveas(figHandle, figFileName);
-            print(figHandle, '-dpng', '-r300', figFileName);
+            if strcmp(renderer, 'opengl')
+                fprintf('Using opengl renderer \n')
+                print(figHandle, '-dpng', '-r300', '-opengl', figFileName);
+            else 
+                print(figHandle, '-dpng', '-r300', figFileName);
+            end
         end 
     end 
 end 
