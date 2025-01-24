@@ -13,6 +13,7 @@ function [burstMatrix, burstTimes, burstChannels] = burstDetect(spikeMatrix, met
 %     minimum  number of spike for detecting a burst
 % minChannel : int
 %     minimum number of channels required to participate in a burst
+% ISInThreshold : 
 % OUTPUT 
 % ------
     % burstMatrix
