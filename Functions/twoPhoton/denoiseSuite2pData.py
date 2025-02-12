@@ -758,16 +758,14 @@ def denoise_suite2p_data(F, output_dir, make_plots=False, image_output_dir=None,
     for cell_id in tqdm(np.arange(num_cells)):
 
         raw_intensity = F[cell_id, :]
-        """
-        deltaF, rel_intensity = get_final_intensity_v2_subtractionOn20240227(cell_id, raw_intensity,
-                                                                             methods=["poly", "filter"],
-                                                                             show=False,
-                                                                             savefile=True)
-        signal_array = np.array(rel_intensity)     
-        c, spike_train, b, g, lam = deconvolve(signal_array)                                                                
-        """
 
-        deltaF, rel_intensity = get_denoised_intensity(raw_intensity)
+        if np.all(np.diff(raw_intensity) == 0):
+            # handle flat signal, which leads to error in deconvolution code
+            rel_intensity = raw_intensity - np.mean(raw_intensity)
+            deltaF = raw_intensity - np.mean(raw_intensity)
+        else:
+            deltaF, rel_intensity = get_denoised_intensity(raw_intensity)
+
         # oasis
         c, spike_train, b, g, lam = deconvolve(rel_intensity)
         #             plot_trace(rel_intensity, spike_train, False)

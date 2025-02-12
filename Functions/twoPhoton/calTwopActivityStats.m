@@ -19,7 +19,7 @@ if strcmp(Params.twopActivity, 'peaks')
     end
     FiringRates = numPeaksPerUnit / expData.Info.duration_s;
 else 
-    FiringRates = sum(expData.(twopActivity), 1)' / expData.Info.duration_s;
+    FiringRates = sum(expData.(Params.twopActivity), 1) / expData.Info.duration_s;
 end
 
 % calculate firing rates  
