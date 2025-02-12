@@ -532,7 +532,9 @@ for e = 1:length(lagval)
                    Params.effRankDownsampleFreq = Params.fs; 
                 end
                 
-                downSampleMatrix = downSampleSum(full(activityMatrix), Params.effRankDownsampleFreq * Info.duration_s);
+                % downSampleMatrix = downSampleSum(full(activityMatrix), Params.effRankDownsampleFreq * Info.duration_s);
+                downSampleMatrix = resampleMatrix(double(full(activityMatrix)), Params.fs, Params.effRankDownsampleFreq); 
+                
                 NetMet.(firstLagField).effRank = ...
                     calEffRank(downSampleMatrix, Params.effRankCalMethod);
             else 
