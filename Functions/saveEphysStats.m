@@ -76,7 +76,18 @@ for i = 1:length(ExpName)
      allRecordingLevelData.DIV = [allRecordingLevelData.DIV; expData.Info.DIV{1}];
      
      % add to electrode level data 
-     numElectrodes = length(expData.spikeTimes); 
+     if (Params.suite2pMode == 1)
+         
+         if strcmp(Params.twopActivity, 'peaks')
+             numElectrodes = length(expData.spikeTimes); 
+         else 
+             numElectrodes = size(expData.(Params.twopActivity), 2); 
+         end
+         
+     else 
+         numElectrodes = length(expData.spikeTimes); 
+     end
+     
      allElectrodeLevelData.FileName = [allElectrodeLevelData.FileName; repmat({expData.Info.FN{1}}, numElectrodes, 1)];
      allElectrodeLevelData.Grp = [allElectrodeLevelData.Grp; repmat({expData.Info.Grp{1}}, numElectrodes, 1)];
      allElectrodeLevelData.DIV = [allElectrodeLevelData.DIV; repmat(expData.Info.DIV{1}, numElectrodes, 1)];
