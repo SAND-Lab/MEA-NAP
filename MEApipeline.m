@@ -460,6 +460,17 @@ if Params.startAnalysisStep < 3
             coords = Params.coords{ExN};
             electrodeHeatMaps(char(Info.FN), spikeMatrix, Info.channels, ... 
                 spikeFreqMax,Params, coords, idvNeuronalAnalysisFNFolder, oneFigureHandle)
+            
+            metricVarsToPlot = {'channelBurstRate'};
+            figNames = {};
+            for metricIdx = 1:length(metricVarsToPlot)
+                metricVarname = metricVarsToPlot{metricIdx};
+                % plot burst heatmap 
+                plotNodeHeatmap(char(Info.FN), Ephys, Info.channels, spikeFreqMax, Params, coords, idvNeuronalAnalysisFNFolder, oneFigureHandle)
+            
+            end
+            
+            
             % half violin plots
             firingRateElectrodeDistribution(char(Info.FN), Ephys, Params, ... 
                 Info, idvNeuronalAnalysisFNFolder, oneFigureHandle)
