@@ -28,7 +28,7 @@ combins = nchoosek(1:num_chan, 2);
 A = zeros(1, length(combins));
 adjM = NaN(num_chan, num_chan);
 
-for i = 1:length(combins)
+for i = 1:size(combins, 1)
     spike_times_1 = double(spikeTimes{combins(i,1)}.(method));
     spike_times_2 = double(spikeTimes{combins(i,2)}.(method));
     N1v = uint32(length(spike_times_1));
@@ -48,7 +48,7 @@ for i = 1:length(combins)
 end
 
 % Vector -> matrix
-for i = 1:length(combins)
+for i = 1:size(combins, 1)
     row = combins(i,1);
     col = combins(i,2);
     adjM(row, col) = A(i);
