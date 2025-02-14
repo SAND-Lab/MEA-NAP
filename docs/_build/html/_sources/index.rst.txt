@@ -33,7 +33,7 @@ Alterations in synaptic function, and other cellular processes that affect neuro
 Citing MEA-NAP
 ----------------------------------------------------------------------------
 
-Timothy PH Sit, Rachael C Feord, Alexander WE Dunn, Jeremi Chabros, David Oluigbo, Hugo H Smith, Lance Burn, Elise Chang, Alessio Boschi, Yin Yuan, George M Gibbons, Mahsa Khayat-Khoei, Francesco De Angelis, Erik Hemberg, Martin Hemberg, Madeline A Lancaster, Andras Lakatos, Stephen J Eglen, Ole Paulsen, Susanna B Mierau. **MEA-NAP compares microscale functional connectivity, topology, and network dynamics in organoid or monolayer neuronal cultures.** `bioRxiv` 2024.02.05.578738. doi: [https://doi.org/10.1101/2024.02.05.578738]
+Timothy PH Sit, Rachael C Feord, Alexander WE Dunn, Jeremi Chabros, David Oluigbo, Hugo H Smith, Lance Burn, Elise Chang, Alessio Boschi, Yin Yuan, George M Gibbons, Mahsa Khayat-Khoei, Francesco De Angelis, Erik Hemberg, Martin Hemberg, Madeline A Lancaster, Andras Lakatos, Stephen J Eglen, Ole Paulsen, Susanna B Mierau. **MEA-NAP: A flexible network analysis pipeline for neuronal 2D and 3D organoid multielectrode recordings.** `Cell Reports Methods`, 4, 100901, November 18, 2024. doi:[https://doi.org/10.1016/j.crmeth.2024.100901]
 
 .. toctree::
    :maxdepth: 2

@@ -12,6 +12,11 @@ MEA-NAP Methods
   4. Comparison of the network activity (i.e., graph theoretical metric)
 
   5. Statistical analysis (e.g., feature correlation and classification)
+  
+ 
+For a full description of the methods, please see our paper:
+Sit, et al. (2024) **MEA-NAP: A flexible network analysis pipeline for neuronal 2D and 3D organoid multielectrode recordings.** `Cell Reports Methods`, 4, 100901, November 18, 2024. doi:[https://doi.org/10.1016/j.crmeth.2024.100901]
+
 
 Spike detection
 -----------------------------------------------------------------
