@@ -21,6 +21,8 @@ Setting up MEA-NAP
 
 - Once the zip folder is downloaded, navigate to the location where you saved it and extract its contents.
 
+- **For Axion Biosystems users, please use version 1.10.2 or later.  There was an error previously in the orientation of MEA grid plots (flipped on the diagonal), which has now been corrected.**
+
 2. Prepare your data for MEA-NAP:
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 Ensure that all relevant recordings that you want to analyze are saved in the same folder (no subfolders). This will allow MEA-NAP to seamlessly process and compare the data during the analysis.
@@ -33,8 +35,9 @@ Ensure that all relevant recordings that you want to analyze are saved in the sa
 
 3. Convert your data to MATLAB format for MEA-NAP:
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
 The MEA-NAP pipeline is currently optimized for single MEA recordings made on the Multichannel Systems MEA2100 60-channel MEA system and for multi-well plates using the Axion Maestro MEA System. However, these recordings must be converted to `*.mat` files first.
+
+For Axion Biosystems users, please use MEA-NAP version 1.10.2 or later to convert your data to *.mat files again.  This will correct the electrode naming and orientation of MEA grid plots, which was flipped on the diagonal in versions of MEA-NAP prior to 1.10.2.
 
 - **Converting .mcd files acquired from a Multichannel Systems MEA system with MC_Rack to .raw files:**
 

@@ -2,13 +2,13 @@
 <html class="no-js" lang="en" data-content_root="./">
   <head><meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width,initial-scale=1"/>
-    <meta name="color-scheme" content="light dark"><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+    <meta name="color-scheme" content="light dark"><meta name="viewport" content="width=device-width, initial-scale=1" />
 <link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="System Requirements" href="system-requirements.html" /><link rel="prev" title="MEA-NAP Methods" href="meanap-methods.html" />
 
-    <!-- Generated with Sphinx 7.2.6 and Furo 2024.01.29 -->
-        <title>MEA-NAP Outputs - MEA pipeline 1.9.0 documentation</title>
-      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=362ab14a" />
-    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?v=135e06be" />
+    <!-- Generated with Sphinx 8.1.3 and Furo 2024.08.06 -->
+        <title>MEA-NAP Outputs - MEA pipeline 1.10.1 documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?v=354aac6f" />
     <link rel="stylesheet" type="text/css" href="_static/css/tooltipster.custom.css?v=7bc2f056" />
     <link rel="stylesheet" type="text/css" href="_static/css/tooltipster.bundle.min.css?v=37217874" />
     <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-shadow.min.css?v=6227e517" />
@@ -17,7 +17,7 @@
     <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-light.min.css?v=a18b2449" />
     <link rel="stylesheet" type="text/css" href="_static/css/tooltipster-sideTip-borderless.min.css?v=dbff53e4" />
     <link rel="stylesheet" type="text/css" href="_static/css/micromodal.css?v=d7bf34ee" />
-    <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?v=36a5483c" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?v=302659d7" />
     
     
 
@@ -76,7 +76,7 @@
   <symbol id="svg-sun" viewBox="0 0 24 24">
     <title>Light mode</title>
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
       <circle cx="12" cy="12" r="5"></circle>
       <line x1="12" y1="1" x2="12" y2="3"></line>
       <line x1="12" y1="21" x2="12" y2="23"></line>
@@ -91,22 +91,63 @@
   <symbol id="svg-moon" viewBox="0 0 24 24">
     <title>Dark mode</title>
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
       <path stroke="none" d="M0 0h24v24H0z" fill="none" />
       <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" />
     </svg>
   </symbol>
-  <symbol id="svg-sun-half" viewBox="0 0 24 24">
-    <title>Auto light/dark mode</title>
+  <symbol id="svg-sun-with-moon" viewBox="0 0 24 24">
+    <title>Auto light/dark, in light mode</title>
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-shadow">
-      <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-      <circle cx="12" cy="12" r="9" />
-      <path d="M13 12h5" />
-      <path d="M13 15h4" />
-      <path d="M13 18h1" />
-      <path d="M13 9h4" />
-      <path d="M13 6h1" />
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path style="opacity: 50%" d="M 5.411 14.504 C 5.471 14.504 5.532 14.504 5.591 14.504 C 3.639 16.319 4.383 19.569 6.931 20.352 C 7.693 20.586 8.512 20.551 9.25 20.252 C 8.023 23.207 4.056 23.725 2.11 21.184 C 0.166 18.642 1.702 14.949 4.874 14.536 C 5.051 14.512 5.231 14.5 5.411 14.5 L 5.411 14.504 Z"/>
+      <line x1="14.5" y1="3.25" x2="14.5" y2="1.25"/>
+      <line x1="14.5" y1="15.85" x2="14.5" y2="17.85"/>
+      <line x1="10.044" y1="5.094" x2="8.63" y2="3.68"/>
+      <line x1="19" y1="14.05" x2="20.414" y2="15.464"/>
+      <line x1="8.2" y1="9.55" x2="6.2" y2="9.55"/>
+      <line x1="20.8" y1="9.55" x2="22.8" y2="9.55"/>
+      <line x1="10.044" y1="14.006" x2="8.63" y2="15.42"/>
+      <line x1="19" y1="5.05" x2="20.414" y2="3.636"/>
+      <circle cx="14.5" cy="9.55" r="3.6"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon-with-sun" viewBox="0 0 24 24">
+    <title>Auto light/dark, in dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path d="M 8.282 7.007 C 8.385 7.007 8.494 7.007 8.595 7.007 C 5.18 10.184 6.481 15.869 10.942 17.24 C 12.275 17.648 13.706 17.589 15 17.066 C 12.851 22.236 5.91 23.143 2.505 18.696 C -0.897 14.249 1.791 7.786 7.342 7.063 C 7.652 7.021 7.965 7 8.282 7 L 8.282 7.007 Z"/>
+      <line style="opacity: 50%" x1="18" y1="3.705" x2="18" y2="2.5"/>
+      <line style="opacity: 50%" x1="18" y1="11.295" x2="18" y2="12.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="4.816" x2="14.464" y2="3.964"/>
+      <line style="opacity: 50%" x1="20.711" y1="10.212" x2="21.563" y2="11.063"/>
+      <line style="opacity: 50%" x1="14.205" y1="7.5" x2="13.001" y2="7.5"/>
+      <line style="opacity: 50%" x1="21.795" y1="7.5" x2="23" y2="7.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="10.184" x2="14.464" y2="11.036"/>
+      <line style="opacity: 50%" x1="20.711" y1="4.789" x2="21.563" y2="3.937"/>
+      <circle style="opacity: 50%" cx="18" cy="7.5" r="2.169"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-pencil" viewBox="0 0 24 24">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-pencil-code">
+      <path d="M4 20h4l10.5 -10.5a2.828 2.828 0 1 0 -4 -4l-10.5 10.5v4" />
+      <path d="M13.5 6.5l4 4" />
+      <path d="M20 21l2 -2l-2 -2" />
+      <path d="M17 17l-2 2l2 2" />
+    </svg>
+  </symbol>
+  <symbol id="svg-eye" viewBox="0 0 24 24">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-eye-code">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M10 12a2 2 0 1 0 4 0a2 2 0 0 0 -4 0" />
+      <path
+        d="M11.11 17.958c-3.209 -.307 -5.91 -2.293 -8.11 -5.958c2.4 -4 5.4 -6 9 -6c3.6 0 6.6 2 9 6c-.21 .352 -.427 .688 -.647 1.008" />
+      <path d="M20 21l2 -2l-2 -2" />
+      <path d="M17 17l-2 2l2 2" />
     </svg>
   </symbol>
 </svg>
@@ -120,6 +161,8 @@
   <div class="visually-hidden">Hide table of contents sidebar</div>
 </label>
 
+<a class="skip-to-content muted-link" href="#furo-main-content">Skip to content</a>
+
 
 
 <div class="page">
@@ -131,13 +174,14 @@
       </label>
     </div>
     <div class="header-center">
-      <a href="index.html"><div class="brand">MEA pipeline 1.9.0 documentation</div></a>
+      <a href="index.html"><div class="brand">MEA pipeline 1.10.1 documentation</div></a>
     </div>
     <div class="header-right">
       <div class="theme-toggle-container theme-toggle-header">
         <button class="theme-toggle">
           <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
-          <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
+          <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+          <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
           <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
           <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
         </button>
@@ -154,7 +198,7 @@
       <div class="sidebar-sticky"><a class="sidebar-brand" href="index.html">
   
   
-  <span class="sidebar-brand-text">MEA pipeline 1.9.0 documentation</span>
+  <span class="sidebar-brand-text">MEA pipeline 1.10.1 documentation</span>
   
 </a><form class="sidebar-search-container" method="get" action="search.html" role="search">
   <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
@@ -195,11 +239,17 @@
           <span>Back to top</span>
         </a>
         <div class="content-icon-container">
-          
+          <div class="view-this-page">
+  <a class="muted-link" href="_sources/meanap-outputs.rst.txt" title="View this page">
+    <svg><use href="#svg-eye"></use></svg>
+    <span class="visually-hidden">View this page</span>
+  </a>
+</div>
 <div class="theme-toggle-container theme-toggle-content">
             <button class="theme-toggle">
               <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
-              <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
+              <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+              <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
               <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
               <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
             </button>
@@ -209,9 +259,9 @@
             <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
           </label>
         </div>
-        <article role="main">
+        <article role="main" id="furo-main-content">
           <section id="mea-nap-outputs">
-<h1>MEA-NAP Outputs<a class="headerlink" href="#mea-nap-outputs" title="Link to this heading">#</a></h1>
+<h1>MEA-NAP Outputs<a class="headerlink" href="#mea-nap-outputs" title="Link to this heading">¶</a></h1>
 <p>Here is a list of the figures produced by MEA-NAP including sample figure legends. You can navigate to the different subfolders using these links:</p>
 <ul class="simple">
 <li><p><a class="hxr-hoverxref hxr-tooltip reference internal" href="#step-1-spike-detection"><span class="std std-ref">Step 1 - Spike Detection</span></a></p></li>
@@ -270,10 +320,10 @@
 </li>
 </ul>
 <section id="step-1-spike-detection">
-<span id="id1"></span><h2>Step 1 - Spike Detection<a class="headerlink" href="#step-1-spike-detection" title="Link to this heading">#</a></h2>
+<span id="id1"></span><h2>Step 1 - Spike Detection<a class="headerlink" href="#step-1-spike-detection" title="Link to this heading">¶</a></h2>
 </section>
 <section id="step-1a-spike-detection-files">
-<span id="id2"></span><h2>Step 1A - Spike Detection Files<a class="headerlink" href="#step-1a-spike-detection-files" title="Link to this heading">#</a></h2>
+<span id="id2"></span><h2>Step 1A - Spike Detection Files<a class="headerlink" href="#step-1a-spike-detection-files" title="Link to this heading">¶</a></h2>
 <p>This folder contains the MATLAB file for each MEA recording with the spike times detected by each spike detection method and parameter selected.  This folder can be used by MEA-NAP to perform Steps 1B – Step 5 without repeating the spike detection.</p>
 <p>Each matlab file contains the following variables:</p>
 <ul class="simple">
@@ -285,37 +335,37 @@
 </ul>
 </section>
 <section id="step-1b-spike-detection-checks">
-<span id="id3"></span><h2>Step 1B – Spike Detection Checks<a class="headerlink" href="#step-1b-spike-detection-checks" title="Link to this heading">#</a></h2>
+<span id="id3"></span><h2>Step 1B – Spike Detection Checks<a class="headerlink" href="#step-1b-spike-detection-checks" title="Link to this heading">¶</a></h2>
 <p>This folder contains subfolders for each Group.  Each subfolder contains folders for each MEA recording by filename.</p>
 <section id="subfolder-by-filename">
-<span id="id4"></span><h3>Subfolder – By Filename<a class="headerlink" href="#subfolder-by-filename" title="Link to this heading">#</a></h3>
+<span id="id4"></span><h3>Subfolder – By Filename<a class="headerlink" href="#subfolder-by-filename" title="Link to this heading">¶</a></h3>
 <p><strong>Figure 1. Example Traces.</strong> Sample 60-millisecond-long filtered voltage traces from 9 electrodes (if the default number of electrodes to plot is selected in MEA-NAP) centered on at least one action potential. The MEA recording filename is at the top of the figure.  The electrode number and time in the recording are shown above each voltage trace.  The colored arrows indicate where one or more spike detection methods and parameters identified an action potential.  Legend, bior1.3, bior1.5, and db2 are MATLAB wavelets used for template-based spike detection with the continuous wavelet transform. The median absolute deviation used for the threshold method is indicated with the prefix “thr.”  This figure facilitates comparing the performance of the spike detection methods and parameters at the individual electrode level.</p>
 <p><strong>Figure 2. Spike Frequencies.</strong> Line graphs show the running spike frequency (binned by 1 second) detected by each spike detection method (line color) during the length of recording in minutes. Legend, bior1.3, bior1.5, and db2 are MATLAB wavelets used for template-based spike detection with the continuous wavelet transform. The median absolute deviation used for the threshold method is indicated with the prefix “thr.”  This figure facilitates comparing the performance of the spike detection methods and parameters at the electrode level. The figure title (top) indicates the MEA recording filename. This figure facilitates comparing the performance of the spike detection methods and parameters.</p>
 <p><strong>Figure 3. Waveforms.</strong> Sample of 50 action potential action potential waveforms (gray) overlayed and mean waveform (black line) detected with each spike detection method (panel title) from a sample electrode (indicated above the panels). The figure title is the MEA recording filename. For some electrodes, if fewer than 50 action potentials were detected with a specific spike detection method/parameter, then all of the action potential waveforms will be overlayed.  This figure facilitates comparing the performance of the spike detection methods and parameters.</p>
 </section>
 </section>
 <section id="step-2-neuronal-activity">
-<span id="id5"></span><h2>Step 2 – Neuronal Activity<a class="headerlink" href="#step-2-neuronal-activity" title="Link to this heading">#</a></h2>
+<span id="id5"></span><h2>Step 2 – Neuronal Activity<a class="headerlink" href="#step-2-neuronal-activity" title="Link to this heading">¶</a></h2>
 <p>This folder contains two subfolders, one to evaluate the individual recordings and one with comparisons by age and group.  The Step 2A folder contains subfolders for each group and, within each group folder, individual subfolders for each recording.  The Step 2B folder contains 4 subfolders that compare metrics by node (electrode) and recording for age and group.</p>
 </section>
 <section id="step-2a-individual-neuronal-analysis">
-<span id="step-2a-individual-neuronal-analysis-includes-a-subfolder-for-each-mea-recording"></span><h2>Step 2A – Individual Neuronal Analysis<a class="headerlink" href="#step-2a-individual-neuronal-analysis" title="Link to this heading">#</a></h2>
+<span id="step-2a-individual-neuronal-analysis-includes-a-subfolder-for-each-mea-recording"></span><h2>Step 2A – Individual Neuronal Analysis<a class="headerlink" href="#step-2a-individual-neuronal-analysis" title="Link to this heading">¶</a></h2>
 <p><strong>Figure 1. Firing Rate By Electrode.</strong> Scatter plot (gray circles), mean ± s.e.m. (black circle with error bars) and density curve show the mean firing rate (MFR) for each electrode in the microelectrode array (MEA) recording in spikes per second (Hz). The MFR was calculated by dividing the number of action potentials detected by the length of the recording in seconds. Figure title (top) is the name of the recording.</p>
-<p><strong>Figure 2. Heatmap.</strong>  Mean firing rate (MFR) by electrode (circles) in the spatial arrangement of the microelectrode array (MEA) in hertz (Hz, color bar) scaled to the recording (left) and to the entire dataset (right).  In the left panel, differences in MFR can be observed between electrodes.  In the right panel, the MFR can be seen in comparison to the whole dataset. Figure title (top) is the name of the recording and scaling relative to the range of MFR in the recording versus the entire dataset.</p>
+<p><strong>Figure 2. Heatmap.</strong>  Mean firing rate (MFR) by electrode (circles) in the spatial arrangement of the microelectrode array (MEA) in hertz (Hz, color bar) scaled to the recording (left) and to the entire dataset (right).  In the left panel, differences in MFR can be observed between electrodes.  In the right panel, the MFR can be seen in comparison to the whole dataset. Figure title (top) is the name of the recording and scaling relative to the range of MFR in the recording versus the entire dataset. * <strong>For Axion Biosystems users, please use MEA-NAP version 1.10.2 or later.  There was an error previously in the orientation of MEA grid in this plot (flipped on the diagonal), which has now been corrected.</strong> *</p>
 <p><strong>Figure 3. Raster.</strong> Raster plots show mean firing rate (MFR) in hertz (Hz, color bar) in 1-second bins for each electrode (row) over the length of the recording (time, minutes) scaled to the range of MFR in the recording (top panel) and in the entire dataset (bottom panel).  The MFR was calculated as the number of action potentials per second. In the top raster plot, differences in MFR can be observed between electrodes.  In the bottom raster plot, the relative MFR can be seen in comparison to the whole dataset. Figure title (above each raster plot) is the name of the recording and scaling relative to the range of MFR in the recording versus the entire dataset.</p>
 </section>
 <section id="step-2b-group-comparison">
-<span id="id6"></span><h2>Step 2B - Group Comparison<a class="headerlink" href="#step-2b-group-comparison" title="Link to this heading">#</a></h2>
+<span id="id6"></span><h2>Step 2B - Group Comparison<a class="headerlink" href="#step-2b-group-comparison" title="Link to this heading">¶</a></h2>
 <section id="subfolder-1-node-by-group">
-<span id="id7"></span><h3>Subfolder 1  – Node by Group<a class="headerlink" href="#subfolder-1-node-by-group" title="Link to this heading">#</a></h3>
+<span id="id7"></span><h3>Subfolder 1  – Node by Group<a class="headerlink" href="#subfolder-1-node-by-group" title="Link to this heading">¶</a></h3>
 <p><strong>Figure 1. Mean Firing Rate by Node.</strong>  Scatter plots, mean (black circles with error bars), and density curves show the mean firing rate (MFR) for each electrode (colored circles) from all of the recordings in the dataset in hertz (Hz) by age for Group 1 (left panel), Group 2 (right panel). Error bars may not be visible where they are smaller than the size of the circle representing the mean. The MFR was calculated by dividing the number of action potentials detected divided by the length of the recording in seconds. Panel title (top) is the group name.</p>
 </section>
 <section id="subfolder-2-node-by-age">
-<span id="subfolder-2-node-by-age-step-2"></span><h3>Subfolder 2 – Node by Age<a class="headerlink" href="#subfolder-2-node-by-age" title="Link to this heading">#</a></h3>
+<span id="subfolder-2-node-by-age-step-2"></span><h3>Subfolder 2 – Node by Age<a class="headerlink" href="#subfolder-2-node-by-age" title="Link to this heading">¶</a></h3>
 <p><strong>Figure 1. Mean Firing Rate by Node.</strong>  Scatter plots, mean (black circles with error bars), and density curves show the mean firing rate (MFR) for each electrode (colored circles) from all of the recordings in the dataset in hertz (Hz) by group for Age 1 (left panel), Age 2 (second-from-the-left-panel), etc. Error bars may not be visible where they are smaller than the size of the circle representing the mean. The MFR was calculated by dividing the number of action potentials detected divided by the length of the recording in seconds. Panel title (top) is the age.</p>
 </section>
 <section id="subfolder-3-recordings-by-group">
-<span id="subfolder-3-recordings-by-group-step-2"></span><h3>Subfolder 3 – Recordings by Group<a class="headerlink" href="#subfolder-3-recordings-by-group" title="Link to this heading">#</a></h3>
+<span id="subfolder-3-recordings-by-group-step-2"></span><h3>Subfolder 3 – Recordings by Group<a class="headerlink" href="#subfolder-3-recordings-by-group" title="Link to this heading">¶</a></h3>
 <p><strong>Figure 1. Number of Active Electrodes.</strong> Scatter plots, mean ± s.e.m. (black circles with error bars), and density curves show the number of active electrodes (colored circles) for each recording in the dataset by age for Group 1 (left panel), Group 2 (second-from-the-left-panel panel), etc. Error bars may not be visible where they are smaller than the size of the circle representing the mean. An active electrode is defined as MFR greater than 0.01 Hz (if default settings in MEA-NAP were used).  Panel title (top) is the group name.</p>
 <p><strong>Figure 2. Mean Firing Rate.</strong> Scatter plots, mean ± s.e.m. (black circles with error bars), and density curves show the mean firing rate for each recording (colored circles) in the dataset by age for Group 1 (left panel), Group 2 (second-from-the-left-panel panel), etc. Error bars may not be visible where they are smaller than the size of the circle representing the mean. Panel title (top) is the group name.</p>
 <p><strong>Figure 3. Median Firing Rate.</strong> Scatter plots, mean ± s.e.m. (black circles with error bars), and density curves show the median firing rate for each recording (colored circles) in the dataset by age for Group 1 (left panel), Group 2 (second-from-the-left-panel panel), etc. Error bars may not be visible where they are smaller than the size of the circle representing the mean. Panel title (top) is the group name.</p>
@@ -328,7 +378,7 @@
 <p><strong>Figure 10. Fraction of In Network Bursts.</strong> Scatter plots, mean ± s.e.m. (black circles with error bars), and density curves show the fraction of bursts that are occurring within network bursts for each recording (colored circles) in the dataset by age for Group 1 (left panel), Group 2 (second-from-the-left-panel panel), etc. Error bars may not be visible where they are smaller than the size of the circle representing the mean. Panel title (top) is the group name.</p>
 </section>
 <section id="subfolder-4-recordings-by-age">
-<span id="subfolder-4-recordings-by-age-step-2"></span><h3>Subfolder 4  – Recordings by Age<a class="headerlink" href="#subfolder-4-recordings-by-age" title="Link to this heading">#</a></h3>
+<span id="subfolder-4-recordings-by-age-step-2"></span><h3>Subfolder 4  – Recordings by Age<a class="headerlink" href="#subfolder-4-recordings-by-age" title="Link to this heading">¶</a></h3>
 <p><strong>Figure 1. Number of Active Electrodes.</strong> Scatter plots, mean ± s.e.m. (black circles with error bars), and density curves show the number of active electrodes (colored circles) for each recording in the dataset by group for Age 1 (left panel), Age 2 (second-from-the-left-panel), etc. Error bars may not be visible where they are smaller than the size of the circle representing the mean. An active electrode is defined as MFR greater than 0.01 Hz (if default settings in MEA-NAP were used).  Panel title (top) is the age name.</p>
 <p><strong>Figure 2. Mean Firing Rate.</strong> Scatter plots, mean ± s.e.m. (black circles with error bars), and density curves show the mean firing rate for each recording (colored circles) in the dataset by group for Age 1 (left panel), Age 2 (second-from-the-left-panel), etc.  Error bars may not be visible where they are smaller than the size of the circle representing the mean. Panel title (top) is the age name.</p>
 <p><strong>Figure 3. Median Firing Rate.</strong> Scatter plots, mean ± s.e.m. (black circles with error bars), and density curves show the median firing rate for each recording (colored circles) in the dataset by group for Age 1 (left panel), Age 2 (second-from-the-left-panel), etc.  Error bars may not be visible where they are smaller than the size of the circle representing the mean. Panel title (top) is the age name.</p>
@@ -342,24 +392,24 @@
 </section>
 </section>
 <section id="step-3-functional-connectivity-edge-thresholding-check">
-<span id="id8"></span><h2>Step 3 – Functional Connectivity Edge Thresholding Check<a class="headerlink" href="#step-3-functional-connectivity-edge-thresholding-check" title="Link to this heading">#</a></h2>
+<span id="id8"></span><h2>Step 3 – Functional Connectivity Edge Thresholding Check<a class="headerlink" href="#step-3-functional-connectivity-edge-thresholding-check" title="Link to this heading">¶</a></h2>
 <p><strong>Figure 1. Edge Thresholding Check for Probabilistic Thresholding.</strong> Top panel, line graphs for the average (green) and coefficient of variation (black) for the threshold value for significant functional connections (edges) as the number of repeats (iterations of circular shifts used to determine the threshold for significance edges) increases for an example MEA recording from the dataset. The filename includes the recording name and spike time tiling coefficient lag.  The green line represents the mean and the green shaded area the standard deviation. Middle panel, Threshold values for a sample of the individual edges (black lines) as the number of repeats increases. Most threshold values stabilize between 120-180 iterations of the circular shifts.  Bottom panel, adjacency matrices show the edges that are eliminated (below the threshold for a significant edge) as the number of repeats increases.</p>
 </section>
 <section id="step-4-network-activity">
-<span id="id9"></span><h2>Step 4 – Network Activity<a class="headerlink" href="#step-4-network-activity" title="Link to this heading">#</a></h2>
+<span id="id9"></span><h2>Step 4 – Network Activity<a class="headerlink" href="#step-4-network-activity" title="Link to this heading">¶</a></h2>
 <p>This folder contains two subfolders, one to evaluate the individual recordings and one with comparisons by age and group.  The Step 4A folder contains individual subfolders for each recording.  The Step 4B folder contains 7 subfolders that compare metrics by node (electrode) and recording for age and group.</p>
 </section>
 <section id="step-4a-individual-network-analysis">
-<span id="id10"></span><h2>Step 4A - Individual Network Analysis<a class="headerlink" href="#step-4a-individual-network-analysis" title="Link to this heading">#</a></h2>
+<span id="id10"></span><h2>Step 4A - Individual Network Analysis<a class="headerlink" href="#step-4a-individual-network-analysis" title="Link to this heading">¶</a></h2>
 <p>This folder contains subfolder(s) for each group.  Within each group folder, there are subfolders for each recording from that group. Within each recording folder, there are subfolders for the network plots for each spike time tiling coefficient (STTC) lag used to determine the functional connectivity and two figures.</p>
 <section id="subfolders-individual-recordings-by-filename">
-<span id="id11"></span><h3>Subfolders – Individual Recordings by Filename<a class="headerlink" href="#subfolders-individual-recordings-by-filename" title="Link to this heading">#</a></h3>
+<span id="id11"></span><h3>Subfolders – Individual Recordings by Filename<a class="headerlink" href="#subfolders-individual-recordings-by-filename" title="Link to this heading">¶</a></h3>
 <p><strong>Figure 1. Non-negative Matrix Factorization (NMF) Reveals Patterns of Activity in the Microelectrode Array (MEA) Recording.</strong> Top left, Raster plot of action potentials (black lines) by electrode (rows) over the length of the MEA recording in seconds. Top right – bottom right panels, Raster plots of action potentials in the top 3 components determined by non-negative matrix factorization (NMF).  Middle right panel, proportion of variance explained as the number of NMF components increases.  The dashed gray line indicates the number of NMF components that are sufficient to explain 95% of the neuronal activity in the MEA recording. Lower right panel, The mean square root residual as the number of NMF components increases for the MEA recording (observed) and the action potentials shuffled in the recording (random).  The intersection (dashed gray line) indicates the number of significant NMF components.</p>
 <p><strong>Figure 2. Node Cartography Proportions.</strong>  Diagram (top left panel) shows how node cartography roles (colored circles, legend on bottom left panel) are determined using the within-module degree z-score and participation coefficient for each node.  The boundaries (solid and dashed lines) between roles are automatically set based on the distribution in the entire dataset. Network schema (bottom left panel) illustrates node cartography roles. Bar graphs (right panel) compare proportion of nodes in each node cartography role (color) by spike time tiling coefficient (STTC) lag used to infer functional connectivity.  Title of the figure is the MEA recording filename.</p>
 </section>
 <section id="subfolders-network-activity-by-lag-in-milliseconds">
-<span id="id12"></span><h3>Subfolders – Network Activity By Lag (in milliseconds)<a class="headerlink" href="#subfolders-network-activity-by-lag-in-milliseconds" title="Link to this heading">#</a></h3>
-<p>For each spike time tiling coefficient (STTC) lag used to determine the functional connections (edges), there is a separate folder for the network activity outputs of the individual MEA recordings.</p>
+<span id="id12"></span><h3>Subfolders – Network Activity By Lag (in milliseconds)<a class="headerlink" href="#subfolders-network-activity-by-lag-in-milliseconds" title="Link to this heading">¶</a></h3>
+<p>For each spike time tiling coefficient (STTC) lag used to determine the functional connections (edges), there is a separate folder for the network activity outputs of the individual MEA recordings. <strong>For Axion Biosystems users, please use MEA-NAP version 1.10.2 or later.  There was an error previously in the orientation of MEA grid in this plot (flipped on the diagonal), which has now been corrected.  This effects the orientation of the following figures in this subfolder: 2-5, 9, 10-11.</strong></p>
 <p><strong>Figure 1. Adjacency Matrix and Functional Connectivity Statistics.</strong> Top left, Adjacency matrix shows significant edges and edge weights for the functional connections between individual nodes (neuronal activity from neuron or neurons at each electrode).  The correlation coefficient was determined using the spike time tiling coefficient (STTC) with a lag (in milliseconds) indicated in the filename.  Bottom left, Bar graphs show the maximum and mean correlation values for edges in the MEA recording.  Top right, Histogram of node degree (number of significant connections) for nodes (electrodes) participating in the network activity.  Middle right, Histogram of node strength (sum of the edge weights for each node).  Bottom right, Histogram of significant edge weights (strength of function connections).</p>
 <p><strong>Figure 2. MEA Network Plot.</strong> Graph of functional connectivity for an individual MEA recording (filename and STTC lag indicated in title).  The nodes (circles) represent the neuronal activity observed from neuron(s) at each electrode in the spatial arrangement of the MEA.  The node degree (size of circle) represents the number of functional connections with other nodes.  The edges (lines) represent significant functional connections between nodes, and the edge weight (line thickness) represents the strength of connectivity. The size of the nodes and thickness of the edges are scaled based on the distributions in this recording.</p>
 <p><strong>Figure 2. Scaled MEA Network Plot.</strong> Graph of functional connectivity for an individual MEA recording (filename and STTC lag indicated in title).  The nodes (circles) represent the neuronal activity observed from neuron(s) at each electrode in the spatial arrangement of the MEA.  The node degree (size of circle) represents the number of functional connections with other nodes.  The edges (lines) represent significant functional connections between nodes, and the edge weight (line thickness) represents the strength of connectivity. The size of the nodes and thickness of the edges are scaled based on the distributions in the entire dataset to facilitate comparisons between MEA recordings.</p>
@@ -379,7 +429,7 @@
 <p><strong>Figure 9. Circular Node Cartography Network Plot.</strong> Graph of functional connectivity for an individual MEA recording (filename and STTC lag indicated in title).  The nodes (circles) represent the neuronal activity observed from neuron(s) at each electrode arranged by module (subcommunities within the network).  The node color indicates the node cartography role. Gray circles with no edges (when present) indicate electrodes without neurons participating in the network activity. The edges (lines) represent significant functional connections between nodes, and the edge weight (line thickness) represents the strength of connectivity.</p>
 <p><strong>Figure 9. MEA Network Plot with the Node Cartography.</strong> Graph of functional connectivity for an individual MEA recording (filename and STTC lag indicated in title).  The nodes (circles) represent the neuronal activity observed from neuron(s) at each electrode in the spatial arrangement of the MEA.  The node color represents the node cartography role. The edges (lines) represent significant functional connections between nodes, and the edge weight (line thickness) represents the strength of connectivity.</p>
 <p><strong>Figure 9. Node Cartography for Adjacency Matrix by STTC Lag.</strong> Diagram (top panel) shows how the node cartography role for each node (colored circles, legend on bottom left panel) are determined using the within-module degree z-score and participation coefficient for each node.  The boundaries (dashed lines) between roles were automatically set based on the distribution in the entire dataset. Network schema (bottom right panel) illustrates node cartography roles. Title of the figure is the MEA recording filename and the spike time tiling coefficient (STTC) lag used to create the adjacency matrix.</p>
-<p><strong>Figure 10 MEA Network Plot with the Average Controllability.</strong> Graph of functional connectivity for an individual MEA recording (filename and STTC lag indicated in title).  The nodes (circles) represent the neuronal activity observed from neuron(s) at each electrode in the spatial arrangement of the MEA.  The node color represents the average controllability, a metric of how much influence a node has over the overall network activity. The node degree (size of circle) represents the number of functional connections with other nodes.  The edges (lines) represent significant functional connections between nodes, and the edge weight (line thickness) represents the strength of connectivity. The average controllability color bar, size of the nodes and thickness of the edges are scaled based on the distributions in this recording.</p>
+<p><strong>Figure 10. MEA Network Plot with the Average Controllability.</strong> Graph of functional connectivity for an individual MEA recording (filename and STTC lag indicated in title).  The nodes (circles) represent the neuronal activity observed from neuron(s) at each electrode in the spatial arrangement of the MEA.  The node color represents the average controllability, a metric of how much influence a node has over the overall network activity. The node degree (size of circle) represents the number of functional connections with other nodes.  The edges (lines) represent significant functional connections between nodes, and the edge weight (line thickness) represents the strength of connectivity. The average controllability color bar, size of the nodes and thickness of the edges are scaled based on the distributions in this recording.</p>
 <p><strong>Figure 10. Scaled MEA Network Plot with the Average Controllability.</strong> Graph of functional connectivity for an individual MEA recording (filename and STTC lag indicated in title).  The nodes (circles) represent the neuronal activity observed from neuron(s) at each electrode in the spatial arrangement of the MEA.  The node color represents the average controllability, a metric of how much influence a node has over the overall network activity. The node degree (size of circle) represents the number of functional connections with other nodes.  The edges (lines) represent significant functional connections between nodes, and the edge weight (line thickness) represents the strength of connectivity. The average controllability color bar, size of the nodes and thickness of the edges are scaled to the theoretical maximum and minimum to facilitate comparisons between MEA recordings.</p>
 <p><strong>Figure 10. Combined MEA Network Plots with the Average Controllability.</strong> Graphs of the functional connectivity for an individual MEA recording (filename and STTC lag indicated in title).  The nodes (circles) represent the neuronal activity observed from neuron(s) at each electrode in the spatial arrangement of the MEA.  The node color represents the average controllability, a metric of how much influence a node has over the overall network activity. The node degree (size of circle) represents the number of functional connections with other nodes.  The edges (lines) represent significant functional connections between nodes, and the edge weight (line thickness) represents the strength of connectivity. The average controllability color bar, size of the nodes and thickness of the edges are scaled based on the distributions in this MEA recording (left) and the theoretical maximum and minimum (right) to facilitate comparison of the variation within the MEA recording and relative to other MEA recordings in the dataset.</p>
 <p><strong>Figure 11. MEA Network Plot with the Modal Controllability.</strong> Graph of functional connectivity for an individual MEA recording (filename and STTC lag indicated in title).  The nodes (circles) represent the neuronal activity observed from neuron(s) at each electrode in the spatial arrangement of the MEA.  The node color represents the modal controllability. The node degree (size of circle) represents the number of functional connections with other nodes.  The edges (lines) represent significant functional connections between nodes, and the edge weight (line thickness) represents the strength of connectivity. The modal controllability color bar, size of the nodes and thickness of the edges are scaled based on the distributions in this recording.</p>
@@ -388,9 +438,9 @@
 </section>
 </section>
 <section id="step-4b-network-activity-group-comparisons">
-<span id="id13"></span><h2>Step 4B – Network Activity – Group Comparisons<a class="headerlink" href="#step-4b-network-activity-group-comparisons" title="Link to this heading">#</a></h2>
+<span id="id13"></span><h2>Step 4B – Network Activity – Group Comparisons<a class="headerlink" href="#step-4b-network-activity-group-comparisons" title="Link to this heading">¶</a></h2>
 <section id="subfolder-1-node-by-group-with-subfolders-for-each-sttc-lag">
-<span id="id14"></span><h3>Subfolder 1 – Node by Group (with subfolders for each STTC lag)<a class="headerlink" href="#subfolder-1-node-by-group-with-subfolders-for-each-sttc-lag" title="Link to this heading">#</a></h3>
+<span id="id14"></span><h3>Subfolder 1 – Node by Group (with subfolders for each STTC lag)<a class="headerlink" href="#subfolder-1-node-by-group-with-subfolders-for-each-sttc-lag" title="Link to this heading">¶</a></h3>
 <p><strong>Figure 1. Node Degree by Group.</strong>  Scatter plots, mean ± s.e.m. (black circles with error bars), and density curves show the node degree for node (colored circles) for all of the recordings in the dataset by age for Group 1 (left panel), Group 2 (second-from-the-left panel), etc. Error bars may not be visible where they are smaller than the size of the circle representing the mean. The node degree was calculated as the number of significant edges for each node. Panel title (top) is the group name.</p>
 <p><strong>Figure 2. Edge Weight by Group.</strong>  Scatter plots, mean ± s.e.m. (black circles with error bars), and density curves show the edge weights for all edges (colored circles) in the dataset by age for Group 1 (left panel), Group 2 (second-from-the-left panel), etc. Error bars may not be visible where they are smaller than the size of the circle representing the mean. The edge weights were calculated using spike time tiling coefficient (STTC). Panel title (top) is the group name.</p>
 <p><strong>Figure 3. Node Strength by Group.</strong>  Scatter plots, mean ± s.e.m. (black circles with error bars), and density curves show the node strength for all nodes (colored circles) in the dataset by age for Group 1 (left panel), Group 2 (second-from-the-left panel), etc. The node strength is the sum of the edge weights for each node’s connections. Error bars may not be visible where they are smaller than the size of the circle representing the mean. The edge weights were calculated using spike time tiling coefficient (STTC). Panel title (top) is the group name.</p>
@@ -402,7 +452,7 @@
 <p><strong>Figure 9. Modal controllability by Group.</strong>  Scatter plots, mean ± s.e.m. (black circles with error bars), and density curves show the modal controllability for all nodes (colored circles) in the dataset by age for Group 1 (left panel), Group 2 (second-from-the-left panel), etc. Error bars may not be visible where they are smaller than the size of the circle representing the mean. Panel title (top) is the group name.</p>
 </section>
 <section id="subfolder-2-node-by-age-with-subfolders-for-each-sttc-lag">
-<span id="id15"></span><h3>Subfolder 2 – Node by Age (with subfolders for each STTC lag)<a class="headerlink" href="#subfolder-2-node-by-age-with-subfolders-for-each-sttc-lag" title="Link to this heading">#</a></h3>
+<span id="id15"></span><h3>Subfolder 2 – Node by Age (with subfolders for each STTC lag)<a class="headerlink" href="#subfolder-2-node-by-age-with-subfolders-for-each-sttc-lag" title="Link to this heading">¶</a></h3>
 <p><strong>Figure 1. Node Degree by Age.</strong>  Scatter plots, mean ± s.e.m. (black circles with error bars), and density curves show the node degree for node (colored circles) for all of the recordings in the dataset by group for Age 1 (left panel), Age 2 (second-from-the-left-panel), etc. Error bars may not be visible where they are smaller than the size of the circle representing the mean. The node degree was calculated as the number of significant edges for each node. Panel title (top) is the age.</p>
 <p><strong>Figure 2. Edge Weight by Age.</strong> Scatter plots, mean ± s.e.m. (black circles with error bars), and density curves show the edge weights for all edges (colored circles) in the dataset by group for Age 1 (left panel), Age 2 (second-from-the-left-panel), etc. Error bars may not be visible where they are smaller than the size of the circle representing the mean. The edge weights were calculated using spike time tiling coefficient (STTC). Panel title (top) is the age.</p>
 <p><strong>Figure 3. Node Strength by Age.</strong>  Scatter plots, mean ± s.e.m. (black circles with error bars), and density curves show the node strength for all nodes (colored circles) in the dataset by group for Age 1 (left panel), Age 2 (second-from-the-left-panel), etc. The node strength is the sum of the edge weights for each node’s connections. Error bars may not be visible where they are smaller than the size of the circle representing the mean. The edge weights were calculated using spike time tiling coefficient (STTC). Panel title (top) is the age.</p>
@@ -414,7 +464,7 @@
 <p><strong>Figure 9. Modal controllability by Age.</strong>  Scatter plots, mean ± s.e.m. (black circles with error bars), and density curves show the modal controllability for all nodes (colored circles) in the dataset by group for Age 1 (left panel), Age 2 (second-from-the-left-panel), etc. Error bars may not be visible where they are smaller than the size of the circle representing the mean. Panel title (top) is the age.</p>
 </section>
 <section id="subfolder-3-recordings-by-group-with-subfolders-for-each-sttc-lag">
-<span id="id16"></span><h3>Subfolder 3  – Recordings by Group (with subfolders for each STTC lag)<a class="headerlink" href="#subfolder-3-recordings-by-group-with-subfolders-for-each-sttc-lag" title="Link to this heading">#</a></h3>
+<span id="id16"></span><h3>Subfolder 3  – Recordings by Group (with subfolders for each STTC lag)<a class="headerlink" href="#subfolder-3-recordings-by-group-with-subfolders-for-each-sttc-lag" title="Link to this heading">¶</a></h3>
 <p><strong>Figure 1. Network Size by Group.</strong>  Scatter plots, mean ± s.e.m. (black circles with error bars), and density curves show the network size for each MEA recording (colored circles) in the dataset by age for Group 1 (left panel), Group 2 (second-from-the-left panel), etc. Error bars may not be visible where they are smaller than the size of the circle representing the mean. The network size was calculated as number of nodes with at least one significant edge. Panel title (top) is the group name.</p>
 <p><strong>Figure 2. Network Density by Group.</strong>  Scatter plots, mean ± s.e.m. (black circles with error bars), and density curves show the network density for each MEA recording (colored circles) in the dataset by age for Group 1 (left panel), Group 2 (second-from-the-left panel), etc. Error bars may not be visible where they are smaller than the size of the circle representing the mean. The density was calculated as proportion of significant edges as a function of the total possible edges. Panel title (top) is the group name.</p>
 <p><strong>Figure 3. Mean Node Degree by Group.</strong>  Scatter plots, mean ± s.e.m. (black circles with error bars), and density curves show the mean node degree per MEA recording (colored circles) in the dataset by age for Group 1 (left panel), Group 2 (second-from-the-left panel), etc. The node degree is calculated for each node in the network as the number of significant connections with other nodes and were averaged for each recording.  Error bars may not be visible where they are smaller than the size of the circle representing the mean. Panel title (top) is the group name.</p>
@@ -447,7 +497,7 @@
 <p><strong>Figure 30. Effective Rank by Group.</strong>  Scatter plots, mean ± s.e.m. (black circles with error bars), and density curves show the effective rank for each MEA recording (colored circles) in the dataset by age for Group 1 (left panel), Group 2 (second-from-the-left panel), etc. Effective rank is a measure of the number of subcommunities in the network based on network activity patterns. Error bars may not be visible where they are smaller than the size of the circle representing the mean. Panel title (top) is the group name.</p>
 </section>
 <section id="subfolder-4-recordings-by-age-with-subfolders-for-each-sttc-lag">
-<span id="id17"></span><h3>Subfolder 4  – Recordings by Age (with subfolders for each STTC lag)<a class="headerlink" href="#subfolder-4-recordings-by-age-with-subfolders-for-each-sttc-lag" title="Link to this heading">#</a></h3>
+<span id="id17"></span><h3>Subfolder 4  – Recordings by Age (with subfolders for each STTC lag)<a class="headerlink" href="#subfolder-4-recordings-by-age-with-subfolders-for-each-sttc-lag" title="Link to this heading">¶</a></h3>
 <p><strong>Figure 1. Network Size by Age.</strong>  Scatter plots, mean ± s.e.m. (black circles with error bars), and density curves show the network size for each MEA recording (colored circles) in the dataset by group for Age 1 (left panel), Age 2 (second-from-the-left-panel), etc. Error bars may not be visible where they are smaller than the size of the circle representing the mean. The network size was calculated as number of nodes with at least one significant edge. Panel title (top) is the age.</p>
 <p><strong>Figure 2. Network Density by Age.</strong>  Scatter plots, mean ± s.e.m. (black circles with error bars), and density curves show the network density for each MEA recording (colored circles) in the dataset by group for Age 1 (left panel), Age 2 (second-from-the-left-panel), etc. Error bars may not be visible where they are smaller than the size of the circle representing the mean. The density was calculated as proportion of significant edges as a function of the total possible edges. Panel title (top) is the age.</p>
 <p><strong>Figure 3. Mean Node Degree by Age.</strong>  Scatter plots, mean ± s.e.m. (black circles with error bars), and density curves show the mean node degree for each MEA recording (colored circles) in the dataset by group for Age 1 (left panel), Age 2 (second-from-the-left-panel), etc. The node degree is calculated for each node in the network as the number of significant connections with other nodes and the averaged for each recording. Error bars may not be visible where they are smaller than the size of the circle representing the mean. Panel title (top) is the age.</p>
@@ -480,7 +530,7 @@
 <p><strong>Figure 30. Effective Rank by Age.</strong>  Scatter plots, mean ± s.e.m. (black circles with error bars), and density curves show the effective rank for each MEA recording (colored circles) in the dataset by group for Age 1 (left panel), Age 2 (second-from-the-left-panel), etc. Effective rank is a measure of the number of subcommunities in the network based on network activity patterns. Error bars may not be visible where they are smaller than the size of the circle representing the mean. Panel title (top) is the age.</p>
 </section>
 <section id="subfolder-5-graph-metrics-by-lag">
-<span id="id18"></span><h3>Subfolder 5  – Graph Metrics by Lag<a class="headerlink" href="#subfolder-5-graph-metrics-by-lag" title="Link to this heading">#</a></h3>
+<span id="id18"></span><h3>Subfolder 5  – Graph Metrics by Lag<a class="headerlink" href="#subfolder-5-graph-metrics-by-lag" title="Link to this heading">¶</a></h3>
 <p><strong>Figure 1. Network Size by Spike Time Tiling Coefficient (STTC) Lag.</strong>  Line graphs of the mean (solid line) ± s.e.m. (shading) network size by age (colors) for different spike time tiling coefficient (STTC) lags (x-axis) in milliseconds.  The STTC and probabilistic thresholding are used to determine the significant edges in the network.  This figure illustrates the impact of choice of STTC lag on network size. For datasets with more than one group, each panel title indicates the group name.</p>
 <p><strong>Figure 2. Network Density by Spike Time Tiling Coefficient (STTC) Lag.</strong>  Line graphs of the mean (solid line) ± s.e.m. (shading) network density by age (colors) for different spike time tiling coefficient (STTC) lags (x-axis) in milliseconds.  The STTC and probabilistic thresholding are used to determine the significant edges in the network.  This figure illustrates the impact of choice of STTC lag on the network density. For datasets with more than one group, each panel title indicates the group name.</p>
 <p><strong>Figure 3. Mean Node Degree by Spike Time Tiling Coefficient (STTC) Lag.</strong>  Line graphs of the mean (solid line) ± s.e.m. (shading) mean node degree by age (colors) for different spike time tiling coefficient (STTC) lags (x-axis) in milliseconds.  The STTC and probabilistic thresholding are used to determine the significant edges in the network.  The node degree is calculated for each node in the network as the number of significant connections with other nodes and the averaged for each recording. This figure illustrates the impact of the choice of STTC lag on the mean node degree. For datasets with more than one group, each panel title indicates the group name.</p>
@@ -513,20 +563,20 @@
 <p><strong>Figure 30. Effective Rank by Spike Time Tiling Coefficient (STTC) Lag.</strong>  Line graphs of the mean (solid line) ± s.e.m. (shading) effective rank by age (colors) for different spike time tiling coefficient (STTC) lags (x-axis) in milliseconds.  Effective rank is a measure of the number of subcommunities in the network based on network activity patterns. This figure illustrates the impact of the choice of STTC lag on the effective rank. For datasets with more than one group, each panel title indicates the group name.</p>
 </section>
 <section id="subfolder-6-node-cartography-by-lag">
-<span id="id19"></span><h3>Subfolder 6  – Node Cartography By Lag<a class="headerlink" href="#subfolder-6-node-cartography-by-lag" title="Link to this heading">#</a></h3>
+<span id="id19"></span><h3>Subfolder 6  – Node Cartography By Lag<a class="headerlink" href="#subfolder-6-node-cartography-by-lag" title="Link to this heading">¶</a></h3>
 <p>There will be one figure per spike time tiling coefficient (STTC) lag selected when MEA-NAP was run. The STTC lag (in milliseconds) is indicated in the figure filename.</p>
 <p><strong>Figure 1. Node Cartography by Spike Time Tiling Coefficient (STTC) Lag.</strong> Line graphs of the mean (solid line) ± s.e.m. (shading) proportion of each node cartograph role (colors) by age (x-axis).  Figure legend (right) indicates the color of the node cartography roles. This figure facilitates comparing the mean proportion of node cartography roles by age and group. For datasets with more than one group, each panel (arranged vertically top to bottom) indicates the group name in the title.</p>
 </section>
 <section id="subfolder-7-density-landscape">
-<span id="id20"></span><h3>Subfolder 7  – Density Landscape<a class="headerlink" href="#subfolder-7-density-landscape" title="Link to this heading">#</a></h3>
+<span id="id20"></span><h3>Subfolder 7  – Density Landscape<a class="headerlink" href="#subfolder-7-density-landscape" title="Link to this heading">¶</a></h3>
 <p><strong>Figure 1. Density Landscape for Determining the Node Cartography.</strong> Scatterplot shows values of within-module degree z-score and participation coefficient for all of the nodes (blue circles) in the entire dataset.  The colored lines show the automated k-means boundaries set for determining the hub and non-hub roles (horizontal gray line, based on within-module degree z-score) and for the node cartography roles within the hub and non-hub designations (vertical colored lines, based on the participation coefficient). This figure was created to evaluate the automated boundaries set for determining the node cartography roles.</p>
 </section>
 </section>
 <section id="step-5-statistical-comparisons">
-<span id="id21"></span><h2>Step 5  – Statistical Comparisons<a class="headerlink" href="#step-5-statistical-comparisons" title="Link to this heading">#</a></h2>
+<span id="id21"></span><h2>Step 5  – Statistical Comparisons<a class="headerlink" href="#step-5-statistical-comparisons" title="Link to this heading">¶</a></h2>
 <p>There will be one figure per spike time tiling coefficient (STTC) lag selected when MEA-NAP was run. The STTC lag (in milliseconds) is indicated in the figure filename.</p>
 <section id="subfolders-stats-figures-by-lag">
-<span id="id22"></span><h3>Subfolders - Stats Figures by Lag<a class="headerlink" href="#subfolders-stats-figures-by-lag" title="Link to this heading">#</a></h3>
+<span id="id22"></span><h3>Subfolders - Stats Figures by Lag<a class="headerlink" href="#subfolders-stats-figures-by-lag" title="Link to this heading">¶</a></h3>
 <p><strong>Figure 1. Confusion Matrix for All Classifiers.</strong> Confusion matrices for each classifier show true number of samples placed into each age group versus predicted class, the number the classifier placed into each age group. Blue indicates a correct and red an incorrect prediction by the classifier. Classifiers compared include the linear support-vector machine (SVM), k-nearest neighbors (kNN) algorithm, decision tree, and linear discriminant analysis (LDA). Note, this figure is only generated if more than one time point is provided in the dataset.</p>
 <p><strong>Figure 2. Misclassification Rate per K Fold for All Classifiers.</strong> Scatter plot shows the misclassification rate for each classifier during k-fold cross validation (k is set to 5 by default). Lower values indicate better classification performance. The gray horizontal line depicts the misclassification rate at chance level. Classifiers compared include the linear support-vector machine (SVM), k-nearest neighbors (kNN) algorithm, decision tree, and linear discriminant analysis (LDA). Note, this figure is only generated if more than one time point is provided in the dataset.</p>
 <p><strong>Figure 3. Leave One Feature Out for All Classifiers.</strong> Line graphs show different between leave one out loss and the original loss for four classifiers (colored lines) for network metrics including number of active nodes (aN), network density (Dens), clustering coefficient (CC), number of modules (nMod), modularity score (Q), path length (PL), global efficiency (Eglob), small-worldness coefficient (σ) and (ω), effective rank and the number of significant NMF components.  Higher values indicate better fit for the classifier.  Classifiers compared include the linear support-vector machine (SVM), k-nearest neighbors (kNN) algorithm, decision tree, and linear discriminant analysis (LDA). Note, this figure is only generated if more than one time point is provided in the dataset.</p>
@@ -641,10 +691,10 @@
   </div>
 </div><script src="_static/jquery.js?v=5d32c60e"></script>
     <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-    <script src="_static/documentation_options.js?v=c4cb232b"></script>
-    <script src="_static/doctools.js?v=888ff710"></script>
+    <script src="_static/documentation_options.js?v=b95c35c0"></script>
+    <script src="_static/doctools.js?v=9bcbadda"></script>
     <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
-    <script src="_static/scripts/furo.js?v=32e29ea5"></script>
+    <script src="_static/scripts/furo.js?v=5fa4622c"></script>
     <script src="_static/js/hoverxref.js?v=82c55261"></script>
     <script src="_static/js/tooltipster.bundle.min.js?v=18bf091b"></script>
     <script src="_static/js/micromodal.min.js?v=04d6302d"></script>
