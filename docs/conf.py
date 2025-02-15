@@ -55,5 +55,13 @@ html_theme = 'furo'
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ['_static']
 
+# 2025-02-15 TIM: Trying to add custom css to get bold itatlics
+# These paths are either relative to html_static_path
+# or fully qualified paths (eg. https://...)
+html_css_files = [
+    'css/custom.css',
+]
+
+
 # -- hoverxref --
 hoverxref_auto_ref = True

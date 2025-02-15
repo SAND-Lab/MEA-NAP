@@ -1,3 +1,7 @@
+.. role:: bolditalic
+  :class: bolditalic
+
+
 MEA-NAP Outputs
 ===============
 
@@ -83,7 +87,7 @@ Step 2A – Individual Neuronal Analysis
 
 **Figure 1. Firing Rate By Electrode.** Scatter plot (gray circles), mean ± s.e.m. (black circle with error bars) and density curve show the mean firing rate (MFR) for each electrode in the microelectrode array (MEA) recording in spikes per second (Hz). The MFR was calculated by dividing the number of action potentials detected by the length of the recording in seconds. Figure title (top) is the name of the recording.
 
-**Figure 2. Heatmap.**  Mean firing rate (MFR) by electrode (circles) in the spatial arrangement of the microelectrode array (MEA) in hertz (Hz, color bar) scaled to the recording (left) and to the entire dataset (right).  In the left panel, differences in MFR can be observed between electrodes.  In the right panel, the MFR can be seen in comparison to the whole dataset. Figure title (top) is the name of the recording and scaling relative to the range of MFR in the recording versus the entire dataset. * **For Axion Biosystems users, please use MEA-NAP version 1.10.2 or later.  There was an error previously in the orientation of MEA grid in this plot (flipped on the diagonal), which has now been corrected.** *
+**Figure 2. Heatmap.**  Mean firing rate (MFR) by electrode (circles) in the spatial arrangement of the microelectrode array (MEA) in hertz (Hz, color bar) scaled to the recording (left) and to the entire dataset (right).  In the left panel, differences in MFR can be observed between electrodes.  In the right panel, the MFR can be seen in comparison to the whole dataset. Figure title (top) is the name of the recording and scaling relative to the range of MFR in the recording versus the entire dataset. :bolditalic:`For Axion Biosystems users, please use MEA-NAP version 1.10.2 or later.  There was an error previously in the orientation of MEA grid in this plot (flipped on the diagonal), which has now been corrected.`
 
 **Figure 3. Raster.** Raster plots show mean firing rate (MFR) in hertz (Hz, color bar) in 1-second bins for each electrode (row) over the length of the recording (time, minutes) scaled to the range of MFR in the recording (top panel) and in the entire dataset (bottom panel).  The MFR was calculated as the number of action potentials per second. In the top raster plot, differences in MFR can be observed between electrodes.  In the bottom raster plot, the relative MFR can be seen in comparison to the whole dataset. Figure title (above each raster plot) is the name of the recording and scaling relative to the range of MFR in the recording versus the entire dataset.
  
