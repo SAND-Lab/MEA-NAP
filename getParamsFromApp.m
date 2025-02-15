@@ -328,6 +328,9 @@ Params.twopRedoDenoising = app.RedodenoisingCheckBox.Value;
 Params.removeNodesWithNoPeaks = app.RemovenodeswithnopeaksCheckBox.Value;
 Params.num2ptraces = app.CellstoplotperrecordingEditField.Value;
 
+%% Stimulation analysis 
+Params.stimulationMode = app.StimulationmodeCheckBox.Value;
+
 %% MISC 
 Params.option = 'list';
 Params.output_spreadsheet_file_type = 'csv';
