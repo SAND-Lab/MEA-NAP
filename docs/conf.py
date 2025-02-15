@@ -62,6 +62,9 @@ html_css_files = [
     'css/custom.css',
 ]
 
+def setup(app):
+  app.add_stylesheet("css/custom.css")
+
 
 # -- hoverxref --
 hoverxref_auto_ref = True
