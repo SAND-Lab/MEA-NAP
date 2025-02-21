@@ -1,6 +1,10 @@
-function plotNodeHeatmap(FN, Ephys, channels, maxVal, Params, coords, metricVarname, figFolder, oneFigureHandle, subsetChannelName)
+function plotNodeHeatmap(FN, Ephys, channels, maxVal, Params, coords, ...
+    metricVarName, metricLabel, figFolder, figName, oneFigureHandle, subsetChannelName)
 %PLOTNODEHEATMAP Summary of this function goes here
 %   Detailed explanation goes here
+
+% subsetChannelName : not impelemented yet, but the idea is to allow
+% plotting a subset of available channels
 %% plot
 p = [50 100 1150 570];
 
@@ -29,15 +33,9 @@ end
 xc = coords(:, 1);
 yc = coords(:, 2); 
 
-%% calculate spiking frequency
+%% Assign metric variable 
 
-% spikeCount = sum(spikeMatrix); 
-% spikeCount = full(spikeCount / (size(spikeMatrix, 1) / Params.fs));
-numChannels = size(coords, 1);
-metricVals = zeros(numChannels, 1);
-metricVals(Ephys.channelBurstingUnits) = Ephys.(metricVarName); % channelBurstRate;
-metricName = 'Average burst rate (Hz)';
-figName = '3_BurstRate_heatmap';
+metricVals = Ephys.(metricVarName);
 
 %% plot electrodes
 % TODO: I think a lot of rectangle coloring can be simplified
@@ -58,6 +56,7 @@ else
     minSpikeCountToPlot = min(spikeCount);
 end 
 
+numChannels = length(channels);
 for i = 1:numChannels
 
     pos = [xc(i)-(0.5*nodeScaleF) yc(i)-(0.5*nodeScaleF) nodeScaleF nodeScaleF];
@@ -98,7 +97,7 @@ cb.TickLabels = tickLabels;
 
 
 cb.TickDirection = 'out';
-cb.Label.String = metricName;
+cb.Label.String = metricLabel;
 title({strcat(regexprep(FN,'_','','emptymatch'),' Electrode heatmap scaled to recording'),' '});
 
 %% Right electrode plot (scaled to all recordings)
@@ -137,7 +136,7 @@ end
 
 cb.TickLabels = tickLabels;
 cb.TickDirection = 'out';
-cb.Label.String = metricName;
+cb.Label.String = metricLabel;
 title({strcat(regexprep(FN,'_','','emptymatch'),' Electrode heatmap scaled to entire data batch'),' '});
 
 % save figure
