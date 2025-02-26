@@ -141,14 +141,56 @@ if strcmp(plotType,'MEA')
         xcot = xco(order,:);
         ycot = yco(order,:);
 
-        % for u = 1:length(xcot)
-        %     plot(xcot(u,:),ycot(u,:),'LineWidth',lineWidthT(u),'Color',colourT(u,:));
-        % end
-        % Thought: changing earlier code to avoid having to transpose
-        % will speed things up (but not sure if significant)
-        linePlot = plot(xcot',ycot'); % 'LineWidth',lineWidthT,'Color',colourT);
-        set(linePlot, {'LineWidth'}, num2cell(lineWidthT'));
-        set(linePlot, {'Color'}, num2cell(colourT', [1, 3])');
+        % Ensure all color rows have valid RGB values
+        for i = 1:size(colourT, 1)
+          if all(colourT(i,:) == 0) || any(isnan(colourT(i,:)))
+              colourT(i,:) = [0.1, 0.1, 0.1]; % Replace all-zero rows with dark gray
+          end
+        end
+        
+        % More robust approach for plotting
+        try
+            linePlot = plot(xcot',ycot');
+            
+            % Set line widths
+            try
+                set(linePlot, {'LineWidth'}, num2cell(lineWidthT'));
+            catch
+                disp('Warning: Error setting line widths');
+                for i = 1:length(linePlot)
+                    try
+                        set(linePlot(i), 'LineWidth', 0.5);
+                    catch
+                        % If individual line width setting fails, continue
+                    end
+                end
+            end
+            
+            % Set colors with error handling
+            try
+                % Set each line color individually to avoid cell array issues
+                for i = 1:length(linePlot)
+                    if i <= size(colourT, 1)
+                        set(linePlot(i), 'Color', colourT(i,:));
+                    else
+                        set(linePlot(i), 'Color', [0.5, 0.5, 0.5]);
+                    end
+                end
+            catch
+                disp('Warning: Failed setting line colors in MEA plot');
+                % Last resort fallback - try to set all lines to a default color
+                for i = 1:length(linePlot)
+                    try
+                        set(linePlot(i), 'Color', [0.5, 0.5, 0.5]);
+                    catch
+                        % Continue if this fails
+                    end
+                end
+            end
+        catch
+            disp('Error in plotting MEA graph');
+        end
+        
         hold on
     end
     
@@ -264,13 +306,59 @@ if strcmp(plotType,'circular')
     xcot = xco(order,:);
     ycot = yco(order,:);
 
-    linePlot = plot(xcot',ycot'); % 'LineWidth',lineWidthT,'Color',colourT);
-    set(linePlot, {'LineWidth'}, num2cell(lineWidthT'));
-    set(linePlot, {'Color'}, num2cell(colourT', [1, 3])');
+    % Ensure all color rows have valid RGB values
+    for i = 1:size(colourT, 1)
+      if all(colourT(i,:) == 0) || any(isnan(colourT(i,:)))
+          colourT(i,:) = [0.1, 0.1, 0.1]; % Replace all-zero rows with dark gray
+      end
+    end
+    
+    % More robust approach for plotting
+    try
+        linePlot = plot(xcot',ycot');
+        
+        % Set line widths
+        try
+            set(linePlot, {'LineWidth'}, num2cell(lineWidthT'));
+        catch
+            disp('Warning: Error setting line widths in circular plot');
+            for i = 1:length(linePlot)
+                try
+                    set(linePlot(i), 'LineWidth', 0.5);
+                catch
+                    % If individual line width setting fails, continue
+                end
+            end
+        end
+        
+        % Set colors with error handling
+        try
+            % Set each line color individually to avoid cell array issues
+            for i = 1:length(linePlot)
+                if i <= size(colourT, 1)
+                    set(linePlot(i), 'Color', colourT(i,:));
+                else
+                    set(linePlot(i), 'Color', [0.5, 0.5, 0.5]);
+                end
+            end
+        catch
+            disp('Warning: Failed setting line colors in circular plot');
+            % Last resort fallback - try to set all lines to a default color
+            for i = 1:length(linePlot)
+                try
+                    set(linePlot(i), 'Color', [0.5, 0.5, 0.5]);
+                catch
+                    % Continue if this fails
+                end
+            end
+        end
+    catch
+        disp('Error in plotting circular graph');
+    end
+    
     hold on
-
-
 end
+
 %% add nodes
 
 if strcmp(plotType,'MEA')
@@ -397,10 +485,6 @@ if strcmp(plotType,'MEA')
     legItem2NodeYloc = max(yc) -1 - (0.5 * str2num(legdata(2,:))/ nodeScaleF + 1.5 * str2num(legdata(1,:))/nodeScaleF);
     legItem3NodeYloc = (max(yc)-1)-(0.5*str2num(legdata(3,:))/nodeScaleF+str2num(legdata(2,:))/nodeScaleF+2.5*str2num(legdata(1,:))/nodeScaleF);
     
-    % legItem2NodeYloc = max(yc) - 1.55 - legItem2NodeSize/2;
-    % legItem3NodeYloc = max(yc) -1 - (0.5 * str2num(legdata(2,:))/ nodeScaleF + 1.5 * str2num(legdata(1,:))/nodeScaleF);
-    % legItem3NodeYloc = max(yc) - 2.5 - legItem3NodeSize/2;
-    
     legItem1TextYloc = legItem1NodeYloc + legItem1NodeSize/2;
     legItem2TextYloc = legItem2NodeYloc + legItem2NodeSize/2;
     legItem3TextYloc = legItem3NodeYloc + legItem3NodeSize/2;
@@ -411,27 +495,22 @@ if strcmp(plotType,'MEA')
            legItem1NodeSize];
        
     rectangle('Position',pos,'Curvature',[1 1],'FaceColor',nodeLegendColor,'EdgeColor','w','LineWidth',0.1);
-    % text(max(xc)+3, (max(yc)-1)+(0.5*legItem1NodeSize), legdata(1,:))
     text(max(xc)+3, legItem1TextYloc, legdata(1,:))
     
-    %  %  (max(yc)-1)-(0.5*legItem2NodeSize + 1.5*legItem1NodeSize), ...
     pos = [(max(xc)+2)-legItem2NodeSize/2, ...
            legItem2NodeYloc, ...
            legItem2NodeSize, ...
            legItem2NodeSize];
        
     rectangle('Position',pos,'Curvature',[1 1],'FaceColor',nodeLegendColor,'EdgeColor','w','LineWidth',0.1);
-    % text(max(xc)+3,(max(yc)-1)-(1.5*legItem1NodeSize),legdata(2,:))
     text(max(xc)+3, legItem2TextYloc, legdata(2,:))
     
-    % % (max(yc)-1)-(0.5*legItem3NodeSize+legItem2NodeSize+2.5*legItem1NodeSize), ...
     pos = [(max(xc)+2)-legItem3NodeSize/2, ...
            legItem3NodeYloc, ...
            legItem3NodeSize, ...
            legItem3NodeSize];
        
     rectangle('Position',pos,'Curvature',[1 1],'FaceColor',nodeLegendColor,'EdgeColor','w','LineWidth',0.1);
-    % text(max(xc)+3,(max(yc)-1)-(legItem2NodeSize+2.5*legItem1NodeSize),legdata(3,:))
     text(max(xc)+3, legItem3TextYloc, legdata(3,:))
     
     % EDGE WEIGHT LEGEND
@@ -461,8 +540,7 @@ if strcmp(plotType,'MEA')
     lineWidthL = min_ew + (max_ew-min_ew)*((threshMax-minNonZeroEdge)/range);
     colourL = [1 1 1]-(light_c*(((threshMax)-minNonZeroEdge)/range));
     posx = [max(xc)+1.5 max(xc)+2.5];
-    posy = [max(yc)-(7*str2num(legdata(3,:))/nodeScaleF), 
-            max(yc)-(7*str2num(legdata(3,:))/nodeScaleF)];
+    posy = [max(yc)-(7*str2num(legdata(3,:))/nodeScaleF), max(yc)-(7*str2num(legdata(3,:))/nodeScaleF)];
         
     plot(posx,posy,'LineWidth',lineWidthL,'Color',colourL);
     text(max(xc)+3,max(yc)-(7*str2num(legdata(3,:))/nodeScaleF),num2str(round(threshMax,edgeWeightLegendDecimalPlaces)))
@@ -470,14 +548,6 @@ if strcmp(plotType,'MEA')
     
     % Cell type legend
     if length(cellTypeMatrix) > 1
-        %{
-        cellTypeLegendYpos = linspace(0.5, -0.8, length(cellTypeNames));
-        for typeIdx = 1:length(cellTypeNames)
-            plot([9.3, 10.3], [cellTypeLegendYpos(typeIdx), cellTypeLegendYpos(typeIdx)], ... 
-                'LineWidth', 2, 'LineStyle', cellTypelineStyles{typeIdx}, 'Color', 'black')
-            text(max(xc)+3, cellTypeLegendYpos(typeIdx), cellTypeNames{typeIdx})
-        end
-        %}
         cellTypeLegendXpos = linspace(0, 8, length(cellTypeNames));
         cellTypeNodeSizes = linspace(0.9, 0.3, size(cellTypeMatrix, 2)) * legItem2NodeSize;
         cellTypeLegendYpos = -0.8;
@@ -507,10 +577,6 @@ if strcmp(plotType,'MEA')
     % turn off clipping
     ax = gca;
     ax.Clipping = "off";
-    
-    %ylim([min(yc)-1 max(yc)+1])
-    %xlim([min(xc)-1 max(xc)+3.75])
-    
 end
 
 if strcmp(plotType,'circular')
@@ -532,7 +598,7 @@ if strcmp(plotType,'circular')
     rectangle('Position',pos,'Curvature',[1 1],'FaceColor',[0.020 0.729 0.859],'EdgeColor','w','LineWidth',0.1);
     text(1.6,(0.9-0.25)-(3*str2num(legdata(1,:))/nodeScaleF),legdata(2,:))
     
-    pos = [1.45-(str2num(legdata(3,:))/nodeScaleF)/2 (0.9-0.25)-(0.5*str2num(legdata(3,:))/nodeScaleF+str2num(legdata(2,:))/nodeScaleF+5.5*str2num(legdata(1,:))/nodeScaleF) str2num(legdata(3,:))/nodeScaleF str2num(legdata(3,:))/nodeScaleF];
+    pos = [1.45-(str2num(legdata(3,:))/nodeScaleF)/2, (0.9-0.25)-(0.5*str2num(legdata(3,:))/nodeScaleF+str2num(legdata(2,:))/nodeScaleF+5.5*str2num(legdata(1,:))/nodeScaleF), str2num(legdata(3,:))/nodeScaleF, str2num(legdata(3,:))/nodeScaleF];
     rectangle('Position',pos,'Curvature',[1 1],'FaceColor',[0.020 0.729 0.859],'EdgeColor','w','LineWidth',0.1);
     text(1.6,(0.9-0.25)-(str2num(legdata(2,:))/nodeScaleF+5.5*str2num(legdata(1,:))/nodeScaleF),legdata(3,:))
     
@@ -588,8 +654,5 @@ elseif ~isfield(Params, 'oneFigure')
 else 
     figureHandle = Params.oneFigure;
 end 
-
-
-
 
 end
