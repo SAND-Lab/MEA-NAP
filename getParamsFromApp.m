@@ -329,6 +329,9 @@ Params.twopActivity = app.ActivityDropDown.Value;
 Params.twopRedoDenoising = app.RedodenoisingCheckBox.Value;
 Params.removeNodesWithNoPeaks = app.RemovenodeswithnopeaksCheckBox.Value;
 Params.num2ptraces = app.CellstoplotperrecordingEditField.Value;
+Params.twopDenoisingThreshold = app.DenoisingthresholdEditField.Value;
+Params.twopDenoisingTimeBeforePeak = app.TimebeforepeaksEditField.Value;
+Params.twopDenoisingTimeAfterPeak =  app.TimeafterpeaksEditField.Value;
 
 %% Stimulation analysis 
 Params.stimulationMode = app.StimulationmodeCheckBox.Value;

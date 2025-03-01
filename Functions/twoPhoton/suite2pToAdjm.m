@@ -55,10 +55,13 @@ fs = double(fs);  % in case function returns Python int object
 % This will be used in downstream steps for creating spikeMatrix
 Params.fs = fs;
 
+
 % do denoising and get peaks 
 if strcmp(Params.twopActivity, 'peaks') || strcmp(Params.twopActivity, 'denoised F') || strcmp(Params.twopActivity, 'spks')
     resampleHz = 0;
-    denoisePy.do_suite2p_processing(suite2pFolder, resampleHz, Params.twopRedoDenoising)
+    denoisePy.do_suite2p_processing(suite2pFolder, resampleHz, Params.twopRedoDenoising, ...
+        Params.twopDenoisingThreshold, Params.twopDenoisingTimeBeforePeak, Params.twopDenoisingTimeAfterPeak);
+    
     peakStartFramesPath = fullfile(suite2pFolder, 'peakStartFrames.npy');
     peakEndFramesPath = fullfile(suite2pFolder, 'peakEndFrames.npy');
     peakHeightsPath = fullfile(suite2pFolder, 'peakHeights.npy');
@@ -79,8 +82,6 @@ if strcmp(Params.twopActivity, 'peaks') || strcmp(Params.twopActivity, 'denoised
     peakDurationFramesIsCell = peakDurationFrames(logical(iscell(:, 1)), :);
     peakHeightsIsCell = peakHeights(logical(iscell(:, 1)), :);
     eventAreasIsCell = eventAreas(logical(iscell(:, 1)), :);
-    
-    
     
     FdenoisedIsCell = Fdenoised(logical(iscell(:, 1)), :)';
     
