@@ -26,6 +26,11 @@ ActiveFiringRates = FiringRates(active_chanIndex);  %spikes of only active chann
 
 % Ephys.FR = ActiveFiringRates;
 Ephys.FR = FiringRates;
+
+ActiveFiringRatesFull = zeros(1, length(FiringRates)) + nan;
+ActiveFiringRatesFull(active_chanIndex) = ActiveFiringRates;
+Ephys.FRactive = ActiveFiringRatesFull;
+
 % currently calculates only on active channels (>=FR_threshold)
 % stats  
 % currently rounds to a specified number of decimal digits
@@ -52,9 +57,6 @@ end
     Params.minChannelNetworkBurst, Params.bakkumNetworkBurstISInThreshold);
 
 nBursts = size(burstTimes,1);
-
-% Single channel burst detection
-burstData = singleChannelBurstDetection(spikeMatrix, Params.singleChannelBurstMinSpike, Params.fs); 
 
 if ~isempty(burstMatrix)
     for Bst=1:length(burstMatrix)
@@ -96,18 +98,6 @@ if ~isempty(burstMatrix)
     Ephys.CVofINBI = round((std(IBIs)/mean(IBIs)),3); %3 decimal places
     Ephys.NBurstRate = round(60*(nBursts/(length(spikeMatrix(:,1))/Params.fs)),3);
     Ephys.fracInNburst = round(sp_in_bst/sum(sum(spikeMatrix)),3);
-    Ephys.channelBurstingUnits = burstData.bursting_units;
-    Ephys.channelAveBurstRate = burstData.array_burstRate;
-    Ephys.channelBurstRate = burstData.all_burstRates;
-    Ephys.channelWithinBurstFr = burstData.all_inBurstFRs;
-    Ephys.channelBurstDur = burstData.all_burstDurs;
-    Ephys.channelAveBurstDur = burstData.array_burstDur;
-    Ephys.channelISIwithinBurst = burstData.all_ISIs_within;
-    Ephys.channelAveISIwithinBurst = burstData.array_ISI_within;
-    Ephys.channeISIoutsideBurst = burstData.all_ISIs_outside;
-    Ephys.channelAveISIoutsideBurst = burstData.array_ISI_outside;
-    Ephys.channelFracSpikesInBursts = burstData.all_fracsInBursts;
-    Ephys.channelAveFracSpikesInBursts = burstData.array_fracInBursts;
 
     %need to go intro burst detect and edit as it is not deleting the bursts
     %with <5 channels from burstChannels and burstTimes hence they are longer
@@ -128,3 +118,46 @@ else
     Ephys.fracInNburst = nan;
     
 end
+
+% Single channel burst detection 
+burstData = singleChannelBurstDetection(spikeMatrix, Params.singleChannelBurstMinSpike, Params.fs); 
+
+Ephys.channelBurstingUnits = burstData.bursting_units;
+
+numChannels = size(spikeMatrix, 2);
+channelHasBurst = zeros(1, numChannels);
+channelHasBurst(Ephys.channelBurstingUnits) = 1;
+Ephys.channelHasBurst = channelHasBurst;
+
+channelBurstRate = zeros(1, numChannels) + nan;
+channelBurstRate(Ephys.channelBurstingUnits) = burstData.all_burstRates;
+
+channelWithinBurstFr = zeros(1, numChannels) + nan;
+channelWithinBurstFr(Ephys.channelBurstingUnits) = burstData.all_inBurstFRs;
+
+channelBurstDur = zeros(1, numChannels) + nan;
+channelBurstDur(Ephys.channelBurstingUnits) = burstData.all_burstDurs;
+
+channelISIwithinBurst = zeros(1, numChannels) + nan;
+channelISIwithinBurst(Ephys.channelBurstingUnits) = burstData.all_ISIs_within;
+
+channeISIoutsideBurst = zeros(1, numChannels) + nan;
+channeISIoutsideBurst(Ephys.channelBurstingUnits) =  burstData.all_ISIs_outside;
+
+channelFracSpikesInBursts = zeros(1, numChannels) + nan;
+channelFracSpikesInBursts(Ephys.channelBurstingUnits) = burstData.all_fracsInBursts;
+
+% NaN for non-bursting units, to keep dimensions consistent
+
+Ephys.channelAveBurstRate = burstData.array_burstRate;
+Ephys.channelBurstRate = channelBurstRate;
+
+Ephys.channelWithinBurstFr = channelWithinBurstFr;
+Ephys.channelBurstDur = channelBurstDur;
+Ephys.channelAveBurstDur = burstData.array_burstDur;
+Ephys.channelISIwithinBurst = channelISIwithinBurst;
+Ephys.channelAveISIwithinBurst = burstData.array_ISI_within;
+Ephys.channeISIoutsideBurst = channeISIoutsideBurst;
+Ephys.channelAveISIoutsideBurst = burstData.array_ISI_outside;
+Ephys.channelFracSpikesInBursts = channelFracSpikesInBursts;
+Ephys.channelAveFracSpikesInBursts = burstData.array_fracInBursts;

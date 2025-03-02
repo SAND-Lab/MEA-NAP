@@ -263,6 +263,8 @@ if ((Params.priorAnalysis == 0) || (Params.runSpikeCheckOnPrevSpikeData)) && (Pa
     savePath = fullfile(Params.outputDataFolder, ...
                         Params.outputDataFolderName, ...
                         '1_SpikeDetection', '1A_SpikeDetectedData');
+
+
     
     % Run spike detection
     if detectSpikes == 1
@@ -271,6 +273,11 @@ if ((Params.priorAnalysis == 0) || (Params.runSpikeCheckOnPrevSpikeData)) && (Pa
         else
             batchDetectSpikes(rawData, savePath, option, ExpName, Params);
         end
+    end 
+
+    % Stimulus detection 
+    if Params.stimulationMode == 1
+        batchDetectStim(ExpName, Params, app);
     end 
     
     % Specify where ExperimentMatFiles are stored
@@ -310,7 +317,9 @@ if ((Params.priorAnalysis == 0) || (Params.runSpikeCheckOnPrevSpikeData)) && (Pa
         checkIfAnySpikes(spikeTimes, ExpName{ExN});
 
     end
+
     
+
     if Params.timeProcesses
         step1Duration = toc(step1Start);
     end 
@@ -461,15 +470,33 @@ if Params.startAnalysisStep < 3
             electrodeHeatMaps(char(Info.FN), spikeMatrix, Info.channels, ... 
                 spikeFreqMax,Params, coords, idvNeuronalAnalysisFNFolder, oneFigureHandle)
             
-            metricVarsToPlot = {'channelBurstRate'};
-            figNames = {};
+            % Plot bursts metrics
+            metricVarsToPlot = {'channelBurstRate', ...
+                                'channelBurstDur', ...
+                                'channelFracSpikesInBursts', ...
+                                'channelISIwithinBurst', ...
+                                'channeISIoutsideBurst', ...
+                                };
+            metricLabels = {'Average burst rate (per minute)', ...
+                            'Average burst duration (ms)', ...
+                            'Fraction spikes in bursts', ...
+                            'ISI within bursts (ms)', ... 
+                            'ISI outside bursts (ms)'};
+            figNames = {'3_BurstRate_heatmap', ... 
+                        '4_BurstDur_heatmap', ...
+                        '5_FractSpikesInBursts_heatmap',... 
+                        '6_ISIwithinBurst_heatmap', ...
+                        '7_ISIoutsideBurst_heatmap'};
+
             for metricIdx = 1:length(metricVarsToPlot)
                 metricVarname = metricVarsToPlot{metricIdx};
                 % plot burst heatmap 
-                plotNodeHeatmap(char(Info.FN), Ephys, Info.channels, spikeFreqMax, Params, coords, idvNeuronalAnalysisFNFolder, oneFigureHandle)
+                plotNodeHeatmap(char(Info.FN), Ephys, Info.channels, ...
+                    spikeFreqMax, Params, coords, metricVarname, metricLabels{metricIdx}, ...
+                    idvNeuronalAnalysisFNFolder, figNames{metricIdx}, ...
+                    oneFigureHandle, []);
             
             end
-            
             
             % half violin plots
             firingRateElectrodeDistribution(char(Info.FN), Ephys, Params, ... 

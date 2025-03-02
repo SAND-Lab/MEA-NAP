@@ -24,6 +24,7 @@ Params.wnameList = cellstr(app.WaveletsListBox.Value); %  {'bior1.5'}; % wavelet
 Params.costList = str2double(app.WaveletCostEditField.Value);
 Params.SpikesMethod = app.SpikeMethodforAnalysisEditField.Value;  % wavelet methods, eg. 'bior1p5', or 'mergedAll', or 'mergedWavelet'
 
+
 % Functional connectivity inference settings
 Params.FuncConLagval = str2num(app.STTCLagmsEditField.Value); % set the different lag values (in ms), default to [10, 15, 25]
 Params.TruncRec = app.TruncateRecordingCheckBox.Value; % truncate recording? 1 = yes, 0 = no
@@ -119,7 +120,8 @@ end
 
 % minimum activity level to be considered active node 
 Params.minActivityLevel = app.MinactivitylevelspikessEditField.Value;
-
+% whether to remove inactive nodes from all calculations (not just network)
+Params.removeInactiveNodes = app.RemoveinactivenodesCheckBox.Value;
 
 %% Which network metrics to calculate and plot 
 Params.netMetToCal = app.NetworkmetricstocalculateListBox.Value;
@@ -327,6 +329,21 @@ Params.twopActivity = app.ActivityDropDown.Value;
 Params.twopRedoDenoising = app.RedodenoisingCheckBox.Value;
 Params.removeNodesWithNoPeaks = app.RemovenodeswithnopeaksCheckBox.Value;
 Params.num2ptraces = app.CellstoplotperrecordingEditField.Value;
+Params.twopDenoisingThreshold = app.DenoisingthresholdEditField.Value;
+Params.twopDenoisingTimeBeforePeak = app.TimebeforepeaksEditField.Value;
+Params.twopDenoisingTimeAfterPeak =  app.TimeafterpeaksEditField.Value;
+
+%% Stimulation analysis 
+Params.stimulationMode = app.StimulationmodeCheckBox.Value;
+Params.automaticStimDetection = app.AutomaticstimdetectionCheckBox.Value;
+Params.stimDetectionMethod = app.StimdetectionmethodDropDown.Value;
+Params.stimDetectionVal = app.DetectionthresholdmultiplierEditField.Value;
+Params.stimRefractoryPeriod = app.StimrefractoryperiodsEditField.Value;
+Params.stimDuration = app.StimdurationsEditField.Value;
+Params.stimDurationForPlotting = app.StimdurationforplotssEditField.Value;
+Params.preStimWindow = str2num(app.PrestimwindowsEditField.Value);
+Params.postStimWindow = str2num(app.PoststimwindowsEditField.Value);
+
 
 %% MISC 
 Params.option = 'list';

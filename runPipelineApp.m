@@ -44,6 +44,7 @@ artifactRemovalTabParent = app.ArtifactRemovalTab.Parent;
 advancedConnectivityTabParent = app.AdvConnectivityTab.Parent;
 nodeCartographyTabParent = app.NodeCartographyTab.Parent;
 catnapTabParent = app.CATNAPTab.Parent;
+stimulationTabParent = app.StimulationTab.Parent;
 
 % Context menu for MEANAP Output viewer
 app.RecordingviewerMenu.MenuSelectedFcn = @(src, event) runMEANAPviewer;
@@ -132,6 +133,7 @@ app.ColorsTab.Parent = [];
 app.ArtifactRemovalTab.Parent = [];
 app.AdvConnectivityTab.Parent = [];
 app.NodeCartographyTab.Parent = [];
+app.StimulationTab.Parent = [];
 % Not Tabs 
 app.ShadeMetricDropDown.Visible = 'off';
 app.ShadeMetricDropDownLabel.Visible = 'off';
@@ -196,6 +198,12 @@ while isvalid(app)
         app.CATNAPTab.Parent = [];
     else 
         app.CATNAPTab.Parent = catnapTabParent;
+    end
+
+    if app.StimulationmodeCheckBox.Value == 1 
+        app.StimulationTab.Parent = stimulationTabParent;
+    else 
+        app.StimulationTab.Parent = [];
     end
 
     % check if all required parameters are set

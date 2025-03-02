@@ -1,3 +1,4 @@
 ###### Requirements without Version Specifiers ######
+sphinx
 furo
 sphinx-hoverxref

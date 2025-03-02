@@ -133,8 +133,8 @@ burstData.bursting_units = find(sum(check_elec) == 2); % which neurons or electr
 burstData.array_burstRate         = nanmedian(burst_rate_elecs(bursting_electrodes)); %bursts/min
 burstData.all_burstRates          = burst_rate_elecs(bursting_electrodes); 
 
-burstData.array_inBurstFR         = nanmedian(mean_inBurst_FR(bursting_electrodes)); %in Hz
-burstData.all_inBurstFRs          = mean_inBurst_FR(bursting_electrodes); 
+burstData.array_inBurstFR         = full(nanmedian(mean_inBurst_FR(bursting_electrodes))); %in Hz
+burstData.all_inBurstFRs          = full(mean_inBurst_FR(bursting_electrodes)); 
 
 burstData.array_burstDur          = nanmedian(mean_BLength(bursting_electrodes)); %in ms
 burstData.all_burstDurs           = mean_BLength(bursting_electrodes);
@@ -146,8 +146,8 @@ burstData.all_ISIs_within         = mean_ISI_w(bursting_electrodes);
 burstData.array_ISI_outside       = nanmedian(mean_ISI_o(bursting_electrodes)); %in ms
 burstData.all_ISIs_outside        = mean_ISI_o(bursting_electrodes); 
 
-burstData.array_fracInBursts      = (sum(total_num_sp_in_bst(bursting_electrodes))  )  /  sum(sum(raster));
-burstData.all_fracsInBursts       = (total_num_sp_in_bst(bursting_electrodes)  )  ./  sum(raster(:,bursting_electrodes));
+burstData.array_fracInBursts      = full((sum(total_num_sp_in_bst(bursting_electrodes))  )  /  sum(sum(raster)));
+burstData.all_fracsInBursts       = full((total_num_sp_in_bst(bursting_electrodes)  )  ./  sum(raster(:,bursting_electrodes)));
 
 % get details of each burst for each rec. and elecrtode within that
 % rec.
