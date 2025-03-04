@@ -122,20 +122,29 @@ for e = 1:length(lagval)
     
     
     if aN >= Params.minNumberOfNodesToCalNetMet
-        % node cartography in circular plot
-        NdCartDivOrd = NdCartDiv(On);
-        Params.channelsReordered = Params.netSubsetChannels(On);
-        StandardisedNetworkPlotNodeCartography(adjMord, coords, ... 
-            edge_thresh, NdCartDivOrd, 'circular', char(Info.FN), '9', Params, lagval, e, lagFolder, oneFigureHandle, '_modules')
-        
-        % node cartography in circular plot same order across DIV
-        Params.channelsReordered = Params.netSubsetChannels;  % back to original order
-        StandardisedNetworkPlotNodeCartography(adjM, coords, ... 
-            edge_thresh, NdCartDiv, 'circular', char(Info.FN), '9', Params, lagval, e, lagFolder, oneFigureHandle, '')
+        % Additional safety check - only plot if we have a valid adjacency matrix with connections
+        if ~isempty(adjM) && any(adjM(:) > 0) && ~isempty(On) && ~isempty(NdCartDiv)
+            try
+                % node cartography in circular plot
+                NdCartDivOrd = NdCartDiv(On);
+                Params.channelsReordered = Params.netSubsetChannels(On);
+                StandardisedNetworkPlotNodeCartography(adjMord, coords, ... 
+                    edge_thresh, NdCartDivOrd, 'circular', char(Info.FN), '9', Params, lagval, e, lagFolder, oneFigureHandle, '_modules')
+                
+                % node cartography in circular plot same order across DIV
+                Params.channelsReordered = Params.netSubsetChannels;  % back to original order
+                StandardisedNetworkPlotNodeCartography(adjM, coords, ... 
+                    edge_thresh, NdCartDiv, 'circular', char(Info.FN), '9', Params, lagval, e, lagFolder, oneFigureHandle, '')
 
-        % node cartography in grid plot 
-        StandardisedNetworkPlotNodeCartography(adjM, coords, ... 
-            edge_thresh, NdCartDiv, 'MEA', char(Info.FN), '9', Params, lagval, e, lagFolder, oneFigureHandle, '_modules')
+                % node cartography in grid plot 
+                StandardisedNetworkPlotNodeCartography(adjM, coords, ... 
+                    edge_thresh, NdCartDiv, 'MEA', char(Info.FN), '9', Params, lagval, e, lagFolder, oneFigureHandle, '_modules')
+            catch plotError
+                fprintf('Warning: Error plotting node cartography: %s\n', plotError.message);
+            end
+        else
+            fprintf('Warning: Not enough connections to plot node cartography\n');
+        end
 
         % add node cartography results to existing experiment file 
         nodeCartVarsToSave = {'NCpn1', 'NCpn2','NCpn3','NCpn4','NCpn5','NCpn6', ...

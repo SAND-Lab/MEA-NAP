@@ -11,7 +11,7 @@ clearvars -except InputParamsFilePath
 close all 
 
 % Change to MEANAP folder 
-MEANAPscriptPath = which('MEApipeline.m');
+MEANAPscriptPath = which('MEApipeline.m');l
 MEANAPfolder = fileparts(MEANAPscriptPath);
 cd(MEANAPfolder)
 

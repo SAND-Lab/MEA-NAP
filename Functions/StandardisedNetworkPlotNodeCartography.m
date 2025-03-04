@@ -15,7 +15,7 @@ function [] = StandardisedNetworkPlotNodeCartography(adjM, coords, edge_thresh, 
 %       the network metric used to determine the size of the plotted nodes
 %       eg: node degree or node strength
 %   zname : char
- %      name of the z network metric
+%      name of the z network metric
 %   z2 : char
 %       the network metric used to determine the colour of the plotted
 %       nodes, eg: betweeness centrality or participation coefficient
@@ -69,7 +69,11 @@ yc = coords(:,2);
 %% add edges
 
 threshMax = max(adjM(:));
-minNonZeroEdge = min(min(adjM(adjM>0))); 
+if isempty(adjM(adjM>0))
+    minNonZeroEdge = 0; % Default if there are no values > 0
+else
+    minNonZeroEdge = min(min(adjM(adjM>0))); 
+end
 numNodes = size(adjM, 1);
 
 if strcmp(plotType,'MEA')
@@ -94,13 +98,24 @@ if strcmp(plotType,'MEA')
     if count > 0
         [~,order] = sort(colour(:,1),'descend');
         lineWidthT = lineWidth(:,order);
+        % Fix invalid line widths
+        lineWidthT(lineWidthT <= 0 | isnan(lineWidthT) | isinf(lineWidthT)) = min_ew;
         colourT = colour(order,:);
+        % Fix invalid RGB colors
+        colourT(colourT < 0) = 0;
+        colourT(colourT > 1) = 1;
+        colourT(isnan(colourT)) = 0.5;
         xcot = xco(order,:);
         ycot = yco(order,:);
 
         % TODO: this does not require a loop I think... 
         for u = 1:length(xcot)
-            plot(xcot(u,:),ycot(u,:),'LineWidth',lineWidthT(u),'Color',colourT(u,:));
+            try
+                plot(xcot(u,:),ycot(u,:),'LineWidth',lineWidthT(u),'Color',colourT(u,:));
+            catch
+                % Fallback with safe values if plotting fails
+                plot(xcot(u,:),ycot(u,:),'LineWidth',min_ew,'Color',[0.5 0.5 0.5]);
+            end
         end
     end 
 end
@@ -201,11 +216,22 @@ if strcmp(plotType,'circular')
     if count > 0
         [~,order] = sort(colour(:,1),'descend');
         lineWidthT = lineWidth(:,order);
+        % Fix invalid line widths
+        lineWidthT(lineWidthT <= 0 | isnan(lineWidthT) | isinf(lineWidthT)) = min_ew;
         colourT = colour(order,:);
+        % Fix invalid RGB colors
+        colourT(colourT < 0) = 0;
+        colourT(colourT > 1) = 1;
+        colourT(isnan(colourT)) = 0.5;
         xcot = xco(order,:);
         ycot = yco(order,:);
         for u = 1:size(xcot,1)
-            plot(xcot(u,:),ycot(u,:),'LineWidth',lineWidthT(u),'Color',colourT(u,:));
+            try
+                plot(xcot(u,:),ycot(u,:),'LineWidth',lineWidthT(u),'Color',colourT(u,:));
+            catch
+                % Fallback to safe values if plotting fails
+                plot(xcot(u,:),ycot(u,:),'LineWidth',min_ew,'Color',[0.5 0.5 0.5]);
+            end
             hold on
         end
     end 
@@ -302,21 +328,51 @@ if strcmp(plotType,'MEA')
     range = max(adjM(:))-minNonZeroEdge;
     
     lineWidthL = min_ew + (max_ew-min_ew)*(((max(adjM(:))-2/3*range)-minNonZeroEdge)/(threshMax-minNonZeroEdge));
+    % Fix invalid line width
+    if ~isfinite(lineWidthL) || lineWidthL <= 0
+        lineWidthL = min_ew;
+    end
+    
     colourL = [1 1 1]-(light_c*(((max(adjM(:))-2/3*range)-minNonZeroEdge)/(threshMax-minNonZeroEdge)));
+    % Fix invalid RGB colors
+    colourL(colourL < 0) = 0;
+    colourL(colourL > 1) = 1;
+    colourL(isnan(colourL)) = 0.5;
+    
     posx = [max(xc)+1.5 max(xc)+2.5];
     posy = [max(yc)-((nodeScaleF*2/3)*16)  max(yc)-((nodeScaleF*2/3)*16)];
     plot(posx,posy,'LineWidth',lineWidthL,'Color',colourL);
     text(max(xc)+3, max(yc)-((nodeScaleF*2/3)*16),num2str(round(max(adjM(:))-2/3*range,4)))
     
     lineWidthL = min_ew + (max_ew-min_ew)*(((max(adjM(:))-1/3*range)-minNonZeroEdge)/(threshMax-minNonZeroEdge));
+    % Fix invalid line width
+    if ~isfinite(lineWidthL) || lineWidthL <= 0
+        lineWidthL = min_ew;
+    end
+    
     colourL = [1 1 1]-(light_c*(((max(adjM(:))-1/3*range)-minNonZeroEdge)/(threshMax-minNonZeroEdge)));
+    % Fix invalid RGB colors
+    colourL(colourL < 0) = 0;
+    colourL(colourL > 1) = 1;
+    colourL(isnan(colourL)) = 0.5;
+    
     posx = [max(xc)+1.5 max(xc)+2.5];
     posy = [max(yc)-((nodeScaleF*2/3)*18)  max(yc)-((nodeScaleF*2/3)*18)];
     plot(posx,posy,'LineWidth',lineWidthL,'Color',colourL);
     text(max(xc)+3,max(yc)-((nodeScaleF*2/3)*18),num2str(round(max(adjM(:))-1/3*range,4)))
     
     lineWidthL = min_ew + (max_ew-min_ew)*(((max(adjM(:)))-minNonZeroEdge)/(threshMax-minNonZeroEdge));
+    % Fix invalid line width
+    if ~isfinite(lineWidthL) || lineWidthL <= 0
+        lineWidthL = min_ew;
+    end
+    
     colourL = [1 1 1]-(light_c*(((max(adjM(:)))-minNonZeroEdge)/(threshMax-minNonZeroEdge)));
+    % Fix invalid RGB colors
+    colourL(colourL < 0) = 0;
+    colourL(colourL > 1) = 1;
+    colourL(isnan(colourL)) = 0.5;
+    
     posx = [max(xc)+1.5 max(xc)+2.5];
     posy = [max(yc)-((nodeScaleF*2/3)*20)  max(yc)-((nodeScaleF*2/3)*20)];
     plot(posx,posy,'LineWidth',lineWidthL,'Color',colourL);
@@ -356,21 +412,51 @@ if strcmp(plotType,'circular')
     range = max(adjM(:))-minNonZeroEdge;
     
     lineWidthL = min_ew + (max_ew-min_ew)*(((max(adjM(:))-2/3*range)-minNonZeroEdge)/(threshMax-minNonZeroEdge));
+    % Fix invalid line width
+    if ~isfinite(lineWidthL) || lineWidthL <= 0
+        lineWidthL = min_ew;
+    end
+    
     colourL = [1 1 1]-(light_c*(((max(adjM(:))-2/3*range)-minNonZeroEdge)/(threshMax-minNonZeroEdge)));
+    % Fix invalid RGB colors
+    colourL(colourL < 0) = 0;
+    colourL(colourL > 1) = 1;
+    colourL(isnan(colourL)) = 0.5;
+    
     posx = [1.3 1.4];
     posy = [1-((nodeScaleF)*16)  1-((nodeScaleF)*16)];
     plot(posx,posy,'LineWidth',lineWidthL,'Color',colourL);
     text(1.43, 1-((nodeScaleF)*16),num2str(round(max(adjM(:))-2/3*range,4)))
     
     lineWidthL = min_ew + (max_ew-min_ew)*(((max(adjM(:))-1/3*range)-minNonZeroEdge)/(threshMax-minNonZeroEdge));
+    % Fix invalid line width
+    if ~isfinite(lineWidthL) || lineWidthL <= 0
+        lineWidthL = min_ew;
+    end
+    
     colourL = [1 1 1]-(light_c*(((max(adjM(:))-1/3*range)-minNonZeroEdge)/(threshMax-minNonZeroEdge)));
+    % Fix invalid RGB colors
+    colourL(colourL < 0) = 0;
+    colourL(colourL > 1) = 1;
+    colourL(isnan(colourL)) = 0.5;
+    
     posx = [1.3 1.4];
     posy = [1-((nodeScaleF)*18)  1-((nodeScaleF)*18)];
     plot(posx,posy,'LineWidth',lineWidthL,'Color',colourL);
     text(1.43,1-((nodeScaleF)*18),num2str(round(max(adjM(:))-1/3*range,4)))
     
     lineWidthL = min_ew + (max_ew-min_ew)*(((max(adjM(:)))-minNonZeroEdge)/(threshMax-minNonZeroEdge));
+    % Fix invalid line width
+    if ~isfinite(lineWidthL) || lineWidthL <= 0
+        lineWidthL = min_ew;
+    end
+    
     colourL = [1 1 1]-(light_c*(((max(adjM(:)))-minNonZeroEdge)/(threshMax-minNonZeroEdge)));
+    % Fix invalid RGB colors
+    colourL(colourL < 0) = 0;
+    colourL(colourL > 1) = 1;
+    colourL(isnan(colourL)) = 0.5;
+    
     posx = [1.3 1.4];
     posy = [1-((nodeScaleF)*20)  1-((nodeScaleF)*20)];
     plot(posx,posy,'LineWidth',lineWidthL,'Color',colourL);

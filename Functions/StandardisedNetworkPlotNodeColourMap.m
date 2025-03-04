@@ -1,171 +1,134 @@
-function [figureHandle, cb] = StandardisedNetworkPlotNodeColourMap(adjM, coords, edge_thresh, z, zname, z2, z2name, plotType, ...
-                                                   FN, pNum, Params, lagval, e, figFolder, figureHandle, saveFigure, cellTypeMatrix, cellTypeNames)
-% Plots graph network with node size proportional to some node-level variable of
-% choice and color-mapped based on some other node-level variable of choice
+function [figureHandle, colorbar_handle] = StandardisedNetworkPlotNodeColourMap(adjM, coords, edge_thresh, z, ...
+    zname, z2, z2name, plotType, FN, pNum, Params, lagval, e, figFolder, ...
+    oneFigureHandle, normalizeLineWidthByCellType, cellTypeMatrixActive, cellTypeNames)
+%
+% script to plot the graph network 
 % 
 % Parameters
 % ----------
-% adjM : matrix 
-%    adjacency matrix 
-% coords : matrix 
-%    electrode/node coordinates (x and y, num nodes * 2)
-% edge_thresh : float 
-%    a value between 0 and 1 for the minimum correlation to plot
-% z : str
-%    the network metric used to determine the size of the plotted nodes
-%    eg: node degree or node strength
-%  zname : str
-%     name of the z network metric
-%   z2 : str
-%     the network metric used to determine the colour of the plotted
-%      nodes, eg: betweenness centrality or participation coefficient
-%   z2name : str
-%     name of the z2 network metric
-%   plotType : str
-%       'MEA' to plot nodes with their respective electrode
-%       coordinates and 'circular' to plot nodes in a circle
-%   FN : str
-%       name of file/recording
-%   pNum : int
-%       number to precede name of figure when it is saved
-%   figFolder : path 
-%       folder to save the figure to 
+%   adjM : double array 
+%          adjacency matrix 
+%   coords : double array 
+%          electrode/node coordinates (x and y, num nodes * 2)
+%   edge_thresh : float 
+%      a value between 0 and 1 for the minimum correlation to plot
+%   z : char 
+%       the network metric used to determine the size of the plotted nodes
+%       eg: node degree or node strength
+%   zname : char
+%      name of the z network metric
+%   z2 : char
+%       the network metric used to determine the colour of the plotted
+%       nodes, eg: betweeness centrality or participation coefficient
+%   z2name - name of the z2 network metric
+%   plotType : char 
+%        'MEA' to plot nodes with their respective electrode
+%       coordinates 
+%       'circular' to plot nodes in a circle
+%   FN : char 
+%        name of file/recording
+%   pNum : char
+%        number (in character or string format) to precede name of figure
+%        when it is saved
+%   Params : struct
+%   normalizeLineWidthByCellType : bool (optional)
+%        whether to normalize line width by cell type
+%   cellTypeMatrixActive : matrix (optional)
+%        matrix of cell types
+%   cellTypeNames : cell array (optional)
+%        names of cell types
+%        
 % Returns 
 % -------
-% None 
-%
-% author RCFeord August 2021
-% Updated by Tim Sit
+% figureHandle : handle to the figure
+% colorbar_handle : handle to the colorbar
+% 
+% author RCFeord August 2020
+% 
 
-if ~exist('saveFigure', 'var')
-    saveFigure = 1;
-end 
-
-if ~exist('cellTypeMatrix', 'var')
-   cellTypeMatrix = nan; 
+% Default values for optional parameters
+if nargin < 18
+    cellTypeNames = {};
 end
-
-if ~exist('cellTypeNames', 'var') 
-   cellTypeNames = nan; 
+if nargin < 17
+    cellTypeMatrixActive = [];
+end
+if nargin < 16
+    normalizeLineWidthByCellType = 0;
 end
 
 %% plot
-p =  [50   100   720  550];
-if exist('figureHandle', 'var')
-    set(figureHandle, 'Position', p);
-elseif ~isfield(Params, 'oneFigure')
-    F1 = figure;
-    F1.OuterPosition = p;
-else 
-    set(0, 'DefaultFigurePosition', p)
-    % Params.oneFigure.OuterPosition = [50   100   660  550];
-    set(Params.oneFigure, 'Position', p);
+p =  [50 100 700 600];
+
+if Params.showOneFig
+    if isgraphics(oneFigureHandle)
+        set(oneFigureHandle, 'OuterPosition', p);
+        figureHandle = oneFigureHandle;
+    else 
+        figureHandle = figure;
+        set(figureHandle, 'OuterPosition', p);
+    end 
+else
+   figureHandle = figure;
+   figureHandle.OuterPosition = p;
 end 
 
 aesthetics; axis off; hold on
 
+% title(sprintf('Active electrode map %s, threshold = %.2f', FN, edge_thresh))
 title(strcat(regexprep(FN,'_','','emptymatch'),{' '},num2str(lagval(e)),{' '},'ms',{' '},'lag'))
-
 %% coordinates
-
-if isfield(Params, 'nodeLayout')
-    if ~strcmp(Params.nodeLayout, 'Original')
-        coords = getNodeCoords(adjM, Params);
-    end
-end
 
 xc = coords(:,1);
 yc = coords(:,2);
 
-%% Mapping to get theoretical bounds 
-% Used when theoretical bounds is set to True, this maps the z2name to
-% metric names
-% TODO: find a more streamlined way to do this
-z2nameToShortHand = containers.Map;
-z2nameToShortHand('Betweenness centrality') = 'BC';
-z2nameToShortHand('Participation coefficient') = 'PC';
-z2nameToShortHand('Local efficiency') = 'Eloc';
-z2nameToShortHand('Average controllability') = 'aveControl';
-z2nameToShortHand('Modal controllability') = 'modalControl';
-z2nameToShortHand('Node degree') = 'ND'; 
-z2nameToShortHand('Node strength') = 'NS'; 
-z2nameToShortHand('Module') = 'Ci'; 
-
 %% add edges
 
-if isfield(Params, 'useMinMaxBoundsForPlots')
-    if Params.useMinMaxBoundsForPlots
-        minNonZeroEdge = Params.metricsMinMax.EW(1);
-        threshMax = Params.metricsMinMax.EW(2);
-    else
-        threshMax = max(adjM(:));
-        minNonZeroEdge = min(min(adjM(adjM>0))); 
-    end
-else 
-    threshMax = max(adjM(:));
-    minNonZeroEdge = min(min(adjM(adjM>0))); 
-end 
-
-
-num_nodes = size(adjM, 2);
+threshMax = max(adjM(:));
+minNonZeroEdge = min(min(adjM(adjM>0))); 
 
 if strcmp(plotType,'MEA')
     
     max_ew = 4; % maximum edge width for plotting
     min_ew = 0.001; % min edge width
     light_c = [0.8 0.8 0.8]; % lightest edge colour
-    lineWidth = [];
+    
     count = 0;
-    for elecA = 1:num_nodes
-        for elecB = 1:num_nodes
+    for elecA = 1:length(adjM)
+        for elecB = 1:length(adjM)
             if adjM(elecA,elecB) >= edge_thresh && elecA ~= elecB && ~isnan(adjM(elecA,elecB))
-                count = count +1;
+                count = count + 1;
                 xco(count,:) = [xc(elecA),xc(elecB)];
                 yco(count,:) = [yc(elecA),yc(elecB)];
                 lineWidth(count) = min_ew + (max_ew-min_ew)*((adjM(elecA,elecB)-minNonZeroEdge)/(threshMax-minNonZeroEdge));
                 colour(count,:) = [1 1 1]-(light_c*((adjM(elecA,elecB)-minNonZeroEdge)/(threshMax-minNonZeroEdge)));
+                
             end
         end
     end
     
-    if ~isempty(lineWidth)
-        % threshold the edge width (in case edge values are lower than the
-        % lower display bound) and colours
-        lineWidth(lineWidth < 0) = min_ew;
-        colour(colour > light_c(1)) = light_c(1);
-
-        % deal with NaNs (in the case of empty networks)
-        lineWidth(isnan(lineWidth)) = min_ew;
-        colour(isnan(colour)) = 1;
-
+    if count > 0
         [~,order] = sort(colour(:,1),'descend');
         lineWidthT = lineWidth(:,order);
+        % Fix invalid line widths
+        lineWidthT(lineWidthT <= 0 | isnan(lineWidthT) | isinf(lineWidthT)) = min_ew;
         colourT = colour(order,:);
+        % Fix invalid RGB colors
+        colourT(colourT < 0) = 0;
+        colourT(colourT > 1) = 1;
+        colourT(isnan(colourT)) = 0.5;
         xcot = xco(order,:);
         ycot = yco(order,:);
-        
-        % Fix for any invalid color values
+    
         for u = 1:length(xcot)
-            % Check for invalid RGB values
-            if any(isnan(colourT(u,:))) || all(colourT(u,:) == 0) || any(colourT(u,:) < 0) || any(colourT(u,:) > 1)
-                colourT(u,:) = [0.5, 0.5, 0.5]; % Use default gray for invalid colors
+            try
+                plot(xcot(u,:),ycot(u,:),'LineWidth',lineWidthT(u),'Color',colourT(u,:));
+            catch
+                % Fallback with safe values if plotting fails
+                plot(xcot(u,:),ycot(u,:),'LineWidth',min_ew,'Color',[0.5 0.5 0.5]);
             end
         end
-        
-        % More robust approach for plotting edges
-        try
-            for u = 1:length(xcot)
-                try
-                    plot(xcot(u,:),ycot(u,:),'LineWidth',lineWidthT(u),'Color',colourT(u,:));
-                catch colorErr
-                    % Fallback if color still causes issues
-                    plot(xcot(u,:),ycot(u,:),'LineWidth',lineWidthT(u),'Color',[0.5, 0.5, 0.5]);
-                end
-            end
-        catch plotErr
-            disp('Warning: Error in plotting network edges in MEA layout');
-        end
-    end 
+    end
 end
 
 if strcmp(plotType,'circular')
@@ -173,7 +136,7 @@ if strcmp(plotType,'circular')
     max_ew = 2; % maximum edge width for plotting
     min_ew = 0.001; % min edge width
     light_c = [0.8 0.8 0.8]; % lightest edge colour
-    lineWidth = [];
+    
     adjMtril = tril(adjM,-1);
     [~,linpos] = sort(adjMtril(:));
     [xord,yord] = ind2sub(size(adjMtril),linpos);
@@ -257,540 +220,353 @@ if strcmp(plotType,'circular')
             xco(count,:) = r*cos(theta)+x0;
             yco(count,:) = r*sin(theta)+y0;
             lineWidth(count) = min_ew + (max_ew-min_ew)*((adjM(elecA,elecB)-minNonZeroEdge)/(threshMax-minNonZeroEdge));
-            colour (count,:) = [1 1 1]-(light_c*((adjM(elecA,elecB)-minNonZeroEdge)/(threshMax-minNonZeroEdge)));
+            colour(count,:) = [1 1 1]-(light_c*((adjM(elecA,elecB)-minNonZeroEdge)/(threshMax-minNonZeroEdge)));
         end
     end
     
-    if ~isempty(lineWidth)
-        % threshold the edge width (in case edge values are lower than the
-        % lower display bound) and colours
-        lineWidth(lineWidth < 0) = min_ew;
-        colour(colour > light_c(1)) = light_c(1);
-
+    if count > 0
         [~,order] = sort(colour(:,1),'descend');
         lineWidthT = lineWidth(:,order);
+        % Fix invalid line widths
+        lineWidthT(lineWidthT <= 0 | isnan(lineWidthT) | isinf(lineWidthT)) = min_ew;
         colourT = colour(order,:);
+        % Fix invalid RGB colors
+        colourT(colourT < 0) = 0;
+        colourT(colourT > 1) = 1;
+        colourT(isnan(colourT)) = 0.5;
         xcot = xco(order,:);
         ycot = yco(order,:);
-        
-        % Fix for any invalid color values
         for u = 1:size(xcot,1)
-            % Check for invalid RGB values
-            if any(isnan(colourT(u,:))) || all(colourT(u,:) == 0) || any(colourT(u,:) < 0) || any(colourT(u,:) > 1)
-                colourT(u,:) = [0.5, 0.5, 0.5]; % Use default gray for invalid colors
+            try
+                plot(xcot(u,:),ycot(u,:),'LineWidth',lineWidthT(u),'Color',colourT(u,:));
+            catch
+                % Fallback with safe values if plotting fails
+                plot(xcot(u,:),ycot(u,:),'LineWidth',min_ew,'Color',[0.5 0.5 0.5]);
             end
+            hold on
         end
-        
-        % More robust approach for plotting edges
-        try
-            for u = 1:size(xcot,1)
-                try
-                    plot(xcot(u,:),ycot(u,:),'LineWidth',lineWidthT(u),'Color',colourT(u,:));
-                    hold on
-                catch colorErr
-                    % Fallback if color still causes issues
-                    plot(xcot(u,:),ycot(u,:),'LineWidth',lineWidthT(u),'Color',[0.5, 0.5, 0.5]);
-                    hold on
-                end
-            end
-        catch plotErr
-            disp('Warning: Error in plotting network edges in circular layout');
-        end
-    end 
-end
-%% add nodes (and color them)
-
-if strcmp(z2name, 'Module')
-    mycolours = plasma;
-else
-    mycolours = colormap;
+    end
 end
 
-if isfield(Params, 'useMinMaxBoundsForPlots')
-    if Params.useMinMaxBoundsForPlots
-        % nodeScaleF = max(Params.metricsMinMax.ND); % hard-coding to ND for now because there is no quick fix
-        max_z = nanmax(Params.metricsMinMax.(z2nameToShortHand(zname)));  % to be used in the legend 
-    else
-        % nodeScaleF = max(z);
-        max_z = nanmax(z);
-    end 
-else 
-    % nodeScaleF = max(z);
-    max_z = nanmax(z);
-end 
-
-% Theoretical bounds currently takes prescedence over using minMax bounds
-% for colors
-
-if Params.use_custom_bounds
-    cmap_bounds = Params.network_plot_cmap_bounds.(z2nameToShortHand(z2name));
-    z2_min = cmap_bounds(1);
-    z2_max = cmap_bounds(end);
-    
-    % Any values above maximum bound is set to the allowed max for
-    % plotting purposes 
-    z2(z2 > z2_max) = z2_max;
-    z2(z2 < z2_min) = z2_min; 
-elseif isfield(Params, 'useMinMaxBoundsForPlots')
-    
-    if Params.useMinMaxBoundsForPlots || all(isnan(z2))
-        z2_max = max(Params.metricsMinMax.(z2nameToShortHand(z2name)));
-        z2_min = min(Params.metricsMinMax.(z2nameToShortHand(z2name)));
-        
-        % Any values above maximum bound is set to the allowed max for
-        % plotting purposes 
-        z2(z2 > z2_max) = z2_max;
-    else
-        z2_max = nanmax(z2);
-        z2_min = nanmin(z2);
-    end 
-else 
-    z2_max = nanmax(z2);
-    z2_min = nanmin(z2);
-end 
-
-if z2_max == z2_min
-    z2_min = z2_max - 0.001; % very small number to deal with edge case
-end 
-
+%% add nodes
 
 if strcmp(plotType,'MEA')
-    % 2024-07-16, not sure why this was here...
-    % Seems to cause scaling issues, will replace with max_z for now
-    % uniqueXc = sort(unique(xc));
-    % nodeScaleF = max_z / (uniqueXc(2)-uniqueXc(1)); 
     
-    nodeScaleF = max_z; 
-    
+    count = 0;
     for i = 1:length(adjM)
-        if z(i)>0
-            
-            nodeSize = getNodeSize(z(i), nodeScaleF, Params);
-            
-            pos = [xc(i)-(0.5*nodeSize) yc(i)-(0.5*nodeSize) nodeSize nodeSize];
-            if length(z2) > 1   % deal with z2 is nan due to network size being too small
-                if z2(i)>0
-                    % Calculate node color with error handling
-                    try
-                        colorIndex = ceil(length(mycolours)*((z2(i)-z2_min)/(z2_max-z2_min)) - 0.00001);
-                        % Ensure the color index is valid
-                        if colorIndex < 1
-                            colorIndex = 1;
-                        elseif colorIndex > size(mycolours, 1)
-                            colorIndex = size(mycolours, 1);
-                        end
-                        nodeColor = mycolours(colorIndex,1:3);
-                        
-                        % Check for invalid RGB values
-                        if any(isnan(nodeColor)) || all(nodeColor == 0) || any(nodeColor < 0) || any(nodeColor > 1)
-                            nodeColor = [0.5, 0.5, 0.5]; % Use default gray
-                        end
-                        
-                        rectangle('Position',pos,'Curvature',[1 1],'FaceColor',nodeColor,'EdgeColor','w','LineWidth',0.1);
-                    catch
-                        % Fallback to a safe color if calculation fails
-                        rectangle('Position',pos,'Curvature',[1 1],'FaceColor',[0.5, 0.5, 0.5],'EdgeColor','w','LineWidth',0.1);
-                    end
-                elseif isnan(z2(i))
-                    nodeColor = [0.5, 0.5, 0.5];
-                    rectangle('Position',pos,'Curvature',[1 1],'FaceColor',nodeColor,'EdgeColor','w','LineWidth',0.1)
-                else
-                    nodeColor = mycolours(1,1:3);
-                    rectangle('Position',pos,'Curvature',[1 1],'FaceColor',nodeColor,'EdgeColor','w','LineWidth',0.1)
-                end
-                % Add information about cell type (via circles)
-                if length(cellTypeMatrix) > 1
-                    % edgeColors = {'black', 'blue', 'red', 'yellow', 'magenta'};
-                    edgeColors = {'white', 'white', 'white', 'white', 'white'};
-                    cellTypelineStyles = {'-', '--', ':', '-.', '-'};
-                    cellTypeNodeSizes = linspace(0.9, 0.3, size(cellTypeMatrix, 2)) * nodeSize;
-                    for cellTypeIdx = 1:size(cellTypeMatrix, 2)
-                        if cellTypeMatrix(i, cellTypeIdx) == 1
-                            newNodeSize = cellTypeNodeSizes(cellTypeIdx);
-                            pos = [xc(i)-(0.5*newNodeSize) yc(i)-(0.5*newNodeSize) newNodeSize newNodeSize];
-                            rectangle('Position',pos,'Curvature',[1 1], ...
-                                'FaceColor',nodeColor, ...
-                                'EdgeColor',edgeColors{cellTypeIdx},'LineWidth',1, ...
-                                'LineStyle', cellTypelineStyles{cellTypeIdx})  % orignally 0.1
-                        end
-                    end
-                end
-            end 
+        if sum(isnan(adjM(i,:)))<length(adjM) % ie if the electrodes is not NaN for all
+            count = count + 1;
+            nodeX(count) = xc(i);
+            nodeY(count) = yc(i);
+            val1 = z(i); % value for node size
+            val2 = z2(i); % value for node color
+            if i == 1
+                val1min = val1;
+                val1max = val1;
+                val2min = val2;
+                val2max = val2;
+            else
+                val1min = min(val1min,val1);
+                val1max = max(val1max,val1);
+                val2min = min(val2min,val2);
+                val2max = max(val2max,val2);
+            end
+            nodeSize(count) = val1;
+            nodeColour(count,:) = [val2];
+        end
+    end
+    
+    if ~isempty(nodeSize)
+    
+        % normalise size
+        if val1max ~= val1min
+            nodeScaleN = rescale(nodeSize,5,20,'InputMin',val1min,'InputMax',val1max);
+        else
+            nodeScaleN = 8*ones(1,length(nodeSize));
         end
         
-        % Add channel numbers on top of the nodes
-        if Params.includeChannelNumberInPlots 
-            pos = [xc(i)  yc(i)];
-            text(pos(1), pos(2), sprintf('%.f', Params.netSubsetChannels(i)), ...
-                'HorizontalAlignment','center')
-        end 
-
+        % normalise color
+        if val2max ~= val2min
+            nodeColourN = rescale(nodeColour,0,1,'InputMin',val2min,'InputMax',val2max);
+        else
+            % choose middle of colormap if all the same value
+            nodeColourN = 0.5*ones(length(nodeColour),1);
+        end
+        
+        CM = jet(1000);
+        
+        % nodeColourNew = CM(ceil(nodeColourN*999)+1,:);
+        
+        % index into the colormap - ceil(nodeColourN*999)+1 to handle case where we have 0
+        % this could be a problem if nodeColourN is negative, which it
+        % shouldn't be after rescaling from 0 to 1
+        colorIndices = ceil(nodeColourN*999)+1;
+        
+        % Clamp indices to valid range (1 to 1000) in case there are issues
+        colorIndices(colorIndices < 1) = 1;
+        colorIndices(colorIndices > 1000) = 1000;
+        colorIndices(isnan(colorIndices)) = 1; % Use first color for NaN
+        
+        nodeColourNew = CM(colorIndices,:);
+        
+        for i = 1:length(nodeSize)
+            % rounding nodeScaleN to avoid MATLAB warnings
+            pos = [nodeX(i)-(round(nodeScaleN(i),4)/2) nodeY(i)-(round(nodeScaleN(i),4)/2) round(nodeScaleN(i),4) round(nodeScaleN(i),4)];
+            try
+                rectangle('Position',pos,'Curvature',[1 1],'FaceColor',nodeColourNew(i,:),'EdgeColor','k','LineWidth',0.1)
+            catch
+                % Use default gray if there's a problem with the color
+                rectangle('Position',pos,'Curvature',[1 1],'FaceColor',[0.5 0.5 0.5],'EdgeColor','k','LineWidth',0.1)
+            end
+            
+            if Params.includeChannelNumberInPlots
+                text(pos(1), pos(2), sprintf('%.f', i), ...
+                    'HorizontalAlignment','center')
+            end 
+            
+        end
+        
+        ylim([min(yc)-1 max(yc)+1])
+        xlim([min(xc)-1 max(xc)+3.75])
+        
+        % colourbar scaled for the node colour
+        a = colorbar;
+        colorbar_handle = a; % set return value
+        colormap(jet);
+        ylabel(a,z2name,'FontSize',12)
+        
+        % Check for valid min/max values before setting color axis
+        if isfinite(val2min) && isfinite(val2max) && val2min < val2max
+            caxis([val2min val2max])
+        elseif isfinite(val2min) && isfinite(val2max) && val2min == val2max
+            % Handle case where min == max (use small offset)
+            caxis([val2min-0.1, val2max+0.1])
+        else
+            % Default fallback for invalid values
+            caxis([0 1])
+        end
+        
+        % also add a legend for the node sizes
+        % add 3 circles to the 
+        bufferX = 8; 
+        largeESize = 20;
+        medESize = 12.5;
+        smallESize = 5;
+        % the circles are positioned at the right edge of the graph, 
+        % with the smaller circles slightly lowered, so it's more aesthetically pleasing
+        largeNodePosX = max(xc) + bufferX - largeESize/2;
+        largeNodePosY = (max(yc)+min(yc))/2 - largeESize/2;
+        medNodePosX = largeNodePosX + 3;
+        medNodePosY = largeNodePosY + 3;
+        smallNodePosX = medNodePosX + 2;
+        smallNodePosY = medNodePosY + 3;
+        
+        % convert the large node size to the original scale
+        largeNodeOriginalScale = (largeESize - 5) * (val1max - val1min) / (20 - 5) + val1min;
+        medNodeOriginalScale = (medESize - 5) * (val1max - val1min) / (20 - 5) + val1min;
+        smallNodeOriginalScale = (smallESize - 5) * (val1max - val1min) / (20 - 5) + val1min;
+        
+        % some more aesthetically pleasing positioning for the text
+        largeNodeTextX = max(xc) + bufferX + 1;
+        largeNodeTextY = largeNodePosY + 6;
+        medNodeTextX = medNodePosX + 1;
+        medNodeTextY = medNodePosY + 3;
+        smallNodeTextX = smallNodePosX + 1;
+        smallNodeTextY = smallNodePosY + 0;
+        
+        titleText = [zname ' scale:'];
+        titleTextPosX = largeNodeTextX - 5;
+        titleTextPosY = largeNodeTextY + 3;
+        
+        % plot color and position of circles
+        largeNodeColour = [0 0 0];
+        text(titleTextPosX, titleTextPosY, titleText);
+        rectangle('Position', [largeNodePosX, largeNodePosY, largeESize, largeESize], ...
+            'Curvature', [1, 1], 'FaceColor', largeNodeColour);
+        text(largeNodeTextX, largeNodeTextY, ['Max = ' num2str(largeNodeOriginalScale)]);
+        
+        medNodeColour = [0.3 0.3 0.3];
+        rectangle('Position', [medNodePosX, medNodePosY, medESize, medESize], ... 
+            'Curvature', [1, 1], 'FaceColor', medNodeColour);
+        text(medNodeTextX, medNodeTextY, ['Med = ' num2str(medNodeOriginalScale)]);
+        
+        smallNodeColour = [0.5 0.5 0.5];
+        rectangle('Position', [smallNodePosX, smallNodePosY, smallESize, smallESize], ... 
+            'Curvature', [1, 1], 'FaceColor', smallNodeColour);
+        text(smallNodeTextX, smallNodeTextY, ['Min = ' num2str(smallNodeOriginalScale)]);
+    
+    else
+        colorbar_handle = []; % Empty handle if no nodes to plot
     end
-    ylim([min(yc)-1 max(yc)+1])
-    xlim([min(xc)-1 max(xc)+4.25])
+else
+    colorbar_handle = []; % Default empty handle
 end
 
 if strcmp(plotType,'circular')
     
-    if isfield(Params, 'useMinMaxBoundsForPlots')
-        if Params.useMinMaxBoundsForPlots
-            max_z = max(Params.metricsMinMax.(z2nameToShortHand(zname))); % to be used in the legend 
-        else
-            max_z = max(z);
-        end 
-    else 
-        max_z = max(z);
-    end 
-    
-    circularPlotScaleFactor = 1; % arbitrary number to adjust min node size
-    % circularNodeScaleF = max_z * circularPlotScaleFactor; 
-    nodeScaleF = max_z / sqrt((abs(cos(t(1))-cos(t(2))))^2 + (abs(sin(t(1))-sin(t(2))))^2);
-    
+    count = 0;
     for i = 1:length(adjM)
-        if z(i)>0
-            nodeSize = max(Params.minNodeSize/circularPlotScaleFactor, z(i)/nodeScaleF);
-            pos = [cos(t(i))-(0.5*nodeSize) sin(t(i))-(0.5*nodeSize) nodeSize nodeSize];
-            if z2(i)>0
-                try
-                    % Calculate color index with bounds checking
-                    colorIndex = ceil(length(mycolours)*((z2(i)-z2_min)/(z2_max-z2_min)));
-                    if colorIndex < 1
-                        colorIndex = 1;
-                    elseif colorIndex > size(mycolours, 1)
-                        colorIndex = size(mycolours, 1);
-                    end
-                    nodeColor = mycolours(colorIndex, 1:3);
-                    
-                    % Check for invalid RGB values
-                    if any(isnan(nodeColor)) || all(nodeColor == 0) || any(nodeColor < 0) || any(nodeColor > 1)
-                        nodeColor = [0.5, 0.5, 0.5]; % Use default gray
-                    end
-                    
-                    rectangle('Position',pos,'Curvature',[1 1],'FaceColor',nodeColor,'EdgeColor','w','LineWidth',0.1);
-                catch
-                    % Fallback to a safe color if calculation fails
-                    rectangle('Position',pos,'Curvature',[1 1],'FaceColor',[0.5, 0.5, 0.5],'EdgeColor','w','LineWidth',0.1);
-                end
+        if sum(isnan(adjM(i,:)))<length(adjM) % ie if the electrodes is not NaN for all
+            count = count + 1;
+            nodeX(count) = cos(t(i));
+            nodeY(count) = sin(t(i));
+            val1 = z(i); % value for node size
+            val2 = z2(i); % value for node color
+            if i == 1
+                val1min = val1;
+                val1max = val1;
+                val2min = val2;
+                val2max = val2;
             else
-                rectangle('Position',pos,'Curvature',[1 1],'FaceColor',mycolours(1,1:3),'EdgeColor','w','LineWidth',0.1)
+                val1min = min(val1min,val1);
+                val1max = max(val1max,val1);
+                val2min = min(val2min,val2);
+                val2max = max(val2max,val2);
             end
-            
-            % add channel number 
-            if Params.includeChannelNumberInPlots 
-                text(pos(1), pos(2), sprintf('%.f', Params.netSubsetChannels(i)), ...
-                'HorizontalAlignment','center')
-            end
+            nodeSize(count) = val1;
+            nodeColour(count,:) = [val2];
         end
     end
-    ylim([-1.1 1.1])
-    xlim([-1.1 2])
+    
+    if ~isempty(nodeSize)
+    
+        % normalise size
+        if val1max ~= val1min
+            nodeScaleN = rescale(nodeSize,0.1,0.3,'InputMin',val1min,'InputMax',val1max);
+        else
+            nodeScaleN = 0.15*ones(1,length(nodeSize));
+        end
+        
+        % normalise color
+        if val2max ~= val2min
+            nodeColourN = rescale(nodeColour,0,1,'InputMin',val2min,'InputMax',val2max);
+        else
+            % choose middle of colormap if all the same value
+            nodeColourN = 0.5*ones(length(nodeColour),1);
+        end
+        
+        CM = jet(1000);
+        
+        % handle potential issues with indices
+        colorIndices = ceil(nodeColourN*999)+1;
+        colorIndices(colorIndices < 1) = 1;
+        colorIndices(colorIndices > 1000) = 1000;
+        colorIndices(isnan(colorIndices)) = 1; % Use first color for NaN
+        
+        nodeColourNew = CM(colorIndices,:);
+        
+        for i = 1:length(nodeSize)
+            pos = [nodeX(i)-nodeScaleN(i) nodeY(i)-nodeScaleN(i) 2*nodeScaleN(i) 2*nodeScaleN(i)];
+            try
+                rectangle('Position',pos,'Curvature',[1 1],'FaceColor',nodeColourNew(i,:),'EdgeColor','k','LineWidth',0.1)
+            catch
+                % Use default gray if there's a problem with the color
+                rectangle('Position',pos,'Curvature',[1 1],'FaceColor',[0.5 0.5 0.5],'EdgeColor','k','LineWidth',0.1)
+            end
+            
+            if Params.includeChannelNumberInPlots
+                text(pos(1), pos(2), sprintf('%.f', i), ...
+                    'HorizontalAlignment','center')
+            end
+        end
+        
+        ylim([-1.1 1.1])
+        xlim([-1.1 1.9])
+        
+        % colourbar scaled for the node colour
+        a = colorbar;
+        colorbar_handle = a; % set return value 
+        colormap(jet);
+        if ~isempty(z2name)
+            ylabel(a,z2name,'FontSize',12)
+        end
+        
+        % Check for valid min/max values before setting color axis
+        if isfinite(val2min) && isfinite(val2max) && val2min < val2max
+            caxis([val2min val2max])
+        elseif isfinite(val2min) && isfinite(val2max) && val2min == val2max
+            % Handle case where min == max (use small offset)
+            caxis([val2min-0.1, val2max+0.1])
+        else
+            % Default fallback for invalid values
+            caxis([0 1])
+        end
+        
+        % also add a legend for the node sizes
+        % add 3 circles to the 
+        bufferX = 1.5; 
+        largeESize = 0.3;
+        medESize = 0.2;
+        smallESize = 0.1;
+        % the circles are positioned at the right edge of the graph, 
+        % with the smaller circles slightly lowered, so it's more aesthetically pleasing
+        largeNodePosX = bufferX - largeESize;
+        largeNodePosY = 0.8 - largeESize;
+        medNodePosX = largeNodePosX;
+        medNodePosY = 0.5 - medESize;
+        smallNodePosX = largeNodePosX;
+        smallNodePosY = 0.2 - smallESize;
+        
+        % convert the large node size to the original scale
+        largeNodeOriginalScale = (largeESize - 0.1) * (val1max - val1min) / (0.3 - 0.1) + val1min;
+        medNodeOriginalScale = (medESize - 0.1) * (val1max - val1min) / (0.3 - 0.1) + val1min;
+        smallNodeOriginalScale = (smallESize - 0.1) * (val1max - val1min) / (0.3 - 0.1) + val1min;
+        
+        % some more aesthetically pleasing positioning for the text
+        largeNodeTextX = largeNodePosX + (2 * largeESize) + 0.03;
+        largeNodeTextY = largeNodePosY + largeESize;
+        medNodeTextX = medNodePosX + (2 * medESize) + 0.03;
+        medNodeTextY = medNodePosY + medESize;
+        smallNodeTextX = smallNodePosX + (2 * smallESize) + 0.03;
+        smallNodeTextY = smallNodePosY + smallESize;
+        
+        titleText = [zname ' scale:'];
+        titleTextPosX = largeNodePosX;
+        titleTextPosY = largeNodePosY + (2 * largeESize) + 0.02;
+        
+        % plot color and position of circles
+        largeNodeColour = [0 0 0];
+        text(titleTextPosX, titleTextPosY, titleText);
+        rectangle('Position', [largeNodePosX, largeNodePosY, 2*largeESize, 2*largeESize], ...
+            'Curvature', [1, 1], 'FaceColor', largeNodeColour);
+        text(largeNodeTextX, largeNodeTextY, ['Max = ' num2str(largeNodeOriginalScale)]);
+        
+        medNodeColour = [0.3 0.3 0.3];
+        rectangle('Position', [medNodePosX, medNodePosY, 2*medESize, 2*medESize], ... 
+            'Curvature', [1, 1], 'FaceColor', medNodeColour);
+        text(medNodeTextX, medNodeTextY, ['Med = ' num2str(medNodeOriginalScale)]);
+        
+        smallNodeColour = [0.5 0.5 0.5];
+        rectangle('Position', [smallNodePosX, smallNodePosY, 2*smallESize, 2*smallESize], ... 
+            'Curvature', [1, 1], 'FaceColor', smallNodeColour);
+        text(smallNodeTextX, smallNodeTextY, ['Min = ' num2str(smallNodeOriginalScale)]);
+    
+    else
+        colorbar_handle = []; % Empty handle if no nodes to plot
+    end
+else
+    % This would be for a different plot type - not implemented
+    colorbar_handle = []; % Default empty handle
 end
 
 set(gca,'color','none')
 
-
-%% format plot : LEGENDS
-
-% if round(max_z * 1/3) >= 1
-%     eval(['legdata = [''' num2str(round(max_z * 1/3),'%02d') '''; ''' num2str(round(max_z * 2/3),'%02d') '''; ''' num2str(round(max_z),'%02d') '''];']); % data for the legend
-% elseif round(max_z * 1/3) < 1
-%     eval(['legdata = [''' num2str(round(max_z * 1/3,4),'%.4f') '''; ''' num2str(round(max_z * 2/3,4),'%.4f') '''; ''' num2str(round(max_z,4),'%.4f') '''];']);
-% end
-
-legdata = {};
-legendNumDivisor = 3;
-edgeWeightLegendDecimalPlaces = 3;
-if round(max_z * 1/3) >= 1
-    roundStr = '%02d';
-    numDeciPlace = 0;
-else
-    roundStr = '%.4f'; 
-    numDeciPlace = 4;
-end
-
-for divisor = 1:legendNumDivisor
-    legdata{divisor} = num2str(round(max_z * divisor / legendNumDivisor, numDeciPlace), roundStr);
-end
-legdata = char(legdata);
-
-
-if strcmp(plotType,'MEA')
-    
-    % Z METRIC LEGEND 
-    text(max(xc)+1.5,max(yc),strcat(zname,':'))
-
-    legItem1NodeSize = getNodeSize(str2num(legdata(1,:)), nodeScaleF, Params);
-    legItem2NodeSize = getNodeSize(str2num(legdata(2,:)), nodeScaleF, Params);
-    legItem3NodeSize = getNodeSize(str2num(legdata(3,:)), nodeScaleF, Params);
-    
-    legItem1NodeYloc = max(yc) - 1;
-    legItem2NodeYloc = max(yc) -1 - (0.5 * str2num(legdata(2,:))/ nodeScaleF + 1.5 * str2num(legdata(1,:))/nodeScaleF);
-    legItem3NodeYloc = (max(yc)-1)-(0.5*str2num(legdata(3,:))/nodeScaleF+str2num(legdata(2,:))/nodeScaleF+2.5*str2num(legdata(1,:))/nodeScaleF);
-    
-    legItem1TextYloc = legItem1NodeYloc + legItem1NodeSize/2;
-    legItem2TextYloc = legItem2NodeYloc + legItem2NodeSize/2;
-    legItem3TextYloc = legItem3NodeYloc + legItem3NodeSize/2;
-    
-    pos = [(max(xc)+2)-legItem1NodeSize/2, ...
-           legItem1NodeYloc, ...
-           legItem1NodeSize, ...
-           legItem1NodeSize];
-    rectangle('Position',pos,'Curvature',[1 1],'FaceColor',[1 1 1],'EdgeColor','k','LineWidth',0.5);
-    text(max(xc)+3, legItem1TextYloc, legdata(1,:))
-    
-    pos = [(max(xc)+2)-legItem2NodeSize/2, ...
-           legItem2NodeYloc, ...
-           legItem2NodeSize, ...
-           legItem2NodeSize];
-    rectangle('Position',pos,'Curvature',[1 1],'FaceColor',[1 1 1],'EdgeColor','k','LineWidth',0.5);
-    text(max(xc)+3, legItem2TextYloc, legdata(2,:))
-    
-    pos = [(max(xc)+2)-legItem3NodeSize/2, ...
-            legItem3NodeYloc, ...
-            legItem3NodeSize, ...
-            legItem3NodeSize];
-        
-    rectangle('Position',pos,'Curvature',[1 1],'FaceColor',[1 1 1],'EdgeColor','k','LineWidth',0.5);
-    text(max(xc)+3, legItem3TextYloc, legdata(3,:))
-    
-    % EDGE WEIGHT LEGEND
-    text(max(xc)+1.5,max(yc)-(4*str2num(legdata(3,:))/nodeScaleF),'edge weight:')
-    
-    range = threshMax - minNonZeroEdge;
-    if range == 0 
-        range = threshMax - min_ew;
-        minNonZeroEdge = min_ew;
-    end 
-    
-    lineWidthL = min_ew + (max_ew-min_ew)*(((threshMax-2/3*range)-minNonZeroEdge)/(threshMax-minNonZeroEdge));
-    colourL = [1 1 1]-(light_c*(((threshMax-2/3*range)-minNonZeroEdge)/(threshMax-minNonZeroEdge)));
-    
-    posx = [max(xc)+1.5 max(xc)+2.5];
-    posy = [max(yc)-(5*str2num(legdata(3,:))/nodeScaleF) max(yc)-(5*str2num(legdata(3,:))/nodeScaleF)];
-    plot(posx,posy,'LineWidth',lineWidthL,'Color',colourL);
-    text(max(xc)+3,max(yc)-(5*str2num(legdata(3,:))/nodeScaleF),num2str(round(threshMax-2/3*range,edgeWeightLegendDecimalPlaces)))
-    
-    lineWidthL = min_ew + (max_ew-min_ew)*(((threshMax-1/3*range)-minNonZeroEdge)/(threshMax-minNonZeroEdge));
-    colourL = [1 1 1]-(light_c*(((threshMax-1/3*range)-minNonZeroEdge)/(threshMax-minNonZeroEdge)));
-        
-    posx = [max(xc)+1.5 max(xc)+2.5];
-    posy = [max(yc)-(6*str2num(legdata(3,:))/nodeScaleF) max(yc)-(6*str2num(legdata(3,:))/nodeScaleF)];
-    plot(posx,posy,'LineWidth',lineWidthL,'Color',colourL);
-    text(max(xc)+3,max(yc)-(6*str2num(legdata(3,:))/nodeScaleF),num2str(round(threshMax-1/3*range,edgeWeightLegendDecimalPlaces)))
-    
-    lineWidthL = min_ew + (max_ew-min_ew)*(((threshMax)-minNonZeroEdge)/(threshMax-minNonZeroEdge));
-    colourL = [1 1 1]-(light_c*(((threshMax)-minNonZeroEdge)/(threshMax-minNonZeroEdge)));
-    
-    posx = [max(xc)+1.5 max(xc)+2.5];
-    posy = [max(yc)-(7*str2num(legdata(3,:))/nodeScaleF) max(yc)-(7*str2num(legdata(3,:))/nodeScaleF)];
-    plot(posx,posy,'LineWidth',lineWidthL,'Color',colourL);
-    text(max(xc)+3,max(yc)-(7*str2num(legdata(3,:))/nodeScaleF),num2str(round(threshMax,edgeWeightLegendDecimalPlaces)))
-    
-    % set axis range 
-    max_xc_yc = max([xc; yc]);
-    min_xc_yc = min([xc; yc]);
-    
-    ylim([min_xc_yc-1 max_xc_yc+1])
-    xlim([min_xc_yc-1 max_xc_yc+3.75])
-    
-    cb = colorbar;
-    cb.Ticks = [0 0.2 0.4 0.6 0.8 1];
-    
-    % This is the line that specifies the cmap labels 
-
-    cbar_ticklabels = {};
-    num_ticks = length(cb.Ticks);
-    
-   tickVals = linspace(z2_min, z2_max, num_ticks);
-   round_decimal_places = ceil(-log10(z2_max - z2_min)) + 1;
-   
-   if min(z2) == 0 && max(z2) == 0
-        % fix for when all values are zeros
-        cbar_ticklabels = {'0', '1'};
-   elseif isnan(z2_min) && isnan(z2_max)
-       cbar_ticklabels = {'0', '1'};
-   else
-       for tickIndex = 1:num_ticks
-           cbar_ticklabels{tickIndex} = num2str(round(tickVals(tickIndex), round_decimal_places));
-       end 
-   end 
-    
-    cb.TickLabels = cbar_ticklabels;
-    cb.Label.String = z2name;
-    % cb.Position = [0.9, 0.11, 0.029, 0.81];
-    
-    % Cell type legend
-    if length(cellTypeMatrix) > 1
-        nodeLegendColor = [0.020 0.729 0.859];
-        cellTypeLegendXpos = linspace(0, 8, length(cellTypeNames));
-        cellTypeNodeSizes = linspace(0.9, 0.3, size(cellTypeMatrix, 2)) * legItem2NodeSize;
-        cellTypeLegendYpos = -0.8;
-        for cellTypeIdx = 1:length(cellTypeNames)
-            pos = [cellTypeLegendXpos(cellTypeIdx) - 0.5 * legItem2NodeSize, ...
-                   cellTypeLegendYpos - 0.5 * legItem2NodeSize, ...
-                    legItem2NodeSize, legItem2NodeSize];
-            rectangle('Position',pos,'Curvature',[1 1],'FaceColor',nodeLegendColor,'EdgeColor','w','LineWidth',0.1);
-            newNodeSize = cellTypeNodeSizes(cellTypeIdx);
-            innerCirclepos = [cellTypeLegendXpos(cellTypeIdx) - (0.5*newNodeSize) ...
-                              cellTypeLegendYpos - (0.5*newNodeSize) ... 
-                              newNodeSize newNodeSize];
-            rectangle('Position',innerCirclepos,'Curvature',[1 1],'FaceColor',[0.020 0.729 0.859], ...
-                       'EdgeColor',edgeColors{cellTypeIdx},'LineWidth',1, ...
-                        'LineStyle', cellTypelineStyles{cellTypeIdx}) 
-            text(cellTypeLegendXpos(cellTypeIdx) + 0.4, cellTypeLegendYpos, cellTypeNames{cellTypeIdx})
-        end
-    end
-    
-    % turn off clipping
-    ax = gca;
-    ax.Clipping = "off";
-end
-
-if strcmp(plotType,'circular')
-    
-    text(1.4,0.9,strcat(zname,':'))
-    
-    
-    pos = [1.45-(str2num(legdata(1,:))/nodeScaleF)/2 0.9-0.25 str2num(legdata(1,:))/nodeScaleF str2num(legdata(1,:))/nodeScaleF];
-    rectangle('Position',pos,'Curvature',[1 1],'FaceColor',[1 1 1],'EdgeColor','k','LineWidth',0.5);
-    text(1.6,(0.9-0.25)+(0.5*str2num(legdata(1,:))/nodeScaleF),legdata(1,:))
-    
-    pos = [1.45-(str2num(legdata(2,:))/nodeScaleF)/2 (0.9-0.25)-(0.5*str2num(legdata(2,:))/nodeScaleF+3*str2num(legdata(1,:))/nodeScaleF) str2num(legdata(2,:))/nodeScaleF str2num(legdata(2,:))/nodeScaleF];
-    rectangle('Position',pos,'Curvature',[1 1],'FaceColor',[1 1 1],'EdgeColor','k','LineWidth',0.5);
-    text(1.6,(0.9-0.25)-(3*str2num(legdata(1,:))/nodeScaleF),legdata(2,:))
-    
-    pos = [1.45-(str2num(legdata(3,:))/nodeScaleF)/2 (0.9-0.25)-(0.5*str2num(legdata(3,:))/nodeScaleF+str2num(legdata(2,:))/nodeScaleF+5.5*str2num(legdata(1,:))/nodeScaleF) str2num(legdata(3,:))/nodeScaleF str2num(legdata(3,:))/nodeScaleF];
-    rectangle('Position',pos,'Curvature',[1 1],'FaceColor',[1 1 1],'EdgeColor','k','LineWidth',0.5);
-    text(1.6,(0.9-0.25)-(str2num(legdata(2,:))/nodeScaleF+5.5*str2num(legdata(1,:))/nodeScaleF),legdata(3,:))
-    
-    
-    
-    range = threshMax - minNonZeroEdge;
-    
-    lineWidthL = min_ew + (max_ew-min_ew) * ((threshMax - 2/3*range -minNonZeroEdge) / (threshMax-minNonZeroEdge));
-    
-    colourL = [1 1 1] - light_c * ( (threshMax - 2/3*range - minNonZeroEdge) / (threshMax-minNonZeroEdge) );
-    posx = [1.4 1.6];
-    
-    edgeWeightLabelStartYPos = 0.9; % originally 0.9 - 0.25;
-    text(1.4, edgeWeightLabelStartYPos - (7*str2num(legdata(3,:))/nodeScaleF),'edge weight:');
-    edgeWeightLabelYPos_1 = edgeWeightLabelStartYPos - (9*str2num(legdata(3,:))/nodeScaleF);
-    edgeWeightLabelYPos_2 = edgeWeightLabelStartYPos - (10.5*str2num(legdata(3,:))/nodeScaleF);
-    edgeWeightLabelYPos_3 = edgeWeightLabelStartYPos - (12*str2num(legdata(3,:))/nodeScaleF);
-    
-    posy = [edgeWeightLabelYPos_1 edgeWeightLabelYPos_1];
-    
-    plot(posx,posy,'LineWidth',lineWidthL,'Color',colourL);
-    text(1.7, edgeWeightLabelYPos_1, num2str(round(threshMax-2/3*range,4)))
-    
-    lineWidthL = min_ew + (max_ew-min_ew)*(((threshMax-1/3*range)-minNonZeroEdge)/(threshMax-minNonZeroEdge));
-    colourL = [1 1 1] - light_c * ( (threshMax-1/3*range-minNonZeroEdge)/(threshMax-minNonZeroEdge) );
-    posx = [1.4 1.6];
-    posy = [edgeWeightLabelYPos_2 edgeWeightLabelYPos_2];
-    plot(posx,posy,'LineWidth',lineWidthL,'Color',colourL);
-    text(1.7, edgeWeightLabelYPos_2, num2str(round(threshMax-1/3*range,4)))
-    
-    lineWidthL = min_ew + (max_ew-min_ew)*(((threshMax)-minNonZeroEdge)/(threshMax-minNonZeroEdge));
-    colourL = [1 1 1]-(light_c*(((threshMax)-minNonZeroEdge)/(threshMax-minNonZeroEdge)));
-    posx = [1.4 1.6];
-    posy = [edgeWeightLabelYPos_3 edgeWeightLabelYPos_3];
-    plot(posx,posy,'LineWidth',lineWidthL,'Color',colourL);
-    text(1.7, edgeWeightLabelYPos_3, num2str(round(threshMax,4)))
-    
-    
-    if ~strcmp(z2name, 'Module')
-        % COLORBAR
-        cb = colorbar;
-        cb.Ticks = [0 0.2 0.4 0.6 0.8 1]; % Specify the tick location
-
-        cbar_ticklabels = {};
-        num_ticks = length(cb.Ticks);
-        round_decimal_places = ceil(-log10(max(z2) - min(z2))) + 1;
-        tickVals = linspace(min(z2), max(z2), num_ticks);
-
-        if min(z2) == 0 && max(z2) == 0
-            % fix for when all values are zeros
-            cbar_ticklabels = {'0', '1'};
-        else
-            for tickIndex = 1:num_ticks
-                cbar_ticklabels{tickIndex} = num2str(round(tickVals(tickIndex), round_decimal_places));
-            end 
-        end 
-
-        cb.TickLabels = cbar_ticklabels;
-        cb.Label.String = z2name;
-    else
-        % No Colorbar for modules, instead just plot some circles 
-        moduleLabelYpos = -0.85;
-        text(1.4,moduleLabelYpos,'Module')
-        module_legend_x_start_end = [1.2, 1.8];
-        uniqueModules = unique(z2);  % module number 0 = does not belong to any modules
-        numModules = length(uniqueModules); 
-        moduleCircleSize = (module_legend_x_start_end(2) - module_legend_x_start_end(1)) / numModules * 0.8;
-        moduleCircleCenters = linspace(module_legend_x_start_end(1), module_legend_x_start_end(2), numModules);
-   
-        for moduleIdx = 1:numModules
-            circlePos = [moduleCircleCenters(moduleIdx), moduleLabelYpos-0.2, moduleCircleSize, moduleCircleSize];
-            moduleNumber = uniqueModules(moduleIdx);
-            if moduleNumber > 0
-                try
-                    % Calculate color index with bounds checking
-                    colorIndex = max([ceil(length(mycolours)*((moduleNumber-z2_min)/(z2_max-z2_min))), 1]);
-                    if colorIndex > size(mycolours, 1)
-                        colorIndex = size(mycolours, 1);
-                    end
-                    nodeColor = mycolours(colorIndex,1:3);
-                    
-                    % Check for invalid RGB values
-                    if any(isnan(nodeColor)) || all(nodeColor == 0) || any(nodeColor < 0) || any(nodeColor > 1)
-                        nodeColor = [0.5, 0.5, 0.5]; % Use default gray
-                    end
-                    
-                    rectangle('Position',circlePos,'Curvature',[1 1],...
-                    'FaceColor',nodeColor, ...
-                    'EdgeColor','w','LineWidth',0.01);
-                    text(circlePos(1)+circlePos(3)/2,circlePos(2)+circlePos(4)/2, ...
-                    num2str(moduleNumber),'HorizontalAlignment','center');
-                catch
-                    % Fallback if color calculation fails
-                    rectangle('Position',circlePos,'Curvature',[1 1],...
-                    'FaceColor',[0.5, 0.5, 0.5], ...
-                    'EdgeColor','w','LineWidth',0.01);
-                    text(circlePos(1)+circlePos(3)/2,circlePos(2)+circlePos(4)/2, ...
-                    num2str(moduleNumber),'HorizontalAlignment','center');
-                end
-            end 
-        end
-    end
-    
-end
-
 %% save figure
-figName = strcat([pNum,'_',plotType,'_NetworkPlot',zname,z2name]);
-figName = strrep(figName, ' ', '');
+
+figName = strcat([pNum,'_',plotType,'_',zname,'_',z2name]);
 figPath = fullfile(figFolder, figName);
 
-if saveFigure
-    if exist('figureHandle', 'var')
-        pipelineSaveFig(figPath, Params.figExt, Params.fullSVG, figureHandle);
-    elseif ~isfield(Params, 'oneFigure')
-        pipelineSaveFig(figPath, Params.figExt, Params.fullSVG, F1);
-    else 
-        pipelineSaveFig(figPath, Params.figExt, Params.fullSVG, Params.oneFigure);
-    end 
-end
-
-
-
-%  output figure handle 
-if exist('figureHandle', 'var')
-    % do nothing
-elseif ~isfield(Params, 'oneFigure')
-    figureHandle = F1;
+if Params.showOneFig
+    pipelineSaveFig(figPath, Params.figExt, Params.fullSVG, figureHandle);
 else 
-    figureHandle = Params.oneFigure;
+    pipelineSaveFig(figPath, Params.figExt, Params.fullSVG);
 end 
 
-
+if ~Params.showOneFig
+    close all
+else 
+    set(0, 'CurrentFigure', figureHandle);
+    clf reset
+end 
 
 end

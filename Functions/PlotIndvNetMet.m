@@ -293,33 +293,68 @@ for e = 1:length(lagval)
             h(1) = subplot(1, 2, 1);
             axis off
             h(2) = subplot(1, 2, 2);
-            if ~sum(isnan(colorMapMetricsToPlot{networkPlotIdx}))
+            if ~sum(isnan(colorMapMetricsToPlot{networkPlotIdx})) && ~isempty(cbOriginal) && isgraphics(cbOriginal)
                 h1cbar = colorbar(h(1));
-                h1cbar.Location = cbOriginal.Location;
-                h1cbar.Limits = cbOriginal.Limits;
-                h1cbar.Label.String = cbOriginal.Label.String; 
-                h1cbar.Units = cbOriginal.Units;
-                h1cbar.Ticks = cbOriginal.Ticks;
-                h1cbar.TickLabels = cbOriginal.TickLabels;
+                if isfield(cbOriginal, 'Location')
+                    h1cbar.Location = cbOriginal.Location;
+                end
+                if isfield(cbOriginal, 'Limits')
+                    h1cbar.Limits = cbOriginal.Limits;
+                end
+                if isfield(cbOriginal, 'Label') && isfield(cbOriginal.Label, 'String')
+                    h1cbar.Label.String = cbOriginal.Label.String; 
+                end
+                if isfield(cbOriginal, 'Units')
+                    h1cbar.Units = cbOriginal.Units;
+                end
+                if isfield(cbOriginal, 'Ticks')
+                    h1cbar.Ticks = cbOriginal.Ticks;
+                end
+                if isfield(cbOriginal, 'TickLabels')
+                    h1cbar.TickLabels = cbOriginal.TickLabels;
+                end
                 
-                h2cbar = colorbar(h(2));
-               
-                h2cbar.Location = cbScaled.Location; 
-                h2cbar.Limits = cbScaled.Limits;
-                h2cbar.Label.String = cbScaled.Label.String;
-                h2cbar.Units = cbScaled.Units;
-                h2cbar.Ticks = cbScaled.Ticks;
-                h2cbar.TickLabels = cbScaled.TickLabels;
+                if ~isempty(cbScaled) && isgraphics(cbScaled)
+                    h2cbar = colorbar(h(2));
+                    
+                    if isfield(cbScaled, 'Location')
+                        h2cbar.Location = cbScaled.Location;
+                    end
+                    if isfield(cbScaled, 'Limits')
+                        h2cbar.Limits = cbScaled.Limits;
+                    end
+                    if isfield(cbScaled, 'Label') && isfield(cbScaled.Label, 'String')
+                        h2cbar.Label.String = cbScaled.Label.String;
+                    end
+                    if isfield(cbScaled, 'Units')
+                        h2cbar.Units = cbScaled.Units;
+                    end
+                    if isfield(cbScaled, 'Ticks')
+                        h2cbar.Ticks = cbScaled.Ticks;
+                    end
+                    if isfield(cbScaled, 'TickLabels')
+                        h2cbar.TickLabels = cbScaled.TickLabels;
+                    end
+                end
             end 
             axis off
             
-            copyobj(allchild(get(figureHandleOriginal, 'Currentaxes')), h(1)); 
-            copyobj(allchild(get(figureHandleScaled, 'Currentaxes')), h(2)); 
+            if isgraphics(figureHandleOriginal) && ~isempty(get(figureHandleOriginal, 'Currentaxes'))
+                copyobj(allchild(get(figureHandleOriginal, 'Currentaxes')), h(1));
+            end
+            
+            if isgraphics(figureHandleScaled) && ~isempty(get(figureHandleScaled, 'Currentaxes'))
+                copyobj(allchild(get(figureHandleScaled, 'Currentaxes')), h(2));
+            end
             
             if ~sum(isnan(colorMapMetricsToPlot{networkPlotIdx}))
                % The default doesn't work sometimes, so hard-coding it now
-               h1cbar.Position = [0.51, 0.1109, 0.0123, 0.8145];
-               h2cbar.Position = [0.95, 0.1109, 0.0123, 0.8145];
+               if exist('h1cbar', 'var')
+                   h1cbar.Position = [0.51, 0.1109, 0.0123, 0.8145];
+               end
+               if exist('h2cbar', 'var')
+                   h2cbar.Position = [0.95, 0.1109, 0.0123, 0.8145];
+               end
             end
             %}
             
