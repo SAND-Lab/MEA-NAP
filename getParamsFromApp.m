@@ -329,9 +329,21 @@ Params.twopActivity = app.ActivityDropDown.Value;
 Params.twopRedoDenoising = app.RedodenoisingCheckBox.Value;
 Params.removeNodesWithNoPeaks = app.RemovenodeswithnopeaksCheckBox.Value;
 Params.num2ptraces = app.CellstoplotperrecordingEditField.Value;
+Params.twopDenoisingThreshold = app.DenoisingthresholdEditField.Value;
+Params.twopDenoisingTimeBeforePeak = app.TimebeforepeaksEditField.Value;
+Params.twopDenoisingTimeAfterPeak =  app.TimeafterpeaksEditField.Value;
 
 %% Stimulation analysis 
 Params.stimulationMode = app.StimulationmodeCheckBox.Value;
+Params.automaticStimDetection = app.AutomaticstimdetectionCheckBox.Value;
+Params.stimDetectionMethod = app.StimdetectionmethodDropDown.Value;
+Params.stimDetectionVal = app.DetectionthresholdmultiplierEditField.Value;
+Params.stimRefractoryPeriod = app.StimrefractoryperiodsEditField.Value;
+Params.stimDuration = app.StimdurationsEditField.Value;
+Params.stimDurationForPlotting = app.StimdurationforplotssEditField.Value;
+Params.preStimWindow = str2num(app.PrestimwindowsEditField.Value);
+Params.postStimWindow = str2num(app.PoststimwindowsEditField.Value);
+
 
 %% MISC 
 Params.option = 'list';
