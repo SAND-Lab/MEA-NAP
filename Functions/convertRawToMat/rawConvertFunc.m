@@ -104,25 +104,15 @@ for i = 1:length(filenames)
                     % network analysis pipeline as an .mat file with the
                     % suffix indicating the well number (e.g., _A1).
                     savenamefile = fullfile(raw_file_dir, strcat(filenames(i).name(1:end-4), '_', rownames(j1), int2str(j2), '.mat'));
-                    channels = 1;
-                    % This creates a channels variable with the names of
-                    % the 60 electrodes for an MEA in a 6-well plate.
-                    if size(AllData, 1) * size(AllData, 2)==6
-                        channels = [11:18, 21:28, 31:38, 41:48, 51:58, 61:68, 71:78, 81:88];
-                    % This creates a channels variable with the names of
-                    % the 16 electrodes for an MEA in a 48-well plate.
-                    elseif size(AllData, 1) * size(AllData, 2) == 48
-                        channels = [11:14, 21:24, 31:34, 41:44];
-                    elseif size(AllData, 1) * size(AllData, 2) == 24
-                        % This creates channel variable for 16 electrode
-                        % in 24-well plate
-                        channels = [11, 12, 13, 14, ... 
-                                     21, 22, 23, 24, ...
-                                     31, 32, 33, 34, ...
-                                     41, 42, 43, 44];
-                    else
-                        warning('You need to manually add the channels variable for your plate configuration.')
+
+                    % Use row and column information to assign channel
+                    % names
+                    tempChannel = {temp.Channel};
+                    channels = zeros(length(tempChannel), 1);
+                    for channelIdx = 1:length(tempChannel)
+                        channels(channelIdx) = double(tempChannel{channelIdx}.ElectrodeColumn) * 10 + double(tempChannel{channelIdx}.ElectrodeRow);
                     end
+                    
                     % This is the step saves the .mat file for each MEA
                     % (well) with voltage vectors (dat), the names/location
                     % of the electrodes (channels) and  the acquisition rate (fs). 
