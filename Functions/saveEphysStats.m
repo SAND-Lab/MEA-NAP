@@ -37,7 +37,8 @@ if Params.suite2pMode == 0
 else 
     activityStatsFieldName = 'activityStats';
     NetMetricsE = {'numActiveElec','FRmean','FRmedian', ...
-                   'recHeightMean', 'recPeakDurMean', 'recEventAreaMean'}; 
+                   'recHeightMean', 'recPeakDurMean', 'recEventAreaMean', ... 
+                   'ISImean'}; 
 end
 
 % -------------------------------------------------
@@ -56,7 +57,9 @@ if Params.suite2pMode == 0
                    'channelFracSpikesInBursts', ...
                    };
 else 
-     NetMetricsC = {'FR', 'unitHeightMean', 'unitPeakDurMean', 'unitEventAreaMean'};
+     NetMetricsC = {'FR', 'unitHeightMean', ...
+                    'unitPeakDurMean', 'unitEventAreaMean', ...
+                    'ISI'};
 end 
 
 %% Import data from all experiments - whole experiment  

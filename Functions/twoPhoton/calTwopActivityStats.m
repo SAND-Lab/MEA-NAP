@@ -14,8 +14,14 @@ activityStats = struct();
 % get spike counts
 if strcmp(Params.twopActivity, 'peaks')
     numPeaksPerUnit = zeros(1, length(expData.spikeTimes));
+    peakISIPerUnit = zeros(1, length(expData.spikeTimes));  % inter-spike-interval
     for unitIndex = 1:length(expData.spikeTimes)
         numPeaksPerUnit(unitIndex) = length(expData.spikeTimes{unitIndex}.peak);
+        if length(expData.spikeTimes{unitIndex}.peak) >= 2
+            peakISIPerUnit(unitIndex) = mean(diff(expData.spikeTimes{unitIndex}.peak));
+        else 
+            peakISIPerUnit(unitIndex) = nan;
+        end
     end
     FiringRates = numPeaksPerUnit / expData.Info.duration_s;
 else 
@@ -37,6 +43,9 @@ activityStats.FRsem = round(std(ActiveFiringRates)/(sqrt(length(ActiveFiringRate
 activityStats.FRmedian = round(median(ActiveFiringRates),3);
 activityStats.FRiqr = round(iqr(ActiveFiringRates),3);
 activityStats.numActiveElec = length(ActiveFiringRates);
+
+activityStats.ISImean = nanmean(peakISIPerUnit);
+activityStats.ISI = peakISIPerUnit;
 
 
 %get rid of NaNs where there are no spikes; change to 0
