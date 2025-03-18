@@ -34,6 +34,13 @@ ActiveFiringRates = FiringRates(active_chanIndex);  %spikes of only active chann
 
 % Ephys.FR = ActiveFiringRates;
 activityStats.FR = FiringRates;
+
+% FR but set those below min activity to Nan 
+ActiveFiringRatesFull = zeros(1, length(FiringRates)) + nan;
+ActiveFiringRatesFull(active_chanIndex) = ActiveFiringRates;
+activityStats.FRactive = ActiveFiringRatesFull;
+
+
 % currently calculates only on active channels (>=FR_threshold)
 % stats  
 % currently rounds to a specified number of decimal digits
