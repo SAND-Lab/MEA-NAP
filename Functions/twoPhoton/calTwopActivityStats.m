@@ -55,14 +55,6 @@ activityStats.ISImean = nanmean(peakISIPerUnit);
 activityStats.ISI = peakISIPerUnit;
 
 
-%get rid of NaNs where there are no spikes; change to 0
-if isnan(activityStats.FRmean)
-    activityStats.FRmean=0;
-end
-if isnan(activityStats.FRmedian)
-    activityStats.FRmedian=0;
-end
-
 %% Two-photon specific metrics 
 % unit level
 activityStats.unitHeightMean = nanmean(expData.activityProperties.peakHeights, 2)';  % cell by events
