@@ -17,6 +17,9 @@ classdef PlateTypes
 
         % Standard Muse single well
         P200D30S = uint32(hex2dec('0400001'));
+        
+        %Standard Creator Kit 2 "well"
+        MEACreatorKit = uint32(hex2dec('0800000'));
 
         % Debug Channel Mapping set for Maestro Edge systems
         LinearSixWell = uint32(hex2dec('1800000'));
@@ -119,6 +122,9 @@ classdef PlateTypes
         
         % CytoView MEA 48 well Organoid Plate
         FortyEightWellOrganoid = uint32(hex2dec('3000015'));
+        
+        % CytoView MEA 12-well Transparent
+        TwelveWellTransparent = uint32(hex2dec('3000016'));
     end
 
     properties (Constant, Access=private)
@@ -126,9 +132,12 @@ classdef PlateTypes
         MUSE_MASK    = uint32(hex2dec('0400000'));
         MAESTRO_MASK = uint32(hex2dec('3000000'));
         EDGE_MASK    = uint32(hex2dec('1800000'));
+        CREATOR_MASK    = uint32(hex2dec('0800000'));
 
         MuseElectrodeMap = [ 1, 1, 8, 8;       ... % LinearSingleWell64
                              1, 1, 8, 8];          % P200D30S
+                         
+        CreatorElectrodeMap = [ 1, 2, 8, 8];    ... % MEA Creator Kit "2-well"
 
         EdgeElectrodeMap = [ 2, 3, 8, 8;       ... %LinearSixWell
                              4, 6, 4, 4;       ... %TwentyFourWell
@@ -164,7 +173,8 @@ classdef PlateTypes
                                 4, 4, 11, 5;   ... %NetriDuaLinkShiftPro
                                 4, 4, 11, 5;   ... %NetriTrialLinkPro
                                 4, 4, 11, 5;  ... %Reserved04
-                                6, 8, 4, 4;]  ... %FortyEightWellOrganoid
+                                6, 8, 4, 4;  ... %FortyEightWellOrganoid
+                                3, 4, 8, 8;]  ... %TwelveWellTransparent
                                 
     end
 
@@ -186,6 +196,8 @@ classdef PlateTypes
                fPlateDimentions = PlateTypes.MaestroElectrodeMap(offset + 1, (1:2));
             elseif (bitand(aPlateType, PlateTypes.EDGE_MASK) == PlateTypes.EDGE_MASK)
                fPlateDimentions = PlateTypes.EdgeElectrodeMap(offset + 1, (1:2));
+            elseif (bitand(aPlateType, PlateTypes.CREATOR_MASK) == PlateTypes.CREATOR_MASK)
+               fPlateDimentions = PlateTypes.CreatorElectrodeMap(offset + 1, (1:2));
             else
                 warning('File has an unknown plate type. These Matlab Scripts may be out of date.');
                 fPlateDimentions = [];
@@ -216,6 +228,8 @@ classdef PlateTypes
                fElectrodeDimentions = PlateTypes.MaestroElectrodeMap(offset + 1, :);
             elseif (bitand(aPlateType, PlateTypes.EDGE_MASK) == PlateTypes.EDGE_MASK)
                fElectrodeDimentions = PlateTypes.EdgeElectrodeMap(offset + 1, :);
+            elseif (bitand(aPlateType, PlateTypes.CREATOR_MASK) == PlateTypes.CREATOR_MASK)
+               fElectrodeDimentions = PlateTypes.CreatorElectrodeMap(offset + 1, :);
             else
                 warning('File has an unknown plate type. These Matlab Scripts may be out of date.');
                 fElectrodeDimentions = [];
