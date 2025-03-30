@@ -7,6 +7,13 @@ function app = setAppParams(app, Params)
 % OUTPUTS 
 % ------------------------
 %  app : matlab app object
+%
+% NOTES
+% --------------------------- 
+% Might be easier to store a lot of these into a table / cell array 
+% of Parameter names and GUI names, to loop through these pairs
+% Some of them may need an indicator (binary vector for example) for 
+% special cases, eg. for dealing with vectors using strjoin()
 
 app.MEANAPFolderEditField.Value = Params.HomeDir;
 app.MEADataFolderEditField.Value = Params.rawData;
@@ -139,6 +146,47 @@ end
 if isfield(Params, 'num2ptraces')
    app.CellstoplotperrecordingEditField.Value = Params.num2ptraces;
 end 
+
+%% Stimulation analysis 
+if isfield(Params, 'stimulationMode')
+     app.StimulationmodeCheckBox.Value = Params.stimulationMode;
+end
+
+if isfield(Params, 'automaticStimDetection')
+     app.AutomaticstimdetectionCheckBox.Value = Params.automaticStimDetection;
+end
+
+if isfield(Params, 'stimDetectionMethod')
+    app.StimdetectionmethodDropDown.Value = Params.stimDetectionMethod;
+end
+
+if isfield(Params, 'stimDetectionVal')
+    app.DetectionthresholdmultiplierEditField.Value = Params.stimDetectionVal;
+end 
+
+if isfield(Params, 'stimRefractoryPeriod')
+    app.StimrefractoryperiodsEditField.Value = Params.stimRefractoryPeriod;
+end
+
+if isfield(Params, 'stimDuration')
+    app.StimdurationsEditField.Value = Params.stimDuration;
+end
+
+if isfield(Params, 'stimDurationForPlotting')
+    app.StimdurationforplotssEditField.Value = Params.stimDurationForPlotting ;
+end
+
+if isfield(Params, 'preStimWindow')
+    app.PrestimwindowsEditField.Value = string(['[', strjoin(cellstr(string(Params.preStimWindow)), ', '), ']']);
+end
+
+if isfield(Params, 'postStimWindow')
+    app.PoststimwindowsEditField.Value = string(['[', strjoin(cellstr(string(Params.postStimWindow)), ', '), ']']);
+end
+
+if isfield(Params, 'stimRemoveSpikesWindow')
+    app.StimignorespikeswindowsEditField.Value = string(['[', strjoin(cellstr(string(Params.stimRemoveSpikesWindow)), ', '), ']']);
+end
 
 %% Pipeline settings 
 

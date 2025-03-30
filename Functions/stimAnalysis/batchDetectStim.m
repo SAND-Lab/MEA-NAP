@@ -22,7 +22,8 @@ end
 for expIdx = 1:length(ExpName)
 
     stimRawData = load(fullfile(Params.rawData, ExpName{expIdx}));
-
+    rawData = stimRawData.dat;
+    %{
     filteredData = zeros(size(stimRawData.dat)) + nan;
 
     % Filter signal 
@@ -38,8 +39,9 @@ for expIdx = 1:length(ExpName)
         trace = filtfilt(b, a, double(data));
         filteredData(:, channelIdx) = trace;
     end
+    %}
 
-    stimInfo = detectStimTimes(filteredData, Params, stimRawData.channels, Params.coords{expIdx});
+    stimInfo = detectStimTimes(rawData, Params, stimRawData.channels, Params.coords{expIdx});
 
 
     % save stimInfo to spike data
@@ -62,7 +64,7 @@ for expIdx = 1:length(ExpName)
     end
 
     % Plot stim detection checks
-    plotStimDetectionChecks(filteredData, stimInfo, expSubFolder, Params);
+    plotStimDetectionChecks(rawData, stimInfo, expSubFolder, Params);
 
 end
 

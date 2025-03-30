@@ -1,4 +1,4 @@
-function stimInfo = detectStimTimes(filteredData, Params, channelNames, coords)
+function stimInfo = detectStimTimes(rawData, Params, channelNames, coords)
 % Detects electrical sitmulation time from filtered voltage trace
 % Parameters
 % ----------
@@ -24,28 +24,31 @@ stimRefPeriod = Params.stimRefractoryPeriod;
 stimDur = Params.stimDuration;
 
 
-numChannels = size(filteredData, 2);
+numChannels = size(rawData, 2);
 stimInfo = cell(numChannels, 1);
 
 % Do electrical stimulation detection (and assign stimulation duration)
 for channel_idx = 1:numChannels
-    traceMean = mean(filteredData(:, channel_idx));
-    traceStd = std(filteredData(:, channel_idx));
+    traceMean = mean(rawData(:, channel_idx));
+    traceStd = std(rawData(:, channel_idx));
     
 
     if strcmp(stimDetectionMethod, 'absPosThreshold')
         stimThreshold = Params.stimDetectionVal;
-        elecStimTimes = find(filteredData(:, channel_idx) > stimThreshold) / Params.fs;
+        elecStimTimes = find(rawData(:, channel_idx) > stimThreshold) / Params.fs;
     elseif strcmp(stimDetectionMethod, 'absNegThreshold')
         stimThreshold = Params.stimDetectionVal;
-        elecStimTimes = find(filteredData(:, channel_idx) < stimThreshold) / Params.fs;
+        elecStimTimes = find(rawData(:, channel_idx) < stimThreshold) / Params.fs;
     elseif strcmp(stimDetectionMethod, 'stdNeg')
         stimThreshold = traceMean - traceStd * Params.stimDetectionVal;
-        elecStimTimes = find(filteredData(:, channel_idx) < stimThreshold) / Params.fs;
+        elecStimTimes = find(rawData(:, channel_idx) < stimThreshold) / Params.fs;
     else 
         error('No valid stimulus detection specified')
     end 
-
+    
+    % Remove stim within refractory period of each other 
+    % V1 : Slow 
+    %{
     for stimIdx = 1:length(elecStimTimes)
         
         stimTime = elecStimTimes(stimIdx);
@@ -60,8 +63,23 @@ for channel_idx = 1:numChannels
 
     end
     elecStimTimes = elecStimTimes(~isnan(elecStimTimes));
+    %}
 
+    % V2: Faster
+    %
+    keepIdx = true(size(elecStimTimes)); % Logical mask for keeping elements
+    lastValidIdx = 1; % Track last valid stim time
     
+    for stimIdx = 2:length(elecStimTimes)
+        if elecStimTimes(stimIdx) <= elecStimTimes(lastValidIdx) + stimRefPeriod
+            keepIdx(stimIdx) = false; % Mark for removal
+        else
+            lastValidIdx = stimIdx; % Update last valid index
+        end
+    end
+    elecStimTimes = elecStimTimes(keepIdx); % Keep only valid elements
+    %}
+
     stimStruct = struct();
     stimStruct.elecStimTimes = elecStimTimes; 
     stimStruct.elecStimDur = repmat(stimDur, length(elecStimTimes), 1);

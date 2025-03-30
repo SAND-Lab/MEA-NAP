@@ -522,6 +522,12 @@ while isvalid(app)
         runMEANAPviewer;
         app.ViewOutputsButton.Value = 0;
     end
+
+    % Launch stim detection app 
+    if app.LaunchstimdetectionappButton.Value == 1
+        runStimDetectionApp(app);
+        app.LaunchstimdetectionappButton.Value = 0;
+    end 
     
     if (app.RunPipelineButton.Value == 1)
         break 

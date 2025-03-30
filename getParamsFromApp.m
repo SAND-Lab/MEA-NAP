@@ -343,6 +343,7 @@ Params.stimDuration = app.StimdurationsEditField.Value;
 Params.stimDurationForPlotting = app.StimdurationforplotssEditField.Value;
 Params.preStimWindow = str2num(app.PrestimwindowsEditField.Value);
 Params.postStimWindow = str2num(app.PoststimwindowsEditField.Value);
+Params.stimRemoveSpikesWindow = str2num(app.StimignorespikeswindowsEditField.Value);
 
 
 %% MISC 

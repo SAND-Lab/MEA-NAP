@@ -1,4 +1,4 @@
-function figHandle = plotStimTimes(filteredData, stimInfo, Params, figHandle)
+function figHandle = plotStimTimes(rawData, stimInfo, Params, figHandle)
 
 
 if ~exist('figHandle', 'var') 
@@ -12,7 +12,7 @@ set(figHandle, 'Position', p);
 
 
 stimResamplingHz = 1000;
-numTimeSamples = size(filteredData, 1);
+numTimeSamples = size(rawData, 1);
 stimDataDurS = numTimeSamples / Params.fs;
 stimResampleN = round(stimDataDurS * stimResamplingHz);
 stimResampleTimes = linspace(0, stimDataDurS, stimResampleN);
