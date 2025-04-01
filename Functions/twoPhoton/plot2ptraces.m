@@ -78,7 +78,7 @@ for cell_to_plot = 1:length(cell_indices)
     box off
     set(gca,'TickDir','out'); 
     ylabel('Arbitrary units')
-    legend('Denoised', 'Peak start', 'Location', 'northeastoutside')
+    legend('Denoised', 'Event start', 'Location', 'northeastoutside')
     xlabel('Recording frames')
     
     
