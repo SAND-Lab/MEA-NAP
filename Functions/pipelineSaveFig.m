@@ -47,6 +47,14 @@ for nFigExt = 1:length(figExts)
                 print(figHandle, '-painters', '-dsvg',  figFileName)
             end 
         end 
+    elseif strcmp(figExts{nFigExt}, '.fig')
+        
+        if isempty(figHandle)
+            savefig(figFileName)
+        else 
+            savefig(figHandle, figFileName)
+        end
+        
     else
         if isempty(figHandle)
             saveas(gcf, figFileName);
