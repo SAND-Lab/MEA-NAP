@@ -1,4 +1,4 @@
-function [groupNameBeginsWnumber, groupNameContainsSpecial, allDIVisValid] = checkCSV(csv_data)
+function [groupNameBeginsWnumber, groupNameContainsSpecial, allDIVisValid, groupNameIllegal] = checkCSV(csv_data)
 %CHECKCSV Summary of this function goes here
 %   Detailed explanation goes here
     groupNames = csv_data(:, 3); 
@@ -6,6 +6,7 @@ function [groupNameBeginsWnumber, groupNameContainsSpecial, allDIVisValid] = che
 
     groupNameBeginsWnumber = 0;
     groupNameContainsSpecial = 0;
+    groupNameIllegal = 0;
     
     charsToCheck = '+?-!()';
     
@@ -35,6 +36,16 @@ function [groupNameBeginsWnumber, groupNameContainsSpecial, allDIVisValid] = che
     end 
     
     anyGroundContainLetter = (sum(groundContainLetter) > 0);
+    
+    illegalGroupNames = {'CON', 'PRN', 'AUX', 'NUL', 'COM', 'LPT'};  % On Windows devices, adding COM and LPT just to be safe
+    for groupIdx = 1:length(groupNames)
+        groupStr = groupNames{groupIdx};
+        if ismember(lower(groupStr), lower(illegalGroupNames))
+            groupNameIllegal = 1;
+        end 
+            
+    end 
+    
     
 end
 
