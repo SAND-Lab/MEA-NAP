@@ -52,7 +52,16 @@ for nFigExt = 1:length(figExts)
         if isempty(figHandle)
             savefig(figFileName)
         else 
-            savefig(figHandle, figFileName)
+            matlabReleaseName = version('-release');
+            versionYear = str2num(matlabReleaseName(1:end-1));
+            
+            if strcmp(matlabReleaseName, '2024b') || versionYear >= 2025
+                savefig(figHandle, figFileName, '-v7.3')  % 
+            else
+                hgsave(figHandle, figFileName, '-v7.3')  
+                % savefig() does not support version 7.3 option in releases
+                % before 2024b
+            end
         end
         
     else
