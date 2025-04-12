@@ -1,4 +1,4 @@
-function [adjMs, coords, channels, FisCell, FdenoisedIsCell, spksIsCell, spikeTimes, fs, Params, activityProperties] = suite2pToAdjm(suite2pFolder, Params)
+function [adjMs, coords, channels, FisCell, FdenoisedIsCell, spksIsCell, spikeTimes, fs, Params, activityProperties] = suite2pToAdjm(suite2pFolder, Params, Info, oneFigureHandle)
 %SUITE2PTOADJM Converts suite2p data to adjacency matrix 
 %   Detailed explanation goes here
 
@@ -109,6 +109,7 @@ if Params.removeNodesWithNoPeaks
     spksIsCell = spksIsCell(:, cellSubsetIndex);
     channels = channels(cellSubsetIndex);
     coords = coords(cellSubsetIndex, :);
+    activityProperties.cellsWithPeaks = cellSubsetIndex;
 end 
 
 % Get peak / event properties
@@ -163,8 +164,33 @@ elseif strcmp(Params.twopActivity, 'peaks')
         lag = Params.FuncConLagval(p);
         
         if length(spikeTimes) >= 2
-            [~, adjMci] = adjM_thr_parallel(spikeTimes, 'peak', lag, Params.ProbThreshTail, fs,...
-                        duration_s, Params.ProbThreshRepNum);
+            
+            % if it is a randomly chosen check point
+            if Params.randRepCheckExN(Params.ExN) && (lag == Params.randRepCheckLag(Params.ExN))  
+                % plot data over incresing repetition number to check stability of
+                % probabilistic thresholding
+                [oneFigureHandle, ~, adjMci] = adjM_thr_checkreps(spikeTimes, 'peak', lag, Params.ProbThreshTail, fs,...
+                    duration_s, Params.ProbThreshRepNum, oneFigureHandle);
+    
+                % Export figure
+                figFolder = fullfile(Params.outputDataFolder, ...
+                            Params.outputDataFolderName, '3_EdgeThresholdingCheck');
+                figName = strcat([char(Info.FN), num2str(lag), 'msLagProbThreshCheck']);
+                figPath = fullfile(figFolder, figName);
+                pipelineSaveFig(figPath, Params.figExt, Params.fullSVG, oneFigureHandle);
+                
+                if ~Params.showOneFig
+                    close all
+                else
+                    clf(oneFigureHandle)
+                end 
+
+            else
+
+                [~, adjMci] = adjM_thr_parallel(spikeTimes, 'peak', lag, Params.ProbThreshTail, fs,...
+                            duration_s, Params.ProbThreshRepNum);
+
+            end 
         else 
             adjMci = [];
         end
