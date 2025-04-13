@@ -88,7 +88,8 @@ rownames = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
 for i = 1:length(filenames)
     if length(filenames(i).name) > 4
         suffix = filenames(i).name(end-3:end);
-        if suffix == '.raw'
+        % check .raw extension and remove '._' hidden files (on Mac OS)
+        if (strcmp(suffix, '.raw')) && (~strcmp(filenames(i).name(1:2), '._'))
             % For each recording, this step loads the raw data calling a
             % function from the AxIS MATLAB Files folder
             AllData = AxisFile(fullfile(raw_file_dir, filenames(i).name)).RawVoltageData.LoadData;
