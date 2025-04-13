@@ -507,8 +507,8 @@ while isvalid(app)
         csvRange = str2num(app.SpreadsheetRangeEditField.Value);
             csv_data = pipelineReadCSV(app.SpreadsheetFilenameEditField.Value, csvRange);
             if size(csv_data, 2) >= 3 
-                [groupNameBeginsWnumber, groupNameContainsSpecial, allDIVisValid] = checkCSV(csv_data);
-                updateCSVstatusInGui(app, groupNameBeginsWnumber, groupNameContainsSpecial, allDIVisValid);
+                [groupNameBeginsWnumber, groupNameContainsSpecial, allDIVisValid, groupNameIllegal] = checkCSV(csv_data);
+                updateCSVstatusInGui(app, groupNameBeginsWnumber, groupNameContainsSpecial, allDIVisValid, groupNameIllegal);
             end
             % note here csv_data already subsetted based on range
             uniqueGrpNames = unique(csv_data(:, 3));
