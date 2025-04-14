@@ -166,7 +166,7 @@ elseif strcmp(Params.twopActivity, 'peaks')
         if length(spikeTimes) >= 2
             
             % if it is a randomly chosen check point
-            if Params.randRepCheckExN(Params.ExN) && (lag == Params.randRepCheckLag(Params.ExN))  
+            if Params.randRepCheckExN2p(Params.ExN) && (lag == Params.randRepCheckLag2p(Params.ExN))  
                 % plot data over incresing repetition number to check stability of
                 % probabilistic thresholding
                 [oneFigureHandle, ~, adjMci] = adjM_thr_checkreps(spikeTimes, 'peak', lag, Params.ProbThreshTail, fs,...

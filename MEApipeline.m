@@ -230,6 +230,11 @@ if Params.ProbThreshPlotChecks == 1
     Params.randRepCheckExN = randi([1 length(ExpName)],1,Params.ProbThreshPlotChecksN);
     Params.randRepCheckLag = Params.FuncConLagval(randi([1 length(Params.FuncConLagval)],1,Params.ProbThreshPlotChecksN));
     Params.randRepCheckP = [Params.randRepCheckExN;Params.randRepCheckLag];
+
+    Params.randRepCheckExN2p = zeros(1, length(ExpName)); 
+    Params.randRepCheckExN2p(1:Params.ProbThreshPlotChecksN) = 1;
+    Params.randRepCheckExN2p = Params.randRepCheckExN2p(randperm(length(Params.randRepCheckExN2p)));
+    Params.randRepCheckLag2p =  Params.FuncConLagval(randi([1 length(Params.FuncConLagval)],1,length(ExpName)));
 end
 
 % Copy spreadsheet to output folder 
