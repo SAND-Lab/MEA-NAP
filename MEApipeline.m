@@ -10,7 +10,7 @@ function MEApipeline(InputParamsFilePath)
 clearvars -except InputParamsFilePath 
 close all 
 
-% Change to MEANAP folder 
+% Change to MEANAP folder
 MEANAPscriptPath = which('MEApipeline.m');
 MEANAPfolder = fileparts(MEANAPscriptPath);
 cd(MEANAPfolder)
@@ -345,14 +345,16 @@ if Params.startAnalysisStep < 3
         spikeFreqMax2p = 0;
         experimentMatFolderPath = fullfile(Params.outputDataFolder, ...
             Params.outputDataFolderName, 'ExperimentMatFiles');
+        
         for  ExN = 1:length(ExpName)
             experimentMatFname = strcat(char(ExpName(ExN)),'_',Params.outputDataFolderName,'.mat'); 
             experimentMatFpath = fullfile(experimentMatFolderPath, experimentMatFname);
             load(experimentMatFpath, 'Info')
             
             suite2pFolder = fullfile(Params.rawData, char(ExpName(ExN)), 'suite2p', 'plane0');
+            Params.ExN = ExN;
             [adjMs, coords, channels, F, denoisedF, spks, spikeTimes, fs, Params, activityProperties] = ...
-                suite2pToAdjm(suite2pFolder, Params);
+                suite2pToAdjm(suite2pFolder, Params, Info, oneFigureHandle);
             % Plot original and denoised traces
             stepFolder = fullfile(Params.outputDataFolder, Params.outputDataFolderName, ...
                 '2_NeuronalActivity', '2A_IndividualNeuronalAnalysis');
@@ -365,7 +367,7 @@ if Params.startAnalysisStep < 3
                 mkdir(figFolder)
             end 
             Info.duration_s = size(spks, 1) / fs;
-            plot2ptraces(suite2pFolder, Params, Info.FN{1}, figFolder, oneFigureHandle);
+            plot2ptraces(suite2pFolder, Params, Info.FN{1}, fs, figFolder, oneFigureHandle);
             resamplingRate = 1;  % resample spike matrix for raster plotting
             twopActivityMatrix = get2pActivityMatrix(F, denoisedF, spks, spikeTimes, resamplingRate, Info, Params); 
             spikeFreqMax2p = max([spikeFreqMax2p, max(twopActivityMatrix)]);

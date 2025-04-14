@@ -1,4 +1,4 @@
-function updateCSVstatusInGui(app, groupNameBeginsWnumber, groupNameContainsSpecial, allDIVisValid)
+function updateCSVstatusInGui(app, groupNameBeginsWnumber, groupNameContainsSpecial, allDIVisValid, groupNameIllegal)
 %UPDATECSVSTATUSINGU Update the text field in GUI based on whether the CSV
 %pass all the checks
 
@@ -25,8 +25,15 @@ function updateCSVstatusInGui(app, groupNameBeginsWnumber, groupNameContainsSpec
         app.RunPipelineButton.Enable = 'off'; 
     end 
     
+    if groupNameIllegal 
+        app.MEANAPStatusTextArea.Value = [app.MEANAPStatusTextArea.Value; ...
+            'WARNING: at least one of the group name is an illegal folder name in Windows operating systems.'];
+        app.MEANAPStatusTextArea.FontColor = [1, 0, 0];
+        app.RunPipelineButton.Enable = 'off'; 
+    end 
+    
     % CSV checks out!
-    if (~groupNameBeginsWnumber) && (~groupNameContainsSpecial) && (allDIVisValid)
+    if (~groupNameBeginsWnumber) && (~groupNameContainsSpecial) && (allDIVisValid) && (~groupNameIllegal)
         app.RunPipelineButton.Enable = 'on'; 
         app.MEANAPStatusTextArea.FontColor = [0, 0, 0];
     end

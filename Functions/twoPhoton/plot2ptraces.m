@@ -1,4 +1,4 @@
-function plot2ptraces(suite2pFolder, Params, fileName, figFolder, oneFigureHandle)
+function plot2ptraces(suite2pFolder, Params, fileName, fs, figFolder, oneFigureHandle)
 %PLOT2PTRACES Summary of this function goes here
 %   Detailed explanation goes here
 
@@ -42,6 +42,9 @@ end
 %% Do plotting
 LineWidth = 1.5;
 
+frames_in_sec = (1:size(F, 2)) ./ fs;
+duration_s = frames_in_sec(end);
+
 for cell_to_plot = 1:length(cell_indices)
     cell_idx = cell_indices(cell_to_plot);
     peakStartFrames_cell = peakStartFrames(cell_idx, :);
@@ -51,35 +54,39 @@ for cell_to_plot = 1:length(cell_indices)
     Fdenoised_cell = Fdenoised(cell_idx, :);
    
     subplot(3, 1, 1)
-    plot(1:length(F_cell), F_cell, 'Color', 'k', 'LineWidth', LineWidth)
-    title(strcat([fileName, ' cell ' num2str(cell_idx)]));
+    plot(frames_in_sec, F_cell, 'Color', 'k', 'LineWidth', LineWidth)
+    title(strcat([fileName, ' cell ' num2str(cell_idx)]), 'Interpreter','none');
     box off
     legend('Original', 'Location', 'northeastoutside')
     set(gca,'TickDir','out'); 
     ylabel('Fluorescence')
+    xlim([0, duration_s]); 
 
     subplot(3, 1, 2)
     F_scaled = (F_cell - min(F_cell)) / (max(F_cell) - min(F_cell)) * max(Fdenoised_cell);
-    plot(1:length(F_scaled), F_scaled, 'Color', 'k', 'LineWidth', LineWidth)
+    plot(frames_in_sec, F_scaled, 'Color', 'k', 'LineWidth', LineWidth)
     hold on 
-    plot(Fdenoised_cell, 'LineWidth', LineWidth, 'Color', 'r')
+    plot(frames_in_sec, Fdenoised_cell, 'LineWidth', LineWidth, 'Color', 'r')
     box off
     set(gca,'TickDir','out'); 
     ylabel('Arbitrary units')
+    xlim([0, duration_s]); 
     legend('Scaled', 'Denoised', 'Location', 'northeastoutside')
 
+
     subplot(3, 1, 3)
-    plot(1:length(Fdenoised_cell), Fdenoised_cell, 'Color', 'r', 'LineWidth', LineWidth)
+    plot(frames_in_sec, Fdenoised_cell, 'Color', 'r', 'LineWidth', LineWidth)
     hold on 
     num_peaks = length(peakStartFrames_cell);
     % peak_plot_heights = repmat(max(Fdenoised_cell) * 1.2, num_peaks);
     peak_plot_heights = Fdenoised_cell(peakStartFrames_cell);
-    scatter(peakStartFrames_cell, peak_plot_heights, 'bx')
+    scatter(peakStartFrames_cell ./ fs, peak_plot_heights, 'bx')
     box off
     set(gca,'TickDir','out'); 
     ylabel('Arbitrary units')
+    xlim([0, duration_s]); 
     legend('Denoised', 'Event start', 'Location', 'northeastoutside')
-    xlabel('Recording frames')
+    xlabel('Time (s)')
     
     
     

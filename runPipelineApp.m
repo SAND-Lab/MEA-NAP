@@ -287,9 +287,9 @@ while isvalid(app)
              % Check for special characters in spreadsheet and group names that
              % start with numbers
              if size(csv_data, 2) >= 3 
-                [groupNameBeginsWnumber, groupNameContainsSpecial, allDIVisValid] = checkCSV(csv_data);
+                [groupNameBeginsWnumber, groupNameContainsSpecial, allDIVisValid, groupNameIllegal] = checkCSV(csv_data);
 
-                updateCSVstatusInGui(app, groupNameBeginsWnumber, groupNameContainsSpecial, allDIVisValid);
+                updateCSVstatusInGui(app, groupNameBeginsWnumber, groupNameContainsSpecial, allDIVisValid, groupNameIllegal);
 
                 % Update Custom Group Order with detected group names
                 uniqueGrpNames = unique(csv_data(:, 3));
@@ -369,8 +369,8 @@ while isvalid(app)
             csvRange = str2num(app.SpreadsheetRangeEditField.Value);
             csv_data = pipelineReadCSV(app.SpreadsheetFilenameEditField.Value, csvRange);
             if size(csv_data, 2) >= 3 
-                [groupNameBeginsWnumber, groupNameContainsSpecial, allDIVisValid] = checkCSV(csv_data);
-                updateCSVstatusInGui(app, groupNameBeginsWnumber, groupNameContainsSpecial, allDIVisValid);
+                [groupNameBeginsWnumber, groupNameContainsSpecial, allDIVisValid, groupNameIllegal] = checkCSV(csv_data);
+                updateCSVstatusInGui(app, groupNameBeginsWnumber, groupNameContainsSpecial, allDIVisValid, groupNameIllegal);
             end
             % note here csv_data already subsetted based on range
             uniqueGrpNames = unique(csv_data(:, 3));
@@ -507,8 +507,8 @@ while isvalid(app)
         csvRange = str2num(app.SpreadsheetRangeEditField.Value);
             csv_data = pipelineReadCSV(app.SpreadsheetFilenameEditField.Value, csvRange);
             if size(csv_data, 2) >= 3 
-                [groupNameBeginsWnumber, groupNameContainsSpecial, allDIVisValid] = checkCSV(csv_data);
-                updateCSVstatusInGui(app, groupNameBeginsWnumber, groupNameContainsSpecial, allDIVisValid);
+                [groupNameBeginsWnumber, groupNameContainsSpecial, allDIVisValid, groupNameIllegal] = checkCSV(csv_data);
+                updateCSVstatusInGui(app, groupNameBeginsWnumber, groupNameContainsSpecial, allDIVisValid, groupNameIllegal);
             end
             % note here csv_data already subsetted based on range
             uniqueGrpNames = unique(csv_data(:, 3));
