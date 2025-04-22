@@ -26,7 +26,8 @@ function plotSpikeDetectionChecks(spikeTimes,spikeDetectionResult,spikeWaveforms
 % Returns 
 % -------
 
-%}
+% Window width (one-sided) of example spike traces (in seconds)
+example_trace_window_width = 30 / 1000;  
 
 
 %% load raw voltage trace data
@@ -158,6 +159,9 @@ else
 end 
 
 %% examples traces
+
+window_width_in_frames = round(example_trace_window_width * fs);
+
 p = [100 100 1400 800];
 set(0, 'DefaultFigurePosition', p)
 
@@ -173,7 +177,6 @@ t = tiledlayout(5,2,'TileSpacing','Compact');
 numExampleTraces = 9;
 for l = 1:numExampleTraces
     
-    bin_ms = 30;  % What is this???
     channel = randi([1,num_chan],1);
     trace = filtered_data(:, channel);
     
@@ -208,10 +211,10 @@ for l = 1:numExampleTraces
 
     st = randi([1 length(spike_train)]);
     st = spike_train(st);
-    if st+15*25 < length(trace)
-        xlim([st-bin_ms*25 st+bin_ms*25]);
+    if st + round(window_width_in_frames/2) < length(trace)
+        xlim([st-window_width_in_frames st+window_width_in_frames]);
     else
-        xlim([st-bin_ms*25 inf]);
+        xlim([st-window_width_in_frames inf]);
     end
 
     ylim([-6*std(trace) 5*std(trace)])
@@ -219,7 +222,7 @@ for l = 1:numExampleTraces
     set(gca,'xcolor','none');
     ylabel('Amplitude (\muV)');
     axis fill
-    title({["Electrode "+channel], [(st-bin_ms*25)/Params.dSampF + " - " + (st+bin_ms*25)/Params.dSampF + " s"]})
+    title({["Electrode "+channel], [(st-window_width_in_frames)/Params.dSampF + " - " + (st+window_width_in_frames)/Params.dSampF + " s"]})
     aesthetics
     set(gca,'TickDir','out');
 end
