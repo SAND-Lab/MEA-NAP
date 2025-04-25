@@ -158,7 +158,7 @@ elseif strcmp(Params.twopActivity, 'peaks')
         spikeTimes{cell_idx} = struct();
         spikeTimes{cell_idx}.peak = cellPeakTimes;
     end
-    duration_s = fs * numTimeBins;
+    duration_s = numTimeBins / fs;
     
     for p = 1:length(Params.FuncConLagval)
         lag = Params.FuncConLagval(p);
