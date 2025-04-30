@@ -26,11 +26,12 @@ else
         % check each pattern sequence one by one to see if any match 
         matchPattern = nan; 
         for patternIdx = 1:length(stimPatterns)
-            
-            patternTimeDiffs = abs(candidatePattern - stimPatterns{patternIdx});
-            if mean(patternTimeDiffs) < stimTimeDiffThreshold
-                matchPattern = patternIdx;
-            end
+            if length(candidatePattern) == stimPatternLengths(patternIdx)
+                patternTimeDiffs = abs(candidatePattern - stimPatterns{patternIdx});
+                if mean(patternTimeDiffs) < stimTimeDiffThreshold
+                    matchPattern = patternIdx;
+                end
+            end 
 
         end
 
