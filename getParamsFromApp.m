@@ -344,7 +344,7 @@ Params.stimDurationForPlotting = app.StimdurationforplotssEditField.Value;
 Params.preStimWindow = str2num(app.PrestimwindowsEditField.Value);
 Params.postStimWindow = str2num(app.PoststimwindowsEditField.Value);
 Params.stimRemoveSpikesWindow = str2num(app.StimignorespikeswindowsEditField.Value);
-
+Params.stimPatternColors = {'black', 'red', 'orange', 'green', 'purple'};
 
 %% MISC 
 Params.option = 'list';

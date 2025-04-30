@@ -88,7 +88,8 @@ while isvalid(stimDetectionAppObj)
     if stimThresholdChanged || dataFpathChanged || fsChanged || stimDetectionMethodChanged
         Params = getParamsFromApp(MEANAPapp);
         stimInfo = detectStimTimes(rawData.dat, Params, rawData.channels, Params.coords);
-       
+        [stimInfo, stimPatterns] = getStimPatterns(stimInfo, Params);
+        numStimPatterns = length(stimPatterns);
         
         % Plot stim detection heatmap  (TODO: add channel name)
         cla(stimDetectionAppObj.UIAxes2) 
@@ -105,7 +106,7 @@ while isvalid(stimDetectionAppObj)
                 nodeColor = 'white';
                 textColor = 'black';
             else 
-                nodeColor = 'black';
+                nodeColor = Params.stimPatternColors{stimInfo{nodeIdx}.pattern};
                 textColor = 'white';
                 numStimElectrodes = numStimElectrodes + 1;
             end
@@ -123,7 +124,7 @@ while isvalid(stimDetectionAppObj)
         elecNumStimEvents = length(elecStimTimes); 
         stimDetectionAppObj.Numberofstimeventsdetected0Label.Text = sprintf('Number of stim events detected: %.f', elecNumStimEvents);
         stimDetectionAppObj.Numberofstimulationelectrodes0Label.Text = sprintf('Number of stimulation electrodes: %.f', numStimElectrodes);
-        stimDetectionAppObj.Numberofstimulationpatterns0Label.Text = 'Number of stimulation patterns: 0'; % TODO 
+        stimDetectionAppObj.Numberofstimulationpatterns0Label.Text = sprintf('Number of stimulation patterns: %.f', length(stimPatterns)); 
         
     end
 
@@ -201,7 +202,19 @@ while isvalid(stimDetectionAppObj)
         
         
             vert_offset = channelIdx * 1.2;
-            plot(stimDetectionAppObj.UIAxes3, stimResampleTimes, stimVector + vert_offset)
+            if numStimPatterns >= 2
+                % Plot with pattern color 
+                if stimInfo{channelIdx}.pattern == 0
+                    patternColor = [0.75, 0.75, 0.75];  % light gray
+                else
+                    patternColor = Params.stimPatternColors{stimInfo{channelIdx}.pattern};
+                end 
+                plot(stimDetectionAppObj.UIAxes3, stimResampleTimes, stimVector + vert_offset, 'Color', patternColor)
+            else 
+                % Plot with no color specified
+                plot(stimDetectionAppObj.UIAxes3, stimResampleTimes, stimVector + vert_offset)
+            end
+            
             hold(stimDetectionAppObj.UIAxes3, 'on')
         
             % Text label of channel idx 
