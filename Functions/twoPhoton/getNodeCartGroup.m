@@ -4,59 +4,58 @@ function NetMet = getNodeCartGroup(NetMet, Params)
 
 
 
-lagval = Params.FuncConLagval;     
+% Get lag name string (e.g., 'adjM1000mslag')
+targetLagStr = sprintf('adjM%dmslag', Params.FuncConLagval);
 
-lagFields = fieldnames(NetMet);
+% Check if it exists
+if isfield(NetMet, targetLagStr)
+    netMetGivenLag = NetMet.(targetLagStr);
 
-for lagFindex = 1:length(lagFields) 
-    
-    netMetGivenLag = NetMet.(lagFields{lagFindex});
+    if ~isstruct(netMetGivenLag)
+        warning('NetMet.%s is not a struct.', targetLagStr);
+        return;
+    end
+
     PC = netMetGivenLag.PC;
     Z = netMetGivenLag.Z;
 
-
-    % Determine whether we need a specific boundary per lag 
+    % Use correct boundaries
     if Params.autoSetCartographyBoudariesPerLag
-        hubBoundaryWMdDeg = Params.(strcat('hubBoundaryWMdDeg', sprintf('_%.fmsLag', lagval(lagFindex))));
-        periPartCoef = Params.(strcat('periPartCoef', sprintf('_%.fmsLag', lagval(lagFindex))));
-        proHubpartCoef = Params.(strcat('proHubpartCoef', sprintf('_%.fmsLag', lagval(lagFindex))));
-        nonHubconnectorPartCoef = Params.(strcat('nonHubconnectorPartCoef', sprintf('_%.fmsLag', lagval(lagFindex))));
-        connectorHubPartCoef = Params.(strcat('connectorHubPartCoef', sprintf('_%.fmsLag', lagval(lagFindex))));
+        suffix = sprintf('_%dmsLag', Params.FuncConLagval);
+        hubBoundaryWMdDeg = Params.(['hubBoundaryWMdDeg', suffix]);
+        periPartCoef = Params.(['periPartCoef', suffix]);
+        proHubpartCoef = Params.(['proHubpartCoef', suffix]);
+        nonHubconnectorPartCoef = Params.(['nonHubconnectorPartCoef', suffix]);
+        connectorHubPartCoef = Params.(['connectorHubPartCoef', suffix]);
     else
         hubBoundaryWMdDeg = Params.hubBoundaryWMdDeg;
         periPartCoef = Params.periPartCoef;
         proHubpartCoef = Params.proHubpartCoef;
         nonHubconnectorPartCoef = Params.nonHubconnectorPartCoef;
         connectorHubPartCoef = Params.connectorHubPartCoef;
-    end 
-    
-    numNodes = length(PC);
-    nodeCartGrp = zeros(numNodes, 1);  % equivalent to NdCartDiv
-    
+    end
 
+    % Assign nodeCartGrp
+    numNodes = length(PC);
+    nodeCartGrp = zeros(numNodes, 1);
     for nodeIndex = 1:numNodes
-        
         if (Z(nodeIndex) <= hubBoundaryWMdDeg) && (PC(nodeIndex) <= periPartCoef)
             nodeCartGrp(nodeIndex) = 1;
-        elseif (Z(nodeIndex) <= hubBoundaryWMdDeg) && (PC(nodeIndex) >= periPartCoef) && (PC(nodeIndex) <= nonHubconnectorPartCoef)
+        elseif (Z(nodeIndex) <= hubBoundaryWMdDeg) && (PC(nodeIndex) <= nonHubconnectorPartCoef)
             nodeCartGrp(nodeIndex) = 2;
-        elseif (Z(nodeIndex) <= hubBoundaryWMdDeg) && (PC(nodeIndex) >= nonHubconnectorPartCoef)
+        elseif (Z(nodeIndex) <= hubBoundaryWMdDeg)
             nodeCartGrp(nodeIndex) = 3;
         elseif (Z(nodeIndex) >= hubBoundaryWMdDeg) && (PC(nodeIndex) <= proHubpartCoef)
             nodeCartGrp(nodeIndex) = 4;
-        elseif (Z(nodeIndex) >= hubBoundaryWMdDeg) && (PC(nodeIndex) >= proHubpartCoef) && (PC(nodeIndex) <= connectorHubPartCoef)
+        elseif (PC(nodeIndex) <= connectorHubPartCoef)
             nodeCartGrp(nodeIndex) = 5;
-        elseif (Z(nodeIndex) >= hubBoundaryWMdDeg) && (PC(nodeIndex) >= connectorHubPartCoef)
+        else
             nodeCartGrp(nodeIndex) = 6;
         end
-
     end
 
-    NetMet.(lagFields{lagFindex}).nodeCartGrp = nodeCartGrp;
-
+    % Store
+    NetMet.(targetLagStr).nodeCartGrp = nodeCartGrp;
+else
+    warning('NetMet does not contain field: %s', targetLagStr);
 end
-
-
-
-end
-
