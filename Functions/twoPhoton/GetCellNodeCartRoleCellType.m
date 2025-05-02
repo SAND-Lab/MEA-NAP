@@ -62,6 +62,7 @@ end
 
 table_obj = struct2table(dataStruct);
 writetable(table_obj, csvSavePath);
+fprintf('Saved NCnodes CSV with NetMet NC to: %s\n', csvSavePath);
 
 %% Add CellType columns for each node for that csv
 % === CONFIG ===
