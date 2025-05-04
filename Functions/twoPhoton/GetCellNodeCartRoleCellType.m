@@ -41,11 +41,11 @@ for fileIdx = 1:length(matFpaths)
         NetMetWlag = NetMet.(lagFieldName);
         numNodes = length(NetMetWlag.activeChannel);
 
-        dataStruct.RecordingName = [dataStruct.RecordingName;
+        dataStruct.RecordingName = [dataStruct.recordingName;
             repmat(FN, numNodes, 1)];
         dataStruct.Group = [dataStruct.Group;
             repmat(Grp, numNodes, 1)];
-        dataStruct.DIV = [dataStruct.DIV;
+        dataStruct.DIV = [dataStruct.AgeDiv;
             repmat(DIV, numNodes, 1)];
         dataStruct.Lag = [dataStruct.Lag;
             repmat(lagUsed, numNodes, 1)];
