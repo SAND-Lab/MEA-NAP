@@ -60,6 +60,8 @@ activityStats.ISI = peakISIPerUnit;
 activityStats.unitHeightMean = nanmean(expData.activityProperties.peakHeights, 2)';  % cell by events
 activityStats.unitPeakDurMean = nanmean(expData.activityProperties.peakDurationFrames, 2)' / expData.fs;
 activityStats.unitEventAreaMean = nanmean(expData.activityProperties.eventAreas, 2)' / expData.fs;
+activityStats.unitEventAreaSum = nansum(expData.activityProperties.eventAreas, 2)' / expData.fs;
+
 
 % recording level 
 activityStats.recHeightMean = nanmean(activityStats.unitHeightMean);

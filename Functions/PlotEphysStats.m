@@ -139,8 +139,8 @@ if Params.suite2pMode == 0
              'Unit fraction of spikes in bursts', ...
              };
 else 
-    NetMetricsC = {'FR', 'unitHeightMean', 'unitPeakDurMean', 'unitEventAreaMean'};
-    cMetl = {'mean_firing_rate_node', 'peak height', 'peak duration', 'event area'};
+    NetMetricsC = {'FR', 'unitHeightMean', 'unitPeakDurMean', 'unitEventAreaMean', 'unitEventAreaSum'};
+    cMetl = {'mean_firing_rate_node', 'peak height', 'peak duration', 'event area', 'event area (sum)'};
 end
 
 
