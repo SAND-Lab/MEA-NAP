@@ -1,4 +1,4 @@
-function figHandle = plotIdvStimDataAndTrace(filteredData, channelIdx, stimInfo, Params)
+function figHandle = plotIdvStimDataAndTrace(rawData, channelIdx, stimInfo, Params)
 %PLOTELECSTIMDATAANDTRACE Summary of this function goes here
 %   Detailed explanation goes here
 
@@ -17,7 +17,7 @@ if strcmp(Params.stimDetectionMethod, 'absPosThreshold')
     hold on 
 end 
 
-numTimeSamples = size(filteredData, 1);
+numTimeSamples = size(rawData, 1);
 stimDataDurS = numTimeSamples / Params.fs;
 
 % Resample the stimulation vector 
@@ -26,7 +26,7 @@ stimResampleN = round(stimDataDurS * stimResamplingHz);
 stimResampleTimes = linspace(0, stimDataDurS, stimResampleN);
 
 recordingTime = linspace(0, stimDataDurS, numTimeSamples);
-plot(recordingTime, filteredData(:, channelIdx));
+plot(recordingTime, rawData(:, channelIdx));
 box off
 xlabel('Time')
 ylabel('Filtered signal')
