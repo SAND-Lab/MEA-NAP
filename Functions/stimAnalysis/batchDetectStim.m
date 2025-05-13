@@ -42,11 +42,11 @@ for expIdx = 1:length(ExpName)
     %}
 
     stimInfo = detectStimTimes(rawData, Params, stimRawData.channels, Params.coords{expIdx});
-
+    [stimInfo, stimPatterns] = getStimPatterns(stimInfo, Params);
 
     % save stimInfo to spike data
     spikeDetectionFilePath = fullfile(spikeDetectionFolder, [ExpName{expIdx} '_spikes.mat']);
-    save(spikeDetectionFilePath, 'stimInfo', '-append');
+    save(spikeDetectionFilePath, 'stimInfo', 'stimPatterns', '-append');
 
     % plot stim detection check (better to do it here since we have
     % filteredData already)
