@@ -47,7 +47,7 @@ function [NetMet] = ExtractNetMet(adjMs, activityMatrix, lagval, Info, Params, o
 %     'Hub4' : Number of hubs satisfying all 4 of the hub criteria
 %     'Hub3' : Number of hubs satisfying 3 out of 4 of the hub criteria
 %     'NE' : Nodal efficiency
-% 
+%     'RC' : Rich Club Coefficient
 % % List of plotting functions used in this script: 
 %     - plotConnectivityProperties
 %     - plotNullModelIterations
@@ -62,6 +62,7 @@ function [NetMet] = ExtractNetMet(adjMs, activityMatrix, lagval, Info, Params, o
 % 
 % Author : RCFeord March 2021
 % Edited by Tim Sit
+% 2025 March : Added Rich Club Coefficient (Tim)
 
 
 % specify list of network metrics to calculate
@@ -193,11 +194,20 @@ for e = 1:length(lagval)
     
     
     % mean node degree of the network 
-    NDmean = nanmean(ND);
+    if aN >= Params.minNumberOfNodesToCalNetMet
+        NDmean = nanmean(ND);
+        % mean node degree of the top 25% of the nodes by node degree 
+        ND75thpercentile = prctile(ND, 75);
+        NDtop25 = mean(ND(ND >= ND75thpercentile));
+        % mean node strength 
+        NSmean = nanmean(NS);
+    else
+        NDmean = nan;
+        NDtop25 = nan;
+        NSmean = nan;
+    end 
     
-    % mean node degree of the top 25% of the nodes by node degree 
-    ND75thpercentile = prctile(ND, 75);
-    NDtop25 = mean(ND(ND >= ND75thpercentile));
+    
     
     % mean of the significant edges
     sigEdges = adjM(abs(adjM) > 0);
@@ -207,8 +217,7 @@ for e = 1:length(lagval)
     sigEdges90thpercentile = prctile(sigEdges, 90); 
     sigEdgesTop10 = mean(sigEdges(sigEdges >= sigEdges90thpercentile));
     
-    % mean node strength 
-    NSmean = nanmean(NS);
+    
     
     %% if option stipulates binary adjM, binarise the matrix
     
@@ -228,6 +237,12 @@ for e = 1:length(lagval)
         Ci = 0;
         Q = 0;
     end
+    
+    if aN < Params.minNumberOfNodesToCalNetMet
+        Q = nan;
+    end
+
+
     nMod = max(Ci);
     
     % global efficiency
@@ -470,6 +485,11 @@ for e = 1:length(lagval)
     end 
     %}
 
+    %% Calculate Rich-Club Coefficient 
+    if any(strcmp(netMetToCal, 'RC'))
+        Rw = rich_club_wu(adjM);
+    end
+
     %% Calculate non-negative matrix factorisation components
     % note these are only calcualted for the first lag field because they
     % do not depend on lag
@@ -553,11 +573,15 @@ for e = 1:length(lagval)
             else
                 aveControl = ave_control(adjM);
             end
-
-            aveControlMean = mean(aveControl);
-            aveControl75thpercentile = prctile(aveControl, 75);
-            aveControlTop25 = mean(aveControl(aveControl >= aveControl75thpercentile));
-                
+            
+            if aN >= Params.minNumberOfNodesToCalNetMet
+                aveControlMean = mean(aveControl);
+                aveControl75thpercentile = prctile(aveControl, 75);
+                aveControlTop25 = mean(aveControl(aveControl >= aveControl75thpercentile));
+            else 
+                aveControlMean = nan;
+                aveControlTop25 = nan;
+            end
         else 
             aveControl = prevNetMet.(lagFieldStr).aveControl;
             aveControlMean = prevNetMet.(lagFieldStr).aveControlMean;
@@ -573,10 +597,15 @@ for e = 1:length(lagval)
         if checkIfRecomputeMetric(Params, prevNetMet, firstLagField, 'modalControl') == 1
         
             modalControl = modal_control(adjM);
-
-            modalControlMean = mean(modalControl);
-            modalControlThreshold = 0.975;
-            modalControlPrctLessThanThreshold = sum(modalControl < modalControlThreshold) / length(modalControl);
+            
+            if aN >= Params.minNumberOfNodesToCalNetMet
+                modalControlMean = mean(modalControl);
+                modalControlThreshold = 0.975;
+                modalControlPrctLessThanThreshold = sum(modalControl < modalControlThreshold) / length(modalControl);
+            else
+                modalControlMean = nan;
+                modalControlPrctLessThanThreshold = nan;
+            end 
         else 
             modalControl = prevNetMet.(lagFieldStr).modalControl;
             modalControlMean = prevNetMet.(lagFieldStr).modalControlMean;
@@ -608,6 +637,7 @@ for e = 1:length(lagval)
             lag_corr_per_channel = temporal_autocorrelation(x);
         end
     end 
+    
     
 
     
