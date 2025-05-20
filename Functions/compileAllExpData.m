@@ -72,7 +72,7 @@ for i = 1:length(ExpName)
      Exp = char(ExpName(i));
      
      % Search for any .mat file with the Exp str (regardless of date)
-     ExpFPathSearchName = dir(fullfile(experimentMatFileFolder, [Exp, '_*.mat'])).name;
+     ExpFPathSearchName = dir(fullfile(experimentMatFileFolder, [Exp, '_OutputData*.mat'])).name;
      ExpFPath = fullfile(experimentMatFileFolder, ExpFPathSearchName);
      expFileData = load(ExpFPath);  
      % filepath contains Info structure
