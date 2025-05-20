@@ -173,7 +173,7 @@ for recording = 1:numel(files)
         if ~isempty(Params.('electrodesToGroundPerRecording'))
             groundElectrodeStr = Params.('electrodesToGroundPerRecording'){recording}; 
             if isstr(groundElectrodeStr)
-                groundElectrodeCell = strsplit(groundElectrodeStr,', ');
+                groundElectrodeCell = strsplit(groundElectrodeStr,',');
                 groundElectrodeVec = str2double(groundElectrodeCell);
             else
                 groundElectrodeVec = groundElectrodeStr;
@@ -380,8 +380,11 @@ for recording = 1:numel(files)
             % Get coordinates for particular recording 
             coords = Params.coords{recording};
             
+            % Calculate spike amplitudes
+            spikeAmps = getSpikeAmp(spikeWaveforms);
+            
             varsList = {'spikeTimes', 'channels', 'spikeDetectionResult', ...
-                'spikeWaveforms', 'thresholds', 'coords'};
+                'spikeWaveforms', 'spikeAmps', 'thresholds', 'coords'};
             save(saveName, varsList{:}, '-v7.3');
         end
     end
