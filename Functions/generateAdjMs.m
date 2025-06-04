@@ -6,11 +6,13 @@ function [adjMs, F1] = generateAdjMs(spikeTimes, ExN, Params, Info, oneFigureHan
 % spikeTimes : 
 % ExN : 
 % Params : struct
+%    MEA-NAP Parameter structure
 % Info : struct
 % 
 % Returns 
 % -------
 % adjMs : 
+% F1 : figure handle
 
 figFolder = fullfile(Params.outputDataFolder, ...
     Params.outputDataFolderName, '3_EdgeThresholdingCheck');
