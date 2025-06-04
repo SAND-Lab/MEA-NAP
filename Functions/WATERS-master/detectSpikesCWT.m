@@ -231,6 +231,7 @@ else
             j = j+(chunk_length*fs);
         end
     else 
+        % here spikeTimes are in frames 
         spikeTimes = detectSpikesWavelet(trace, fs/1000, Wid, Ns, 'l', L, wname, 0, 0);
     end 
     % Align spikes by negative peak & remove artifacts by amplitude
