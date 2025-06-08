@@ -1,5 +1,5 @@
 function plotNodeHeatmap(FN, Ephys, channels, maxVal, Params, coords, ...
-    metricVarName, metricLabel, figFolder, figName, oneFigureHandle, subsetChannelName)
+    metricVarName, metricLabel, cmap, figFolder, figName, oneFigureHandle, subsetChannelName)
 %PLOTNODEHEATMAP Summary of this function goes here
 %   Detailed explanation goes here
 
@@ -39,7 +39,6 @@ metricVals = Ephys.(metricVarName);
 
 %% plot electrodes
 % TODO: I think a lot of rectangle coloring can be simplified
-mycolours = colormap;
 numCbarTicks = 5;
 
 
@@ -61,14 +60,14 @@ for i = 1:numChannels
 
     pos = [xc(i)-(0.5*nodeScaleF) yc(i)-(0.5*nodeScaleF) nodeScaleF nodeScaleF];
         try
-            colorToUse = mycolours(ceil(length(mycolours) * ((metricVals(i) - minSpikeCountToPlot)/(prctile(metricVals,99,'all')-minSpikeCountToPlot))),1:3);
+            colorToUse = cmap(ceil(length(cmap) * ((metricVals(i) - minSpikeCountToPlot)/(prctile(metricVals,99,'all')-minSpikeCountToPlot))),1:3);
             rectangle('Position',pos,'Curvature',[1 1],'FaceColor',colorToUse,'EdgeColor','w','LineWidth',0.1) 
         catch
             if (metricVals(i) - minSpikeCountToPlot) / (prctile(metricVals,95,'all') - minSpikeCountToPlot) == 0
                 rectangle('Position',pos,'Curvature',[1 1],'FaceColor', ...
-                    mycolours(ceil(length(mycolours)*((metricVals(i)- minSpikeCountToPlot)/(prctile(metricVals,99,'all')-minSpikeCountToPlot))+0.00001),1:3),'EdgeColor','w','LineWidth',0.1)
+                    cmap(ceil(length(cmap)*((metricVals(i)- minSpikeCountToPlot)/(prctile(metricVals,99,'all')-minSpikeCountToPlot))+0.00001),1:3),'EdgeColor','w','LineWidth',0.1)
             else
-                rectangle('Position',pos,'Curvature',[1 1],'FaceColor',mycolours(length(mycolours),1:3),'EdgeColor','w','LineWidth',0.1) 
+                rectangle('Position',pos,'Curvature',[1 1],'FaceColor',cmap(length(cmap),1:3),'EdgeColor','w','LineWidth',0.1) 
             end
         end
     if Params.includeChannelNumberInPlots 
@@ -107,13 +106,13 @@ for i = 1:numChannels
     pos = [xc(i)-(0.5*nodeScaleF) yc(i)-(0.5*nodeScaleF) nodeScaleF nodeScaleF];
         try
             rectangle('Position', pos, 'Curvature', [1 1], 'FaceColor', ...
-                mycolours(ceil(length(mycolours)*((metricVals(i) - minSpikeCountToPlot) / (maxVal-minSpikeCountToPlot))),1:3),'EdgeColor','w','LineWidth',0.1)
+                cmap(ceil(length(cmap)*((metricVals(i) - minSpikeCountToPlot) / (maxVal-minSpikeCountToPlot))),1:3),'EdgeColor','w','LineWidth',0.1)
         catch
             if (metricVals(i)-minSpikeCountToPlot)/(maxVal - minSpikeCountToPlot) == 0
                 rectangle('Position',pos,'Curvature',[1 1],'FaceColor', ...
-                    mycolours(ceil(length(mycolours)*((metricVals(i) - minSpikeCountToPlot) / (maxVal-minSpikeCountToPlot))+0.00001),1:3),'EdgeColor','w','LineWidth',0.1)
+                    cmap(ceil(length(cmap)*((metricVals(i) - minSpikeCountToPlot) / (maxVal-minSpikeCountToPlot))+0.00001),1:3),'EdgeColor','w','LineWidth',0.1)
             else
-                 rectangle('Position',pos,'Curvature',[1 1],'FaceColor',mycolours(length(mycolours),1:3),'EdgeColor','w','LineWidth',0.1) 
+                 rectangle('Position',pos,'Curvature',[1 1],'FaceColor',cmap(length(cmap),1:3),'EdgeColor','w','LineWidth',0.1) 
             end
         end
 end
