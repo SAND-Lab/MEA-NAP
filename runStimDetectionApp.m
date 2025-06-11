@@ -20,18 +20,25 @@ stimDetectionAppObj.DetectionvalueEditField.Value = MEANAPapp.Detectionthreshold
 
 stimDetectionAppObj.SamplingrateHzEditField.Value = MEANAPapp.SamplingFrequencyEditField.Value;
 
+stimDetectionAppObj.StimdataprocessingDropDown.Value = MEANAPapp.StimdataprocessingDropDown.Value;
+
 %% Set up original parameters (to see what is changed)
 dataFpath = stimDetectionAppObj.DatapathEditField.Value;  % raw data path 
 stimThreshold = stimDetectionAppObj.DetectionvalueEditField.Value; 
 channelToPlot = stimDetectionAppObj.ChannelDropDown.Value;
 fs = stimDetectionAppObj.SamplingrateHzEditField.Value;
 stimDetectionMethod = stimDetectionAppObj.StimdetectionmethodDropDown.Value;
+stimRefPeriod = stimDetectionAppObj.StimrefractoryperiodsEditField.Value;
+patternMinTimeDiff = stimDetectionAppObj.PatternmintimedifferencesEditField.Value;
+stimProcessingMethod = stimDetectionAppObj.StimdataprocessingDropDown.Value;
+
 
 % Same left position 
 stimDetectionAppObj.UIAxes_2.Position(1) = stimDetectionAppObj.UIAxes.Position(1);
 
 % Same width 
 stimDetectionAppObj.UIAxes_2.Position(3) = stimDetectionAppObj.UIAxes.Position(3);
+
 
 
 
@@ -52,6 +59,10 @@ while isvalid(stimDetectionAppObj)
     selectedChannelChanged = ~strcmp(channelToPlot, stimDetectionAppObj.ChannelDropDown.Value);
     fsChanged = ~(stimDetectionAppObj.SamplingrateHzEditField.Value == fs);
     stimDetectionMethodChanged = ~strcmp(stimDetectionMethod,  stimDetectionAppObj.StimdetectionmethodDropDown.Value);
+    stimRefPeriodChanged =  (stimRefPeriod ~= stimDetectionAppObj.StimrefractoryperiodsEditField.Value);
+    patternMinTimeDiffChanged = (patternMinTimeDiff ~= stimDetectionAppObj.PatternmintimedifferencesEditField.Value);
+    stimProcessingMethodChanged = ~strcmp(stimProcessingMethod, stimDetectionAppObj.StimdataprocessingDropDown.Value);
+
 
     if dataFpathChanged
         dataFpath = stimDetectionAppObj.DatapathEditField.Value;
@@ -68,6 +79,12 @@ while isvalid(stimDetectionAppObj)
             stimDetectionAppObj.SamplingrateHzEditField.Value = rawData.fs;
         end
 
+        % subtract the median and take the absolute value 
+        Params = getParamsFromApp(MEANAPapp);
+        if strcmp(Params.stimRawDataProcessing, 'medianAbs')
+            rawData.dat = abs(rawData.dat - median(rawData.dat, 1));
+        end
+
     end 
 
     if fsChanged
@@ -79,13 +96,23 @@ while isvalid(stimDetectionAppObj)
     if stimThresholdChanged
         MEANAPapp.DetectionthresholdmultiplierEditField.Value = stimDetectionAppObj.DetectionvalueEditField.Value;
     end
+
+    if stimRefPeriodChanged
+        MEANAPapp.StimrefractoryperiodsEditField.Value = stimDetectionAppObj.StimrefractoryperiodsEditField.Value;
+        stimRefPeriod = stimDetectionAppObj.StimrefractoryperiodsEditField.Value;
+    end
     
     if stimDetectionMethodChanged
         stimDetectionMethod = stimDetectionAppObj.StimdetectionmethodDropDown.Value;
         MEANAPapp.StimdetectionmethodDropDown.Value = stimDetectionMethod;
     end
 
-    if stimThresholdChanged || dataFpathChanged || fsChanged || stimDetectionMethodChanged
+    if stimProcessingMethodChanged
+        stimProcessingMethod = stimDetectionAppObj.StimdataprocessingDropDown.Value;
+        MEANAPapp.StimdataprocessingDropDown.Value = stimProcessingMethod;
+    end 
+
+    if stimThresholdChanged || dataFpathChanged || fsChanged || stimDetectionMethodChanged || patternMinTimeDiffChanged || stimRefPeriodChanged
         Params = getParamsFromApp(MEANAPapp);
         stimInfo = detectStimTimes(rawData.dat, Params, rawData.channels, Params.coords);
         [stimInfo, stimPatterns] = getStimPatterns(stimInfo, Params);
@@ -128,7 +155,7 @@ while isvalid(stimDetectionAppObj)
         
     end
 
-    if stimThresholdChanged || selectedChannelChanged || dataFpathChanged
+    if stimThresholdChanged || selectedChannelChanged || dataFpathChanged || stimRefPeriodChanged || patternMinTimeDiffChanged
         Params = getParamsFromApp(MEANAPapp);
         % Plot stim detection trace
         stimResamplingHz = 1000;

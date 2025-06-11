@@ -344,8 +344,10 @@ Params.stimDurationForPlotting = app.StimdurationforplotssEditField.Value;
 Params.preStimWindow = str2num(app.PrestimwindowsEditField.Value);
 Params.postStimWindow = str2num(app.PoststimwindowsEditField.Value);
 Params.stimRemoveSpikesWindow = str2num(app.StimignorespikeswindowsEditField.Value);
+Params.stimTimeDiffThreshold = app.PatternmintimedifferencesEditField.Value; % originally 0.1, in seconds
+Params.stimRawDataProcessing = app.StimdataprocessingDropDown.Value;  % none or medianAbs
 
-Params.stimPatternColors = {'black', 'red'};
+Params.stimPatternColors = {'black', 'red', 'blue', 'cyan', 'yellow', 'green'};
 cmapVals = viridis(60);
 for cIdx = 1:size(cmapVals, 1)
     Params.stimPatternColors{end+1} = cmapVals(cIdx, :);
