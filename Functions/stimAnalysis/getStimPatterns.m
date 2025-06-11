@@ -31,7 +31,8 @@ for eIndex = 1:length(stimInfo)
     if length(stimInfo{elecIndex}.elecStimTimes) == 0
         stimInfo{elecIndex}.pattern = 0;
     else
-        [patternId, stimPatterns] = checkStimPattern(stimInfo{elecIndex}.elecStimTimes, stimPatterns);
+        [patternId, stimPatterns] = checkStimPattern(stimInfo{elecIndex}.elecStimTimes, ...
+            stimPatterns, Params.stimTimeDiffThreshold);
         stimInfo{elecIndex}.pattern = patternId;
     end 
 
