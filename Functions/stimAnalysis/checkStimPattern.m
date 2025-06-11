@@ -1,10 +1,10 @@
-function [patternId,stimPatterns] = checkStimPattern(candidatePattern,stimPatterns)
+function [patternId,stimPatterns] = checkStimPattern(candidatePattern, stimPatterns, stimTimeDiffThreshold)
 %UNTITLED Summary of this function goes here
 %   Detailed explanation goes here
-
-% consider these patterns the same if the mean difference in stim times 
+% Parameters 
+% -----------
+% stimTimeDiffThreshold : consider these patterns the same if the mean difference in stim times 
 % is less than this value
-stimTimeDiffThreshold = 0.1; 
 
 if isempty(stimPatterns)
     patternId = 1;
