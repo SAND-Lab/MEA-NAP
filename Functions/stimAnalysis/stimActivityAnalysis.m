@@ -198,15 +198,19 @@ function stimActivityAnalysis(spikeData, Params, Info, figFolder, oneFigureHandl
         pipelineSaveFig(figPath, Params.figExt, Params.fullSVG, oneFigureHandle)
     end
 
+
     %% Plot trial by trial stimulation response 
-    figure;
+    oneFigureHandle = figure;
+    t = tiledlayout(1, length(stimActivityStore), ...
+        'TileSpacing', 'compact', 'Padding', 'compact');
+
     all_activity = vertcat(stimActivityStore{:});
     min_activity = min(all_activity(:));
     max_activity = max(all_activity(:));
     clim = [min_activity max_activity];
     for stimId = 1:length(stimActivityStore)
         
-        subplot(1, stimId, length(stimActivityStore))
+        ax = nexttile;
         imagesc(stimActivityStore{stimId}, clim)
         
         xlabel('Electrodes')
@@ -214,6 +218,10 @@ function stimActivityAnalysis(spikeData, Params, Info, figFolder, oneFigureHandl
         title(['Stim pattern ' num2str(stimId)])
 
     end 
+    cb = colorbar(ax, 'eastoutside');
+    cb.Layout.Tile = 'east';  % Put the colorbar outside the tile layout
+    ylabel(cb, 'spikes/s', 'FontSize',12)
+    set(gcf, 'color', 'w')
     
     figName = 'stimPattern_activity_per_trial';
     figPath = fullfile(figFolder, figName);
@@ -264,14 +272,14 @@ function stimActivityAnalysis(spikeData, Params, Info, figFolder, oneFigureHandl
 
     end
 
-    figure;
+    oneFigureHandle = figure;
     plot(numNodesToTry, mean(decodingAccuracy, 2));
     hold on 
     scatter(numNodesToTry, mean(decodingAccuracy, 2));
     ylim([0, 1])
     xlabel('Number of nodes used in classification')
     ylabel('Classification accuracy')
-    
+    set(gcf, 'color', 'w')
     figName = 'stimPattern_decoding';
     figPath = fullfile(figFolder, figName);
     pipelineSaveFig(figPath, Params.figExt, Params.fullSVG, oneFigureHandle)
