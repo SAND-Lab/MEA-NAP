@@ -188,6 +188,10 @@ if isfield(Params, 'stimRemoveSpikesWindow')
     app.StimignorespikeswindowsEditField.Value = string(['[', strjoin(cellstr(string(Params.stimRemoveSpikesWindow)), ', '), ']']);
 end
 
+if isfield(Params, 'stimRawDataProcessing')
+    app.StimdataprocessingDropDown.Value = Params.stimRawDataProcessing;
+end
+
 %% Pipeline settings 
 
 app.TimeprocessesCheckBox.Value = Params.timeProcesses;
