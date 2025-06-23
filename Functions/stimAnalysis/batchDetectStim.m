@@ -23,6 +23,10 @@ for expIdx = 1:length(ExpName)
 
     stimRawData = load(fullfile(Params.rawData, ExpName{expIdx}));
     rawData = stimRawData.dat;
+
+    if strcmp(Params.stimRawDataProcessing, 'medianAbs')
+        rawData = abs(rawData - median(rawData, 1));
+    end
     %{
     filteredData = zeros(size(stimRawData.dat)) + nan;
 
