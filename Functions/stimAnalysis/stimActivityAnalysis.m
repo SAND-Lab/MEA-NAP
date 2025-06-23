@@ -60,7 +60,7 @@ function stimActivityAnalysis(spikeData, Params, Info, figFolder, oneFigureHandl
     spikeData.spikeAmps = spikeAmps;
     
     rasterWindow = [Params.preStimWindow(1), Params.postStimWindow(2)];
-    rasterBinWidth = 0.01;   % originally 0.025 
+    rasterBinWidth = Params.rasterBinWidth;   % originally 0.025 
     
     rasterBins = rasterWindow(1):rasterBinWidth:rasterWindow(2);
     numBins = length(rasterBins) - 1; 
@@ -120,7 +120,7 @@ function stimActivityAnalysis(spikeData, Params, Info, figFolder, oneFigureHandl
     ylabel('Channel')
     xlabel('Time from stimulation (s)')
     set(gca, 'TickDir', 'out');
-    set(gcf, 'color', 'w')
+    set(gcf, 'color', 'w');
     
 
     % save figure
@@ -164,14 +164,35 @@ function stimActivityAnalysis(spikeData, Params, Info, figFolder, oneFigureHandl
     % stim_activity_window = [0.1, 0.3];  % seconds
     patternSpikeMatrixStore = {};
     stimActivityStore = {};
+
+    % some parameter adjustments to look into smaller windows 
+    % Params.stimRemoveSpikesWindow = [0, 0]
+    % Params.rasterBinWidth = 0.001; % originally 0.01
+    
+    Params.stimDecodingTimeWindows = linspace(0, 0.01, 10);
+    % Params.stimDecodingTimeWindows = [0, 0.002, 0.004, 0.006, 0.008, 0.01];
+
     for patternIdx = 1:length(spikeData.stimPatterns)
         stimTimesToAlign = spikeData.stimPatterns{patternIdx};
         [frAlignedToStim, rasterBins] = getFrAlignedToStim(spikeData, stimTimesToAlign, Params);
-        subsetTimeIdx = find((rasterBins >= Params.postStimWindow(1)) & ...
-            (rasterBins <= Params.postStimWindow(2))) - 1;
-        patternSpikeMatrix = mean(frAlignedToStim(:, :, subsetTimeIdx), 3); % mean across time
-        stimActivityStore{patternIdx} = patternSpikeMatrix'; % for decoding 
-        patternSpikeMatrix = squeeze(mean(patternSpikeMatrix, 2)); % mean across trials
+        
+        numDecodingTimeBins = length(Params.stimDecodingTimeWindows)-1;
+        numTrials = size(frAlignedToStim, 2);
+        patternSpikeMatrix = zeros(numTrials, numChannels*numDecodingTimeBins);
+        for window_idx = 1:numDecodingTimeBins
+            subsetTimeIdx = find((rasterBins >= Params.stimDecodingTimeWindows(window_idx)) & ...
+            (rasterBins <= Params.stimDecodingTimeWindows(window_idx+1))) - 1;
+            patternSpikeMatrixAtWindow = mean(frAlignedToStim(:, :, subsetTimeIdx), 3); % mean across time
+            start_idx = 1 + (window_idx - 1) * numChannels; 
+            end_idx = start_idx + numChannels - 1;
+            patternSpikeMatrix(:, start_idx:end_idx) = patternSpikeMatrixAtWindow;
+        end
+
+        % subsetTimeIdx = find((rasterBins >= Params.postStimWindow(1)) & ...
+        %     (rasterBins <= Params.postStimWindow(2))) - 1;
+        % patternSpikeMatrix = mean(frAlignedToStim(:, :, subsetTimeIdx), 3); % mean across time
+        stimActivityStore{patternIdx} = patternSpikeMatrix; % for decoding 
+        patternSpikeMatrix = squeeze(mean(patternSpikeMatrix, 1)); % mean across trials
        
         patternSpikeMatrixStore{patternIdx} = patternSpikeMatrix;
         
@@ -183,6 +204,7 @@ function stimActivityAnalysis(spikeData, Params, Info, figFolder, oneFigureHandl
     
     % get the max frequency to scale 
     spikeFreqMax = max(cellfun(@max, patternSpikeMatrixStore));
+    spikeFreqMax = max([spikeFreqMax, 0.0001]);
     vrange = [0, spikeFreqMax];
     cmap = 'viridis';
     
@@ -207,15 +229,44 @@ function stimActivityAnalysis(spikeData, Params, Info, figFolder, oneFigureHandl
     all_activity = vertcat(stimActivityStore{:});
     min_activity = min(all_activity(:));
     max_activity = max(all_activity(:));
+    
+    if max_activity == 0 
+        max_activity = 0.0001;
+    end
+
     clim = [min_activity max_activity];
     for stimId = 1:length(stimActivityStore)
         
         ax = nexttile;
         imagesc(stimActivityStore{stimId}, clim)
+        patternNumTrials = size(stimActivityStore{stimId}, 1);
         
-        xlabel('Electrodes')
+        xlabel('Electrodes and time bins')
         ylabel('Trials')
-        title(['Stim pattern ' num2str(stimId)])
+        hTitle = title(['Stim pattern ' num2str(stimId)], '   ');  % add an empty line to create padding
+        
+        
+        hold on
+        for window_idx = 1:numDecodingTimeBins
+            start_idx = 1 + (window_idx-1) * numChannels; 
+            end_idx = start_idx + numChannels - 1;
+            plot([start_idx, end_idx], [-0.5, -0.5], 'LineWidth', 3, 'Color', 'black');
+            decodingStartMs = Params.stimDecodingTimeWindows(window_idx) * 1000;
+            text(start_idx, -0.5, sprintf('%.f ms', decodingStartMs), 'VerticalAlignment', 'bottom');
+            
+            if window_idx == numDecodingTimeBins
+                decodingEndMs = Params.stimDecodingTimeWindows(window_idx+1) * 1000;
+                text(end_idx, -0.5, sprintf('%.f ms', decodingEndMs), ...
+                    'VerticalAlignment', 'bottom', 'HorizontalAlignment','left');
+            end
+            
+            hold on 
+        end
+
+        ylim([-1, patternNumTrials]);
+        yticks([1, patternNumTrials])
+        box(ax, 'off');
+        set(ax, 'TickDir', 'out');  
 
     end 
     cb = colorbar(ax, 'eastoutside');
@@ -240,6 +291,9 @@ function stimActivityAnalysis(spikeData, Params, Info, figFolder, oneFigureHandl
     % TEMP: Do some z-scoring 
     X = (X - mean(X, 1)) ./ std(X, 1);
 
+    % Do some NaN imputation... 
+    X(isnan(X)) = 0;
+
     y = []; 
     for patternIdx = 1:length(stimActivityStore)
         y = [y; repmat(patternIdx, size(stimActivityStore{patternIdx}, 1), 1)];
@@ -258,15 +312,25 @@ function stimActivityAnalysis(spikeData, Params, Info, figFolder, oneFigureHandl
             
             % randomly get a subset of nodes (without replacement)
             nodeToUse = randsample(numChannels, numNodesToUse, false);
+            featureIndices = [];
+            for windowIdx = 1:numDecodingTimeBins
+                startIdx = (windowIdx-1) * numChannels;
+                featureIndices = [featureIndices; startIdx + nodeToUse];
+            end
 
             % trialIdxShuffled = trialIdx(randperm(length(trialIdx));
             % train_idx = trialIdx(1:numTrainTrials);
             %test_idx = trialIdx((numTrainTrials+1):end);
-            X_subset = X(:, nodeToUse);
-            % clf_model = fitcecoc(X_subset,y);
-            clf_model = fitcsvm(X_subset,y);
-            cross_val_model = crossval(clf_model, 'KFold', clf_num_kfold);
-            mean_model_loss = mean(cross_val_model.kfoldLoss);
+            X_subset = X(:, featureIndices);
+
+            if all(isnan(X_subset(:)))
+                mean_model_loss = nan;
+            else
+                clf_model = fitcecoc(X_subset,y);  %multi-class model
+                % clf_model = fitcsvm(X_subset,y);
+                cross_val_model = crossval(clf_model, 'KFold', clf_num_kfold);
+                mean_model_loss = mean(cross_val_model.kfoldLoss);
+            end 
             decodingAccuracy(numNodeIdx, repeatIdx) = 1 - mean_model_loss;
         end
 
