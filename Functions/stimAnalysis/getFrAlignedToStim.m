@@ -1,6 +1,10 @@
 function [frAlignedToStim, rasterBins] = getFrAlignedToStim(spikeData, allStimTimes, Params)
 %GETFRALIGNEDTOSTIM Summary of this function goes here
 %   Detailed explanation goes here
+% Returns 
+% -------
+% frAlignedToStim : matrix 
+%     double of shape (numChannel, numTrials, numTimeBins)
     
     numChannels = length(spikeData.stimInfo);
 
