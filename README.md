@@ -38,6 +38,9 @@ You can view **our video tutorials** at [YouTube](https://youtube.com/playlist?l
 
 **Our manuscript describing MEA-NAP is now published in Cell Reports Methods**  
 
+![cell-reports-MEA-NAP-cover](https://github.com/user-attachments/assets/1ebc8697-cff9-44ef-959e-1d430614b3a0)
+
+
 Timothy PH Sit, Rachael C Feord, Alexander WE Dunn, Jeremi Chabros, David Oluigbo, Hugo H Smith, Lance Burn, Elise Chang, Alessio Boschi, Yin Yuan, George M Gibbons, Mahsa Khayat-Khoei, Francesco De Angelis, Erik Hemberg, Martin Hemberg, Madeline A Lancaster, Andras Lakatos, Stephen J Eglen, Ole Paulsen, Susanna B Mierau. **MEA-NAP: A flexible network analysis pipeline for neuronal 2D and 3D organoid multielectrode recordings.** Cell Reports Methods, 4, 100901, November 8, 2024. [doi:10.1016/j.crmeth.2024.100901.](https://www.cell.com/cell-reports-methods/fulltext/S2667-2375(24)00291-1)
 
 ## Features
