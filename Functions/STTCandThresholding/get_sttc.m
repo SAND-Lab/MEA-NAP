@@ -42,7 +42,7 @@ for i = 1:size(combins, 1)
     if use_c_code
         tileCoef = sttc(N1v, N2v, dtv, Time, spike_times_1, spike_times_2);
     else 
-        tileCoef = sttc_m(N1v, N2v, dtv, Time, spike_times_1, spike_times_2);
+        tileCoef = sttc_m(double(N1v), double(N2v), dtv, Time, spike_times_1, spike_times_2);
     end
     A(i) = tileCoef; % Faster to only get upper triangle so might as well store as vector
 end
