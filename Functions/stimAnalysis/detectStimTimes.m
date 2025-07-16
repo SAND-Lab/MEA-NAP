@@ -27,6 +27,60 @@ stimDur = Params.stimDuration;
 numChannels = size(rawData, 2);
 stimInfo = cell(numChannels, 1);
 
+if strcmp(stimDetectionMethod, 'blanking')
+
+    % IDEA: take the mode of the blanking times per electrode, and use
+    % those as the stimulation times
+    % NOTE: This is quite slow at the moment, not sure why...
+
+    num_blanks_per_electrode = zeros(1, numChannels);
+    electrode_blank_times = {};
+
+    for channel_idx = 1:numChannels
+        channelDat = rawData(:, channel_idx);
+        
+        % Minimum duration of a run (currently in samples)
+        min_duration = round(Params.minBlankingDuration * Params.fs); % 25 works
+        
+        % Find where values change
+        change_points = [1; diff(channelDat) ~= 0]; % [true (diff(channelDat) ~= 0)];
+        
+        % Assign group IDs to each run of constant value
+        group_id = cumsum(change_points);
+        
+        % Count length of each run
+        counts = accumarray(group_id(:), 1);
+        
+        % Find which groups meet the minimum duration
+        valid_groups = find(counts >= min_duration);
+        
+        % Find start indices of each group
+        [~, start_indices] = unique(group_id, 'first');
+        
+        % Select only those with valid length
+        start_indices = start_indices(ismember(group_id(start_indices), valid_groups));
+
+        num_blanks_per_electrode(channel_idx) = length(start_indices);
+        electrode_blank_times{channel_idx} = start_indices / Params.fs;
+
+    end
+    
+    blanks_count_mode = mode(num_blanks_per_electrode);
+    electrodes_with_mode_count = find(num_blanks_per_electrode == blanks_count_mode);
+    allStimTimesTemplate = median(horzcat(electrode_blank_times{electrodes_with_mode_count}), 2);
+
+    if isempty(allStimTimesTemplate)
+        fprintf('WARNING: NO BLANKING DETECTED')
+    end
+
+end
+
+
+if strcmp(stimDetectionMethod, 'blanking')
+    medianAbsDeviation = abs(rawData - median(rawData, 1));
+end
+
+
 % Do electrical stimulation detection (and assign stimulation duration)
 for channel_idx = 1:numChannels
     traceMean = mean(rawData(:, channel_idx));
@@ -42,6 +96,41 @@ for channel_idx = 1:numChannels
     elseif strcmp(stimDetectionMethod, 'stdNeg')
         stimThreshold = traceMean - traceStd * Params.stimDetectionVal;
         elecStimTimes = find(rawData(:, channel_idx) < stimThreshold) / Params.fs;
+    elseif strcmp(stimDetectionMethod, 'blanking')
+        % First take the approximate stimulation time from the trace 
+        % Then find the closest stimulation times according to the blanking
+        % times
+        stimThreshold = Params.stimDetectionVal;
+
+        % TODO: this is not as good as the filtering approach... need to
+        % have very long refractory period...
+        approxElecStimTimes = find(medianAbsDeviation(:, channel_idx) > stimThreshold) / Params.fs;
+
+        keepIdx = true(size(approxElecStimTimes)); % Logical mask for keeping elements
+        lastValidIdx = 1; % Track last valid stim time
+        
+        for stimIdx = 2:length(approxElecStimTimes)
+            if approxElecStimTimes(stimIdx) <= approxElecStimTimes(lastValidIdx) + stimRefPeriod
+                keepIdx(stimIdx) = false; % Mark for removal
+            else
+                lastValidIdx = stimIdx; % Update last valid index
+            end
+        end
+        approxElecStimTimes = approxElecStimTimes(keepIdx); % Keep only valid elements
+        
+        elecStimTimes = [];
+        for stimIdx = 1:length(approxElecStimTimes)
+            % NOTE: Here we assume that the blanking always occur before
+            % the stimulation artifact, this resolves cases where two
+            % blanking periods are equally close the the stimulation
+            % artifact
+            allStimTimesTemplateBeforeStim = allStimTimesTemplate(allStimTimesTemplate < approxElecStimTimes(stimIdx));
+            [~, minIdx] = min(abs(approxElecStimTimes(stimIdx) - allStimTimesTemplateBeforeStim));
+            if ~isempty(minIdx)
+                elecStimTimes(stimIdx) = allStimTimesTemplateBeforeStim(minIdx);
+            end 
+        end
+
     else 
         error('No valid stimulus detection specified')
     end 
@@ -85,7 +174,14 @@ for channel_idx = 1:numChannels
     stimStruct.elecStimDur = repmat(stimDur, length(elecStimTimes), 1);
     stimStruct.channelName = channelNames(channel_idx);
     stimStruct.coords = coords(channel_idx, :);
+    
+    if strcmp(stimDetectionMethod, 'blanking')
+        stimStruct.allStimTimesTemplate = allStimTimesTemplate;
+    end
+
     stimInfo{channel_idx} = stimStruct;
+
+    
     
 end
 
