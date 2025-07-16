@@ -353,6 +353,7 @@ cmapVals = viridis(60);
 for cIdx = 1:size(cmapVals, 1)
     Params.stimPatternColors{end+1} = cmapVals(cIdx, :);
 end 
+Params.minBlankingDuration = app.MinimumblankingdurationsEditField.Value; % 0.001;  % minimum blank duration, in seconds
 
 %% MISC 
 Params.option = 'list';

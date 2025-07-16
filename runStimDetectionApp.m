@@ -22,6 +22,8 @@ stimDetectionAppObj.SamplingrateHzEditField.Value = MEANAPapp.SamplingFrequencyE
 
 stimDetectionAppObj.StimdataprocessingDropDown.Value = MEANAPapp.StimdataprocessingDropDown.Value;
 
+% channel layout and sampling frequency
+
 %% Set up original parameters (to see what is changed)
 dataFpath = stimDetectionAppObj.DatapathEditField.Value;  % raw data path 
 stimThreshold = stimDetectionAppObj.DetectionvalueEditField.Value; 
@@ -114,6 +116,12 @@ while isvalid(stimDetectionAppObj)
 
     if stimThresholdChanged || dataFpathChanged || fsChanged || stimDetectionMethodChanged || patternMinTimeDiffChanged || stimRefPeriodChanged
         Params = getParamsFromApp(MEANAPapp);
+        
+        % Update text area to let user know stim detection is running
+        MEANAPapp.MEANAPStatusTextArea.Value = ...
+            [MEANAPapp.MEANAPStatusTextArea.Value; ...
+            'Running stim detection...'];
+        drawnow
         stimInfo = detectStimTimes(rawData.dat, Params, rawData.channels, Params.coords);
         [stimInfo, stimPatterns] = getStimPatterns(stimInfo, Params);
         numStimPatterns = length(stimPatterns);
@@ -153,6 +161,11 @@ while isvalid(stimDetectionAppObj)
         stimDetectionAppObj.Numberofstimulationelectrodes0Label.Text = sprintf('Number of stimulation electrodes: %.f', numStimElectrodes);
         stimDetectionAppObj.Numberofstimulationpatterns0Label.Text = sprintf('Number of stimulation patterns: %.f', length(stimPatterns)); 
         
+        % Update stim detection status 
+        MEANAPapp.MEANAPStatusTextArea.Value = ...
+            [MEANAPapp.MEANAPStatusTextArea.Value; ...
+            'Stim detection complete!'];
+
     end
 
     if stimThresholdChanged || selectedChannelChanged || dataFpathChanged || stimRefPeriodChanged || patternMinTimeDiffChanged
@@ -270,12 +283,22 @@ while isvalid(stimDetectionAppObj)
         timeStampInSec = (1:numTimeSamples) ./ rawData.fs;
         
         cla(stimDetectionAppObj.UIAxes) 
-        plot(stimDetectionAppObj.UIAxes, timeStampInSec, rawData.dat(:, channelIdxToPlot));
+        if strcmp(stimDetectionMethod, 'blanking')
+            channelData = rawData.dat(:, channelIdxToPlot);
+            medianAbsDeviation = abs(channelData - median(channelData));
+            plot(stimDetectionAppObj.UIAxes, timeStampInSec, medianAbsDeviation);
+            ylabel(stimDetectionAppObj.UIAxes, 'Median absolute deviation')
+        else 
+            plot(stimDetectionAppObj.UIAxes, timeStampInSec, rawData.dat(:, channelIdxToPlot));
+            ylabel(stimDetectionAppObj.UIAxes, 'Raw signal')
+        end
+        
         hold(stimDetectionAppObj.UIAxes, 'on')
         plot(stimDetectionAppObj.UIAxes, timeStampInSec, repmat(stimThreshold, 1, numTimeSamples));
         xlabel(stimDetectionAppObj.UIAxes, 'Time (s)');
-        ylabel(stimDetectionAppObj.UIAxes, 'Raw signal')
+        
         title(stimDetectionAppObj.UIAxes, sprintf('Channel %s', channelToPlot))
+
         
         % Adjust plot size
         % Get y axis extent

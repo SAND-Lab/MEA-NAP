@@ -138,6 +138,9 @@ app.StimulationTab.Parent = [];
 app.ShadeMetricDropDown.Visible = 'off';
 app.ShadeMetricDropDownLabel.Visible = 'off';
 
+% Set up original sampling frequency and layout value to link the two 
+% sfValue1 = app.SamplingFrequencyEditField.Value
+% sfValue2 = app.SamplingFrequencyEditField.Value
 
 while isvalid(app)
 
@@ -516,6 +519,9 @@ while isvalid(app)
         
         break
     end
+
+    % Linking the channel layout and sampling frequency settings 
+
     
     % Launch MEANAP viewer 
     if app.ViewOutputsButton.Value == 1
