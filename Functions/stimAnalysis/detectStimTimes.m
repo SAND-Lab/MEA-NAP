@@ -77,7 +77,25 @@ end
 
 
 if strcmp(stimDetectionMethod, 'blanking')
-    medianAbsDeviation = abs(rawData - median(rawData, 1));
+    %{
+    if strcmp(Params.stimProcessingMethod, 'filter')
+        lowpass = Params.filterLowPass;
+        highpass = Params.filterHighPass;
+        wn = [lowpass highpass] / (Params.fs / 2);
+        filterOrder = 3;
+        [b, a] = butter(filterOrder, wn);
+        % WIP: 
+        filteredData = zeros(size(rawData));
+        for channelIdx = 1:size(stimRawData.dat, 2)
+            data = stimRawData.dat(:, channelIdx);
+            trace = filtfilt(b, a, double(data));
+            filteredData(:, channelIdx) = trace;
+         end 
+    else
+    %}
+        medianAbsDeviation = median(abs(rawData - mean(rawData, 1)), 1);
+        medianZscore = abs(rawData - median(rawData, 1)) ./ medianAbsDeviation;
+    % end 
 end
 
 
@@ -104,7 +122,7 @@ for channel_idx = 1:numChannels
 
         % TODO: this is not as good as the filtering approach... need to
         % have very long refractory period...
-        approxElecStimTimes = find(medianAbsDeviation(:, channel_idx) > stimThreshold) / Params.fs;
+        approxElecStimTimes = find(medianZscore(:, channel_idx) > stimThreshold) / Params.fs;
 
         keepIdx = true(size(approxElecStimTimes)); % Logical mask for keeping elements
         lastValidIdx = 1; % Track last valid stim time

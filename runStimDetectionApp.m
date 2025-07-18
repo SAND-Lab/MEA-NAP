@@ -22,6 +22,8 @@ stimDetectionAppObj.SamplingrateHzEditField.Value = MEANAPapp.SamplingFrequencyE
 
 stimDetectionAppObj.StimdataprocessingDropDown.Value = MEANAPapp.StimdataprocessingDropDown.Value;
 
+stimDetectionAppObj.PatternmintimedifferencesEditField.Value = MEANAPapp.PatternmintimedifferencesEditField.Value;
+
 % channel layout and sampling frequency
 
 %% Set up original parameters (to see what is changed)
@@ -113,6 +115,11 @@ while isvalid(stimDetectionAppObj)
         stimProcessingMethod = stimDetectionAppObj.StimdataprocessingDropDown.Value;
         MEANAPapp.StimdataprocessingDropDown.Value = stimProcessingMethod;
     end 
+
+    if patternMinTimeDiffChanged
+        patternMinTimeDiff = stimDetectionAppObj.PatternmintimedifferencesEditField.Value;
+        MEANAPapp.PatternmintimedifferencesEditField.Value = patternMinTimeDiff;
+    end
 
     if stimThresholdChanged || dataFpathChanged || fsChanged || stimDetectionMethodChanged || patternMinTimeDiffChanged || stimRefPeriodChanged
         Params = getParamsFromApp(MEANAPapp);
@@ -285,8 +292,10 @@ while isvalid(stimDetectionAppObj)
         cla(stimDetectionAppObj.UIAxes) 
         if strcmp(stimDetectionMethod, 'blanking')
             channelData = rawData.dat(:, channelIdxToPlot);
-            medianAbsDeviation = abs(channelData - median(channelData));
-            plot(stimDetectionAppObj.UIAxes, timeStampInSec, medianAbsDeviation);
+            % medianAbsDeviation = abs(channelData - median(channelData));
+            medianAbsDeviation = median(abs(channelData - mean(channelData)), 1);
+            medianZscore = abs(channelData - median(channelData)) ./ medianAbsDeviation;
+            plot(stimDetectionAppObj.UIAxes, timeStampInSec, medianZscore);
             ylabel(stimDetectionAppObj.UIAxes, 'Median absolute deviation')
         else 
             plot(stimDetectionAppObj.UIAxes, timeStampInSec, rawData.dat(:, channelIdxToPlot));
