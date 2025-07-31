@@ -149,6 +149,34 @@ for channel_idx = 1:numChannels
             end 
         end
 
+    elseif strcmp(stimDetectionMethod, 'longblank')
+
+        channelDat = rawData(:, channel_idx);
+
+        % Minimum duration of a run (currently in samples)
+        min_duration = round(Params.minBlankingDuration * Params.fs); % 25 works
+        
+        % Find where values change
+        change_points = [1; diff(channelDat) ~= 0]; % [true (diff(channelDat) ~= 0)];
+        
+        % Assign group IDs to each run of constant value
+        group_id = cumsum(change_points);
+        
+        % Count length of each run
+        counts = accumarray(group_id(:), 1);
+        
+        % Find which groups meet the minimum duration
+        valid_groups = find(counts >= min_duration);
+        
+        % Find start indices of each group
+        [~, start_indices] = unique(group_id, 'first');
+        
+        % Select only those with valid length
+        start_indices = start_indices(ismember(group_id(start_indices), valid_groups));
+
+        elecStimTimes = start_indices / Params.fs;
+
+
     else 
         error('No valid stimulus detection specified')
     end 
