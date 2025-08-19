@@ -20,18 +20,30 @@ addpath(fullfile(app.MEANAPFolderEditField.Value, 'Functions', 'twoPhoton'));
 app.UIFigure.Name = ['MEA-NAP ' localVersion];
 
 % Default colours 
-app.colorUITable.Data = [ ...
-   1, 0.996, 0.670, 0.318; ...
-   2, 0.780, 0.114, 0.114; ... 
-   3, 0.459, 0.000, 0.376; ...  
-   4, 0.027, 0.306, 0.659; ...
-   5, 0.5, 0.5, 0.5; ...
-   6, 0, 0, 0; ...
-   7, 0, 0, 0; ...
-   8, 0, 0, 0; ...
-   9, 0, 0, 0; ...
-   10, 0, 0, 0; ...
-];
+defaultGroupColorMap = [...
+   1, 0.996, 0.670, 0.318; ... % 1 orange
+   2, 0.780, 0.114, 0.114; ... % 2 red
+   3, 0.459, 0.000, 0.376; ... % 3 purple
+   4, 0.027, 0.306, 0.659; ... % 4 blue
+   5, 0.000, 0.600, 0.451; ... % 5 teal
+   6, 0.431, 0.690, 0.000; ... % 6 green
+   7, 0.863, 0.863, 0.000; ... % 7 yellow
+   8, 0.941, 0.471, 0.000; ... % 8 orange-red
+   9, 0.800, 0.000, 0.400; ... % 9 magenta
+   10, 0.365, 0.200, 0.800; ... % 10 violet
+   11, 0.000, 0.500, 0.800; ... % 11 sky blue
+   12, 0.000, 0.700, 0.700; ... % 12 cyan-green
+   13, 0.200, 0.700, 0.200; ... % 13 medium green
+   14, 0.700, 0.700, 0.200; ... % 14 olive
+   15, 0.900, 0.600, 0.000; ... % 15 amber
+   16, 0.900, 0.000, 0.200; ... % 16 crimson
+   17, 0.600, 0.200, 0.600; ... % 17 plum
+   18, 0.400, 0.400, 0.900; ... % 18 royal blue
+   29, 0.200, 0.600, 0.900; ... % 19 turquoise
+   20, 0.200, 0.800, 0.400];    % 20 fresh green
+
+app.colorUITable.Data = defaultGroupColorMap(1:10, :);
+
 app.colorUITable.ColumnEditable = [true, true, true, true];
 
 % get Original parents to hide/show them later 
@@ -332,6 +344,20 @@ while isvalid(app)
     end
     
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+    %%%%%%% Colors Tab %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    numGroups = app.NumberofgroupsEditField.Value;
+    [currentRowCount, ~] = size(app.colorUITable.Data);
+    
+    if numGroups > currentRowCount
+        % add new row to the color table
+        app.colorUITable.Data = defaultGroupColorMap(1:numGroups, :);
+    elseif numGroups < currentRowCount
+        app.colorUITable.Data = defaultGroupColorMap(1:numGroups, :);
+    end
+
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     
     
     % Load previous analysis folder 
