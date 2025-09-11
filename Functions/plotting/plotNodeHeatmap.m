@@ -1,5 +1,5 @@
 function plotNodeHeatmap(FN, Ephys, channels, maxVal, Params, coords, ...
-    metricVarName, metricLabel, cmap, figFolder, figName, oneFigureHandle, subsetChannelName)
+    metricVarName, metricLabel, cmap, useLogScale, figFolder, figName, oneFigureHandle, subsetChannelName)
 %PLOTNODEHEATMAP Summary of this function goes here
 %   Detailed explanation goes here
 
@@ -37,12 +37,21 @@ yc = coords(:, 2);
 
 metricVals = Ephys.(metricVarName);
 
+if useLogScale == 1
+    metricVals = log10(metricVals);
+    maxVal = log10(maxVal);
+end
+
 %% plot electrodes
 % TODO: I think a lot of rectangle coloring can be simplified
 numCbarTicks = 5;
 
+%% NaN color handling 
+NaNColor = [0.8, 0.8, 0.8]; % grey 
 
 %% Left electrode plot (scaled to individual recording)
+
+
 nexttile
 uniqueXc = sort(unique(xc));
 nodeScaleF = 2/3; 
@@ -60,7 +69,11 @@ for i = 1:numChannels
 
     pos = [xc(i)-(0.5*nodeScaleF) yc(i)-(0.5*nodeScaleF) nodeScaleF nodeScaleF];
         try
-            colorToUse = cmap(ceil(length(cmap) * ((metricVals(i) - minSpikeCountToPlot)/(prctile(metricVals,99,'all')-minSpikeCountToPlot))),1:3);
+            if isnan(metricVals(i))
+                colorToUse = NaNColor;
+            else
+                colorToUse = cmap(ceil(length(cmap) * ((metricVals(i) - minSpikeCountToPlot)/(prctile(metricVals,99,'all')-minSpikeCountToPlot))),1:3);
+            end 
             rectangle('Position',pos,'Curvature',[1 1],'FaceColor',colorToUse,'EdgeColor','w','LineWidth',0.1) 
         catch
             if (metricVals(i) - minSpikeCountToPlot) / (prctile(metricVals,95,'all') - minSpikeCountToPlot) == 0
@@ -78,17 +91,26 @@ end
 ylim([min(yc) - 1, max(yc) + 1])
 xlim([min(xc) - 1, max(xc) + 1])
 axis off
-
+colormap(cmap);
+caxis([minSpikeCountToPlot, prctile(metricVals,99,'all')]);
 cb = colorbar;
+
 cb.Box = 'off';
-cb.Ticks = linspace(0, 1, numCbarTicks);
+
+cb.Ticks = linspace(0, prctile(metricVals,99,'all'), numCbarTicks);
 
 tickLabels = cell(numCbarTicks, 1);
 for nTick = 1:numCbarTicks
     if nTick == 1
         tickLabels{nTick} = num2str(minSpikeCountToPlot);
-    else 
-        tickLabels{nTick} = num2str(round((nTick-1) / numCbarTicks * prctile(metricVals,99,'all'),2));
+    else
+        if useLogScale == 1
+             valLogScale = nTick / numCbarTicks * prctile(metricVals,99,'all');
+             numberToPlot = round(10.^valLogScale, 2);
+             tickLabels{nTick} = num2str(numberToPlot);
+        else
+            tickLabels{nTick} = num2str(round(nTick / numCbarTicks * prctile(metricVals,99,'all'),2));
+        end 
     end 
 end 
 
@@ -105,9 +127,14 @@ nexttile
 for i = 1:numChannels
     pos = [xc(i)-(0.5*nodeScaleF) yc(i)-(0.5*nodeScaleF) nodeScaleF nodeScaleF];
         try
+            if isnan(metricVals(i))
+                colorToUse = NaNColor;
+            else
+                colorToUse = cmap(ceil(length(cmap)*((metricVals(i) - minSpikeCountToPlot) / (maxVal-minSpikeCountToPlot))),1:3);
+            end 
             rectangle('Position', pos, 'Curvature', [1 1], 'FaceColor', ...
-                cmap(ceil(length(cmap)*((metricVals(i) - minSpikeCountToPlot) / (maxVal-minSpikeCountToPlot))),1:3),'EdgeColor','w','LineWidth',0.1)
-        catch
+                colorToUse,'EdgeColor','w','LineWidth',0.1)
+       catch
             if (metricVals(i)-minSpikeCountToPlot)/(maxVal - minSpikeCountToPlot) == 0
                 rectangle('Position',pos,'Curvature',[1 1],'FaceColor', ...
                     cmap(ceil(length(cmap)*((metricVals(i) - minSpikeCountToPlot) / (maxVal-minSpikeCountToPlot))+0.00001),1:3),'EdgeColor','w','LineWidth',0.1)
@@ -120,16 +147,26 @@ ylim([min(yc)-1 max(yc)+1])
 xlim([min(xc)-1 max(xc)+1])
 axis off
 
+colormap(cmap);
+caxis([minSpikeCountToPlot, maxVal]);
 cb = colorbar;
 cb.Box = 'off';
-cb.Ticks = linspace(0, 1, numCbarTicks);
+cb.Ticks = linspace(0, maxVal, numCbarTicks);
 
 tickLabels = cell(numCbarTicks, 1);
 for nTick = 1:numCbarTicks
     if nTick == 1
         tickLabels{nTick} = num2str(minSpikeCountToPlot);
     else 
-        tickLabels{nTick} = num2str(round((nTick-1) / numCbarTicks * maxVal, 2));
+        if useLogScale == 1
+             maxVal
+             valLogScale = nTick / numCbarTicks * maxVal;
+             valLogScale
+             numberToPlot = round(10.^valLogScale, 2);
+             tickLabels{nTick} = num2str(numberToPlot);
+        else
+            tickLabels{nTick} = num2str(round(nTick / numCbarTicks * maxVal, 2));
+        end 
     end 
 end 
 
