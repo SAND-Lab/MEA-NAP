@@ -90,14 +90,23 @@ for i = 1:numChannels
 end
 ylim([min(yc) - 1, max(yc) + 1])
 xlim([min(xc) - 1, max(xc) + 1])
+
+if prctile(metricVals,99,'all') <= minSpikeCountToPlot
+    cAxisMaxVal = minSpikeCountToPlot + 1;
+elseif isnan(prctile(metricVals,99,'all'))
+    cAxisMaxVal = minSpikeCountToPlot + 1;
+else 
+    cAxisMaxVal = prctile(metricVals,99,'all');
+end
+
 axis off
 colormap(cmap);
-caxis([minSpikeCountToPlot, prctile(metricVals,99,'all')]);
+caxis([minSpikeCountToPlot, cAxisMaxVal]);
 cb = colorbar;
 
 cb.Box = 'off';
 
-cb.Ticks = linspace(0, prctile(metricVals,99,'all'), numCbarTicks);
+cb.Ticks = linspace(0, cAxisMaxVal, numCbarTicks);
 
 tickLabels = cell(numCbarTicks, 1);
 for nTick = 1:numCbarTicks
@@ -105,11 +114,11 @@ for nTick = 1:numCbarTicks
         tickLabels{nTick} = num2str(minSpikeCountToPlot);
     else
         if useLogScale == 1
-             valLogScale = nTick / numCbarTicks * prctile(metricVals,99,'all');
+             valLogScale = nTick / numCbarTicks * cAxisMaxVal;
              numberToPlot = round(10.^valLogScale, 2);
              tickLabels{nTick} = num2str(numberToPlot);
         else
-            tickLabels{nTick} = num2str(round(nTick / numCbarTicks * prctile(metricVals,99,'all'),2));
+            tickLabels{nTick} = num2str(round(nTick / numCbarTicks * cAxisMaxVal,2));
         end 
     end 
 end 
@@ -122,6 +131,14 @@ cb.Label.String = metricLabel;
 title({strcat(regexprep(FN,'_','','emptymatch'),' Electrode heatmap scaled to recording'),' '});
 
 %% Right electrode plot (scaled to all recordings)
+
+% do some sanity check for this maxVal to be used 
+if maxVal <= minSpikeCountToPlot
+    maxVal = minSpikeCountToPlot + 1;
+elseif isnan(maxVal)
+    maxVal = minSpikeCountToPlot + 1;
+end
+
 
 nexttile
 for i = 1:numChannels
@@ -159,9 +176,7 @@ for nTick = 1:numCbarTicks
         tickLabels{nTick} = num2str(minSpikeCountToPlot);
     else 
         if useLogScale == 1
-             maxVal
              valLogScale = nTick / numCbarTicks * maxVal;
-             valLogScale
              numberToPlot = round(10.^valLogScale, 2);
              tickLabels{nTick} = num2str(numberToPlot);
         else
