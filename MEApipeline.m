@@ -470,12 +470,12 @@ if Params.startAnalysisStep < 3
     end
     oneFigureHandle = checkOneFigureHandle(Params, oneFigureHandle);
 
-    for  ExN = 1:length(ExpName)
+    for ExN = 1:length(ExpName)
         experimentMatFolderPath = fullfile(Params.outputDataFolder, ...
             Params.outputDataFolderName, 'ExperimentMatFiles');
         experimentMatFname = strcat(char(ExpName(ExN)),'_',Params.outputDataFolderName,'.mat'); 
         experimentMatFpath = fullfile(experimentMatFolderPath, experimentMatFname);
-        load(experimentMatFpath,'Info','Params', 'spikeTimes', 'spikeMatrix');
+        load(experimentMatFpath,'Info','Params', 'spikeTimes', 'spikeMatrix', 'Ephys');
         
         idvNeuronalAnalysisGrpFolder = fullfile(Params.outputDataFolder, ...
             Params.outputDataFolderName, '2_NeuronalActivity', ...
