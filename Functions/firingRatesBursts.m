@@ -120,7 +120,8 @@ else
 end
 
 % Single channel burst detection 
-burstData = singleChannelBurstDetection(spikeMatrix, Params.singleChannelBurstMinSpike, Params.fs); 
+burstData = singleChannelBurstDetection(spikeMatrix, Params.singleChannelBurstMinSpike, Params.fs, ...
+    Params.singleChannelIsiThreshold); 
 
 Ephys.channelBurstingUnits = burstData.bursting_units;
 

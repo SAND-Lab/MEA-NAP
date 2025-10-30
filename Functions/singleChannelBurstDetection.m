@@ -1,4 +1,4 @@
-function burstData = singleChannelBurstDetection(raster,N,samplingRate)
+function burstData = singleChannelBurstDetection(raster, N, samplingRate, isiThreshold)
 % singleChannelBurstDetection Get bursts within channels using Bakkum method
 % INPUTS
 % -----------
@@ -10,6 +10,9 @@ function burstData = singleChannelBurstDetection(raster,N,samplingRate)
 %    finding 0 bursts
 % samplingRate : int
 %     sampling rate of your recording in samples per second (Hz)
+% isiThreshold : 'automatic' or float 
+%     threshold for ISI_N, if 'automatic' (default), then will find ths value
+%     by looking at the distribution of ISI_N times
 % OUTPUTS 
 % --------
 % burstData (structure)
@@ -47,7 +50,7 @@ function burstData = singleChannelBurstDetection(raster,N,samplingRate)
 warning('off','MATLAB:nearlySingularMatrix');
 
 method = 'Bakkum'; 
-ISInThreshold = 'automatic';
+ISInThreshold = isiThreshold; % 'automatic';
 minChan = 1;
 if ~exist('N')
     N = 3;
