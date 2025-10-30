@@ -263,8 +263,9 @@ Params.minSpikeNetworkBurst = app.MinspikepernetworkburstEditField.Value;
 Params.minChannelNetworkBurst = app.MinchannelpernetworkburstEditField.Value;
 Params.bakkumNetworkBurstISInThreshold = app.BakkumNetworkBurstThresholdEditField.Value; % either 'automatic' or a number in seconds
 
-Params.singleChannelBurstDetectionMethod = app.SingleChanenlBurstDetectionDropDown.Value; % supported methods: 'Bakkum'
+Params.singleChannelBurstDetectionMethod = app.SingleChannelBurstDetectionDropDown.Value; % supported methods: 'Bakkum'
 Params.singleChannelBurstMinSpike = app.MinspikeperchannelburstEditField.Value;
+Params.singleChannelIsiThreshold = app.SinglechannelburstthresholdEditField.Value; % either 'automatic' or a number in seconds
 
 %% Dimensionality calculation settings 
 Params.effRankCalMethod = app.effRankCalculationMethodDropDown.Value;
