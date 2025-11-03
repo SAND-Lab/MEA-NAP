@@ -99,26 +99,29 @@ for i = 1:length(filenames)
             for j1 = 1:size(AllData, 1)
                 for j2 = 1:size(AllData, 2)
                     temp = [AllData{j1,j2,:,:}];
-                    dat = temp.GetVoltageVector;
-                    % For each individual MEA (well), this step saves the 
-                    % voltage vector along with two variables used in the
-                    % network analysis pipeline as an .mat file with the
-                    % suffix indicating the well number (e.g., _A1).
-                    savenamefile = fullfile(raw_file_dir, strcat(filenames(i).name(1:end-4), '_', rownames(j1), int2str(j2), '.mat'));
 
-                    % Use row and column information to assign channel
-                    % names
-                    tempChannel = {temp.Channel};
-                    channels = zeros(length(tempChannel), 1);
-                    for channelIdx = 1:length(tempChannel)
-                        channels(channelIdx) = double(tempChannel{channelIdx}.ElectrodeColumn) * 10 + double(tempChannel{channelIdx}.ElectrodeRow);
-                    end
-                    
-                    % This is the step saves the .mat file for each MEA
-                    % (well) with voltage vectors (dat), the names/location
-                    % of the electrodes (channels) and  the acquisition rate (fs). 
-                    % Setting MATLAB version "-v7.3" appears necessary for saving.
-                    save(savenamefile, '-v7.3', "dat", "channels", "fs")
+                    if ~isempty(temp)
+                        dat = temp.GetVoltageVector;
+                        % For each individual MEA (well), this step saves the 
+                        % voltage vector along with two variables used in the
+                        % network analysis pipeline as an .mat file with the
+                        % suffix indicating the well number (e.g., _A1).
+                        savenamefile = fullfile(raw_file_dir, strcat(filenames(i).name(1:end-4), '_', rownames(j1), int2str(j2), '.mat'));
+    
+                        % Use row and column information to assign channel
+                        % names
+                        tempChannel = {temp.Channel};
+                        channels = zeros(length(tempChannel), 1);
+                        for channelIdx = 1:length(tempChannel)
+                            channels(channelIdx) = double(tempChannel{channelIdx}.ElectrodeColumn) * 10 + double(tempChannel{channelIdx}.ElectrodeRow);
+                        end
+                        
+                        % This is the step saves the .mat file for each MEA
+                        % (well) with voltage vectors (dat), the names/location
+                        % of the electrodes (channels) and  the acquisition rate (fs). 
+                        % Setting MATLAB version "-v7.3" appears necessary for saving.
+                        save(savenamefile, '-v7.3', "dat", "channels", "fs")
+                    end 
                 end
                end
             % This step adds filename without the suffix to the list for
