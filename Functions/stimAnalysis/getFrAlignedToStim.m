@@ -20,16 +20,6 @@ function [frAlignedToStim, rasterBins] = getFrAlignedToStim(spikeData, allStimTi
     for channelIdx= 1:numChannels
         channelSpikeTimes = spikeData.spikeTimes{channelIdx}.(Params.SpikesMethod);
         
-        % Process spike times to remove spikes near stimulus time 
-        
-        for stimTimeIdx = 1:length(allStimTimes)
-            stimTime = allStimTimes(stimTimeIdx);
-            channelSpikeTimes(channelSpikeTimes >=  stimTime + Params.stimRemoveSpikesWindow(1) & ...
-                              channelSpikeTimes <=  stimTime + Params.stimRemoveSpikesWindow(2)...
-                ) = [];
-        end  
-         
-    
          for stimEventIdx = 1:numStimEvent 
             stimTime = allStimTimes(stimEventIdx);
             
