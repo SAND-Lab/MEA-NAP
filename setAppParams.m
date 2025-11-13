@@ -49,6 +49,11 @@ if isfield(Params, 'minActivityLevel')
     app.MinactivitylevelspikessEditField.Value = Params.minActivityLevel;
 end 
 
+%% Burst detection settings 
+if isfield(Params, 'singleChannelIsiThreshold')
+    app.SinglechannelburstthresholdEditField.Value = Params.singleChannelIsiThreshold;
+end
+
 %% Connectivity settings 
 
 app.STTCLagmsEditField.Value = ['[', strjoin(cellstr(string(Params.FuncConLagval)), ', '), ']'];
@@ -176,17 +181,19 @@ if isfield(Params, 'stimDurationForPlotting')
     app.StimdurationforplotssEditField.Value = Params.stimDurationForPlotting ;
 end
 
-if isfield(Params, 'preStimWindow')
-    app.PrestimwindowsEditField.Value = string(['[', strjoin(cellstr(string(Params.preStimWindow)), ', '), ']']);
-end
+% if isfield(Params, 'preStimWindow')
+%     app.PrestimwindowsEditField.Value = string(['[', strjoin(cellstr(string(Params.preStimWindow)), ', '), ']']);
+% end
 
-if isfield(Params, 'postStimWindow')
-    app.PoststimwindowsEditField.Value = string(['[', strjoin(cellstr(string(Params.postStimWindow)), ', '), ']']);
-end
+% if isfield(Params, 'postStimWindow')
+%     app.PoststimwindowsEditField.Value = string(['[', strjoin(cellstr(string(Params.postStimWindow)), ', '), ']']);
+% end
 
-if isfield(Params, 'stimRemoveSpikesWindow')
-    app.StimignorespikeswindowsEditField.Value = string(['[', strjoin(cellstr(string(Params.stimRemoveSpikesWindow)), ', '), ']']);
-end
+% if isfield(Params, 'stimRemoveSpikesWindow')
+%     app.StimignorespikeswindowsEditField.Value = string(['[', strjoin(cellstr(string(Params.stimRemoveSpikesWindow)), ', '), ']']);
+% end
+
+
 
 if isfield(Params, 'stimRawDataProcessing')
     app.StimdataprocessingDropDown.Value = Params.stimRawDataProcessing;

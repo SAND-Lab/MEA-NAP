@@ -269,7 +269,6 @@ if ((Params.priorAnalysis == 0) || (Params.runSpikeCheckOnPrevSpikeData)) && (Pa
                         Params.outputDataFolderName, ...
                         '1_SpikeDetection', '1A_SpikeDetectedData');
 
-
     
     % Run spike detection
     if detectSpikes == 1
@@ -279,11 +278,14 @@ if ((Params.priorAnalysis == 0) || (Params.runSpikeCheckOnPrevSpikeData)) && (Pa
             batchDetectSpikes(rawData, savePath, option, ExpName, Params);
         end
     end 
-
+    
     % Stimulus detection 
     if Params.stimulationMode == 1
         batchDetectStim(ExpName, Params, app);
+        % Edit spike data based on the stimulation time
+        batchProcessSpikesFromStim(ExpName, Params);
     end 
+
     
     % Specify where ExperimentMatFiles are stored
     experimentMatFileFolder = fullfile(Params.outputDataFolder, ...
