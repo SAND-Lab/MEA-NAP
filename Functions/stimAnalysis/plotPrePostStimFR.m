@@ -4,8 +4,9 @@ function plotPrePostStimFR(spikeData, allStimTimes, Params, figFolder, figName, 
     numStimEvent = length(allStimTimes);
     numChannels = length(spikeData.stimInfo);
 
-    preStimWindow = Params.preStimWindow; 
-    postStimWindow = Params.postStimWindow;
+    preStimWindow = [Params.stimAnalysisWindow(1) 0];
+    postStimWindow = [0, Params.stimAnalysisWindow(2)];
+
     spikeMethod = Params.SpikesMethod;
     
     preStimWindowDur = preStimWindow(2) - preStimWindow(1);

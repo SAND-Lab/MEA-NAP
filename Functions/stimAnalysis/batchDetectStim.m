@@ -27,23 +27,6 @@ for expIdx = 1:length(ExpName)
     if strcmp(Params.stimRawDataProcessing, 'medianAbs')
         rawData = abs(rawData - median(rawData, 1));
     end
-    %{
-    filteredData = zeros(size(stimRawData.dat)) + nan;
-
-    % Filter signal 
-    lowpass = Params.filterLowPass;  
-    highpass = Params.filterHighPass; 
-    wn = [lowpass highpass] / (Params.fs / 2);
-    filterOrder = 3;
-    [b, a] = butter(filterOrder, wn);
-    
-    
-    for channelIdx = 1:size(stimRawData.dat, 2)
-        data = stimRawData.dat(:, channelIdx);
-        trace = filtfilt(b, a, double(data));
-        filteredData(:, channelIdx) = trace;
-    end
-    %}
 
     stimInfo = detectStimTimes(rawData, Params, stimRawData.channels, Params.coords{expIdx});
     [stimInfo, stimPatterns] = getStimPatterns(stimInfo, Params);

@@ -10,9 +10,13 @@ function plotMetricAlignedToStim(frAlignedToStim, rasterBins, Info, Params, ...
     meanFRalignedToStim = squeeze(mean(frAlignedToStim, [1, 2]));
     plot(rasterBins(2:end), meanFRalignedToStim)
     hold on 
-    fill([Params.stimRemoveSpikesWindow(1), Params.stimRemoveSpikesWindow(2), ...
-          Params.stimRemoveSpikesWindow(2), Params.stimRemoveSpikesWindow(1)], ...
-         [0, 0, max(meanFRalignedToStim), max(meanFRalignedToStim)], [0.5, 0.5, 0.5], 'FaceAlpha', 0.3,'LineStyle','none')
+
+    % This needs information about the blank duration, I guess that
+    % can be passed through Params
+    fill([0, Params.blankDurMode + Params.postStimWindowDur/1000, ...
+          Params.blankDurMode + Params.postStimWindowDur/1000, 0], ...
+          [0, 0, max(meanFRalignedToStim), max(meanFRalignedToStim)], [0.5, 0.5, 0.5], 'FaceAlpha', 0.3,'LineStyle','none')
+    
     box off 
     set(gca, 'TickDir', 'out');
     ylabel(ylabel_txt)

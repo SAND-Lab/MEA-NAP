@@ -7,6 +7,13 @@ function stimActivityAnalysis(spikeData, Params, Info, figFolder, oneFigureHandl
 % Info : struct 
 % figFolder : path 
 % oneFigureHandle : matlab figure object
+    
+    if strcmp(Params.stimDetectionMethod, 'longblank')
+        % get all the blank durations 
+        allBlankDuations = cellfun(@(s) s.blankDurations, spikeData.stimInfo, 'UniformOutput', false);
+        allBlankDuations = [allBlankDuations{:}];
+        Params.blankDurMode = mode(allBlankDuations(:));
+    end
 
     
     %% Gather stimulation times
@@ -59,7 +66,7 @@ function stimActivityAnalysis(spikeData, Params, Info, figFolder, oneFigureHandl
     spikeAmps = getSpikeAmp(spikeData.spikeWaveforms); 
     spikeData.spikeAmps = spikeAmps;
     
-    rasterWindow = [Params.preStimWindow(1), Params.postStimWindow(2)];
+    rasterWindow = Params.stimAnalysisWindow;
     rasterBinWidth = Params.rasterBinWidth;   % originally 0.025 
     
     rasterBins = rasterWindow(1):rasterBinWidth:rasterWindow(2);
@@ -70,18 +77,7 @@ function stimActivityAnalysis(spikeData, Params, Info, figFolder, oneFigureHandl
     for channelIdx= 1:numChannels
         channelSpikeTimes = spikeData.spikeTimes{channelIdx}.(Params.SpikesMethod);
         channelSpikeAmps = spikeData.spikeAmps{channelIdx}.(Params.SpikesMethod);
-        
-        % Process spike times to remove spikes near stimulus time 
-        
-        for stimTimeIdx = 1:length(allStimTimes)
-            stimTime = allStimTimes(stimTimeIdx);
-            removeIndex = find((channelSpikeTimes >=  stimTime + Params.stimRemoveSpikesWindow(1)) & ...
-                               (channelSpikeTimes <=  stimTime + Params.stimRemoveSpikesWindow(2)));
-            channelSpikeTimes(removeIndex) = [];
-            channelSpikeAmps(removeIndex) = [];
-        end  
-         
-    
+           
          for stimEventIdx = 1:numStimEvent 
             stimTime = allStimTimes(stimEventIdx);
             
@@ -106,9 +102,9 @@ function stimActivityAnalysis(spikeData, Params, Info, figFolder, oneFigureHandl
     meanAmpalignedToStim = squeeze(nanmean(ampAlignedToStim, [1, 2]));
     plot(rasterBins(2:end), meanAmpalignedToStim)
     hold on 
-    fill([Params.stimRemoveSpikesWindow(1), Params.stimRemoveSpikesWindow(2), ...
-          Params.stimRemoveSpikesWindow(2), Params.stimRemoveSpikesWindow(1)], ...
-         [0, 0, max(meanAmpalignedToStim), max(meanAmpalignedToStim)], [0.5, 0.5, 0.5], 'FaceAlpha', 0.3,'LineStyle','none')
+    fill([0, Params.blankDurMode + Params.postStimWindowDur/1000, ...
+          Params.blankDurMode + Params.postStimWindowDur/1000, 0], ...
+          [0, 0, max(meanAmpalignedToStim), max(meanAmpalignedToStim)], [0.5, 0.5, 0.5], 'FaceAlpha', 0.3,'LineStyle','none')
     box off 
     set(gca, 'TickDir', 'out');
     ylabel('Mean absolute spike amplitude')
@@ -131,14 +127,12 @@ function stimActivityAnalysis(spikeData, Params, Info, figFolder, oneFigureHandl
     
     numPatterns = length(spikeData.stimPatterns);
     channelMeanSpikeLatency = zeros(numChannels, numPatterns) + nan;
-    % NOTE: Here we remove spikes around each stimulus time, regardless
-    % of which pattern, hence the use of "allStimTimes(:)" to flatten it
-    spikeTimesStimRemoved = removeStimSpikes(allStimTimes(:), spikeData.spikeTimes, Params);
+   
     for patternIdx = 1:numPatterns
         stimTimesToAlign = spikeData.stimPatterns{patternIdx};
         % for each electrode
         for channelIdx= 1:numChannels
-            channelSpikeTimes = spikeTimesStimRemoved{channelIdx}.(Params.SpikesMethod);
+            channelSpikeTimes = spikeData.spikeTimes{channelIdx}.(Params.SpikesMethod);
             spikeLatencies = getSpikeLatencyRelStim(stimTimesToAlign, channelSpikeTimes);
             channelMeanSpikeLatency(channelIdx, patternIdx) = nanmean(spikeLatencies);
         end
