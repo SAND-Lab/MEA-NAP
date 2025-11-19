@@ -666,14 +666,32 @@ function stimActivityAnalysis(spikeData, Params, Info, figFolder, oneFigureHandl
                 end
 
                 % Calculate baseline PSTH with artifact-cleaned spike times
+                % Create a modified baseline window that shows artifact exclusion visually
+                baseline_window_with_exclusion = current_baseline_window_s;
+                
                 if use_ssvkernel
                     [~, base_metrics] = calculate_psth_metrics(...
-                        baseline_spike_times_cleaned, stimTimes, current_baseline_window_s, psth_bin_width_s, ...
+                        baseline_spike_times_cleaned, stimTimes, baseline_window_with_exclusion, psth_bin_width_s, ...
                         'smoothing_method', 'ssvkernel');
                 else
                     [~, base_metrics] = calculate_psth_metrics(...
-                        baseline_spike_times_cleaned, stimTimes, current_baseline_window_s, psth_bin_width_s, ...
+                        baseline_spike_times_cleaned, stimTimes, baseline_window_with_exclusion, psth_bin_width_s, ...
                         'smoothing_method', 'gaussian', 'gaussian_width_ms', psth_gaussian_width_ms);
+                end
+                
+                % Manually set firing rate to zero in the artifact exclusion period for visualization
+                % This ensures the smoothed PSTH shows the exclusion period clearly
+                if ~isempty(base_metrics.psth_smooth)
+                    artifact_exclusion_start_time = 0; % Relative to baseline window start
+                    artifact_exclusion_end_time = artifact_duration_s;
+                    
+                    % Find indices in time vector corresponding to artifact period
+                    time_vector_relative = base_metrics.time_vector_s - baseline_window_with_exclusion(1);
+                    artifact_indices = (time_vector_relative >= artifact_exclusion_start_time) & ...
+                                     (time_vector_relative <= artifact_exclusion_end_time);
+                    
+                    % Set firing rate to zero during artifact period
+                    base_metrics.psth_smooth(artifact_indices) = 0;
                 end
                 baseline_aucs(i) = base_metrics.auc;
 
