@@ -630,68 +630,16 @@ function stimActivityAnalysis(spikeData, Params, Info, figFolder, oneFigureHandl
                 end_s = psth_window_s(1) - ((i-1) * baseline_duration_s);    
                 current_baseline_window_s = [start_s, end_s];
 
-                % Apply artifact exclusion to each baseline window individually
-                % Use the same artifact window duration as batchProcessSpikesFromStim
-                
-                % Apply artifact exclusion using consistent duration approach
-                % Ignore spikes for same duration as artifact window at start of each baseline period
-                baseline_spike_times_cleaned = all_spike_times_s;
-                
-                % For each stimulus trial, exclude spikes during artifact duration at baseline start
-                removalIndices = [];
-                for stimIdx = 1:length(stimTimes)
-                    stimTime = stimTimes(stimIdx);
-                    
-                    % Define baseline window for this stimulus trial
-                    baseline_start = stimTime + current_baseline_window_s(1);
-                    baseline_end = stimTime + current_baseline_window_s(2);
-                    
-                    % Apply artifact exclusion: ignore spikes for artifact_duration_s at baseline start
-                    artifact_exclusion_start = baseline_start;
-                    artifact_exclusion_end = baseline_start + artifact_duration_s;
-                    
-                    % Only exclude spikes if the artifact period overlaps with the baseline window
-                    exclusion_end_clipped = min(artifact_exclusion_end, baseline_end);
-                    
-                    if exclusion_end_clipped > artifact_exclusion_start
-                        artifact_spike_indices = find((baseline_spike_times_cleaned >= artifact_exclusion_start) & ...
-                                                     (baseline_spike_times_cleaned <= exclusion_end_clipped));
-                        removalIndices = [removalIndices; artifact_spike_indices];
-                    end
-                end
-                
-                % Remove artifact spikes from baseline calculation
-                if ~isempty(removalIndices)
-                    baseline_spike_times_cleaned(unique(removalIndices)) = [];
-                end
-
-                % Calculate baseline PSTH with artifact-cleaned spike times
-                % Create a modified baseline window that shows artifact exclusion visually
-                baseline_window_with_exclusion = current_baseline_window_s;
-                
+                % Calculate baseline PSTH with artifact exclusion handled during smoothing
                 if use_ssvkernel
                     [~, base_metrics] = calculate_psth_metrics(...
-                        baseline_spike_times_cleaned, stimTimes, baseline_window_with_exclusion, psth_bin_width_s, ...
-                        'smoothing_method', 'ssvkernel');
+                        all_spike_times_s, stimTimes, current_baseline_window_s, psth_bin_width_s, ...
+                        'smoothing_method', 'ssvkernel', 'artifact_exclusion_duration_s', artifact_duration_s);
                 else
                     [~, base_metrics] = calculate_psth_metrics(...
-                        baseline_spike_times_cleaned, stimTimes, baseline_window_with_exclusion, psth_bin_width_s, ...
-                        'smoothing_method', 'gaussian', 'gaussian_width_ms', psth_gaussian_width_ms);
-                end
-                
-                % Manually set firing rate to zero in the artifact exclusion period for visualization
-                % This ensures the smoothed PSTH shows the exclusion period clearly
-                if ~isempty(base_metrics.psth_smooth)
-                    artifact_exclusion_start_time = 0; % Relative to baseline window start
-                    artifact_exclusion_end_time = artifact_duration_s;
-                    
-                    % Find indices in time vector corresponding to artifact period
-                    time_vector_relative = base_metrics.time_vector_s - baseline_window_with_exclusion(1);
-                    artifact_indices = (time_vector_relative >= artifact_exclusion_start_time) & ...
-                                     (time_vector_relative <= artifact_exclusion_end_time);
-                    
-                    % Set firing rate to zero during artifact period
-                    base_metrics.psth_smooth(artifact_indices) = 0;
+                        all_spike_times_s, stimTimes, current_baseline_window_s, psth_bin_width_s, ...
+                        'smoothing_method', 'gaussian', 'gaussian_width_ms', psth_gaussian_width_ms, ...
+                        'artifact_exclusion_duration_s', artifact_duration_s);
                 end
                 baseline_aucs(i) = base_metrics.auc;
 

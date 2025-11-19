@@ -12,6 +12,7 @@ function [psth_data, metrics] = calculate_psth_metrics(all_spike_times_s, stim_t
 %   varargin          - Optional name-value pairs:
 %                       'smoothing_method': 'ssvkernel' (default) or 'gaussian'
 %                       'gaussian_width_ms': Width of Gaussian kernel in ms (default: 2ms)
+%                       'artifact_exclusion_duration_s': Duration of artifact exclusion from window start (default: 0)
 %
 % OUTPUTS:
 %   psth_data         - A struct containing intermediate data:
@@ -31,11 +32,13 @@ function [psth_data, metrics] = calculate_psth_metrics(all_spike_times_s, stim_t
     p = inputParser;
     addParameter(p, 'smoothing_method', 'ssvkernel', @(x) ismember(x, {'ssvkernel', 'gaussian'}));
     addParameter(p, 'gaussian_width_ms', 2, @(x) isscalar(x) && x > 0);
+    addParameter(p, 'artifact_exclusion_duration_s', 0, @(x) isscalar(x) && x >= 0);
     parse(p, varargin{:});
     
     smoothing_method = p.Results.smoothing_method;
     gaussian_width_ms = p.Results.gaussian_width_ms;
     gaussian_width_s = gaussian_width_ms / 1000; % Convert to seconds
+    artifact_exclusion_duration_s = p.Results.artifact_exclusion_duration_s;
 
     num_trials = length(stim_times_s);
     MIN_SPIKES_FOR_KDE = 5; % Set a threshold for minimum number of spikes to run ssvkernel
@@ -43,6 +46,21 @@ function [psth_data, metrics] = calculate_psth_metrics(all_spike_times_s, stim_t
     % Extract spikes within the specified window for each trial
     out = WithinRanges(all_spike_times_s, stim_times_s + window_s, (1:num_trials)', 'matrix');
     spikeTimes_byEvent = arrayfun(@(n) all_spike_times_s(logical(out(:,n))) - stim_times_s(n), 1:num_trials, 'uni', 0)';
+    
+    % Apply artifact exclusion if specified
+    if artifact_exclusion_duration_s > 0
+        % Remove spikes within artifact exclusion period at start of window
+        artifact_exclusion_start = window_s(1);
+        artifact_exclusion_end = window_s(1) + artifact_exclusion_duration_s;
+        
+        for trial_idx = 1:length(spikeTimes_byEvent)
+            trial_spikes = spikeTimes_byEvent{trial_idx};
+            % Keep only spikes outside the artifact exclusion period
+            valid_spikes = trial_spikes(trial_spikes < artifact_exclusion_start | trial_spikes > artifact_exclusion_end);
+            spikeTimes_byEvent{trial_idx} = valid_spikes;
+        end
+    end
+    
     psth_samples = cell2mat(spikeTimes_byEvent);
 
     % Create raw histogram
