@@ -473,7 +473,7 @@ function stimActivityAnalysis(spikeData, Params, Info, figFolder, oneFigureHandl
     effective_window_duration = analysis_window_duration_s; % Use full window since spikes already cleaned
 
     % Unit conversions (performed once to avoid repeated calculations)
-    artifact_offset_s = artifact_window_s; % Convert artifact window to seconds (already in seconds)
+    artifact_offset_s = artifact_duration_s; % Duration from stimulus to end of artifact window (mode blank + ignore duration)
     psth_window_ms = psth_window_s * 1000; % Convert PSTH window to milliseconds for plotting
 
     % Smoothing method flag (evaluated once)
@@ -570,7 +570,7 @@ function stimActivityAnalysis(spikeData, Params, Info, figFolder, oneFigureHandl
                     stimTime = allStimTimesConsolidated(trialIdx);
 
                     % Define analysis window for this trial (POST-ARTIFACT TO POST-STIM ONLY)
-                    trial_window_start = stimTime + artifact_offset_s(2);  % Start AFTER artifact ends
+                    trial_window_start = stimTime + artifact_offset_s;  % Start AFTER artifact ends
                     trial_window_end = stimTime + psth_window_s(2);        % End of post-stim window
 
                     % Count spikes in post-artifact to post-stimulus window only
@@ -908,7 +908,7 @@ function stimActivityAnalysis(spikeData, Params, Info, figFolder, oneFigureHandl
 
     % Define latency search window: only post-stimulus, post-artifact times
     % Start search after artifact ends, search until end of post-stimulus window
-    latency_search_start_s = artifact_offset_s(2);  % After artifact window ends
+    latency_search_start_s = artifact_offset_s;  % After artifact window ends
     latency_search_end_s = psth_window_s(2);        % End of post-stimulus window
     latency_search_window_s = [latency_search_start_s, latency_search_end_s];
 
@@ -1009,7 +1009,7 @@ function stimActivityAnalysis(spikeData, Params, Info, figFolder, oneFigureHandl
             stimTime = allStimTimesConsolidated(trialIdx);
 
             % Define analysis window for this trial (POST-ARTIFACT TO POST-STIM ONLY)
-            trial_window_start = stimTime + artifact_offset_s(2);  % Start AFTER artifact ends
+            trial_window_start = stimTime + artifact_offset_s;  % Start AFTER artifact ends
             trial_window_end = stimTime + psth_window_s(2);        % End of post-stim window
 
             % Find spikes in post-artifact to post-stimulus window only
@@ -1033,7 +1033,7 @@ function stimActivityAnalysis(spikeData, Params, Info, figFolder, oneFigureHandl
     FiringRateMatrix_info = struct();
     FiringRateMatrix_info.description = 'Consolidated firing rates (Hz) in post-artifact to post-stimulus window across all patterns';
     FiringRateMatrix_info.dimensions = sprintf('[%d trials x %d channels] - All stimulation times from all patterns in chronological order', numTrialsTotal, numChannels);
-    FiringRateMatrix_info.analysis_window_s = [artifact_offset_s(2), psth_window_s(2)];  % Post-artifact to post-stim only
+    FiringRateMatrix_info.analysis_window_s = [artifact_offset_s, psth_window_s(2)];  % Post-artifact to post-stim only
     FiringRateMatrix_info.artifact_window_ms = artifact_window_ms;
     FiringRateMatrix_info.stimulated_channels_excluded = stimulatedChannels;
     FiringRateMatrix_info.allStimTimesConsolidated = allStimTimesConsolidated;  % Column vector of all stim times chronologically
@@ -1066,7 +1066,7 @@ function stimActivityAnalysis(spikeData, Params, Info, figFolder, oneFigureHandl
     ExactSpikeTimes_info = struct();
     ExactSpikeTimes_info.description = 'Exact spike times (ms) post-stimulation for each trial-electrode combination in post-artifact to post-stimulus window';
     ExactSpikeTimes_info.dimensions = sprintf('[%d trials x %d channels] cell array - All stimulation times from all patterns in chronological order', numTrialsTotal, numChannels);
-    ExactSpikeTimes_info.analysis_window_s = [artifact_offset_s(2), psth_window_s(2)];  % Post-artifact to post-stim only
+    ExactSpikeTimes_info.analysis_window_s = [artifact_offset_s, psth_window_s(2)];  % Post-artifact to post-stim only
     ExactSpikeTimes_info.artifact_window_ms = artifact_window_ms;
     ExactSpikeTimes_info.stimulated_channels_excluded = stimulatedChannels;
     ExactSpikeTimes_info.allStimTimesConsolidated = allStimTimesConsolidated;  % Column vector of all stim times chronologically
