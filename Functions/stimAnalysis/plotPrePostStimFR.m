@@ -61,5 +61,6 @@ function plotPrePostStimFR(spikeData, allStimTimes, Params, figFolder, figName, 
     
     % figName = '9_FR_before_after_stimulation';
     pipelineSaveFig(fullfile(figFolder, figName), Params.figExt, Params.fullSVG, gcf);
+    close(figureHandle);  % Close the figure after saving
 end
 

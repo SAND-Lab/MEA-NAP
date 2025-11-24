@@ -9,6 +9,11 @@ numStimTraceToPlot = 5;
 numNoStimTracePlotted = 0;
 numStimTracePlotted = 0;
 
+channelNames = [];
+
+for i = 1:length(stimInfo)
+    channelNames = [channelNames stimInfo{i}.channelName];
+end
 
 for elecIndex = 1:length(stimInfo)
     
@@ -16,7 +21,7 @@ for elecIndex = 1:length(stimInfo)
 
     if isempty(elecStimTimes)
         if numNoStimTracePlotted <= numNoStimTraceToPlot
-            figName = sprintf('1_noStimElec_%.f', elecIndex);
+             figName = sprintf('3_NoStimsElectrode_%.f', channelNames(elecIndex));
             figHandle = plotIdvStimDataAndTrace(filteredData, elecIndex, stimInfo, Params); 
             pipelineSaveFig(fullfile(expSubFolder, figName), Params.figExt, Params.fullSVG, figHandle);
             numNoStimTracePlotted = numNoStimTracePlotted + 1;
@@ -24,7 +29,7 @@ for elecIndex = 1:length(stimInfo)
         end
     else 
         if numStimTracePlotted <= numStimTraceToPlot
-            figName = sprintf('1_stimElec_%.f', elecIndex);
+            figName = sprintf('3_StimsElectrode_%.f', channelNames(elecIndex));
             figHandle = plotIdvStimDataAndTrace(filteredData, elecIndex, stimInfo, Params); 
             pipelineSaveFig(fullfile(expSubFolder, figName), Params.figExt, Params.fullSVG, figHandle);
             numStimTracePlotted = numStimTracePlotted + 1;
@@ -37,7 +42,7 @@ end
 
 %% 2 | Overall stimulation trace 
 
-figName = '2_overall_stimulation_trace';
+figName = '1_StimsDetected';
 figHandle = plotStimTimes(filteredData, stimInfo, Params, figHandle);
 pipelineSaveFig(fullfile(expSubFolder, figName), Params.figExt, Params.fullSVG, figHandle);
 close(figHandle)
@@ -46,7 +51,7 @@ close(figHandle)
 
 %% 3 | Stimulation heatmap 
 
-figName = '3_stimulation_heatmap'; 
+figName = '2_StimsHeatmap';
 figHandle = plotStimHeatmap(stimInfo, figHandle);
 pipelineSaveFig(fullfile(expSubFolder, figName), Params.figExt, Params.fullSVG, figHandle);
 close(figHandle)
