@@ -9,11 +9,25 @@ function stimActivityAnalysis(spikeData, Params, Info, figFolder, oneFigureHandl
 % oneFigureHandle : matlab figure object
     
     if strcmp(Params.stimDetectionMethod, 'longblank')
-        % get all the blank durations 
-        allBlankDurations = cellfun(@(s) s.blankDurations, spikeData.stimInfo, 'UniformOutput', false);
-        allBlankDurations = [allBlankDurations{:}];
-        Params.blankDurMode = mode(allBlankDurations(:));
+        % Calculate blankDurMode exactly as in batchProcessSpikesFromStim
+        allNonStimBlankStartTimes = [];
+        allNonStimBlankEndTimes = [];
+        
+        for channelIdx = 1:length(spikeData.stimInfo)
+            channelStimInfo = spikeData.stimInfo{channelIdx};
+            if isfield(channelStimInfo, 'nonStimBlankStarts') && isfield(channelStimInfo, 'nonStimBlankEnds')
+                allNonStimBlankStartTimes = [allNonStimBlankStartTimes; channelStimInfo.nonStimBlankStarts];
+                allNonStimBlankEndTimes = [allNonStimBlankEndTimes; channelStimInfo.nonStimBlankEnds];
+            end
+        end
+        
+        allNonStimBlankDur = allNonStimBlankEndTimes - allNonStimBlankStartTimes;
+        blankDurMode = mode(allNonStimBlankDur);
+        Params.blankDurMode = blankDurMode;
     end
+    
+    % Define artifact duration for consistent use throughout script
+    artifactDuration = Params.blankDurMode + Params.postStimWindowDur / 1000;
 
     
     %% Gather stimulation times
@@ -103,8 +117,8 @@ function stimActivityAnalysis(spikeData, Params, Info, figFolder, oneFigureHandl
     meanAmpalignedToStim = squeeze(nanmean(ampAlignedToStim, [1, 2]));
     plot(rasterBins(2:end), meanAmpalignedToStim)
     hold on 
-    fill([0, Params.blankDurMode + Params.postStimWindowDur/1000, ...
-          Params.blankDurMode + Params.postStimWindowDur/1000, 0], ...
+    fill([0, artifactDuration, ...
+          artifactDuration, 0], ...
           [0, 0, max(meanAmpalignedToStim), max(meanAmpalignedToStim)], [0.5, 0.5, 0.5], 'FaceAlpha', 0.3,'LineStyle','none')
     box off 
     set(gca, 'TickDir', 'out');
@@ -382,34 +396,8 @@ function stimActivityAnalysis(spikeData, Params, Info, figFolder, oneFigureHandl
     % -------------------------------------------------------------------------
     % STEP 2: ARTIFACT WINDOW CALCULATION - ALIGNED WITH BATCHPROCESSSPIKESFROMSTIM
     % -------------------------------------------------------------------------
-    % Extract actual artifact window data consistent with batchProcessSpikesFromStim logic
-    % This ensures identical artifact exclusion methodology across preprocessing and analysis
-    
-    % Collect all blank start and end times from all channels (same as batchProcessSpikesFromStim)
-    allBlankStartTimes = [];
-    allBlankEndTimes = [];
-    
-    for channelIdx = 1:length(spikeData.stimInfo)
-        channelStimInfo = spikeData.stimInfo{channelIdx};
-        if isfield(channelStimInfo, 'blankStarts') && isfield(channelStimInfo, 'blankEnds')
-            allBlankStartTimes = [allBlankStartTimes; channelStimInfo.blankStarts];
-            allBlankEndTimes = [allBlankEndTimes; channelStimInfo.blankEnds];
-        end
-    end
-    
-    % Calculate artifact window ends exactly as in batchProcessSpikesFromStim
-    allArtifactWindowEnd = allBlankEndTimes + Params.postStimWindowDur / 1000;
-    
-    % Calculate artifact window duration for consistent baseline exclusion
-    % Use modal blank duration + postStimWindowDur (same total duration as batchProcessSpikesFromStim)
-    artifact_duration_s = Params.blankDurMode + (Params.postStimWindowDur / 1000);
-    
-    % For metadata documentation, store representative artifact window
-    % (using median values for documentation purposes)
-    median_blank_start_s = median(allBlankStartTimes);
-    median_artifact_end_s = median(allArtifactWindowEnd);
-    artifact_window_s = [median_blank_start_s, median_artifact_end_s];
-    artifact_window_ms = artifact_window_s * 1000;
+    % Use the consistent artifact duration calculated at the top of the script
+    artifact_duration_s = artifactDuration;
     
     % -------------------------------------------------------------------------
     % STEP 3: CHANNEL IDENTIFICATION
@@ -473,7 +461,6 @@ function stimActivityAnalysis(spikeData, Params, Info, figFolder, oneFigureHandl
     effective_window_duration = analysis_window_duration_s; % Use full window since spikes already cleaned
 
     % Unit conversions (performed once to avoid repeated calculations)
-    artifact_offset_s = artifact_duration_s; % Duration from stimulus to end of artifact window (mode blank + ignore duration)
     psth_window_ms = psth_window_s * 1000; % Convert PSTH window to milliseconds for plotting
 
     % Smoothing method flag (evaluated once)
@@ -570,7 +557,7 @@ function stimActivityAnalysis(spikeData, Params, Info, figFolder, oneFigureHandl
                     stimTime = allStimTimesConsolidated(trialIdx);
 
                     % Define analysis window for this trial (POST-ARTIFACT TO POST-STIM ONLY)
-                    trial_window_start = stimTime + artifact_offset_s;  % Start AFTER artifact ends
+                    trial_window_start = stimTime + artifact_duration_s;  % Start AFTER artifact ends
                     trial_window_end = stimTime + psth_window_s(2);        % End of post-stim window
 
                     % Count spikes in post-artifact to post-stimulus window only
@@ -908,7 +895,7 @@ function stimActivityAnalysis(spikeData, Params, Info, figFolder, oneFigureHandl
 
     % Define latency search window: only post-stimulus, post-artifact times
     % Start search after artifact ends, search until end of post-stimulus window
-    latency_search_start_s = artifact_offset_s;  % After artifact window ends
+    latency_search_start_s = artifact_duration_s;  % After artifact window ends
     latency_search_end_s = psth_window_s(2);        % End of post-stimulus window
     latency_search_window_s = [latency_search_start_s, latency_search_end_s];
 
@@ -1009,7 +996,7 @@ function stimActivityAnalysis(spikeData, Params, Info, figFolder, oneFigureHandl
             stimTime = allStimTimesConsolidated(trialIdx);
 
             % Define analysis window for this trial (POST-ARTIFACT TO POST-STIM ONLY)
-            trial_window_start = stimTime + artifact_offset_s;  % Start AFTER artifact ends
+            trial_window_start = stimTime + artifact_duration_s;  % Start AFTER artifact ends
             trial_window_end = stimTime + psth_window_s(2);        % End of post-stim window
 
             % Find spikes in post-artifact to post-stimulus window only
@@ -1033,8 +1020,7 @@ function stimActivityAnalysis(spikeData, Params, Info, figFolder, oneFigureHandl
     FiringRateMatrix_info = struct();
     FiringRateMatrix_info.description = 'Consolidated firing rates (Hz) in post-artifact to post-stimulus window across all patterns';
     FiringRateMatrix_info.dimensions = sprintf('[%d trials x %d channels] - All stimulation times from all patterns in chronological order', numTrialsTotal, numChannels);
-    FiringRateMatrix_info.analysis_window_s = [artifact_offset_s, psth_window_s(2)];  % Post-artifact to post-stim only
-    FiringRateMatrix_info.artifact_window_ms = artifact_window_ms;
+    FiringRateMatrix_info.analysis_window_s = [artifact_duration_s, psth_window_s(2)];  % Post-artifact to post-stim only
     FiringRateMatrix_info.stimulated_channels_excluded = stimulatedChannels;
     FiringRateMatrix_info.allStimTimesConsolidated = allStimTimesConsolidated;  % Column vector of all stim times chronologically
     FiringRateMatrix_info.stimPatternLabels = stimPatternLabels;  % Column vector indicating which pattern each trial belongs to
@@ -1049,7 +1035,6 @@ function stimActivityAnalysis(spikeData, Params, Info, figFolder, oneFigureHandl
     latencyMatrix_info.description = 'Time-to-first-spike latencies (ms) in post-artifact to post-stimulus window across all patterns';
     latencyMatrix_info.dimensions = sprintf('[%d trials x %d channels] - All stimulation times from all patterns in chronological order', numTrialsTotal, numChannels);
     latencyMatrix_info.search_window_s = latency_search_window_s;  % Post-artifact to post-stim only
-    latencyMatrix_info.artifact_window_ms = artifact_window_ms;
     latencyMatrix_info.stimulated_channels_excluded = stimulatedChannels;
     latencyMatrix_info.allStimTimesConsolidated = allStimTimesConsolidated;  % Column vector of all stim times chronologically
     latencyMatrix_info.stimPatternLabels = stimPatternLabels;  % Column vector indicating which pattern each trial belongs to
@@ -1066,8 +1051,7 @@ function stimActivityAnalysis(spikeData, Params, Info, figFolder, oneFigureHandl
     ExactSpikeTimes_info = struct();
     ExactSpikeTimes_info.description = 'Exact spike times (ms) post-stimulation for each trial-electrode combination in post-artifact to post-stimulus window';
     ExactSpikeTimes_info.dimensions = sprintf('[%d trials x %d channels] cell array - All stimulation times from all patterns in chronological order', numTrialsTotal, numChannels);
-    ExactSpikeTimes_info.analysis_window_s = [artifact_offset_s, psth_window_s(2)];  % Post-artifact to post-stim only
-    ExactSpikeTimes_info.artifact_window_ms = artifact_window_ms;
+    ExactSpikeTimes_info.analysis_window_s = [artifact_duration_s, psth_window_s(2)];  % Post-artifact to post-stim only
     ExactSpikeTimes_info.stimulated_channels_excluded = stimulatedChannels;
     ExactSpikeTimes_info.allStimTimesConsolidated = allStimTimesConsolidated;  % Column vector of all stim times chronologically
     ExactSpikeTimes_info.stimPatternLabels = stimPatternLabels;  % Column vector indicating which pattern each trial belongs to
@@ -1116,12 +1100,7 @@ function stimActivityAnalysis(spikeData, Params, Info, figFolder, oneFigureHandl
         % Save stimData to the experiment file (append to existing data)
         if exist(experimentMatFpath, 'file')
             save(experimentMatFpath, 'stimData', '-append');
-            fprintf('Stimulation data saved to: %s\n', experimentMatFpath);
-        else
-            fprintf('Warning: Experiment mat file not found: %s\n', experimentMatFpath);
         end
-    else
-        fprintf('Warning: No stimulation data collected for %s\n', Info.FN{1});
     end
 
 end

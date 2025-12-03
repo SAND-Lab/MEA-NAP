@@ -15,6 +15,9 @@ function batchProcessSpikesFromStim(ExpName, Params)
         allBlankEndTimes = [];
 
         stimBlankStartTimes = [];
+
+        allNonStimBlankStartTimes = [];
+        allNonStimBlankEndTimes = [];
     
         % Loop through each channel to find stimulation times 
         for channelIdx = 1:length(spikeData.channels)
@@ -36,14 +39,18 @@ function batchProcessSpikesFromStim(ExpName, Params)
             allBlankStartTimes = [allBlankStartTimes; channelStimInfo.blankStarts];
             allBlankEndTimes = [allBlankEndTimes; channelStimInfo.blankEnds];
 
+            allNonStimBlankStartTimes = [allNonStimBlankStartTimes; channelStimInfo.nonStimBlankStarts];
+            allNonStimBlankEndTimes = [allNonStimBlankEndTimes; channelStimInfo.nonStimBlankEnds];
+
             if length(channelStimInfo.elecStimTimes) > 0
                 stimBlankStartTimes = [stimBlankStartTimes; channelStimInfo.blankStarts];
             end
     
         end
         
-        allBlankDur = allBlankEndTimes - allBlankStartTimes;
-        blankDurMode = mode(allBlankDur);
+        % allBlankDur = allBlankEndTimes - allBlankStartTimes;
+        allNonStimBlankDur = allNonStimBlankEndTimes - allNonStimBlankStartTimes;
+        blankDurMode = mode(allNonStimBlankDur);
 
         % allArtifactWindowStart = allBlankStartTimes;
         % allArtifactWindowEnd = allBlankEndTimes + Params.postStimWindowDur / 1000;
