@@ -131,10 +131,15 @@ thrList = strrep(thrList, '.', 'p');
 
 % 2021-06-07: adding absolute thresholds 
 if isfield(Params, 'absThresholds')
-    absThresholds = Params.absThresholds;
-    absThrList = strcat('absthr', absThresholds);
-    absThrList = strrep(absThrList, '.', 'p')';
+    absThrList = {};
+    for absIdx = 1:length(Params.absThresholds)
+        absThreshold = Params.absThresholds(absIdx);
+        absThresholdStr = strcat('absthr', num2str(absThreshold));
+        absThresholdStr = strrep(absThresholdStr, '.', 'p');
+        absThrList = [absThrList absThresholdStr];
+    end
     
+    wnameList = horzcat(wnameList, absThrList);
 end 
 
 wnameList = horzcat(wnameList, thrList);

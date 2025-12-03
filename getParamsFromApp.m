@@ -18,8 +18,13 @@ Params.fs = app.SamplingFrequencyEditField.Value;
 Params.dSampF = app.DownSampleFrequencyEditField.Value;
 Params.potentialDifferenceUnit = app.PotentialDifferenceUnitEditField.Value;
 Params.channelLayout = app.ChannelLayoutDropDown.Value;
+
+% Spike Detection Settings
 thresholdsArray = str2num(app.ThresholdsEditField.Value);
 Params.thresholds = cellstr(string(thresholdsArray));
+
+absThresholdsArray = str2num(app.absThresholdsEditField.Value);
+Params.absThresholds = absThresholdsArray; % cellstr(string(absThresholdsArray));
 Params.wnameList = cellstr(app.WaveletsListBox.Value); %  {'bior1.5'}; % wavelet methods to use {'bior1.5', 'mea'}; 
 Params.costList = str2double(app.WaveletCostEditField.Value);
 Params.SpikesMethod = app.SpikeMethodforAnalysisEditField.Value;  % wavelet methods, eg. 'bior1p5', or 'mergedAll', or 'mergedWavelet'

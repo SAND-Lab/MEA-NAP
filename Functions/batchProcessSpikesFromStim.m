@@ -13,6 +13,8 @@ function batchProcessSpikesFromStim(ExpName, Params)
         
         allBlankStartTimes = [];
         allBlankEndTimes = [];
+
+        stimBlankStartTimes = [];
     
         % Loop through each channel to find stimulation times 
         for channelIdx = 1:length(spikeData.channels)
@@ -33,10 +35,21 @@ function batchProcessSpikesFromStim(ExpName, Params)
             end
             allBlankStartTimes = [allBlankStartTimes; channelStimInfo.blankStarts];
             allBlankEndTimes = [allBlankEndTimes; channelStimInfo.blankEnds];
+
+            if length(channelStimInfo.elecStimTimes) > 0
+                stimBlankStartTimes = [stimBlankStartTimes; channelStimInfo.blankStarts];
+            end
     
         end
         
-        allArtifactWindowEnd = allBlankEndTimes + Params.postStimWindowDur / 1000;
+        allBlankDur = allBlankEndTimes - allBlankStartTimes;
+        blankDurMode = mode(allBlankDur);
+
+        % allArtifactWindowStart = allBlankStartTimes;
+        % allArtifactWindowEnd = allBlankEndTimes + Params.postStimWindowDur / 1000;
+
+        allArtifactWindowStart = stimBlankStartTimes;
+        allArtifactWindowEnd = stimBlankStartTimes + blankDurMode + Params.postStimWindowDur / 1000;
         
         % Go through each of these window and remove spikes 
         for channelIdx = 1:length(spikeData.channels)
@@ -49,7 +62,7 @@ function batchProcessSpikesFromStim(ExpName, Params)
                 removalIndices = [];
                 for windowIdx = 1:length(allArtifactWindowEnd)
     
-                    winStart = allBlankStartTimes(windowIdx);
+                    winStart = allArtifactWindowStart(windowIdx);
                     winEnd = allArtifactWindowEnd(windowIdx);
                       
                     removalIndices = [removalIndices; ...
