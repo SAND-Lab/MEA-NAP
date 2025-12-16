@@ -591,6 +591,39 @@ if Params.startAnalysisStep < 3
             figFolder = fullfile(groupFolder, expData.Info.FN{1});
 
             spikeData = load(spikeDataFpath);
+
+            if strcmp(Params.SpikesMethod,'merged') || strcmp(Params.SpikesMethod,'mergedAll')
+                spikeTimes = spikeData.spikeTimes;
+
+                for uu = 1:length(spikeTimes)
+                    [spikeTimes{uu}.('mergedAll'),~, ~] = mergeSpikes(spikeTimes{uu}, 'all');
+                end
+
+                for channel = 1:length(spikeData.channels)
+                    channelAmpData = spikeData.spikeAmps{channel};
+                    channelSpikeTimes = spikeData.spikeTimes{channel};
+                    detectionMethods = fieldnames(channelAmpData);
+
+                    channelAllSpikeAmps = [];
+                    channelAllSpikeTimes = [];
+                    for methodIdx = 1:length(detectionMethods)
+                        method = detectionMethods{methodIdx};
+                        channelAllSpikeAmps  = [channelAllSpikeAmps; ...
+                            channelAmpData.(method)];
+                        channelAllSpikeTimes = [channelAllSpikeTimes; ...
+                            channelSpikeTimes.(method)];
+
+                    end
+
+                    [~, originalLocations] = ismember(spikeTimes{channel}.mergedAll, channelAllSpikeTimes);
+                    mergedSpikeAmps = channelAllSpikeAmps(originalLocations);
+
+                    spikeData.spikeAmps{channel}.mergedAll = mergedSpikeAmps;
+
+                end
+                spikeData.spikeTimes = spikeTimes;
+            end
+            
             stimActivityAnalysis(spikeData, Params, expData.Info, ...
                 figFolder, oneFigureHandle);
         end
