@@ -78,8 +78,10 @@ function stimActivityAnalysis(spikeData, Params, Info, figFolder, oneFigureHandl
     %% Look at spike amplitude aligned to stimulus
     % TODO: Loop throgh patterns
     numStimEvent = length(allStimTimes);
-    spikeAmps = getSpikeAmp(spikeData.spikeWaveforms); 
-    spikeData.spikeAmps = spikeAmps;
+    if ~(strcmp(Params.SpikesMethod,'merged') || strcmp(Params.SpikesMethod,'mergedAll'))
+        spikeAmps = getSpikeAmp(spikeData.spikeWaveforms);
+        spikeData.spikeAmps = spikeAmps;
+    end
     
     rasterWindow = Params.stimAnalysisWindow;
     rasterBinWidth = Params.rasterBinWidth;   % originally 0.025 
