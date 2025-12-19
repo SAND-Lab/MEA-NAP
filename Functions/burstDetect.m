@@ -239,5 +239,36 @@ if strcmp(method, 'Bakkum')
     
 end 
 
+if strcmp(method, 'threshold')
+
+    downSamplingRate = 1;
+
+    % resample the spikeMatrix 
+    downSampledSpikeMatrix = resampleMatrix(spikeMatrix, samplingRate, downSamplingRate); 
+
+    spikeMatrixZscored = (downSampledSpikeMatrix - mean(downSampledSpikeMatrix, 1)) ./ std(downSampledSpikeMatrix, 1);
+    zScoredMean = mean(spikeMatrixZscored, 2);
+    
+    zScoreThreshold = 1.5;
+    
+    [pks,locs,widths,~] = findpeaks(zScoredMean, 'MinPeakHeight', zScoreThreshold);
+    
+    numBursts = length(pks);
+    numChannels = size(spikeMatrix, 2);
+    burstTimes = zeros(numBursts, 2);
+    for burstIdx = 1:numBursts
+        burstStart = round( (locs(burstIdx) - widths(burstIdx)) * samplingRate/downSamplingRate);
+        burstEnd = round( (locs(burstIdx) + widths(burstIdx)) * samplingRate/downSamplingRate);
+        burstTimes(burstIdx, :) = [burstStart, burstEnd];
+        burstMatrix{burstIdx} = spikeMatrix(burstStart:burstEnd, :);
+    
+        % temp: including all channels for now until I have time to
+        % work on this
+        burstChannels{burstIdx} = 1:numChannels;
+    end
+
+
+end
+
 
 end
