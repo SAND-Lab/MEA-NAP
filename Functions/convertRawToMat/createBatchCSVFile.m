@@ -39,12 +39,12 @@ function createBatchCSVFile(raw_file_dir, batch_csv_fname, autofill_div, autofil
         batch_csv_table.('Recording filename'){row_number} = mat_fname;
 
         % Automatically fill Genotype column if specified
-        if strcmp(autofill_genotype, 'y')
+        if strcmp(autofill_genotype, 'y') || (autofill_genotype == 1)
             batch_csv_table.Genotype(:, 1) = {genotype};
         end
 
         % Automatically fill DIV column if specified
-        if strcmp(autofill_div, 'y')
+        if strcmp(autofill_div, 'y') || (autofill_div == 1)
             ii = strfind(mat_fname, 'DIV') + 3;
 
             % Extract digits from the filename to get DIV value
