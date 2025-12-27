@@ -239,12 +239,12 @@ if strcmp(method, 'Bakkum')
     
 end 
 
-if strcmp(method, 'threshold')
+if strcmp(method, 'Threshold')
 
     downSamplingRate = 1;
 
     % resample the spikeMatrix 
-    downSampledSpikeMatrix = resampleMatrix(spikeMatrix, samplingRate, downSamplingRate); 
+    downSampledSpikeMatrix = resampleMatrix(full(spikeMatrix), samplingRate, downSamplingRate); 
 
     spikeMatrixZscored = (downSampledSpikeMatrix - mean(downSampledSpikeMatrix, 1)) ./ std(downSampledSpikeMatrix, 1);
     zScoredMean = mean(spikeMatrixZscored, 2);
@@ -256,9 +256,16 @@ if strcmp(method, 'threshold')
     numBursts = length(pks);
     numChannels = size(spikeMatrix, 2);
     burstTimes = zeros(numBursts, 2);
+    burstMatrix = cell(numBursts, 1);
+    burstChannels = cell(numBursts, 1);
     for burstIdx = 1:numBursts
         burstStart = round( (locs(burstIdx) - widths(burstIdx)) * samplingRate/downSamplingRate);
         burstEnd = round( (locs(burstIdx) + widths(burstIdx)) * samplingRate/downSamplingRate);
+        
+        % make sure burstStart and burstEnd are valid ranges 
+        burstStart = max([1, burstStart]);
+        burstEnd = min([burstEnd size(spikeMatrix, 1)]);
+        
         burstTimes(burstIdx, :) = [burstStart, burstEnd];
         burstMatrix{burstIdx} = spikeMatrix(burstStart:burstEnd, :);
     
