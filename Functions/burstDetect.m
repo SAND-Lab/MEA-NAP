@@ -1,4 +1,4 @@
-function [burstMatrix, burstTimes, burstChannels] = burstDetect(spikeMatrix, method, samplingRate, N, minChannel, ISInThreshold)
+function [burstMatrix, burstTimes, burstChannels, burstDetectionInfo] = burstDetect(spikeMatrix, method, samplingRate, N, minChannel, ISInThreshold)
 % burstDetect detects bursting activity from single channels
 % Parameters 
 % ----------
@@ -28,6 +28,10 @@ function [burstMatrix, burstTimes, burstChannels] = burstDetect(spikeMatrix, met
     % burstChannels 
     % nB x 1 cell, each containing a vector listing which channels were
     % active during that burst
+
+    % burstDetectionInfo
+    % stucture that contains extra information about the burst detection
+    % process, this will be specific to the burst detection method used
 % Log 
 % ---
 % original script from: https://github.com/Timothysit/mecp2
@@ -36,12 +40,14 @@ function [burstMatrix, burstTimes, burstChannels] = burstDetect(spikeMatrix, met
 % August 2020 : Edited by Alex Dunn
 % September 2023 : Tim Sit Added setting of ISInThreshold, which should be
 % 'automatic' if you are not sure what you should put
-
+% Late 2025: Tim Sit added threshold detection method
 
 switch nargin
     case 1 
         method = 'Bakkum'; 
 end 
+
+burstDetectionInfo = struct();
 
 if strcmp(method, 'Manuel')
     % implements Rich club topology paper method 
@@ -238,6 +244,79 @@ if strcmp(method, 'Bakkum')
     
     
 end 
+
+if strcmp(method, 'Threshold')
+
+    downSamplingRate = 1;
+
+    % resample the spikeMatrix 
+    downSampledSpikeMatrix = resampleMatrix(full(spikeMatrix), samplingRate, downSamplingRate); 
+
+    spikeMatrixZscored = (downSampledSpikeMatrix - mean(downSampledSpikeMatrix, 1)) ./ std(downSampledSpikeMatrix, 1);
+    zScoredMean = mean(spikeMatrixZscored, 2);
+    
+    % Do a sweep of different thresholds 
+    numThresholdsToTry = 50;
+    minThreshold = min(zScoredMean);
+    maxThreshold = max(zScoredMean);
+    networkBurstsThresholds = linspace(minThreshold, maxThreshold, numThresholdsToTry);
+    
+    numBurstsPerThreshold = zeros(numThresholdsToTry, 1);
+
+    for thresholdIdx = 1:numThresholdsToTry
+        [pks,locs,widths,~] = findpeaks(zScoredMean, 'MinPeakHeight', networkBurstsThresholds(thresholdIdx));
+        numBurstsPerThreshold(thresholdIdx) = length(pks);
+    end
+    
+    % use the chosen threshold
+    zScoreThreshold = 1.5;  % TODO: allow custom or auto threshold selection
+    channelParticipationThreshold = 1.5;  % TODO: also need to find a way to choose this value
+    
+    [pks,locs,widths,~] = findpeaks(zScoredMean, 'MinPeakHeight', zScoreThreshold);
+
+    
+    % save burst detection information
+    burstDetectionInfo.numBurstsPerThreshold = numBurstsPerThreshold;
+    burstDetectionInfo.networkBurstsThresholds = networkBurstsThresholds;
+    burstDetectionInfo.zScoredMean = zScoredMean;
+    burstDetectionInfo.zScoreThreshold = zScoreThreshold;
+    burstDetectionInfo.channelParticipationThreshold = channelParticipationThreshold;
+
+    
+    numBursts = length(pks);
+    numChannels = size(spikeMatrix, 2);
+    burstTimes = zeros(numBursts, 2);
+    burstMatrix = cell(numBursts, 1);
+    burstChannels = cell(numBursts, 1);
+
+    for burstIdx = 1:numBursts
+        burstStart = round( (locs(burstIdx) - widths(burstIdx)) * samplingRate/downSamplingRate);
+        burstEnd = round( (locs(burstIdx) + widths(burstIdx)) * samplingRate/downSamplingRate);
+        
+        % make sure burstStart and burstEnd are valid ranges 
+        burstStart = max([1, burstStart]);
+        burstEnd = min([burstEnd size(spikeMatrix, 1)]);
+        
+        burstTimes(burstIdx, :) = [burstStart, burstEnd];
+        burstMatrix{burstIdx} = spikeMatrix(burstStart:burstEnd, :);
+    
+        % Check if each channel's activity is high enough to be considered
+        % in participating in the network burst
+        burstStartDownSampled = round( (locs(burstIdx) - widths(burstIdx)));
+        burstEndDownSampled = round( (locs(burstIdx) + widths(burstIdx)));
+
+        burstStartDownSampled = max([1, burstStartDownSampled]);
+        burstEndDownSampled = min([burstEndDownSampled, size(spikeMatrixZscored, 1)]);
+
+        maxActivityFromEaChannel = max(spikeMatrixZscored(burstStartDownSampled:burstEndDownSampled, :), [], 1);
+        burstChannels{burstIdx} = find(maxActivityFromEaChannel >= channelParticipationThreshold);
+    end
+
+    % get the individual ITIs within burst and outside of bursts
+    
+
+
+end
 
 
 end

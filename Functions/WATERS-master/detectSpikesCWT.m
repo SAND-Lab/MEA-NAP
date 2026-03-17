@@ -157,11 +157,18 @@ if startsWith(wname, 'thr')
 
 elseif startsWith(wname, 'absthr')
     absThreshold = strrep(wname, 'p', '.');
-    absThreshold = strrep(absThreshold, 'thr', '');
-    absThreshold = str2num(absThreshold);
+    absThreshold = strrep(absThreshold, 'absthr', '');
+    absThreshold = str2double(absThreshold);
     [spikeTrain, ~, ~] = detectSpikesThreshold(trace, 0, refPeriod, fs, 0, absThreshold, threshold_calculation_window);
     spikeTimes = find(spikeTrain == 1);
     threshold = absThreshold;
+
+     % Align spikes by negative peak & remove artifacts by amplitude
+    [spikeTimes, spikeWaveforms] = alignPeaks(spikeTimes, trace, win, remove_artifacts,...
+        minPeakThrMultiplier,...
+        maxPeakThrMultiplier,...
+        posPeakThrMultiplier);
+        
 elseif startsWith(wname, 'customAbs')
     multiplier = 0;
     [spikeTrain, ~, ~] = detectSpikesThreshold(trace, multiplier, ...

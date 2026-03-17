@@ -12,6 +12,11 @@ function [groupNameBeginsWnumber, groupNameContainsSpecial, allDIVisValid, group
     
     for groupIdx = 1:length(groupNames)
         groupStr = groupNames{groupIdx}; 
+        
+        if isempty(groupStr)
+            error('Genotype/Group column cannot be empty, please complete that column.')
+        end
+
         startStr = groupStr(1);
         if ~isnan(str2double(startStr))
             groupNameBeginsWnumber = 1;

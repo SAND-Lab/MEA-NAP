@@ -430,8 +430,9 @@ if Params.startAnalysisStep < 3
                 end
             end
             channelLayout =  Params.channelLayoutPerRecording{ExN};
+            electrodesToGround = Params.electrodesToGroundPerRecording{ExN};
             [spikeMatrix,spikeTimes,Params,Info] = formatSpikeTimes(... 
-                char(Info.FN), Params, Info, spikeDetectedDataFolder, channelLayout);
+                char(Info.FN), Params, Info, spikeDetectedDataFolder, channelLayout, electrodesToGround);
 
             % load(experimentMatFpath,'Info','Params','spikeTimes','spikeMatrix');
 
@@ -499,7 +500,7 @@ if Params.startAnalysisStep < 3
             % electrode heat maps
             coords = Params.coords{ExN};
             electrodeHeatMaps(char(Info.FN), spikeMatrix, Info.channels, ... 
-                maxValStruct.FR, Params, coords, idvNeuronalAnalysisFNFolder, oneFigureHandle)
+                maxValStruct.FR, Params, coords, idvNeuronalAnalysisFNFolder, oneFigureHandle, Params.electrodesToGroundPerRecording(ExN))
             
             % Plot bursts metrics
             metricVarsToPlot = {'channelBurstRate', ...
@@ -537,6 +538,9 @@ if Params.startAnalysisStep < 3
                     oneFigureHandle, []);
             
             end
+
+            % Plot network burst detection 
+            plotNetworkBursts(spikeTimes, Ephys, Info, Params, idvNeuronalAnalysisFNFolder, oneFigureHandle)
             
             % half violin plots
             firingRateElectrodeDistribution(char(Info.FN), Ephys, Params, ... 
@@ -591,11 +595,49 @@ if Params.startAnalysisStep < 3
             figFolder = fullfile(groupFolder, expData.Info.FN{1});
 
             spikeData = load(spikeDataFpath);
+
+            if strcmp(Params.SpikesMethod,'merged') || strcmp(Params.SpikesMethod,'mergedAll')
+                spikeTimes = spikeData.spikeTimes;
+
+                for uu = 1:length(spikeTimes)
+                    [spikeTimes{uu}.('mergedAll'),~, ~] = mergeSpikes(spikeTimes{uu}, 'all');
+                end
+
+                for channel = 1:length(spikeData.channels)
+                    channelAmpData = spikeData.spikeAmps{channel};
+                    channelSpikeTimes = spikeData.spikeTimes{channel};
+                    detectionMethods = fieldnames(channelAmpData);
+
+                    channelAllSpikeAmps = [];
+                    channelAllSpikeTimes = [];
+                    for methodIdx = 1:length(detectionMethods)
+                        method = detectionMethods{methodIdx};
+                        channelAllSpikeAmps  = [channelAllSpikeAmps; ...
+                            channelAmpData.(method)];
+                        channelAllSpikeTimes = [channelAllSpikeTimes; ...
+                            channelSpikeTimes.(method)];
+
+                    end
+
+                    [~, originalLocations] = ismember(spikeTimes{channel}.mergedAll, channelAllSpikeTimes);
+                    mergedSpikeAmps = channelAllSpikeAmps(originalLocations);
+
+                    spikeData.spikeAmps{channel}.mergedAll = mergedSpikeAmps;
+
+                end
+                spikeData.spikeTimes = spikeTimes;
+            end
+            
             stimActivityAnalysis(spikeData, Params, expData.Info, ...
                 figFolder, oneFigureHandle);
         end
     end
     
+    if Params.stimulationMode == 1
+        % Save stimulation analysis data to CSV files
+        saveEphysStatsStim(ExpName, Params);
+    end 
+
     if Params.timeProcesses
         step2Duration = toc(step2Start);
     end 
@@ -658,7 +700,13 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
                     fprintf(sprintf('Generating adjacency matrix for: %s \n', char(Info.FN)))
                 end 
             end
+            
+            % ground electrodes
+            electrodesToGround = Params.electrodesToGroundPerRecording{ExN};
+            spikeTimes = groundSpikeTimes(spikeTimes, Info.channels, ...
+                electrodesToGround, Params.electrodesToGroundPerRecordingUseName);
 
+            % calculate adjacecny matrix from spike times
             adjMs = generateAdjMs(spikeTimes, ExN, Params, Info, oneFigureHandle);
 
 
@@ -765,6 +813,7 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
             end 
 
             channelLayout = Params.channelLayoutPerRecording{ExN};
+            electrodesToGround = Params.electrodesToGroundPerRecording{ExN};
             
             if Params.suite2pMode
                 if strcmp(Params.twopActivity, 'denoised F')
@@ -778,11 +827,11 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
                 elseif strcmp(Params.twopActivity, 'peaks')
                     Params.fs = expMatData.fs;
                     [activityMatrix, spikeTimes, Params, Info] = formatSpikeTimes(char(Info.FN), ...
-                    Params, Info, spikeDetectedDataFolder, expMatData);
+                    Params, Info, spikeDetectedDataFolder, channelLayout, electrodesToGround);
                 end
             else 
                 [activityMatrix, spikeTimes, Params, Info] = formatSpikeTimes(char(Info.FN), ...
-                    Params, Info, spikeDetectedDataFolder, expMatData);
+                    Params, Info, spikeDetectedDataFolder, channelLayout, electrodesToGround);
             end
 
             Params.networkActivityFolder = idvNetworkAnalysisFNFolder;

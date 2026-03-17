@@ -110,18 +110,25 @@ if strcmp(stimDetectionMethod, 'longblank')
     % --- Step 1: Pre-calculate blankStarts and blankEnds for all channels using the hardcoded blank length ---
 
     all_channels_blank_starts = cell(numChannels, 1);
-
     all_channels_blank_ends = cell(numChannels, 1);
 
+    all_channels_non_stim_blank_starts = cell(numChannels, 1);
+    all_channels_non_stim_blank_ends = cell(numChannels, 1);
+
     num_blanks_per_channel = zeros(numChannels, 1);
+
+    nonStimBlankMinDur = 0.001;
+    non_stim_min_dur = round(nonStimBlankMinDur * Params.fs);
+
+    % Use hardcoded min_duration for blank detection
+    % min_duration_hardcoded = 37; % This minimum value detects all blank
+    min_duration = round(Params.minBlankingDuration * Params.fs);
 
     for channel_idx = 1:numChannels
 
         channelDat = rawData(:, channel_idx);
 
-        % Use hardcoded min_duration for blank detection
-        % min_duration_hardcoded = 37; % This minimum value detects all blank
-        min_duration = round(Params.minBlankingDuration * Params.fs);
+
 
         change_points = [1; diff(channelDat) ~= 0];
 
@@ -142,6 +149,13 @@ if strcmp(stimDetectionMethod, 'longblank')
         blankStarts = start_indices_hardcoded / Params.fs;
 
         blankEnds = end_indices_hardcoded / Params.fs;
+        
+        % Get the non-stimulation blanks
+        non_stim_groups = find((counts >= non_stim_min_dur) & (counts < min_duration));
+        start_indices_non_stim = start_indices(ismember(group_id(start_indices), non_stim_groups));
+        end_indices_non_stim = end_indices(ismember(group_id(end_indices), non_stim_groups));
+        blankStartsNonstim = start_indices_non_stim / Params.fs;
+        blankEndsNonstim = end_indices_non_stim / Params.fs;
 
         % Filter out long blanks
 
@@ -158,8 +172,10 @@ if strcmp(stimDetectionMethod, 'longblank')
         end
 
         all_channels_blank_starts{channel_idx} = blankStarts;
-
         all_channels_blank_ends{channel_idx} = blankEnds;
+
+        all_channels_non_stim_blank_starts{channel_idx} = blankStartsNonstim;
+        all_channels_non_stim_blank_ends{channel_idx} = blankEndsNonstim;
 
         num_blanks_per_channel(channel_idx) = length(blankStarts);
 
@@ -311,6 +327,9 @@ for channel_idx = 1:numChannels
         % Retrieve the pre-calculated blank times for this channel
         blankStarts = all_channels_blank_starts{channel_idx};
         blankEnds = all_channels_blank_ends{channel_idx};
+
+        nonStimBlankStarts = all_channels_non_stim_blank_starts{channel_idx};
+        nonStimBlankEnds = all_channels_non_stim_blank_ends{channel_idx};
         % Calculate blank durations (seconds)
         if length(blankStarts) == length(blankEnds)
             blankDurations = blankEnds - blankStarts;
@@ -370,6 +389,8 @@ for channel_idx = 1:numChannels
     if strcmp(stimDetectionMethod, 'longblank')
         stimStruct.blankStarts = blankStarts; % Start times (seconds) of hardcoded blanks 
         stimStruct.blankEnds   = blankEnds;   % End   times (seconds) of hardcoded blanks 
+        stimStruct.nonStimBlankStarts = nonStimBlankStarts;
+        stimStruct.nonStimBlankEnds = nonStimBlankEnds;
         stimStruct.blankDurations = blankDurations;
         % Add the new template variables to the output struct
         stimStruct.allBlankStartsTemplate = allBlankStartsTemplate;

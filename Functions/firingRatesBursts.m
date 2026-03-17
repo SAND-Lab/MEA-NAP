@@ -52,7 +52,7 @@ end
 
 
 % Network burst detection
-[burstMatrix, burstTimes, burstChannels] = burstDetect(spikeMatrix, ...
+[burstMatrix, burstTimes, burstChannels, burstDetectionInfo] = burstDetect(spikeMatrix, ...
     Params.networkBurstDetectionMethod, Params.fs, Params.minSpikeNetworkBurst, ...
     Params.minChannelNetworkBurst, Params.bakkumNetworkBurstISInThreshold);
 
@@ -98,6 +98,7 @@ if ~isempty(burstMatrix)
     Ephys.CVofINBI = round((std(IBIs)/mean(IBIs)),3); %3 decimal places
     Ephys.NBurstRate = round(60*(nBursts/(length(spikeMatrix(:,1))/Params.fs)),3);
     Ephys.fracInNburst = round(sp_in_bst/sum(sum(spikeMatrix)),3);
+    Ephys.burstTimes = burstTimes / Params.fs;  % convert from frames back to seconds
 
     %need to go intro burst detect and edit as it is not deleting the bursts
     %with <5 channels from burstChannels and burstTimes hence they are longer
@@ -116,8 +117,13 @@ else
     Ephys.CVofINBI = nan; %3 decimal places
     Ephys.NBurstRate = 0;
     Ephys.fracInNburst = nan;
+    Ephys.burstTimes = {};
     
 end
+
+% add some more information about burst detection 
+Ephys.burstDetectionInfo = burstDetectionInfo;
+
 
 % Single channel burst detection 
 burstData = singleChannelBurstDetection(spikeMatrix, Params.singleChannelBurstMinSpike, Params.fs, ...

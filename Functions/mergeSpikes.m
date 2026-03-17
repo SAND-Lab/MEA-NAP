@@ -47,7 +47,7 @@ for method = 1:numel(methods)
     all_spikes = union(all_spikes, spike_times.(methods{method}));
 end
 
-all_spikes = all_spikes';
+% all_spikes = all_spikes';
 % Vectorized operations + Logical indexing = Fast but hard to follow
 
 unique_idx = [];

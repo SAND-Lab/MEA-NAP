@@ -1,4 +1,4 @@
-function electrodeHeatMaps(FN, spikeMatrix, channels, spikeFreqMax, Params, coords, figFolder, oneFigureHandle)
+function electrodeHeatMaps(FN, spikeMatrix, channels, spikeFreqMax, Params, coords, figFolder, oneFigureHandle, groundElectrodes)
 % Plots the firing rate of each node / electrode with a circle representing 
 % the spatial location of the electrode / node, and the color representing 
 % the firing rate (spikes/s)
@@ -72,8 +72,19 @@ spikeCount = full(spikeCount / (size(spikeMatrix, 1) / Params.fs));
 %% plot electrodes
 % TODO: I think a lot of rectangle coloring can be simplified
 mycolours = colormap;
+groundColor = [0.8, 0.8, 0.8]; % for ground electrodes
 numCbarTicks = 5;
 
+%% ground electrodes
+
+if ~isempty(groundElectrodes)
+    if contains(groundElectrodes, ',')
+        currGroundElecs = split(groundElectrodes{1}, ',');
+        currGroundElecs = str2double(currGroundElecs);
+    else
+        currGroundElecs = str2double(groundElectrodes);
+    end
+end
 
 %% Left electrode plot (scaled to individual recording)
 nexttile
@@ -102,6 +113,16 @@ for i = 1:length(spikeCount)
                 rectangle('Position',pos,'Curvature',[1 1],'FaceColor',mycolours(length(mycolours),1:3),'EdgeColor','w','LineWidth',0.1) 
             end
         end
+
+        if ~isempty(currGroundElecs)
+            for j = 1:length(currGroundElecs)
+                if channels(i) == currGroundElecs(j)
+                    colorToUse = groundColor;
+                    rectangle('Position',pos,'Curvature',[1 1],'FaceColor',colorToUse,'EdgeColor','w','LineWidth',0.1)
+                end
+            end
+        end
+        
     if Params.includeChannelNumberInPlots 
         text(pos(1) + 0.5 * nodeScaleF, pos(2) + 0.5 * nodeScaleF, ...
             sprintf('%.f', channels(i)), 'HorizontalAlignment','center')
@@ -147,6 +168,15 @@ for i = 1:length(spikeCount)
                  rectangle('Position',pos,'Curvature',[1 1],'FaceColor',mycolours(length(mycolours),1:3),'EdgeColor','w','LineWidth',0.1) 
             end
         end
+
+        if ~isempty(currGroundElecs)
+            for j = 1:length(currGroundElecs)
+                if channels(i) == currGroundElecs(j)
+                    colorToUse = groundColor;
+                    rectangle('Position',pos,'Curvature',[1 1],'FaceColor',colorToUse,'EdgeColor','w','LineWidth',0.1)
+                end
+            end
+        end
 end
 ylim([min(yc)-1 max(yc)+1])
 xlim([min(xc)-1 max(xc)+1])
@@ -185,6 +215,7 @@ if Params.showOneFig
 else 
     close(F1);
 end 
+
 
 
 end

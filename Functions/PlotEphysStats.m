@@ -702,6 +702,7 @@ for n = 1:length(eMet)
         xticks(xt)
         xticklabels(xtlabtext)
         xlabel('Age')
+        cMetl(n) = strrep(cMetl(n), '_', ' ');
         ylabel(cMetl(n))
         title(eGrp)
         aesthetics
@@ -790,6 +791,7 @@ for n = 1:length(eMet)
         xticks(xt)
         xticklabels(xtlabtext)
         xlabel('Group')
+        cMetl(n) = strrep(cMetl(n), '_', ' ');
         ylabel(cMetl(n))
         title(strcat('Age',eDiv))
         aesthetics

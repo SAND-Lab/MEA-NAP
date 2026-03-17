@@ -566,7 +566,7 @@ for e = 1:length(lagval)
     %% Calculate average and modal controllability 
     if any(strcmp(netMetToCal, 'aveControl'))
         lagFieldStr = strcat('adjM',num2str(lagval(e)),'mslag');
-        if checkIfRecomputeMetric(Params, prevNetMet, firstLagField, 'aveControl') == 1
+        if checkIfRecomputeMetric(Params, prevNetMet, lagFieldStr, 'aveControl') == 1
             
             if isempty(adjM) 
                 aveControl = double.empty([0, 1]);
@@ -583,6 +583,7 @@ for e = 1:length(lagval)
                 aveControlTop25 = nan;
             end
         else 
+            fprintf('Using saved aveControl \n')
             aveControl = prevNetMet.(lagFieldStr).aveControl;
             aveControlMean = prevNetMet.(lagFieldStr).aveControlMean;
             aveControlTop25 = prevNetMet.(lagFieldStr).aveControlTop25;
@@ -594,7 +595,7 @@ for e = 1:length(lagval)
 
     if any(strcmp(netMetToCal, 'modalControl'))
         lagFieldStr = strcat('adjM',num2str(lagval(e)),'mslag');
-        if checkIfRecomputeMetric(Params, prevNetMet, firstLagField, 'modalControl') == 1
+        if checkIfRecomputeMetric(Params, prevNetMet, lagFieldStr, 'modalControl') == 1
         
             modalControl = modal_control(adjM);
             

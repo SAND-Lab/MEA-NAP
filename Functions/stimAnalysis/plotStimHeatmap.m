@@ -22,15 +22,15 @@ for nodeIdx = 1:numNodes
 
     if length(stimInfo{nodeIdx}.elecStimTimes) == 0
         nodeColor = 'white';
+        rectangle('Position', circlePos,'Curvature',[1 1],'FaceColor',nodeColor,'EdgeColor','black','LineWidth', 1) 
     else 
         nodeColor = 'black';
+        rectangle('Position', circlePos,'Curvature',[1 1],'FaceColor',nodeColor,'EdgeColor','red','LineWidth', 1.5)
+        text(xc - (0.1*nodeScaleF), yc, num2str(stimInfo{nodeIdx}.pattern), 'Color', 'white', 'FontSize', 12);
     end
-    rectangle('Position', circlePos,'Curvature',[1 1],'FaceColor',nodeColor,'EdgeColor','black','LineWidth', 1) 
 end
 
-
-
-
+axis off
 
 end
 

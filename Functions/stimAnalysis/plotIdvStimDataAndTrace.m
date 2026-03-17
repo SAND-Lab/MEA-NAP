@@ -30,7 +30,7 @@ plot(recordingTime, rawData(:, channelIdx));
 box off
 xlabel('Time')
 ylabel('Filtered signal')
-title(sprintf('Channel %.f', channelIdx))
+title(sprintf('Electrode %.f (Channel %.f)', stimInfo{channelIdx}.channelName, channelIdx))
 
 subplot(2, 1, 2)
 stimVector = zeros(stimResampleN, 1);
@@ -50,8 +50,8 @@ end
 
 
 plot(stimResampleTimes, stimVector)
-ylim([-0.5, 1.5])
-ylabel('Stim')
+ylim([0, 1])
+ylabel('Stim Pulses Detected')
 xlabel('Time (s)')
 box off 
 set(gcf, 'color', 'w')

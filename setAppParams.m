@@ -54,6 +54,8 @@ if isfield(Params, 'singleChannelIsiThreshold')
     app.SinglechannelburstthresholdEditField.Value = Params.singleChannelIsiThreshold;
 end
 
+app.BurstDetectionMethodDropDown.Value = Params.networkBurstDetectionMethod;
+
 %% Connectivity settings 
 
 app.STTCLagmsEditField.Value = ['[', strjoin(cellstr(string(Params.FuncConLagval)), ', '), ']'];

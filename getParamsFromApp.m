@@ -2,8 +2,10 @@ function  Params = getParamsFromApp(app)
 % Sets the parameters from GUI input
 %   INPUT 
 %   app : app object 
+%   MEA-NAP GUI application object
 %   OUTPUT
 %   Params : struct
+%   Parameters for running MEA-NAP
 
 Params.HomeDir = app.MEANAPFolderEditField.Value;
 Params.outputDataFolder = app.OutputDataFolderEditField.Value;
@@ -18,8 +20,13 @@ Params.fs = app.SamplingFrequencyEditField.Value;
 Params.dSampF = app.DownSampleFrequencyEditField.Value;
 Params.potentialDifferenceUnit = app.PotentialDifferenceUnitEditField.Value;
 Params.channelLayout = app.ChannelLayoutDropDown.Value;
+
+% Spike Detection Settings
 thresholdsArray = str2num(app.ThresholdsEditField.Value);
 Params.thresholds = cellstr(string(thresholdsArray));
+
+absThresholdsArray = str2num(app.absThresholdsEditField.Value);
+Params.absThresholds = absThresholdsArray; % cellstr(string(absThresholdsArray));
 Params.wnameList = cellstr(app.WaveletsListBox.Value); %  {'bior1.5'}; % wavelet methods to use {'bior1.5', 'mea'}; 
 Params.costList = str2double(app.WaveletCostEditField.Value);
 Params.SpikesMethod = app.SpikeMethodforAnalysisEditField.Value;  % wavelet methods, eg. 'bior1p5', or 'mergedAll', or 'mergedWavelet'
@@ -258,7 +265,7 @@ Params.use_min_max_per_genotype_bounds = 0;
 Params.rasterPlotUpperPercentile = app.RasterMapUpperPercentileEditField.Value;
 
 %% Burst detection settings 
-Params.networkBurstDetectionMethod = app.BurstDetectionMethodDropDown.Value; % supported methods: 'Bakkum', 'Manuel', 'LogISI', 'nno'
+Params.networkBurstDetectionMethod = app.BurstDetectionMethodDropDown.Value; % supported methods: 'Bakkum', 'Threshold', 'Manuel', 'LogISI', 'nno'
 Params.minSpikeNetworkBurst = app.MinspikepernetworkburstEditField.Value;
 Params.minChannelNetworkBurst = app.MinchannelpernetworkburstEditField.Value;
 Params.bakkumNetworkBurstISInThreshold = app.BakkumNetworkBurstThresholdEditField.Value; % either 'automatic' or a number in seconds

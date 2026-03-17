@@ -1,4 +1,4 @@
-function [spikeMatrix,spikeTimes,Params,Info] = formatSpikeTimes(File, Params, Info, spikeDataFolder, expMatData)
+function [spikeMatrix,spikeTimes,Params,Info] = formatSpikeTimes(File, Params, Info, spikeDataFolder, expMatData, electrodesToGround)
 % this function loads in the spike detection result and creates a
 % spike matrix and spike times structure for the chosen spike detection
 % method and chosen length of recording
@@ -88,6 +88,10 @@ if Params.TruncRec == 1
 end
 
 Params.fs = fs;
+
+%% Ground electrodes 
+
+spikeTimes = groundSpikeTimes(spikeTimes, Info.channels, electrodesToGround, Params.electrodesToGroundPerRecordingUseName);
 
 %% create spike matrix
 

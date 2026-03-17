@@ -17,13 +17,23 @@ stimDataDurS = numTimeSamples / Params.fs;
 stimResampleN = round(stimDataDurS * stimResamplingHz);
 stimResampleTimes = linspace(0, stimDataDurS, stimResampleN);
 
+electrodes = [];
+
+for i = 1:length(stimInfo)
+    electrodes = [electrodes stimInfo{i}.channelName];
+end
+
+sortedElecs = sort(electrodes);
+channels = length(stimInfo);
+
 for channelIdx = 1:length(stimInfo)
-    
     stimVector = zeros(stimResampleN, 1);
-    
-    elecStimTimes = stimInfo{channelIdx}.elecStimTimes;
-    % elecStimDur = stimInfo{channelIdx}.elecStimDur;
+
+    currElec = sortedElecs(channelIdx); % get current electrode (sorted)
+    currChannel = find(electrodes == currElec); % get current channel in unsorted electrode list
+    elecStimTimes = stimInfo{currChannel}.elecStimTimes;
     elecStimDur = Params.stimDurationForPlotting;
+
     for stimIdx = 1:length(elecStimTimes)
             
         stimLoc = find(stimResampleTimes >= elecStimTimes(stimIdx) & ...
@@ -33,23 +43,28 @@ for channelIdx = 1:length(stimInfo)
     end
 
 
-    vert_offset = channelIdx * 1.2;
+    vert_offset = channels * 1.2;
     plot(stimResampleTimes, stimVector + vert_offset)
     hold on
 
     % Text label of channel idx 
-    text(-1, vert_offset + 0.5, num2str(channelIdx), 'HorizontalAlignment', 'right');
+    text(-1, vert_offset + 0.5, num2str(currElec), 'HorizontalAlignment', 'right');
     % Text label of channel name
-    text(stimDataDurS+1, vert_offset + 0.5, num2str(stimInfo{channelIdx}.channelName));
+    text(stimDataDurS+1, vert_offset + 0.5, num2str(currChannel));
+
+    channels = channels - 1;
 end
+
 box off 
 yticks([])
-ylabel('Channel (with some vertical offset)');
-xlabel('Time (sec)');
+t1 = text(-20, 30, 'Electrode ID', "FontSize", 10);
+t2 = text(320, 39, 'Channel Index', "FontSize", 10);
+t1.Rotation = 90;
+t2.Rotation = 270;
+xlabel('Time (s)');
 set(gcf, 'color', 'white')
 set(gca, 'TickDir', 'out')
 ax1 = gca();
 ax1.YAxis.Visible = 'off'; 
-
 
 end

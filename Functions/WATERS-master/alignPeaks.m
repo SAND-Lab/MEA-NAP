@@ -31,6 +31,12 @@ function [spikeTimes, spikeWaveforms] = alignPeaks(spikeTimes, trace, win,...
 % NOTE: currently 'win' refers to the width of the bin that is searched for
 % the peak, NOT to the width of the waveform (hard-coded to 25);
 % TODO: Pass it as an argument
+
+% 2025-11-23 Tim 
+% There seems to be some issue with the window (Sfr) assignment indexing
+% So for now I am separating whatever that step is doing with the artifact
+% removal, in order to make sure the artifact removal steps actually works
+
 waveform_width = 25;
 
 % Obtain thresholds for artifact removal
@@ -65,16 +71,26 @@ for i = 1:length(spikeTimes)
         positivePeak = max(bin);
         pos = find(bin == negativePeak);
         
+        % 2025-11-23 : Tim: The issue here is that with the new spike time, you
+        % may introduce something that actually crosses the thresholds...
         % Remove artifacts and assign new timestamps
         if artifactFlg
             if (negativePeak < minPeakThr) && (positivePeak < posPeakThr) && (negativePeak > maxPeakThr)
                 newSpikeTime = spikeTimes(i)+pos-win;
                 if newSpikeTime+waveform_width < length(trace) && newSpikeTime-waveform_width > 1
+                    
                     waveform = trace(newSpikeTime-waveform_width:newSpikeTime+waveform_width);
-                    sFr(i) = newSpikeTime;
-                    spikeWaveforms(i, :) = waveform;
+                    % Double check the new waveform is also valid
+                    negativePeak = min(waveform);
+                    positivePeak = max(waveform);
+                    if (negativePeak < minPeakThr) && (positivePeak < posPeakThr) && (negativePeak > maxPeakThr)
+                        sFr(i) = newSpikeTime;
+                        spikeWaveforms(i, :) = waveform;
+                    end 
+                    
                 end
             end
+            
         else
             newSpikeTime = spikeTimes(i)+pos-win;
             if newSpikeTime+waveform_width < length(trace) && newSpikeTime-waveform_width > 1
@@ -83,6 +99,7 @@ for i = 1:length(spikeTimes)
                 spikeWaveforms(i, :) = waveform;
             end
         end
+        %
     end
 end
 
@@ -90,5 +107,6 @@ end
 % than using (end+1) indexing in the loop above
 spikeTimes = sFr(sFr~=0);
 spikeWaveforms = spikeWaveforms(sFr~=0,:);
+
 end
 
