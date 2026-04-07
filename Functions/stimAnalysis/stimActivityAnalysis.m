@@ -727,7 +727,7 @@ function stimActivityAnalysis(spikeData, Params, Info, figFolder, oneFigureHandl
             electrodeLevelResponse_pattern_x(valid_channel_count).channel_id = channel_id;
             electrodeLevelResponse_pattern_x(valid_channel_count).file_index = channelIdx;
             electrodeLevelResponse_pattern_x(valid_channel_count).pattern_id = patternIdx;
-            electrodeLevelResponse_pattern_x(valid_channel_count).auc_response = resp_metrics.auc;
+            electrodeLevelResponse_pattern_x(valid_channel_count).auc_poststim = resp_metrics.auc;
             electrodeLevelResponse_pattern_x(valid_channel_count).auc_baseline_mean = mean_baseline_auc;
             electrodeLevelResponse_pattern_x(valid_channel_count).auc_corrected = auc_corrected;
             electrodeLevelResponse_pattern_x(valid_channel_count).peak_firing_rate_hz = resp_metrics.peak_firing_rate;
