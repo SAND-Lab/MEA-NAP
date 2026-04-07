@@ -12,7 +12,7 @@ ogNumSamples = size(ogMatrix, 1);
 numVar = size(ogMatrix, 2); 
 
 newNumSamples = ogNumSamples / ogFs * newFs;
-newMatrix = zeros(newNumSamples, numVar) + nan;
+newMatrix = zeros(round(newNumSamples), numVar) + nan;
 
 for varIdx = 1:numVar
    newMatrix(:, varIdx) = resample(ogMatrix(:, varIdx), p, q); 

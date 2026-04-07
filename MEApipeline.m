@@ -827,7 +827,7 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
                 elseif strcmp(Params.twopActivity, 'peaks')
                     Params.fs = expMatData.fs;
                     [activityMatrix, spikeTimes, Params, Info] = formatSpikeTimes(char(Info.FN), ...
-                    Params, Info, spikeDetectedDataFolder, channelLayout, electrodesToGround);
+                    Params, Info, spikeDetectedDataFolder, expMatData, electrodesToGround);
                 end
             else 
                 [activityMatrix, spikeTimes, Params, Info] = formatSpikeTimes(char(Info.FN), ...
