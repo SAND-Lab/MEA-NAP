@@ -13,6 +13,9 @@ function [psth_data, metrics] = calculate_psth_metrics(all_spike_times_s, stim_t
 %                       'smoothing_method': 'ssvkernel' (default) or 'gaussian'
 %                       'gaussian_width_ms': Width of Gaussian kernel in ms (default: 2ms)
 %                       'artifact_exclusion_duration_s': Duration of artifact exclusion from window start (default: 0)
+%                       'auc_start_s': Time (relative to stim) from which to
+%                           integrate AUC. Default NaN = use full window.
+%                           Set to 0 to integrate from stimulus onset only.
 %
 % OUTPUTS:
 %   psth_data         - A struct containing intermediate data:
@@ -24,7 +27,9 @@ function [psth_data, metrics] = calculate_psth_metrics(all_spike_times_s, stim_t
 %     .time_vector_s      - Time vector for the smoothed PSTH.
 %     .psth_smooth        - The smoothed PSTH (firing rate in spikes/s).
 %     .kernel_bandwidth_s - The adaptive kernel bandwidth from ssvkernel.
-%     .auc                - Area under the curve of the smoothed PSTH.
+%     .auc                - Area under the curve of the smoothed PSTH
+%                           (post-stim only if auc_start_s is provided,
+%                            otherwise full window).
 %     .peak_firing_rate   - Peak firing rate of the smoothed PSTH.
 %     .peak_time_s        - Time of the peak firing rate.
 
@@ -33,12 +38,14 @@ function [psth_data, metrics] = calculate_psth_metrics(all_spike_times_s, stim_t
     addParameter(p, 'smoothing_method', 'ssvkernel', @(x) ismember(x, {'ssvkernel', 'gaussian'}));
     addParameter(p, 'gaussian_width_ms', 2, @(x) isscalar(x) && x > 0);
     addParameter(p, 'artifact_exclusion_duration_s', 0, @(x) isscalar(x) && x >= 0);
+    addParameter(p, 'auc_start_s', NaN, @(x) isscalar(x));
     parse(p, varargin{:});
-    
+
     smoothing_method = p.Results.smoothing_method;
     gaussian_width_ms = p.Results.gaussian_width_ms;
     gaussian_width_s = gaussian_width_ms / 1000; % Convert to seconds
     artifact_exclusion_duration_s = p.Results.artifact_exclusion_duration_s;
+    auc_start_s = p.Results.auc_start_s;
 
     num_trials = length(stim_times_s);
     MIN_SPIKES_FOR_KDE = 5; % Set a threshold for minimum number of spikes to run ssvkernel
@@ -152,5 +159,23 @@ function [psth_data, metrics] = calculate_psth_metrics(all_spike_times_s, stim_t
             metrics.peak_firing_rate = 0;
             metrics.peak_time_s = NaN;
         end
+    end
+
+    % -----------------------------------------------------------------
+    % Post-stim metric recomputation: if auc_start_s was supplied,
+    % restrict AUC, peak_firing_rate and peak_time_s to the window
+    % [auc_start_s, window_s(2)].  The smoothed PSTH and time vector
+    % remain over the full window for visualisation.
+    % -----------------------------------------------------------------
+    if ~isnan(auc_start_s) && metrics.auc ~= 0
+        tv = metrics.time_vector_s;
+        mask = tv >= auc_start_s;
+        metrics.auc = trapz(tv(mask), metrics.psth_smooth(mask));
+
+        % Recalculate peak metrics over the restricted window only
+        psth_restricted = metrics.psth_smooth(mask);
+        tv_restricted   = tv(mask);
+        [metrics.peak_firing_rate, max_idx] = max(psth_restricted);
+        metrics.peak_time_s = tv_restricted(max_idx);
     end
 end
