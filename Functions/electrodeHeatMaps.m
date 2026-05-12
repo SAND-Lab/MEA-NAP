@@ -1,4 +1,4 @@
-function electrodeHeatMaps(FN, spikeMatrix, channels, spikeFreqMax, Params, coords, figFolder, oneFigureHandle, groundElectrodes)
+function electrodeHeatMaps(FN, spikeMatrix, channels, spikeFreqMax, Params, coords, figFolder, oneFigureHandle, groundElectrodes, stimInfo)
 % Plots the firing rate of each node / electrode with a circle representing 
 % the spatial location of the electrode / node, and the color representing 
 % the firing rate (spikes/s)
@@ -86,6 +86,18 @@ if ~isempty(groundElectrodes)
     end
 end
 
+%% stim electrodes
+
+stimElecs = [];
+
+if ~isempty(stimInfo)
+    for channel = 1:length(stimInfo)
+        if stimInfo{channel}.pattern > 0
+            stimElecs = [stimElecs stimInfo{channel}.channelName];
+        end
+    end
+end
+
 %% Left electrode plot (scaled to individual recording)
 nexttile
 uniqueXc = sort(unique(xc));
@@ -123,6 +135,15 @@ for i = 1:length(spikeCount)
             end
         end
         
+        if ~isempty(stimElecs)
+            for x = 1:length(stimElecs)
+                if channels(i) == stimElecs(x)
+                    colorToUse = 'white';
+                    rectangle('Position',pos,'Curvature',[1 1],'FaceColor',colorToUse,'EdgeColor','k','LineWidth',0.1)
+                end
+            end
+        end
+        
     if Params.includeChannelNumberInPlots 
         text(pos(1) + 0.5 * nodeScaleF, pos(2) + 0.5 * nodeScaleF, ...
             sprintf('%.f', channels(i)), 'HorizontalAlignment','center')
@@ -150,7 +171,7 @@ cb.TickLabels = tickLabels;
 
 cb.TickDirection = 'out';
 cb.Label.String = 'mean firing rate (Hz)';
-title({strcat(regexprep(FN,'_','','emptymatch'),' Electrode heatmap scaled to recording'),' '});
+title({strcat(regexprep(FN,'_','','emptymatch'),' scaled to recording'),' '});
 
 %% Right electrode plot (scaled to all recordings)
 
@@ -177,6 +198,15 @@ for i = 1:length(spikeCount)
                 end
             end
         end
+        
+        if ~isempty(stimElecs)
+            for x = 1:length(stimElecs)
+                if channels(i) == stimElecs(x)
+                    colorToUse = 'white';
+                    rectangle('Position',pos,'Curvature',[1 1],'FaceColor',colorToUse,'EdgeColor','k','LineWidth',0.1)
+                end
+            end
+        end
 end
 ylim([min(yc)-1 max(yc)+1])
 xlim([min(xc)-1 max(xc)+1])
@@ -198,7 +228,7 @@ end
 cb.TickLabels = tickLabels;
 cb.TickDirection = 'out';
 cb.Label.String = 'mean firing rate (Hz)';
-title({strcat(regexprep(FN,'_','','emptymatch'),' Electrode heatmap scaled to entire data batch'),' '});
+title({strcat(regexprep(FN,'_','','emptymatch'),' scaled to entire dataset'),' '});
 
 % save figure
 figName = '2_Heatmap';

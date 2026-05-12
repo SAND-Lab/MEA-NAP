@@ -1,5 +1,5 @@
 function plotNodeHeatmap(FN, Ephys, channels, maxVal, Params, coords, ...
-    metricVarName, metricLabel, cmap, useLogScale, figFolder, figName, oneFigureHandle, subsetChannelName)
+    metricVarName, metricLabel, cmap, useLogScale, figFolder, figName, oneFigureHandle, subsetChannelName, stimInfo)
 %PLOTNODEHEATMAP Summary of this function goes here
 %   Detailed explanation goes here
 
@@ -49,6 +49,18 @@ numCbarTicks = 5;
 %% NaN color handling 
 NaNColor = [0.8, 0.8, 0.8]; % grey 
 
+%% stim electrodes
+
+stimElecs = [];
+
+if ~isempty(stimInfo)
+    for channel = 1:length(stimInfo)
+        if stimInfo{channel}.pattern > 0
+            stimElecs = [stimElecs stimInfo{channel}.channelName];
+        end
+    end
+end
+
 %% Left electrode plot (scaled to individual recording)
 
 
@@ -83,6 +95,16 @@ for i = 1:numChannels
                 rectangle('Position',pos,'Curvature',[1 1],'FaceColor',cmap(length(cmap),1:3),'EdgeColor','w','LineWidth',0.1) 
             end
         end
+        
+        if ~isempty(stimElecs)
+            for x = 1:length(stimElecs)
+                if channels(i) == stimElecs(x)
+                    colorToUse = 'white';
+                    rectangle('Position',pos,'Curvature',[1 1],'FaceColor',colorToUse,'EdgeColor','black','LineWidth',0.1)
+                end
+            end
+        end
+        
     if Params.includeChannelNumberInPlots 
         text(pos(1) + 0.5 * nodeScaleF, pos(2) + 0.5 * nodeScaleF, ...
             sprintf('%.f', channels(i)), 'HorizontalAlignment','center')
@@ -128,7 +150,7 @@ cb.TickLabels = tickLabels;
 
 cb.TickDirection = 'out';
 cb.Label.String = metricLabel;
-title({strcat(regexprep(FN,'_','','emptymatch'),' Electrode heatmap scaled to recording'),' '});
+title({strcat(regexprep(FN,'_','','emptymatch'),' scaled to recording'),' '});
 
 %% Right electrode plot (scaled to all recordings)
 
@@ -159,6 +181,16 @@ for i = 1:numChannels
                  rectangle('Position',pos,'Curvature',[1 1],'FaceColor',cmap(length(cmap),1:3),'EdgeColor','w','LineWidth',0.1) 
             end
         end
+
+        if ~isempty(stimElecs)
+            for x = 1:length(stimElecs)
+                if channels(i) == stimElecs(x)
+                    colorToUse = 'white';
+                    rectangle('Position',pos,'Curvature',[1 1],'FaceColor',colorToUse,'EdgeColor','black','LineWidth',0.1)
+                end
+            end
+        end
+        
 end
 ylim([min(yc)-1 max(yc)+1])
 xlim([min(xc)-1 max(xc)+1])
@@ -188,7 +220,7 @@ end
 cb.TickLabels = tickLabels;
 cb.TickDirection = 'out';
 cb.Label.String = metricLabel;
-title({strcat(regexprep(FN,'_','','emptymatch'),' Electrode heatmap scaled to entire data batch'),' '});
+title({strcat(regexprep(FN,'_','','emptymatch'),' scaled to entire dataset'),' '});
 
 % save figure
 figPath = fullfile(figFolder, figName);
