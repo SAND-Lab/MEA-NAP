@@ -8,11 +8,11 @@ function newMatrix = resampleMatrix(ogMatrix, ogFs, newFs)
 
 [p, q] = rat(newFs / ogFs); % get matlab resmapling parameters
 
-ogNumSamples = size(ogMatrix, 1);
 numVar = size(ogMatrix, 2); 
 
-newNumSamples = ogNumSamples / ogFs * newFs;
-newMatrix = zeros(round(newNumSamples), numVar) + nan;
+testResample = resample(ogMatrix(:,1), p, q);
+newNumSamples = length(testResample);
+newMatrix = zeros(newNumSamples, numVar) + nan;
 
 for varIdx = 1:numVar
    newMatrix(:, varIdx) = resample(ogMatrix(:, varIdx), p, q); 
