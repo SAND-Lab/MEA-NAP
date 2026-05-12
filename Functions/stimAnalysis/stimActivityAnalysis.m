@@ -537,11 +537,12 @@ function stimActivityAnalysis(spikeData, Params, Info, figFolder, oneFigureHandl
             if use_ssvkernel
                 [response, resp_metrics] = calculate_psth_metrics(...
                     all_spike_times_s, stimTimes, psth_window_s, psth_bin_width_s, ...
-                    'smoothing_method', 'ssvkernel');
+                    'smoothing_method', 'ssvkernel', 'auc_start_s', 0);
             else
                 [response, resp_metrics] = calculate_psth_metrics(...
                     all_spike_times_s, stimTimes, psth_window_s, psth_bin_width_s, ...
-                    'smoothing_method', 'gaussian', 'gaussian_width_ms', psth_gaussian_width_ms);
+                    'smoothing_method', 'gaussian', 'gaussian_width_ms', psth_gaussian_width_ms, ...
+                    'auc_start_s', 0);
             end
 
             if isempty(response.psth_samples)
@@ -597,15 +598,15 @@ function stimActivityAnalysis(spikeData, Params, Info, figFolder, oneFigureHandl
 
                 baseline_spikes = all_spike_times_s(...
                     all_spike_times_s >= baseline_start & all_spike_times_s < baseline_end);
-                baseline_firing_rates_all_trials(stimIdx) = length(baseline_spikes) / effective_window_duration;
+                baseline_firing_rates_all_trials(stimIdx) = length(baseline_spikes) / poststim_duration_s;
 
-                % Post-stimulus period firing rate  
-                poststim_start = stimTime + psth_window_s(1);
+                % Post-stimulus period firing rate (t=0 to end of post-stim window)
+                poststim_start = stimTime;
                 poststim_end = stimTime + psth_window_s(2);
 
                 poststim_spikes = all_spike_times_s(...
                     all_spike_times_s >= poststim_start & all_spike_times_s < poststim_end);
-                poststim_firing_rates_all_trials(stimIdx) = length(poststim_spikes) / effective_window_duration;
+                poststim_firing_rates_all_trials(stimIdx) = length(poststim_spikes) / poststim_duration_s;
             end
 
             % ---------------------------------------------------------------
@@ -661,7 +662,7 @@ function stimActivityAnalysis(spikeData, Params, Info, figFolder, oneFigureHandl
 
             if ~isempty(halfRmax_idx)
                 halfRmax_idx = halfRmax_idx + Rmax_idx - 1;
-                halfRmax_time_s = resp_metrics.psth_smooth(halfRmax_idx);
+                halfRmax_time_s = resp_metrics.time_vector_s(halfRmax_idx);
                 halfRmax_val = resp_metrics.psth_smooth(halfRmax_idx);
             else
                 halfRmax_time_s = NaN;
@@ -726,7 +727,7 @@ function stimActivityAnalysis(spikeData, Params, Info, figFolder, oneFigureHandl
             electrodeLevelResponse_pattern_x(valid_channel_count).channel_id = channel_id;
             electrodeLevelResponse_pattern_x(valid_channel_count).file_index = channelIdx;
             electrodeLevelResponse_pattern_x(valid_channel_count).pattern_id = patternIdx;
-            electrodeLevelResponse_pattern_x(valid_channel_count).auc_response = resp_metrics.auc;
+            electrodeLevelResponse_pattern_x(valid_channel_count).auc_poststim = resp_metrics.auc;
             electrodeLevelResponse_pattern_x(valid_channel_count).auc_baseline_mean = mean_baseline_auc;
             electrodeLevelResponse_pattern_x(valid_channel_count).auc_corrected = auc_corrected;
             electrodeLevelResponse_pattern_x(valid_channel_count).peak_firing_rate_hz = resp_metrics.peak_firing_rate;
