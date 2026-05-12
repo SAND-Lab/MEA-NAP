@@ -474,15 +474,13 @@ if Params.startAnalysisStep < 3
     oneFigureHandle = checkOneFigureHandle(Params, oneFigureHandle);
 
     for ExN = 1:length(ExpName)
+
+        % Load data that is used regardless of 2p / ephys
         experimentMatFolderPath = fullfile(Params.outputDataFolder, ...
-            Params.outputDataFolderName, 'ExperimentMatFiles');
+        Params.outputDataFolderName, 'ExperimentMatFiles');
         experimentMatFname = strcat(char(ExpName(ExN)),'_',Params.outputDataFolderName,'.mat'); 
         experimentMatFpath = fullfile(experimentMatFolderPath, experimentMatFname);
         load(experimentMatFpath,'Info','Params', 'spikeTimes', 'spikeMatrix', 'Ephys');
-        % load spike data to check for stimulated electrodes
-        spikeDataFname = strcat(char(ExpName(ExN)),'_spikes','.mat');
-        spikeDataFpath = fullfile(spikeDetectedDataFolder, spikeDataFname);
-        spikeData = load(spikeDataFpath); 
         idvNeuronalAnalysisGrpFolder = fullfile(Params.outputDataFolder, ...
             Params.outputDataFolderName, '2_NeuronalActivity', ...
             '2A_IndividualNeuronalAnalysis', char(Info.Grp));
@@ -497,6 +495,12 @@ if Params.startAnalysisStep < 3
         end 
         
         if Params.suite2pMode == 0
+            % load spike data to check for stimulated electrodes
+            spikeDataFname = strcat(char(ExpName(ExN)),'_spikes','.mat');
+            spikeDataFpath = fullfile(spikeDetectedDataFolder, spikeDataFname);
+            spikeData = load(spikeDataFpath); 
+        
+        
             % generate and save raster plot
             rasterPlot(char(Info.FN),spikeMatrix,Params, maxValStruct.FR, ...
                        idvNeuronalAnalysisFNFolder, oneFigureHandle);
