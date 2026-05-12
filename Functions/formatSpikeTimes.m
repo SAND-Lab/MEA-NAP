@@ -1,4 +1,5 @@
-function [spikeMatrix,spikeTimes,Params,Info] = formatSpikeTimes(File, Params, Info, spikeDataFolder, expMatData, electrodesToGround)
+function [spikeMatrix,spikeTimes,Params,Info] = formatSpikeTimes(File, ...
+    Params, Info, spikeDataFolder, expMatData, electrodesToGround)
 % this function loads in the spike detection result and creates a
 % spike matrix and spike times structure for the chosen spike detection
 % method and chosen length of recording
@@ -13,6 +14,7 @@ function [spikeMatrix,spikeTimes,Params,Info] = formatSpikeTimes(File, Params, I
 % Info : structure
 % spikeDataFolder : path to directory 
 %     absolute path to the folder containing the spike detected files
+% electrodesToGround : 
 % Returns 
 % -------
 % spikeMatrix : matrix 
