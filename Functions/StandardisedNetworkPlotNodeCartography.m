@@ -1,7 +1,7 @@
 function [] = StandardisedNetworkPlotNodeCartography(adjM, coords, edge_thresh, ...
     NdCartDiv, plotType, FN, pNum, Params, lagval, e, figFolder, oneFigureHandle, suffix)
 %
-% script to plot the graph network 
+% script to plot the graph network for node cartography
 % 
 % Parameters
 % ----------
@@ -218,7 +218,7 @@ nodeTypeColors = [0.8 0.902 0.310; ... % light green
                   0.2 0.729 0.949; ... % light blue
                   0.078 0.424 0.835; ... % medium blue
                   0.016 0.235 0.498; ... % dark blue
-                  0 0 0; ... % black for inactive nodes
+                  0.5 0.5 0.5; ... % gray for inactive nodes
                   ];
 
 if strcmp(plotType,'MEA')
