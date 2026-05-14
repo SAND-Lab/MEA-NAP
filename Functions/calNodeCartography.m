@@ -1,6 +1,6 @@
 function NetMet = calNodeCartography(adjMs, Params, NetMet, Info, originalCoords, ...
     originalChannels, HomeDir, fileNameFolder, oneFigureHandle)
-%
+% Calculates node cartography metrics 
 % Parameters
 % ----------
 % adjMs : struct 
@@ -14,7 +14,7 @@ function NetMet = calNodeCartography(adjMs, Params, NetMet, Info, originalCoords
 % 
 % Returns 
 % -------
-
+% NetMet : struct
 
 lagval = Params.FuncConLagval;
 edge_thresh = 0.0001;
@@ -73,6 +73,8 @@ for e = 1:length(lagval)
 
    [NdCartDiv, PopNumNC] = NodeCartography(Z, PC, lagval, e, char(Info.FN), Params, lagFolder, oneFigureHandle); 
     
+    NdCartDivActive = NdCartDiv;
+
     % Include inactive nodes and assign them to group 7 
     NdCartDivFull = zeros(length(adjM), 1) + 7;
     NdCartDivFull(inclusionIndex) = NdCartDiv;
@@ -99,10 +101,12 @@ for e = 1:length(lagval)
         % add node cartography results to existing experiment file 
         nodeCartVarsToSave = {'NCpn1', 'NCpn2','NCpn3','NCpn4','NCpn5','NCpn6', ...
                               'NCpn1count', 'NCpn2count', 'NCpn3count', ...
-                              'NCpn4count', 'NCpn5count', 'NCpn6count'};
+                              'NCpn4count', 'NCpn5count', 'NCpn6count', ...
+                              'NdCartDiv', 'NdCartDivActive'};
         nodeCartVarsVals = {NCpn1, NCpn2, NCpn3, NCpn4, NCpn5, NCpn6, ...
                             NCpn1count, NCpn2count, NCpn3count, ...
-                            NCpn4count, NCpn5count, NCpn6count};
+                            NCpn4count, NCpn5count, NCpn6count, ...
+                            NdCartDiv, NdCartDivActive};
 
         for varCounter = 1:length(nodeCartVarsToSave)
             lagValField = strcat('adjM', num2str(lagval(e)), 'mslag');
@@ -114,7 +118,8 @@ for e = 1:length(lagval)
         % add NaNs to the NCpn fields
         nodeCartVarsToSave = {'NCpn1', 'NCpn2','NCpn3','NCpn4','NCpn5','NCpn6', ...
                               'NCpn1count', 'NCpn2count', 'NCpn3count', ...
-                              'NCpn4count', 'NCpn5count', 'NCpn6count'};
+                              'NCpn4count', 'NCpn5count', 'NCpn6count', ...
+                              'NdCartDiv', 'NdCartDivActive'};
         for varCounter = 1:length(nodeCartVarsToSave)
             lagValField = strcat('adjM', num2str(lagval(e)), 'mslag');
             varName = nodeCartVarsToSave{varCounter};

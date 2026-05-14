@@ -19,7 +19,15 @@ function [NdCartDiv, PopNumNC] = NodeCartography(Z, PC, lagval, e, FN, Params, f
 % 
 % Returns
 % -------
-% NdCartDiv : 
+% NdCartDiv : Node cartography hub identity of each node, 
+% integers from 1 - 6
+    % 1 = Peripheral Node
+    % 2 = Non-hub connector
+    % 3 = Non-hub kinless node
+    % 4 = Provincial hub
+    % 5 = Connector hub 
+    % 6 = Kinless hub
+%
 % PopNumNC : 
 
 %% figure
