@@ -62,6 +62,12 @@ for e = 1:length(lagval)
     coords = originalCoords(inclusionIndex, :);
     Params.netSubsetChannels = originalChannels(inclusionIndex);
     
+    % Do some edge subsetting (just for plotting purposes)
+    if isfield(Params, 'maxNumEdgesToPlot') && ~isempty(Params.maxNumEdgesToPlot)
+        disp('Limiting number of edges in plot')
+        adjM = limitEdgesForPlotting(adjM, Params);
+    end
+    
     % edge threshold for adjM
     edge_thresh = getEdgeThreshold(adjM, Params);
     
