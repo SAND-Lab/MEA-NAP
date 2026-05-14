@@ -49,6 +49,9 @@ for e = 1:length(lagval)
 
     adjM(adjM<0) = 0;
     adjM(isnan(adjM)) = 0;
+    
+    % subset edges for plotting purposes
+    adjM = limitEdgesForPlotting(adjM, Params);
 
     % subset active nodes
     
