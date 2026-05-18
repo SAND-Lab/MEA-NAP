@@ -76,7 +76,7 @@ function stimActivityAnalysis(spikeData, Params, Info, figFolder, oneFigureHandl
     end
 
     %% Look at spike amplitude aligned to stimulus
-    % TODO: Loop throgh patterns
+    % TODO: Loop through patterns
     numStimEvent = length(allStimTimes);
     if ~(strcmp(Params.SpikesMethod,'merged') || strcmp(Params.SpikesMethod,'mergedAll'))
         spikeAmps = getSpikeAmp(spikeData.spikeWaveforms);
@@ -108,19 +108,17 @@ function stimActivityAnalysis(spikeData, Params, Info, figFolder, oneFigureHandl
     
             % ampAlignedToStim(channelIdx, stimEventIdx, :) = histcounts(channelSpikeTimes - stimTime, rasterBins) / rasterBinWidth;
     
-         end 
-    
-        
+         end   
     end
     
     figureHandle = figure;
     set(figureHandle, 'Position', [100, 100, 600, 500]);
     subplot(2, 1, 1)
     meanAmpalignedToStim = squeeze(nanmean(ampAlignedToStim, [1, 2]));
-    plot(rasterBins(2:end), meanAmpalignedToStim)
+    plot(rasterBins(2:end)*1000, meanAmpalignedToStim) % EDIT
     hold on 
-    fill([0, artifactDuration, ...
-          artifactDuration, 0], ...
+    fill([0, artifactDuration*1000, ...
+          artifactDuration*1000, 0], ... % EDIT
           [0, 0, max(meanAmpalignedToStim), max(meanAmpalignedToStim)], [0.5, 0.5, 0.5], 'FaceAlpha', 0.3,'LineStyle','none')
     box off 
     set(gca, 'TickDir', 'out');
@@ -128,10 +126,17 @@ function stimActivityAnalysis(spikeData, Params, Info, figFolder, oneFigureHandl
     title(Info.FN{1}, 'Interpreter', 'none');
     
     subplot(2, 1, 2)
-    imagesc(rasterBins(2:end), 1:numChannels, squeeze(nanmean(ampAlignedToStim, 2)))
+    imagesc(rasterBins(2:end)*1000, 1:numChannels, squeeze(nanmean(ampAlignedToStim, 2))) % EDIT
     box off
+    cbar = colorbar('eastoutside');
+    ylabel(cbar, 'Mean absolute spike amplitude', 'FontSize', 12); % EDIT all below
     ylabel('Channel')
-    xlabel('Time from stimulation (s)')
+    xlabel('Time from stimulation (ms)')
+    currentTicks = get(gca, 'XTick');
+    newTicks = currentTicks - 5;
+    xLabels = arrayfun(@num2str, (currentTicks - 10), 'UniformOutput', false);
+    set(gca, 'XTick', newTicks);
+    set(gca, 'XTickLabel', xLabels);
     set(gca, 'TickDir', 'out');
     set(gcf, 'color', 'w');
     
