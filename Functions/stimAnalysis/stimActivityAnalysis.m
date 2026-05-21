@@ -76,7 +76,7 @@ function stimActivityAnalysis(spikeData, Params, Info, figFolder, oneFigureHandl
     end
 
     %% Look at spike amplitude aligned to stimulus
-    % TODO: Loop throgh patterns
+    % TODO: Loop through patterns
     numStimEvent = length(allStimTimes);
     if ~(strcmp(Params.SpikesMethod,'merged') || strcmp(Params.SpikesMethod,'mergedAll'))
         spikeAmps = getSpikeAmp(spikeData.spikeWaveforms);
@@ -108,19 +108,17 @@ function stimActivityAnalysis(spikeData, Params, Info, figFolder, oneFigureHandl
     
             % ampAlignedToStim(channelIdx, stimEventIdx, :) = histcounts(channelSpikeTimes - stimTime, rasterBins) / rasterBinWidth;
     
-         end 
-    
-        
+         end   
     end
     
     figureHandle = figure;
     set(figureHandle, 'Position', [100, 100, 600, 500]);
     subplot(2, 1, 1)
     meanAmpalignedToStim = squeeze(nanmean(ampAlignedToStim, [1, 2]));
-    plot(rasterBins(2:end), meanAmpalignedToStim)
+    plot(rasterBins(2:end)*1000, meanAmpalignedToStim) % EDIT
     hold on 
-    fill([0, artifactDuration, ...
-          artifactDuration, 0], ...
+    fill([0, artifactDuration*1000, ...
+          artifactDuration*1000, 0], ... % EDIT
           [0, 0, max(meanAmpalignedToStim), max(meanAmpalignedToStim)], [0.5, 0.5, 0.5], 'FaceAlpha', 0.3,'LineStyle','none')
     box off 
     set(gca, 'TickDir', 'out');
@@ -128,10 +126,17 @@ function stimActivityAnalysis(spikeData, Params, Info, figFolder, oneFigureHandl
     title(Info.FN{1}, 'Interpreter', 'none');
     
     subplot(2, 1, 2)
-    imagesc(rasterBins(2:end), 1:numChannels, squeeze(nanmean(ampAlignedToStim, 2)))
+    imagesc(rasterBins(2:end)*1000, 1:numChannels, squeeze(nanmean(ampAlignedToStim, 2))) % EDIT
     box off
+    cbar = colorbar('eastoutside');
+    ylabel(cbar, 'Mean absolute spike amplitude', 'FontSize', 12); % EDIT all below
     ylabel('Channel')
-    xlabel('Time from stimulation (s)')
+    xlabel('Time from stimulation (ms)')
+    currentTicks = get(gca, 'XTick');
+    newTicks = currentTicks - 5;
+    xLabels = arrayfun(@num2str, (currentTicks - 10), 'UniformOutput', false);
+    set(gca, 'XTick', newTicks);
+    set(gca, 'XTickLabel', xLabels);
     set(gca, 'TickDir', 'out');
     set(gcf, 'color', 'w');
     
@@ -767,19 +772,21 @@ function stimActivityAnalysis(spikeData, Params, Info, figFolder, oneFigureHandl
                 % Create figure 
                 fig = figure('Position', [100 100 1200 800], 'Visible', 'off');
 
-                sgtitle(sprintf('Pattern %d | Channel %d | Corrected AUC: %.3f | d'' = %.2f', ...
+                sgtitle(sprintf('Pattern %d | Electrode %d | Corrected AUC: %.3f | d'' = %.2f', ...
                     patternIdx, data.channel_id, data.auc_corrected, data.d_prime), 'FontWeight', 'bold');
 
                 % Calculate z-score transformations for standardized visualization
                 baseline_mean_hz_dprime = data.baseline_mean_hz_dprime;
                 baseline_std_hz_safe = data.baseline_std_hz_safe;
-
+                
                 % Calculate z-scores
                 zscore_psth = (data.resp_metrics.psth_smooth - baseline_mean_hz_dprime) ./ baseline_std_hz_safe;
                 zscore_baseline_psth = (data.mean_baseline_psth - baseline_mean_hz_dprime) ./ baseline_std_hz_safe;
 
                 % Identify peak and half-maximum points in z-score space
-                [zscore_peak_val, zscore_peak_idx] = max(zscore_psth);
+                half_psth = length(zscore_psth)/2;
+                [zscore_peak_val, zscore_peak_idx] = max(zscore_psth(half_psth:end));
+                zscore_peak_idx = zscore_peak_idx + half_psth;
                 zscore_peak_time_ms = data.resp_metrics.time_vector_s(zscore_peak_idx) * 1000;
 
                 % Calculate half-maximum decay time
@@ -826,14 +833,14 @@ function stimActivityAnalysis(spikeData, Params, Info, figFolder, oneFigureHandl
                 % Plot individual baseline PSTHs 
                 for i = 1:num_baseline_psths
                     zscore_individual_baseline = (data.all_baseline_psth_smooth(i, :) - baseline_mean_hz_dprime) ./ baseline_std_hz_safe;
-                    plot(baseline_time_ms, zscore_individual_baseline, ...
+                    plot(baseline_time_ms-psth_window_ms(2), zscore_individual_baseline, ...
                         'Color', [0.8 0.8 0.8], 'LineWidth', 0.5);
                 end
 
                 % Plot main traces
                 p1_diag = plot(data.resp_metrics.time_vector_s*1000, zscore_psth, ...
                     'r-', 'LineWidth', 2, 'DisplayName', 'Response (Z-score)');
-                p2_diag = plot(baseline_time_ms, zscore_baseline_psth, ...
+                p2_diag = plot(baseline_time_ms-psth_window_ms(2), zscore_baseline_psth, ...
                     'k-', 'LineWidth', 2, 'DisplayName', 'Mean Baseline (Z-score)');
 
                 % Add Zmax markers
@@ -866,7 +873,7 @@ function stimActivityAnalysis(spikeData, Params, Info, figFolder, oneFigureHandl
                 xlim(psth_window_ms);
 
                 % Save figure 
-                figName = sprintf('Individual_PSTH_and_Raster_channel_%d', data.channel_id);
+                figName = sprintf('Individual_PSTH_and_Raster_electrode_%d', data.channel_id);
                 figPath = fullfile(patternFigFolder, figName);
                 pipelineSaveFig(figPath, Params.figExt, Params.fullSVG, fig);
 
