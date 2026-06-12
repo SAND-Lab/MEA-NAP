@@ -62,6 +62,29 @@ stimulationTabParent = app.StimulationTab.Parent;
 app.RecordingviewerMenu.MenuSelectedFcn = @(src, event) runMEANAPviewer;
 app.StatsviewerMenu.MenuSelectedFcn = @(src, event) runMEANAPstatsViewer;
 
+% Make the axionStimEvents helper available for the General-tab button callback
+% below (the full Functions tree is added later when the pipeline runs).
+addpath(fullfile(app.MEANAPFolderEditField.Value, 'Functions', 'stimAnalysis'));
+% Register the CSV-driven Axion stimulation-event detection method so it is
+% selectable in the stim detection dropdown (inherited by the preview app).
+if ~any(strcmp(app.StimdetectionmethodDropDown.Items, 'axionStimEvents'))
+    app.StimdetectionmethodDropDown.Items{end+1} = 'axionStimEvents';
+end
+% Add a 'Stim .raw CSV' upload to the General tab (columns: raw file name, well,
+% stimulated electrode). It is read into Params.axionStimCSV and used by the
+% axionStimEvents method, in both the pipeline and the stim detection app.
+axionStimCSVLabel = uilabel(app.GeneralTab);
+axionStimCSVLabel.HorizontalAlignment = 'right';
+axionStimCSVLabel.Position = [1 16 126 22];
+axionStimCSVLabel.Text = 'Stim .raw CSV';
+axionStimCSVField = uieditfield(app.GeneralTab, 'text');
+axionStimCSVField.Position = [182 16 128 22];
+axionStimCSVSelectButton = uibutton(app.GeneralTab, 'push');
+axionStimCSVSelectButton.Text = 'select';
+axionStimCSVSelectButton.Position = [128 16 50 22];
+axionStimCSVSelectButton.ButtonPushedFcn = @(src, event) axionStimEventsTool('selectCSV', axionStimCSVField, app);
+setappdata(app.UIFigure, 'axionStimCSVField', axionStimCSVField);
+
 % Set default network parameters to calculate
 
 app.NetworkmetricstocalculateListBox.Items = {'aN','Dens','CC','nMod','Q','PL','Eglob', ...
