@@ -151,9 +151,11 @@ while isvalid(MEANAPviewerApp)
 
         adjMsubset = adjM(inclusionIndex, inclusionIndex);
         coords = expData.coords;
+
+        % TODO: allow user to specify lag field
                 
         z = expData.NetMet.adjM1000mslag.ND; 
-        zname = 'Nodedegree';
+        zname = 'ND';
         
         if strcmp(nodeColorMetric, 'None') 
            z2 = zeros(length(inclusionIndex), 1) + nan;
@@ -168,18 +170,29 @@ while isvalid(MEANAPviewerApp)
         Params = expData.Params;
         lagval = 1000;
         e = 1;
-        figFolder = '/home/timothysit/AnalysisPipeline';
+        figFolder = location;
         figureHandle = figure('visible', 'off');
         saveFigure = 1;
         
-        addpath(genpath('/home/timothysit/AnalysisPipeline/Functions'));
-        
-        StandardisedNetworkPlotNodeColourMap(adjMsubset, coords, edgeThresh, ...
-            z, zname, z2, z2name, plotType, ...
-            FN, pNum, Params, lagval, e, figFolder, figureHandle, saveFigure, cellTypeMatrixActive, cellTypeNames); 
+        addpath(genpath(fullfile(mainFolder, 'Functions')));
+
+        if strcmp(z2name, 'None')
+            StandardisedNetworkPlot(adjMsubset, coords, edgeThresh, ...
+                z, zname, plotType, ...
+                FN, pNum, Params, lagval, e, figFolder, figureHandle, saveFigure, cellTypeMatrixActive, cellTypeNames);
+                
+        else
+            StandardisedNetworkPlotNodeColourMap(adjMsubset, coords, edgeThresh, ...
+                z, zname, z2, z2name, plotType, ...
+                FN, pNum, Params, lagval, e, figFolder, figureHandle, saveFigure, cellTypeMatrixActive, cellTypeNames); 
+        end 
         close all
         
-        FN = sprintf('%s_%s_NetworkPlot%s%s.png', pNum, plotType, zname, z2name);
+        if strcmp(z2name, 'None')
+            FN = sprintf('%s_%s_NetworkPlot.png', pNum, plotType);
+        else 
+            FN = sprintf('%s_%s_NetworkPlot%s%s.png', pNum, plotType, zname, z2name);
+        end 
         imgPath = fullfile(figFolder, FN);
         img = imread(imgPath);
         set(hImage, 'CData', img);
