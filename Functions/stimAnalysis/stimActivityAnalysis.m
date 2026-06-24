@@ -8,11 +8,15 @@ function stimActivityAnalysis(spikeData, Params, Info, figFolder, oneFigureHandl
 % figFolder : path 
 % oneFigureHandle : matlab figure object
     
+    % Default blank duration is 0 (e.g. for axionStimEvents, where each blank
+    % has zero duration and the ignored window is just postStimWindowDur).
+    Params.blankDurMode = 0;
+
     if strcmp(Params.stimDetectionMethod, 'longblank')
         % Calculate blankDurMode exactly as in batchProcessSpikesFromStim
         allNonStimBlankStartTimes = [];
         allNonStimBlankEndTimes = [];
-        
+
         for channelIdx = 1:length(spikeData.stimInfo)
             channelStimInfo = spikeData.stimInfo{channelIdx};
             if isfield(channelStimInfo, 'nonStimBlankStarts') && isfield(channelStimInfo, 'nonStimBlankEnds')
@@ -20,7 +24,7 @@ function stimActivityAnalysis(spikeData, Params, Info, figFolder, oneFigureHandl
                 allNonStimBlankEndTimes = [allNonStimBlankEndTimes; channelStimInfo.nonStimBlankEnds];
             end
         end
-        
+
         allNonStimBlankDur = allNonStimBlankEndTimes - allNonStimBlankStartTimes;
         blankDurMode = mode(allNonStimBlankDur);
         Params.blankDurMode = blankDurMode;
