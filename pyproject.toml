@@ -23,6 +23,7 @@ dependencies = [
     "pybaselines>=1.2.1",
     "tqdm>=4.68.3",
     "PyWavelets>=1.6",
+    "openpyxl>=3.1",
     # oasis-deconvolution is not on PyPI; install manually from
     # https://github.com/j-friedrich/OASIS — denoising falls back to
     # Savitzky-Golay if not present.
