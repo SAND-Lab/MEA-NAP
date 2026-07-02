@@ -22,6 +22,7 @@ dependencies = [
     "pyqt6>=6.11.0",
     "pybaselines>=1.2.1",
     "tqdm>=4.68.3",
+    "PyWavelets>=1.6",
     # oasis-deconvolution is not on PyPI; install manually from
     # https://github.com/j-friedrich/OASIS — denoising falls back to
     # Savitzky-Golay if not present.
