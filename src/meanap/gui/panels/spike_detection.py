@@ -35,12 +35,12 @@ class SpikeDetectionPanel(QWidget):
         thr_box = QGroupBox("Thresholds")
         form = QFormLayout(thr_box)
 
-        self.thresholds = QLineEdit("-3.5, -4.5, -5.5")
-        self.thresholds.setPlaceholderText("e.g. -3.5, -4.5, -5.5")
+        self.thresholds = QLineEdit("3, 4, 5")
+        self.thresholds.setPlaceholderText("e.g. 3, 4, 5")
         self.abs_thresholds = QLineEdit()
         self.abs_thresholds.setPlaceholderText("Leave blank to use relative thresholds")
 
-        form.addRow("Relative thresholds (σ)", self.thresholds)
+        form.addRow("Relative thresholds (MAD multiplier below median)", self.thresholds)
         form.addRow("Absolute thresholds (µV)", self.abs_thresholds)
 
         # ── Wavelet settings ──────────────────────────────────────────────────

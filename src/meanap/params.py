@@ -13,7 +13,7 @@ class Params:
     output_data_folder: str = ""
     output_data_folder_name: str = ""
     spreadsheet_file_name: str = ""
-    spreadsheet_range: str = "A1:Z1000"
+    spreadsheet_range: str = "A2:A100000"
     spike_detected_data: str = ""
     prior_analysis_path: str = ""
 
@@ -26,7 +26,7 @@ class Params:
     # ── Spike detection ──────────────────────────────────────────────────────
     detect_spikes: bool = True
     run_spike_check_on_prev_spike_data: bool = False
-    thresholds: list[float] = field(default_factory=lambda: [-3.5, -4.5, -5.5])
+    thresholds: list[float] = field(default_factory=lambda: [4.0, 5.0])
     abs_thresholds: list[float] = field(default_factory=list)
     wname_list: list[str] = field(default_factory=lambda: ["bior1.5"])
     cost_list: float = -0.12
@@ -61,10 +61,10 @@ class Params:
     network_burst_detection_method: str = "Bakkum"
     min_spike_network_burst: int = 10
     min_channel_network_burst: int = 3
-    bakkum_network_burst_isi_n_threshold: float = 0.1
+    bakkum_network_burst_isi_n_threshold: str | float = "automatic"
     single_channel_burst_detection_method: str = "Bakkum"
     single_channel_burst_min_spike: int = 5
-    single_channel_isi_threshold: float = 0.1
+    single_channel_isi_threshold: str | float = "automatic"
 
     # ── Network metrics ──────────────────────────────────────────────────────
     net_met_to_cal: list[str] = field(default_factory=lambda: [
@@ -119,6 +119,7 @@ class Params:
 
     # ── Pipeline control ─────────────────────────────────────────────────────
     start_analysis_step: int = 1
+    stop_analysis_step: int = 4
     optional_steps_to_run: list[str] = field(default_factory=list)
     prior_analysis: bool = False
     verbose_level: str = "Normal"

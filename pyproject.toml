@@ -26,6 +26,7 @@ dependencies = [
     # https://github.com/j-friedrich/OASIS — denoising falls back to
     # Savitzky-Golay if not present.
     "pyqtdarktheme>=2.1.0",
+    "seaborn>=0.13.2",
 ]
 
 [project.optional-dependencies]

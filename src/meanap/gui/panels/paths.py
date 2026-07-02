@@ -69,7 +69,7 @@ class PathsPanel(QWidget):
         self.home_dir = PathRow(self)
         self.raw_data = PathRow(self)
         self.spreadsheet = PathRow(self, is_file=True, file_filter="Spreadsheets (*.csv *.xlsx *.xls)")
-        self.spreadsheet_range = QLineEdit("A1:Z1000")
+        self.spreadsheet_range = QLineEdit("A2:A100000")
         self.spike_detected_data = PathRow(self)
 
         form.addRow("MEA-NAP folder", self.home_dir)

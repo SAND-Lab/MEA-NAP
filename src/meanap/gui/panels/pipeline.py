@@ -35,6 +35,18 @@ class PipelinePanel(QWidget):
         self.start_step.setValue(1)
         self.start_step.setToolTip("Step to start from (1–4)")
 
+        self.stop_step = QSpinBox()
+        self.stop_step.setRange(1, 4)
+        self.stop_step.setValue(4)
+        self.stop_step.setToolTip("Step to stop at, inclusive (1–4)")
+
+        self.start_step.valueChanged.connect(
+            lambda v: self.stop_step.setValue(max(self.stop_step.value(), v))
+        )
+        self.stop_step.valueChanged.connect(
+            lambda v: self.start_step.setValue(min(self.start_step.value(), v))
+        )
+
         self.prior_analysis = QCheckBox()
         self.prior_analysis.setToolTip("Load results from a previous run instead of re-computing")
 
@@ -45,6 +57,7 @@ class PipelinePanel(QWidget):
             self.optional_steps.addItem(QListWidgetItem(s))
 
         form.addRow("Start at step", self.start_step)
+        form.addRow("Stop at step", self.stop_step)
         form.addRow("Use prior analysis", self.prior_analysis)
         form.addRow("Optional steps", self.optional_steps)
 
@@ -70,6 +83,13 @@ class PipelinePanel(QWidget):
         run_box = QGroupBox("Run")
         run_layout = QHBoxLayout(run_box)
 
+        self.test_btn = QPushButton("🧪  Test pipeline")
+        self.test_btn.setFixedHeight(40)
+        self.test_btn.setToolTip(
+            "Download the example dataset and run the pipeline on it, "
+            "to check your setup is working"
+        )
+
         self.run_btn = QPushButton("▶  Run pipeline")
         self.run_btn.setFixedHeight(40)
 
@@ -77,6 +97,7 @@ class PipelinePanel(QWidget):
         self.stop_btn.setFixedHeight(40)
         self.stop_btn.setEnabled(False)
 
+        run_layout.addWidget(self.test_btn)
         run_layout.addWidget(self.run_btn)
         run_layout.addWidget(self.stop_btn)
 
@@ -101,6 +122,7 @@ class PipelinePanel(QWidget):
 
     def load(self, params: Params) -> None:
         self.start_step.setValue(params.start_analysis_step)
+        self.stop_step.setValue(params.stop_analysis_step)
         self.prior_analysis.setChecked(params.prior_analysis)
         idx = self.verbose_level.findText(params.verbose_level)
         if idx >= 0:
@@ -112,6 +134,7 @@ class PipelinePanel(QWidget):
 
     def save(self, params: Params) -> None:
         params.start_analysis_step = self.start_step.value()
+        params.stop_analysis_step = self.stop_step.value()
         params.prior_analysis = self.prior_analysis.isChecked()
         params.verbose_level = self.verbose_level.currentText()
         params.time_processes = self.time_processes.isChecked()

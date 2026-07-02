@@ -1,15 +1,18 @@
 """MEA-NAP main application window."""
 
 import json
+from pathlib import Path
 
 from PyQt6.QtWidgets import (
-    QFileDialog, QMainWindow, QMessageBox, QScrollArea,
+    QApplication, QFileDialog, QMainWindow, QMessageBox, QScrollArea,
     QTabWidget, QToolBar, QWidget,
 )
 from PyQt6.QtGui import QAction
 from PyQt6.QtCore import Qt
 
 from meanap.params import Params
+from meanap.pipeline.example_data import download_example_data
+from meanap.pipeline.runner import run_pipeline
 from meanap.gui import theme
 from meanap.gui.panels.paths import PathsPanel
 from meanap.gui.panels.recording import RecordingPanel
@@ -17,6 +20,7 @@ from meanap.gui.panels.spike_detection import SpikeDetectionPanel
 from meanap.gui.panels.connectivity import ConnectivityPanel
 from meanap.gui.panels.pipeline import PipelinePanel
 from meanap.gui.panels.catnap import CatNapPanel
+from meanap.gui.panels.network_viewer import NetworkViewerPanel
 
 
 def _scrollable(widget: QWidget) -> QScrollArea:
@@ -82,21 +86,25 @@ class MainWindow(QMainWindow):
         self._connectivity_panel = ConnectivityPanel()
         self._catnap_panel = CatNapPanel()
         self._pipeline_panel = PipelinePanel()
+        self._network_viewer_panel = NetworkViewerPanel()
 
         self._tabs.addTab(_scrollable(self._paths_panel), "  Paths  ")
         self._tabs.addTab(_scrollable(self._recording_panel), "  Recording  ")
         self._tabs.addTab(_scrollable(self._spike_panel), "  Spike detection  ")
         self._tabs.addTab(_scrollable(self._connectivity_panel), "  Connectivity  ")
         self._tabs.addTab(self._catnap_panel, "  CAT-NAP (2P)  ")
-        self._tabs.addTab(_scrollable(self._pipeline_panel), "  Pipeline  ")
+        self._tabs.addTab(self._network_viewer_panel, "  Network Viewer  ")
+        self._pipeline_tab_index = self._tabs.addTab(_scrollable(self._pipeline_panel), "  Pipeline  ")
 
         self._catnap_panel.log_message.connect(self._pipeline_panel.append_log)
 
         # Mark Run / Stop with object names so QSS can style them distinctly
         self._pipeline_panel.run_btn.setObjectName("primary")
         self._pipeline_panel.stop_btn.setObjectName("danger")
+        self._pipeline_panel.test_btn.setObjectName("secondary")
         self._pipeline_panel.run_btn.clicked.connect(self._on_run)
         self._pipeline_panel.stop_btn.clicked.connect(self._on_stop)
+        self._pipeline_panel.test_btn.clicked.connect(self._on_test_pipeline)
 
         # Mark log widget so the monospace QSS rule applies
         self._pipeline_panel.log.setObjectName("log")
@@ -175,6 +183,45 @@ class MainWindow(QMainWindow):
 
     # ── Pipeline run / stop ───────────────────────────────────────────────────
 
+    def _on_test_pipeline(self) -> None:
+        home_dir = self._paths_panel.home_dir.value
+        if not home_dir:
+            QMessageBox.warning(
+                self, "MEA-NAP folder required",
+                "Please set the MEA-NAP folder (Paths tab) before testing the pipeline.",
+            )
+            self._tabs.setCurrentIndex(0)
+            return
+
+        self._tabs.setCurrentIndex(self._pipeline_tab_index)
+        self._pipeline_panel.append_log("Downloading example data for pipeline test…")
+        QApplication.processEvents()
+
+        def log(message: str) -> None:
+            self._pipeline_panel.append_log(message)
+            QApplication.processEvents()
+
+        try:
+            example_dir = download_example_data(Path(home_dir), log=log)
+        except Exception as e:
+            QMessageBox.critical(self, "Download failed", str(e))
+            return
+
+        # Point the paths panel at the example dataset, mirroring the MATLAB
+        # TestPipelineButton behaviour (downloadExampleData + settings override).
+        self._paths_panel.raw_data.set_value(str(example_dir))
+        self._paths_panel.spreadsheet.set_value(str(example_dir / "exampleData.csv"))
+        self._paths_panel.spreadsheet_range.setText("A2:A3")
+        if not self._paths_panel.output_data_folder.value:
+            self._paths_panel.output_data_folder.set_value(home_dir)
+
+        # The test run only needs to prove step 1 (spike detection) works.
+        self._pipeline_panel.start_step.setValue(1)
+        self._pipeline_panel.stop_step.setValue(1)
+
+        self._pipeline_panel.append_log("Example data ready — running step 1 (spike detection) only.")
+        self._on_run()
+
     def _on_run(self) -> None:
         params = self._collect_params()
         self._params = params
@@ -186,6 +233,8 @@ class MainWindow(QMainWindow):
             missing.append("Raw data folder")
         if not params.output_data_folder:
             missing.append("Output data folder")
+        if not params.spreadsheet_file_name:
+            missing.append("Spreadsheet file")
 
         if missing:
             QMessageBox.warning(
@@ -199,12 +248,27 @@ class MainWindow(QMainWindow):
         self._pipeline_panel.run_btn.setEnabled(False)
         self._pipeline_panel.stop_btn.setEnabled(True)
         self._pipeline_panel.append_log(
-            f"Starting MEA-NAP from step {params.start_analysis_step}…"
+            f"Starting MEA-NAP: steps {params.start_analysis_step}-{params.stop_analysis_step}…"
         )
-        # TODO: launch pipeline worker thread here
+        QApplication.processEvents()
+
+        def log(message: str) -> None:
+            self._pipeline_panel.append_log(message)
+            QApplication.processEvents()
+
+        try:
+            output_root = run_pipeline(params, log=log)
+            log(f"Done. Output folder: {output_root}")
+        except Exception as e:
+            log(f"ERROR: {e}")
+            QMessageBox.critical(self, "Pipeline error", str(e))
+        finally:
+            self._pipeline_panel.run_btn.setEnabled(True)
+            self._pipeline_panel.stop_btn.setEnabled(False)
 
     def _on_stop(self) -> None:
         self._pipeline_panel.append_log("Stop requested.")
         self._pipeline_panel.run_btn.setEnabled(True)
         self._pipeline_panel.stop_btn.setEnabled(False)
-        # TODO: signal worker thread to stop
+        # NOTE: the pipeline currently runs synchronously on the UI thread,
+        # so Stop can only reset the buttons — it cannot interrupt a run in progress.
