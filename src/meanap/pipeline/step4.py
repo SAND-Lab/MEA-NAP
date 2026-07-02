@@ -15,7 +15,7 @@ import numpy as np
 from meanap.params import Params
 from meanap.pipeline import network_metrics as nm
 from meanap.pipeline.io import load_spike_times_npz
-from meanap.pipeline.plotting_step4 import plot_connectivity_stats
+from meanap.pipeline.plotting_step4 import plot_connectivity_stats, plot_spatial_network
 from meanap.pipeline.spreadsheet import RecordingInfo
 
 
@@ -128,7 +128,8 @@ def _run_step4_network_metrics(
         adj_data = np.load(adj_path)
         spike_data = np.load(spike_path)
         fs = float(spike_data["fs"][0])
-        n_channels = len(spike_data["channels"])
+        channels_arr = spike_data["channels"]
+        n_channels = len(channels_arr)
 
         raw_path = Path(params.raw_data) / f"{rec.filename}.mat"
         try:
@@ -168,6 +169,21 @@ def _run_step4_network_metrics(
                     rec.filename, lag_dir / f"1_adjM{lag_ms}msConnectivityStats.png",
                     exclude_edges_below_threshold=params.exclude_edges_below_threshold,
                 )
+                try:
+                    channels_active = channels_arr[metrics["activeChannelIndex"]]
+                    plot_spatial_network(
+                        metrics["adjMsub"], channels_active, params.channel_layout,
+                        metrics["ND"], None, "None", lag_ms, rec.filename,
+                        lag_dir / "2_MEA_NetworkPlot.png",
+                    )
+                    plot_spatial_network(
+                        metrics["adjMsub"], channels_active, params.channel_layout,
+                        metrics["ND"], metrics["BC"], "Betweenness centrality",
+                        lag_ms, rec.filename,
+                        lag_dir / "3_MEA_NetworkPlotNodedegreeBetweennesscentrality.png",
+                    )
+                except ValueError as e:
+                    log(f"  [{rec.filename}] skipped spatial network plot: {e}")
 
         all_results[rec.filename] = rec_results
 

@@ -97,9 +97,17 @@ class PipelinePanel(QWidget):
         self.stop_btn.setFixedHeight(40)
         self.stop_btn.setEnabled(False)
 
+        self.view_report_btn = QPushButton("🌐  View report")
+        self.view_report_btn.setFixedHeight(40)
+        self.view_report_btn.setToolTip(
+            "Generate (or refresh) an HTML report of the output folder's "
+            "plots and open it in your browser"
+        )
+
         run_layout.addWidget(self.test_btn)
         run_layout.addWidget(self.run_btn)
         run_layout.addWidget(self.stop_btn)
+        run_layout.addWidget(self.view_report_btn)
 
         # ── Status log ────────────────────────────────────────────────────────
         log_box = QGroupBox("Status log")

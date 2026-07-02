@@ -2,6 +2,11 @@
 
 A Python implementation of MEA-NAP, living alongside the MATLAB codebase in this repository.
 
+> **Working on the pipeline port (spike detection, output folders, Run/Test pipeline wiring)?**
+> Read [`PIPELINE_PORT_STATUS.md`](PIPELINE_PORT_STATUS.md) first — it tracks what's ported,
+> what isn't, and non-obvious gotchas (sign conventions, HDF5 quirks, parity numbers) that are
+> easy to re-break or re-discover from scratch.
+
 ## Project structure
 
 ```
@@ -12,6 +17,7 @@ MEA-NAP/
 ├── src/
 │   └── meanap/
 │       ├── params.py         # Params dataclass (mirrors MATLAB Params struct)
+│       ├── network_plot.py   # Network plotting logic (MatData loader, plot_network)
 │       ├── catnap/           # CAT-NAP: calcium imaging pipeline (suite2p)
 │       │   ├── scanner.py    # Discover suite2p recordings in a folder
 │       │   ├── loader.py     # Load suite2p .npy files into Python
@@ -25,6 +31,7 @@ MEA-NAP/
 │               ├── spike_detection.py
 │               ├── connectivity.py   # STTC and thresholding tab
 │               ├── catnap.py         # CAT-NAP (2P) tab
+│               ├── network_viewer.py # Network Viewer tab
 │               └── pipeline.py       # Run controls and status log tab
 └── python/               # Scripts and notebooks (this directory)
     ├── README.md
@@ -65,6 +72,7 @@ The GUI is a tabbed desktop application (PyQt6) that mirrors the MATLAB App Desi
 | **Spike detection** | Thresholds, wavelet methods, bandpass filter, template settings |
 | **Connectivity** | STTC lag values, adjacency matrix type, probabilistic thresholding |
 | **CAT-NAP (2P)** | Suite2p pipeline — see below |
+| **Network Viewer** | Interactive network plot from a MEA-NAP output `.mat` file — see below |
 | **Pipeline** | Step selection, run/stop controls, status log |
 
 ### Parameters
@@ -170,6 +178,108 @@ process_suite2p_folder(
 data = load_suite2p(recordings[0].suite2p_dir)
 print(data.F_denoised_cells.shape)   # (n_cells, n_frames)
 print(data.peak_start_frames.shape)  # (n_rois, max_peaks), NaN-padded
+```
+
+## Network Viewer
+
+The Network Viewer tab lets you interactively explore the functional connectivity network from a completed MEA-NAP run, including optional cell-type overlays. It mirrors the functionality of the MATLAB `runMEANAPviewer.m` viewer.
+
+### Using the Network Viewer tab
+
+1. Click **Browse…** and select a MEA-NAP output `.mat` file from the `ExperimentMatFiles/` subfolder of an output directory (e.g. `OutputData.../ExperimentMatFiles/<recording>_OutputData....mat`).
+2. The network renders immediately. Recording metadata (name, DIV, group, active node count) appears in the left panel.
+3. Adjust settings to update the plot in real time:
+   - **Lag** — choose between the available functional connectivity lag values (e.g. 1000 ms, 2500 ms, 5000 ms)
+   - **Edge threshold** — minimum correlation weight required to draw an edge
+   - **Node color metric** — colour nodes by any node-level metric in the file (betweenness centrality, node strength, z-score, etc.), or leave as **None** for flat cyan nodes
+4. (Optional) Click **Load cell types from file…** to overlay cell-type information — see below.
+
+Node **size** is always proportional to node degree (ND). Node **color** is driven by the selected metric using the viridis colormap, with a colorbar legend shown on the right.
+
+### Cell-type overlay
+
+Cell-type information is displayed as concentric rings on each node, with a distinct line style per cell type, mirroring the MATLAB viewer.
+
+**Loading cell types:**
+
+1. Prepare (or locate) a cell-type spreadsheet. Each column represents one cell type; each cell contains the channel number (1-indexed) of a cell belonging to that type. Columns with no cells for that type should be left empty/NaN. The `PutativeCellType_*.xlsx` files produced alongside MEA-NAP runs use this format.
+
+   Example layout:
+
+   | NeuN+ | PV+ | SST+ |
+   |---|---|---|
+   | 68 | 25 | 110 |
+   | 78 | 42 | 216 |
+   | 117 | | |
+
+2. In the **Cell types** group, click **Load cell types from file…** and select the `.xlsx` or `.csv` file.
+3. A listbox appears listing all cell types found in the file. Select one or more to filter the displayed network.
+
+**Filtering by cell type:**
+
+- Selecting one type shows only nodes belonging to that type.
+- Selecting multiple types shows only nodes that belong to **all** selected types (intersection, consistent with the MATLAB viewer).
+- Deselecting everything (no types highlighted) returns to showing all active nodes.
+
+The concentric circle legend at the bottom of the plot identifies which ring style corresponds to each cell type.
+
+> **Note on `.mat` cell-type data:** MEA-NAP stores `Info.CellTypes` inside output `.mat` files as a MATLAB MCOS table object. Python's `scipy.io` cannot decode this format. When the viewer detects this it logs a message and prompts you to load the cell-type spreadsheet directly — the same `.xlsx` file that was originally supplied to the MATLAB pipeline.
+
+### Using the network plotting API from Python
+
+The underlying plotting code is available independently of the GUI:
+
+```python
+import numpy as np
+from meanap.network_plot import (
+    MatData,
+    load_cell_type_file,
+    build_cell_type_matrix,
+    filter_by_cell_types,
+    plot_network,
+)
+import matplotlib.pyplot as plt
+
+# Load a MEA-NAP output .mat file
+data = MatData("path/to/ExperimentMatFiles/recording_OutputData.mat")
+
+print(data.lag_keys)          # ['adjM1000mslag', 'adjM2500mslag', ...]
+print(data.available_node_metrics)  # ['ND', 'NS', 'BC', 'Z', ...]
+
+lag = data.lag_keys[0]        # e.g. 'adjM1000mslag'
+active_idx = data.get_active_indices(lag)   # 0-based indices into full electrode array
+adjM = data.get_adjM(lag)[np.ix_(active_idx, active_idx)]
+coords = data.coords[active_idx]
+z = data.get_metric(lag, "ND")       # node degree — drives node size
+z2 = data.get_metric(lag, "BC")      # betweenness centrality — drives node color
+
+# (Optional) load cell types from an Excel file
+df = load_cell_type_file("path/to/PutativeCellType.xlsx")
+ct_matrix, ct_names = build_cell_type_matrix(df, data.channels)
+ct_active = ct_matrix[active_idx, :]
+
+# Filter to nodes that are both NeuN+ and PV+
+row_idx, ct_sub = filter_by_cell_types(
+    np.arange(len(active_idx)), ct_active, ct_names, ["NeuN+", "PV+"]
+)
+adjM_sub = adjM[np.ix_(row_idx, row_idx)]
+coords_sub = coords[row_idx]
+z_sub = z[row_idx]
+z2_sub = z2[row_idx]
+
+# Plot
+fig, ax = plt.subplots(figsize=(10, 8))
+plot_network(
+    ax, adjM_sub, coords_sub,
+    edge_thresh=0.1,
+    z=z_sub,               # node size (ND)
+    z2=z2_sub,             # node color (BC); pass None for flat cyan
+    z2_name="BC",
+    cell_type_matrix=ct_sub,
+    cell_type_names=ct_names,
+    title="NeuN+ ∩ PV+ — 1000 ms lag",
+)
+plt.show()
 ```
 
 ## Adding dependencies

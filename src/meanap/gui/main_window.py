@@ -1,6 +1,7 @@
 """MEA-NAP main application window."""
 
 import json
+import webbrowser
 from pathlib import Path
 
 from PyQt6.QtWidgets import (
@@ -12,6 +13,7 @@ from PyQt6.QtCore import Qt
 
 from meanap.params import Params
 from meanap.pipeline.example_data import download_example_data
+from meanap.pipeline.report import generate_report
 from meanap.pipeline.runner import run_pipeline
 from meanap.gui import theme
 from meanap.gui.panels.paths import PathsPanel
@@ -38,6 +40,7 @@ class MainWindow(QMainWindow):
         self.resize(980, 780)
 
         self._params = Params()
+        self._last_output_root: Path | None = None
         self._current_theme = "dark"
 
         self._build_toolbar()
@@ -102,9 +105,11 @@ class MainWindow(QMainWindow):
         self._pipeline_panel.run_btn.setObjectName("primary")
         self._pipeline_panel.stop_btn.setObjectName("danger")
         self._pipeline_panel.test_btn.setObjectName("secondary")
+        self._pipeline_panel.view_report_btn.setObjectName("secondary")
         self._pipeline_panel.run_btn.clicked.connect(self._on_run)
         self._pipeline_panel.stop_btn.clicked.connect(self._on_stop)
         self._pipeline_panel.test_btn.clicked.connect(self._on_test_pipeline)
+        self._pipeline_panel.view_report_btn.clicked.connect(self._on_view_report)
 
         # Mark log widget so the monospace QSS rule applies
         self._pipeline_panel.log.setObjectName("log")
@@ -258,6 +263,7 @@ class MainWindow(QMainWindow):
 
         try:
             output_root = run_pipeline(params, log=log)
+            self._last_output_root = output_root
             log(f"Done. Output folder: {output_root}")
         except Exception as e:
             log(f"ERROR: {e}")
@@ -272,3 +278,27 @@ class MainWindow(QMainWindow):
         self._pipeline_panel.stop_btn.setEnabled(False)
         # NOTE: the pipeline currently runs synchronously on the UI thread,
         # so Stop can only reset the buttons — it cannot interrupt a run in progress.
+
+    def _on_view_report(self) -> None:
+        output_root = self._last_output_root
+        if output_root is None:
+            params = self._collect_params()
+            if params.output_data_folder and params.output_data_folder_name:
+                output_root = Path(params.output_data_folder) / params.output_data_folder_name
+
+        if output_root is None or not output_root.is_dir():
+            QMessageBox.warning(
+                self, "No output folder found",
+                "Run the pipeline first, or set the Output data folder / name "
+                "(Paths tab) to an existing MEA-NAP output folder.",
+            )
+            return
+
+        try:
+            report_path = generate_report(output_root)
+        except Exception as e:
+            QMessageBox.critical(self, "Report generation failed", str(e))
+            return
+
+        self._pipeline_panel.append_log(f"Report generated: {report_path}")
+        webbrowser.open(report_path.as_uri())
