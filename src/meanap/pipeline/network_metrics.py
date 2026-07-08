@@ -1,11 +1,24 @@
-"""Deterministic network metrics, ported from the Brain Connectivity Toolbox
+"""Network metrics, ported from the Brain Connectivity Toolbox
 (``Functions/2019_03_03_BCT/*.m``) as called by ``ExtractNetMet.m``.
 
-Only metrics that are *pure, deterministic functions of a fixed adjacency
-matrix* are ported here. ``ExtractNetMet.m`` also computes several metrics
-that depend on randomized null models or community detection — those are
-NOT bit-reproducible even across two MATLAB runs of the same data, and are
-out of scope for this module:
+Most of this module is *pure, deterministic functions of a fixed adjacency
+matrix* — ND, NS, MEW, Dens, CC (raw), PL (raw), Eglob, Eloc, BC, NE, plus
+``participation_coef`` (raw), ``module_degree_zscore``, and ``rich_club_wu``.
+These (plus ``classify_node_cartography``, a simple deterministic threshold
+classification of PC/Z) require a community assignment (``Ci``) as input —
+deterministic *given* ``Ci``, but ``Ci`` itself comes from ``modularity.py``'s
+consensus clustering, which is stochastic (see that module's docstring).
+
+``participation_coef_norm`` is additionally stochastic on top of that — it
+needs 100 iterations of degree-preserving network randomization
+(``null_models.null_model_und_sign``, also not bit-reproducible against
+MATLAB) to normalize the raw participation coefficient. **This is the
+function whose first output MEA-NAP actually saves as ``NetMet.PC``** —
+`participation_coef`'s raw formula is genuinely a different, deterministic
+quantity, kept because it's independently useful and testable.
+
+Still NOT ported (out of scope) because MATLAB computes them via randomized
+null models with no practical way to reach exact parity:
 
 - ``SW`` / ``SWw`` (small-worldness) and the *saved* ``CC`` / ``PL`` fields
   — MATLAB computes these via ``small_worldness_RL_wu``, which normalizes
@@ -15,16 +28,18 @@ out of scope for this module:
   ``small_worldness_RL_wu`` calls ``C`` and ``PL`` internally, before
   dividing by the null models) — NOT the same numbers MATLAB saves into
   ``NetMet``.
-- ``Q`` / ``Ci`` / ``nMod`` (modularity, via consensus clustering)
-- ``PC`` / ``PC_raw`` / ``Z`` (participation coefficient, within-module
-  z-score — both depend on the module assignment ``Ci`` above)
-- ``Hub3`` / ``Hub4`` (depend on PC/Z)
-- ``RC`` (rich club coefficient), ``Cmcblty`` (communicability)
+- ``Cmcblty`` (communicability) — not actually computed by MATLAB's current
+  pipeline either; the code path that would call it
+  (``fcn_find_hubs_wu.m``) is commented out in ``ExtractNetMet.m``.
 """
 
 from __future__ import annotations
 
 import numpy as np
+from scipy.linalg import schur
+from scipy.sparse.linalg import svds
+
+from meanap.pipeline.null_models import null_model_und_sign
 
 
 # ── Weight conversion (weight_conversion.m) ────────────────────────────────
@@ -257,3 +272,342 @@ def betweenness_wei(g: np.ndarray) -> np.ndarray:
                     dependency[v] += (1 + dependency[w]) * num_paths[v] / num_paths[w]
 
     return bc
+
+
+# ── Participation coefficient (participation_coef_norm.m, raw/3rd output) ──
+
+def participation_coef(w: np.ndarray, ci: np.ndarray) -> np.ndarray:
+    """Raw (unnormalized) participation coefficient (Guimera & Amaral 2005).
+
+    ``ci`` is a 1-indexed community affiliation vector (e.g. from
+    ``modularity.mod_consensus_cluster_iterate``). This is the *3rd* output
+    of MATLAB's ``participation_coef_norm.m`` — NOT the normalized value
+    MEA-NAP saves as ``NetMet.PC`` (that requires 100 iterations of
+    degree-preserving randomization on top of this).
+    """
+    n = w.shape[0]
+    ko = w.sum(axis=1)
+    gc = (w != 0) @ np.diag(ci)
+
+    kc2 = np.zeros(n)
+    for i in range(1, ci.max() + 1):
+        kc2 += (w * (gc == i)).sum(axis=1) ** 2
+
+    with np.errstate(divide="ignore", invalid="ignore"):
+        pc = 1.0 - kc2 / (ko**2)
+    pc[ko == 0] = 0.0
+    return pc
+
+
+def participation_coef_norm(
+    w: np.ndarray, ci: np.ndarray, n_iter: int = 100, rng: np.random.Generator | None = None,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Normalized participation coefficient — **this is what MEA-NAP actually
+    saves as ``NetMet.PC``**, and what colors
+    ``4_MEA_NetworkPlotNodedegreeParticipationcoefficient.png``.
+
+    Full port of ``participation_coef_norm.m``: computes the raw PC (same as
+    :func:`participation_coef`), then runs ``n_iter`` degree-preserving
+    network randomizations (``null_models.null_model_und_sign``) to measure
+    how much of each node's raw PC is attributable to its module sizes alone
+    vs. genuine cross-module diversity, and normalizes it out.
+
+    **Not bit-reproducible against MATLAB** (the randomizations are
+    stochastic) — see ``null_models.py``'s docstring. ``n_iter=100`` at
+    ~59-64 nodes takes roughly 15-35s; budget for that per (recording, lag).
+
+    Returns (PC_norm, PC_residual, PC, between_mod_k) — matching MATLAB's
+    output order exactly (MEA-NAP's caller only keeps the first).
+    """
+    if rng is None:
+        rng = np.random.default_rng()
+
+    n = w.shape[0]
+    ko = w.sum(axis=1)
+    gc = (w != 0) @ np.diag(ci)
+    pc = participation_coef(w, ci)
+
+    within_mod_k = np.zeros(n)
+    for i in range(1, ci.max() + 1):
+        mask = ci == i
+        within_mod_k[mask] = w[np.ix_(mask, mask)].sum(axis=1)
+    between_mod_k = ko - within_mod_k
+
+    kc2_rnd = np.zeros((n, n_iter))
+    for it in range(n_iter):
+        w_rnd = null_model_und_sign(w, bin_swaps=5, rng=rng)
+        gc_rnd = (w_rnd != 0) @ np.diag(ci)
+        kc2_rnd_loop = np.zeros(n)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            for i in range(1, ci.max() + 1):
+                term = (w * (gc == i)).sum(axis=1) / ko - (w_rnd * (gc_rnd == i)).sum(axis=1) / ko
+                kc2_rnd_loop += term**2
+        kc2_rnd[:, it] = np.sqrt(0.5 * kc2_rnd_loop)
+
+    with np.errstate(invalid="ignore"):
+        pc_norm = 1.0 - np.median(kc2_rnd, axis=1)
+    pc_norm[ko == 0] = 0.0
+    pc_norm = np.nan_to_num(pc_norm, nan=0.0)
+
+    module_size = np.array([np.sum(ci == ci[j]) for j in range(n)], dtype=float)
+    if n > 1 and np.std(module_size) > 0:
+        p_coef = np.polyfit(module_size, pc, 1)
+        yfit = np.polyval(p_coef, module_size)
+        pc_residual = pc - yfit
+    else:
+        pc_residual = np.zeros(n)
+    pc_residual[ko == 0] = 0.0
+
+    return pc_norm, pc_residual, pc, between_mod_k
+
+
+# ── Within-module degree z-score (module_degree_zscore.m) ──────────────────
+
+def module_degree_zscore(w: np.ndarray, ci: np.ndarray) -> np.ndarray:
+    """Within-module degree z-score (undirected graph, ``flag=0`` in MATLAB)."""
+    n = w.shape[0]
+    z = np.zeros(n)
+    for i in range(1, ci.max() + 1):
+        mask = ci == i
+        koi = w[np.ix_(mask, mask)].sum(axis=1)
+        std = koi.std(ddof=1) if len(koi) > 1 else 0.0
+        with np.errstate(divide="ignore", invalid="ignore"):
+            z[mask] = (koi - koi.mean()) / std
+    return np.nan_to_num(z, nan=0.0)
+
+
+# ── Rich club coefficient (rich_club_wu.m) ──────────────────────────────────
+
+def rich_club_wu(adj_m: np.ndarray, k_level: int | None = None) -> np.ndarray:
+    """Weighted rich-club coefficient curve, ``Rw[k-1]`` for k = 1..k_level.
+
+    Two distinct sources of NaN, both faithfully reproduced from
+    ``rich_club_wu.m`` even though the first looks like an odd condition to
+    special-case: (1) MATLAB skips (leaves NaN) whenever *no* nodes have
+    degree < k — i.e. when every node already qualifies, no filtering is
+    needed, and the loop takes an early ``continue`` rather than computing
+    normally; (2) at the highest k-levels, only 1-2 nodes survive the
+    degree cutoff, giving zero edges among them (``Er=0``) and a genuine
+    ``0/0`` MATLAB division producing NaN, reproduced here the same way
+    (not special-cased to 0).
+    """
+    node_degree = np.count_nonzero(adj_m, axis=0)
+    if k_level is None:
+        k_level = int(node_degree.max()) if node_degree.size else 0
+
+    wrank = np.sort(adj_m.ravel())[::-1]
+    rw = np.full(k_level, np.nan)
+
+    for kk in range(1, k_level + 1):
+        small_nodes = node_degree < kk
+        if not np.any(small_nodes):
+            continue
+        keep = ~small_nodes
+        cutout = adj_m[np.ix_(keep, keep)]
+        wr = cutout.sum()
+        er = np.count_nonzero(cutout)
+        wrank_r = wrank[:er]
+        with np.errstate(invalid="ignore", divide="ignore"):
+            rw[kk - 1] = wr / wrank_r.sum()
+
+    return rw
+
+
+# ── Node cartography classification (NodeCartography.m) ────────────────────
+
+def classify_node_cartography(
+    pc: np.ndarray,
+    z: np.ndarray,
+    hub_boundary_wm_d_deg: float,
+    peri_part_coef: float,
+    non_hub_connector_part_coef: float,
+    pro_hub_part_coef: float,
+    connector_hub_part_coef: float,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Classify each node into one of 6 cartography roles from PC/Z.
+
+    Returns (nd_cart_div, pop_num_nc):
+      nd_cart_div : (n,) int array, 1-6 per node —
+          1 Peripheral node, 2 Non-hub connector, 3 Non-hub kinless node,
+          4 Provincial hub, 5 Connector hub, 6 Kinless hub. 0 if a node
+          doesn't fall in any region (shouldn't happen given MATLAB's
+          boundaries are exhaustive, but a node can be missed if PC/Z are
+          NaN).
+      pop_num_nc : (6,) count of nodes in each role, 1-indexed by role.
+    """
+    n = len(pc)
+    nd_cart_div = np.zeros(n, dtype=int)
+
+    low_z = z <= hub_boundary_wm_d_deg
+    high_z = z >= hub_boundary_wm_d_deg
+
+    # Mirrors MATLAB's if/elseif chain: first matching condition wins, so a
+    # node exactly on a boundary is resolved by *order*, not by whichever
+    # mask happens to be applied last.
+    conditions = [
+        (1, low_z & (pc <= peri_part_coef)),
+        (2, low_z & (pc >= peri_part_coef) & (pc <= non_hub_connector_part_coef)),
+        (3, low_z & (pc >= non_hub_connector_part_coef)),
+        (4, high_z & (pc <= pro_hub_part_coef)),
+        (5, high_z & (pc >= pro_hub_part_coef) & (pc <= connector_hub_part_coef)),
+        (6, high_z & (pc >= connector_hub_part_coef)),
+    ]
+    for role, mask in conditions:
+        unassigned = nd_cart_div == 0
+        nd_cart_div[mask & unassigned] = role
+
+    pop_num_nc = np.array([int(np.sum(nd_cart_div == role)) for role in range(1, 7)])
+    return nd_cart_div, pop_num_nc
+
+
+# ── Hub classification (Hub3/Hub4, the ExtractNetMet.m inline block) ───────
+
+def _matlab_round(x: float) -> int:
+    """MATLAB's round(): half-away-from-zero, not Python's round-half-to-even."""
+    return int(np.floor(x + 0.5)) if x >= 0 else -int(np.floor(-x + 0.5))
+
+
+def hub_classification(
+    nd: np.ndarray, pc: np.ndarray, bc: np.ndarray, ne: np.ndarray,
+) -> tuple[float, float]:
+    """Returns (Hub3, Hub4): fraction of nodes in the top 10% by >=3 / all 4
+    of {node degree, participation coefficient, betweenness centrality,
+    nodal efficiency}.
+
+    Ties at the top-10% cutoff are all included (MATLAB uses value-based
+    ``ismember`` against the top-N *values*, not a strict top-N *count*, so
+    a tie can pull in more than ``round(aN/10)`` nodes) — reproduced here
+    with ``np.isin`` for the same reason.
+    """
+    a_n = len(nd)
+    n_top = _matlab_round(a_n / 10)
+
+    def top_indices(values: np.ndarray) -> np.ndarray:
+        threshold_vals = np.sort(values)[::-1][:n_top]
+        return np.nonzero(np.isin(values, threshold_vals))[0]
+
+    all_hubs = np.concatenate([
+        top_indices(nd), top_indices(pc), top_indices(bc), top_indices(ne),
+    ])
+    counts = np.bincount(all_hubs, minlength=a_n)
+    hub4 = float(np.sum(counts == 4) / a_n)
+    hub3 = float(np.sum(counts >= 3) / a_n)
+    return hub3, hub4
+
+
+# ── Controllability ────────────────────────────────────────────────────────
+
+def average_controllability(adj_m: np.ndarray) -> np.ndarray:
+    """Returns values of average controllability for each node in a network.
+    
+    Port of ``ave_control.m`` (Bassett Lab, 2016). Average controllability
+    measures the ease by which input at that node can steer the system into
+    many easily-reachable states.
+    """
+    if adj_m.shape[0] == 0:
+        return np.array([])
+    
+    try:
+        _, s, _ = svds(adj_m.astype(float), k=1)
+        max_s = s[0]
+    except Exception:
+        max_s = np.linalg.norm(adj_m, 2)
+        
+    a_norm = adj_m / (1 + max_s)
+    t, u = schur(a_norm, output="real")
+    
+    mid_mat = (u ** 2).T
+    v = np.diag(t)
+    p_diag = 1 - v ** 2
+    p = np.tile(p_diag[:, np.newaxis], (1, adj_m.shape[0]))
+    
+    return np.sum(mid_mat / p, axis=0)
+
+
+def modal_controllability(adj_m: np.ndarray) -> np.ndarray:
+    """Returns values of modal controllability for each node in a network.
+    
+    Port of ``modal_control.m`` (Bassett Lab, 2016). Modal controllability
+    indicates the ability of that node to steer the system into
+    difficult-to-reach states.
+    """
+    if adj_m.shape[0] == 0:
+        return np.array([])
+        
+    try:
+        _, s, _ = svds(adj_m.astype(float), k=1)
+        max_s = s[0]
+    except Exception:
+        max_s = np.linalg.norm(adj_m, 2)
+        
+    a_norm = adj_m / (1 + max_s)
+    t, u = schur(a_norm, output="real")
+    
+    
+    eig_vals = np.diag(t)
+    return (u ** 2) @ (1 - eig_vals ** 2)
+
+
+# ── Effective Rank ─────────────────────────────────────────────────────────
+
+def effective_rank(
+    spike_times: list[np.ndarray],
+    fs: float,
+    duration_s: float,
+    eff_fs: float,
+    method: str = "covariance"
+) -> float:
+    """Computes Effective Rank of the network activity.
+    
+    Port of ``calEffRank.m`` (Roy and Vetterli, 2007).
+    Constructs the dense binary spike matrix at `fs`, resamples it down to `eff_fs`
+    using a polyphase FIR filter, and computes the Shannon entropy of the
+    eigenvalues of the covariance/correlation matrix.
+    """
+    import scipy.signal as signal
+    from scipy.sparse import csc_matrix
+    from fractions import Fraction
+
+    n_samples = int(np.ceil(duration_s * fs))
+    n_channels = len(spike_times)
+    
+    indices_x = []
+    indices_y = []
+    for i, st in enumerate(spike_times):
+        samples = np.round(st * fs).astype(int)
+        samples = samples[(samples >= 0) & (samples < n_samples)]
+        indices_x.extend(samples)
+        indices_y.extend([i] * len(samples))
+        
+    activity = csc_matrix(
+        (np.ones(len(indices_x)), (indices_x, indices_y)), 
+        shape=(n_samples, n_channels)
+    ).toarray()
+    
+    frac = Fraction(eff_fs).limit_denominator(1000000) / Fraction(fs).limit_denominator(1000000)
+    p, q = frac.numerator, frac.denominator
+    
+    resampled = signal.resample_poly(activity, up=p, down=q, axis=0)
+    
+    if method.lower() in ("covariance", "ordinary"):
+        cov_m = np.cov(resampled, rowvar=False)
+    elif method.lower() == "correlation":
+        cov_m = np.corrcoef(resampled, rowvar=False)
+        cov_m[np.isnan(cov_m)] = 0.0
+    else:
+        raise ValueError(f"Unknown method {method}")
+        
+    eigen_v, _ = np.linalg.eigh(cov_m)
+    # Filter out small negative eigenvalues due to numerical precision
+    eigen_v = np.maximum(eigen_v, 0)
+    
+    total_eig = np.sum(eigen_v)
+    if total_eig == 0:
+        return float('nan')
+        
+    norm_eigen_v = eigen_v / total_eig
+    # Avoid log(0)
+    norm_eigen_v = norm_eigen_v[norm_eigen_v > 0]
+    
+    s_en = -np.sum(norm_eigen_v * np.log(norm_eigen_v))
+    return float(np.exp(s_en))

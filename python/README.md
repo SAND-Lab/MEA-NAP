@@ -18,6 +18,28 @@ MEA-NAP/
 │   └── meanap/
 │       ├── params.py         # Params dataclass (mirrors MATLAB Params struct)
 │       ├── network_plot.py   # Network plotting logic (MatData loader, plot_network)
+│       ├── pipeline/          # MATLAB pipeline port — steps 1-4. Read
+│       │                      # python/PIPELINE_PORT_STATUS.md before touching this.
+│       │   ├── runner.py             # run_pipeline() — top-level orchestrator (MEApipeline.m equivalent)
+│       │   ├── output_folders.py     # Output folder tree (CreateOutputFolders.m port)
+│       │   ├── spreadsheet.py        # Recording CSV/spreadsheet parsing
+│       │   ├── example_data.py       # Downloads the example dataset (downloadExampleData.m port)
+│       │   ├── io.py                 # HDF5/v7.3 .mat I/O
+│       │   ├── spike_detection.py    # Step 1: threshold + bior1.5 wavelet CWT
+│       │   ├── plotting.py           # Step 1 check plots
+│       │   ├── firing_rates.py       # Step 2: firing rates
+│       │   ├── burst_detection.py    # Step 2: network + single-channel bursts
+│       │   ├── plotting_step2.py     # Step 2 check plots
+│       │   ├── parula.py             # MATLAB parula colormap (not in matplotlib)
+│       │   ├── sttc.py               # Step 3: Spike Time Tiling Coefficient
+│       │   ├── probabilistic_threshold.py  # Step 3: significance thresholding
+│       │   ├── network_metrics.py    # Step 4: BCT-equivalent network metrics
+│       │   ├── louvain.py            # Step 4: Louvain community detection
+│       │   ├── modularity.py         # Step 4: consensus clustering (→ Ci/Q/nMod)
+│       │   ├── null_models.py        # Step 4: degree-preserving randomization
+│       │   ├── channel_layout.py     # Electrode ID → spatial coordinate lookup
+│       │   ├── plotting_step4.py     # Step 4 check plots
+│       │   └── report.py             # Self-contained HTML output viewer — see below
 │       ├── catnap/           # CAT-NAP: calcium imaging pipeline (suite2p)
 │       │   ├── scanner.py    # Discover suite2p recordings in a folder
 │       │   ├── loader.py     # Load suite2p .npy files into Python
@@ -32,9 +54,18 @@ MEA-NAP/
 │               ├── connectivity.py   # STTC and thresholding tab
 │               ├── catnap.py         # CAT-NAP (2P) tab
 │               ├── network_viewer.py # Network Viewer tab
-│               └── pipeline.py       # Run controls and status log tab
-└── python/               # Scripts and notebooks (this directory)
+│               └── pipeline.py       # Run controls, status log, View report button
+└── python/               # Scripts, notebooks, and pipeline docs (this directory)
     ├── README.md
+    ├── PIPELINE_PORT_STATUS.md   # Living status doc for the pipeline port — read first
+    ├── test_pipeline_step1.py    # Parity tests, one per step (run directly with uv run)
+    ├── test_pipeline_step2.py
+    ├── test_pipeline_step3.py
+    ├── test_pipeline_step4.py
+    ├── test_pipeline_cartography.py
+    ├── test_pipeline_null_models.py
+    ├── test_pipeline_channel_layout.py
+    ├── test_fixtures/            # MATLAB-generated ground-truth .npz fixtures + .m generator scripts
     ├── compile_plots.py
     └── feature-schematic.ipynb
 ```
@@ -73,7 +104,7 @@ The GUI is a tabbed desktop application (PyQt6) that mirrors the MATLAB App Desi
 | **Connectivity** | STTC lag values, adjacency matrix type, probabilistic thresholding |
 | **CAT-NAP (2P)** | Suite2p pipeline — see below |
 | **Network Viewer** | Interactive network plot from a MEA-NAP output `.mat` file — see below |
-| **Pipeline** | Step selection, run/stop controls, status log |
+| **Pipeline** | Step selection (1-4), run/test/stop controls, status log, and a "🌐 View report" button that generates and opens an HTML output browser — see "Output report" below |
 
 ### Parameters
 
@@ -87,7 +118,20 @@ Parameters can be saved and reloaded as JSON using the toolbar:
 
 ### Running the pipeline
 
-Set the required paths (MEA-NAP folder, raw data folder, output folder), configure the desired tabs, then go to the **Pipeline** tab and click **Run pipeline**. The GUI validates that required paths are filled in before starting.
+Set the required paths (MEA-NAP folder, raw data folder, output folder), configure the desired tabs, then go to the **Pipeline** tab and click **Run pipeline**. The GUI validates that required paths are filled in before starting. Click **🧪 Test pipeline** instead to download the bundled example dataset and run against that, as a setup sanity check.
+
+The pipeline mirrors MATLAB's 4 steps — spike detection, neuronal activity (firing rates/bursts), functional connectivity (STTC), and network metrics — writing the same output folder structure MATLAB's `CreateOutputFolders.m` builds. **Not every step or metric is fully ported yet**; see [`PIPELINE_PORT_STATUS.md`](PIPELINE_PORT_STATUS.md) for exactly what's done, what's approximate, and what's still missing before relying on this for real analysis.
+
+### Output report
+
+After a run (or against any existing MEA-NAP output folder), click **🌐 View report** on the Pipeline tab to generate `report.html` in that output folder and open it in your browser. It's a self-contained page (no server, works offline) with a folder-tree sidebar and a captioned image gallery for every plot the pipeline produced — captions are adapted from MEA-NAP's own figure-legend documentation (`docs/meanap-outputs.rst`) wherever one exists. You can also generate it directly from Python:
+
+```python
+from meanap.pipeline.report import generate_report
+generate_report("/path/to/OutputData...")  # writes report.html there, returns its path
+```
+
+The same report is deep-linkable — `report.html#4_NetworkActivity/4A_IndividualNetworkAnalysis/<group>/<recording>/<lag>mslag` auto-navigates the sidebar to that folder on load, useful for sharing a link to a specific plot.
 
 ## CAT-NAP (2P)
 

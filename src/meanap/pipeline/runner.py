@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Callable
 
 from meanap.params import Params
+from meanap.pipeline.cancellation import CancelCheck, check_cancel
 from meanap.pipeline.io import load_raw_recording, save_spike_times_npz
 from meanap.pipeline.step2 import _run_step2_neuronal_activity
 from meanap.pipeline.step3 import _run_step3_functional_connectivity
@@ -21,7 +22,11 @@ def default_output_folder_name() -> str:
     return "OutputData" + datetime.date.today().strftime("%d%b%Y")
 
 
-def run_pipeline(params: Params, log: Callable[[str], None] = print) -> Path:
+def run_pipeline(
+    params: Params,
+    log: Callable[[str], None] = print,
+    should_cancel: CancelCheck = None,
+) -> Path:
     """Run the pipeline steps in ``[start_analysis_step, stop_analysis_step]``.
 
     Creates the same output folder tree as the MATLAB pipeline
@@ -29,6 +34,11 @@ def run_pipeline(params: Params, log: Callable[[str], None] = print) -> Path:
     Steps 1-4 are all implemented (see ``python/PIPELINE_PORT_STATUS.md`` for
     which parts of each step have exact MATLAB parity vs. are deterministic
     approximations / not yet ported).
+
+    ``should_cancel``, if given, is polled at step boundaries and once per
+    recording inside each step; when it returns ``True`` the run unwinds by
+    raising :class:`~meanap.pipeline.cancellation.PipelineCancelled`. Callers
+    that offer a Stop button should catch that and treat it as a clean stop.
     """
     if not params.spreadsheet_file_name:
         raise ValueError("Spreadsheet file must be set")
@@ -51,22 +61,26 @@ def run_pipeline(params: Params, log: Callable[[str], None] = print) -> Path:
     stop = params.stop_analysis_step
 
     if start <= 1 <= stop:
-        _run_step1_spike_detection(params, recordings, output_root, log)
+        check_cancel(should_cancel)
+        _run_step1_spike_detection(params, recordings, output_root, log, should_cancel)
     else:
         log("Skipping step 1 (spike detection) — outside the selected step range.")
 
     if start <= 2 <= stop:
-        _run_step2_neuronal_activity(params, recordings, output_root, log)
+        check_cancel(should_cancel)
+        _run_step2_neuronal_activity(params, recordings, output_root, log, should_cancel)
     else:
         log("Skipping step 2 (neuronal activity) — outside the selected step range.")
 
     if start <= 3 <= stop:
-        _run_step3_functional_connectivity(params, recordings, output_root, log)
+        check_cancel(should_cancel)
+        _run_step3_functional_connectivity(params, recordings, output_root, log, should_cancel)
     else:
         log("Skipping step 3 (functional connectivity) — outside the selected step range.")
 
     if start <= 4 <= stop:
-        _run_step4_network_metrics(params, recordings, output_root, log)
+        check_cancel(should_cancel)
+        _run_step4_network_metrics(params, recordings, output_root, log, should_cancel)
     else:
         log("Skipping step 4 (network activity) — outside the selected step range.")
 
@@ -78,6 +92,7 @@ def _run_step1_spike_detection(
     recordings: list[RecordingInfo],
     output_root: Path,
     log: Callable[[str], None],
+    should_cancel: CancelCheck = None,
 ) -> None:
     if not params.raw_data:
         raise ValueError("Raw data folder must be set to run step 1 (spike detection)")
@@ -87,6 +102,7 @@ def _run_step1_spike_detection(
     cost_list = params.cost_list if isinstance(params.cost_list, list) else [params.cost_list]
 
     for rec in recordings:
+        check_cancel(should_cancel)
         raw_path = raw_dir / f"{rec.filename}.mat"
         if not raw_path.exists():
             log(f"  ! raw file not found, skipping: {raw_path.name}")

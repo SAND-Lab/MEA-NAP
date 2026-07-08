@@ -73,7 +73,7 @@ class Params:
     ])
     recompute_metrics: bool = False
     min_number_of_nodes_to_cal_net_met: int = 3
-    exclude_edges_below_threshold: bool = False
+    exclude_edges_below_threshold: bool = True
 
     # ── Node cartography ─────────────────────────────────────────────────────
     auto_set_cartography_boundaries: bool = True
