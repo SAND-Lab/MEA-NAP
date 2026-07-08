@@ -14,8 +14,8 @@ from PyQt6.QtCore import Qt
 from meanap.params import Params
 from meanap.pipeline.example_data import download_example_data
 from meanap.pipeline.report import generate_report
-from meanap.pipeline.runner import run_pipeline
 from meanap.gui import theme
+from meanap.gui.pipeline_worker import PipelineWorker
 from meanap.gui.panels.paths import PathsPanel
 from meanap.gui.panels.recording import RecordingPanel
 from meanap.gui.panels.spike_detection import SpikeDetectionPanel
@@ -42,6 +42,7 @@ class MainWindow(QMainWindow):
         self._params = Params()
         self._last_output_root: Path | None = None
         self._current_theme = "dark"
+        self._worker: PipelineWorker | None = None
 
         self._build_toolbar()
         self._build_tabs()
@@ -217,17 +218,29 @@ class MainWindow(QMainWindow):
         self._paths_panel.raw_data.set_value(str(example_dir))
         self._paths_panel.spreadsheet.set_value(str(example_dir / "exampleData.csv"))
         self._paths_panel.spreadsheet_range.setText("A2:A3")
+        try:
+            from meanap.pipeline.spreadsheet import read_recording_csv
+            recordings = read_recording_csv(example_dir / "exampleData.csv", "A2:A3")
+            # Preserve order of first appearance
+            unique_grps = list(dict.fromkeys(r.group for r in recordings))
+            self._paths_panel.custom_grp_order.setText(",".join(unique_grps))
+        except Exception as e:
+            log(f"Warning: could not parse custom group order from exampleData.csv: {e}")
+
         if not self._paths_panel.output_data_folder.value:
             self._paths_panel.output_data_folder.set_value(home_dir)
 
-        # The test run only needs to prove step 1 (spike detection) works.
+        # The test run verifies that the full pipeline (steps 1-4) works.
         self._pipeline_panel.start_step.setValue(1)
-        self._pipeline_panel.stop_step.setValue(1)
+        self._pipeline_panel.stop_step.setValue(4)
 
-        self._pipeline_panel.append_log("Example data ready — running step 1 (spike detection) only.")
+        self._pipeline_panel.append_log("Example data ready — running full pipeline (steps 1-4).")
         self._on_run()
 
     def _on_run(self) -> None:
+        if self._worker is not None and self._worker.isRunning():
+            return  # a run is already in progress
+
         params = self._collect_params()
         self._params = params
 
@@ -255,29 +268,43 @@ class MainWindow(QMainWindow):
         self._pipeline_panel.append_log(
             f"Starting MEA-NAP: steps {params.start_analysis_step}-{params.stop_analysis_step}…"
         )
-        QApplication.processEvents()
 
-        def log(message: str) -> None:
-            self._pipeline_panel.append_log(message)
-            QApplication.processEvents()
-
-        try:
-            output_root = run_pipeline(params, log=log)
-            self._last_output_root = output_root
-            log(f"Done. Output folder: {output_root}")
-        except Exception as e:
-            log(f"ERROR: {e}")
-            QMessageBox.critical(self, "Pipeline error", str(e))
-        finally:
-            self._pipeline_panel.run_btn.setEnabled(True)
-            self._pipeline_panel.stop_btn.setEnabled(False)
+        worker = PipelineWorker(params, parent=self)
+        worker.log_message.connect(self._pipeline_panel.append_log)
+        worker.finished_ok.connect(self._on_pipeline_finished)
+        worker.cancelled.connect(self._on_pipeline_cancelled)
+        worker.failed.connect(self._on_pipeline_failed)
+        self._worker = worker
+        worker.start()
 
     def _on_stop(self) -> None:
-        self._pipeline_panel.append_log("Stop requested.")
+        if self._worker is not None and self._worker.isRunning():
+            self._pipeline_panel.append_log(
+                "Stop requested — finishing the current recording, then halting…"
+            )
+            self._pipeline_panel.stop_btn.setEnabled(False)
+            self._worker.request_cancel()
+        else:
+            self._pipeline_panel.stop_btn.setEnabled(False)
+
+    def _reset_run_buttons(self) -> None:
         self._pipeline_panel.run_btn.setEnabled(True)
         self._pipeline_panel.stop_btn.setEnabled(False)
-        # NOTE: the pipeline currently runs synchronously on the UI thread,
-        # so Stop can only reset the buttons — it cannot interrupt a run in progress.
+        self._worker = None
+
+    def _on_pipeline_finished(self, output_root: Path) -> None:
+        self._last_output_root = output_root
+        self._pipeline_panel.append_log(f"Done. Output folder: {output_root}")
+        self._reset_run_buttons()
+
+    def _on_pipeline_cancelled(self) -> None:
+        self._pipeline_panel.append_log("Pipeline stopped.")
+        self._reset_run_buttons()
+
+    def _on_pipeline_failed(self, message: str) -> None:
+        self._pipeline_panel.append_log(f"ERROR: {message}")
+        self._reset_run_buttons()
+        QMessageBox.critical(self, "Pipeline error", message)
 
     def _on_view_report(self) -> None:
         output_root = self._last_output_root
@@ -302,3 +329,11 @@ class MainWindow(QMainWindow):
 
         self._pipeline_panel.append_log(f"Report generated: {report_path}")
         webbrowser.open(report_path.as_uri())
+
+    def closeEvent(self, event) -> None:
+        # A running QThread destroyed with its parent crashes Qt; ask the
+        # pipeline to stop and give it a moment to reach a cancel checkpoint.
+        if self._worker is not None and self._worker.isRunning():
+            self._worker.request_cancel()
+            self._worker.wait(5000)
+        super().closeEvent(event)

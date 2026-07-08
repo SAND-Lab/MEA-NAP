@@ -1,1 +1,19 @@
+# OS
+.DS_Store
 .DS_store
+
+# Python build artifacts
+__pycache__/
+*.py[cod]
+*.egg-info/
+.ipynb_checkpoints/
+.marimo.toml
+__marimo__/
+
+# MATLAB autosave
+*.asv
+
+# Pipeline output / example data / local scratch (regenerated, not source)
+OutputData*/
+ExampleData/
+local/

@@ -11,6 +11,7 @@ import h5py
 import numpy as np
 
 from meanap.params import Params
+from meanap.pipeline.cancellation import CancelCheck, check_cancel
 from meanap.pipeline.io import load_spike_times_npz
 from meanap.pipeline.probabilistic_threshold import adjm_thr
 from meanap.pipeline.spreadsheet import RecordingInfo
@@ -21,6 +22,7 @@ def _run_step3_functional_connectivity(
     recordings: list[RecordingInfo],
     output_root: Path,
     log: Callable[[str], None],
+    should_cancel: CancelCheck = None,
 ) -> None:
     """Run Step 3: compute STTC adjacency matrices for each recording/lag.
 
@@ -42,6 +44,7 @@ def _run_step3_functional_connectivity(
     tail = params.prob_thresh_tail
 
     for rec in recordings:
+        check_cancel(should_cancel)
         npz_file = spike_data_dir / f"{rec.filename}_spikes.npz"
         if not npz_file.exists():
             log(f"  [{rec.filename}] SKIP: Spike data not found at {npz_file.name}")
@@ -72,6 +75,7 @@ def _run_step3_functional_connectivity(
         out_arrays: dict[str, np.ndarray] = {}
         rng = np.random.default_rng()
         for lag_ms in lag_values:
+            check_cancel(should_cancel)
             log(f"  [{rec.filename}] computing adjacency matrix (lag={lag_ms}ms, "
                 f"{rep_num} shuffles)...")
             adj_m, adj_m_ci = adjm_thr(

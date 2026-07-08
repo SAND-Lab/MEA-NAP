@@ -171,6 +171,10 @@ def plot_network(
     cell_type_names: list[str] | None = None,
     min_node_size: float = 0.01,
     title: str = "",
+    z_name: str = "node degree",
+    z_scale_override: float | None = None,
+    z2_bounds_override: tuple[float, float] | None = None,
+    edge_bounds_override: tuple[float, float] | None = None,
 ) -> None:
     """Render the MEA network onto *ax*.
 
@@ -182,11 +186,27 @@ def plot_network(
     adjM : (N, N) adjacency matrix for active nodes
     coords : (N, 2) electrode coordinates for active nodes
     edge_thresh : minimum edge weight to draw
-    z : (N,) node degree array (drives node SIZE)
+    z : (N,) array driving node SIZE — node degree by default, but any
+        non-negative per-node metric works (e.g. node strength)
     z2 : (N,) optional metric driving node COLOR; None / all-NaN = flat cyan
     z2_name : display name for the color metric
     cell_type_matrix : (N, K) binary membership matrix, or None
     cell_type_names : length-K list of type names
+    z_name : display name for the size metric ``z`` (legend label) —
+        defaults to "node degree" since that's the Network Viewer GUI's only
+        use of this function; pass e.g. "node strength" when ``z`` isn't ND
+    z_scale_override : if given, use this as the node-size scale factor
+        (``node_scale_f``) instead of this recording's own ``max(z)``. Set it
+        to the batch-wide max of the size metric to render the "scaled to
+        entire data batch" variant, where node sizes are comparable across
+        recordings. Mirrors MATLAB's ``nodeScaleF = max(Params.metricsMinMax.
+        (zShortForm))`` under ``useMinMaxBoundsForPlots``.
+    z2_bounds_override : if given, ``(min, max)`` for the color normalization
+        instead of this recording's own ``z2`` range — the batch-wide color
+        scale. Mirrors MATLAB's ``z2_min``/``z2_max`` from ``metricsMinMax``.
+    edge_bounds_override : if given, ``(min, max)`` for edge-weight width/shade
+        scaling instead of this recording's own nonzero-edge range. MATLAB
+        fixes this to ``EW = [0.1, 1]`` for the scaled variants.
     """
     import matplotlib
     import matplotlib.patches as mpatches
@@ -203,7 +223,18 @@ def plot_network(
     xc = coords[:, 0]
     yc = coords[:, 1]
 
-    node_scale_f = float(max(np.nanmax(z), 3))  # at least 3 for ND legend divisions
+    z_max = float(np.nanmax(z)) if np.any(~np.isnan(z)) else 0.0
+    # The "at least 3" floor only makes sense for integer-valued node degree
+    # (avoids degenerate legend divisions when max ND is 1 or 2) — forcing
+    # it on a continuous metric like node strength (typically << 1) makes
+    # every node render far smaller than intended, since node_size = z_i /
+    # node_scale_f. Only apply the floor when z actually looks degree-like.
+    looks_like_degree = z_name == "node degree" or np.allclose(z, np.round(z), equal_nan=True)
+    if z_scale_override is not None:
+        # Batch-wide scale: node sizes become comparable across recordings.
+        node_scale_f = max(float(z_scale_override), 1e-9)
+    else:
+        node_scale_f = max(z_max, 3.0) if looks_like_degree else max(z_max, 1e-9)
 
     # ── Determine node coloring ───────────────────────────────────────────────
     use_colormap = (
@@ -213,8 +244,11 @@ def plot_network(
     )
     if use_colormap:
         cmap = matplotlib.colormaps["viridis"]
-        z2_min = float(np.nanmin(z2))
-        z2_max = float(np.nanmax(z2))
+        if z2_bounds_override is not None:
+            z2_min, z2_max = (float(v) for v in z2_bounds_override)
+        else:
+            z2_min = float(np.nanmin(z2))
+            z2_max = float(np.nanmax(z2))
         z2_range = z2_max - z2_min if z2_max > z2_min else 1.0
         norm = mcolors.Normalize(vmin=z2_min, vmax=z2_max)
 
@@ -231,13 +265,17 @@ def plot_network(
     min_ew = 0.001
     light_c = np.array([0.8, 0.8, 0.8])
 
-    nonzero_vals = adjM[adjM > 0]
-    if len(nonzero_vals) == 0:
-        thresh_max = 1.0
-        min_nonzero = 1.0
+    if edge_bounds_override is not None:
+        # Batch-wide edge scale (MATLAB fixes this to EW = [0.1, 1]).
+        min_nonzero, thresh_max = (float(v) for v in edge_bounds_override)
     else:
-        thresh_max = float(nonzero_vals.max())
-        min_nonzero = float(nonzero_vals.min())
+        nonzero_vals = adjM[adjM > 0]
+        if len(nonzero_vals) == 0:
+            thresh_max = 1.0
+            min_nonzero = 1.0
+        else:
+            thresh_max = float(nonzero_vals.max())
+            min_nonzero = float(nonzero_vals.min())
 
     edge_range = thresh_max - min_nonzero
     if edge_range == 0:
@@ -305,7 +343,7 @@ def plot_network(
                     )
                     ax.add_patch(inner)
 
-    # ── Legend: node degree ───────────────────────────────────────────────────
+    # ── Legend: node size metric ────────────────────────────────────────────────
     x_max = float(xc.max())
     y_max = float(yc.max())
     x_min = float(xc.min())
@@ -313,10 +351,15 @@ def plot_network(
 
     legend_x = x_max + 1.5
 
-    ax.text(legend_x, y_max, "node degree:", fontsize=7, va="bottom", color="black")
+    ax.text(legend_x, y_max, f"{z_name}:", fontsize=7, va="bottom", color="black")
 
     leg_divisor = 3
-    leg_vals = [round(node_scale_f * d / leg_divisor) for d in range(1, leg_divisor + 1)]
+    leg_vals = [node_scale_f * d / leg_divisor for d in range(1, leg_divisor + 1)]
+    if looks_like_degree:
+        leg_vals = [round(v) for v in leg_vals]
+        leg_label = lambda v: f"{int(v):02d}"
+    else:
+        leg_label = lambda v: f"{v:.4f}"
     leg_y = y_max - 0.5
     for lv in leg_vals:
         ls = _get_node_size(lv, node_scale_f, min_node_size)
@@ -326,7 +369,7 @@ def plot_network(
             facecolor=default_node_color, edgecolor="white", linewidth=0.1, zorder=4,
         )
         ax.add_patch(circ)
-        ax.text(legend_x + 1.3, leg_y, f"{int(lv):02d}", fontsize=7, va="center", color="black")
+        ax.text(legend_x + 1.3, leg_y, leg_label(lv), fontsize=7, va="center", color="black")
         leg_y -= ls + 0.4
 
     # ── Legend: edge weight ───────────────────────────────────────────────────

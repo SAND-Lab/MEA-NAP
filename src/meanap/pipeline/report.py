@@ -168,6 +168,42 @@ _PLOT_PATTERNS: list[tuple[re.Pattern, str, str]] = [
         "this node. Highlights which electrodes act as the network's "
         "relay hubs. (MEA-NAP docs, Step 4A Figure 3)",
     ),
+    (
+        re.compile(r"^4_MEA_NetworkPlotNodedegreeParticipationcoefficient\.png$"),
+        "Spatial Network Plot — Participation Coefficient",
+        "Same spatial network layout as the base network plot, but node "
+        "color now encodes participation coefficient (normalized) — how "
+        "spread a node's connections are across different network modules. "
+        "Values near 0 mean the node's edges stay within its own module; "
+        "values near 1 mean they're evenly spread across modules. Module "
+        "assignment is stochastic (consensus clustering) — expect "
+        "run-to-run variation. (MEA-NAP docs, Step 4A Figure 4)",
+    ),
+    (
+        re.compile(r"^5_MEA_NetworkPlotNodestrengthLocalefficiency\.png$"),
+        "Spatial Network Plot — Local Efficiency",
+        "Same spatial network layout, but node size now encodes node "
+        "strength (sum of edge weights) instead of node degree — the one "
+        "plot in this set that sizes by strength rather than degree, "
+        "matching MATLAB exactly. Node color encodes local efficiency: how "
+        "efficiently a node's immediate neighbors could still exchange "
+        "information if that node were removed — a measure of local "
+        "network resilience/redundancy around each electrode. (MEA-NAP "
+        "docs, Step 4A Figure 5)",
+    ),
+    (
+        re.compile(r"^9_adjM(?P<lag>\d+)msNodeCartography\.png$"),
+        "Node Cartography ({lag} ms lag)",
+        "Each node plotted by normalized participation coefficient (x — how "
+        "spread its connections are across modules) vs. within-module "
+        "degree z-score (y — how connected it is within its own module), "
+        "colored by role: peripheral node, non-hub connector, non-hub "
+        "kinless node, provincial hub, connector hub, or kinless hub. "
+        "Boundary lines are fixed thresholds from Params. Module assignment "
+        "and the participation-coefficient normalization are both "
+        "stochastic — expect run-to-run variation. (MEA-NAP docs, Step 4A "
+        "Figure 9)",
+    ),
 ]
 
 _DATA_FILE_DESCRIPTIONS: list[tuple[re.Pattern, str]] = [

@@ -71,11 +71,14 @@ class PathsPanel(QWidget):
         self.spreadsheet = PathRow(self, is_file=True, file_filter="Spreadsheets (*.csv *.xlsx *.xls)")
         self.spreadsheet_range = QLineEdit("A2:A100000")
         self.spike_detected_data = PathRow(self)
+        self.custom_grp_order = QLineEdit()
+        self.custom_grp_order.setToolTip("Comma-separated list of group names (e.g. 'WT,KO')")
 
         form.addRow("MEA-NAP folder", self.home_dir)
         form.addRow("Raw data folder", self.raw_data)
         form.addRow("Spreadsheet file", self.spreadsheet)
         form.addRow("Spreadsheet range", self.spreadsheet_range)
+        form.addRow("Custom group order", self.custom_grp_order)
         form.addRow("Spike data folder", self.spike_detected_data)
 
         # ── Output paths ─────────────────────────────────────────────────────
@@ -107,6 +110,7 @@ class PathsPanel(QWidget):
         self.raw_data.set_value(params.raw_data)
         self.spreadsheet.set_value(params.spreadsheet_file_name)
         self.spreadsheet_range.setText(params.spreadsheet_range)
+        self.custom_grp_order.setText(",".join(params.custom_grp_order))
         self.spike_detected_data.set_value(params.spike_detected_data)
         self.output_data_folder.set_value(params.output_data_folder)
         self.output_data_folder_name.setText(params.output_data_folder_name)
@@ -117,6 +121,7 @@ class PathsPanel(QWidget):
         params.raw_data = self.raw_data.value
         params.spreadsheet_file_name = self.spreadsheet.value
         params.spreadsheet_range = self.spreadsheet_range.text()
+        params.custom_grp_order = [g.strip() for g in self.custom_grp_order.text().split(",") if g.strip()]
         params.spike_detected_data = self.spike_detected_data.value
         params.output_data_folder = self.output_data_folder.value
         params.output_data_folder_name = self.output_data_folder_name.text()

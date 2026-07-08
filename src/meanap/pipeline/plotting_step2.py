@@ -6,23 +6,10 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import LinearSegmentedColormap
 import seaborn as sns
 
+from meanap.pipeline.channel_layout import get_coords_from_layout
 from meanap.pipeline.parula import cm_data as parula_data
 # Create 85% parula colormap
 parula_85 = LinearSegmentedColormap.from_list('parula_85', parula_data[:int(len(parula_data)*0.85)])
-
-def get_coords_from_chs(chs):
-    """Returns a list of (x, y) tuples based on MEA-NAP channel numbering (e.g. 11 to 88)."""
-    coords = []
-    for ch in chs:
-        # e.g., ch = 11 -> x_idx = 0, y_idx = 7
-        x_idx = ch // 10 - 1
-        y_idx = 8 - (ch % 10)
-        
-        # Rotate 90 degrees anticlockwise as requested
-        x_rot = 7 - y_idx
-        y_rot = x_idx
-        coords.append((x_rot, y_rot))
-    return coords
 
 def plot_firing_rate_distribution(ephys: dict, out_path: Path):
     fr = ephys.get("FR", [])
@@ -41,94 +28,130 @@ def plot_firing_rate_distribution(ephys: dict, out_path: Path):
     fig.savefig(out_path, dpi=300)
     plt.close(fig)
 
-def plot_heatmap(metric: np.ndarray, chs: np.ndarray, title: str, clabel: str, out_path: Path, cmap="viridis"):
+def _draw_heatmap_panel(ax, xs, ys, metric, valid_mask, vmin, vmax, cmap, clabel, panel_title):
+    """Draw one electrode heatmap panel (colored circles at electrode coords)."""
+    if not np.all(valid_mask):
+        ax.scatter(xs[~valid_mask], ys[~valid_mask], color="lightgray", s=800,
+                   marker="o", edgecolors="white", linewidths=1)
+    if np.any(valid_mask):
+        sc = ax.scatter(xs[valid_mask], ys[valid_mask], c=metric[valid_mask], cmap=cmap,
+                        vmin=vmin, vmax=vmax, s=800, marker="o", edgecolors="white", linewidths=1)
+    else:
+        sc = ax.scatter([], [], c=[], cmap=cmap, vmin=vmin, vmax=vmax, s=800)
+    cbar = plt.colorbar(sc, ax=ax)
+    cbar.set_label(clabel)
+    ax.set_title(panel_title)
+    ax.axis("off")
+    ax.set_aspect("equal", "box")
+
+
+def plot_heatmap(
+    metric: np.ndarray, chs: np.ndarray, title: str, clabel: str, out_path: Path,
+    cmap="viridis", channel_layout: str = "Axion64",
+    batch_max: float | None = None,
+):
+    """Electrode heatmap, port of ``electrodeHeatMaps.m`` / ``plotNodeHeatmap.m``.
+
+    When ``batch_max`` is given, produce a two-panel figure (like MATLAB's
+    ``tiledlayout(1,2)``): left scaled to this recording (color axis = 99th
+    percentile of its own values), right scaled to the entire dataset (color
+    axis = ``batch_max``, the batch-wide max of this metric = MATLAB's
+    ``maxValStruct.(metric)``), so levels are comparable across recordings.
+    When ``batch_max`` is None, fall back to the original single panel.
+    """
     # Note: metric length could be 0 if the caller doesn't pad it.
     if len(metric) == 0:
         return
-        
-    coords = get_coords_from_chs(chs)
-    
-    fig, ax = plt.subplots(figsize=(6, 5))
-    xs = np.array([c[0] for c in coords])
-    ys = np.array([c[1] for c in coords])
-    
+
+    layout_channels, layout_coords = get_coords_from_layout(channel_layout)
+    coord_by_channel = dict(zip(layout_channels.tolist(), map(tuple, layout_coords)))
+    keep = np.array([int(c) in coord_by_channel for c in chs])
+    if not np.any(keep):
+        return
+    coords = np.array([coord_by_channel[int(c)] for c in chs[keep]])
+    metric = metric[keep]
+    xs = coords[:, 0]
+    ys = coords[:, 1]
     valid_mask = ~np.isnan(metric)
-    
-    # Plot NaN circles as light grey
-    if not np.all(valid_mask):
-        ax.scatter(xs[~valid_mask], ys[~valid_mask], color='lightgray', s=800, marker='o', edgecolors='white', linewidths=1)
-        
-    # Plot valid circles with colormap
+
     if np.any(valid_mask):
         valid_vals = metric[valid_mask]
-        vmin = np.min(valid_vals)
-        vmax = np.percentile(valid_vals, 99)
-        if vmin == vmax:
-            vmax = vmin + 1e-5
-        
-        sc = ax.scatter(xs[valid_mask], ys[valid_mask], c=valid_vals, cmap=cmap, vmin=vmin, vmax=vmax, s=800, marker='o', edgecolors='white', linewidths=1)
-        cbar = plt.colorbar(sc, ax=ax)
-        cbar.set_label(clabel)
+        vmin = float(np.min(valid_vals))
+        recording_vmax = float(np.percentile(valid_vals, 99))
     else:
-        # Dummy scatter for colorbar if all are NaN
-        sc = ax.scatter([], [], c=[], cmap=cmap, vmin=0, vmax=1, s=800)
-        cbar = plt.colorbar(sc, ax=ax)
-        cbar.set_label(clabel)
-        
-    ax.set_title(title)
-    ax.axis('off')
-    ax.set_aspect('equal', 'box')
-    
+        vmin, recording_vmax = 0.0, 1.0
+    if vmin == recording_vmax:
+        recording_vmax = vmin + 1e-5
+
+    if batch_max is None:
+        fig, ax = plt.subplots(figsize=(6, 5))
+        _draw_heatmap_panel(ax, xs, ys, metric, valid_mask, vmin, recording_vmax, cmap, clabel, title)
+        plt.tight_layout()
+        fig.savefig(out_path, dpi=300)
+        plt.close(fig)
+        return
+
+    batch_vmax = float(batch_max)
+    if batch_vmax <= vmin or np.isnan(batch_vmax):
+        batch_vmax = vmin + 1e-5
+
+    fig, (ax_rec, ax_batch) = plt.subplots(1, 2, figsize=(12, 5))
+    _draw_heatmap_panel(ax_rec, xs, ys, metric, valid_mask, vmin, recording_vmax, cmap,
+                        clabel, f"{title}\nscaled to recording")
+    _draw_heatmap_panel(ax_batch, xs, ys, metric, valid_mask, vmin, batch_vmax, cmap,
+                        clabel, f"{title}\nscaled to entire dataset")
     plt.tight_layout()
     fig.savefig(out_path, dpi=300)
     plt.close(fig)
 
-def plot_raster(spike_times_dict: dict, duration_s: float, out_path: Path):
-    fig = plt.figure(figsize=(10, 6))
-    gs = fig.add_gridspec(4, 1)
-    ax_hist = fig.add_subplot(gs[0])
-    ax_raster = fig.add_subplot(gs[1:])
-    
+def plot_raster(
+    spike_times_dict: dict,
+    duration_s: float,
+    out_path: Path,
+    spike_freq_max: float | None = None,
+    raster_upper_percentile: float = 99.0,
+):
+    """Two-panel raster, port of ``rasterPlot.m``.
+
+    Top panel is scaled to this recording (color axis = the
+    ``raster_upper_percentile`` of its own 1-second spike counts); bottom panel
+    is scaled to the entire data batch (color axis = ``spike_freq_max``, the
+    batch-wide max firing rate). Sharing the bottom scale across every
+    recording makes activity levels visually comparable between them — this is
+    what MATLAB's ``spikeFreqMax`` (``maxValStruct.FR``) does. When
+    ``spike_freq_max`` is None (e.g. a single recording plotted in isolation)
+    the batch panel falls back to this recording's own percentile scale.
+    """
     n_channels = len(spike_times_dict)
-    n_bins = int(np.ceil(duration_s))
-    
-    # Create the heatmap matrix: (n_channels, n_bins)
+    n_bins = max(1, int(np.ceil(duration_s)))
+
+    # Downsample to 1-second bins: each cell is that channel's spike count in
+    # that second, i.e. its instantaneous firing rate in Hz.
     raster_mat = np.zeros((n_channels, n_bins))
-    
-    all_spikes = []
     for ch, times in spike_times_dict.items():
         if len(times) > 0:
-            all_spikes.extend(times)
-            # Bin the spikes for this channel
             counts, _ = np.histogram(times, bins=n_bins, range=(0, n_bins))
             raster_mat[ch, :] = counts
-            
-    # Calculate vmax based on 99th percentile, with minimum of 1
-    vmax_val = max(1, np.percentile(raster_mat, 99))
-            
-    # Plot as a heatmap (imshow places row 0 at the top by default)
-    im = ax_raster.imshow(raster_mat, aspect='auto', cmap=parula_85, vmin=0, vmax=vmax_val, extent=[0, n_bins, n_channels, 0])
-    ax_raster.set_xlabel("Time (s)")
-    ax_raster.set_ylabel("Electrode (1-64)")
-    
-    # Add colorbar
-    cbar = fig.colorbar(im, ax=ax_raster, fraction=0.05, pad=0.02)
-    cbar.set_label("Activity")
-    
-    if len(all_spikes) > 0:
-        bins = np.arange(0, duration_s + 1, 1)
-        counts, _ = np.histogram(all_spikes, bins=bins)
-        rate = counts / n_channels if n_channels > 0 else counts
-            
-        ax_hist.plot(bins[:-1], rate, color='black', drawstyle='steps-pre')
-        
-    ax_hist.set_xlim(0, n_bins)
-    ax_hist.set_ylabel("Avg FR (Hz)")
-    ax_hist.set_xticks([])
-    ax_hist.spines['top'].set_visible(False)
-    ax_hist.spines['right'].set_visible(False)
-    ax_hist.spines['bottom'].set_visible(False)
-    
+
+    recording_vmax = max(1.0, np.percentile(raster_mat, raster_upper_percentile))
+    batch_vmax = max(1.0, spike_freq_max) if spike_freq_max is not None else recording_vmax
+
+    fig, (ax_rec, ax_batch) = plt.subplots(2, 1, figsize=(10, 8))
+
+    for ax, vmax, title in (
+        (ax_rec, recording_vmax, "raster scaled to recording"),
+        (ax_batch, batch_vmax, "raster scaled to entire data batch"),
+    ):
+        im = ax.imshow(
+            raster_mat, aspect="auto", cmap=parula_85, vmin=0, vmax=vmax,
+            extent=[0, duration_s, n_channels, 0],
+        )
+        ax.set_ylabel("Electrode")
+        ax.set_title(title, fontsize=10)
+        cbar = fig.colorbar(im, ax=ax, fraction=0.05, pad=0.02)
+        cbar.set_label("Firing Rate (Hz)")
+    ax_batch.set_xlabel("Time (s)")
+
     plt.tight_layout()
     fig.savefig(out_path, dpi=300)
     plt.close(fig)
@@ -219,35 +242,179 @@ def plot_burst_detection_info(spike_times_dict: dict, ephys: dict, duration_s: f
     plt.close(fig)
 
 def plot_neuronal_activity_checks(
-    rec, 
-    params, 
-    spike_times_dict: dict, 
-    n_channels: int, 
+    rec,
+    params,
+    spike_times_dict: dict,
+    n_channels: int,
     chs: np.ndarray,
-    fs: float, 
-    duration_s: float, 
-    ephys: dict, 
-    output_root: Path
+    fs: float,
+    duration_s: float,
+    ephys: dict,
+    output_root: Path,
+    spike_freq_max: float | None = None,
+    batch_max: dict | None = None,
 ):
     out_dir = output_root / rec.group / rec.filename
     out_dir.mkdir(parents=True, exist_ok=True)
-    
+
     plot_firing_rate_distribution(ephys, out_dir / "1_FiringRateByElectrode.png")
-    
+
+    channel_layout = getattr(params, "channel_layout", "Axion64")
+    bmax = batch_max or {}
+
     if "FR" in ephys:
-        plot_heatmap(ephys["FR"], chs, "Firing Rate", "Mean FR (Hz)", out_dir / "2_Heatmap.png")
-        
-    plot_raster(spike_times_dict, duration_s, out_dir / "3_Raster.png")
-    
+        plot_heatmap(ephys["FR"], chs, "Firing Rate", "Mean FR (Hz)", out_dir / "2_Heatmap.png", channel_layout=channel_layout, batch_max=bmax.get("FR"))
+
+    plot_raster(
+        spike_times_dict, duration_s, out_dir / "3_Raster.png",
+        spike_freq_max=spike_freq_max,
+        raster_upper_percentile=getattr(params, "raster_plot_upper_percentile", 99.0),
+    )
+
     if "channelBurstRate" in ephys:
-        plot_heatmap(ephys["channelBurstRate"], chs, "Burst Rate", "Burst Rate (bursts/min)", out_dir / "3_BurstRate_heatmap.png", cmap="plasma")
+        plot_heatmap(ephys["channelBurstRate"], chs, "Burst Rate", "Burst Rate (bursts/min)", out_dir / "3_BurstRate_heatmap.png", cmap="plasma", channel_layout=channel_layout, batch_max=bmax.get("channelBurstRate"))
     if "channelBurstDur" in ephys:
-        plot_heatmap(ephys["channelBurstDur"], chs, "Burst Duration", "Duration (ms)", out_dir / "4_BurstDur_heatmap.png", cmap="plasma")
+        plot_heatmap(ephys["channelBurstDur"], chs, "Burst Duration", "Duration (ms)", out_dir / "4_BurstDur_heatmap.png", cmap="plasma", channel_layout=channel_layout, batch_max=bmax.get("channelBurstDur"))
     if "channelFracSpikesInBursts" in ephys:
-        plot_heatmap(ephys["channelFracSpikesInBursts"], chs, "Fraction Spikes in Bursts", "Fraction", out_dir / "5_FractSpikesInBursts_heatmap.png", cmap="plasma")
+        plot_heatmap(ephys["channelFracSpikesInBursts"], chs, "Fraction Spikes in Bursts", "Fraction", out_dir / "5_FractSpikesInBursts_heatmap.png", cmap="plasma", channel_layout=channel_layout, batch_max=bmax.get("channelFracSpikesInBursts"))
     if "channelISIwithinBurst" in ephys:
-        plot_heatmap(ephys["channelISIwithinBurst"], chs, "ISI Within Burst", "ISI (ms)", out_dir / "6_ISIwithinBurst_heatmap.png", cmap="plasma")
+        plot_heatmap(ephys["channelISIwithinBurst"], chs, "ISI Within Burst", "ISI (ms)", out_dir / "6_ISIwithinBurst_heatmap.png", cmap="plasma", channel_layout=channel_layout, batch_max=bmax.get("channelISIwithinBurst"))
     if "channeISIoutsideBurst" in ephys:
-        plot_heatmap(ephys["channeISIoutsideBurst"], chs, "ISI Outside Burst", "ISI (ms)", out_dir / "7_ISIoutsideBurst_heatmap.png", cmap="plasma")
+        plot_heatmap(ephys["channeISIoutsideBurst"], chs, "ISI Outside Burst", "ISI (ms)", out_dir / "7_ISIoutsideBurst_heatmap.png", cmap="plasma", channel_layout=channel_layout, batch_max=bmax.get("channeISIoutsideBurst"))
         
     plot_burst_detection_info(spike_times_dict, ephys, duration_s, fs, out_dir / "8_BurstDetectionInfo.png")
+
+import pandas as pd
+
+EPHYS_REC_METRICS = {
+    "numActiveElec": "number of active electrodes",
+    "FRmean": "mean firing rate (Hz)",
+    "FRmedian": "median firing rate (Hz)",
+    "NBurstRate": "network burst rate (per minute)",
+    "meanNumChansInvolvedInNbursts": "mean number of channels involved in network bursts",
+    "meanNBstLengthS": "mean network burst length (s)",
+    "meanISIWithinNbursts_ms": "mean ISI within network burst (ms)",
+    "meanISIoutsideNbursts_ms": "mean ISI outside network bursts (ms)",
+    "CVofINBI": "coefficient of variation of inter network burst intervals",
+    "fracInNburst": "fraction of bursts in network bursts",
+    "channelAveBurstRate": "Single-electrode burst rate (per min)",
+    "channelAveBurstDur": "Single-electrode avg burst dur (ms)",
+    "channelAveISIwithinBurst": "Single-electrode avg ISI within burst (ms)",
+    "channelAveISIoutsideBurst": "Single-electrode avg ISI outside burst (ms)",
+    "channelAveFracSpikesInBursts": "Mean fraction of spikes in bursts per electrode",
+}
+
+EPHYS_NODE_METRICS = {
+    "FR": "mean_firing_rate_node",
+    "FRactive": "mean_firing_rate_active_node",
+    "channelBurstRate": "Unit burst rate (per minute)",
+    "channelWithinBurstFr": "Unit within-burst firing rate (Hz)",
+    "channelBurstDur": "Unit burst duration (ms)",
+    "channelISIwithinBurst": "Unit ISI within burst (ms)",
+    "channeISIoutsideBurst": "Unit ISI outside burst (ms)",
+    "channelFracSpikesInBursts": "Unit fraction of spikes in bursts",
+}
+
+def _plot_violin(df: pd.DataFrame, metric: str, group_col: str, out_path: Path, ylabel: str) -> None:
+    if df.empty or metric not in df.columns or df[metric].dropna().empty:
+        return
+        
+    df_plot = df.dropna(subset=[metric])
+    if df_plot.empty:
+        return
+        
+    fig, ax = plt.subplots(figsize=(max(4, len(df_plot[group_col].unique()) * 1.5), 6))
+    
+    sns.violinplot(
+        data=df_plot, x=group_col, y=metric,
+        ax=ax, color="lightgray", inner=None, linewidth=1
+    )
+    sns.stripplot(
+        data=df_plot, x=group_col, y=metric,
+        ax=ax, color="black", size=4, jitter=True, alpha=0.6
+    )
+    
+    ax.set_ylabel(ylabel)
+    ax.set_xlabel("")
+    ax.set_title(ylabel)
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=300, bbox_inches="tight")
+    plt.close(fig)
+
+def plot_step2_group_comparisons(
+    recordings: list,
+    all_ephys: dict,
+    out_dir: Path,
+    custom_grp_order: list[str] | None = None
+) -> None:
+    """Generate group comparison plots for step 2."""
+    rec_rows = []
+    node_rows = []
+    
+    for rec in recordings:
+        if rec.filename not in all_ephys:
+            continue
+            
+        ephys = all_ephys[rec.filename]
+        base = {"FileName": rec.filename, "Grp": rec.group, "DIV": str(rec.div)}
+        
+        # Recording-level
+        rec_row = dict(base)
+        for k in EPHYS_REC_METRICS:
+            if k in ephys:
+                val = ephys[k]
+                if isinstance(val, (list, np.ndarray)) and np.size(val) == 1:
+                    val = val[0]
+                rec_row[k] = val
+        rec_rows.append(rec_row)
+        
+        # Node-level
+        num_nodes = len(ephys.get("FR", []))
+        if num_nodes > 0:
+            for ch in range(num_nodes):
+                node_row = dict(base)
+                node_row["Channel"] = ch + 1
+                for k in EPHYS_NODE_METRICS:
+                    if k in ephys and len(ephys[k]) > ch:
+                        node_row[k] = ephys[k][ch]
+                node_rows.append(node_row)
+                
+    if not rec_rows:
+        return
+        
+    df_rec = pd.DataFrame(rec_rows)
+    df_node = pd.DataFrame(node_rows)
+    
+    if custom_grp_order:
+        df_rec["Grp"] = pd.Categorical(df_rec["Grp"], categories=custom_grp_order, ordered=True)
+        df_node["Grp"] = pd.Categorical(df_node["Grp"], categories=custom_grp_order, ordered=True)
+    
+    # 3_RecordingsByGroup
+    grp_dir = out_dir / "2B_GroupComparisons" / "3_RecordingsByGroup" / "HalfViolinPlots"
+    grp_dir.mkdir(parents=True, exist_ok=True)
+    
+    for k, name in EPHYS_REC_METRICS.items():
+        _plot_violin(df_rec, k, "Grp", grp_dir / f"{k}_byGroup.png", name)
+        
+    # 1_NodeByGroup
+    node_grp_dir = out_dir / "2B_GroupComparisons" / "1_NodeByGroup"
+    node_grp_dir.mkdir(parents=True, exist_ok=True)
+    
+    for k, name in EPHYS_NODE_METRICS.items():
+        _plot_violin(df_node, k, "Grp", node_grp_dir / f"{k}_byGroup_node.png", name)
+        
+    # 4_RecordingsByAge
+    age_dir = out_dir / "2B_GroupComparisons" / "4_RecordingsByAge" / "HalfViolinPlots"
+    age_dir.mkdir(parents=True, exist_ok=True)
+    
+    for k, name in EPHYS_REC_METRICS.items():
+        _plot_violin(df_rec, k, "DIV", age_dir / f"{k}_byDIV.png", name)
+        
+    # 2_NodeByAge
+    node_age_dir = out_dir / "2B_GroupComparisons" / "2_NodeByAge"
+    node_age_dir.mkdir(parents=True, exist_ok=True)
+    
+    for k, name in EPHYS_NODE_METRICS.items():
+        _plot_violin(df_node, k, "DIV", node_age_dir / f"{k}_byDIV_node.png", name)
