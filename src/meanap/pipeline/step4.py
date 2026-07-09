@@ -1,6 +1,6 @@
-"""Step 4: network activity metrics, port of the deterministic portion of
-``ExtractNetMet.m`` (see ``network_metrics.py`` for exactly which metrics
-are and aren't in scope).
+"""Step 4: network activity metrics, port of ``ExtractNetMet.m`` (see
+``network_metrics.py`` for exactly which metrics are and aren't in scope,
+and which are deterministic vs. dependent on a stochastic null model).
 """
 
 from __future__ import annotations
@@ -12,18 +12,21 @@ from typing import Callable
 import h5py
 import numpy as np
 import pandas as pd
+from scipy.spatial.distance import pdist, squareform
 
 from meanap.params import Params
 from meanap.pipeline import network_metrics as nm
 from meanap.pipeline.cancellation import CancelCheck, check_cancel
 from meanap.pipeline.io import load_spike_times_npz
 from meanap.pipeline.modularity import mod_consensus_cluster_iterate
+from meanap.pipeline.nmf import cal_nmf
+from meanap.pipeline.null_models import latmio_und_v2, randmio_und_v2
 from meanap.pipeline.plotting_step4 import (
     plot_circular_cartography_network, plot_circular_module_network,
     plot_connectivity_stats, plot_graph_metrics_by_node,
     plot_node_cartography, plot_spatial_network, plot_spatial_network_combined,
 )
-from meanap.pipeline.spreadsheet import RecordingInfo
+from meanap.pipeline.spreadsheet import RecordingInfo, ground_spike_times_dict, parse_ground_electrodes
 
 
 def _convert_numpy(obj):
@@ -77,15 +80,51 @@ def compute_network_metrics(
     result["MEW"] = mew
     result["NS"] = nm.strengths_und(sub)
     result["Dens"] = nm.density_und(sub)
-    result["CC"] = nm.clustering_coef_wu(sub)
-    result["CCmean"] = float(np.mean(result["CC"]))
+
+    # a_n >= min_nodes is already guaranteed by the early return above, so
+    # unlike ExtractNetMet.m (which nan-guards this block with an explicit
+    # "aN >= minNumberOfNodesToCalNetMet" check) it's unconditional here.
+    result["NDmean"] = float(np.nanmean(nd))
+    nd_p75 = np.percentile(nd, 75)
+    result["NDtop25"] = float(np.mean(nd[nd >= nd_p75]))
+    result["NSmean"] = float(np.nanmean(result["NS"]))
+
+    # Mean of the significant (nonzero) edges — every matrix entry, not just
+    # the upper triangle, matching ExtractNetMet.m's `adjM(abs(adjM) > 0)`.
+    sig_edges = sub[np.abs(sub) > 0]
+    if sig_edges.size:
+        result["sigEdgesMean"] = float(np.mean(sig_edges))
+        sig_edges_p90 = np.percentile(sig_edges, 90)
+        result["sigEdgesTop10"] = float(np.mean(sig_edges[sig_edges >= sig_edges_p90]))
+
+    # Raw (unnormalized) clustering coefficient / path length — independently
+    # useful/testable deterministic quantities, but NOT what MATLAB saves as
+    # NetMet.CC/NetMet.PL (see the small-worldness block below for those).
+    result["CC_raw"] = nm.clustering_coef_wu(sub)
+    result["CC_rawMean"] = float(np.mean(result["CC_raw"]))
 
     length_mat = nm.weight_conversion_lengths(sub)
     dist = nm.distance_wei(length_mat)
-    pl, _ = nm.charpath(dist)
-    result["PL"] = pl
+    pl_raw, _ = nm.charpath(dist)
+    result["PL_raw"] = pl_raw
 
     result["Eglob"] = nm.efficiency_wei_global(sub)
+
+    # ── Small-worldness (SW/SWw + the saved, null-model-normalized CC/PL) ──
+    # MATLAB's own gate here is strictly "> minNumberOfNodesToCalNetMet"
+    # (ExtractNetMet.m), unlike every other block's "aN >= ..." — faithfully
+    # replicated, not a typo.
+    if a_n > min_nodes:
+        if rng is None:
+            rng = np.random.default_rng()
+        dist_profile = squareform(pdist(sub))
+        lattice_net = latmio_und_v2(sub, 10000, dist_profile, rng=rng)
+        random_net = randmio_und_v2(sub, 5000, rng=rng)
+        sw, sww, cc, pl = nm.small_worldness_rl_wu(sub, random_net, lattice_net)
+        result["SW"] = sw
+        result["SWw"] = sww
+        result["CC"] = cc
+        result["PL"] = pl
 
     sub_nrm = nm.weight_conversion_normalize(sub)
     eloc = nm.efficiency_wei_local(sub_nrm)
@@ -120,6 +159,14 @@ def compute_network_metrics(
         result["PC_raw"] = pc_raw
         result["PC_residual"] = pc_residual
         result["Z"] = z
+
+        result["PCmean"] = float(np.mean(pc_norm))
+        pc_p90 = np.percentile(pc_norm, 90)
+        pc_p10 = np.percentile(pc_norm, 10)
+        result["PCmeanTop10"] = float(np.mean(pc_norm[pc_norm >= pc_p90]))
+        result["PCmeanBottom10"] = float(np.mean(pc_norm[pc_norm <= pc_p10]))
+        result["percentZscoreGreaterThanZero"] = float(np.sum(z > 0) / len(z) * 100)
+        result["percentZscoreLessThanZero"] = float(np.sum(z < 0) / len(z) * 100)
 
         result["RC"] = nm.rich_club_wu(sub)
 
@@ -156,6 +203,17 @@ def compute_network_metrics(
 
     return result
 
+
+# NMF-related arrays that are NOT indexed by node/channel (rank-k sweeps,
+# factor matrices) — must be excluded from the generic "any array => spread
+# across NodeLevel.csv rows by channel index" logic below, since their
+# length can coincidentally match the active-node count and get silently
+# (and wrongly) treated as per-channel data.
+_NMF_NON_NODE_KEYS = frozenset({
+    "nnmf_residuals", "nnmf_var_explained", "randResidualPerComponent",
+    "downSampleSpikeMatrix", "nmfFactors", "nmfWeights",
+    "nmfFactorsVarThreshold", "nmfWeightsVarThreshold",
+})
 
 # Edge-weight bounds for the "scaled to entire data batch" network plots.
 # MATLAB hardcodes ``minMax.EW = [0.1, 1]`` (MEApipeline.m) rather than deriving
@@ -376,22 +434,37 @@ def _run_step4_network_metrics(
             continue
 
         spike_times_full = load_spike_times_npz(spike_path)
-        spike_counts = np.array([
-            len(spike_times_full.get(ch, {}).get(method, ())) for ch in range(n_channels)
-        ])
-        
-        spike_times_list = [
-            spike_times_full.get(ch, {}).get(method, np.array([])) for ch in range(n_channels)
-        ]
-        
+        spike_times_dict = {
+            ch: spike_times_full.get(ch, {}).get(method, np.array([]))
+            for ch in range(n_channels)
+        }
+        ground_electrodes = parse_ground_electrodes(rec.ground)
+        if ground_electrodes:
+            spike_times_dict = ground_spike_times_dict(spike_times_dict, channels_arr, ground_electrodes)
+
+        spike_counts = np.array([len(spike_times_dict[ch]) for ch in range(n_channels)])
+        spike_times_list = [spike_times_dict[ch] for ch in range(n_channels)]
+
+
         try:
             eff_rank = nm.effective_rank(
-                spike_times_list, fs, duration_s, 
+                spike_times_list, fs, duration_s,
                 params.eff_rank_downsample_freq, params.eff_rank_cal_method
             )
         except Exception as e:
             log(f"  [{rec.filename}] WARNING: could not compute effective rank: {e}")
             eff_rank = float('nan')
+
+        try:
+            log(f"  [{rec.filename}] computing NMF components...")
+            nmf_result = cal_nmf(
+                spike_times_list, spike_counts, duration_s,
+                params.nmf_downsample_freq, fs,
+                include_nmf_components=params.include_nmf_components, rng=rng,
+            )
+        except Exception as e:
+            log(f"  [{rec.filename}] WARNING: could not compute NMF components: {e}")
+            nmf_result = {}
 
         rec_results = {}
         for lag_ms in lag_values:
@@ -407,6 +480,7 @@ def _run_step4_network_metrics(
                 params=params, rng=rng,
             )
             metrics["effRank"] = eff_rank
+            metrics.update(nmf_result)
             rec_results[f"{lag_ms}mslag"] = metrics
             # Defer plotting to a second pass: the "scaled to entire data batch"
             # variants need batch-wide metric bounds, which aren't known until
@@ -454,7 +528,7 @@ def _run_step4_network_metrics(
                 node_metrics = {}
                 
                 for k, v in metrics.items():
-                    if k == "adjMsub":
+                    if k == "adjMsub" or k in _NMF_NON_NODE_KEYS:
                         continue
                     is_array = isinstance(v, (list, np.ndarray))
                     if not is_array or (is_array and np.size(v) <= 1):

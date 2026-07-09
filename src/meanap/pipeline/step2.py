@@ -3,14 +3,75 @@ from typing import Callable
 
 import h5py
 import numpy as np
+import pandas as pd
 import json
 
 from meanap.params import Params
 from meanap.pipeline.cancellation import CancelCheck, check_cancel
-from meanap.pipeline.spreadsheet import RecordingInfo
+from meanap.pipeline.spreadsheet import RecordingInfo, ground_spike_times_dict, parse_ground_electrodes
 from meanap.pipeline.io import load_spike_times_npz
 from meanap.pipeline.firing_rates import firing_rates_bursts
 from meanap.pipeline.plotting_step2 import plot_neuronal_activity_checks
+
+
+# Recording-level ("whole experiment") and node-level ("single cell/node")
+# field whitelists, matching ``saveEphysStats.m``'s ``NetMetricsE``/
+# ``NetMetricsC`` for the ``Params.suite2pMode == 0`` (electrophysiology)
+# path — the only mode this port supports.
+_EPHYS_RECORDING_LEVEL_FIELDS = [
+    "numActiveElec", "FRmean", "FRmedian",
+    "NBurstRate", "meanNumChansInvolvedInNbursts",
+    "meanNBstLengthS", "meanISIWithinNbursts_ms",
+    "meanISIoutsideNbursts_ms", "CVofINBI", "fracInNburst",
+    "channelAveBurstDur",
+    "channelAveISIwithinBurst",
+    "channelAveISIoutsideBurst",
+    "channelAveFracSpikesInBursts",
+]
+_EPHYS_NODE_LEVEL_FIELDS = [
+    "FR", "FRactive",
+    "channelBurstRate",
+    "channelWithinBurstFr",
+    "channelBurstDur",
+    "channelISIwithinBurst",
+    "channeISIoutsideBurst",
+    "channelFracSpikesInBursts",
+]
+
+
+def _save_ephys_stats_csv(
+    recordings: list[RecordingInfo],
+    all_ephys: dict[str, dict],
+    rec_channels: dict[str, np.ndarray],
+    out_dir: Path,
+) -> None:
+    """Port of ``saveEphysStats.m``: writes ``NeuronalActivity_RecordingLevel.csv``
+    and ``NeuronalActivity_NodeLevel.csv``.
+    """
+    rec_rows = []
+    node_rows = []
+    for rec in recordings:
+        ephys = all_ephys.get(rec.filename)
+        if ephys is None:
+            continue
+
+        rec_row = {"FileName": rec.filename, "Grp": rec.group, "DIV": rec.div}
+        for field in _EPHYS_RECORDING_LEVEL_FIELDS:
+            rec_row[field] = ephys.get(field)
+        rec_rows.append(rec_row)
+
+        channels = rec_channels.get(rec.filename, [])
+        for i, ch in enumerate(channels):
+            node_row = {"FileName": rec.filename, "Grp": rec.group, "DIV": rec.div, "Channel": ch}
+            for field in _EPHYS_NODE_LEVEL_FIELDS:
+                arr = ephys.get(field)
+                node_row[field] = arr[i] if arr is not None and i < len(arr) else None
+            node_rows.append(node_row)
+
+    if rec_rows:
+        pd.DataFrame(rec_rows).to_csv(out_dir / "NeuronalActivity_RecordingLevel.csv", index=False)
+    if node_rows:
+        pd.DataFrame(node_rows).to_csv(out_dir / "NeuronalActivity_NodeLevel.csv", index=False)
 
 
 def convert_numpy(obj):
@@ -45,6 +106,7 @@ def _run_step2_neuronal_activity(
 
     # We will save all Ephys results into a single dictionary mapping rec.filename -> ephys
     all_ephys = {}
+    rec_channels: dict[str, np.ndarray] = {}
     # Per-recording plotting context, collected in this compute pass and drawn
     # in a second pass once the batch-wide max firing rate is known (needed for
     # the raster's "scaled to entire data batch" panel).
@@ -97,11 +159,16 @@ def _run_step2_neuronal_activity(
                 
         if duration_s == 0.0:
             duration_s = 60.0  # safe fallback
-            
+
+        ground_electrodes = parse_ground_electrodes(rec.ground)
+        if ground_electrodes:
+            spike_times_dict = ground_spike_times_dict(spike_times_dict, data["channels"], ground_electrodes)
+
         log(f"  [{rec.filename}] calculating firing rates and bursts (method={method})...")
         ephys = firing_rates_bursts(spike_times_dict, n_channels, fs, duration_s, params)
         
         all_ephys[rec.filename] = ephys
+        rec_channels[rec.filename] = data["channels"]
         plot_contexts.append({
             "rec": rec,
             "spike_times_dict": spike_times_dict,
@@ -159,10 +226,15 @@ def _run_step2_neuronal_activity(
     except Exception as e:
         log(f"  Warning: failed to generate group comparison plots: {e}")
         
-    log("  Step 2 complete.")
-    
     try:
         with open(out_dir / "ephys_results.json", "w") as f:
             json.dump(convert_numpy(all_ephys), f, indent=2)
     except Exception as e:
         log(f"  Warning: could not save ephys_results.json: {e}")
+
+    try:
+        _save_ephys_stats_csv(recordings, all_ephys, rec_channels, out_dir)
+    except Exception as e:
+        log(f"  Warning: could not save NeuronalActivity CSVs: {e}")
+
+    log("  Step 2 complete.")

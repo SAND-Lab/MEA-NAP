@@ -17,20 +17,36 @@ function whose first output MEA-NAP actually saves as ``NetMet.PC``** —
 `participation_coef`'s raw formula is genuinely a different, deterministic
 quantity, kept because it's independently useful and testable.
 
-Still NOT ported (out of scope) because MATLAB computes them via randomized
-null models with no practical way to reach exact parity:
+``small_worldness_rl_wu`` (``SW``/``SWw``, and the *saved* ``NetMet.CC``/
+``NetMet.PL``) is likewise stochastic on top of its deterministic formula —
+it needs a random (``null_models.randmio_und_v2``) and a lattice-like
+(``null_models.latmio_und_v2``) null model built from the same adjacency
+matrix to normalize against (10000/5000 rewiring iterations respectively,
+matching ``ExtractNetMet.m``'s call site). This module's ``compute_network_
+metrics`` (in ``step4.py``) keeps the *raw*, unnormalized clustering
+coefficient / path length available too, under ``CC_raw``/``PL_raw`` — NOT
+the same numbers MATLAB saves into ``NetMet.CC``/``NetMet.PL``, but
+independently useful/testable deterministic quantities in their own right,
+same relationship as ``PC``/``PC_raw``.
 
-- ``SW`` / ``SWw`` (small-worldness) and the *saved* ``CC`` / ``PL`` fields
-  — MATLAB computes these via ``small_worldness_RL_wu``, which normalizes
-  against randomized (``randmio_und_v2``) and lattice (``latmio_und_v2``)
-  null models (10000/5000 rewiring iterations). This module's ``CC``/``PL``
-  are the *raw*, unnormalized clustering coefficient / path length (what
-  ``small_worldness_RL_wu`` calls ``C`` and ``PL`` internally, before
-  dividing by the null models) — NOT the same numbers MATLAB saves into
-  ``NetMet``.
-- ``Cmcblty`` (communicability) — not actually computed by MATLAB's current
-  pipeline either; the code path that would call it
-  (``fcn_find_hubs_wu.m``) is commented out in ``ExtractNetMet.m``.
+``num_nnmf_components``/``nComponentsRelNS``/``nnmf_residuals``/
+``nnmf_var_explained`` (NMF-based dimensionality, port of ``calNMF.m``) live
+in ``nmf.py`` rather than here, since they operate on spike times/matrices
+rather than an adjacency matrix — **read that module's docstring**, this one
+is not just RNG-stream-different from MATLAB but algorithm-different
+(``sklearn``'s NMF solvers vs. MATLAB's built-in ``nnmf``), so even
+``num_nnmf_components`` itself can legitimately differ, not just the
+underlying factor matrices.
+
+Still NOT ported (out of scope): spatial/temporal autocorrelation
+(``SA_lambda``/``SA_inf``/``TA_regional``/``TA_global``) — these aren't in
+MATLAB's own default ``netMetToCal`` list either (`AdvancedSettings.m` calls
+them out as "other optional ones"), and the temporal-autocorrelation code
+path is an explicit `% TODO` stub in `ExtractNetMet.m` itself, so there's no
+complete MATLAB reference behavior to port yet. ``Cmcblty`` (communicability)
+also needs no work: not actually computed by MATLAB's current pipeline
+either, the code path that would call it (``fcn_find_hubs_wu.m``) is
+commented out in ``ExtractNetMet.m``.
 """
 
 from __future__ import annotations
@@ -493,6 +509,54 @@ def hub_classification(
     hub4 = float(np.sum(counts == 4) / a_n)
     hub3 = float(np.sum(counts >= 3) / a_n)
     return hub3, hub4
+
+
+# ── Small-worldness (small_worldness_RL_wu.m) ──────────────────────────────
+
+def small_worldness_rl_wu(
+    a: np.ndarray, r: np.ndarray, l: np.ndarray,
+) -> tuple[float, float, float, float]:
+    """Small-worldness sigma/omega, port of ``small_worldness_RL_wu.m``.
+
+    ``a`` is the real (sub-)network; ``r`` a degree-preserving random null
+    model built from ``a`` (``null_models.randmio_und_v2``); ``l`` a
+    lattice-like null model built from ``a`` (``null_models.latmio_und_v2``).
+    Deterministic given fixed ``a``/``r``/``l`` — the stochasticity lives
+    entirely in how ``r``/``l`` were generated (see ``null_models.py``).
+
+    Returns ``(sw, sww, cc, pl)``:
+
+    - ``sw``: sigma small-worldness, ``(C/Cr) / (PL/PLr)``. > 1 indicates
+      small-world properties.
+    - ``sww``: omega small-worldness, ``(PLr/PL) - (C/Cl)``, in [-1, 1].
+      Close to 0 is small-world; close to 1 is random-like; close to -1 is
+      lattice-like.
+    - ``cc``: clustering coefficient normalized against the lattice model
+      (``C/Cl``) — what MEA-NAP actually saves as ``NetMet.CC``.
+    - ``pl``: path length normalized against the random model (``PL/PLr``)
+      — what MEA-NAP actually saves as ``NetMet.PL``.
+    """
+    c = np.float64(np.mean(clustering_coef_wu(a)))
+    cl = np.float64(np.mean(clustering_coef_wu(l)))
+    cr = np.float64(np.mean(clustering_coef_wu(r)))
+
+    pl, _ = charpath(distance_wei(weight_conversion_lengths(a)))
+    plr, _ = charpath(distance_wei(weight_conversion_lengths(r)))
+    pl, plr = np.float64(pl), np.float64(plr)
+
+    # MATLAB divides these same quantities with no zero-guard, silently
+    # producing Inf/NaN (e.g. when a null model happens to have zero
+    # triangles) rather than erroring — match that with np.errstate + numpy
+    # scalars rather than Python float division, which raises
+    # ZeroDivisionError.
+    with np.errstate(divide="ignore", invalid="ignore"):
+        pl_norm = pl / plr
+        pl_inv = plr / pl
+        cc = c / cl
+        sw = (c / cr) / (pl / plr)
+        sww = pl_inv - cc
+
+    return float(sw), float(sww), float(cc), float(pl_norm)
 
 
 # ── Controllability ────────────────────────────────────────────────────────

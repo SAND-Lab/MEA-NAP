@@ -69,7 +69,7 @@ class Params:
     # ── Network metrics ──────────────────────────────────────────────────────
     net_met_to_cal: list[str] = field(default_factory=lambda: [
         "aN", "Dens", "NDmean", "NDtop25", "sigEdgesMean", "NSmean",
-        "ElocMean", "CC", "nMod", "Q", "PL", "Eglob", "SW",
+        "ElocMean", "CC", "nMod", "Q", "PL", "Eglob", "SW", "SWw",
     ])
     recompute_metrics: bool = False
     min_number_of_nodes_to_cal_net_met: int = 3

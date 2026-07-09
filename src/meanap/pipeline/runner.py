@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import datetime
+import json
+import time
 from pathlib import Path
 from typing import Callable
 
@@ -60,29 +62,74 @@ def run_pipeline(
     start = params.start_analysis_step
     stop = params.stop_analysis_step
 
+    # Port of MEApipeline.m's Params.timeProcesses: tic/toc around each step,
+    # gated by the same flag, printed in the same "Step N duration (seconds):
+    # X" format at the end of the run. Additionally (MATLAB has no equivalent
+    # of this) tracks a total across whichever steps actually ran, and — since
+    # this port has no single chained .mat file to eyeball afterward — writes
+    # a small step_durations.json into the output folder so timings can be
+    # read back programmatically (e.g. for a MATLAB-vs-Python speed
+    # comparison) instead of scraped from the log.
+    step_durations: dict[int, float] = {}
+    pipeline_start = time.perf_counter() if params.time_processes else None
+
+    def _run_timed_step(step_num: int, fn: Callable[[], None]) -> None:
+        if not params.time_processes:
+            fn()
+            return
+        t0 = time.perf_counter()
+        fn()
+        step_durations[step_num] = time.perf_counter() - t0
+
     if start <= 1 <= stop:
         check_cancel(should_cancel)
-        _run_step1_spike_detection(params, recordings, output_root, log, should_cancel)
+        _run_timed_step(1, lambda: _run_step1_spike_detection(
+            params, recordings, output_root, log, should_cancel,
+        ))
     else:
         log("Skipping step 1 (spike detection) — outside the selected step range.")
 
     if start <= 2 <= stop:
         check_cancel(should_cancel)
-        _run_step2_neuronal_activity(params, recordings, output_root, log, should_cancel)
+        _run_timed_step(2, lambda: _run_step2_neuronal_activity(
+            params, recordings, output_root, log, should_cancel,
+        ))
     else:
         log("Skipping step 2 (neuronal activity) — outside the selected step range.")
 
     if start <= 3 <= stop:
         check_cancel(should_cancel)
-        _run_step3_functional_connectivity(params, recordings, output_root, log, should_cancel)
+        _run_timed_step(3, lambda: _run_step3_functional_connectivity(
+            params, recordings, output_root, log, should_cancel,
+        ))
     else:
         log("Skipping step 3 (functional connectivity) — outside the selected step range.")
 
     if start <= 4 <= stop:
         check_cancel(should_cancel)
-        _run_step4_network_metrics(params, recordings, output_root, log, should_cancel)
+        _run_timed_step(4, lambda: _run_step4_network_metrics(
+            params, recordings, output_root, log, should_cancel,
+        ))
     else:
         log("Skipping step 4 (network activity) — outside the selected step range.")
+
+    if params.time_processes:
+        total_duration = time.perf_counter() - pipeline_start
+        for step_num in (1, 2, 3, 4):
+            if step_num in step_durations:
+                log(f"Step {step_num} duration (seconds): {step_durations[step_num]:.1f}")
+        log(f"Total pipeline duration (seconds): {total_duration:.1f}")
+        try:
+            with open(output_root / "step_durations.json", "w") as fh:
+                json.dump(
+                    {
+                        **{f"step{n}": d for n, d in step_durations.items()},
+                        "total": total_duration,
+                    },
+                    fh, indent=2,
+                )
+        except Exception as e:
+            log(f"Warning: could not save step_durations.json: {e}")
 
     return output_root
 

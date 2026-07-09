@@ -10,9 +10,9 @@ alone.
 | Step | MATLAB source | Python status |
 |---|---|---|
 | 1. Spike detection | `Functions/WATERS-master/*`, `detectSpikes*.m` | **Done**, validated against MATLAB reference output, wired into the GUI (Run + Test pipeline) |
-| 2. Neuronal activity (firing rates, burst detection) | `Functions/firingRatesBursts.m`, `Functions/singleChannelBurstDetection.m` | **Done**, validated against MATLAB reference output (100% parity on recording- and node-level fields), wired into `runner.py` |
+| 2. Neuronal activity (firing rates, burst detection) | `Functions/firingRatesBursts.m`, `Functions/singleChannelBurstDetection.m` | **Done**, validated against MATLAB reference output (100% parity on recording- and node-level fields), wired into `runner.py`. **CSV export now done too** (`NeuronalActivity_RecordingLevel.csv`/`NeuronalActivity_NodeLevel.csv`, port of `saveEphysStats.m`) — a 2026-07-08 audit found the `ephys` dict itself was complete but was only ever written to `ephys_results.json`, never flattened into the two CSVs MATLAB's own pipeline produces. |
 | 3. Functional connectivity (STTC) | `Functions/generateAdjMs.m`, `Functions/STTCandThresholding/*` | **Core (STTC) done**, exact parity. Probabilistic thresholding ported but inherently non-bit-reproducible (see below) |
-| 4. Network metrics | `Functions/ExtractNetMet.m`, `Functions/2019_03_03_BCT/*` | **Deterministic subset done** (ND, NS, MEW, Dens, CC, PL, Eglob, Eloc, BC, NE), 100% parity. **Modularity-dependent subset also done** (Ci/Q/nMod via Louvain + consensus clustering, raw + *normalized* PC, Z, node cartography 6-role classification, Hub3/Hub4, rich club RC) — 100% parity for everything downstream of a fixed Ci (and, for PC-normalization, a fixed PC_norm too); the stochastic pieces themselves (Ci, PC_norm's null-model randomization) aren't bit-reproducible, same situation as Step 3. Small-worldness (SW/SWw, the *saved* CC/PL) still NOT ported — see `network_metrics.py` docstring |
+| 4. Network metrics | `Functions/ExtractNetMet.m`, `Functions/2019_03_03_BCT/*` | **Deterministic subset done** (ND, NS, MEW, Dens, CC_raw, PL_raw, Eglob, Eloc, BC, NE), 100% parity. **Modularity-dependent subset also done** (Ci/Q/nMod via Louvain + consensus clustering, raw + *normalized* PC, Z, node cartography 6-role classification, Hub3/Hub4, rich club RC) — 100% parity for everything downstream of a fixed Ci (and, for PC-normalization, a fixed PC_norm too); the stochastic pieces themselves (Ci, PC_norm's null-model randomization) aren't bit-reproducible, same situation as Step 3. **Controllability (`aveControl`/`modalControl`) also done.** **Small-worldness also done** — `SW`/`SWw` and the *saved*, null-model-normalized `CC`/`PL` (formula assembly has exact parity against MATLAB given the same `A`/`R`/`L`, see `test_pipeline_small_worldness.py`; the null models themselves, `randmio_und_v2`/`latmio_und_v2`, aren't bit-reproducible, same situation as everywhere else in this table) — see `network_metrics.py`. **`effRank` done** (`network_metrics.effective_rank`, port of `calEffRank.m`). **NMF (`num_nnmf_components`/`nComponentsRelNS`/`nnmf_residuals`/`nnmf_var_explained`) also done** — see `nmf.py`; not just RNG-different from MATLAB but *algorithm*-different (`sklearn` NMF solvers vs. MATLAB's `nnmf`), so treat this one as looser-than-usual parity. **Record-level summary-stat scalars now done too** (`NDmean`, `NDtop25`, `NSmean`, `sigEdgesMean`, `sigEdgesTop10`, `PCmean`, `PCmeanTop10`, `PCmeanBottom10`, `percentZscoreGreaterThanZero`, `percentZscoreLessThanZero`) — a 2026-07-08 audit against MATLAB's full default `netMetToCal` list (see "Auditing for silently-missing metrics" below) found these were in `plotting_step4.py`'s display-name dict (implying they were intended) but never actually computed anywhere in the port. |
 
 All four pipeline steps are wired into `runner.py` and reachable from the GUI
 (`start`/`stop_analysis_step` now goes up to 4). Output folder structure (the
@@ -43,6 +43,24 @@ regenerate them if the underlying algorithms ever need re-validating.
   port of `CreateOutputFolders.m`'s folder list.
 - `src/meanap/pipeline/spreadsheet.py` — `read_recording_csv()` /
   `parse_spreadsheet_range()`, port of `pipelineReadCSV.m`.
+  Also `parse_ground_electrodes()`/`ground_spike_times_dict()`, port of
+  `groundSpikeTimes.m` — zeroes out spike times for channels listed in a
+  recording's optional 4th spreadsheet column (`Ground`, comma-separated
+  channel IDs — `RecordingInfo.ground` was already parsed from this column,
+  but nothing consumed it until the 2026-07-08 audit found it unwired).
+  Called independently in `step2.py`/`step3.py`/`step4.py` right after each
+  loads its own spike times — MATLAB instead grounds once (in Step 2's
+  `formatSpikeTimes.m`) and lets the grounded spike times propagate through
+  its single chained `.mat` file; this port's steps each load spike times
+  fresh from Step 1's raw output, so grounding has to be reapplied at each
+  load site to reach the same outcome. Only matters for spreadsheets that
+  actually have a populated `Ground` column — the bundled example dataset's
+  `exampleData.csv` doesn't, so this is a no-op for the Test Pipeline button
+  and wasn't (and can't be, without a fixture that has grounded channels)
+  validated against a real end-to-end run; validated instead via a direct
+  unit test of `ground_spike_times_dict()` (matches by channel ID against
+  the `channels` array, zeroes the matched channels' spike-time arrays,
+  leaves everything else untouched).
 - `src/meanap/pipeline/example_data.py` — `download_example_data()`, port of
   `downloadExampleData.m` (Dropbox source only, not the Harvard Dataverse path).
 - `src/meanap/pipeline/runner.py` — `run_pipeline(params, log)`, the new
@@ -53,6 +71,18 @@ regenerate them if the underlying algorithms ever need re-validating.
   e.g. `start=3, stop=4` correctly skips 1-2 and reads 1-2's saved outputs
   from disk instead — this was a latent bug for step 2 before this session,
   which ran whenever `stop >= 2` regardless of `start`).
+  Also implements `Params.time_processes` (port of `MEApipeline.m`'s
+  `Params.timeProcesses` — the field and its GUI checkbox already existed in
+  `params.py`/`pipeline.py`, but nothing actually timed anything until this
+  session, same "wired but never built" pattern as several other findings
+  in this doc). When set, times each step with `time.perf_counter()`, logs
+  `"Step N duration (seconds): X"` per step in MATLAB's own format plus a
+  `"Total pipeline duration (seconds): X"` line MATLAB has no equivalent of,
+  and writes `step_durations.json` into the output folder (MATLAB has no
+  single chained output file for this port to append timings to, so this is
+  the durable, programmatically-readable record instead of scraping the
+  log) — built for a MATLAB-vs-Python speed comparison on the Test Pipeline
+  dataset.
 - `src/meanap/pipeline/step2.py` — `_run_step2_neuronal_activity()`, called
   from `runner.py` when `stop_analysis_step >= 2`. Loads each recording's
   Step 1 `.npz` spike times (filtered to `params.spikes_method`), peeks the
@@ -107,9 +137,13 @@ regenerate them if the underlying algorithms ever need re-validating.
   100 null-model randomizations via `null_models.py` on top of Ci),
   `module_degree_zscore`, `rich_club_wu`, `classify_node_cartography`
   (6-role classification from fixed `Params` thresholds),
-  `hub_classification` (Hub3/Hub4). **Read this module's docstring** before
-  adding more metrics; it explains exactly which `NetMet` fields are and
-  aren't in scope and why.
+  `hub_classification` (Hub3/Hub4), `average_controllability`/
+  `modal_controllability` (Bassett Lab `ave_control.m`/`modal_control.m`),
+  `effective_rank`, and `small_worldness_rl_wu` (port of
+  `small_worldness_RL_wu.m` — deterministic given a real network plus two
+  null models built from it; see `null_models.py` for those). **Read this
+  module's docstring** before adding more metrics; it explains exactly which
+  `NetMet` fields are and aren't in scope and why.
 - `src/meanap/pipeline/louvain.py` — `community_louvain()`, single-run
   Louvain modularity optimization, hand-ported from `community_louvain.m`
   line-by-line. Sanity-checked against known theoretical values (two
@@ -142,6 +176,42 @@ regenerate them if the underlying algorithms ever need re-validating.
   (verified empirically), strength preservation is approximate by design
   (MATLAB's own docs say so), and none of it is bit-reproducible against
   MATLAB (stochastic — different RNG stream).
+  Also `randmio_und_v2()`/`latmio_und_v2()` (ports of the same-named `.m`
+  files in `Functions/CC_PL_SW/`) — a *different* edge-swap algorithm
+  (picks two existing edges by index rather than four random node indices)
+  used to build the random/lattice-like null models that
+  `network_metrics.small_worldness_rl_wu` normalizes small-worldness
+  against. `latmio_und_v2` additionally takes a "distance" matrix (MEA-NAP
+  passes `squareform(pdist(adjM))` — Euclidean distance between each node's
+  *connectivity profile*, not spatial electrode distance) that biases which
+  swaps count as more lattice-like. Both batch their random draws the same
+  way `randmio_und_signed` does, for the same performance reason. At
+  realistic recording sizes (n≤64) and MATLAB's own iteration counts
+  (10000 for the lattice model, 5000 for the random model), both run in well
+  under a second — sparse active-node subnetworks mean few edges to rewire
+  per attempt. Validated via the same structural-invariants approach, plus
+  (unlike the signed variants above) an *exact* MATLAB parity check on the
+  deterministic formula that consumes their output — see
+  `small_worldness_rl_wu` below.
+- `src/meanap/pipeline/nmf.py` — `cal_nmf()`, port of `calNMF.m`
+  (`num_nnmf_components`/`nComponentsRelNS`/`nnmf_residuals`/
+  `nnmf_var_explained`). **Read this module's docstring before touching
+  it** — of everything in this port, this is the one place where even the
+  *algorithm* differs from MATLAB (`sklearn.decomposition.NMF`'s coordinate-
+  descent solver standing in for MATLAB's built-in `nnmf`, which defaults to
+  Alternating Least Squares), so `num_nnmf_components` itself — not just the
+  underlying factor matrices — can legitimately differ between the two.
+  Also deliberately diverges from `calNMF.m`'s literal implementation for
+  tractability: bins spike times directly into the target-downsampled-
+  resolution bins instead of building MATLAB's huge intermediate matrix at
+  native sampling rate first — mathematically identical whenever MATLAB's
+  own `downSampleSum` wouldn't have errored (see the module docstring for
+  the exact-divisibility condition this relies on). **Performance**: the
+  `nnmf_residuals`/`nnmf_var_explained` sweep (one NNMF fit per rank from 1
+  to the active-electrode count) is unconditional — always runs regardless
+  of `Params.includeNMFcomponents` — and is the dominant cost, ~55s for a
+  real 64-channel/600s recording on this environment's CPU. Computed once
+  per recording (not once per lag).
 - `src/meanap/pipeline/step4.py` — `_run_step4_network_metrics()` /
   `compute_network_metrics()`. Reproduces `ExtractNetMet.m`'s active-node
   subsetting (`nodeStrength != 0 & activityLevel >= minActivityLevel`) then
@@ -155,6 +225,38 @@ regenerate them if the underlying algorithms ever need re-validating.
   an `adjMsub` key (the active-node-subsetted adjacency matrix) purely so
   plots can be drawn — it's stripped out before the JSON dump, don't expect
   it to round-trip.
+  **Field-naming gotcha**: this module computes clustering coefficient and
+  path length *twice*, for two genuinely different quantities that happen to
+  share MATLAB's `CC`/`PL` names in `ExtractNetMet.m`'s docstring — the raw,
+  unnormalized values (`CC_raw` per-node array + `CC_rawMean` scalar,
+  `PL_raw` scalar; independently useful/testable, but NOT what MATLAB
+  saves), and the null-model-normalized scalars from `small_worldness_rl_wu`
+  (`CC`/`PL` — what MATLAB actually saves into `NetMet.CC`/`NetMet.PL`,
+  alongside the new `SW`/`SWw`). The small-worldness block additionally
+  uses MATLAB's own oddball gate, `aN > minNumberOfNodesToCalNetMet`
+  (strictly greater — every other block in `ExtractNetMet.m` uses `>=`),
+  faithfully replicated rather than "fixed", since the goal is matching
+  MATLAB's actual behavior.
+  Also computes the record-level summary-stat scalars `NDmean`/`NDtop25`/
+  `NSmean`/`sigEdgesMean`/`sigEdgesTop10` (from ND/NS/the raw adjacency
+  values) and, inside the modularity block, `PCmean`/`PCmeanTop10`/
+  `PCmeanBottom10`/`percentZscoreGreaterThanZero`/
+  `percentZscoreLessThanZero` (from the normalized PC/Z) — added in the
+  2026-07-08 audit (see "Auditing for silently-missing metrics" below),
+  these were previously computed nowhere despite being in
+  `plotting_step4.py`'s display-name dict and MATLAB's default
+  `netMetToCal`.
+  `_run_step4_network_metrics()` additionally calls `nmf.cal_nmf()` once per
+  recording (lag-independent, matching `ExtractNetMet.m`'s `if e == 1`
+  gate) and merges its result into every lag's metrics dict via
+  `metrics.update(nmf_result)`. The NMF result's rank-indexed arrays
+  (`nnmf_residuals`, `nnmf_var_explained`, `randResidualPerComponent`, and
+  the optional factor matrices) are NOT node-indexed — `_NMF_NON_NODE_KEYS`
+  explicitly excludes them from the CSV-export loop's generic "any array
+  with size>1 gets spread across `NetworkActivity_NodeLevel.csv` rows by
+  channel index" logic, since their length can coincidentally match the
+  active-node count and would otherwise get silently mis-attributed to
+  channels.
 - `src/meanap/pipeline/plotting_step4.py` — two plots:
   - `plot_connectivity_stats()`, port of `plotConnectivityProperties.m`
     (adjacency-matrix heatmap + max/mean STTC bars + ND/NS/edge-weight
@@ -221,14 +323,12 @@ regenerate them if the underlying algorithms ever need re-validating.
   (circular layout, nodes colored by community assignment Ci from
   `mod_consensus_cluster_iterate`, sized by ND — see `plotting_step4.py`'s
   `plot_circular_module_network` and the notes in this doc's "⚠️ Network metrics
-  gotchas" section for why Ci is stochastic), `9_adjM{lag}msNodeCartography.png`. Still
-  not ported:
-  null-model panels (small-worldness — see "Network metrics gotchas"),
-  controllability plots (that metric family was never scoped at all — not
-  mentioned in `ExtractNetMet.m`'s own docstring list of metrics), and the
-  "scaled to whole dataset" / "combined" side-by-side variants of every network
-  plot (need Step 4B-style cross-recording aggregation, which doesn't exist in
-  this port).
+  gotchas" section for why Ci is stochastic), `9_adjM{lag}msNodeCartography.png`,
+  `10_MEA_NetworkPlotNodedegreeAveragecontrollability.png`,
+  `11_MEA_NetworkPlotNodedegreeModalcontrollability.png` (controllability plots,
+  including their batch-scaled variants — see "Batch scaling" below). Still
+  not ported: null-model panels (small-worldness — see "Network metrics
+  gotchas").
 - `src/meanap/pipeline/channel_layout.py` — `get_coords_from_layout()`, port
   of `getCoordsFromLayout.m`. Supports `MCS60old`, `MCS60`, `MCS59`
   (electrode-grid layouts that drop 1-4 grounded/corner channels via a
@@ -244,10 +344,11 @@ regenerate them if the underlying algorithms ever need re-validating.
   pipeline data, only validated against MATLAB's lookup table in isolation.
   MATLAB's `'Custom'` layout (user-drawn random coordinates) isn't ported —
   raises `ValueError` if requested.
-- `src/meanap/gui/main_window.py` — `_on_run` calls `run_pipeline` synchronously
-  (no worker thread yet — see Limitations). `_on_test_pipeline` downloads the
-  example dataset, points the Paths tab at it, forces `start/stop_analysis_step
-  = 1`, then calls `_on_run`. This mirrors `runPipelineApp.m`'s
+- `src/meanap/gui/main_window.py` — `_on_run` runs the pipeline on a background
+  `QThread` (see item 1 under "Known limitations" for the cancellation
+  mechanism). `_on_test_pipeline` downloads the example dataset, points the
+  Paths tab at it, sets `start_step=1, stop_step=4`, then calls `_on_run` —
+  i.e. it runs the full 4-step pipeline. This mirrors `runPipelineApp.m`'s
   `TestPipelineButton` handler, which also falls through into a full pipeline
   run using the example-data settings.
 - `src/meanap/gui/panels/pipeline.py` — has both "Start at step" and "Stop at
@@ -296,11 +397,35 @@ regenerate them if the underlying algorithms ever need re-validating.
   `participation_coef_norm`: exact degree preservation, exact/approximate
   weight and strength preservation, boundedness, no-NaN. Also a real-data
   timing smoke test (~15-35s for 100 iterations at real recording sizes).
+- `python/test_pipeline_small_worldness.py` — three-part test for
+  `small_worldness_rl_wu` + `randmio_und_v2`/`latmio_und_v2`. (1) **Exact**
+  MATLAB parity for the deterministic formula assembly: feeds MATLAB's own
+  `A`/`R`/`L` (`python/test_fixtures/small_worldness_reference.npz`, via
+  `gen_small_worldness_reference.m`) into `small_worldness_rl_wu` and diffs
+  `SW`/`SWw`/`CC`/`PL` against MATLAB's own `small_worldness_RL_wu.m` output
+  on the same inputs. Unlike the other `gen_*_reference.m` scripts, this one
+  doesn't need a real MATLAB pipeline run's saved adjacency matrices — it
+  builds a small fixed-seed random network directly, since the point is
+  isolating formula correctness, not re-deriving a specific recording's
+  numbers. (2) Structural invariants on Python's own `randmio_und_v2`/
+  `latmio_und_v2` (exact degree/weight preservation, symmetry) — NOT a
+  MATLAB parity check, same rationale as `test_pipeline_null_models.py`.
+  (3) An end-to-end smoke test chaining Python's own null models into
+  `small_worldness_rl_wu`. All three currently pass.
+- `python/test_pipeline_nmf.py` — structural/sanity tests for `nmf.py`
+  (NOT a MATLAB parity check — impossible here even in principle, since the
+  underlying NNMF solver is a different algorithm, not just a different RNG
+  stream, see `nmf.py`'s docstring). Checks: spike-count preservation
+  through `randomise_spike_train`/`_bin_spike_times`; on a synthetic
+  low-rank-plus-noise recording, `num_nnmf_components` lands in a sane
+  range, `nnmf_var_explained` is bounded in [0, 1] and approaches ~1 at full
+  rank, `nnmf_residuals` roughly decreases with rank; `include_nmf_
+  components=True` returns non-negative factor matrices. All currently pass.
 - `python/test_fixtures/` — `.npz` ground-truth fixtures for steps 3-4 plus
   the `.m` scripts that generated them (`gen_sttc_reference.m`,
-  `gen_step4_reference.m`, `gen_cartography_reference.m`) — re-run those
-  directly in MATLAB if the fixtures ever need regenerating (e.g. after an
-  algorithm change).
+  `gen_step4_reference.m`, `gen_cartography_reference.m`,
+  `gen_small_worldness_reference.m`) — re-run those directly in MATLAB if
+  the fixtures ever need regenerating (e.g. after an algorithm change).
 
 ## HTML output report (`report.py`)
 
@@ -654,7 +779,7 @@ recording against those shared scales. This port now mirrors that:
 
 ## Known limitations / next steps
 
-_Last audited 2026-07-03 — if you fix or port something in this list, please
+_Last audited 2026-07-08 — if you fix or port something in this list, please
 either delete the item or strike it through (like the coordinate-lookup one
 below) rather than leaving it to silently go stale like the previous version
 of this list did._
@@ -677,19 +802,66 @@ of this list did._
    cancellation is cooperative (polled at loop boundaries), a click during a
    single long operation — one recording's wavelet CWT, or one lag's
    200-shuffle thresholding — won't take effect until that operation returns.
-2. **Step 4 still missing**: small-worldness (`SW`/`SWw`, and the *saved*
-   `NetMet.CC`/`NetMet.PL` which are normalized through the same null models),
-   controllability (`aveControl`/`modalControl` — a metric family never
-   scoped in this port at all), NMF/effective-rank (`num_nnmf_components`,
-   `effRank` — likewise never scoped), spatial/temporal autocorrelation.
+2. ~~**Controllability not ported.**~~ **Done** — `average_controllability()`/
+   `modal_controllability()` (ports of the Bassett Lab `ave_control.m`/
+   `modal_control.m`) are in `network_metrics.py`, computed in `step4.py`
+   (`aveControl`/`modalControl` + mean/top-25%/threshold summary stats), and
+   plotted as `10_…Averagecontrollability.png` / `11_…Modalcontrollability.png`
+   (see item 3 below).
+   ~~**Small-worldness not ported.**~~ **Done** — `small_worldness_rl_wu()`
+   (port of `small_worldness_RL_wu.m`) is in `network_metrics.py`, fed by two
+   new null-model rewiring functions in `null_models.py`
+   (`randmio_und_v2`/`latmio_und_v2`, ports of the same-named `.m` files in
+   `Functions/CC_PL_SW/` — distinct from `randmio_und_signed`/
+   `null_model_und_sign` above, which serve `participation_coef_norm`
+   instead). Wired into `step4.py`'s `compute_network_metrics` as `SW`/`SWw`/
+   `CC`/`PL` (the last two are what MATLAB actually saves into
+   `NetMet.CC`/`NetMet.PL` — the *raw*, unnormalized values this module
+   already computed are now under `CC_raw`/`PL_raw`/`CC_rawMean` instead, to
+   avoid colliding with the real field names; see `network_metrics.py`'s
+   docstring for why both are kept). MATLAB's own gate for this block is
+   `aN > minNumberOfNodesToCalNetMet` (strictly greater — unlike every other
+   block's `aN >= ...`), faithfully replicated in `step4.py`, not a typo.
+   Formula-assembly parity against MATLAB (fixed `A`/`R`/`L`) is exact — see
+   `python/test_pipeline_small_worldness.py` and
+   `python/test_fixtures/gen_small_worldness_reference.m`. The null models
+   themselves aren't bit-reproducible against MATLAB (independent RNG
+   streams), validated instead via structural invariants (exact degree/
+   weight preservation), same situation as `null_models.py`'s other
+   functions.
+   ~~**NMF-based `num_nnmf_components` not ported.**~~ **Done** —
+   `nmf.py`'s `cal_nmf()`, port of `calNMF.m`. Unlike everything else in
+   this port, this one is not just RNG-stream-different from MATLAB but
+   *algorithm*-different: MATLAB's `nnmf` defaults to Alternating Least
+   Squares, `nmf.py` uses `sklearn.decomposition.NMF` (coordinate descent,
+   the closest available equivalent) — different solvers can converge to
+   different local optima and even pick a different
+   `num_nnmf_components`, since that value depends on exactly where each
+   solver's residual crosses a phase-randomized reference's. Also computes
+   the (mathematically identical, see `nmf.py`'s docstring) downsampled
+   spike matrix directly at the target resolution rather than materializing
+   MATLAB's huge intermediate native-`fs` matrix first. **Performance**:
+   `nnmf_residuals`/`nnmf_var_explained` are unconditional (saved regardless
+   of `Params.includeNMFcomponents`) and require one NNMF fit per rank
+   1..(active-electrode count), which is the dominant cost — ~55s for a real
+   64-channel/600s recording (measured on this environment's CPU),
+   independent of lag count since it's computed once per recording, not
+   once per lag.
+   ~~**Spatial/temporal autocorrelation not ported.**~~ Still true, and
+   staying that way for now: `SA_lambda`/`SA_inf`/`TA_regional`/`TA_global`
+   aren't in MATLAB's own default `netMetToCal` list either
+   (`AdvancedSettings.m` calls them out as "other optional ones"), and
+   `ExtractNetMet.m`'s own temporal-autocorrelation code path is an explicit
+   `% TODO` stub — there's no complete MATLAB reference behavior to port yet.
    Everything else in `ExtractNetMet.m`'s own docstring list of metrics is
    done with either exact or "deterministic given a fixed stochastic input"
    parity — see the "Where things stand" table and `network_metrics.py`'s
    docstring for the precise breakdown. `Cmcblty` (communicability) needs no
    work: MATLAB's own code path for it is commented out upstream.
-3. **Step 4 plots**: 7 of MATLAB's `4A_IndividualNetworkAnalysis` plots are
+3. **Step 4 plots**: 9 of MATLAB's `4A_IndividualNetworkAnalysis` plots are
    ported (connectivity stats, base/BC/PC/Eloc-colored network plots, circular
-   module-colored network plot, node cartography — see `plotting_step4.py`).
+   module-colored network plot, node cartography, average/modal controllability
+   — see `plotting_step4.py`).
    **Batch-scaled ("scaled to entire data batch") variants are now ported** for
    the four spatial network plots (2/3/4/5) plus the two controllability plots
    (10/11) — each writes a sibling `N_scaled_MEA_NetworkPlot….png` whose node
@@ -699,8 +871,11 @@ of this list did._
    too** (`plot_spatial_network_combined` — left panel scaled to the recording,
    right panel scaled to the batch, each with its own inline legend/colorbar;
    rendered as one two-axis figure rather than MATLAB's `copyobj` merge of two
-   separate figures). Still not ported: null-model panels (needs item 2's
-   small-worldness).
+   separate figures). Still not ported: the null-model-iterations panel
+   (`plotNullModelIterations.m` — a diagnostic plot of the `met`/`met2`
+   convergence traces `latmio_und_v2`/`randmio_und_v2` collect every 1000
+   rewiring iterations; item 2's null-model *calculation* is done, this is
+   purely the unported diagnostic plot on top of it).
 4. **Step 3's probabilistic thresholding is not bit-reproducible against
    MATLAB by design** (see "STTC gotchas" above) — this is not a bug to fix,
    it's inherent to comparing two independently-seeded RNG streams. The
@@ -740,6 +915,83 @@ of this list did._
     ports `getCoordsFromLayout.m` (exact parity, all 5 layouts).
 11. ~~No HTML/output browser~~ **Done** — `report.py`, wired into the GUI as
     "🌐 View report" on the Pipeline tab. See its own section above.
+
+## Auditing for silently-missing metrics
+
+A real gap in this port (found 2026-07-08, now fixed) went undetected for a
+while because it wasn't a crash or a wrong number — it was fields that were
+simply never computed, with no test asserting they existed. Controllability
+and small-worldness were caught because someone happened to remember seeing
+plots for them; the record-level summary-stat scalars (`NDmean`, `NDtop25`,
+`NSmean`, `sigEdgesMean`, `sigEdgesTop10`, `PCmean`, `PCmeanTop10`,
+`PCmeanBottom10`, `percentZscoreGreaterThanZero`,
+`percentZscoreLessThanZero`) were only found by deliberately auditing
+against MATLAB's ground truth for "what should exist" rather than trusting
+this doc's own "still missing" list (which had gone stale — it only tracked
+things someone had *noticed* were missing).
+
+**The audit that found them**: `Functions/ExtractNetMet.m`'s docstring
+(lines 26-50) lists every `NetMet` field name, and `AdvancedSettings.m`'s
+`Params.netMetToCal`/`Params.networkLevelNetMetToPlot`/
+`Params.unitLevelNetMetToPlot` defaults are the authoritative list of what a
+default pipeline run actually produces. Cross-referencing that full list
+against `grep -n '"X"\]\|result\["X"\]' src/meanap/pipeline/step4.py
+network_metrics.py` for every field name is the reliable check — checking
+this doc's own "known limitations" prose against the code is not, since
+prose gets stale in exactly the way that just happened. A second useful
+signal: `plotting_step4.py`'s `NETMET_REC_METRICS`/`NETMET_NODE_METRICS`
+display-name dicts were built ahead of the metrics they label (i.e. someone
+added the label anticipating the field, then the field itself never got
+written) — grepping for display-dict keys with no corresponding
+`result["X"] = ...` in `step4.py` catches exactly this pattern. If you're
+auditing again later, also grep `ExtractNetMet.m` for every distinct
+function call (`grep -oE '[a-zA-Z_][a-zA-Z0-9_]*\(' Functions/
+ExtractNetMet.m | sort -u`) and check each one has a Python equivalent
+somewhere in `network_metrics.py`/`nmf.py`/`null_models.py` — that's how
+`randmio_und_v2`/`latmio_und_v2`/`calNMF`/`calEffRank` were confirmed to be
+the *only* remaining unaccounted-for function calls at the time of this
+audit (excluding MATLAB builtins, the `checkIfRecomputeMetric`/
+`prevNetMet` incremental-caching machinery Python doesn't replicate, the
+commented-out `fcn_find_hubs_wu` block, and binary-adjacency-matrix-only
+functions like `betweenness_bin`/`distance_bin`, since this port only
+supports `Params.adjMtype == 'weighted'`).
+
+**Extended to Steps 1-3 the same day.** Same methodology, different
+authoritative lists: `firingRatesBursts.m`'s own field-by-field assignments
+to `Ephys.*` (there's no `netMetToCal`-equivalent list for Step 2 — the
+closest thing is `saveEphysStats.m`'s hardcoded `NetMetricsE`/`NetMetricsC`
+cell arrays, which turned out to be the more useful reference since they're
+also *the CSV column whitelist*) and `batchDetectSpikes.m`'s `varsList`
+(what actually gets saved to each recording's `_spikes.mat`). Found two more
+real gaps, both now fixed:
+
+1. **Step 2 had no CSV export at all** — `firing_rates_bursts()`'s `ephys`
+   dict was complete and correct (already validated at 100% parity), but
+   `step2.py` only ever wrote it to `ephys_results.json`; the
+   `NeuronalActivity_RecordingLevel.csv`/`NeuronalActivity_NodeLevel.csv`
+   files MATLAB's `saveEphysStats.m` produces (called unconditionally in
+   `MEApipeline.m`, not gated behind an optional flag) never got written by
+   the Python port. Fixed — see `_save_ephys_stats_csv()` in `step2.py`.
+2. **Electrode grounding was parsed but never applied** —
+   `RecordingInfo.ground` (the spreadsheet's optional 4th `Ground` column)
+   was already being read by `read_recording_csv()`, but nothing consumed
+   it anywhere in the pipeline. Fixed — see `spreadsheet.py`'s
+   `parse_ground_electrodes()`/`ground_spike_times_dict()` note above. This
+   one's a good example of why grepping call sites matters more than
+   grepping field/parameter *existence*: `Params.ground`-equivalent fields
+   existing in `params.py`/`RecordingInfo` proved nothing about whether
+   they were wired to anything.
+
+Also checked and confirmed **not** gaps (dead code in MATLAB itself, so
+correctly unported): `Ephys.channelHasBurst` (computed by
+`firingRatesBursts.m` but not in `saveEphysStats.m`'s CSV whitelist, same
+"computed but never surfaced" pattern as Step 4's `BCmeantop5`);
+`spikeAmps`/`getSpikeAmp.m` (only consumed by the stimulation-analysis code
+path, `Params.stimulationMode == 1`, out of this port's scope);
+`Params.ProbThreshPlotChecks`'s diagnostic replicate-stability plot
+(`adjM_thr_checkreps.m` — optional, off by default, and `Params
+.prob_thresh_plot_checks` already exists in `params.py` unwired to match
+that same off-by-default state, not silently dropped).
 
 ## How to verify changes
 

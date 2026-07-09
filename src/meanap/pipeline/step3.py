@@ -14,7 +14,7 @@ from meanap.params import Params
 from meanap.pipeline.cancellation import CancelCheck, check_cancel
 from meanap.pipeline.io import load_spike_times_npz
 from meanap.pipeline.probabilistic_threshold import adjm_thr
-from meanap.pipeline.spreadsheet import RecordingInfo
+from meanap.pipeline.spreadsheet import RecordingInfo, ground_spike_times_dict, parse_ground_electrodes
 
 
 def _run_step3_functional_connectivity(
@@ -71,6 +71,9 @@ def _run_step3_functional_connectivity(
             ch: spike_times_full.get(ch, {}).get(method, np.array([]))
             for ch in range(n_channels)
         }
+        ground_electrodes = parse_ground_electrodes(rec.ground)
+        if ground_electrodes:
+            spike_times_dict = ground_spike_times_dict(spike_times_dict, data["channels"], ground_electrodes)
 
         out_arrays: dict[str, np.ndarray] = {}
         rng = np.random.default_rng()
