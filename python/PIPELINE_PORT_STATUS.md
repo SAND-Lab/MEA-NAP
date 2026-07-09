@@ -993,6 +993,80 @@ path, `Params.stimulationMode == 1`, out of this port's scope);
 .prob_thresh_plot_checks` already exists in `params.py` unwired to match
 that same off-by-default state, not silently dropped).
 
+## MATLAB vs Python speed comparison (2026-07-09)
+
+Full steps-1-4 run on the Test Pipeline dataset (`ExampleData/`, recordings
+`NGN2_20230208_P1_DIV14_A2`/`_A3`, `Axion64` layout, `ProbThreshRepNum=200`,
+lags `[10, 25, 50]`ms), timed via MATLAB's `Params.timeProcesses` and the
+Python port's newly-implemented equivalent (`Params.time_processes`, see
+`runner.py`'s entry above), both run alone (no concurrent load) on the same
+machine:
+
+| Step | MATLAB | Python | Ratio |
+|---|---|---|---|
+| 1. Spike detection | 580s | 568.8s | Python ~2% faster |
+| 2. Neuronal activity | 53s | 6.2s | **Python ~8.5x faster** |
+| 3. Functional connectivity | 15s | 80.2s | **Python ~5.3x slower** |
+| 4. Network activity | 283s | 511.7s | **Python ~1.8x slower** |
+| **Total** | **931s (~15.5 min)** | **1166.9s (~19.5 min)** | **Python ~25% slower overall** |
+
+Not a uniform "Python is slower" story — it's faster than MATLAB at the two
+purely-numerical steps, slower specifically where MATLAB parallelizes:
+
+- **Step 3**: MATLAB's log shows it spinning up an 8-worker parallel pool for
+  the 200-shuffle probabilistic thresholding; `adjm_thr()` (this port) runs
+  single-threaded. Likely the dominant cause of the 5.3x gap — not yet
+  investigated further (e.g. whether MATLAB is also using a compiled/mex
+  STTC core on top of the parallelism).
+- **Step 4**: NMF alone costs ~55s per recording (~110s of the 511.7s total,
+  measured earlier this session on real data) — sklearn's coordinate-descent
+  solver run serially for every rank from 1 to the active-electrode count,
+  see `nmf.py`'s docstring. MATLAB likely also parallelizes some of its BCT
+  calls here (unconfirmed). The other ~400s is the rest of step 4's compute
+  + plotting, not yet broken down further.
+- **Step 2**: Python's vectorized numpy firing-rate/burst computation is
+  dramatically faster than MATLAB's implementation, which does per-channel
+  LOESS regression fitting for the burst ISI threshold (`getISInTh.m` →
+  `fLOESS.m` — also the source of the "Matrix is close to singular" warnings
+  MATLAB prints throughout Step 2 on this low-firing-rate dataset).
+
+**Obvious next lever if closing the gap matters**: parallelize steps 3/4
+(e.g. `multiprocessing`/`joblib` across recordings or lags) — that's where
+essentially all of the total deficit lives.
+
+**How this was measured** — headless (`Params.guiMode=0`) execution of
+MATLAB MEA-NAP is not a well-trodden path; getting a clean end-to-end run
+required finding and working around 5 bugs/config traps that the
+interactive GUI (`runPipelineApp.m`/`getParamsFromApp.m`) silently avoids.
+See `MEApipeline_timingBenchmark.m`'s header comment (repo root, not part of
+the Python port — a throwaway benchmarking copy of `MEApipeline.m`) for the
+full list and exact fixes; briefly:
+1. `batchDetectSpikes()` called with 5 args in `MEApipeline.m`'s non-GUI
+   branch, but its `arguments` block requires 6.
+2. `Params.electrodesToGroundPerRecording` is left as a non-cell `[]` by
+   `setUpSpreadSheet.m` when there's no spreadsheet `Ground` column, but
+   Step 2/3/4 unconditionally brace-index it.
+3. `AdvancedSettings.m`'s default `Params.netMetToCal` includes `'PC_raw'`,
+   whose computation is dead code — crashes Step 4's eval-assignment loop.
+4. Several `Params` fields (`minActivityLevel`, `nodeScalingMethod`,
+   `networkPlotEdgeThresholdMethod`, etc.) are only ever set by the GUI, with
+   no `AdvancedSettings.m` fallback — silently undefined in headless runs.
+5. `Params.nodeLayout='Original'` (not `'MEA'`) is `StandardisedNetworkPlot
+   .m`'s actual sentinel for "use real electrode coordinates"; several other
+   plotting/scaling params (`nodeScalingMethod='Linear'` not `'degree'`,
+   `maxNodeSize=1` not `0.06`, `networkPlotEdgeThresholdMethod='Absolute
+   Value'` not `'percentile'`, etc.) also don't match the Python port's
+   same-sounding defaults — the two ports' vocabularies/scales for these
+   particular fields diverged. The values finally used were extracted from
+   `Parameters_OutputData26Jun2025.csv`, a completed **GUI-driven** MATLAB
+   run on this exact dataset — i.e. "what MEA-NAP actually computes in
+   practice," not a guess.
+
+Items 1-4 are genuine MATLAB-side bugs (would affect anyone scripting
+MEA-NAP outside the GUI, e.g. for HPC batch jobs); item 5 is this
+benchmark's own config error, not a MATLAB bug — noted here so a future
+re-run doesn't have to rediscover it.
+
 ## How to verify changes
 
 ```bash

@@ -19,11 +19,19 @@ function MEApipeline_timingBenchmark(InputParamsFilePath)
 % scratch path won't survive between sessions, just redirect stdout
 % wherever's convenient).
 %
-% STATUS as of last run: gets through steps 1-3 and into step 4's
-% plotting cleanly. Found and fixed 4 bugs in MATLAB MEA-NAP itself that
-% only surface in headless (non-GUI) execution — the GUI's own parameter
-% construction (getParamsFromApp.m) avoids all of them, which is
-% presumably why nobody's hit them before:
+% STATUS: completes end to end (all 4 steps, "MEA-NAP run completed
+% successfully"). Last clean run (2026-07-09, this machine):
+%   Step 1 duration (seconds): 580
+%   Step 2 duration (seconds): 53
+%   Step 3 duration (seconds): 15
+%   Step 4 duration (seconds): 283
+%   (total 931s) — see python/PIPELINE_PORT_STATUS.md's "MATLAB vs Python
+%   speed comparison" section for the full writeup incl. the Python side.
+%
+% Getting here required finding and working around 5 bugs/config traps in
+% MATLAB MEA-NAP that only surface in headless (non-GUI) execution — the
+% GUI's own parameter construction (getParamsFromApp.m) avoids all of
+% them, which is presumably why nobody's hit them before:
 %   1. batchDetectSpikes(...) called with 5 args in MEApipeline.m's
 %      non-GUI branch, but the function's `arguments` block requires 6
 %      (MEANAPapp has no default). Worked around with a placeholder
@@ -48,31 +56,27 @@ function MEApipeline_timingBenchmark(InputParamsFilePath)
 %   4. Several Params fields (Params.minActivityLevel and others — see
 %      the block below) are only ever set by getParamsFromApp.m (the
 %      GUI), with no AdvancedSettings.m fallback, so they're simply
-%      undefined in headless execution. Set explicitly below, values
-%      taken from the Python port's own researched defaults
-%      (src/meanap/params.py) as the best available approximation of "the
-%      real MATLAB default" absent the .mlapp's binary widget defaults.
+%      undefined in headless execution.
+%   5. NOT a MATLAB bug, just this benchmark's own config error worth
+%      recording so it isn't repeated: several plotting/scaling Params
+%      (nodeLayout, nodeScalingMethod, maxNodeSize,
+%      networkPlotEdgeThresholdMethod, networkPlotEdgeThresholdPercentile,
+%      networkPlotEdgeThreshold, maxNumEdgesToPlot, edgeSubsamplingMethod,
+%      use_theoretical_bounds, minActivityLevel) were initially set from
+%      the Python port's own defaults on the assumption the two ports'
+%      fields would line up — several didn't (e.g. Params.nodeLayout must
+%      be the literal string 'Original', not 'MEA' — StandardisedNetworkPlot
+%      .m's sentinel for "use real electrode coordinates" — 'MEA' silently
+%      falls through getNodeCoords.m's if/elseif chain leaving `coords`
+%      unassigned; Params.nodeScalingMethod must be 'Linear' not 'degree',
+%      etc.). All values below are now taken directly from
+%      Parameters_OutputData26Jun2025.csv, a completed GUI-driven MATLAB
+%      run on this exact dataset — i.e. ground truth, not a proxy.
 %
-% Also note (not a bug, just a config trap): Params.nodeLayout must be
-% 'Original', not 'MEA' — StandardisedNetworkPlot.m's actual sentinel
-% string for "use the real electrode coordinates" is 'Original';
-% anything else gets passed to getNodeCoords.m, whose if/elseif chain has
-% no case for 'MEA' and silently leaves `coords` unassigned, crashing
-% downstream. Confirmed via the same reference Parameters CSV. Already
-% fixed below — flagging in case a future edit reverts it.
-%
-% NEXT STEPS if resuming this on another machine: rerun end to end
-% (`rm -rf matlab_timing_benchmark_out` first for a clean spike-detection
-% timing), watch for further errors past step 4's plotting section (none
-% seen yet, but step 4 plotting hadn't been reached cleanly until the
-% nodeLayout fix), then compare step_durations.json-equivalent numbers
-% (Step N duration (seconds): X, printed at the very end) against a
-% Python run with p.time_processes=True on the same ExampleData A2/A3
-% config. MEApipeline_timingBenchmark_debug.m is a companion script that
-% skips step 1 (reuses already-detected spikes, starts at step 2) for
-% fast iteration on config bugs without repaying spike detection's ~7min
-% cost each time — keep it in sync with any fix made here, or just diff
-% them if they drift.
+% MEApipeline_timingBenchmark_debug.m is a companion script that skips
+% step 1 (reuses already-detected spikes, starts at step 2) for fast
+% iteration on config bugs without repaying spike detection's ~7min cost
+% each time — keep it in sync with any fix made here, or just diff them.
 % =====================================================================
 %% USER INPUT REQUIRED FOR THIS SECTION
 % In this section all modifiable parameters of the analysis are defined.
@@ -170,23 +174,30 @@ Params.stimulationMode = 0;
 
 % More GUI-only fields with no AdvancedSettings.m coverage, found by diffing
 % getParamsFromApp.m's Params.X assignments against what's actually
-% referenced outside getParamsFromApp.m/the GUI itself. Values below match
-% the Python port's own researched defaults (src/meanap/params.py), which
-% is as close to "the real MATLAB defaults" as available without inspecting
-% the .mlapp binary's widget defaults directly.
-Params.minActivityLevel = 0.0;
-Params.singleChannelIsiThreshold = 'automatic';
-Params.use_theoretical_bounds = 1;
+% referenced outside getParamsFromApp.m/the GUI itself.
+%
+% IMPORTANT: values below are taken from Parameters_OutputData26Jun2025.csv
+% (a real completed GUI run on this exact dataset) — NOT from the Python
+% port's defaults. An earlier version of this script used the Python
+% defaults as a proxy and got several of these wrong (Params.nodeLayout
+% ='MEA' instead of 'Original', Params.nodeScalingMethod='degree' instead
+% of 'Linear', Params.maxNodeSize=0.06 instead of 1, plus the edge-plotting
+% fields below) — apparently the two ports' semantically-similar-sounding
+% fields aren't always on the same scale/vocabulary. Trust the CSV, not the
+% Python source, for anything you need to add here.
+Params.minActivityLevel = 0.01;
+Params.singleChannelIsiThreshold = 'automatic'; % not in the reference CSV (struct2table seems to drop it); Python's default, unconfirmed
+Params.use_theoretical_bounds = 0;
 Params.minNodeSize = 0.01;
-Params.maxNodeSize = 0.06;
-Params.nodeScalingMethod = 'degree';
+Params.maxNodeSize = 1;
+Params.nodeScalingMethod = 'Linear';
 Params.nodeScalingPower = 1.0;
-Params.networkPlotEdgeThresholdMethod = 'percentile';
-Params.networkPlotEdgeThresholdPercentile = 90.0;
-Params.networkPlotEdgeThreshold = 0.1;
-Params.maxNumEdgesToPlot = 500;
-Params.edgeSubsamplingMethod = 'random';
-Params.nodeLayout = 'Original'; % NOT 'MEA' — StandardisedNetworkPlot.m's sentinel for "use originalCoords as-is" is the literal string 'Original'; 'MEA' silently falls through getNodeCoords.m's if/elseif chain leaving `coords` unassigned. Confirmed via Parameters_OutputData26Jun2025.csv (a real completed GUI run).
+Params.networkPlotEdgeThresholdMethod = 'Absolute Value';
+Params.networkPlotEdgeThresholdPercentile = 95;
+Params.networkPlotEdgeThreshold = 0.001;
+Params.maxNumEdgesToPlot = 10000;
+Params.edgeSubsamplingMethod = 'highToLow';
+Params.nodeLayout = 'Original'; % NOT 'MEA' — StandardisedNetworkPlot.m's sentinel for "use originalCoords as-is" is the literal string 'Original'; 'MEA' silently falls through getNodeCoords.m's if/elseif chain leaving `coords` unassigned.
 
 if (Params.guiMode == 1) && ~exist('InputParamsFilePath', 'var')
     runPipelineApp

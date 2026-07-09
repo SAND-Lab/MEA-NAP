@@ -102,18 +102,20 @@ Params.stimulationMode = 0;
 % the Python port's own researched defaults (src/meanap/params.py), which
 % is as close to "the real MATLAB defaults" as available without inspecting
 % the .mlapp binary's widget defaults directly.
-Params.minActivityLevel = 0.0;
+% Values from Parameters_OutputData26Jun2025.csv (real GUI run), not Python
+% defaults — see MEApipeline_timingBenchmark.m for why that distinction matters.
+Params.minActivityLevel = 0.01;
 Params.singleChannelIsiThreshold = 'automatic';
-Params.use_theoretical_bounds = 1;
+Params.use_theoretical_bounds = 0;
 Params.minNodeSize = 0.01;
-Params.maxNodeSize = 0.06;
-Params.nodeScalingMethod = 'degree';
+Params.maxNodeSize = 1;
+Params.nodeScalingMethod = 'Linear';
 Params.nodeScalingPower = 1.0;
-Params.networkPlotEdgeThresholdMethod = 'percentile';
-Params.networkPlotEdgeThresholdPercentile = 90.0;
-Params.networkPlotEdgeThreshold = 0.1;
-Params.maxNumEdgesToPlot = 500;
-Params.edgeSubsamplingMethod = 'random';
+Params.networkPlotEdgeThresholdMethod = 'Absolute Value';
+Params.networkPlotEdgeThresholdPercentile = 95;
+Params.networkPlotEdgeThreshold = 0.001;
+Params.maxNumEdgesToPlot = 10000;
+Params.edgeSubsamplingMethod = 'highToLow';
 Params.nodeLayout = 'Original'; % see MEApipeline_timingBenchmark.m for why
 
 if (Params.guiMode == 1) && ~exist('InputParamsFilePath', 'var')
