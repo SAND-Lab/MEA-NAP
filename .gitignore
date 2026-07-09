@@ -17,3 +17,6 @@ __marimo__/
 OutputData*/
 ExampleData/
 local/
+
+# Sphinx autosummary-generated API stub pages (regenerated on every docs build)
+docs/python/api/generated/

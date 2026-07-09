@@ -9,10 +9,14 @@
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
-#
-# import os
-# import sys
-# sys.path.insert(0, os.path.abspath('.'))
+
+import os
+import sys
+
+# So that `sphinx.ext.autodoc` can `import meanap` (the Python port lives at
+# ../src/meanap relative to this file) for the API reference under
+# docs/python/api/.
+sys.path.insert(0, os.path.abspath('../src'))
 
 
 # -- Project information -----------------------------------------------------
@@ -32,7 +36,22 @@ release = '1.10.2'
 # ones.
 extensions = [
     'hoverxref.extension',
+    # myst_nb subsumes myst_parser (Markdown support) and adds notebook
+    # rendering on top - listing both raises a Sphinx transform-registration
+    # conflict (myst_parser's setup runs twice), so only myst_nb is listed.
+    'myst_nb',
+    'sphinx_design',
+    'sphinx_copybutton',
+    'sphinx.ext.autodoc',
+    'sphinx.ext.autosummary',
+    'sphinx.ext.napoleon',
+    'sphinx.ext.viewcode',
 ]
+
+# .rst (existing MATLAB docs) continues to work as before; .md (new Python
+# docs) is handled by myst_nb, which registers its own source-suffix mapping
+# for both '.md' and '.ipynb' - don't override source_suffix here, that would
+# clobber the parser name myst_nb registered.
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
@@ -41,6 +60,38 @@ templates_path = ['_templates']
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path.
 exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
+
+# -- MyST (Markdown) ----------------------------------------------------------
+myst_enable_extensions = [
+    'colon_fence',   # ::: fences, needed for sphinx-design directives in .md
+    'deflist',
+    'attrs_inline',
+]
+myst_heading_anchors = 3
+
+# -- MyST-NB (rendered Jupyter notebooks) -------------------------------------
+# Notebooks are executed once and the result cached; re-executed only when the
+# notebook (or its dependencies) change. Commit the notebook with its outputs
+# so a docs build never has to execute it from scratch on a machine without
+# the example data.
+nb_execution_mode = 'cache'
+nb_execution_timeout = 300
+
+# -- autodoc / autosummary (Python API reference) -----------------------------
+autosummary_generate = True
+autodoc_default_options = {
+    'members': True,
+    'undoc-members': False,
+    'show-inheritance': True,
+}
+autodoc_typehints = 'description'
+napoleon_google_docstring = True
+napoleon_numpy_docstring = True
+napoleon_include_init_with_doc = True
+
+# -- sphinx-copybutton ---------------------------------------------------------
+copybutton_prompt_text = r'>>> |\.\.\. |\$ '
+copybutton_prompt_is_regexp = True
 
 
 # -- Options for HTML output -------------------------------------------------

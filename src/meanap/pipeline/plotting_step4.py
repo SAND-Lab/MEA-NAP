@@ -858,6 +858,7 @@ def plot_graph_metrics_by_node(
 
     Port of ``electrodeSpecificMetrics.m``.  Layout mirrors MATLAB's 4×7
     ``tiledlayout``:
+
     - **Row 0**: schematic PNG icons (ND / EW / NS / WMZ / Eloc / PC / BC)
       loaded from ``images_dir`` (defaults to ``Images/`` at the repo root
       relative to the package install).  Missing images are silently skipped.

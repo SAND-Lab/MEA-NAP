@@ -69,8 +69,7 @@ def load_suite2p(plane0_dir: str | Path) -> Suite2pData:
 
     Required files: F.npy, iscell.npy, stat.npy, ops.npy
     Optional files: spks.npy, Fdenoised.npy, peakStartFrames.npy,
-                    peakEndFrames.npy, peakHeights.npy, eventAreas.npy,
-                    timePoints.npy
+    peakEndFrames.npy, peakHeights.npy, eventAreas.npy, timePoints.npy
     """
     d = Path(plane0_dir)
 
