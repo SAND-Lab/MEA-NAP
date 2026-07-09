@@ -77,8 +77,11 @@ class Params:
 
     # ── Node cartography ─────────────────────────────────────────────────────
     auto_set_cartography_boundaries: bool = True
-    auto_set_cartography_boundaries_per_lag: bool = False
-    cartography_lag_val: list[int] = field(default_factory=lambda: [25])
+    # MEApipeline.m defaults autoSetCartographyBoudariesPerLag = 1 with
+    # cartographyLagVal = [10, 25, 50]; per-lag derives separate boundaries
+    # from each lag's pooled PC/Z, non-per-lag uses cartography_lag_val[0].
+    auto_set_cartography_boundaries_per_lag: bool = True
+    cartography_lag_val: list[int] = field(default_factory=lambda: [10, 25, 50])
     hub_boundary_wm_d_deg: float = 2.5
     peri_part_coef: float = 0.625
     pro_hub_part_coef: float = 0.3
@@ -134,6 +137,11 @@ class Params:
     recording_workers: int | None = None
 
     # ── Two-photon / CAT-NAP ─────────────────────────────────────────────────
+    # Master switch (MATLAB ``Params.suite2pMode``): when True the pipeline
+    # analyses suite2p calcium-imaging output instead of raw MEA recordings.
+    # The CAT-NAP execution path (steps 2-4) is being ported — see
+    # python/CATNAP_PORT_PLAN.md.
+    suite2p_mode: bool = False
     twop_activity: str = "peaks"
     twop_redo_denoising: bool = False
     remove_nodes_with_no_peaks: bool = False

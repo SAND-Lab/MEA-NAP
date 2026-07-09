@@ -59,6 +59,17 @@ def run_pipeline(
     )
     log(f"Output folder ready: {output_root}")
 
+    # CAT-NAP (suite2p calcium imaging) path. In MATLAB, Params.suite2pMode == 1
+    # replaces spike detection + connectivity (steps 1 & 3) with suite2pToAdjm,
+    # swaps step-2 stats for calTwopActivityStats, and feeds the shared step-4
+    # network metrics. We run that whole flow here instead of the ephys steps —
+    # the raw MEA .mat files those steps expect don't exist for 2P data.
+    if params.suite2p_mode:
+        log("\n=== CAT-NAP (suite2p) pipeline ===")
+        from meanap.catnap.pipeline import run_catnap_pipeline
+        run_catnap_pipeline(params, recordings, output_root, log, should_cancel)
+        return output_root
+
     start = params.start_analysis_step
     stop = params.stop_analysis_step
 

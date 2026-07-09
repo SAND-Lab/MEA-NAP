@@ -9,6 +9,43 @@ from __future__ import annotations
 
 import numpy as np
 
+# ``run_P`` (below) is a monotonic two-pointer whose result is *order-dependent*
+# on the input spike trains — it does not sort. For spike-detection data the
+# trains are already sorted, but CAT-NAP peak times can arrive unsorted (see
+# ``catnap/adjacency.py``), and MATLAB's ``sttc_m.m`` runs on them as-is, so we
+# must replicate the literal loop rather than assume sorted order. Compile it
+# with numba when available (same optional pattern as ``null_models.py``); the
+# pure-Python fallback is identical, just slower.
+try:
+    from numba import njit
+
+    _HAVE_NUMBA = True
+except Exception:  # pragma: no cover - numba optional / version-gated
+    _HAVE_NUMBA = False
+
+
+def _run_p_impl(t1: np.ndarray, t2: np.ndarray, dt: float) -> int:
+    """Literal port of ``run_P`` in ``sttc_m.m``: count spikes in ``t1`` that
+    have a coincident spike in ``t2`` within ``dt``, using MATLAB's monotonic,
+    non-resetting ``j`` pointer (does not assume either train is sorted)."""
+    n1 = t1.shape[0]
+    n2 = t2.shape[0]
+    nab = 0
+    j = 0
+    for i in range(n1):
+        while j < n2:
+            if abs(t1[i] - t2[j]) <= dt:
+                nab += 1
+                break
+            elif t2[j] > t1[i]:
+                break
+            else:
+                j += 1
+    return nab
+
+
+_run_p_jit = njit(cache=True)(_run_p_impl) if _HAVE_NUMBA else _run_p_impl
+
 
 def _run_t(dt: float, t_start: float, t_end: float, times: np.ndarray) -> float:
     """Fraction-of-recording (unnormalised) tiled by ``times`` +/- ``dt``.
@@ -46,18 +83,16 @@ def _run_t(dt: float, t_start: float, t_end: float, times: np.ndarray) -> float:
 def _run_p(t1: np.ndarray, t2: np.ndarray, dt: float) -> int:
     """Count of spikes in ``t1`` with >=1 coincident spike in ``t2`` within ``dt``.
 
-    Vectorised equivalent of the monotonic two-pointer ``run_P`` in
-    ``sttc_m.m``: for each spike in ``t1`` only its immediate neighbours in
-    the sorted ``t2`` array can be within ``dt`` (both arrays are sorted
-    ascending), so a single ``searchsorted`` call suffices.
+    Faithful port of the monotonic two-pointer ``run_P`` in ``sttc_m.m`` (see
+    :func:`_run_p_impl`). For sorted trains this equals the nearest-neighbour
+    count; for unsorted trains it reproduces MATLAB's exact, order-dependent
+    result — required for CAT-NAP peak-time parity.
     """
     if len(t1) == 0 or len(t2) == 0:
         return 0
-    idx = np.searchsorted(t2, t1)
-    idx_hi = np.clip(idx, 0, len(t2) - 1)
-    idx_lo = np.clip(idx - 1, 0, len(t2) - 1)
-    coincident = (np.abs(t2[idx_hi] - t1) <= dt) | (np.abs(t2[idx_lo] - t1) <= dt)
-    return int(np.sum(coincident))
+    return int(_run_p_jit(np.ascontiguousarray(t1, dtype=np.float64),
+                          np.ascontiguousarray(t2, dtype=np.float64),
+                          float(dt)))
 
 
 def sttc_pair(spike_times_1: np.ndarray, spike_times_2: np.ndarray, dt: float,
