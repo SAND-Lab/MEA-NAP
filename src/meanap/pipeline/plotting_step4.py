@@ -111,6 +111,7 @@ def plot_spatial_network(
     z_scale_override: float | None = None,
     z2_bounds_override: tuple[float, float] | None = None,
     edge_bounds_override: tuple[float, float] | None = None,
+    coords_override: np.ndarray | None = None,
 ) -> None:
     """Spatial network plot, port of the base ``2_MEA_NetworkPlot.png`` from
     ``StandardisedNetworkPlot.m`` (reuses ``network_plot.py``'s
@@ -130,7 +131,7 @@ def plot_spatial_network(
     ``network_plot.py``'s ``plot_network`` docstring).
     """
     prepared = _prepare_network_plot_data(
-        adj_m_sub, channels_active, channel_layout, z, z2,
+        adj_m_sub, channels_active, channel_layout, z, z2, coords_override,
     )
     if prepared is None:
         return
@@ -158,15 +159,25 @@ def _prepare_network_plot_data(
     channel_layout: str,
     z: np.ndarray,
     z2: np.ndarray | None,
+    coords_override: np.ndarray | None = None,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray | None] | None:
-    """Map active channels to layout coordinates and subset the adjacency
-    matrix / per-node metrics to the channels that have a coordinate.
+    """Map active channels to coordinates and subset the adjacency matrix /
+    per-node metrics to the channels that have one.
+
+    ``coords_override`` (an ``(n_active, 2)`` array aligned with
+    ``channels_active``) supplies coordinates directly instead of the MEA
+    ``channel_layout`` lookup — used by the CAT-NAP path, whose node positions
+    come from suite2p cell centroids rather than an electrode grid. In that
+    case every active node has a coordinate, so nothing is dropped.
 
     Returns ``(sub_adj, coords, z_sub, z2_sub)`` or ``None`` if no active
     channel has a coordinate (e.g. an all-grounded layout). Shared by
     ``plot_spatial_network`` and ``plot_spatial_network_combined`` so both
     subset identically.
     """
+    if coords_override is not None:
+        return adj_m_sub, np.asarray(coords_override, dtype=float), z, z2
+
     layout_channels, layout_coords = get_coords_from_layout(channel_layout)
     coord_by_channel = dict(zip(layout_channels.tolist(), map(tuple, layout_coords)))
 

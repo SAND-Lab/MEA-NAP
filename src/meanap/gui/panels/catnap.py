@@ -219,6 +219,14 @@ class CatNapPanel(QWidget):
         info_form.addRow("Duration:", self._info_duration)
         info_form.addRow("Denoised data:", self._info_denoised)
 
+        # Pipeline mode: master switch mirroring MATLAB Params.suite2pMode.
+        # When ticked, a pipeline run analyses suite2p data via the CAT-NAP path
+        # rather than raw MEA recordings.
+        mode_box = QGroupBox("Pipeline mode")
+        mode_form = QFormLayout(mode_box)
+        self._suite2p_mode = QCheckBox()
+        mode_form.addRow("Analyse suite2p data (CAT-NAP)", self._suite2p_mode)
+
         # Denoising settings
         denoise_box = QGroupBox("Denoising settings")
         denoise_form = QFormLayout(denoise_box)
@@ -261,6 +269,7 @@ class CatNapPanel(QWidget):
 
         layout.addWidget(scan_box)
         layout.addWidget(info_box)
+        layout.addWidget(mode_box)
         layout.addWidget(denoise_box)
         layout.addWidget(self._denoise_btn)
         layout.addStretch()
@@ -419,6 +428,7 @@ class CatNapPanel(QWidget):
 
     def load(self, params: Params) -> None:
         self._folder_edit.setText(params.raw_data)
+        self._suite2p_mode.setChecked(params.suite2p_mode)
         idx = self._activity_combo.findText(params.twop_activity)
         if idx >= 0:
             self._activity_combo.setCurrentIndex(idx)
@@ -430,6 +440,7 @@ class CatNapPanel(QWidget):
 
     def save(self, params: Params) -> None:
         params.raw_data = self._folder_edit.text()
+        params.suite2p_mode = self._suite2p_mode.isChecked()
         params.twop_activity = self._activity_combo.currentText()
         params.twop_redo_denoising = self._redo_denoising.isChecked()
         params.remove_nodes_with_no_peaks = self._remove_no_peaks.isChecked()
