@@ -21,6 +21,7 @@ from meanap.pipeline.io import load_spike_times_npz
 from meanap.pipeline.modularity import mod_consensus_cluster_iterate
 from meanap.pipeline.nmf import cal_nmf
 from meanap.pipeline.null_models import latmio_und_v2, randmio_und_v2
+from meanap.pipeline.parallel import map_recordings
 from meanap.pipeline.plotting_step4 import (
     plot_circular_cartography_network, plot_circular_module_network,
     plot_connectivity_stats, plot_graph_metrics_by_node,
@@ -380,6 +381,133 @@ def _plot_recording_lag(
         log(f"  [{rec.filename}] skipped graph-metrics-by-node plot: {e}")
 
 
+# Peak per-worker RAM for Step 4: NMF's downsampled spike matrix + sklearn NMF
+# working set + (in the plot phase) a matplotlib figure or two. All modest;
+# ~0.6 GB is a safe cap so a 16 GB box still gets several workers.
+_STEP4_MEM_PER_TASK_GB = 0.6
+
+
+def _step4_compute_one(
+    task: tuple[Params, RecordingInfo, str],
+) -> tuple[str, dict | None, np.ndarray | None, list[str]]:
+    """Phase A worker: compute one recording's network metrics (effRank, NMF,
+    per-lag metrics). Module-level/picklable for ``spawn``. Returns the metrics
+    keyed by lag (or ``None`` if skipped), the channel array (needed by the
+    plot phase), and the log lines it produced."""
+    params, rec, output_root_str = task
+    output_root = Path(output_root_str)
+    mat_files_dir = output_root / "ExperimentMatFiles"
+    spike_data_dir = output_root / "1_SpikeDetection" / "1A_SpikeDetectedData"
+
+    method = params.spikes_method
+    lag_values = params.func_con_lag_val
+    min_nodes = params.min_number_of_nodes_to_cal_net_met
+    logs: list[str] = []
+
+    adj_path = mat_files_dir / f"{rec.filename}_adjM.npz"
+    spike_path = spike_data_dir / f"{rec.filename}_spikes.npz"
+    if not adj_path.exists():
+        logs.append(f"  [{rec.filename}] SKIP: adjacency matrices not found at {adj_path.name}")
+        return rec.filename, None, None, logs
+    if not spike_path.exists():
+        logs.append(f"  [{rec.filename}] SKIP: spike data not found at {spike_path.name}")
+        return rec.filename, None, None, logs
+
+    # Independent RNG per worker (Step 4's PC-norm/modularity are already
+    # non-bit-reproducible; separate default_rng()s give independent streams).
+    rng = np.random.default_rng()
+
+    logs.append(f"  [{rec.filename}] loading adjacency matrices...")
+    adj_data = np.load(adj_path)
+    spike_data = np.load(spike_path)
+    fs = float(spike_data["fs"][0])
+    channels_arr = spike_data["channels"]
+    n_channels = len(channels_arr)
+
+    raw_path = Path(params.raw_data) / f"{rec.filename}.mat"
+    try:
+        with h5py.File(raw_path, "r") as f:
+            n_samples = f["dat"].shape[0]
+            if n_samples == n_channels:
+                n_samples = f["dat"].shape[1]
+        duration_s = n_samples / fs
+    except Exception:
+        logs.append(f"  [{rec.filename}] SKIP: could not read raw file for duration")
+        return rec.filename, None, None, logs
+
+    spike_times_full = load_spike_times_npz(spike_path)
+    spike_times_dict = {
+        ch: spike_times_full.get(ch, {}).get(method, np.array([]))
+        for ch in range(n_channels)
+    }
+    ground_electrodes = parse_ground_electrodes(rec.ground)
+    if ground_electrodes:
+        spike_times_dict = ground_spike_times_dict(spike_times_dict, channels_arr, ground_electrodes)
+
+    spike_counts = np.array([len(spike_times_dict[ch]) for ch in range(n_channels)])
+    spike_times_list = [spike_times_dict[ch] for ch in range(n_channels)]
+
+    try:
+        eff_rank = nm.effective_rank(
+            spike_times_list, fs, duration_s,
+            params.eff_rank_downsample_freq, params.eff_rank_cal_method
+        )
+    except Exception as e:
+        logs.append(f"  [{rec.filename}] WARNING: could not compute effective rank: {e}")
+        eff_rank = float('nan')
+
+    try:
+        logs.append(f"  [{rec.filename}] computing NMF components...")
+        nmf_result = cal_nmf(
+            spike_times_list, spike_counts, duration_s,
+            params.nmf_downsample_freq, fs,
+            include_nmf_components=params.include_nmf_components, rng=rng,
+        )
+    except Exception as e:
+        logs.append(f"  [{rec.filename}] WARNING: could not compute NMF components: {e}")
+        nmf_result = {}
+
+    rec_results: dict = {}
+    for lag_ms in lag_values:
+        key = f"adjM{lag_ms}mslag"
+        if key not in adj_data:
+            continue
+        logs.append(f"  [{rec.filename}] computing network metrics (lag={lag_ms}ms)...")
+        metrics = compute_network_metrics(
+            adj_data[key], spike_counts, duration_s,
+            params.min_activity_level, min_nodes,
+            exclude_edges_below_threshold=params.exclude_edges_below_threshold,
+            params=params, rng=rng,
+        )
+        metrics["effRank"] = eff_rank
+        metrics.update(nmf_result)
+        rec_results[f"{lag_ms}mslag"] = metrics
+
+    return rec.filename, rec_results, channels_arr, logs
+
+
+def _step4_plot_one(
+    task: tuple[Params, RecordingInfo, dict, np.ndarray, str, dict],
+) -> tuple[str, list[str]]:
+    """Phase C worker: draw one recording's plots (individual- and
+    batch-scaled) now that ``batch_bounds`` are known. Module-level/picklable
+    for ``spawn``; writes its own PNGs and returns its log lines."""
+    params, rec, rec_results, channels_arr, output_root_str, batch_bounds = task
+    out_dir = Path(output_root_str) / "4_NetworkActivity"
+    logs: list[str] = []
+
+    def _log(msg: str) -> None:
+        logs.append(msg)
+
+    for lag_key, metrics in rec_results.items():
+        lag_ms = int(lag_key.replace("mslag", ""))
+        _log(f"  [{rec.filename}] plotting network metrics (lag={lag_ms}ms)...")
+        _plot_recording_lag(
+            rec, lag_ms, metrics, channels_arr, params, out_dir, _log, batch_bounds,
+        )
+    return rec.filename, logs
+
+
 def _run_step4_network_metrics(
     params: Params,
     recordings: list[RecordingInfo],
@@ -389,119 +517,58 @@ def _run_step4_network_metrics(
 ) -> None:
     log("\n=== Step 4: Network Activity ===")
 
-    mat_files_dir = output_root / "ExperimentMatFiles"
-    spike_data_dir = output_root / "1_SpikeDetection" / "1A_SpikeDetectedData"
     out_dir = output_root / "4_NetworkActivity"
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    method = params.spikes_method
-    lag_values = params.func_con_lag_val
-    min_nodes = params.min_number_of_nodes_to_cal_net_met
-    rng = np.random.default_rng()
+    _cancel = (lambda: bool(should_cancel())) if should_cancel else None
 
+    def _emit(result) -> None:
+        for line in result[-1]:  # log lines are always the last element
+            log(line)
+
+    # ── Phase A: parallel compute over recordings (map) ──────────────────────
+    check_cancel(should_cancel)
+    compute_out = map_recordings(
+        _step4_compute_one,
+        [(params, rec, str(output_root)) for rec in recordings],
+        mem_per_task_gb=_STEP4_MEM_PER_TASK_GB,
+        max_workers=params.recording_workers,
+        on_result=_emit,
+        cancel_check=_cancel,
+    )
     all_results: dict[str, dict] = {}
-    # (rec, lag_ms, metrics, channels_arr) tuples collected in the compute pass
-    # and drawn in a second pass once batch-wide metric bounds are known.
-    plot_jobs: list[tuple] = []
+    channels_by_rec: dict[str, np.ndarray] = {}
+    for filename, rec_results, channels_arr, _logs in compute_out:
+        if rec_results:
+            all_results[filename] = rec_results
+            channels_by_rec[filename] = channels_arr
 
-    for rec in recordings:
-        check_cancel(should_cancel)
-        adj_path = mat_files_dir / f"{rec.filename}_adjM.npz"
-        spike_path = spike_data_dir / f"{rec.filename}_spikes.npz"
-        if not adj_path.exists():
-            log(f"  [{rec.filename}] SKIP: adjacency matrices not found at {adj_path.name}")
-            continue
-        if not spike_path.exists():
-            log(f"  [{rec.filename}] SKIP: spike data not found at {spike_path.name}")
-            continue
-
-        log(f"  [{rec.filename}] loading adjacency matrices...")
-        adj_data = np.load(adj_path)
-        spike_data = np.load(spike_path)
-        fs = float(spike_data["fs"][0])
-        channels_arr = spike_data["channels"]
-        n_channels = len(channels_arr)
-
-        raw_path = Path(params.raw_data) / f"{rec.filename}.mat"
-        try:
-            with h5py.File(raw_path, "r") as f:
-                n_samples = f["dat"].shape[0]
-                if n_samples == n_channels:
-                    n_samples = f["dat"].shape[1]
-            duration_s = n_samples / fs
-        except Exception:
-            log(f"  [{rec.filename}] SKIP: could not read raw file for duration")
-            continue
-
-        spike_times_full = load_spike_times_npz(spike_path)
-        spike_times_dict = {
-            ch: spike_times_full.get(ch, {}).get(method, np.array([]))
-            for ch in range(n_channels)
-        }
-        ground_electrodes = parse_ground_electrodes(rec.ground)
-        if ground_electrodes:
-            spike_times_dict = ground_spike_times_dict(spike_times_dict, channels_arr, ground_electrodes)
-
-        spike_counts = np.array([len(spike_times_dict[ch]) for ch in range(n_channels)])
-        spike_times_list = [spike_times_dict[ch] for ch in range(n_channels)]
-
-
-        try:
-            eff_rank = nm.effective_rank(
-                spike_times_list, fs, duration_s,
-                params.eff_rank_downsample_freq, params.eff_rank_cal_method
-            )
-        except Exception as e:
-            log(f"  [{rec.filename}] WARNING: could not compute effective rank: {e}")
-            eff_rank = float('nan')
-
-        try:
-            log(f"  [{rec.filename}] computing NMF components...")
-            nmf_result = cal_nmf(
-                spike_times_list, spike_counts, duration_s,
-                params.nmf_downsample_freq, fs,
-                include_nmf_components=params.include_nmf_components, rng=rng,
-            )
-        except Exception as e:
-            log(f"  [{rec.filename}] WARNING: could not compute NMF components: {e}")
-            nmf_result = {}
-
-        rec_results = {}
-        for lag_ms in lag_values:
-            check_cancel(should_cancel)
-            key = f"adjM{lag_ms}mslag"
-            if key not in adj_data:
-                continue
-            log(f"  [{rec.filename}] computing network metrics (lag={lag_ms}ms)...")
-            metrics = compute_network_metrics(
-                adj_data[key], spike_counts, duration_s,
-                params.min_activity_level, min_nodes,
-                exclude_edges_below_threshold=params.exclude_edges_below_threshold,
-                params=params, rng=rng,
-            )
-            metrics["effRank"] = eff_rank
-            metrics.update(nmf_result)
-            rec_results[f"{lag_ms}mslag"] = metrics
-            # Defer plotting to a second pass: the "scaled to entire data batch"
-            # variants need batch-wide metric bounds, which aren't known until
-            # every recording has been computed (see below).
-            plot_jobs.append((rec, lag_ms, metrics, channels_arr))
-
-        all_results[rec.filename] = rec_results
-
-    # Second pass: now that all recordings are computed, pool the node-level
-    # metrics to get batch-wide bounds, then draw every recording's plots
-    # (individual-scaled + the batch-scaled ``_scaled`` variants).
+    # ── Phase B: reduce (serial) ─────────────────────────────────────────────
+    # Pool node-level metrics across every recording for the batch-scaled plot
+    # bounds. This is also where cross-recording node-cartography boundaries
+    # (pooled PC/Z density landscape → basins) will be computed once ported —
+    # a second reducer in the same barrier. See PIPELINE_PORT_STATUS.md.
     batch_bounds = {
         m: _batch_metric_bounds(all_results, m)
         for m in ("ND", "NS", "BC", "PC", "Eloc")
     }
-    for rec, lag_ms, metrics, channels_arr in plot_jobs:
-        check_cancel(should_cancel)
-        log(f"  [{rec.filename}] plotting network metrics (lag={lag_ms}ms)...")
-        _plot_recording_lag(
-            rec, lag_ms, metrics, channels_arr, params, out_dir, log, batch_bounds,
-        )
+
+    # ── Phase C: parallel plot over recordings (map) ─────────────────────────
+    check_cancel(should_cancel)
+    plot_tasks = [
+        (params, rec, all_results[rec.filename], channels_by_rec[rec.filename],
+         str(output_root), batch_bounds)
+        for rec in recordings
+        if rec.filename in all_results
+    ]
+    map_recordings(
+        _step4_plot_one,
+        plot_tasks,
+        mem_per_task_gb=_STEP4_MEM_PER_TASK_GB,
+        max_workers=params.recording_workers,
+        on_result=_emit,
+        cancel_check=_cancel,
+    )
 
     try:
         json_results = {

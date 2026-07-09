@@ -73,6 +73,12 @@ def _nnmf(x: np.ndarray, k: int, rng: np.random.Generator) -> tuple[np.ndarray, 
     output convention: ``D`` is the root-mean-square residual
     ``norm(A - W*H, 'fro') / sqrt(m*n)``, not sklearn's raw Frobenius error.
 
+    Uses ``init="random"``. (``init="nndsvda"`` was benchmarked and is ~8%
+    *slower* here despite converging in fewer iterations: cal_nmf runs ~N fits
+    on the same matrix for the per-rank sweep, and NNDSVD pays an SVD-based
+    init cost on every fit that outweighs the convergence gain. NMF here is
+    fit-count-bound, not init-bound.)
+
     Falls back to a large residual (rather than raising) on numerical
     failure — matching ``calNMF.m``'s own defensive early-exit on a failed
     ``nnmf`` call, just via Python's exception mechanism instead of

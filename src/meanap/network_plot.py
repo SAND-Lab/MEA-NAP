@@ -295,15 +295,29 @@ def plot_network(
                 edge_lw.append(lw)
                 edge_colors.append(col)
 
-    # Sort edges light → dark so darker edges appear on top
+    # Sort edges light → dark so darker edges draw last (on top), then render
+    # them all as a single LineCollection. Drawing each edge as its own
+    # ax.plot() Line2D was the dominant plotting cost — hundreds of artists per
+    # figure × 144 figures — profiled as ~500k draw_path calls. One collection
+    # is visually identical (same per-edge color/width, same draw order) but an
+    # order of magnitude fewer matplotlib objects.
     if edges_x:
+        from matplotlib.collections import LineCollection
+
         order = np.argsort([c[0] for c in edge_colors])[::-1]
-        for idx in order:
-            ax.plot(
-                edges_x[idx], edges_y[idx],
-                color=edge_colors[idx], linewidth=edge_lw[idx],
-                zorder=1, solid_capstyle="round",
-            )
+        segments = [
+            np.array([[edges_x[idx][0], edges_y[idx][0]],
+                      [edges_x[idx][1], edges_y[idx][1]]])
+            for idx in order
+        ]
+        lc = LineCollection(
+            segments,
+            colors=[edge_colors[idx] for idx in order],
+            linewidths=[edge_lw[idx] for idx in order],
+            capstyle="round",
+            zorder=1,
+        )
+        ax.add_collection(lc)
 
     # ── Nodes ─────────────────────────────────────────────────────────────────
     ct_line_styles = ["-", "--", ":", "-.", "-"]
@@ -315,6 +329,8 @@ def plot_network(
         and cell_type_matrix.shape[1] > 0
     )
 
+    outer_patches = []
+    inner_patches = []
     for i in range(n):
         zi = float(z[i]) if not np.isnan(z[i]) else 0.0
         if zi <= 0:
@@ -322,26 +338,35 @@ def plot_network(
 
         node_size = _get_node_size(zi, node_scale_f, min_node_size)
         fc = node_facecolor(i)
-        outer = mpatches.Circle(
+        outer_patches.append(mpatches.Circle(
             (xc[i], yc[i]), node_size / 2,
-            facecolor=fc, edgecolor="white", linewidth=0.1, zorder=2,
-        )
-        ax.add_patch(outer)
+            facecolor=fc, edgecolor="white", linewidth=0.1,
+        ))
 
         if has_ct:
             ct_sizes = np.linspace(0.9, 0.3, cell_type_matrix.shape[1]) * node_size
             for k in range(cell_type_matrix.shape[1]):
                 if cell_type_matrix[i, k] == 1:
                     r = ct_sizes[k] / 2
-                    inner = mpatches.Circle(
+                    inner_patches.append(mpatches.Circle(
                         (xc[i], yc[i]), r,
                         facecolor=fc,
                         edgecolor=ct_edge_colors[k % len(ct_edge_colors)],
                         linewidth=1.0,
                         linestyle=ct_line_styles[k % len(ct_line_styles)],
-                        zorder=3,
-                    )
-                    ax.add_patch(inner)
+                    ))
+
+    # Batch node circles into PatchCollections (match_original keeps each
+    # circle's own face/edge/width/style) — same artist-count reduction as the
+    # edge LineCollection: one draw call instead of one add_patch per node.
+    # Outer circles sit at zorder 2 (above edges); cell-type inner rings at
+    # zorder 3 (above the outer circle).
+    from matplotlib.collections import PatchCollection
+
+    if outer_patches:
+        ax.add_collection(PatchCollection(outer_patches, match_original=True, zorder=2))
+    if inner_patches:
+        ax.add_collection(PatchCollection(inner_patches, match_original=True, zorder=3))
 
     # ── Legend: node size metric ────────────────────────────────────────────────
     x_max = float(xc.max())

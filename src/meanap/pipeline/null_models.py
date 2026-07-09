@@ -20,6 +20,59 @@ from typing import Iterator
 
 import numpy as np
 
+# ``randmio_und_signed`` is the pipeline's single hottest Step-4 function
+# (profiled at ~46% of Step 4 — 159M inner iterations of a sequential swap
+# loop that can't be vectorized, since each accepted swap mutates the matrix
+# the next one reads). That's the textbook case for a JIT. We compile the
+# inner loop with numba when it's importable and fall back to an equivalent
+# pure-NumPy implementation otherwise, so the module has no hard numba
+# dependency — it just runs ~10-30x faster when numba is present.
+try:
+    from numba import njit
+
+    _HAVE_NUMBA = True
+except Exception:  # pragma: no cover - numba optional / version-gated
+    _HAVE_NUMBA = False
+
+
+if _HAVE_NUMBA:
+
+    @njit(cache=True)
+    def _randmio_signed_core(r, sgn, total_iter, max_attempts, seed):  # pragma: no cover - jitted
+        """In-place degree-preserving signed swaps on ``r`` (and its sign
+        matrix ``sgn``). Compiled; uses numba's own RNG (seeded per call).
+        ``sgn`` is kept consistent with ``r`` so sign comparisons are integer
+        lookups rather than repeated ``np.sign`` calls."""
+        np.random.seed(seed)
+        n = r.shape[0]
+        for _ in range(total_iter):
+            for _attempt in range(max_attempts + 1):
+                # Draw 4 distinct nodes (retry distinctness without consuming
+                # an attempt — matches the reference ``next_quad`` semantics).
+                while True:
+                    a = np.random.randint(0, n)
+                    b = np.random.randint(0, n)
+                    c = np.random.randint(0, n)
+                    d = np.random.randint(0, n)
+                    if a != b and a != c and a != d and b != c and b != d and c != d:
+                        break
+
+                s_ab = sgn[a, b]
+                s_cd = sgn[c, d]
+                s_ad = sgn[a, d]
+                s_cb = sgn[c, b]
+
+                if s_ab == s_cd and s_ad == s_cb and s_ab != s_ad:
+                    r_ab = r[a, b]
+                    r_cd = r[c, d]
+                    r_ad = r[a, d]
+                    r_cb = r[c, b]
+                    r[a, d] = r_ab; r[a, b] = r_ad; r[d, a] = r_ab; r[b, a] = r_ad
+                    r[c, b] = r_cd; r[c, d] = r_cb; r[b, c] = r_cd; r[d, c] = r_cb
+                    sgn[a, d] = s_ab; sgn[a, b] = s_ad; sgn[d, a] = s_ab; sgn[b, a] = s_ad
+                    sgn[c, b] = s_cd; sgn[c, d] = s_cb; sgn[b, c] = s_cd; sgn[d, c] = s_cb
+                    break
+
 
 def randmio_und_signed(
     w: np.ndarray, iterations: int, rng: np.random.Generator | None = None,
@@ -28,6 +81,11 @@ def randmio_und_signed(
 
     ``iterations`` is a rewiring-attempts-per-edge multiplier, matching
     MATLAB's ``ITER`` input: total swap attempts = ``iterations * n*(n-1)/2``.
+
+    Uses a numba-compiled inner loop when available (see module note); the
+    pure-NumPy fallback below is behaviourally equivalent (same swap rule,
+    same distinct-quad sampling), just slower. Both preserve the degree
+    sequence exactly by construction — the invariant the port is validated on.
     """
     if rng is None:
         rng = np.random.default_rng()
@@ -37,6 +95,13 @@ def randmio_und_signed(
     total_iter = int(iterations * n * (n - 1) / 2)
     max_attempts = round(n / 2)
 
+    if _HAVE_NUMBA:
+        sgn = np.sign(r).astype(np.int64)
+        seed = int(rng.integers(0, 2**31 - 1))
+        _randmio_signed_core(r, sgn, total_iter, max_attempts, seed)
+        return r
+
+    # ── Pure-NumPy fallback ──────────────────────────────────────────────────
     # rng.choice(n, size=4, replace=False) has surprisingly high per-call
     # overhead (array-machinery setup dominates for such a tiny sample) —
     # profiled at >85% of this function's runtime for realistic network

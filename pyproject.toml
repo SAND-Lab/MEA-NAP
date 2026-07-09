@@ -10,7 +10,13 @@ readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
 dependencies = [
-    "numpy>=1.26",
+    # numpy capped <2.5 so numba can load (numba requires numpy<=2.4). numba
+    # JIT-compiles the Step-4 network-randomization hot loop
+    # (randmio_und_signed), ~28x faster than the pure-Python fallback; the
+    # code runs without numba too, just slower (see pipeline/null_models.py).
+    "numpy>=1.26,<2.5",
+    "numba>=0.60",
+    "psutil>=5.9",  # RAM/CPU-aware parallel worker sizing (pipeline/parallel.py)
     "scipy>=1.13",
     "matplotlib>=3.8",
     "pandas>=2.2",

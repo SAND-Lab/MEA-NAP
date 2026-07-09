@@ -173,7 +173,10 @@ def _run_step1_spike_detection(
         )
 
         log(f"  [{rec.filename}] detecting spikes ({len(channels)} channels)…")
-        result = detect_spikes_recording(dat, channels, fs, detect_params)
+        result = detect_spikes_recording(
+            dat, channels, fs, detect_params,
+            max_workers=params.spike_detection_channel_workers,
+        )
 
         out_path = spike_dir / f"{rec.filename}_spikes.npz"
         save_spike_times_npz(out_path, result.spike_times, channels, fs)

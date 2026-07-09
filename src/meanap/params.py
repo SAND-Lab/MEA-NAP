@@ -126,6 +126,13 @@ class Params:
     time_processes: bool = False
     output_spreadsheet_file_type: str = "csv"
 
+    # ── Parallelism ──────────────────────────────────────────────────────────
+    # None = auto-size against available cores/RAM (see pipeline/parallel.py).
+    # Step 1 threads over channels on one shared ~3.8 GB array (RAM-safe);
+    # steps 3/4 run recordings in separate processes (CPU-bound, low RAM).
+    spike_detection_channel_workers: int | None = None
+    recording_workers: int | None = None
+
     # ── Two-photon / CAT-NAP ─────────────────────────────────────────────────
     twop_activity: str = "peaks"
     twop_redo_denoising: bool = False
