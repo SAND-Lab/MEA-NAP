@@ -1034,6 +1034,54 @@ purely-numerical steps, slower specifically where MATLAB parallelizes:
 (e.g. `multiprocessing`/`joblib` across recordings or lags) — that's where
 essentially all of the total deficit lives.
 
+### Optimization pass — 3.3x faster end-to-end (2026-07-09)
+
+A follow-up performance pass took the full run from 1166.9s to **350.0s** —
+Python is now **~2.66x faster than MATLAB** (931s), not 25% slower. Same
+machine, same config (2 recordings, `[10, 25, 50]`ms, `ProbThreshRepNum=200`):
+
+| Step | Before | After | Speedup | What changed |
+|---|---|---|---|---|
+| 1. Spike detection | 568.8s | 103.6s | **5.5x** | Channel-level threading (`detect_spikes_recording(max_workers=)`): per-channel wavelet CWT + bandpass release the GIL, so threads parallelize over one shared ~3.8 GB `dat` array with no extra RAM. Bit-identical output. |
+| 2. Neuronal activity | 6.2s | 6.4s | — | Unchanged (already fast). |
+| 3. Functional connectivity | 80.2s | 42.7s | **1.9x** | Recording-level process map. |
+| 4. Network activity | 511.7s | 197.3s | **2.6x** | numba-JIT `randmio_und_signed` (~28x on the PC-norm null models); collection-based plotting (~5x plot phase, single-threaded); recording-level process map. |
+| **Total** | **1166.9s** | **350.0s** | **3.3x** | |
+
+Key pieces (all default-on, with serial fallbacks; see
+`src/meanap/pipeline/parallel.py`):
+
+- **RAM/CPU-aware worker sizing.** Step 1 is RAM-bound (~3.8 GB/recording) →
+  *threads over channels* on one shared array (no per-worker copy). Steps 3/4
+  are CPU-bound/low-RAM → *processes over recordings*. Counts auto-size to
+  physical cores and free RAM (`psutil`) with headroom; override via
+  `params.spike_detection_channel_workers` / `params.recording_workers`
+  (`None` = auto). Per-worker BLAS threads pinned to avoid oversubscription.
+- **numba** is now a dependency (forces `numpy<2.5`); `randmio_und_signed` has
+  an `@njit` core + pure-Python fallback (runs without numba, just slower).
+  All step-3/4 parity fixtures pass under numpy 2.4.6.
+- **Plotting** (`network_plot.py`): edges were individual `ax.plot()` Line2D
+  artists and nodes individual `add_patch` circles (hundreds per figure ×
+  ~380 figures) → one `LineCollection` + `PatchCollection(match_original=True)`.
+  Cut the plot phase ~5x *and* removed a `get_text_width_height_descent`
+  layout pathology (458s→1.1s in profile — the per-edge artists were making
+  `tight_layout`/bbox re-measure text catastrophically). Output pixel-validated
+  unchanged.
+- **Step 4** restructured into A (parallel compute) → B (serial batch-bounds
+  reduce) → C (parallel plot). Deterministic metrics bit-identical
+  serial-vs-parallel. Phase B is also where the not-yet-ported cross-recording
+  node-cartography boundary clustering (pooled PC/Z density landscape → basins,
+  `TrialLandscapeDensity.m`/`findBasinsOfAttraction.m`) will live.
+
+Caveats: measured on a shared 16-core box where step-4 *process*-parallelism
+scales poorly (memory-bandwidth/BLAS contention → only ~1.1-1.4x across
+recordings), so most of step 4's win is the numba + plotting changes, which are
+single-threaded and portable. On a dedicated ~8-core machine the recording map
+should contribute more. Remaining portable candidates: numba
+`randmio_und_v2`/`latmio_und_v2` (small-worldness, same `@njit` pattern);
+cutting NMF's fit count (`init="nndsvda"` was tried — ~8% *slower* since the
+per-rank sweep pays NNDSVD's SVD-init cost on every fit, reverted).
+
 **How this was measured** — headless (`Params.guiMode=0`) execution of
 MATLAB MEA-NAP is not a well-trodden path; getting a clean end-to-end run
 required finding and working around 5 bugs/config traps that the

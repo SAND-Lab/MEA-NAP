@@ -14,12 +14,15 @@ Key differences from MATLAB
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from typing import NamedTuple
 
 import numpy as np
 import pywt
 from scipy.signal import butter, filtfilt, find_peaks
+
+from meanap.pipeline.parallel import suggest_thread_count
 
 
 # ── Bandpass filter ───────────────────────────────────────────────────────────
@@ -461,6 +464,7 @@ def detect_spikes_recording(
     channels: np.ndarray,
     fs: float,
     params: SpikeDetectionParams | None = None,
+    max_workers: int | None = None,
 ) -> SpikeDetectionResult:
     """Run spike detection on all channels of a single recording.
 
@@ -496,9 +500,15 @@ def detect_spikes_recording(
     if any(not w.startswith("thr") for w in all_methods):
         _get_bior15_wavefn()
 
-    for ch_idx in range(n_channels):
+    # Per-channel work is independent and dominated by GIL-releasing
+    # scipy.filtfilt + numpy.fft, so it threads cleanly over the (single,
+    # shared) ~3.8 GB `dat` array without duplicating it — the RAM-safe way
+    # to parallelize Step 1 (see pipeline/parallel.py). Column slices of a
+    # NumPy array are read-only-shared across threads; each channel writes
+    # only its own result dict entry, so no locking is needed.
+    def _process_channel(ch_idx: int):
         if ch_idx in params.grd:
-            continue
+            return None
 
         raw_trace = dat[:, ch_idx].astype(float)
         filtered = bandpass_filter(raw_trace, fs, params.filter_low_pass, params.filter_high_pass)
@@ -552,6 +562,19 @@ def detect_spikes_recording(
             spike_struct[valid_name] = times
             wave_struct[valid_name] = waveforms
 
+        return ch_idx, spike_struct, wave_struct, thr_struct
+
+    n_threads = suggest_thread_count(n_channels, max_workers=max_workers)
+    if n_threads <= 1:
+        results = (_process_channel(ch) for ch in range(n_channels))
+    else:
+        with ThreadPoolExecutor(max_workers=n_threads) as pool:
+            results = pool.map(_process_channel, range(n_channels))
+
+    for res in results:
+        if res is None:
+            continue
+        ch_idx, spike_struct, wave_struct, thr_struct = res
         spike_times[ch_idx] = spike_struct
         spike_waveforms[ch_idx] = wave_struct
         thresholds_out[ch_idx] = thr_struct
