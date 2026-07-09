@@ -431,6 +431,134 @@ def rich_club_wu(adj_m: np.ndarray, k_level: int | None = None) -> np.ndarray:
 
 # ── Node cartography classification (NodeCartography.m) ────────────────────
 
+def _optimal_1d_split_boundaries(x: np.ndarray, k: int) -> np.ndarray | None:
+    """Boundaries (``k-1`` midpoints) of an optimal 1-D k-means clustering.
+
+    Port of MATLAB ``TrialLandscapeDensity``'s use of ``kmeans`` to carve a
+    1-D set of values (Z, or PC within a hub/non-hub band) into ``k`` groups,
+    then place each boundary halfway between the max of the "left" group and
+    the min of the "right" group.
+
+    MATLAB's ``kmeans`` (Lloyd from a random ``k-means++`` seed, 1 replicate)
+    is *not* deterministic — two runs of the same data can land in different
+    local minima, so its stored boundaries aren't uniquely reproducible. We
+    instead compute the *globally optimal* 1-D partition via the classic
+    O(k·n²) dynamic program (Ckmeans.1d.dp). Optimal 1-D k-means clusters are
+    always contiguous once the data is sorted, so each boundary is simply the
+    midpoint of an adjacent sorted pair at the optimal split — which matches
+    MATLAB's "(left max + right min) / 2" whenever its ``kmeans`` also finds
+    the optimum. This makes the Python boundaries reproducible run-to-run.
+
+    Returns the sorted ``(k-1,)`` boundary array, or ``None`` if there are
+    fewer than ``k`` distinct finite values to split (caller falls back to the
+    fixed default boundaries, mirroring MATLAB's ``< num_partitions`` guard).
+    """
+    x = np.asarray(x, dtype=float)
+    x = x[np.isfinite(x)]
+    if len(x) < k or len(np.unique(x)) < k:
+        return None
+    xs = np.sort(x)
+    n = len(xs)
+    # prefix sums for O(1) segment cost: cost(i,j) = sum sq dev of xs[i..j]
+    p1 = np.concatenate([[0.0], np.cumsum(xs)])
+    p2 = np.concatenate([[0.0], np.cumsum(xs * xs)])
+
+    def seg_cost(i: int, j: int) -> float:  # inclusive, 0-indexed
+        m = j - i + 1
+        s = p1[j + 1] - p1[i]
+        return (p2[j + 1] - p2[i]) - s * s / m
+
+    INF = float("inf")
+    # D[m][j] = min cost to split xs[0..j] into m+1 clusters; B = split backptr
+    D = [[INF] * n for _ in range(k)]
+    B = [[0] * n for _ in range(k)]
+    for j in range(n):
+        D[0][j] = seg_cost(0, j)
+    for m in range(1, k):
+        for j in range(m, n):
+            best, arg = INF, m
+            for i in range(m, j + 1):
+                c = D[m - 1][i - 1] + seg_cost(i, j)
+                if c < best:
+                    best, arg = c, i
+            D[m][j] = best
+            B[m][j] = arg
+
+    # backtrack split start-indices, then boundary = midpoint across each split
+    splits = []
+    j = n - 1
+    for m in range(k - 1, 0, -1):
+        i = B[m][j]
+        splits.append(i)
+        j = i - 1
+    splits.sort()
+    return np.array([(xs[i - 1] + xs[i]) / 2 for i in splits], dtype=float)
+
+
+def trial_landscape_density(
+    pc: np.ndarray,
+    z: np.ndarray,
+    hub_boundary_default: float,
+    peri_part_coef_default: float,
+    pro_hub_part_coef_default: float,
+    non_hub_connector_part_coef_default: float,
+    connector_hub_part_coef_default: float,
+) -> tuple[float, float, float, float, float] | None:
+    """Data-driven node-cartography boundaries (port of ``TrialLandscapeDensity.m``).
+
+    Given participation-coefficient ``pc`` and within-module z-score ``z``
+    pooled across recordings (for one lag), derive the five cartography
+    boundaries used by :func:`classify_node_cartography`, using the default
+    ``boundarySelectionMethod = 'kmeans'`` branch:
+
+    1. 2-means on ``z`` → the hub/non-hub z boundary.
+    2. 3-means on the PC of hub nodes (``z >= z_boundary``) → the
+       provincial/connector and connector/kinless hub PC boundaries.
+    3. 3-means on the PC of non-hub nodes → the peripheral/non-hub-connector
+       and non-hub-connector/kinless PC boundaries; falls back to the passed
+       defaults when there are fewer than 3 non-hub nodes (as MATLAB does).
+
+    Returns ``(hub_boundary_wm_d_deg, peri_part_coef,
+    non_hub_connector_part_coef, pro_hub_part_coef, connector_hub_part_coef)``
+    or ``None`` when there are fewer than 2 finite ``z`` values (MATLAB returns
+    all-NaN there and the caller keeps the fixed defaults).
+
+    .. note::
+       MATLAB's loop reloads ``ExpName{1}`` on every iteration, so it actually
+       pools only the *first* recording's PC/Z (duplicated), despite the
+       docstring saying "across recordings" — an upstream bug. This port does
+       the intended thing and pools *all* recordings, so its boundaries can
+       differ from MATLAB's stored per-lag values.
+    """
+    pc = np.asarray(pc, dtype=float)
+    z = np.asarray(z, dtype=float)
+    finite = np.isfinite(pc) & np.isfinite(z)
+    pc, z = pc[finite], z[finite]
+    if np.sum(np.isfinite(z)) < 2:
+        return None
+
+    z_split = _optimal_1d_split_boundaries(z, 2)
+    if z_split is None:
+        return None
+    z_boundary = float(z_split[0])
+
+    hub_bounds = _optimal_1d_split_boundaries(pc[z >= z_boundary], 3)
+    if hub_bounds is None:
+        pro_hub = pro_hub_part_coef_default
+        connector_hub = connector_hub_part_coef_default
+    else:
+        pro_hub, connector_hub = float(hub_bounds[0]), float(hub_bounds[1])
+
+    non_hub_bounds = _optimal_1d_split_boundaries(pc[z < z_boundary], 3)
+    if non_hub_bounds is None:
+        peri = peri_part_coef_default
+        non_hub_connector = non_hub_connector_part_coef_default
+    else:
+        peri, non_hub_connector = float(non_hub_bounds[0]), float(non_hub_bounds[1])
+
+    return (z_boundary, peri, non_hub_connector, pro_hub, connector_hub)
+
+
 def classify_node_cartography(
     pc: np.ndarray,
     z: np.ndarray,

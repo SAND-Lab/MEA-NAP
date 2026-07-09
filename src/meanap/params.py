@@ -77,8 +77,11 @@ class Params:
 
     # ── Node cartography ─────────────────────────────────────────────────────
     auto_set_cartography_boundaries: bool = True
-    auto_set_cartography_boundaries_per_lag: bool = False
-    cartography_lag_val: list[int] = field(default_factory=lambda: [25])
+    # MEApipeline.m defaults autoSetCartographyBoudariesPerLag = 1 with
+    # cartographyLagVal = [10, 25, 50]; per-lag derives separate boundaries
+    # from each lag's pooled PC/Z, non-per-lag uses cartography_lag_val[0].
+    auto_set_cartography_boundaries_per_lag: bool = True
+    cartography_lag_val: list[int] = field(default_factory=lambda: [10, 25, 50])
     hub_boundary_wm_d_deg: float = 2.5
     peri_part_coef: float = 0.625
     pro_hub_part_coef: float = 0.3

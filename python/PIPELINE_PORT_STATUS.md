@@ -599,6 +599,29 @@ whatever's on disk and opens it via `webbrowser.open()`.
   (recording, lag) at real data sizes (100 randomizations × Maslov-Sneppen
   rewiring) — see `null_models.py`'s "Performance" note above if this ever
   needs to be faster.
+- **Auto-set cartography boundaries (`TrialLandscapeDensity.m`) is now
+  ported** — `network_metrics.trial_landscape_density` +
+  `step4._apply_cartography_boundaries` (Phase B reducer, gated on
+  `params.auto_set_cartography_boundaries`, per-lag by default to match
+  `MEApipeline.m`). Before this, `step4.py` classified nodes with the *fixed*
+  default boundaries (`peri_part_coef=0.625` …); against real data almost
+  every node's normalized PC sits below 0.625, so ~62-95% of nodes piled into
+  cartography role 1 (`NCpn1`) and roles 2-6 were near-empty — a systematic,
+  non-RNG divergence from MATLAB's `NCpn1-6` CSV columns (found via end-to-end
+  CSV verification vs `OutputData24Dec2025`). The port pools PC/Z across
+  recordings and re-derives all five boundaries by optimal 1-D k-means
+  (`_optimal_1d_split_boundaries`, a deterministic O(k·n²) DP — MATLAB's
+  `kmeans` is random-seeded and *not* itself bit-reproducible, so exact
+  boundary parity is unavailable, same class as Step 3). Validated against
+  MATLAB's stored per-lag boundaries (several match to ~1e-16 where MATLAB's
+  kmeans also hit the optimum) and by `test_pipeline_landscape.py` (48 checks,
+  incl. a regression guard that data-driven boundaries un-pile role 1 across
+  all 6 fixture recordings/lags). **Deliberate divergence from MATLAB**:
+  `TrialLandscapeDensity.m` line 61 reloads `ExpName{1}` every loop iteration,
+  so MATLAB actually pools only the *first* recording's PC/Z (duplicated) — an
+  upstream bug. The port pools *all* recordings (the documented intent); this
+  is the largest remaining source of NCpn1-3 difference vs MATLAB and is
+  expected/bounded, not a defect.
 - **Found and fixed a real bug from an earlier session (not a MATLAB bug —
   this one was mine): node cartography classification and Hub3/Hub4 were
   wired to the *raw* PC instead of the *normalized* PC** in an earlier
@@ -1069,9 +1092,10 @@ Key pieces (all default-on, with serial fallbacks; see
   unchanged.
 - **Step 4** restructured into A (parallel compute) → B (serial batch-bounds
   reduce) → C (parallel plot). Deterministic metrics bit-identical
-  serial-vs-parallel. Phase B is also where the not-yet-ported cross-recording
-  node-cartography boundary clustering (pooled PC/Z density landscape → basins,
-  `TrialLandscapeDensity.m`/`findBasinsOfAttraction.m`) will live.
+  serial-vs-parallel. Phase B is also where the cross-recording node-cartography
+  boundary clustering runs (`_apply_cartography_boundaries` →
+  `network_metrics.trial_landscape_density`, port of `TrialLandscapeDensity.m`'s
+  default `kmeans` branch — see the node-cartography note below).
 
 Caveats: measured on a shared 16-core box where step-4 *process*-parallelism
 scales poorly (memory-bandwidth/BLAS contention → only ~1.1-1.4x across

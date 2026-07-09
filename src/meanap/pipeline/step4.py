@@ -508,6 +508,84 @@ def _step4_plot_one(
     return rec.filename, logs
 
 
+def _apply_cartography_boundaries(
+    params: Params,
+    all_results: dict[str, dict],
+    log: Callable[[str], None],
+) -> None:
+    """Re-derive node-cartography boundaries from pooled PC/Z and re-classify.
+
+    Port of MEApipeline.m's ``autoSetCartographyBoundaries`` step: after every
+    recording's metrics are computed, pool the participation coefficient (PC)
+    and within-module z-score (Z) across recordings and run
+    :func:`nm.trial_landscape_density` to place the six cartography boundaries
+    where the data actually clusters, rather than at the fixed
+    ``params.peri_part_coef`` etc. Then overwrite ``NdCartDiv`` / ``NCpn*`` for
+    every recording at each affected lag. Mutates ``all_results`` in place.
+
+    With ``auto_set_cartography_boundaries_per_lag`` each lag gets its own
+    boundaries from that lag's pooled PC/Z (MEApipeline default); otherwise a
+    single set from ``cartography_lag_val[0]`` is applied to all lags.
+    """
+    lag_keys = sorted(
+        {lag for rec in all_results.values() for lag in rec},
+        key=lambda k: int(k.replace("mslag", "")),
+    )
+    if not lag_keys:
+        return
+
+    if params.auto_set_cartography_boundaries_per_lag:
+        # each lag: derive from its own pooled PC/Z, apply to itself
+        plans = [(lk, [lk]) for lk in lag_keys]
+    else:
+        ref = f"{params.cartography_lag_val[0]}mslag"
+        source = ref if ref in lag_keys else lag_keys[0]
+        plans = [(source, lag_keys)]  # one boundary set → all lags
+
+    for source_lag, target_lags in plans:
+        pc_pool, z_pool = [], []
+        for rec in all_results.values():
+            m = rec.get(source_lag)
+            if m and "PC" in m and "Z" in m:
+                pc_pool.append(np.asarray(m["PC"], dtype=float))
+                z_pool.append(np.asarray(m["Z"], dtype=float))
+        if not pc_pool:
+            continue
+
+        bounds = nm.trial_landscape_density(
+            np.concatenate(pc_pool), np.concatenate(z_pool),
+            params.hub_boundary_wm_d_deg, params.peri_part_coef,
+            params.pro_hub_part_coef, params.non_hub_connector_part_coef,
+            params.connector_hub_part_coef,
+        )
+        if bounds is None:
+            log(f"  Cartography: too few PC/Z values at {source_lag}; "
+                "keeping fixed boundaries.")
+            continue
+        hub_b, peri, non_hub_conn, pro_hub, conn_hub = bounds
+        log(f"  Cartography boundaries from {source_lag} pooled PC/Z: "
+            f"Zhub={hub_b:.3f} peri={peri:.3f} nonHubConn={non_hub_conn:.3f} "
+            f"proHub={pro_hub:.3f} connHub={conn_hub:.3f}")
+
+        for lag_key in target_lags:
+            for rec in all_results.values():
+                m = rec.get(lag_key)
+                if not m or "PC" not in m or "Z" not in m:
+                    continue
+                pc = np.asarray(m["PC"], dtype=float)
+                z = np.asarray(m["Z"], dtype=float)
+                a_n = len(pc)
+                if a_n == 0:
+                    continue
+                nd_cart_div, pop_num_nc = nm.classify_node_cartography(
+                    pc, z, hub_b, peri, non_hub_conn, pro_hub, conn_hub,
+                )
+                m["NdCartDiv"] = nd_cart_div
+                for i in range(6):
+                    m[f"NCpn{i + 1}"] = float(pop_num_nc[i] / a_n)
+                    m[f"NCpn{i + 1}count"] = int(pop_num_nc[i])
+
+
 def _run_step4_network_metrics(
     params: Params,
     recordings: list[RecordingInfo],
@@ -544,10 +622,15 @@ def _run_step4_network_metrics(
             channels_by_rec[filename] = channels_arr
 
     # ── Phase B: reduce (serial) ─────────────────────────────────────────────
+    # Data-driven node-cartography boundaries: pool PC/Z across every recording
+    # and re-derive the cartography boundaries (TrialLandscapeDensity), then
+    # re-classify every node. Mirrors MEApipeline.m's autoSetCartographyBoundaries
+    # barrier between per-recording ExtractNetMet and calNodeCartography.
+    if params.auto_set_cartography_boundaries:
+        _apply_cartography_boundaries(params, all_results, log)
+
     # Pool node-level metrics across every recording for the batch-scaled plot
-    # bounds. This is also where cross-recording node-cartography boundaries
-    # (pooled PC/Z density landscape → basins) will be computed once ported —
-    # a second reducer in the same barrier. See PIPELINE_PORT_STATUS.md.
+    # bounds.
     batch_bounds = {
         m: _batch_metric_bounds(all_results, m)
         for m in ("ND", "NS", "BC", "PC", "Eloc")
