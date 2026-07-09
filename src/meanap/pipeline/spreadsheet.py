@@ -60,7 +60,7 @@ def parse_ground_electrodes(ground: str | None) -> set[int] | None:
     channel IDs) into a set of ints, port of ``groundSpikeTimes.m``'s
     electrode-list parsing. Returns ``None`` if there's nothing to ground —
     including pandas turning an empty cell into the string ``"nan"``, which
-    ``read_recording_csv`` doesn't special-case (it just ``str()``s
+    ``read_recording_csv`` doesn't special-case (it just calls ``str()`` on
     whatever pandas gives it).
     """
     if ground is None:

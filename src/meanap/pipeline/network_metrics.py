@@ -442,14 +442,14 @@ def classify_node_cartography(
 ) -> tuple[np.ndarray, np.ndarray]:
     """Classify each node into one of 6 cartography roles from PC/Z.
 
-    Returns (nd_cart_div, pop_num_nc):
-      nd_cart_div : (n,) int array, 1-6 per node —
-          1 Peripheral node, 2 Non-hub connector, 3 Non-hub kinless node,
-          4 Provincial hub, 5 Connector hub, 6 Kinless hub. 0 if a node
-          doesn't fall in any region (shouldn't happen given MATLAB's
-          boundaries are exhaustive, but a node can be missed if PC/Z are
-          NaN).
-      pop_num_nc : (6,) count of nodes in each role, 1-indexed by role.
+    Returns ``(nd_cart_div, pop_num_nc)``:
+
+    - ``nd_cart_div``: ``(n,)`` int array, 1-6 per node — 1 Peripheral node,
+      2 Non-hub connector, 3 Non-hub kinless node, 4 Provincial hub,
+      5 Connector hub, 6 Kinless hub. 0 if a node doesn't fall in any region
+      (shouldn't happen given MATLAB's boundaries are exhaustive, but a node
+      can be missed if PC/Z are NaN).
+    - ``pop_num_nc``: ``(6,)`` count of nodes in each role, 1-indexed by role.
     """
     n = len(pc)
     nd_cart_div = np.zeros(n, dtype=int)
