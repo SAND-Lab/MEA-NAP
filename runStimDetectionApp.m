@@ -129,7 +129,15 @@ while isvalid(stimDetectionAppObj)
             [MEANAPapp.MEANAPStatusTextArea.Value; ...
             'Running stim detection...'];
         drawnow
-        stimInfo = detectStimTimes(rawData.dat, Params, rawData.channels, Params.coords);
+        if strcmp(Params.stimDetectionMethod, 'axionStimEvents')
+            % Read stim times from the Axion StimulationEvents; the CSV uploaded
+            % on the General tab says which electrode was stimulated in this well.
+            [~, previewRecName] = fileparts(stimDetectionAppObj.DatapathEditField.Value);
+            stimInfo = axionStimEventsTool('build', previewRecName, ...
+                rawData.channels, Params.coords, Params, MEANAPapp);
+        else
+            stimInfo = detectStimTimes(rawData.dat, Params, rawData.channels, Params.coords);
+        end
         [stimInfo, stimPatterns] = getStimPatterns(stimInfo, Params);
         numStimPatterns = length(stimPatterns);
         

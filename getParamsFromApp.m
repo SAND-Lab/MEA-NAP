@@ -341,10 +341,19 @@ Params.twopDenoisingThreshold = app.DenoisingthresholdEditField.Value;
 Params.twopDenoisingTimeBeforePeak = app.TimebeforepeaksEditField.Value;
 Params.twopDenoisingTimeAfterPeak =  app.TimeafterpeaksEditField.Value;
 
-%% Stimulation analysis 
+%% Stimulation analysis
 Params.stimulationMode = app.StimulationmodeCheckBox.Value;
 Params.automaticStimDetection = app.AutomaticstimdetectionCheckBox.Value;
 Params.stimDetectionMethod = app.StimdetectionmethodDropDown.Value;
+
+% Path to the CSV (raw file name, well, stimulated electrode) used by the
+% 'axionStimEvents' method. The upload field is created at runtime on the
+% General tab (see runPipelineApp.m) and its handle stored via setappdata.
+Params.axionStimCSV = '';
+axionStimCSVField = getappdata(app.UIFigure, 'axionStimCSVField');
+if ~isempty(axionStimCSVField) && isvalid(axionStimCSVField)
+    Params.axionStimCSV = strtrim(axionStimCSVField.Value);
+end
 Params.stimDetectionVal = app.DetectionthresholdmultiplierEditField.Value;
 Params.stimRefractoryPeriod = app.StimrefractoryperiodsEditField.Value;
 Params.stimDuration = app.StimdurationsEditField.Value;

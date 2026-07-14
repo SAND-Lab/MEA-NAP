@@ -338,11 +338,19 @@ for channel_idx = 1:numChannels
         end
 
 
-    else 
+    elseif strcmp(stimDetectionMethod, 'axionStimEvents')
+        % Stimulation times for this method come from the Axion file's
+        % StimulationEvents (CSV-driven) and are assembled in batchDetectStim,
+        % not from the voltage trace. The interactive preview has no
+        % recording/CSV context, so report no stimulation here rather than
+        % erroring out.
+        elecStimTimes = [];
+
+    else
         error('No valid stimulus detection specified')
-    end 
-    
-    % Remove stim within refractory period of each other 
+    end
+
+    % Remove stim within refractory period of each other
     % V1 : Slow 
     %{
     for stimIdx = 1:length(elecStimTimes)
