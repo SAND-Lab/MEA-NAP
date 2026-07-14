@@ -153,10 +153,251 @@ def filter_by_cell_types(
     return active_indices[keep], cell_type_matrix[keep, :]
 
 
+# ── Node layout ───────────────────────────────────────────────────────────────
+
+# User-facing layout names → the networkx layout used to compute coordinates.
+# "Original (electrodes)" keeps the MEA electrode coordinates untouched; the rest
+# mirror MATLAB's getNodeCoords / plotType='circular' options, computed here with
+# networkx instead of MATLAB's graph plot layouts.
+LAYOUT_OPTIONS = [
+    "Original (electrodes)",
+    "Circular",
+    "Spring (force)",
+    "Kamada-Kawai",
+    "Spectral",
+    "Shell",
+]
+
+
+def _rescale_to_box(pts: np.ndarray, ref: np.ndarray) -> np.ndarray:
+    """Uniformly scale/centre *pts* so they fill the bounding box of *ref*.
+
+    Layout algorithms return coordinates in an arbitrary range (typically
+    [-1, 1]). Node radii, edge widths and legend offsets in ``plot_network`` are
+    all expressed in data units tuned to the electrode-grid coordinate span, so
+    a raw [-1, 1] layout would render nodes the size of the whole plot. Fitting
+    every layout into the same box (preserving aspect ratio) keeps the visual
+    scale consistent no matter which layout is chosen.
+    """
+    pts = np.asarray(pts, dtype=float)
+    ref = np.asarray(ref, dtype=float)
+    ref_min, ref_max = ref.min(axis=0), ref.max(axis=0)
+    ref_span = ref_max - ref_min
+    ref_span[ref_span == 0] = 1.0
+
+    p_min, p_max = pts.min(axis=0), pts.max(axis=0)
+    p_span = p_max - p_min
+    p_span[p_span == 0] = 1.0
+
+    scale = float(np.min(ref_span / p_span))  # uniform → preserve aspect ratio
+    centred = (pts - (p_min + p_max) / 2) * scale
+    return centred + (ref_min + ref_max) / 2
+
+
+def compute_node_coords(
+    adjM: np.ndarray,
+    coords: np.ndarray,
+    layout: str = "Original (electrodes)",
+) -> np.ndarray:
+    """Return node coordinates for the chosen *layout*.
+
+    Python port of MATLAB's ``getNodeCoords`` (and the ``plotType='circular'``
+    branch of ``StandardisedNetworkPlot``). ``"Original (electrodes)"`` returns
+    the electrode coordinates unchanged; every other option derives positions
+    from the network topology using networkx, then rescales the result into the
+    electrode bounding box so node/edge/legend sizing stays consistent.
+    """
+    coords = np.asarray(coords, dtype=float)
+    if layout in ("Original (electrodes)", "Original", "MEA", None):
+        return coords
+
+    import networkx as nx
+
+    n = coords.shape[0]
+    A = np.abs(np.asarray(adjM, dtype=float)).copy()
+    np.fill_diagonal(A, 0.0)
+    A[~np.isfinite(A)] = 0.0
+    G = nx.from_numpy_array(A)
+    has_edges = G.number_of_edges() > 0
+
+    if layout == "Circular":
+        pos = nx.circular_layout(G)
+    elif layout == "Spring (force)":
+        pos = nx.spring_layout(G, weight="weight", seed=0)
+    elif layout == "Kamada-Kawai":
+        pos = nx.kamada_kawai_layout(G, weight="weight") if has_edges \
+            else nx.circular_layout(G)
+    elif layout == "Spectral":
+        pos = nx.spectral_layout(G, weight="weight")
+    elif layout == "Shell":
+        pos = nx.shell_layout(G)
+    else:
+        return coords
+
+    new = np.array([pos[i] for i in range(n)], dtype=float)
+    return _rescale_to_box(new, coords)
+
+
+# ── Example (synthetic) network ───────────────────────────────────────────────
+
+def make_example_network(
+    n_nodes: int = 40, grid: int = 8, seed: int = 1,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Generate a synthetic MEA-like weighted network for the interactive demo.
+
+    Nodes are placed on a *grid* × *grid* electrode lattice; edge weights fall
+    off with inter-electrode distance (plus noise) so the result looks like a
+    real functional-connectivity matrix. Returns ``(adjM, coords)`` with the
+    weighted symmetric adjacency normalised to ``[0, 1]``.
+    """
+    rng = np.random.default_rng(seed)
+    gx, gy = np.meshgrid(np.arange(1, grid + 1), np.arange(1, grid + 1))
+    lattice = np.column_stack([gx.ravel(), gy.ravel()]).astype(float)
+    n = min(n_nodes, len(lattice))
+    coords = lattice[rng.choice(len(lattice), size=n, replace=False)]
+
+    d = np.linalg.norm(coords[:, None, :] - coords[None, :, :], axis=-1)
+    w = np.exp(-d / 2.5) * rng.uniform(0.2, 1.0, size=d.shape)
+    w = (w + w.T) / 2.0
+    np.fill_diagonal(w, 0.0)
+
+    nz = w[w > 0]
+    if nz.size:
+        w[w < np.quantile(nz, 0.82)] = 0.0  # keep the strongest ~18% of edges
+    if w.max() > 0:
+        w = w / w.max()
+    return w, coords
+
+
+# ── Edge subsampling / thresholding ───────────────────────────────────────────
+
+EDGE_THRESHOLD_METHODS = [
+    "Absolute value",
+    "Percentile",
+    "Percentile (nonzero edges)",
+]
+
+
+def limit_edges_for_plotting(
+    adjM: np.ndarray,
+    max_edges: int | None = None,
+    method: str = "HighToLow",
+) -> np.ndarray:
+    """Keep only the strongest *max_edges* edges, zeroing the rest.
+
+    Python port of MATLAB's ``limitEdgesForPlotting`` — a plotting-only
+    subsample so dense networks don't render as an unreadable hairball. The
+    ``HighToLow`` method keeps the ``max_edges`` edges with the largest absolute
+    weight. Node metrics are unaffected (this only changes which edges are drawn).
+
+    ``max_edges=None`` (or 0) returns a cleaned copy with no limiting.
+    """
+    A = np.asarray(adjM, dtype=float).copy()
+    A[~np.isfinite(A)] = 0.0
+    if not max_edges:  # None or 0 → unlimited
+        return A
+
+    n = A.shape[0]
+    np.fill_diagonal(A, 0.0)
+    is_undirected = np.allclose(A, A.T)
+    mask = np.triu(np.ones((n, n), dtype=bool), k=1) if is_undirected \
+        else ~np.eye(n, dtype=bool)
+
+    weights = A[mask]
+    valid = np.nonzero(weights != 0)[0]
+    out = np.zeros((n, n), dtype=float)
+    if valid.size == 0:
+        return out
+
+    if valid.size <= max_edges:
+        kept = valid
+    elif method.lower().replace("_", "").replace(" ", "") == "hightolow":
+        order = np.argsort(np.abs(weights[valid]))[::-1]  # strongest first
+        kept = valid[order[:max_edges]]
+    else:
+        raise ValueError(f"Unknown edge subsampling method: {method}")
+
+    filtered = np.zeros_like(weights)
+    filtered[kept] = weights[kept]
+    out[mask] = filtered
+    if is_undirected:
+        out = np.maximum(out, out.T)
+    out[~np.isfinite(out)] = 0.0
+    return out
+
+
+def get_edge_threshold(
+    adjM: np.ndarray,
+    method: str = "Absolute value",
+    threshold: float = 0.0,
+    percentile: float = 90.0,
+) -> float:
+    """Return the edge-weight threshold for plotting (port of ``getEdgeThreshold``).
+
+    - ``"Absolute value"`` returns *threshold* verbatim.
+    - ``"Percentile"`` returns the *percentile*-th percentile of ALL adjacency
+      entries (MATLAB's ``prctile(adjM(:), p)`` — zeros/diagonal included, so a
+      low percentile does nothing on a sparse matrix; kept for MATLAB parity).
+    - ``"Percentile (nonzero edges)"`` returns the *percentile*-th percentile of
+      only the actual (nonzero, finite, off-diagonal) edge weights, so e.g. 80
+      keeps the strongest ~20 % of edges — the intuitive behaviour.
+    """
+    A = np.asarray(adjM, dtype=float)
+    if method == "Percentile":
+        return float(np.percentile(A.ravel(), percentile))
+    if method == "Percentile (nonzero edges)":
+        n = A.shape[0]
+        offdiag = ~np.eye(n, dtype=bool)
+        w = A[offdiag]
+        w = w[np.isfinite(w) & (w != 0)]
+        if w.size == 0:
+            return 0.0
+        return float(np.percentile(w, percentile))
+    return float(threshold)
+
+
+def count_edges_shown(adjM: np.ndarray, edge_thresh: float) -> int:
+    """Number of undirected edges that will be drawn at *edge_thresh*."""
+    A = np.asarray(adjM, dtype=float)
+    n = A.shape[0]
+    mask = np.triu(np.ones((n, n), dtype=bool), k=1)
+    w = A[mask]
+    return int(np.count_nonzero(np.isfinite(w) & (w >= edge_thresh) & (w != 0)))
+
+
 # ── Network rendering ─────────────────────────────────────────────────────────
 
-def _get_node_size(z_i: float, node_scale_f: float, min_node_size: float = 0.01) -> float:
-    return max(min_node_size, z_i / node_scale_f)
+def _get_node_size(
+    z_i: float,
+    node_scale_f: float,
+    min_node_size: float = 0.01,
+    *,
+    method: str = "Linear",
+    power: float = 1.0,
+    size_mult: float = 1.0,
+) -> float:
+    """Map a per-node metric value to a node radius-driving size.
+
+    Port of MATLAB's ``getNodeSize``: the scaling *method* (Linear / Log2 /
+    Log10 / Square / Cube / Power) reshapes how ``z_i`` maps onto ``[0, 1]``
+    relative to ``node_scale_f``, and *size_mult* is a final user-facing
+    multiplier (MATLAB's ``maxNodeSize``) for making every node bigger/smaller.
+    """
+    nsf = max(float(node_scale_f), 1e-9)
+    zi = max(float(z_i), 0.0)
+    if method == "Log2":
+        base = np.log2(zi + 1) / np.log2(nsf + 1)
+    elif method == "Log10":
+        base = np.log10(zi + 1) / np.log10(nsf + 1)
+    elif method == "Square":
+        base = (zi ** 2) / (nsf ** 2)
+    elif method == "Cube":
+        base = (zi ** 3) / (nsf ** 3)
+    elif method == "Power":
+        base = (zi ** power) / (nsf ** power)
+    else:  # Linear
+        base = zi / nsf
+    return max(min_node_size, size_mult * float(base))
 
 
 def plot_network(
@@ -175,6 +416,11 @@ def plot_network(
     z_scale_override: float | None = None,
     z2_bounds_override: tuple[float, float] | None = None,
     edge_bounds_override: tuple[float, float] | None = None,
+    min_ew: float = 0.001,
+    max_ew: float = 4.0,
+    node_size_scale: float = 1.0,
+    node_scaling_method: str = "Linear",
+    node_scaling_power: float = 1.0,
 ) -> None:
     """Render the MEA network onto *ax*.
 
@@ -207,6 +453,15 @@ def plot_network(
     edge_bounds_override : if given, ``(min, max)`` for edge-weight width/shade
         scaling instead of this recording's own nonzero-edge range. MATLAB
         fixes this to ``EW = [0.1, 1]`` for the scaled variants.
+    min_ew, max_ew : minimum / maximum edge line width in points. The strongest
+        edge is drawn at ``max_ew`` and the weakest at ``min_ew`` (MATLAB
+        defaults: 4.0 / 0.001 for the MEA plot type). User-adjustable in the
+        interactive viewer.
+    node_size_scale : final multiplier applied to every node size (MATLAB's
+        ``maxNodeSize``); 1.0 reproduces the original scaling, >1 enlarges nodes.
+    node_scaling_method : one of Linear / Log2 / Log10 / Square / Cube / Power —
+        how ``z`` maps onto node size (MATLAB ``nodeScalingMethod``).
+    node_scaling_power : exponent used when ``node_scaling_method == "Power"``.
     """
     import matplotlib
     import matplotlib.patches as mpatches
@@ -260,9 +515,15 @@ def plot_network(
 
     default_node_color = (0.020, 0.729, 0.859)
 
+    # ── Node-size helper (captures scaling config) ─────────────────────────────
+    def node_size_of(z_i: float) -> float:
+        return _get_node_size(
+            z_i, node_scale_f, min_node_size,
+            method=node_scaling_method, power=node_scaling_power,
+            size_mult=node_size_scale,
+        )
+
     # ── Edges ─────────────────────────────────────────────────────────────────
-    max_ew = 4.0
-    min_ew = 0.001
     light_c = np.array([0.8, 0.8, 0.8])
 
     if edge_bounds_override is not None:
@@ -336,7 +597,7 @@ def plot_network(
         if zi <= 0:
             continue
 
-        node_size = _get_node_size(zi, node_scale_f, min_node_size)
+        node_size = node_size_of(zi)
         fc = node_facecolor(i)
         outer_patches.append(mpatches.Circle(
             (xc[i], yc[i]), node_size / 2,
@@ -387,7 +648,7 @@ def plot_network(
         leg_label = lambda v: f"{v:.4f}"
     leg_y = y_max - 0.5
     for lv in leg_vals:
-        ls = _get_node_size(lv, node_scale_f, min_node_size)
+        ls = node_size_of(lv)
         circ = mpatches.Circle(
             (legend_x + 0.5, leg_y - ls / 2),
             ls / 2,
@@ -434,7 +695,7 @@ def plot_network(
         leg_y_ct = y_min - 0.8
         n_ct = len(cell_type_names)
         ct_x_positions = np.linspace(x_min, x_max, n_ct) if n_ct > 1 else [x_min]
-        leg_node_size = _get_node_size(leg_vals[1], node_scale_f, min_node_size)
+        leg_node_size = node_size_of(leg_vals[1])
         ct_sizes = np.linspace(0.9, 0.3, n_ct) * leg_node_size
 
         for k, ct_name in enumerate(cell_type_names):

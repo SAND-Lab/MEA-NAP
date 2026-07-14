@@ -6,23 +6,78 @@ It's the Python equivalent of MATLAB's `runMEANAPviewer.m`.
 
 ## Using the Network Viewer tab
 
+When the tab first opens it shows a **built-in example network** so every
+control is usable immediately — no file needed. To explore your own data:
+
 1. Click **Browse…** and select a MEA-NAP output `.mat` file from the
    `ExperimentMatFiles/` subfolder of an output directory, e.g.
    `OutputData.../ExperimentMatFiles/<recording>_OutputData....mat`.
+   (**Use example network** reloads the synthetic demo at any time.)
 2. The network renders immediately. Recording metadata (name, DIV, group,
-   active node count) appears in the left panel.
-3. Adjust settings to update the plot in real time:
+   active node count, edges shown) appears in the left panel.
+3. Adjust **Network settings** to update the plot in real time:
    - **Lag** — which functional connectivity lag value to view (e.g. `1000
      ms`, `2500 ms`, `5000 ms`).
-   - **Edge threshold** — minimum correlation weight required to draw an edge.
-   - **Node color metric** — color nodes by any node-level metric present in
-     the file (betweenness centrality, node strength, z-score, ...), or leave
-     as **None** for flat cyan nodes.
+   - **Edge threshold by** / **Edge threshold** — how the minimum edge weight
+     is chosen (see [Edge subsampling & thresholding](#edge-subsampling-thresholding)).
+   - **Node size metric** — drive node size by any node-level metric present
+     in the file (defaults to node degree, ND).
+   - **Node color metric** — color nodes by any node-level metric (betweenness
+     centrality, node strength, z-score, ...), or leave as **None** for flat
+     cyan nodes.
 4. (Optional) Click **Load cell types from file…** to overlay cell-type
    information — see below.
 
-Node **size** is always proportional to node degree (ND). Node **color** uses
-the viridis colormap, with a colorbar legend on the right.
+Node **color** uses the viridis colormap, with a colorbar legend on the right.
+
+## Display controls
+
+The **Display** group changes how the network is drawn — none of these alter
+the underlying metrics, only the appearance:
+
+- **Node layout** — where nodes are placed:
+  - **Original (electrodes)** — the physical electrode coordinates (default).
+  - **Circular**, **Spring (force)**, **Kamada-Kawai**, **Spectral**,
+    **Shell** — positions derived from network topology (via networkx). These
+    port MATLAB's `getNodeCoords.m` layout options and the `circular` plot
+    type. Every derived layout is rescaled into the electrode bounding box so
+    node, edge and legend sizing stay consistent.
+- **Node size scale** — a multiplier applied to every node (MATLAB's
+  `maxNodeSize`); increase it to enlarge all nodes at once.
+- **Node scaling** — how the size metric maps onto node radius: **Linear**,
+  **Log2**, **Log10**, **Square**, or **Cube** (port of MATLAB's
+  `nodeScalingMethod` in `getNodeSize.m`).
+- **Min edge width** / **Max edge width** — the line width (in points) of the
+  weakest and strongest drawn edges. The viewer keeps max ≥ min automatically.
+
+## Edge subsampling & thresholding
+
+Dense networks can render as an unreadable hairball. Two independent controls
+limit what's drawn (neither changes node degree or any other metric — they are
+plotting-only, mirroring `PlotIndvNetMet.m`):
+
+- **Max edges** (Display group) — draw only the strongest *N* edges by absolute
+  weight, keeping the rest hidden (port of `limitEdgesForPlotting.m`,
+  `HighToLow`). `0` (shown as *Unlimited*) draws every edge.
+- **Edge threshold by** (Network settings) — how the threshold weight is chosen
+  (port of `getEdgeThreshold.m`):
+  - **Absolute value** — draw edges with weight ≥ the value you set (0–1).
+  - **Percentile** — threshold at the Nth percentile of **all** adjacency
+    entries, *including zeros* (MATLAB-faithful: on a sparse matrix a low
+    percentile does nothing, so you typically need a high value).
+  - **Percentile (nonzero edges)** — threshold at the Nth percentile of only
+    the **actual** edge weights, so e.g. `80 %` keeps the strongest ~20 % of
+    edges — the intuitive behaviour.
+
+The **Edges shown** field updates live so you can see the effect of each control.
+
+## Saving the plot
+
+Click **Save plot…** (Display group) to export the current figure. Choose
+**PNG** (raster, saved at **600 dpi** for publication-quality output) or
+**SVG** (vector, resolution-independent). If you omit the extension it is
+inferred from the selected file type. The export preserves the on-screen white
+background and trims surrounding whitespace.
 
 ## Cell-type overlay
 
