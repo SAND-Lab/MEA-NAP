@@ -1,4 +1,32 @@
 ###### Requirements without Version Specifiers ######
-sphinx
 furo
 sphinx-hoverxref
+
+###### Pinned: sphinx-hoverxref uses a deprecated Sphinx config API that ######
+###### breaks under Sphinx >=8 (Extension error on build)              ######
+sphinx<8
+
+###### Modern/interactive docs tooling ######
+myst-parser
+sphinx-design
+sphinx-copybutton
+myst-nb
+
+###### meanap package runtime deps, needed so autodoc can import ######
+###### the documented modules (mirrors pyproject.toml's core deps  ######
+###### minus pyqt6/pyqtdarktheme, which the documented modules     ######
+###### never import - see docs/python/api/index.rst)               ######
+numpy
+scipy
+matplotlib
+pandas
+networkx
+h5py
+natsort
+Pillow
+tqdm
+pybaselines
+scikit-learn
+seaborn
+PyWavelets
+openpyxl

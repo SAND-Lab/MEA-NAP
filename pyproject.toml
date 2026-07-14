@@ -1,0 +1,56 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "meanap"
+version = "0.1.0"
+description = "MEA Network Analysis Pipeline (MEA-NAP) — Python implementation"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+dependencies = [
+    # numpy capped <2.5 so numba can load (numba requires numpy<=2.4). numba
+    # JIT-compiles the Step-4 network-randomization hot loop
+    # (randmio_und_signed), ~28x faster than the pure-Python fallback; the
+    # code runs without numba too, just slower (see pipeline/null_models.py).
+    "numpy>=1.26,<2.5",
+    "numba>=0.60",
+    "psutil>=5.9",  # RAM/CPU-aware parallel worker sizing (pipeline/parallel.py)
+    "scipy>=1.13",
+    "matplotlib>=3.8",
+    "pandas>=2.2",
+    "networkx>=3.3",
+    "h5py>=3.11",
+    "sciplotlib>=0.0.7",
+    "Pillow>=10.0",
+    "natsort>=8.4",
+    "pyqt6>=6.11.0",
+    "pybaselines>=1.2.1",
+    "tqdm>=4.68.3",
+    "PyWavelets>=1.6",
+    "openpyxl>=3.1",
+    # oasis-deconvolution is not on PyPI; install manually from
+    # https://github.com/j-friedrich/OASIS — denoising falls back to
+    # Savitzky-Golay if not present.
+    "pyqtdarktheme>=2.1.0",
+    "seaborn>=0.13.2",
+    "scikit-learn>=1.4",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "ruff>=0.4",
+]
+
+[project.scripts]
+meanap-gui = "meanap.gui.app:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/meanap"]
+
+[tool.ruff]
+line-length = 100
+src = ["src"]
