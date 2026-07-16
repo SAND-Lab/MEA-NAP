@@ -671,6 +671,7 @@ def _run_step4_network_metrics(
             if rec.filename not in all_results:
                 continue
             rec_results = all_results[rec.filename]
+            channels_arr = channels_by_rec.get(rec.filename)
             for lag, metrics in rec_results.items():
                 base_info = {"FileName": rec.filename, "Grp": rec.group, "DIV": rec.div, "Lag": lag}
                 
@@ -692,9 +693,26 @@ def _run_step4_network_metrics(
                 if node_metrics:
                     # Determine number of nodes from one of the arrays
                     num_nodes = len(next(iter(node_metrics.values())))
+
+                    # ``Channel`` must be the real electrode ID, matching
+                    # saveNetMet.m's ``Info.channels(activeNodeIndices)`` — not
+                    # the node's position among the active nodes. Only the
+                    # active nodes get a row, so index the recording's channel
+                    # list through activeChannelIndex (0-based, as set by
+                    # compute_network_metrics).
+                    active_idx = metrics.get("activeChannelIndex")
+                    if channels_arr is not None and active_idx is not None:
+                        channel_ids = np.asarray(channels_arr).ravel()[
+                            np.asarray(active_idx, dtype=int)
+                        ]
+                    else:
+                        channel_ids = None
+
                     for ch in range(num_nodes):
                         node_row = dict(base_info)
-                        node_row["Channel"] = ch + 1
+                        node_row["Channel"] = (
+                            channel_ids[ch] if channel_ids is not None else ch + 1
+                        )
                         for k, v_arr in node_metrics.items():
                             if len(v_arr) == num_nodes:
                                 node_row[k] = v_arr[ch]

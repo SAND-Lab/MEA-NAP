@@ -1,0 +1,12 @@
+Spike detection: MATLAB vs Python (tolerance=+/-1 ms)
+
+NGN2_20230208_P1_DIV14_A2
+  bior1p5  MATLAB=  7753 Python=  7753 matched=  7753  P=1.0000 R=1.0000 F1=1.0000  max|Δt| after +2-sample shift = 1.14e-13 s
+  thr4     MATLAB= 24941 Python= 24943 matched= 24943  P=1.0000 R=1.0001 F1=1.0000  max|Δt| after +2-sample shift = 1.14e-13 s
+  thr5     MATLAB=  1417 Python=  1417 matched=  1417  P=1.0000 R=1.0000 F1=1.0000  max|Δt| after +2-sample shift = 1.14e-13 s
+
+NGN2_20230208_P1_DIV14_A3
+  bior1p5  MATLAB=  6228 Python=  6228 matched=  6228  P=1.0000 R=1.0000 F1=1.0000  max|Δt| after +2-sample shift = 1.14e-13 s
+  thr4     MATLAB= 25159 Python= 25161 matched= 25160  P=1.0000 R=1.0000 F1=1.0000  max|Δt| after +2-sample shift = 1.14e-13 s
+  thr5     MATLAB=   713 Python=   713 matched=   713  P=1.0000 R=1.0000 F1=1.0000  max|Δt| after +2-sample shift = 1.14e-13 s
+

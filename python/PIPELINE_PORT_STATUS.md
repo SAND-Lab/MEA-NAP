@@ -20,6 +20,32 @@ static tree `CreateOutputFolders.m` builds) is fully ported and used
 automatically whenever the pipeline runs — diffed directly against
 `OutputData03Mar2026/` (a real MATLAB run) and matches.
 
+> **End-to-end CSV parity report (2026-07-15/16): `parityRun/PARITY_REPORT.md`.**
+> Ran the full Test-pipeline dataset through both ports with matched parameters
+> and compared all four CSVs. Headline: **every deterministic stage now
+> reproduces MATLAB exactly** — spike detection (`bior1p5`/`thr5` identical
+> counts and times, F1 = 1.0000, after fixing 3 real bugs — see "Spike
+> detection gotchas"), step-2 activity metrics (`FRmean` diff = 0 end to end),
+> and step-4 network metrics given the same adjacency (worst diff 2.8e-14,
+> controllability included). The **only** remaining end-to-end divergence is
+> step 3's probabilistic thresholding RNG, which changes `aN` and hence the
+> network CSVs; `effRank` (1.2e-05) and `aveControlMean` (1.4e-04) are near
+> exact because they barely depend on marginal edges. Still *not* comparable
+> 1:1: per-node network values (r=0.68-0.83) and the stochastic metrics
+> (`Q`/`nMod`/`SW`/`PC`/`Z`/`NCpn*`); `num_nnmf_components` differs by solver,
+> not RNG. Two fixes landed from this work: the CWT rewrite (also ~2x faster,
+> step 1 272s -> 141s) and **`NetworkActivity_NodeLevel.csv`'s `Channel` column,
+> which was a position index rather than an electrode ID**. The report also
+> lists the remaining structural CSV mismatches and 4 further headless-MATLAB
+> traps beyond the 5 in `MEApipeline_timingBenchmark.m`.
+>
+> **NB: `OutputData03Mar2026/` no longer exists on this machine**, so
+> `test_pipeline_step1/step4.py` and the fixtures that reference it can no
+> longer run as written (step 4 skips every check and reports "No checks ran" —
+> a pass/fail that silently means *nothing was tested*). `parityRun/` contains a
+> fresh MATLAB reference run plus a regenerated step-4 fixture generator
+> (`gen_step4_parity_reference.m`) if these need rebasing.
+
 **MATLAB is available on this machine** (`/usr/local/bin/matlab`, licensed,
 confirmed working). This was the key that unlocked exact-parity testing for
 steps 3-4: MATLAB's own pipeline never persists the intermediate values
@@ -467,9 +493,14 @@ whatever's on disk and opens it via `webbrowser.open()`.
 
 ## Spike detection gotchas (don't re-discover these)
 
-- **bior1.5 CWT sign**: PyWavelets' `wavefun()` gives the analysis wavelet with
+- ~~**bior1.5 CWT sign**: PyWavelets' `wavefun()` gives the analysis wavelet with
   the *opposite* sign to MATLAB's Wavelet Toolbox CWT. `_cwt_bior15()` must
-  return `-coeffs` at the end, or F1 collapses from 0.82 → 0.10.
+  return `-coeffs` at the end, or F1 collapses from 0.82 → 0.10.~~
+  **Obsolete (2026-07-15)** — that sign flip was compensating for the old
+  FFT-based CWT, which has been replaced by a literal port of MATLAB's own
+  algorithm (see below). The `-sqrt(a)` factor in MATLAB's formula now carries
+  the sign; there is no separate negation, and PyWavelets' `psi_d` has the
+  *same* sign as MATLAB's (they agree to 1.6e-15).
 - **Threshold naming**: MATLAB does `strcat('thr', num2str(t))`. The Python
   `_thr_name()` helper must special-case whole numbers (`thr4` not `thr4.0`) —
   getting this wrong silently produces F1 = 0.000 because saved/loaded keys
@@ -488,10 +519,53 @@ whatever's on disk and opens it via `webbrowser.open()`.
   `(n_channels, n_samples)` and needs `.T`. Spike times are stored as a
   `(64, 1)` array of object references into per-channel Groups keyed by method
   name (`bior1p5`, `thr4`, `thr5`), values in **seconds**.
-- **Parity numbers** (from `OutputData03Mar2026`, two example recordings):
-  thr4/thr5 F1 = 1.000 (exact match), bior1.5 F1 ≈ 0.82–0.84 (PyWavelets
-  approximates the wavelet via cascade; MATLAB uses its native CWT — expected,
-  not a bug to chase further unless parity requirements tighten).
+- ~~**Parity numbers**: thr4/thr5 F1 = 1.000 (exact match), bior1.5 F1 ≈ 0.82–0.84
+  (PyWavelets approximates the wavelet via cascade; MATLAB uses its native CWT —
+  expected, not a bug to chase further unless parity requirements tighten).~~
+  **Wrong diagnosis, and now fixed (2026-07-15): bior1.5 F1 = 1.0000, exact.**
+  The premise was false in two ways. (1) PyWavelets' bior1.5 is *not* an
+  approximation of MATLAB's: the filters are byte-identical, `wavefun`'s grid is
+  identical, and `psi_d` agrees to 1.6e-15. (2) MATLAB's "native CWT" for this
+  call is not the modern Morse-wavelet `cwt` — `cwt(x, scales, 'bior1.5')`
+  dispatches to the *legacy* algorithm, which is itself cascade-based and fully
+  reproducible:
+
+  ```matlab
+  [psi, xval] = intwave(wname, 10);  step = xval(2)-xval(1);
+  j = 1 + floor((0:a*(xmax-xmin)) / (a*step));
+  f = fliplr(psi(j));
+  coefs = -sqrt(a) * wkeep1(diff(wconv1(signal, f)), len);
+  ```
+
+  (verified bit-identical to R2024b's `cwt`, max diff 0). `_cwt_bior15` is now a
+  literal port of that — integrated wavelet, convolve, differentiate — and
+  matches MATLAB's `cwt` to ~1e-15 relative on real traces. Two further bugs
+  were fixed alongside it, both of which had to be right before F1 reached 1.0:
+    - `_determine_scales` compared **0-based** zero-crossing indices against
+      MATLAB's `>500`/`<500` bounds, which are **1-based**. A crossing at
+      1-based index 501 fell into neither bin, corrupting the narrowest scale's
+      width entry and yielding scales `[3 3 4 6 7]` instead of MATLAB's
+      `[2 3 4 6 7]` — so the port simply never looked at the narrowest spikes
+      (precision ~1.0, recall 0.93: a pure subset of MATLAB's spikes).
+    - `Sigmaj` centred the subsampled coefficients on their own mean; MATLAB
+      centres them on the mean of the **full** row (`mean(c(i,:))`).
+  Beware `np.round` vs MATLAB `round` here too (half-to-even vs
+  half-away-from-zero) — the scale interpolation lands on exact .5 values.
+- **Known 2-sample offset (deliberate, not a bug)**: Python's spike times are a
+  constant 2 samples (0.16 ms) *earlier* than MATLAB's, for every method. Cause:
+  MATLAB reports **1-based** frame indices as `spikeFrames/fs` (so a spike on the
+  first sample gets `1/fs`, not `0`), and `alignPeaks.m` computes
+  `newSpikeTime = spikeTimes(i)+pos-win` with a 1-based `pos`, landing on the
+  true peak **+1** even for a perfectly centred peak. Python reports the true
+  peak at `idx/fs`. **Decision (2026-07-15, with the user)**: keep Python
+  correct rather than replicate MATLAB's off-by-one — same call as the
+  `setUpSpreadSheet.m` coordinate bug above. This affects **no** downstream
+  metric (a uniform shift leaves firing rates and STTC unchanged); it only means
+  spike times need a +2-sample shift to diff against MATLAB's directly.
+- **Open, minor**: `thr4` finds 2 extra spikes per recording vs MATLAB (24943 vs
+  24941; F1 still 1.0000 to 4 dp). Predates the CWT work and is unrelated to it
+  (threshold detection doesn't touch the CWT) — likely the refractory-period
+  loop. `thr5` and `bior1p5` are exact.
 
 ## Burst detection gotchas (don't re-discover these)
 
