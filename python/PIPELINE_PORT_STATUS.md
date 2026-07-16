@@ -58,6 +58,58 @@ Don't assume this MATLAB install will be present in every future environment
 — treat the fixtures as the durable artifact, the `.m` scripts as how to
 regenerate them if the underlying algorithms ever need re-validating.
 
+## Plot parity (MATLAB vs Python)
+
+Goal: the plots each pipeline writes should match in *content* (values +
+which plots exist) and be at least as good stylistically — not pixel-identical.
+
+**Tool: `python/plot_parity_report.py`.** Walks a MATLAB output tree and a
+Python output tree, pairs the plots (handling the two pipelines' different
+file/folder naming via an embedded MATLAB-label→Python-code map + a
+`Lag10ms`↔`10mslag` alias), and writes a self-contained side-by-side HTML
+report. Re-run after any plotting change:
+
+```
+python python/plot_parity_report.py --matlab OutputData24Dec2025 \
+    --python parityRun/OutputData_FreshCheck --out plot_parity_report.html
+```
+
+Keep the report at the repo root — it references images by path relative to
+itself. `parityRun/run_step1_freshcheck.py` + `run_steps34_freshcheck.py`
+regenerate a matched Python run (unit=`V`, lags 10/25/50, `recording_workers=1`
+to avoid the step-3 process-pool crash) for the Python side.
+
+As of 2026-07-16 the Test-pipeline dataset reports **477 paired / 21
+MATLAB-only / 12 Python-only** (was 378/120/38 before this pass). Fixes landed:
+
+- **Half-violin group plots** (`plot_half_violin_by_x`, port of
+  `plotHalfViolinByX.m`/`HalfViolinPlot.m`) replaced generic seaborn violins in
+  step-2 *and* step-4 group comparisons: one-sided KDE fill + jittered scatter +
+  black mean/SEM, subplot-per-group (x=DIV, viridis) / -per-DIV (x=group). Empty
+  metrics (e.g. burst metrics on a no-burst recording) now emit a placeholder
+  axes with a "N/M recordings had no data" note instead of skipping the file.
+- **Edge-thresholding checks** (`plotting_step3.py`, port of
+  `significance_distribution_plots.m`) — threshold snapshots come from
+  `probabilistic_threshold.adjm_thr(..., collect_check_snapshots=True)`.
+- **GraphMetricsByLag** + **NodeCartographyByLag** + **DensityLandscape**
+  (`plotting_step4.py`) — the three 4B group plots Python was missing.
+- **Node cartography scatter** now draws the data-driven k-means boundaries
+  (stored on each recording's metrics as `cartographyBoundaries`) + the
+  `NodeCartographyDiagram.jpg` bottom panel (bundled in `pipeline/assets/`),
+  instead of the fixed `params` thresholds + a side legend.
+- **Waveforms**: `align_peaks` now uses a separate `waveform_width=25`
+  (51-sample waveforms, matching MATLAB) instead of the peak-search `win`; added
+  a time scale bar. Spike times/counts unchanged (waveforms are plotting-only).
+- **4A `combined_` plot naming** now matches MATLAB
+  (`<n>_combined_MEA_NetworkPlot[_<colour name>]`).
+
+Remaining MATLAB-only (all in 4A, genuine missing *types*, not naming):
+`8_..NullModels` (`plotNullModelIterations.m`) and the two
+`9_..NodeCartography_modules` module-reordered cartography network plots.
+Boundary/role *values* differ from MATLAB where the upstream metric is
+RNG-dependent (step-3 thresholding, k-means) — expected, see the parity table
+above.
+
 ## Key files
 
 - `src/meanap/pipeline/io.py` — HDF5/v7.3 `.mat` I/O: `load_raw_recording`,

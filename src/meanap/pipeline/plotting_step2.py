@@ -8,6 +8,7 @@ import seaborn as sns
 
 from meanap.pipeline.channel_layout import get_coords_from_layout
 from meanap.pipeline.parula import cm_data as parula_data
+from meanap.pipeline.plotting_step4 import plot_half_violin_by_x
 # Create 85% parula colormap
 parula_85 = LinearSegmentedColormap.from_list('parula_85', parula_data[:int(len(parula_data)*0.85)])
 
@@ -396,25 +397,29 @@ def plot_step2_group_comparisons(
     grp_dir.mkdir(parents=True, exist_ok=True)
     
     for k, name in EPHYS_REC_METRICS.items():
-        _plot_violin(df_rec, k, "Grp", grp_dir / f"{k}_byGroup.png", name)
-        
+        plot_half_violin_by_x(df_rec, k, name, "group",
+                              grp_dir / f"{k}_byGroup.png", group_order=custom_grp_order)
+
     # 1_NodeByGroup
     node_grp_dir = out_dir / "2B_GroupComparisons" / "1_NodeByGroup"
     node_grp_dir.mkdir(parents=True, exist_ok=True)
-    
+
     for k, name in EPHYS_NODE_METRICS.items():
-        _plot_violin(df_node, k, "Grp", node_grp_dir / f"{k}_byGroup_node.png", name)
-        
+        plot_half_violin_by_x(df_node, k, name, "group",
+                              node_grp_dir / f"{k}_byGroup_node.png", group_order=custom_grp_order)
+
     # 4_RecordingsByAge
     age_dir = out_dir / "2B_GroupComparisons" / "4_RecordingsByAge" / "HalfViolinPlots"
     age_dir.mkdir(parents=True, exist_ok=True)
-    
+
     for k, name in EPHYS_REC_METRICS.items():
-        _plot_violin(df_rec, k, "DIV", age_dir / f"{k}_byDIV.png", name)
-        
+        plot_half_violin_by_x(df_rec, k, name, "DIV",
+                              age_dir / f"{k}_byDIV.png", group_order=custom_grp_order)
+
     # 2_NodeByAge
     node_age_dir = out_dir / "2B_GroupComparisons" / "2_NodeByAge"
     node_age_dir.mkdir(parents=True, exist_ok=True)
-    
+
     for k, name in EPHYS_NODE_METRICS.items():
-        _plot_violin(df_node, k, "DIV", node_age_dir / f"{k}_byDIV_node.png", name)
+        plot_half_violin_by_x(df_node, k, name, "DIV",
+                              node_age_dir / f"{k}_byDIV_node.png", group_order=custom_grp_order)

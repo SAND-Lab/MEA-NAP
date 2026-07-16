@@ -52,6 +52,32 @@ def circular_shift_spikes(
     return shifted
 
 
+def threshold_snapshots(
+    surrogate: np.ndarray, tail: float, rep_num: int
+) -> tuple[np.ndarray, list[np.ndarray]]:
+    """Threshold matrices at increasing repetition counts (MATLAB ``dist1``).
+
+    Port of the incremental ``dist1`` construction in ``adjM_thr_checkreps.m``:
+    ``a = 0:10:rep_num; a(1)=1`` gives the checkpoint repetition counts, and at
+    each ``i`` the threshold matrix is the ``ceil((1-tail)*i)``-th smallest
+    surrogate value per edge. Used only to draw the probabilistic-thresholding
+    stability check figure.
+    """
+    a = list(range(0, rep_num + 1, 10))
+    if a:
+        a[0] = 1
+    else:
+        a = [1]
+    a = [i for i in a if 1 <= i <= rep_num]
+    dist1: list[np.ndarray] = []
+    for i in a:
+        sub_sorted = np.sort(surrogate[:, :, :i], axis=2)
+        cp = math.ceil((1 - tail) * i) - 1
+        cp = min(max(cp, 0), i - 1)
+        dist1.append(sub_sorted[:, :, cp])
+    return np.array(a), dist1
+
+
 def adjm_thr(
     spike_times_dict: dict[int, np.ndarray],
     n_channels: int,
@@ -61,7 +87,8 @@ def adjm_thr(
     duration_s: float,
     rep_num: int,
     rng: np.random.Generator | None = None,
-) -> tuple[np.ndarray, np.ndarray]:
+    collect_check_snapshots: bool = False,
+):
     """Compute the raw and probabilistically-thresholded STTC adjacency matrices.
 
     Returns
@@ -70,6 +97,10 @@ def adjm_thr(
     adj_m_ci : (n, n) thresholded matrix — edges not significant at ``tail``
                (one-sided, upper-tail) across ``rep_num`` circular-shift
                surrogates are zeroed.
+
+    If ``collect_check_snapshots`` is set, also returns ``(rep_val, dist1)`` from
+    :func:`threshold_snapshots` for the stability check plot (port of
+    ``adjM_thr_checkreps.m``).
     """
     if rng is None:
         rng = np.random.default_rng()
@@ -91,5 +122,9 @@ def adjm_thr(
 
     adj_m_ci = adj_m.copy()
     adj_m_ci[threshold > adj_m] = 0.0
+
+    if collect_check_snapshots:
+        rep_val, dist1 = threshold_snapshots(surrogate, tail, rep_num)
+        return adj_m, adj_m_ci, rep_val, dist1
 
     return adj_m, adj_m_ci

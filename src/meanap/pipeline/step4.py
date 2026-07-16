@@ -331,7 +331,15 @@ def _plot_recording_lag(
                     z2_bounds_override=color_bounds,
                     edge_bounds_override=_EDGE_BATCH_BOUNDS,
                 )
-                combined_name = fname.replace("_MEA_NetworkPlot", "_combined_MEA_NetworkPlot", 1)
+                # MATLAB names the combined figure "<n>_combined_MEA_NetworkPlot"
+                # plus "_<color legend name>" when there's a colour metric (e.g.
+                # "10_combined_MEA_NetworkPlot_Average controllability"), rather
+                # than the concatenated size+colour suffix of the single plots.
+                num_prefix = fname.split("_", 1)[0]
+                combined_name = f"{num_prefix}_combined_MEA_NetworkPlot"
+                if color_key is not None:
+                    combined_name += f"_{color_name}"
+                combined_name += ".png"
                 plot_spatial_network_combined(
                     metrics["adjMsub"], channels_active, params.channel_layout,
                     z, z2, color_name, lag_ms, rec.filename,
@@ -347,6 +355,8 @@ def _plot_recording_lag(
         plot_node_cartography(
             metrics["PC"], metrics["Z"], params, lag_ms, rec.filename,
             lag_dir / f"9_adjM{lag_ms}msNodeCartography.png",
+            boundaries=metrics.get("cartographyBoundaries"),
+            nd_cart_div=metrics.get("NdCartDiv"),
         )
 
     if "NdCartDiv" in metrics:
@@ -512,6 +522,7 @@ def _apply_cartography_boundaries(
     params: Params,
     all_results: dict[str, dict],
     log: Callable[[str], None],
+    out_dir: Path | None = None,
 ) -> None:
     """Re-derive node-cartography boundaries from pooled PC/Z and re-classify.
 
@@ -567,6 +578,17 @@ def _apply_cartography_boundaries(
             f"Zhub={hub_b:.3f} peri={peri:.3f} nonHubConn={non_hub_conn:.3f} "
             f"proHub={pro_hub:.3f} connHub={conn_hub:.3f}")
 
+        # Pooled PC/Z landscape scatter with the derived boundaries
+        # (TrialLandscapeDensity.m's ZandPC_scatter). MATLAB overwrites a single
+        # file per lag, so in per-lag mode the last lag's version is what remains.
+        if out_dir is not None:
+            from meanap.pipeline.plotting_step4 import plot_density_landscape
+            dl_dir = out_dir / "4B_GroupComparisons" / "7_DensityLandscape"
+            plot_density_landscape(
+                np.concatenate(pc_pool), np.concatenate(z_pool), bounds,
+                dl_dir / "ZandPC_scatter_with_kmeans_boundaries_.png",
+            )
+
         for lag_key in target_lags:
             for rec in all_results.values():
                 m = rec.get(lag_key)
@@ -581,6 +603,12 @@ def _apply_cartography_boundaries(
                     pc, z, hub_b, peri, non_hub_conn, pro_hub, conn_hub,
                 )
                 m["NdCartDiv"] = nd_cart_div
+                # Store the data-driven boundaries so the per-recording
+                # cartography scatter plot draws these (and colours by this
+                # NdCartDiv) rather than re-deriving from the fixed params
+                # defaults — keeping the plot consistent with the CSVs and the
+                # circular cartography plot.
+                m["cartographyBoundaries"] = (hub_b, peri, non_hub_conn, pro_hub, conn_hub)
                 for i in range(6):
                     m[f"NCpn{i + 1}"] = float(pop_num_nc[i] / a_n)
                     m[f"NCpn{i + 1}count"] = int(pop_num_nc[i])
@@ -627,7 +655,7 @@ def _run_step4_network_metrics(
     # re-classify every node. Mirrors MEApipeline.m's autoSetCartographyBoundaries
     # barrier between per-recording ExtractNetMet and calNodeCartography.
     if params.auto_set_cartography_boundaries:
-        _apply_cartography_boundaries(params, all_results, log)
+        _apply_cartography_boundaries(params, all_results, log, out_dir=out_dir)
 
     # Pool node-level metrics across every recording for the batch-scaled plot
     # bounds.
