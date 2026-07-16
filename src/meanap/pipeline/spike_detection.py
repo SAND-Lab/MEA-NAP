@@ -400,6 +400,7 @@ def align_peaks(
     max_peak_thr_mult: float = -100.0,
     pos_peak_thr_mult: float = 15.0,
     remove_artifacts: bool = False,
+    waveform_width: int = 25,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Align spike frames to the negative peak within ±win frames.
 
@@ -420,13 +421,21 @@ def align_peaks(
     firing rates and STTC untouched. Add 2 samples to compare spike times with
     MATLAB's directly. See python/PIPELINE_PORT_STATUS.md.
 
+    ``win`` is only the peak-search window; ``waveform_width`` is the *half*
+    width of the extracted waveform (MATLAB ``alignPeaks.m``'s hard-coded
+    ``waveform_width = 25``), so waveforms are ``2*waveform_width+1 = 51``
+    samples wide — matching MATLAB's time scale rather than the coarse
+    ``2*win+1`` window. Waveforms are used only for the ``3_Waveforms`` check
+    plot, so this doesn't touch spike times/counts (and hence parity).
+
     Returns
     -------
     aligned_frames : 1-D int array
-    waveforms : (n_spikes, 2*win+1) array of spike waveforms
+    waveforms : (n_spikes, 2*waveform_width+1) array of spike waveforms
     """
+    wave_len = 2 * waveform_width + 1
     if len(spike_frames) == 0:
-        return np.array([], dtype=int), np.zeros((0, 2 * win + 1))
+        return np.array([], dtype=int), np.zeros((0, wave_len))
 
     n = len(trace)
     aligned = []
@@ -453,16 +462,21 @@ def align_peaks(
                 continue
 
         aligned.append(peak_frame)
-        # Extract waveform
-        wlo = max(0, peak_frame - win)
-        whi = min(n, peak_frame + win + 1)
+        # Extract waveform over ±waveform_width around the peak, padding at the
+        # recording edges so the peak stays centred and every waveform is the
+        # same length (MATLAB drops edge spikes instead; they don't occur in the
+        # validated data, so padding keeps spike counts identical either way).
+        wlo = max(0, peak_frame - waveform_width)
+        whi = min(n, peak_frame + waveform_width + 1)
         wave = trace[wlo:whi]
-        if len(wave) < 2 * win + 1:
-            wave = np.pad(wave, (0, 2 * win + 1 - len(wave)))
+        left_pad = max(0, waveform_width - peak_frame)
+        right_pad = max(0, wave_len - len(wave) - left_pad)
+        if left_pad or right_pad:
+            wave = np.pad(wave, (left_pad, right_pad))
         waves.append(wave)
 
     if not aligned:
-        return np.array([], dtype=int), np.zeros((0, 2 * win + 1))
+        return np.array([], dtype=int), np.zeros((0, wave_len))
 
     return np.array(aligned, dtype=int), np.vstack(waves)
 

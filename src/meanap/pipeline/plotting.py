@@ -170,28 +170,62 @@ def plot_spike_detection_checks(
     ymin, ymax = -6 * std_trace, 5 * std_trace
     if ymin == ymax:
         ymin, ymax = -1, 1
-        
+
+    # Waveform length (samples) — determines the time axis. Take it from the
+    # first method that has waveforms.
+    wave_len = 0
+    for method in methods:
+        w = result.spike_waveforms.get(last_channel, {}).get(method, np.zeros((0, 0)))
+        if w.shape[0] > 0:
+            wave_len = w.shape[1]
+            break
+
+    # Pick a "nice" scale-bar duration ~ a quarter of the window.
+    scale_bar_ms = None
+    if wave_len > 0 and fs > 0:
+        window_ms = wave_len / fs * 1000.0
+        for cand in (2.0, 1.0, 0.5, 0.2, 0.1):
+            if cand <= window_ms * 0.6:
+                scale_bar_ms = cand
+                break
+
     for i, method in enumerate(methods):
         r = i // n_cols
         c = i % n_cols
         ax = axes[r, c]
-        
+
         waves = result.spike_waveforms.get(last_channel, {}).get(method, np.zeros((0, 0)))
-        
+
         if waves.shape[0] > 1000:
             indices = np.linspace(0, waves.shape[0] - 1, 1000).astype(int)
             waves = waves[indices]
-            
-        # MATLAB BUG REPLICATION: 
+
+        # MATLAB BUG REPLICATION:
         # In MATLAB, 'trace' is scaled by 10^6, and then 'spk_waves_method' is extracted from it.
-        # Then, 'spk_waves_method' is MULTIPLIED BY 10^6 AGAIN. 
+        # Then, 'spk_waves_method' is MULTIPLIED BY 10^6 AGAIN.
         # We replicate this double-scaling here so the plots look visually identical to the MATLAB reference.
         waves = waves * scale_factor
-            
+
         if waves.shape[0] > 0:
             ax.plot(waves.T, color=[0.7, 0.7, 0.7], lw=0.1)
             ax.plot(np.mean(waves, axis=0), color="black", lw=1.5)
-            
+
+        if wave_len > 0:
+            ax.set_xlim(0, wave_len - 1)  # axis tight, like MATLAB
+
+        # Time scale bar (bottom-left) — MATLAB hides the x-axis entirely, so
+        # give the viewer an explicit time reference instead.
+        if scale_bar_ms is not None and wave_len > 0:
+            bar_samples = scale_bar_ms / 1000.0 * fs
+            x0 = wave_len * 0.05
+            y0 = ymin + 0.06 * (ymax - ymin)
+            ax.plot([x0, x0 + bar_samples], [y0, y0], color="black", lw=2,
+                    solid_capstyle="butt", clip_on=False)
+            label = (f"{scale_bar_ms:g} ms" if scale_bar_ms >= 1
+                     else f"{scale_bar_ms * 1000:g} µs")
+            ax.text(x0 + bar_samples / 2, y0 - 0.03 * (ymax - ymin), label,
+                    ha="center", va="top", fontsize=8)
+
         ax.set_title(method.replace("p", "."))
         ax.set_ylim(ymin, ymax)
         ax.set_ylabel("Voltage ($\\mu$V)")
@@ -199,7 +233,7 @@ def plot_spike_detection_checks(
         ax.spines["right"].set_visible(False)
         ax.spines["bottom"].set_visible(False)
         ax.set_xticks([])
-        
+
     # Turn off unused axes
     for i in range(n_methods, n_rows * n_cols):
         r = i // n_cols

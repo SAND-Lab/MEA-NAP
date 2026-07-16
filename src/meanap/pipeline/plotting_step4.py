@@ -261,27 +261,71 @@ _CARTOGRAPHY_LABELS = {
 }
 
 
+_CARTOGRAPHY_DIAGRAM_CACHE: "np.ndarray | None | bool" = False  # False = not yet loaded
+
+
+def _load_cartography_diagram() -> "np.ndarray | None":
+    """Load the bundled NodeCartographyDiagram image (role legend + schematic).
+
+    Port of ``NodeCartography.m``'s ``imshow('NodeCartographyDiagram.jpg')``
+    bottom panel. Cached after first load; returns ``None`` if unavailable so
+    the plot falls back to an inline legend.
+    """
+    global _CARTOGRAPHY_DIAGRAM_CACHE
+    if _CARTOGRAPHY_DIAGRAM_CACHE is not False:
+        return _CARTOGRAPHY_DIAGRAM_CACHE
+    candidates = [
+        Path(__file__).resolve().parent / "assets" / "NodeCartographyDiagram.jpg",
+        Path(__file__).resolve().parents[3] / "Images" / "NodeCartographyDiagram.jpg",
+    ]
+    for p in candidates:
+        if p.exists():
+            try:
+                _CARTOGRAPHY_DIAGRAM_CACHE = plt.imread(str(p))
+                return _CARTOGRAPHY_DIAGRAM_CACHE
+            except Exception:
+                break
+    _CARTOGRAPHY_DIAGRAM_CACHE = None
+    return None
+
+
 def plot_node_cartography(
     pc: np.ndarray, z: np.ndarray, params: Params,
     lag_ms: float, recording_name: str, out_path: Path,
+    boundaries: tuple | None = None,
+    nd_cart_div: np.ndarray | None = None,
 ) -> None:
     """Node cartography scatter, port of the top panel of ``NodeCartography.m``
     (participation coefficient vs. within-module degree z-score, colored by
-    role, with the 5 fixed decision-boundary lines from ``Params``).
+    role, with the 5 decision-boundary lines).
+
+    ``boundaries`` — ``(hub, peri, non_hub_connector, pro_hub, connector_hub)`` —
+    overrides the fixed ``Params`` thresholds; with MATLAB's default
+    ``autoSetCartographyBoundaries``/``boundarySelectionMethod='kmeans'`` these
+    are the data-driven k-means boundaries. ``nd_cart_div`` supplies the
+    pre-computed per-node roles so the scatter colours match the CSVs / circular
+    cartography plot exactly. Both fall back to fixed thresholds / re-derivation
+    when omitted (i.e. when auto boundary selection is off).
 
     The bottom panel in MATLAB's version is a static reference diagram image
     (``NodeCartographyDiagram.jpg``) explaining the 6 roles — not
     reproduced here since it's not derived from any data.
     """
-    hub_boundary = params.hub_boundary_wm_d_deg
-    peri = params.peri_part_coef
-    non_hub_connector = params.non_hub_connector_part_coef
-    pro_hub = params.pro_hub_part_coef
-    connector_hub = params.connector_hub_part_coef
+    if boundaries is not None:
+        hub_boundary, peri, non_hub_connector, pro_hub, connector_hub = boundaries
+    else:
+        hub_boundary = params.hub_boundary_wm_d_deg
+        peri = params.peri_part_coef
+        non_hub_connector = params.non_hub_connector_part_coef
+        pro_hub = params.pro_hub_part_coef
+        connector_hub = params.connector_hub_part_coef
 
-    nd_cart_div, _ = classify_node_cartography(
-        pc, z, hub_boundary, peri, non_hub_connector, pro_hub, connector_hub,
-    )
+    if nd_cart_div is None:
+        nd_cart_div, _ = classify_node_cartography(
+            pc, z, hub_boundary, peri, non_hub_connector, pro_hub, connector_hub,
+        )
+    else:
+        nd_cart_div = np.asarray(nd_cart_div)
 
     if len(pc) == 0 or np.all(np.isnan(pc)):
         part_coef_range = (0.0, 1.0)
@@ -299,7 +343,18 @@ def plot_node_cartography(
         if wm_deg_range[0] == wm_deg_range[1]:
             wm_deg_range = (-2.0, 4.0)
 
-    fig, ax = plt.subplots(figsize=(6, 6))
+    # Two-panel layout mirroring NodeCartography.m: scatter on top, the static
+    # role-diagram (which doubles as the legend) below.
+    diagram = _load_cartography_diagram()
+    if diagram is not None:
+        fig = plt.figure(figsize=(6, 8))
+        gs = fig.add_gridspec(2, 1, height_ratios=[2, 1], hspace=0.25)
+        ax = fig.add_subplot(gs[0])
+        ax_diag = fig.add_subplot(gs[1])
+    else:
+        fig, ax = plt.subplots(figsize=(6, 6))
+        ax_diag = None
+
     ax.plot(part_coef_range, [hub_boundary, hub_boundary], "--k", linewidth=1)
     ax.plot([peri, peri], [wm_deg_range[0], hub_boundary], "--k", linewidth=1)
     ax.plot([non_hub_connector, non_hub_connector], [wm_deg_range[0], hub_boundary], "--k", linewidth=1)
@@ -319,11 +374,16 @@ def plot_node_cartography(
     ax.set_xlabel("participation coefficient")
     ax.set_ylabel("within-module degree z-score")
     ax.set_title(f"{recording_name} {lag_ms} ms lag  —  node cartography")
-    ax.legend(loc="upper left", bbox_to_anchor=(1.02, 1.0), fontsize=8, frameon=False)
 
-    fig.tight_layout()
+    if ax_diag is not None:
+        ax_diag.imshow(diagram)
+        ax_diag.axis("off")
+    else:
+        # Fall back to an inline legend only if the diagram image is unavailable.
+        ax.legend(loc="upper left", bbox_to_anchor=(1.02, 1.0), fontsize=8, frameon=False)
+
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(out_path, dpi=150)
+    fig.savefig(out_path, dpi=150, bbox_inches="tight")
     plt.close(fig)
 
 
@@ -849,6 +909,402 @@ def _half_violin(
             color="black", linewidth=3, zorder=4)
 
 
+# ── Group-comparison half-violin (port of plotHalfViolinByX.m) ────────────────
+
+# MATLAB default group palette (AdvancedSettings.m Params.groupColors)
+_GROUP_COLORS = [
+    (0.996, 0.670, 0.318),
+    (0.780, 0.114, 0.114),
+    (0.459, 0.000, 0.376),
+    (0.027, 0.306, 0.659),
+    (0.5, 0.5, 0.5),
+]
+
+
+def _div_colors(n: int) -> list:
+    """Per-DIV colours: ``flipud(viridis(n))`` (plotHalfViolinByX.m line 16).
+
+    ``flipud`` puts the bright (yellow) end at the first DIV; sampling from 1→0
+    reproduces that for every ``n``, including the single-DIV case.
+    """
+    import matplotlib.cm as cm
+    if n <= 0:
+        return []
+    xs = np.linspace(1, 0, n)
+    return [tuple(cm.viridis(x)[:3]) for x in xs]
+
+
+def _group_colors(n: int) -> list:
+    """Per-group colours, cycling MATLAB's default groupColors palette."""
+    return [_GROUP_COLORS[i % len(_GROUP_COLORS)] for i in range(n)]
+
+
+def _tick_label(v) -> str:
+    """Tidy axis-tick text: render whole-number DIVs as ints ("14" not "14.0")."""
+    s = str(v)
+    try:
+        f = float(s)
+        if f.is_integer():
+            return str(int(f))
+    except (ValueError, TypeError):
+        pass
+    return s
+
+
+def plot_half_violin_by_x(
+    df: "pd.DataFrame",
+    metric: str,
+    metric_label: str,
+    x_kind: str,
+    out_path: Path,
+    group_order: list | None = None,
+    div_order: list | None = None,
+    kde_height: float = 0.3,
+) -> None:
+    """Group-comparison half-violin plot, port of ``plotHalfViolinByX.m``.
+
+    ``x_kind='group'``  → one subplot per group, x-axis = DIVs (viridis-coloured),
+    title = group name, xlabel "Age".
+    ``x_kind='DIV'``    → one subplot per DIV, x-axis = groups (group-coloured),
+    title = "Age <div>", xlabel "Group".
+
+    Each cell is drawn with :func:`_half_violin` (KDE right-fill + jittered
+    scatter left + black mean dot + SEM bar), matching ``HalfViolinPlot.m``.
+    Requires ``df`` to carry ``Grp`` and ``DIV`` columns plus ``metric``.
+
+    When the metric has no finite values (e.g. a burst metric on a recording
+    with no bursts), the plot is still written — empty axes with the usual
+    titles/labels plus a centred note stating how many recordings had no data —
+    so it pairs with MATLAB's placeholder output and tells the reader why it's
+    blank.
+    """
+    if df.empty:
+        return
+    has_col = metric in df.columns
+    data = df.dropna(subset=[metric]) if has_col else df.iloc[0:0]
+    is_empty = data.empty
+
+    # Count recordings with no finite value (for the "no data" note).
+    if "FileName" in df.columns:
+        total_files = int(df["FileName"].nunique())
+        files_with = int(data["FileName"].nunique()) if not is_empty else 0
+    else:
+        total_files = len(df)
+        files_with = len(data)
+    no_data_files = max(0, total_files - files_with)
+
+    # Structure (groups/DIVs) comes from the full df so empty plots still show
+    # the right axes.
+    struct_src = df
+    groups = list(group_order) if group_order else sorted(struct_src["Grp"].dropna().unique())
+    def _divkey(d):
+        try:
+            return float(str(d).replace("DIV", ""))
+        except ValueError:
+            return str(d)
+    divs = list(div_order) if div_order else sorted(struct_src["DIV"].dropna().unique(), key=_divkey)
+
+    if x_kind == "group":
+        subplot_items, sub_col = groups, "Grp"
+        within_items, within_col = divs, "DIV"
+        within_colors = _div_colors(len(divs))
+        xlabel = "Age"
+        titles = [str(g) for g in groups]
+    elif x_kind == "DIV":
+        subplot_items, sub_col = divs, "DIV"
+        within_items, within_col = groups, "Grp"
+        within_colors = _group_colors(len(groups))
+        xlabel = "Group"
+        titles = [f"Age {d}" for d in divs]
+    else:
+        raise ValueError(f"x_kind must be 'group' or 'DIV', got {x_kind!r}")
+
+    n_sub = len(subplot_items)
+    if n_sub == 0 or len(within_items) == 0:
+        return
+
+    fig, axes = plt.subplots(
+        1, n_sub, figsize=(max(4.0, n_sub * 3.0), 5.0), squeeze=False, sharey=True
+    )
+    axes = axes[0]
+    xt = np.arange(1, len(within_items) + 1)
+    rng = np.random.default_rng(0)
+
+    for si, sub in enumerate(subplot_items):
+        ax = axes[si]
+        if not is_empty:
+            sdf = data[data[sub_col].astype(str) == str(sub)]
+            for wi, within in enumerate(within_items):
+                vals = sdf[sdf[within_col].astype(str) == str(within)][metric].to_numpy(float)
+                vals = vals[np.isfinite(vals)]
+                if len(vals) == 0:
+                    continue
+                _half_violin(ax, vals, pos=float(xt[wi]), colour=within_colors[wi],
+                             width=kde_height, rng=rng)
+        ax.set_xticks(xt)
+        ax.set_xticklabels([_tick_label(w) for w in within_items])
+        ax.set_xlabel(xlabel)
+        ax.set_title(titles[si])
+        ax.set_xlim(xt.min() - 0.5, xt.max() + 0.5)
+        ax.spines["top"].set_visible(False)
+        ax.spines["right"].set_visible(False)
+        ax.tick_params(direction="out")
+        if si == 0:
+            ax.set_ylabel(metric_label)
+
+    # Note explaining an empty (or partially-empty) plot.
+    noun = "bursts detected" if "burst" in f"{metric} {metric_label}".lower() else "values"
+    if is_empty:
+        for ax in axes:
+            ax.text(0.5, 0.5, f"No data\n{no_data_files}/{total_files} recording(s)\nwith no {noun}",
+                    transform=ax.transAxes, ha="center", va="center",
+                    fontsize=10, color="0.4")
+    elif no_data_files > 0:
+        fig.text(0.5, 0.005,
+                 f"Note: {no_data_files}/{total_files} recording(s) had no {noun} "
+                 "and are not shown",
+                 ha="center", va="bottom", fontsize=8, color="0.5")
+
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=300, bbox_inches="tight")
+    plt.close(fig)
+
+
+def _lag_num(lag) -> int:
+    """Extract the numeric lag (ms) from a lag key like ``'10mslag'`` or ``10``."""
+    import re
+    m = re.search(r"\d+", str(lag))
+    return int(m.group()) if m else 0
+
+
+# Node-cartography proportion colours/labels (plotNetMetNodeCartography.m c1-c6)
+_NC_PROP_COLORS = [
+    (0.800, 0.902, 0.310),  # peripheral nodes
+    (0.580, 0.706, 0.278),  # non-hub connectors
+    (0.369, 0.435, 0.122),  # non-hub kinless nodes
+    (0.200, 0.729, 0.949),  # provincial hubs
+    (0.078, 0.424, 0.835),  # connector hubs
+    (0.016, 0.235, 0.498),  # kinless hubs
+]
+_NC_PROP_LABELS = [
+    "proportion peripheral nodes",
+    "proportion non-hub connectors",
+    "proportion non-hub kinless nodes",
+    "proportion provincial hubs",
+    "proportion connector hubs",
+    "proportion kinless hubs",
+]
+
+
+def plot_node_cartography_by_lag(
+    df: "pd.DataFrame",
+    out_dir: Path,
+    group_order: list | None = None,
+) -> None:
+    """Node-cartography role proportions vs DIV, port of ``plotNetMetNodeCartography.m``.
+
+    One figure per STTC lag (``NodeCartography<lag>mslag.png``): a vertical stack
+    of subplots (one per group), each overlaying the six role proportions
+    (``NCpn1``-``NCpn6``) as lines vs DIV with mean ± SEM bands and a role legend.
+    Requires ``df`` with ``Grp``/``DIV``/``Lag`` columns plus ``NCpn1``-``NCpn6``.
+    """
+    if df.empty:
+        return
+    metrics = [f"NCpn{i}" for i in range(1, 7)]
+    if not all(m in df.columns for m in metrics):
+        return
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    groups = list(group_order) if group_order else sorted(df["Grp"].dropna().unique())
+    lags = sorted(df["Lag"].unique(), key=_lag_num)
+
+    def _divkey(d):
+        try:
+            return float(str(d).replace("DIV", ""))
+        except ValueError:
+            return str(d)
+    divs = sorted(df["DIV"].dropna().unique(), key=_divkey)
+    xt = np.arange(1, len(divs) + 1)
+
+    for lag in lags:
+        ldf = df[df["Lag"] == lag]
+        n_grp = len(groups)
+        fig, axes = plt.subplots(n_grp, 1, figsize=(8.0, max(3.0, 3.0 * n_grp)),
+                                 squeeze=False, sharex=True, sharey=True)
+        axes = axes[:, 0]
+        for gi, g in enumerate(groups):
+            ax = axes[gi]
+            gdf = ldf[ldf["Grp"].astype(str) == str(g)]
+            handles = []
+            for mi, metric in enumerate(metrics):
+                means, sems = [], []
+                for d in divs:
+                    vals = gdf[gdf["DIV"].astype(str) == str(d)][metric].to_numpy(float)
+                    vals = vals[np.isfinite(vals)]
+                    if len(vals) == 0:
+                        means.append(np.nan)
+                        sems.append(0.0)
+                    else:
+                        means.append(float(np.mean(vals)))
+                        sems.append(float(np.std(vals) / np.sqrt(len(vals))) if len(vals) > 1 else 0.0)
+                means = np.array(means)
+                sems = np.array(sems)
+                color = _NC_PROP_COLORS[mi]
+                ax.fill_between(xt, means - sems, means + sems, color=color,
+                                alpha=0.3, edgecolor="none")
+                ln, = ax.plot(xt, means, "-", color=color, lw=3)
+                ax.scatter(xt, means, color=color, zorder=3)
+                handles.append(ln)
+            ax.set_xticks(xt)
+            ax.set_xticklabels([_tick_label(d) for d in divs])
+            ax.set_xlabel("Age")
+            ax.set_ylabel("node cartography")
+            ax.set_title(str(g))
+            ax.set_xlim(xt.min() - 0.5, xt.max() + 0.5)
+            ax.spines["top"].set_visible(False)
+            ax.spines["right"].set_visible(False)
+            ax.tick_params(direction="out")
+            ax.legend(handles, _NC_PROP_LABELS, loc="center left",
+                      bbox_to_anchor=(1.01, 0.5), fontsize=8, frameon=False)
+
+        fig.tight_layout()
+        fig.savefig(out_dir / f"NodeCartography{_lag_num(lag)}mslag.png",
+                    dpi=300, bbox_inches="tight")
+        plt.close(fig)
+
+
+def plot_density_landscape(
+    pc: np.ndarray,
+    z: np.ndarray,
+    boundaries: tuple,
+    out_path: Path,
+) -> None:
+    """Pooled PC-vs-Z scatter with the k-means cartography boundaries drawn.
+
+    Port of ``TrialLandscapeDensity.m``'s ``ZandPC_scatter_with_kmeans_boundaries``
+    plot: every node's participation coefficient vs within-module z-score (open
+    circles) with the horizontal z boundary, the two hub PC boundaries (above the
+    z line) and the two non-hub PC boundaries (below it).
+    """
+    pc = np.asarray(pc, dtype=float)
+    z = np.asarray(z, dtype=float)
+    mask = np.isfinite(pc) & np.isfinite(z)
+    pc, z = pc[mask], z[mask]
+    if pc.size == 0:
+        return
+    z_boundary, peri, non_hub_connector, pro_hub, connector_hub = boundaries
+    zmax = float(np.max(np.abs(z))) if z.size else 4.0
+
+    fig, ax = plt.subplots(figsize=(9, 5))
+    ax.scatter(pc, z, s=30, facecolors="none", edgecolors="#0072BD", linewidths=1)
+    ax.axhline(z_boundary, color="0.5", lw=1)
+    # hub PC boundaries (z >= z_boundary)
+    for xb, col in ((pro_hub, "#D95319"), (connector_hub, "#EDB120")):
+        ax.plot([xb, xb], [z_boundary, zmax], color=col, lw=1.5)
+    # non-hub PC boundaries (z < z_boundary)
+    for xb, col in ((peri, "#7E2F8E"), (non_hub_connector, "#77AC30")):
+        ax.plot([xb, xb], [-zmax, z_boundary], color=col, lw=1.5)
+    ax.set_xlabel("Participation Coefficient (PC)")
+    ax.set_ylabel("Within-module Z-score (Z)")
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    fig.tight_layout()
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out_path, dpi=300, bbox_inches="tight")
+    plt.close(fig)
+
+
+def plot_graph_metrics_by_lag(
+    df: "pd.DataFrame",
+    out_dir: Path,
+    group_order: list | None = None,
+) -> None:
+    """Network metric vs. STTC lag line plots, port of ``plotGraphMetricsByLag.m``.
+
+    One figure per recording-level metric: a vertical stack of subplots (one per
+    group), each plotting mean ± SEM across recordings as a function of STTC lag,
+    with one line per DIV (viridis-coloured, DIV1 = yellow end) and a DIV legend.
+    Requires ``df`` with ``Grp``/``DIV``/``Lag`` columns plus the metric columns.
+    Files are named ``<metric>.png`` so they pair with MATLAB's
+    ``<n>_<label>.png`` via the report's label→code map.
+    """
+    if df.empty:
+        return
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    groups = list(group_order) if group_order else sorted(df["Grp"].dropna().unique())
+    lags = sorted(df["Lag"].unique(), key=_lag_num)
+    lag_nums = [_lag_num(l) for l in lags]
+
+    def _divkey(d):
+        try:
+            return float(str(d).replace("DIV", ""))
+        except ValueError:
+            return str(d)
+    divs = sorted(df["DIV"].dropna().unique(), key=_divkey)
+    div_colors = _div_colors(len(divs))
+    xt = np.arange(1, len(lags) + 1)
+
+    for metric, label in NETMET_REC_METRICS.items():
+        if metric not in df.columns:
+            continue
+
+        n_grp = len(groups)
+        fig, axes = plt.subplots(n_grp, 1, figsize=(8.0, max(3.0, 3.0 * n_grp)),
+                                 squeeze=False, sharex=True)
+        axes = axes[:, 0]
+        any_data = False
+
+        for gi, g in enumerate(groups):
+            ax = axes[gi]
+            gdf = df[df["Grp"].astype(str) == str(g)]
+            lines, line_labels = [], []
+            for di, d in enumerate(divs):
+                ddf = gdf[gdf["DIV"].astype(str) == str(d)]
+                means, sems = [], []
+                for lag in lags:
+                    vals = ddf[ddf["Lag"] == lag][metric].to_numpy(float)
+                    vals = vals[np.isfinite(vals)]
+                    if len(vals) == 0:
+                        means.append(np.nan)
+                        sems.append(0.0)
+                    else:
+                        means.append(float(np.mean(vals)))
+                        sems.append(float(np.std(vals) / np.sqrt(len(vals))) if len(vals) > 1 else 0.0)
+                means = np.array(means)
+                sems = np.array(sems)
+                if np.all(np.isnan(means)):
+                    continue
+                any_data = True
+                color = div_colors[di]
+                ax.fill_between(xt, means - sems, means + sems, color=color,
+                                alpha=0.3, edgecolor="none")
+                ln, = ax.plot(xt, means, "-", color=color, lw=3)
+                ax.scatter(xt, means, color=color, zorder=3)
+                lines.append(ln)
+                line_labels.append(_tick_label(d))
+
+            ax.set_xticks(xt)
+            ax.set_xticklabels([str(n) for n in lag_nums])
+            ax.set_xlabel("STTC lag (ms)")
+            ax.set_ylabel(label)
+            ax.set_title(str(g))
+            ax.set_xlim(xt.min() - 0.5, xt.max() + 0.5)
+            ax.spines["top"].set_visible(False)
+            ax.spines["right"].set_visible(False)
+            ax.tick_params(direction="out")
+            if lines:
+                ax.legend(lines, line_labels, title="DIV", loc="center left",
+                          bbox_to_anchor=(1.01, 0.5), fontsize=8)
+
+        if not any_data:
+            plt.close(fig)
+            continue
+        fig.tight_layout()
+        fig.savefig(out_dir / f"{metric}.png", dpi=300, bbox_inches="tight")
+        plt.close(fig)
+
+
 # ── Public plot function ──────────────────────────────────────────────────────
 
 def plot_graph_metrics_by_node(
@@ -1151,14 +1607,18 @@ def plot_step4_group_comparisons(
         
         df_rec_lag = df_rec[df_rec["Lag"] == lag]
         for k, name in NETMET_REC_METRICS.items():
-            _plot_violin(df_rec_lag, k, "Grp", lag_grp_dir / f"{k}_byGroup.png", name)
-            
+            plot_half_violin_by_x(df_rec_lag, k, name, "group",
+                                  lag_grp_dir / f"{k}_byGroup.png",
+                                  group_order=custom_grp_order)
+
         lag_node_grp_dir = node_grp_dir / f"Lag{lag_str}ms" if "ms" not in str(lag_str) else node_grp_dir / f"Lag{lag_str}"
         lag_node_grp_dir.mkdir(parents=True, exist_ok=True)
-        
+
         df_node_lag = df_node[df_node["Lag"] == lag]
         for k, name in NETMET_NODE_METRICS.items():
-            _plot_violin(df_node_lag, k, "Grp", lag_node_grp_dir / f"{k}_byGroup_node.png", name)
+            plot_half_violin_by_x(df_node_lag, k, name, "group",
+                                  lag_node_grp_dir / f"{k}_byGroup_node.png",
+                                  group_order=custom_grp_order)
         
     # 4_RecordingsByAge and 2_NodeByAge
     age_dir = out_dir / "4B_GroupComparisons" / "4_RecordingsByAge" / "HalfViolinPlots"
@@ -1172,11 +1632,23 @@ def plot_step4_group_comparisons(
         
         df_rec_lag = df_rec[df_rec["Lag"] == lag]
         for k, name in NETMET_REC_METRICS.items():
-            _plot_violin(df_rec_lag, k, "DIV", lag_age_dir / f"{k}_byDIV.png", name)
-            
+            plot_half_violin_by_x(df_rec_lag, k, name, "DIV",
+                                  lag_age_dir / f"{k}_byDIV.png",
+                                  group_order=custom_grp_order)
+
         lag_node_age_dir = node_age_dir / f"Lag{lag_str}ms" if "ms" not in str(lag_str) else node_age_dir / f"Lag{lag_str}"
         lag_node_age_dir.mkdir(parents=True, exist_ok=True)
-        
+
         df_node_lag = df_node[df_node["Lag"] == lag]
         for k, name in NETMET_NODE_METRICS.items():
-            _plot_violin(df_node_lag, k, "DIV", lag_node_age_dir / f"{k}_byDIV_node.png", name)
+            plot_half_violin_by_x(df_node_lag, k, name, "DIV",
+                                  lag_node_age_dir / f"{k}_byDIV_node.png",
+                                  group_order=custom_grp_order)
+
+    # 5_GraphMetricsByLag — network metric vs. STTC lag, one figure per metric
+    gmbl_dir = out_dir / "4B_GroupComparisons" / "5_GraphMetricsByLag"
+    plot_graph_metrics_by_lag(df_rec, gmbl_dir, group_order=custom_grp_order)
+
+    # 6_NodeCartographyByLag — role proportions vs DIV, one figure per lag
+    ncbl_dir = out_dir / "4B_GroupComparisons" / "6_NodeCartographyByLag"
+    plot_node_cartography_by_lag(df_rec, ncbl_dir, group_order=custom_grp_order)

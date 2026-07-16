@@ -43,6 +43,7 @@ def _step3_one_recording(task: tuple[Params, RecordingInfo, str]) -> tuple[str, 
     lag_values = params.func_con_lag_val
     rep_num = params.prob_thresh_rep_num
     tail = params.prob_thresh_tail
+    plot_checks = bool(getattr(params, "prob_thresh_plot_checks", False))
 
     logs: list[str] = []
     npz_file = spike_data_dir / f"{rec.filename}_spikes.npz"
@@ -76,12 +77,27 @@ def _step3_one_recording(task: tuple[Params, RecordingInfo, str]) -> tuple[str, 
 
     out_arrays: dict[str, np.ndarray] = {}
     rng = np.random.default_rng()
+    check_dir = output_root / "3_EdgeThresholdingCheck"
     for lag_ms in lag_values:
         logs.append(f"  [{rec.filename}] computing adjacency matrix (lag={lag_ms}ms, "
                     f"{rep_num} shuffles)...")
-        adj_m, adj_m_ci = adjm_thr(
-            spike_times_dict, n_channels, lag_ms, tail, fs, duration_s, rep_num, rng=rng,
-        )
+        if plot_checks:
+            adj_m, adj_m_ci, rep_val, dist1 = adjm_thr(
+                spike_times_dict, n_channels, lag_ms, tail, fs, duration_s, rep_num,
+                rng=rng, collect_check_snapshots=True,
+            )
+            # Deferred import: plotting pulls in matplotlib, only needed when checks are on
+            from meanap.pipeline.plotting_step3 import plot_prob_thresh_check
+            check_dir.mkdir(parents=True, exist_ok=True)
+            plot_prob_thresh_check(
+                dist1, rep_val, adj_m,
+                check_dir / f"{rec.filename}{lag_ms}msLagProbThreshCheck.png",
+                rng=rng,
+            )
+        else:
+            adj_m, adj_m_ci = adjm_thr(
+                spike_times_dict, n_channels, lag_ms, tail, fs, duration_s, rep_num, rng=rng,
+            )
         out_arrays[f"adjM{lag_ms}mslag"] = adj_m_ci
         out_arrays[f"adjM{lag_ms}mslag_raw"] = adj_m
 
