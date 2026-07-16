@@ -1,0 +1,116 @@
+==============================================================================
+NeuronalActivity_RecordingLevel.csv
+==============================================================================
+  MATLAB: 2 rows x 17 cols
+  Python: 2 rows x 17 cols
+  Aligned on keys=['FileName'] (2 rows)
+
+                               n_compared  n_nan_mismatch  matlab_mean  python_mean  max_abs_diff  max_rel_diff  corr  stochastic
+column                                                                                                                           
+DIV                                     2               0           14           14             0             0   NaN       False
+numActiveElec                           2               0           64           64             0             0   NaN       False
+FRmean                                  2               0        0.182        0.182             0             0     1       False
+FRmedian                                2               0       0.0555       0.0555             0             0     1       False
+NBurstRate                              2               0            0            0             0             0   NaN       False
+meanNumChansInvolvedInNbursts           0               0          NaN          NaN           NaN           NaN   NaN       False
+meanNBstLengthS                         0               0          NaN          NaN           NaN           NaN   NaN       False
+meanISIWithinNbursts_ms                 0               0          NaN          NaN           NaN           NaN   NaN       False
+meanISIoutsideNbursts_ms                0               0          NaN          NaN           NaN           NaN   NaN       False
+CVofINBI                                0               0          NaN          NaN           NaN           NaN   NaN       False
+fracInNburst                            0               0          NaN          NaN           NaN           NaN   NaN       False
+channelAveBurstDur                      0               0          NaN          NaN           NaN           NaN   NaN       False
+channelAveISIwithinBurst                0               0          NaN          NaN           NaN           NaN   NaN       False
+channelAveISIoutsideBurst               0               0          NaN          NaN           NaN           NaN   NaN       False
+channelAveFracSpikesInBursts            2               0            0            0             0             0   NaN       False
+
+  Exact match (rel diff <= 1e-06, no NaN mismatch): 6/15 numeric columns
+
+==============================================================================
+NeuronalActivity_NodeLevel.csv
+==============================================================================
+  MATLAB: 128 rows x 12 cols
+  Python: 128 rows x 12 cols
+  Aligned on keys=['FileName', 'Channel'] (128 rows)
+
+                           n_compared  n_nan_mismatch  matlab_mean  python_mean  max_abs_diff  max_rel_diff  corr  stochastic
+column                                                                                                                       
+DIV                               128               0           14           14             0             0   NaN       False
+FR                                128               0     0.182044     0.182044   3.33067e-15   3.06772e-15     1       False
+FRactive                          128               0     0.182044     0.182044   3.33067e-15   3.06772e-15     1       False
+channelBurstRate                    0               0          NaN          NaN           NaN           NaN   NaN       False
+channelWithinBurstFr                0               0          NaN          NaN           NaN           NaN   NaN       False
+channelBurstDur                     0               0          NaN          NaN           NaN           NaN   NaN       False
+channelISIwithinBurst               0               0          NaN          NaN           NaN           NaN   NaN       False
+channeISIoutsideBurst               0               0          NaN          NaN           NaN           NaN   NaN       False
+channelFracSpikesInBursts           0               0          NaN          NaN           NaN           NaN   NaN       False
+
+  Exact match (rel diff <= 1e-06, no NaN mismatch): 3/9 numeric columns
+
+==============================================================================
+NetworkActivity_RecordingLevel.csv
+==============================================================================
+  MATLAB: 6 rows x 34 cols
+  Python: 6 rows x 47 cols
+  Aligned on keys=['FileName', 'Lag'] (6 rows)
+  Columns only in Python: ['CC_rawMean', 'PL_raw', 'NCpn1count', 'NCpn2count', 'NCpn3count', 'NCpn4count', 'NCpn5count', 'NCpn6count', 'Hub3', 'Hub4', 'aveControlTop25', 'modalControlMean', 'modalControlPrctLessThanThreshold']
+
+                              n_compared  n_nan_mismatch  matlab_mean  python_mean  max_abs_diff  max_rel_diff      corr  stochastic
+column                                                                                                                              
+aN                                     6               0      62.8333      62.3333             2     0.0327869  0.921307       False
+Dens                                   6               0    0.0814937    0.0805258    0.00644841     0.0828363  0.967794       False
+NDmean                                 6               0      5.05701      4.95974       0.40625      0.080292  0.979697       False
+NDtop25                                6               0      8.69374      8.34881       1.65714      0.195726  0.899845       False
+sigEdgesMean                           6               0    0.0335228    0.0340566    0.00143467     0.0500996  0.989636       False
+sigEdgesTop10                          6               0    0.0818158    0.0830563    0.00400655     0.0427979  0.994665       False
+NSmean                                 6               0     0.172317     0.172128    0.00704154      0.051196  0.996533       False
+ElocMean                               6               0    0.0177982    0.0178337    0.00743951      0.191299  0.958727       False
+CC                                     6               0     0.430251     0.458981      0.242398      0.370689  0.714504        True
+nMod                                   6               0      6.66667      6.83333             3         0.375  0.110432        True
+Q                                      6               0     0.775199     0.769187     0.0518406     0.0651613  0.405988        True
+percentZscoreGreaterThanZero           6               0      44.5784      42.5223        4.7619           0.1  0.701305        True
+percentZscoreLessThanZero              6               0      54.9008      55.9152        4.7619     0.0833333  0.755508        True
+PL                                     6               0     0.991661      1.00481      0.167688      0.147912 -0.405396        True
+PCmean                                 6               0     0.474181     0.466984     0.0369125     0.0816955  0.943655        True
+PCmeanBottom10                         6               0     0.183629     0.202333     0.0403007      0.263999  0.927163        True
+PCmeanTop10                            6               0     0.682938     0.672427     0.0348489     0.0493052  0.930061        True
+Eglob                                  6               0     0.013677    0.0138628    0.00075793     0.0745949  0.995196       False
+NCpn1                                  6               0       0.1363     0.156166        0.0625           0.4  0.848755        True
+NCpn2                                  6               0     0.203116     0.191724      0.153026           0.5  0.315191        True
+NCpn3                                  6               0     0.267648      0.25918      0.140625      0.404792 0.0478826        True
+NCpn4                                  6               0     0.066637     0.104577     0.0819672      0.555556  0.263173        True
+NCpn5                                  6               0     0.164429     0.168582     0.0327869      0.181818  0.737555        True
+NCpn6                                  6               0      0.16187     0.119772      0.078633      0.444444   0.61689        True
+SW                                     6               0      1.04787      1.28716       1.39371      0.649249  0.216587        True
+SWw                                    6               0     0.579021     0.539447      0.181271      0.467492  0.759112        True
+aveControlMean                         6               0       1.0065      1.00652    0.00014016   0.000139758  0.999497       False
+num_nnmf_components                    6               0            1            4             6      0.857143       NaN        True
+nComponentsRelNS                       6               0     0.015625       0.0625       0.09375      0.857143       NaN        True
+effRank                                6               0      26.0533      26.0536    0.00023664   1.16326e-05         1       False
+DIV                                    6               0           14           14             0             0       NaN       False
+
+  Exact match (rel diff <= 1e-06, no NaN mismatch): 1/31 numeric columns
+
+==============================================================================
+NetworkActivity_NodeLevel.csv
+==============================================================================
+  MATLAB: 384 rows x 14 cols
+  Python: 374 rows x 21 cols
+  Aligned on keys=['FileName', 'Lag', 'Channel'] (373 rows)
+  Columns only in Python: ['activeChannelIndex', 'CC_raw', 'NE', 'Ci', 'PC_raw', 'PC_residual', 'NdCartDiv']
+
+              n_compared  n_nan_mismatch  matlab_mean  python_mean  max_abs_diff  max_rel_diff     corr  stochastic
+column                                                                                                             
+ND                   373               0      5.10188      4.98928            13           0.9 0.830207       False
+MEW                  373               0    0.0371856    0.0354805      0.598532      0.844005 0.676394       False
+NS                   373               0     0.174595     0.173559      0.202553      0.891027 0.951665       False
+Eloc                 373               0    0.0180309    0.0177545      0.347446             1  0.69371       False
+Z                    373               0   0.00705329  0.000823805        2.3323       1.91643 0.839837        True
+BC                   373               0    0.0240635     0.024613     0.0724484             1 0.862071       False
+PC                   373               0     0.478007     0.468363      0.553812             1 0.757307        True
+aveControl           373               0      1.00659      1.00658    0.00311253    0.00308486 0.999652       False
+modalControl         373               0     0.994011     0.994019    0.00300444    0.00303395 0.999525       False
+DIV                  373               0           14           14             0             0      NaN       False
+
+  Exact match (rel diff <= 1e-06, no NaN mismatch): 1/10 numeric columns
+
+Wrote /home/timsit/MEA-NAP/parityRun/parity_comparison_OutputData_Python_parity.json

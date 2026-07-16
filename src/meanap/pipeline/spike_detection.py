@@ -4,12 +4,14 @@ Implements threshold-based and wavelet CWT-based detection, matching the
 behaviour of the MATLAB ``detectSpikesCWT`` / ``detectSpikesThreshold`` /
 ``detectSpikesWavelet`` functions in ``Functions/WATERS-master/``.
 
-Key differences from MATLAB
-----------------------------
-- Wavelet CWT uses a custom FFT-based implementation with the bior1.5 wavelet
-  function obtained via PyWavelets' cascade algorithm.  Results should be
-  highly similar but not bitwise identical to MATLAB's Wavelet Toolbox CWT.
-- Threshold detection is an exact port and should give near-identical results.
+Both the threshold and the wavelet CWT paths are exact ports.
+
+``_cwt_bior15`` reproduces MATLAB's legacy ``cwt(x, scales, 'bior1.5')``
+algorithm literally (integrated wavelet, convolve, differentiate) rather than
+approximating it, and agrees with MATLAB's own ``cwt`` to ~1e-15 relative on
+real traces. PyWavelets' bior1.5 is *not* an approximation of MATLAB's: the
+filters are identical and ``wavefun`` agrees to 1.6e-15 — see
+``_get_bior15_intwave``.
 """
 
 from __future__ import annotations
@@ -20,7 +22,7 @@ from typing import NamedTuple
 
 import numpy as np
 import pywt
-from scipy.signal import butter, filtfilt, find_peaks
+from scipy.signal import butter, filtfilt, find_peaks, oaconvolve
 
 from meanap.pipeline.parallel import suggest_thread_count
 
@@ -118,58 +120,82 @@ def detect_spikes_threshold(
 
 # ── Wavelet CWT implementation ────────────────────────────────────────────────
 
-_BIOR15_WAVEFN_CACHE: tuple[np.ndarray, np.ndarray] | None = None
+_BIOR15_INTWAVE_CACHE: tuple[np.ndarray, np.ndarray] | None = None
 
 
-def _get_bior15_wavefn() -> tuple[np.ndarray, np.ndarray]:
-    """Return (psi, x) for the bior1.5 analysis (decomposition) wavelet (cached)."""
-    global _BIOR15_WAVEFN_CACHE
-    if _BIOR15_WAVEFN_CACHE is None:
+def _get_bior15_intwave() -> tuple[np.ndarray, np.ndarray]:
+    """Return ``(int_psi, x)`` — the *integrated* bior1.5 decomposition wavelet.
+
+    Port of MATLAB's ``intwave('bior1.5', 10)``, which is what its legacy
+    ``cwt(x, scales, wname)`` convolves with: ``cumsum(psi_d) * step`` over
+    ``wavefun``'s level-10 grid, where ``psi_d`` is the *decomposition* wavelet
+    (``intwave.m`` takes ``wavefun``'s 2nd output for biorthogonal wavelets).
+
+    PyWavelets' bior1.5 is not an approximation of MATLAB's — the two agree
+    exactly: identical filters, identical ``wavefun`` grid, and ``psi_d`` equal
+    to MATLAB's to 1.6e-15 (hence ``int_psi`` to 2.7e-16). ``level=10`` matters:
+    it is ``intwave``'s default precision, and MATLAB's ``cwt`` relies on it.
+    """
+    global _BIOR15_INTWAVE_CACHE
+    if _BIOR15_INTWAVE_CACHE is None:
         wav = pywt.Wavelet("bior1.5")
-        phi_d, psi_d, phi_r, psi_r, x = wav.wavefun(level=8)
-        x = x - x[0]
-        _BIOR15_WAVEFN_CACHE = (psi_d, x)
-    return _BIOR15_WAVEFN_CACHE
+        _, psi_d, _, _, x = wav.wavefun(level=10)
+        step = x[1] - x[0]
+        _BIOR15_INTWAVE_CACHE = (np.cumsum(psi_d) * step, x)
+    return _BIOR15_INTWAVE_CACHE
+
+
+def _wkeep1_centre(x: np.ndarray, length: int) -> np.ndarray:
+    """Port of MATLAB ``wkeep1(x, length)`` (central extraction, side=0)."""
+    sx = len(x)
+    if length >= sx:
+        return x
+    d = (sx - length) / 2.0
+    return x[int(np.floor(d)):sx - int(np.ceil(d))]
 
 
 def _cwt_bior15(signal: np.ndarray, scales: np.ndarray) -> np.ndarray:
-    """Compute CWT of ``signal`` at each scale using bior1.5 wavelet.
+    """Compute CWT of ``signal`` at each scale using the bior1.5 wavelet.
 
-    Replicates MATLAB ``cwt(signal, scales, 'bior1.5')`` via FFT convolution
-    with the cascade-approximated wavelet function.
+    Literal port of MATLAB's legacy ``cwt(signal, scales, 'bior1.5')``, whose
+    algorithm is (verified bit-identical against R2024b's ``cwt``)::
+
+        [psi, xval] = intwave(wname, 10);  step = xval(2)-xval(1);
+        j = 1 + floor((0:a*(xmax-xmin)) / (a*step));
+        f = fliplr(psi(j));
+        coefs = -sqrt(a) * wkeep1(diff(wconv1(signal, f)), len);
+
+    i.e. convolve with the *reversed, integrated* wavelet sampled by index
+    flooring, then differentiate — not a direct convolution with an
+    interpolated ``psi``. The ``-sqrt(a)`` factor carries the sign, so the
+    result needs no extra negation.
 
     Returns
     -------
     c : (n_scales, n_samples) array of CWT coefficients
     """
-    psi_d, x = _get_bior15_wavefn()
-    x_range = x[-1]
+    int_psi, x = _get_bior15_intwave()
+    step = x[1] - x[0]
+    x_span = x[-1] - x[0]
     n = len(signal)
-
-    # Pad to next power-of-2 for faster FFT
-    n_fft = int(2 ** np.ceil(np.log2(n)))
-    sig_rfft = np.fft.rfft(signal.astype(float), n=n_fft)
+    sig = np.asarray(signal, dtype=float)
 
     coeffs = np.zeros((len(scales), n), dtype=float)
-
     for i, scale in enumerate(scales):
-        n_wvl = max(3, int(round(x_range * scale)))
-        t_fine = np.linspace(0, x_range, n_wvl)
-        psi_at_scale = np.interp(t_fine, x, psi_d) / np.sqrt(float(scale))
+        a = float(scale)
+        # MATLAB `0:a*(xmax-xmin)` -> 0,1,...,floor(a*span); the +1/-1 offsets
+        # between the two index expressions are MATLAB's 1-based indexing.
+        k = np.arange(0, np.floor(a * x_span) + 1)
+        j = np.floor(k / (a * step)).astype(np.intp)
+        if j.size == 1:
+            j = np.zeros(2, dtype=np.intp)
+        f = int_psi[j][::-1]
+        # oaconvolve == MATLAB's conv(x, f, 'full') to float rounding, but is
+        # O(n log m) rather than O(n*m) for these long traces / short filters.
+        conv_full = oaconvolve(sig, f, mode="full")
+        coeffs[i, :] = -np.sqrt(a) * _wkeep1_centre(np.diff(conv_full), n)
 
-        psi_padded = np.zeros(n_fft)
-        n_put = min(len(psi_at_scale), n_fft)
-        psi_padded[:n_put] = psi_at_scale[:n_put]
-
-        psi_rfft = np.fft.rfft(psi_padded)
-        conv_full = np.fft.irfft(sig_rfft * psi_rfft, n=n_fft)
-        shift = n_wvl // 2
-        coeffs[i, :] = np.roll(conv_full[:n], -shift)
-
-    # Negate: PyWavelets' bior1.5 psi_d has opposite sign to MATLAB's analysis wavelet.
-    # After negation, negative voltage spikes (MEA action potentials) produce positive
-    # CWT coefficients, matching MATLAB's convention (which keeps ct>0, zeros ct<0).
-    return -coeffs
+    return coeffs
 
 
 def _determine_scales(
@@ -198,42 +224,39 @@ def _determine_scales(
         for i in range(len(scales_test)):
             ind_pos = (c[i, :] > 0).astype(int)
             ind_der = np.diff(ind_pos)
-            zero_cross = np.where(ind_der == -1)[0]
+            # MATLAB's IndZeroCross are 1-BASED indices and the >500 / <500
+            # comparisons are against those, so use the same convention: a
+            # crossing at 1-based index 501 belongs to IndMax, whereas testing
+            # the 0-based index against 500 drops it from *both* bins. That
+            # off-by-one silently corrupted the narrowest scale's width entry.
+            zero_cross = np.where(ind_der == -1)[0] + 1
             max_cross = zero_cross[zero_cross > 500]
             min_cross = zero_cross[zero_cross < 500]
             if len(max_cross) == 0 or len(min_cross) == 0:
                 continue
             width_table[i] = (max_cross.min() + 1 - min_cross.max()) * dt
 
+        # MATLAB: WidthTable + [1:length(Scales)]*Eps
         Eps = 1e-15
-        width_table = width_table + np.arange(len(scales_test)) * Eps
+        width_table = width_table + np.arange(1, len(scales_test) + 1) * Eps
 
         # Target widths
         width_target = np.linspace(wid_ms[0], wid_ms[1], ns)
 
-        # Find rows where width_table is positive and roughly monotone
-        valid = width_table > 0
-        if valid.sum() < 2:
-            # Fallback: linearly spaced scales
-            return np.linspace(int(ScaleMax * wid_ms[0] / wid_ms[1]),
-                               ScaleMax, ns, dtype=int)
-
-        wt_valid = width_table[valid]
-        sc_valid = scales_test[valid]
-
-        # Sort by width for interpolation (handles non-monotone regions)
-        sort_idx = np.argsort(wt_valid)
-        wt_sorted = wt_valid[sort_idx]
-        sc_sorted = sc_valid[sort_idx]
-
-        # Remove duplicates (keep first occurrence)
-        _, unique_idx = np.unique(wt_sorted, return_index=True)
-        wt_sorted = wt_sorted[unique_idx]
-        sc_sorted = sc_sorted[unique_idx]
-
-        Scale = np.round(np.interp(width_target, wt_sorted, sc_sorted)).astype(int)
-        Scale = np.clip(Scale, 2, ScaleMax)
-        return Scale
+        # MATLAB: Scale = round(interp1(WidthTable, Scales, Width, 'linear')).
+        # interp1 returns NaN outside WidthTable's range; np.interp would
+        # silently clamp, so ask for NaN and surface it instead of guessing.
+        interp = np.interp(width_target, width_table, scales_test,
+                           left=np.nan, right=np.nan)
+        if np.isnan(interp).any():
+            bad = width_target[np.isnan(interp)]
+            raise ValueError(
+                f"Wid {wid_ms} is not achievable at fs={fs_hz} Hz with {wname!r}: "
+                f"target width(s) {bad} ms fall outside the wavelet's range "
+                f"[{width_table.min():.3g}, {width_table.max():.3g}] ms"
+            )
+        # MATLAB's round() is half-away-from-zero; np.round is half-to-even.
+        return np.floor(interp + 0.5).astype(int)
     else:
         raise ValueError(f"Unsupported wavelet for scale determination: {wname!r}")
 
@@ -324,10 +347,13 @@ def detect_spikes_wavelet(
 
     for i in range(ns):
         w_i = W[i]
-        # Take independent samples for MAD (W(i) apart)
+        # Take independent samples for MAD (W(i) apart).
+        # MATLAB: median(abs(c(i,1:round(W(i)):end) - mean(c(i,:))))/0.6745 —
+        # the subsampled coefficients are centred on the mean of the FULL row,
+        # not on their own mean.
         stride = max(1, int(round(w_i)))
         c_sub = c[i, ::stride]
-        Sigmaj = np.median(np.abs(c_sub - c_sub.mean())) / 0.6745
+        Sigmaj = np.median(np.abs(c_sub - c[i, :].mean())) / 0.6745
         if Sigmaj == 0:
             continue
         Thj = Sigmaj * np.sqrt(2 * np.log(Nt))     # hard threshold
@@ -377,7 +403,22 @@ def align_peaks(
 ) -> tuple[np.ndarray, np.ndarray]:
     """Align spike frames to the negative peak within ±win frames.
 
-    Approximate port of MATLAB's ``alignPeaks()``.
+    Port of MATLAB's ``alignPeaks()``, with one **deliberate** difference: this
+    returns the true peak, MATLAB's returns the true peak + 1.
+
+    MATLAB computes ``newSpikeTime = spikeTimes(i) + pos - win`` where ``pos``
+    is a *1-based* index into the window, so a perfectly centred peak
+    (``pos == win+1``) still shifts the spike by +1. MATLAB then reports the
+    frame as ``spikeFrames/fs``, and those frames are 1-based too. Net effect:
+    MATLAB's spike times sit 2 samples after the actual negative peak, and this
+    port's sit exactly on it — so Python's times run a constant 2 samples
+    (0.16 ms at 12.5 kHz) earlier than MATLAB's.
+
+    That is intentional (decided 2026-07-15; same reasoning as the
+    ``setUpSpreadSheet.m`` coordinate bug — the port does not replicate MATLAB
+    off-by-ones). It changes no downstream metric, since a uniform shift leaves
+    firing rates and STTC untouched. Add 2 samples to compare spike times with
+    MATLAB's directly. See python/PIPELINE_PORT_STATUS.md.
 
     Returns
     -------
@@ -498,7 +539,7 @@ def detect_spikes_recording(
 
     # Pre-cache wavelet function before the channel loop so it's not recomputed
     if any(not w.startswith("thr") for w in all_methods):
-        _get_bior15_wavefn()
+        _get_bior15_intwave()
 
     # Per-channel work is independent and dominated by GIL-releasing
     # scipy.filtfilt + numpy.fft, so it threads cleanly over the (single,
