@@ -31,7 +31,11 @@ function stimActivityAnalysis(spikeData, Params, Info, figFolder, oneFigureHandl
     end
     
     % Define artifact duration for consistent use throughout script
-    artifactDuration = Params.blankDurMode + Params.postStimWindowDur / 1000;
+    artifactDuration = getStimArtifactDuration(Params);
+
+    % Store it so functions called from here (plotPrePostStimFR,
+    % stimShuffleTest) shorten their post-stim windows by the same amount
+    Params.artifactDuration_s = artifactDuration;
 
     
     %% Gather stimulation times
@@ -483,7 +487,12 @@ function stimActivityAnalysis(spikeData, Params, Info, figFolder, oneFigureHandl
     FiringRateMatrix = NaN(numTrialsTotal, numChannels);
 
     % Time window calculations
-    poststim_duration_s = psth_window_s(2) - 0;  % Duration from stimulus to end of post-stim window
+    % The post-stim window starts after the blanked artifact window (spikes in
+    % it were already removed by batchProcessSpikesFromStim), and the baseline
+    % is matched to that effective duration so pre and post firing rates are
+    % estimated over equal amounts of live recording.
+    poststim_window_s_dprime = [artifact_duration_s, psth_window_s(2)];
+    poststim_duration_s = poststim_window_s_dprime(2) - poststim_window_s_dprime(1);
     baseline_window_s_dprime = [-poststim_duration_s, 0]; % Baseline window for d-prime calculation
     analysis_window_duration_s = psth_window_s(2) - psth_window_s(1); % Total analysis window duration
     
@@ -624,9 +633,10 @@ function stimActivityAnalysis(spikeData, Params, Info, figFolder, oneFigureHandl
                     all_spike_times_s >= baseline_start & all_spike_times_s < baseline_end);
                 baseline_firing_rates_all_trials(stimIdx) = length(baseline_spikes) / poststim_duration_s;
 
-                % Post-stimulus period firing rate (t=0 to end of post-stim window)
-                poststim_start = stimTime;
-                poststim_end = stimTime + psth_window_s(2);
+                % Post-stimulus period firing rate (end of artifact to end of
+                % post-stim window)
+                poststim_start = stimTime + poststim_window_s_dprime(1);
+                poststim_end = stimTime + poststim_window_s_dprime(2);
 
                 poststim_spikes = all_spike_times_s(...
                     all_spike_times_s >= poststim_start & all_spike_times_s < poststim_end);

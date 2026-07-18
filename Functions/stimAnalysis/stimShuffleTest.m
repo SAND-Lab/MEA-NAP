@@ -14,6 +14,13 @@ function shuffleResults = stimShuffleTest(spikeData, allStimTimes, Params, Info)
 % of spikes in the post-stimulus window exceeds the number of spikes in
 % the pre-stimulus (baseline) window.
 %
+% The post-stimulus window starts once the blanked artifact window has
+% ended (blank duration + post-stim ignore duration, see
+% getStimArtifactDuration), because spikes inside it have already been
+% removed by batchProcessSpikesFromStim. The baseline window is matched to
+% that same effective duration, so the two spike counts being compared
+% cover equal amounts of live recording.
+%
 % INPUTS
 % ------
 % spikeData : struct
@@ -30,6 +37,10 @@ function shuffleResults = stimShuffleTest(spikeData, allStimTimes, Params, Info)
 %       .SpikesMethod          - string, field name for spike times
 %       .stimAnalysisWindow    - [preStart, postEnd] in seconds (e.g. [-0.5 1])
 %     Optional:
+%       .artifactDuration_s    - blanked duration after each stim, in
+%                                seconds. If absent it is derived from
+%                                .blankDurMode and .postStimWindowDur;
+%                                absent fields count as zero.
 %       .Nshuffles             - number of circular-shift shuffles.
 %                                Default: 500
 %       .shuffleAlpha          - significance level for the two-tailed test.
@@ -50,7 +61,10 @@ function shuffleResults = stimShuffleTest(spikeData, allStimTimes, Params, Info)
 %   .isSignificant     - [numChannels x 1] logical, true if significant (upper tail only)
 %   .Nshuffles         - scalar, number of shuffles performed
 %   .alpha             - scalar, significance level used
-%   .postStimWindow    - [1 x 2] the post-stimulus window used
+%   .postStimWindow    - [1 x 2] the post-stimulus window used, starting
+%                        after the blanked artifact window
+%   .baselineWindow    - [1 x 2] the baseline window used (same duration)
+%   .artifactDuration  - scalar, blanked duration excluded after each stim
 %
 % PROCEDURE
 % ---------
@@ -90,14 +104,28 @@ numChannels = length(spikeData.stimInfo);
 duration_s = Info.duration_s;
 
 % Analysis windows (matching stimActivityAnalysis.m)
+% The post-stim window starts after the blanked artifact window, since
+% batchProcessSpikesFromStim has already removed every spike in it - counting
+% that stretch would make the post-stim window partly empty by construction.
+% The baseline is then matched to the *effective* post-stim duration so the
+% two raw spike counts are compared over equal amounts of live recording.
 psth_window_s = Params.stimAnalysisWindow;  % Full analysis window
-poststim_duration_s = psth_window_s(2) - 0;  % Duration from stimulus to end of post-stim window
-baseline_window_s = [-poststim_duration_s, 0];  % Baseline window (same duration as post-stim)
+artifact_duration_s = getStimArtifactDuration(Params);
+poststim_window_s = [artifact_duration_s, psth_window_s(2)];
+poststim_duration_s = poststim_window_s(2) - poststim_window_s(1);
+baseline_window_s = [-poststim_duration_s, 0];  % Same duration as post-stim
+
+if poststim_duration_s <= 0
+    error(['stimShuffleTest: the blanked artifact window (%.4f s) is at least as ' ...
+           'long as the post-stimulus analysis window (%.4f s), leaving no data to ' ...
+           'test. Increase Params.stimAnalysisWindow(2) or reduce the post-stim ' ...
+           'ignore duration.'], artifact_duration_s, psth_window_s(2));
+end
 
 %% 1. Compute observed trial proportion
 spikeMethod = Params.SpikesMethod;
 trialProp_obs = computeTrialProportionForEachChannel(spikeData.spikeTimes, allStimTimes, ...
-    psth_window_s, baseline_window_s, numChannels, spikeMethod);
+    poststim_window_s, baseline_window_s, numChannels, spikeMethod);
 
 %% 2. Build null distribution via circular shift
 trialProp_null = zeros(numChannels, Nshuffles);
@@ -122,7 +150,7 @@ if parallelToolboxInstalled
             shuffledSpikeTimes{chIdx}.(spikeMethod) = shiftedSpikes;
         end
         trialProp_null(:, shuffleIdx) = computeTrialProportionForEachChannel(shuffledSpikeTimes, ...
-            allStimTimes, psth_window_s, baseline_window_s, ...
+            allStimTimes, poststim_window_s, baseline_window_s, ...
             numChannels, spikeMethod);  %#ok<PFBNS>
     end
 else
@@ -137,7 +165,7 @@ else
             shuffledSpikeTimes{chIdx}.(spikeMethod) = shiftedSpikes;
         end
         trialProp_null(:, shuffleIdx) = computeTrialProportionForEachChannel(shuffledSpikeTimes, ...
-            allStimTimes, psth_window_s, baseline_window_s, ...
+            allStimTimes, poststim_window_s, baseline_window_s, ...
             numChannels, spikeMethod);
     end
 end
@@ -166,6 +194,8 @@ shuffleResults.isSigHi          = isSigHi;
 shuffleResults.isSignificant    = isSignificant;
 shuffleResults.Nshuffles        = Nshuffles;
 shuffleResults.alpha            = alpha;
-shuffleResults.postStimWindow   = [0, psth_window_s(2)];
+shuffleResults.postStimWindow   = poststim_window_s;
+shuffleResults.baselineWindow   = baseline_window_s;
+shuffleResults.artifactDuration = artifact_duration_s;
 
 end
