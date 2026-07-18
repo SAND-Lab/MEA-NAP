@@ -378,7 +378,22 @@ function stimActivityAnalysis(spikeData, Params, Info, figFolder, oneFigureHandl
     pipelineSaveFig(figPath, Params.figExt, Params.fullSVG, oneFigureHandle)
     close(oneFigureHandle);  % Close the figure after saving
 
-% NEW SECTION: YUVAL
+    %% ========================================================================
+    %% CIRCULAR-SHIFT SHUFFLE TEST FOR POST-STIMULUS TRIAL PROPORTION SIGNIFICANCE
+    %% ========================================================================
+    % Run per stimulus pattern and save results + figures
+    for patternIdx = 1:length(spikeData.stimPatterns)
+        patternStimTimes = spikeData.stimPatterns{patternIdx};
+        if isempty(patternStimTimes)
+            continue;
+        end
+        patternShuffleResults = stimShuffleTest(spikeData, ...
+            patternStimTimes, Params, Info);
+        save(fullfile(figFolder, sprintf('shuffleResults_pattern_%.f.mat', patternIdx)), ...
+            'patternShuffleResults');
+        plotStimShuffleResults(patternShuffleResults, spikeData, Info, Params, ...
+            figFolder, patternIdx);
+    end
 
  %% ========================================================================
     %% SECTION: INDIVIDUAL ELECTRODE PSTH ANALYSIS
