@@ -4,8 +4,20 @@ function plotPrePostStimFR(spikeData, allStimTimes, Params, figFolder, figName, 
     numStimEvent = length(allStimTimes);
     numChannels = length(spikeData.stimInfo);
 
-    preStimWindow = [Params.stimAnalysisWindow(1) 0];
-    postStimWindow = [0, Params.stimAnalysisWindow(2)];
+    % Start the post-stim window after the blanked artifact window - spikes in
+    % it were already removed by batchProcessSpikesFromStim, so including it
+    % would drag the post-stim rate down. Match the pre-stim window to the
+    % same effective duration for a like-for-like rate comparison.
+    artifactDuration = getStimArtifactDuration(Params);
+    postStimWindow = [artifactDuration, Params.stimAnalysisWindow(2)];
+    effectiveWindowDur = postStimWindow(2) - postStimWindow(1);
+    preStimWindow = [-effectiveWindowDur, 0];
+
+    if effectiveWindowDur <= 0
+        error(['plotPrePostStimFR: the blanked artifact window (%.4f s) is at least ' ...
+               'as long as the post-stimulus analysis window (%.4f s), leaving no ' ...
+               'data to plot.'], artifactDuration, Params.stimAnalysisWindow(2));
+    end
 
     spikeMethod = Params.SpikesMethod;
     
