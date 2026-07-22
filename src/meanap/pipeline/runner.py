@@ -100,6 +100,20 @@ def run_pipeline(
     else:
         log("Skipping step 1 (spike detection) — outside the selected step range.")
 
+    # Stimulation analysis (MEA-Stim) — runs right after spike detection when
+    # enabled, mirroring MATLAB's MEApipeline: batchDetectStim +
+    # batchProcessSpikesFromStim run at the end of step 1 and stimActivityAnalysis
+    # + saveEphysStatsStim at the end of step 2 — never after step 4. This port's
+    # combined step consumes step-1 spike times + the raw voltage and has no
+    # dependency on steps 2-4, so it runs here (before the network steps). It
+    # self-skips any recording whose step-1 spikes aren't on disk yet.
+    if params.stimulation_mode:
+        check_cancel(should_cancel)
+        from meanap.pipeline.stim_step import run_stim_analysis
+        _run_timed_step(5, lambda: run_stim_analysis(
+            params, recordings, output_root, log, should_cancel,
+        ))
+
     if start <= 2 <= stop:
         check_cancel(should_cancel)
         _run_timed_step(2, lambda: _run_step2_neuronal_activity(
@@ -126,9 +140,10 @@ def run_pipeline(
 
     if params.time_processes:
         total_duration = time.perf_counter() - pipeline_start
-        for step_num in (1, 2, 3, 4):
+        for step_num in (1, 2, 3, 4, 5):
             if step_num in step_durations:
-                log(f"Step {step_num} duration (seconds): {step_durations[step_num]:.1f}")
+                label = "Stim analysis" if step_num == 5 else f"Step {step_num}"
+                log(f"{label} duration (seconds): {step_durations[step_num]:.1f}")
         log(f"Total pipeline duration (seconds): {total_duration:.1f}")
         try:
             with open(output_root / "step_durations.json", "w") as fh:
