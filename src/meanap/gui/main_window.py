@@ -20,6 +20,8 @@ from meanap.gui.panels.paths import PathsPanel
 from meanap.gui.panels.recording import RecordingPanel
 from meanap.gui.panels.spike_detection import SpikeDetectionPanel
 from meanap.gui.panels.connectivity import ConnectivityPanel
+from meanap.gui.panels.stim import StimPanel
+from meanap.gui.panels.stim_preview import StimPreviewPanel
 from meanap.gui.panels.pipeline import PipelinePanel
 from meanap.gui.panels.catnap import CatNapPanel
 from meanap.gui.panels.network_viewer import NetworkViewerPanel
@@ -88,6 +90,8 @@ class MainWindow(QMainWindow):
         self._recording_panel = RecordingPanel()
         self._spike_panel = SpikeDetectionPanel()
         self._connectivity_panel = ConnectivityPanel()
+        self._stim_panel = StimPanel()
+        self._stim_preview_panel = StimPreviewPanel()
         self._catnap_panel = CatNapPanel()
         self._pipeline_panel = PipelinePanel()
         self._network_viewer_panel = NetworkViewerPanel()
@@ -96,6 +100,8 @@ class MainWindow(QMainWindow):
         self._tabs.addTab(_scrollable(self._recording_panel), "  Recording  ")
         self._tabs.addTab(_scrollable(self._spike_panel), "  Spike detection  ")
         self._tabs.addTab(_scrollable(self._connectivity_panel), "  Connectivity  ")
+        self._tabs.addTab(_scrollable(self._stim_panel), "  Stimulation  ")
+        self._tabs.addTab(self._stim_preview_panel, "  Stim Preview  ")
         self._tabs.addTab(self._catnap_panel, "  CAT-NAP (2P)  ")
         self._tabs.addTab(self._network_viewer_panel, "  Network Viewer  ")
         self._pipeline_tab_index = self._tabs.addTab(_scrollable(self._pipeline_panel), "  Pipeline  ")
@@ -127,6 +133,8 @@ class MainWindow(QMainWindow):
         self._recording_panel.load(params)
         self._spike_panel.load(params)
         self._connectivity_panel.load(params)
+        self._stim_panel.load(params)
+        self._stim_preview_panel.load_defaults(params)  # preview-only: no save/collect
         self._catnap_panel.load(params)
         self._pipeline_panel.load(params)
 
@@ -136,6 +144,7 @@ class MainWindow(QMainWindow):
         self._recording_panel.save(params)
         self._spike_panel.save(params)
         self._connectivity_panel.save(params)
+        self._stim_panel.save(params)
         self._catnap_panel.save(params)
         self._pipeline_panel.save(params)
         return params

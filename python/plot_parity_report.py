@@ -170,11 +170,17 @@ SECTION_ORDER = [
 ]
 
 
-def collect(root: Path, is_matlab: bool) -> dict[str, str]:
-    """Map pairing key -> path relative to `root` for every PNG under root."""
+def collect(root: Path, is_matlab: bool, filt: "re.Pattern | None" = None) -> dict[str, str]:
+    """Map pairing key -> path relative to `root` for every PNG under root.
+
+    If ``filt`` is given, only PNGs whose relative path matches the regex are
+    included (used to focus a report on a subsystem, e.g. the stim plots).
+    """
     out: dict[str, str] = {}
     for p in root.rglob("*.png"):
         rel = os.path.relpath(p, root)
+        if filt is not None and not filt.search(rel):
+            continue
         out[pair_key("./" + rel, is_matlab)] = rel
     return out
 
@@ -183,9 +189,10 @@ def rel_from_report(report_dir: Path, root: Path, rel: str) -> str:
     return os.path.relpath(root / rel, report_dir).replace(os.sep, "/")
 
 
-def build_report(matlab_root: Path, python_root: Path, out_path: Path) -> dict:
-    mat = collect(matlab_root, is_matlab=True)
-    py = collect(python_root, is_matlab=False)
+def build_report(matlab_root: Path, python_root: Path, out_path: Path,
+                 filt: "re.Pattern | None" = None) -> dict:
+    mat = collect(matlab_root, is_matlab=True, filt=filt)
+    py = collect(python_root, is_matlab=False, filt=filt)
     report_dir = out_path.parent.resolve()
 
     all_keys = sorted(set(mat) | set(py))
@@ -356,9 +363,13 @@ def main():
     ap.add_argument("--matlab", default="OutputData24Dec2025")
     ap.add_argument("--python", default="OutputData_Python")
     ap.add_argument("--out", default="plot_parity_report.html")
+    ap.add_argument("--filter", default=None,
+                    help="only include PNGs whose relative path matches this regex "
+                         "(e.g. a subsystem like the stim plots)")
     args = ap.parse_args()
 
-    res = build_report(Path(args.matlab), Path(args.python), Path(args.out))
+    filt = re.compile(args.filter) if args.filter else None
+    res = build_report(Path(args.matlab), Path(args.python), Path(args.out), filt=filt)
     print(f"Wrote {res['out']}")
     print(f"  paired:      {res['paired']}")
     print(f"  MATLAB-only: {res['matlab_only']}")

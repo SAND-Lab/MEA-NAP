@@ -151,11 +151,49 @@ class Params:
     twop_denoising_time_after_peak: float = 2.05
     python_path: str = ""
 
-    # ── Stimulation ──────────────────────────────────────────────────────────
+    # ── Stimulation (MEA-Stim) ───────────────────────────────────────────────
+    # See src/meanap/stim/ and python/MEASTIM_PORT_PLAN.md. When
+    # ``stimulation_mode`` is set, the pipeline runs the stim analysis right
+    # after spike detection (step 1), mirroring MATLAB's MEApipeline where
+    # stim detection/cleaning run at the end of step 1 and the stim analysis at
+    # the end of step 2 — not after step 4.
     stimulation_mode: bool = False
     automatic_stim_detection: bool = False
-    stim_detection_method: str = "threshold"
-    stim_detection_val: float = 2.5
-    stim_refractory_period: float = 0.5
-    stim_duration: float = 0.002
-    stim_duration_for_plotting: float = 0.01
+    stim_detection_method: str = "longblank"   # absPosThreshold|absNegThreshold|stdNeg|blanking|longblank|axionStimEvents
+    stim_detection_val: float = 150.0
+    stim_refractory_period: float = 2.9        # s
+    stim_duration: float = 0.00012             # s
+    stim_duration_for_plotting: float = 0.1    # s
+    min_blanking_duration: float = 0.004       # s (longblank/blanking run length)
+    stim_time_diff_threshold: float = 0.005    # s (pattern-match tolerance)
+    stim_analysis_window: list[float] = field(default_factory=lambda: [-0.03, 0.03])  # s
+    post_stim_window_dur: float = 0.5          # ms (post-stim ignore window)
+    stim_raw_data_processing: str = "none"     # none|medianAbs
+    stim_raster_bin_width: float = 0.1         # s
+    stim_n_shuffles: int = 500
+    stim_shuffle_alpha: float = 0.05
+    axion_stim_csv: str = ""                   # for the axionStimEvents method
+
+    def to_stim_params_dict(self) -> dict:
+        """Map the stim fields to the camelCase dict the ``meanap.stim`` ports use.
+
+        ``fs`` is added by the caller from each recording's own sampling rate.
+        """
+        return {
+            "stimDetectionMethod": self.stim_detection_method,
+            "stimDetectionVal": self.stim_detection_val,
+            "stimRefractoryPeriod": self.stim_refractory_period,
+            "stimDuration": self.stim_duration,
+            "stimDurationForPlotting": self.stim_duration_for_plotting,
+            "minBlankingDuration": self.min_blanking_duration,
+            "stimTimeDiffThreshold": self.stim_time_diff_threshold,
+            "stimAnalysisWindow": list(self.stim_analysis_window),
+            "postStimWindowDur": self.post_stim_window_dur,
+            "stimRawDataProcessing": self.stim_raw_data_processing,
+            "rasterBinWidth": self.stim_raster_bin_width,
+            "SpikesMethod": self.spikes_method,
+            "Nshuffles": self.stim_n_shuffles,
+            "shuffleAlpha": self.stim_shuffle_alpha,
+            "axionStimCSV": self.axion_stim_csv,
+            "fs": self.fs,
+        }
