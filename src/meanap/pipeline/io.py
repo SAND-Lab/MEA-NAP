@@ -52,12 +52,25 @@ def load_spike_times_mat(path: str | Path) -> dict[int, dict[str, np.ndarray]]:
             group = f[ref]
             if isinstance(group, h5py.Group):
                 result[ch_idx] = {
-                    k: group[k][()].flatten()
+                    k: _read_maybe_empty(group[k])
                     for k in group.keys()
                 }
             else:
-                result[ch_idx] = {"default": group[()].flatten()}
+                result[ch_idx] = {"default": _read_maybe_empty(group)}
     return result
+
+
+def _read_maybe_empty(dset: "h5py.Dataset") -> np.ndarray:
+    """Read a v7.3 dataset, honoring MATLAB's empty-array marker.
+
+    MATLAB stores an empty array ``[]`` as a small dataset holding the *shape*
+    (e.g. ``[0 0]``) plus a ``MATLAB_empty`` attribute — reading it naively
+    yields spurious ``[0, 0]``/``[0, 1]`` "values". Return an empty array in
+    that case.
+    """
+    if int(dset.attrs.get("MATLAB_empty", 0)):
+        return np.array([])
+    return dset[()].flatten()
 
 
 def save_spike_times_npz(
