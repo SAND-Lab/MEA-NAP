@@ -66,7 +66,6 @@ class PathsPanel(QWidget):
         form = QFormLayout(input_box)
         form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
 
-        self.home_dir = PathRow(self)
         self.raw_data = PathRow(self)
         self.spreadsheet = PathRow(self, is_file=True, file_filter="Spreadsheets (*.csv *.xlsx *.xls)")
         self.spreadsheet_range = QLineEdit("A2:A100000")
@@ -74,7 +73,6 @@ class PathsPanel(QWidget):
         self.custom_grp_order = QLineEdit()
         self.custom_grp_order.setToolTip("Comma-separated list of group names (e.g. 'WT,KO')")
 
-        form.addRow("MEA-NAP folder", self.home_dir)
         form.addRow("Raw data folder", self.raw_data)
         form.addRow("Spreadsheet file", self.spreadsheet)
         form.addRow("Spreadsheet range", self.spreadsheet_range)
@@ -106,7 +104,6 @@ class PathsPanel(QWidget):
         layout.addStretch()
 
     def load(self, params: Params) -> None:
-        self.home_dir.set_value(params.home_dir)
         self.raw_data.set_value(params.raw_data)
         self.spreadsheet.set_value(params.spreadsheet_file_name)
         self.spreadsheet_range.setText(params.spreadsheet_range)
@@ -117,7 +114,6 @@ class PathsPanel(QWidget):
         self.prior_analysis_path.set_value(params.prior_analysis_path)
 
     def save(self, params: Params) -> None:
-        params.home_dir = self.home_dir.value
         params.raw_data = self.raw_data.value
         params.spreadsheet_file_name = self.spreadsheet.value
         params.spreadsheet_range = self.spreadsheet_range.text()
