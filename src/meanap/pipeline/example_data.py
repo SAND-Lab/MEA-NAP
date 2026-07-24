@@ -16,8 +16,8 @@ DROPBOX_LINKS = {
 }
 
 
-def download_example_data(home_dir: Path, log: Callable[[str], None] | None = None) -> Path:
-    """Download the example recordings into ``home_dir/ExampleData``.
+def download_example_data(dest_root: Path, log: Callable[[str], None] | None = None) -> Path:
+    """Download the example recordings into ``dest_root/ExampleData``.
 
     Skips files that already exist. Returns the path to the ExampleData folder.
     """
@@ -25,7 +25,7 @@ def download_example_data(home_dir: Path, log: Callable[[str], None] | None = No
         if log:
             log(msg)
 
-    example_dir = Path(home_dir) / "ExampleData"
+    example_dir = Path(dest_root) / "ExampleData"
     example_dir.mkdir(parents=True, exist_ok=True)
 
     for name, url in DROPBOX_LINKS.items():

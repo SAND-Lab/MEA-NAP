@@ -8,7 +8,6 @@ from typing import Literal
 @dataclass
 class Params:
     # ── Paths ────────────────────────────────────────────────────────────────
-    home_dir: str = ""
     raw_data: str = ""
     output_data_folder: str = ""
     output_data_folder_name: str = ""

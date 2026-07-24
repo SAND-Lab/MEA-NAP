@@ -9,7 +9,7 @@ from PyQt6.QtWidgets import (
     QTabWidget, QToolBar, QWidget,
 )
 from PyQt6.QtGui import QAction
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QSettings
 
 from meanap.params import Params
 from meanap.pipeline.example_data import download_example_data
@@ -25,6 +25,7 @@ from meanap.gui.panels.stim_preview import StimPreviewPanel
 from meanap.gui.panels.pipeline import PipelinePanel
 from meanap.gui.panels.catnap import CatNapPanel
 from meanap.gui.panels.network_viewer import NetworkViewerPanel
+from meanap.gui.tutorial import TutorialOverlay, TutorialStep, tabbar_target
 
 
 def _scrollable(widget: QWidget) -> QScrollArea:
@@ -45,10 +46,12 @@ class MainWindow(QMainWindow):
         self._last_output_root: Path | None = None
         self._current_theme = "dark"
         self._worker: PipelineWorker | None = None
+        self._tutorial: TutorialOverlay | None = None
 
         self._build_toolbar()
         self._build_tabs()
         self._load_params(self._params)
+        self._maybe_show_tutorial_on_first_launch()
 
     # ── UI construction ───────────────────────────────────────────────────────
 
@@ -74,12 +77,17 @@ class MainWindow(QMainWindow):
         self._act_theme.setToolTip("Toggle light / dark theme")
         self._act_theme.triggered.connect(self._on_toggle_theme)
 
+        act_tutorial = QAction("?  Tutorial", self)
+        act_tutorial.setToolTip("Launch the guided tutorial")
+        act_tutorial.triggered.connect(self._start_tutorial)
+
         tb.addAction(act_new)
         tb.addSeparator()
         tb.addAction(act_open)
         tb.addAction(act_save)
         tb.addSeparator()
         tb.addAction(self._act_theme)
+        tb.addAction(act_tutorial)
 
     def _build_tabs(self) -> None:
         self._tabs = QTabWidget()
@@ -96,14 +104,14 @@ class MainWindow(QMainWindow):
         self._pipeline_panel = PipelinePanel()
         self._network_viewer_panel = NetworkViewerPanel()
 
-        self._tabs.addTab(_scrollable(self._paths_panel), "  Paths  ")
-        self._tabs.addTab(_scrollable(self._recording_panel), "  Recording  ")
-        self._tabs.addTab(_scrollable(self._spike_panel), "  Spike detection  ")
-        self._tabs.addTab(_scrollable(self._connectivity_panel), "  Connectivity  ")
-        self._tabs.addTab(_scrollable(self._stim_panel), "  Stimulation  ")
-        self._tabs.addTab(self._stim_preview_panel, "  Stim Preview  ")
-        self._tabs.addTab(self._catnap_panel, "  CAT-NAP (2P)  ")
-        self._tabs.addTab(self._network_viewer_panel, "  Network Viewer  ")
+        self._tab_paths = self._tabs.addTab(_scrollable(self._paths_panel), "  Paths  ")
+        self._tab_recording = self._tabs.addTab(_scrollable(self._recording_panel), "  Recording  ")
+        self._tab_spike = self._tabs.addTab(_scrollable(self._spike_panel), "  Spike detection  ")
+        self._tab_connectivity = self._tabs.addTab(_scrollable(self._connectivity_panel), "  Connectivity  ")
+        self._tab_stim = self._tabs.addTab(_scrollable(self._stim_panel), "  Stimulation  ")
+        self._tab_stim_preview = self._tabs.addTab(self._stim_preview_panel, "  Stim Preview  ")
+        self._tab_catnap = self._tabs.addTab(self._catnap_panel, "  CAT-NAP (2P)  ")
+        self._tab_network = self._tabs.addTab(self._network_viewer_panel, "  Network Viewer  ")
         self._pipeline_tab_index = self._tabs.addTab(_scrollable(self._pipeline_panel), "  Pipeline  ")
 
         self._catnap_panel.log_message.connect(self._pipeline_panel.append_log)
@@ -125,6 +133,162 @@ class MainWindow(QMainWindow):
         # Secondary-style buttons in CAT-NAP panel
         self._catnap_panel._scan_btn.setObjectName("secondary")
         self._catnap_panel._denoise_btn.setObjectName("secondary")
+
+    # ── Tutorial ──────────────────────────────────────────────────────────────
+
+    def _maybe_show_tutorial_on_first_launch(self) -> None:
+        settings = QSettings("SAND Lab", "MEA-NAP")
+        if not settings.value("tutorial/seen", False, type=bool):
+            self._start_tutorial()
+
+    def _start_tutorial(self) -> None:
+        if self._tutorial is None:
+            self._tutorial = TutorialOverlay(self, self._tabs)
+            self._tutorial.pipeline_chosen.connect(self._on_pipeline_chosen)
+            self._tutorial.finished.connect(self._on_tutorial_finished)
+        self._tutorial.start()
+
+    def _on_pipeline_chosen(self, kind: str) -> None:
+        builders = {
+            "meanap": self._build_meanap_steps,
+            "meastim": self._build_meastim_steps,
+            "catnap": self._build_catnap_steps,
+        }
+        steps = builders[kind]()
+        assert self._tutorial is not None
+        self._tutorial.set_steps(steps)
+        self._tutorial.begin_steps()
+
+    def _on_tutorial_finished(self) -> None:
+        QSettings("SAND Lab", "MEA-NAP").setValue("tutorial/seen", True)
+
+    def _build_meanap_steps(self) -> list[TutorialStep]:
+        paths = self._paths_panel
+        rec = self._recording_panel
+        spike = self._spike_panel
+        conn = self._connectivity_panel
+        pipe = self._pipeline_panel
+        return [
+            TutorialStep(
+                "Raw data folder", "The MEA-NAP pipeline starts on the Paths tab. "
+                "First, choose the folder holding your recordings "
+                "(.mat files, one per recording).",
+                self._tab_paths, lambda: paths.raw_data),
+            TutorialStep(
+                "Recording spreadsheet", "Select the CSV/XLSX that lists each recording, "
+                "its group and its age (DIV). This drives the whole batch.",
+                self._tab_paths, lambda: paths.spreadsheet),
+            TutorialStep(
+                "Spreadsheet range", "The cell range to read from the spreadsheet, "
+                "e.g. A2:A100000 to read every row after the header.",
+                self._tab_paths, lambda: paths.spreadsheet_range),
+            TutorialStep(
+                "Where results go", "Set the output folder and give this analysis run "
+                "a name — a subfolder with that name will hold all results and plots.",
+                self._tab_paths, lambda: paths.output_data_folder),
+            TutorialStep(
+                "Recording settings", "On the Recording tab, set the sampling frequency "
+                "of your acquisition (Hz) so spike detection and downsampling are correct.",
+                self._tab_recording, lambda: rec.fs),
+            TutorialStep(
+                "Channel layout", "Pick the MEA layout that matches your hardware "
+                "(MCS60, Axion64, …). This maps channels to electrode positions.",
+                self._tab_recording, lambda: rec.channel_layout),
+            TutorialStep(
+                "Spike detection", "Step 1 detects spikes. Leave 'Detect spikes' ticked "
+                "for a fresh run; untick it if you already have detected spike data.",
+                self._tab_spike, lambda: spike.detect_spikes),
+            TutorialStep(
+                "Detection thresholds", "These MAD multipliers set how far below the "
+                "median a deflection must go to count as a spike. 3, 4, 5 is a good start.",
+                self._tab_spike, lambda: spike.thresholds),
+            TutorialStep(
+                "Connectivity lags", "Step 3 builds functional networks with the spike "
+                "time tiling coefficient. These lag values (ms) set the coincidence window.",
+                self._tab_connectivity, lambda: conn.lag_vals),
+            TutorialStep(
+                "Choose the steps", "On the Pipeline tab, pick which steps to run "
+                "(1–4). The default runs the whole pipeline end to end.",
+                self._pipeline_tab_index, lambda: pipe.start_step),
+            TutorialStep(
+                "Try it first", "Not sure your setup works? 'Test pipeline' downloads a "
+                "small example dataset and runs all four steps on it.",
+                self._pipeline_tab_index, lambda: pipe.test_btn),
+            TutorialStep(
+                "Run the pipeline", "When your paths are filled in, press Run. Progress "
+                "appears in the status log, and 'View report' opens the results in your browser.",
+                self._pipeline_tab_index, lambda: pipe.run_btn),
+        ]
+
+    def _build_meastim_steps(self) -> list[TutorialStep]:
+        paths = self._paths_panel
+        stim = self._stim_panel
+        pipe = self._pipeline_panel
+        return [
+            TutorialStep(
+                "Raw data folder", "MEA-Stim reuses the same Paths tab. Start by choosing "
+                "the folder with your stimulation recordings.",
+                self._tab_paths, lambda: paths.raw_data),
+            TutorialStep(
+                "Recording spreadsheet", "Select the CSV/XLSX listing each recording, "
+                "its group and DIV.",
+                self._tab_paths, lambda: paths.spreadsheet),
+            TutorialStep(
+                "Where results go", "Set the output folder and a name for this run's "
+                "results subfolder.",
+                self._tab_paths, lambda: paths.output_data_folder),
+            TutorialStep(
+                "Turn on MEA-Stim", "On the Stimulation tab, tick this to run the "
+                "stimulation analysis after spike detection.",
+                self._tab_stim, lambda: stim.stim_mode),
+            TutorialStep(
+                "Detection method", "Choose how stimulation artefacts are found. "
+                "'longblank' and 'blanking' suit blanked recordings; the threshold "
+                "methods detect by amplitude; 'axionStimEvents' reads an Axion CSV.",
+                self._tab_stim, lambda: stim.method),
+            TutorialStep(
+                "Analysis window", "Set the window around each stimulus (seconds) over "
+                "which evoked responses are measured — e.g. −0.03 to 0.03 s.",
+                self._tab_stim, lambda: stim.win_start),
+            TutorialStep(
+                "Significance test", "Responses are tested against shuffled surrogates. "
+                "More shuffles give a tighter p-value but take longer; 500 is a good default.",
+                self._tab_stim, lambda: stim.n_shuffles),
+            TutorialStep(
+                "Preview detection", "The Stim Preview tab lets you check the detected "
+                "stimulus times on an example recording before running the full batch.",
+                self._tab_stim_preview, tabbar_target(self._tabs, self._tab_stim_preview)),
+            TutorialStep(
+                "Run the pipeline", "On the Pipeline tab, press Run. Spike detection runs "
+                "first, then the stimulation analysis and its plots.",
+                self._pipeline_tab_index, lambda: pipe.run_btn),
+        ]
+
+    def _build_catnap_steps(self) -> list[TutorialStep]:
+        cat = self._catnap_panel
+        pipe = self._pipeline_panel
+        return [
+            TutorialStep(
+                "Turn on CAT-NAP", "CAT-NAP analyses two-photon calcium imaging. On the "
+                "CAT-NAP tab, tick this to analyse suite2p output instead of MEA data.",
+                self._tab_catnap, lambda: cat._suite2p_mode),
+            TutorialStep(
+                "suite2p folder", "Point this to the parent folder containing your "
+                "suite2p output (the plane0 folders live beneath it).",
+                self._tab_catnap, lambda: cat._folder_edit),
+            TutorialStep(
+                "Scan for recordings", "Press this to find every suite2p recording under "
+                "that folder. Select one to preview its traces.",
+                self._tab_catnap, lambda: cat._scan_btn),
+            TutorialStep(
+                "Denoising", "Optionally denoise the fluorescence traces before analysis. "
+                "The threshold multiplier and peak windows control event extraction.",
+                self._tab_catnap, lambda: cat._denoise_btn),
+            TutorialStep(
+                "Run the pipeline", "With CAT-NAP mode on and a folder selected, go to "
+                "the Pipeline tab and press Run to analyse the imaging data.",
+                self._pipeline_tab_index, lambda: pipe.run_btn),
+        ]
 
     # ── Param sync ────────────────────────────────────────────────────────────
 
@@ -199,14 +363,12 @@ class MainWindow(QMainWindow):
     # ── Pipeline run / stop ───────────────────────────────────────────────────
 
     def _on_test_pipeline(self) -> None:
-        home_dir = self._paths_panel.home_dir.value
-        if not home_dir:
-            QMessageBox.warning(
-                self, "MEA-NAP folder required",
-                "Please set the MEA-NAP folder (Paths tab) before testing the pipeline.",
-            )
-            self._tabs.setCurrentIndex(0)
-            return
+        # The test run needs somewhere to put the example data and its output.
+        # Default the output folder to ~/MEA-NAP when it hasn't been set.
+        out_folder = self._paths_panel.output_data_folder.value
+        if not out_folder:
+            out_folder = str(Path.home() / "MEA-NAP")
+            self._paths_panel.output_data_folder.set_value(out_folder)
 
         self._tabs.setCurrentIndex(self._pipeline_tab_index)
         self._pipeline_panel.append_log("Downloading example data for pipeline test…")
@@ -217,7 +379,7 @@ class MainWindow(QMainWindow):
             QApplication.processEvents()
 
         try:
-            example_dir = download_example_data(Path(home_dir), log=log)
+            example_dir = download_example_data(Path(out_folder), log=log)
         except Exception as e:
             QMessageBox.critical(self, "Download failed", str(e))
             return
@@ -236,9 +398,6 @@ class MainWindow(QMainWindow):
         except Exception as e:
             log(f"Warning: could not parse custom group order from exampleData.csv: {e}")
 
-        if not self._paths_panel.output_data_folder.value:
-            self._paths_panel.output_data_folder.set_value(home_dir)
-
         # The test run verifies that the full pipeline (steps 1-4) works.
         self._pipeline_panel.start_step.setValue(1)
         self._pipeline_panel.stop_step.setValue(4)
@@ -254,8 +413,6 @@ class MainWindow(QMainWindow):
         self._params = params
 
         missing = []
-        if not params.home_dir:
-            missing.append("MEA-NAP folder")
         if not params.raw_data and not params.prior_analysis:
             missing.append("Raw data folder")
         if not params.output_data_folder:
