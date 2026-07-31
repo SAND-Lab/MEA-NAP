@@ -689,6 +689,27 @@ def small_worldness_rl_wu(
 
 # ── Controllability ────────────────────────────────────────────────────────
 
+def _dominant_singular_value(adj_m: np.ndarray) -> float:
+    """Largest singular value of ``adj_m`` — the ``svds(A, 1)`` in MATLAB's
+    ``ave_control.m`` / ``modal_control.m``.
+
+    ``v0`` is pinned to a fixed starting vector. Left to itself, ARPACK draws
+    its start from NumPy's *global* RNG, which made average/modal
+    controllability — otherwise fully deterministic metrics — wobble in the
+    last ~2 ulps between runs on identical input, and no ``Params.random_seed``
+    could have fixed it (the draw doesn't come from any generator this pipeline
+    owns). The converged singular value is the same either way, to solver
+    tolerance; only the arithmetic path to it changes.
+    """
+    try:
+        _, s, _ = svds(
+            adj_m.astype(float), k=1, v0=np.ones(min(adj_m.shape), dtype=float),
+        )
+        return float(s[0])
+    except Exception:
+        return float(np.linalg.norm(adj_m, 2))
+
+
 def average_controllability(adj_m: np.ndarray) -> np.ndarray:
     """Returns values of average controllability for each node in a network.
     
@@ -698,16 +719,11 @@ def average_controllability(adj_m: np.ndarray) -> np.ndarray:
     """
     if adj_m.shape[0] == 0:
         return np.array([])
-    
-    try:
-        _, s, _ = svds(adj_m.astype(float), k=1)
-        max_s = s[0]
-    except Exception:
-        max_s = np.linalg.norm(adj_m, 2)
-        
+
+    max_s = _dominant_singular_value(adj_m)
     a_norm = adj_m / (1 + max_s)
     t, u = schur(a_norm, output="real")
-    
+
     mid_mat = (u ** 2).T
     v = np.diag(t)
     p_diag = 1 - v ** 2
@@ -725,13 +741,8 @@ def modal_controllability(adj_m: np.ndarray) -> np.ndarray:
     """
     if adj_m.shape[0] == 0:
         return np.array([])
-        
-    try:
-        _, s, _ = svds(adj_m.astype(float), k=1)
-        max_s = s[0]
-    except Exception:
-        max_s = np.linalg.norm(adj_m, 2)
-        
+
+    max_s = _dominant_singular_value(adj_m)
     a_norm = adj_m / (1 + max_s)
     t, u = schur(a_norm, output="real")
     

@@ -123,7 +123,15 @@ class Params:
     start_analysis_step: int = 1
     stop_analysis_step: int = 4
     optional_steps_to_run: list[str] = field(default_factory=list)
+    # Resume from an earlier run: read whichever steps' outputs already exist
+    # from ``prior_analysis_path`` (and/or ``spike_detected_data``) instead of
+    # recomputing them. Results still go to this run's own output folder — the
+    # prior run is only ever read. See pipeline/resume.py.
     prior_analysis: bool = False
+    # Seed for every stochastic stage (step-3 thresholding, modularity, null
+    # models, NMF, example-trace picking). None = fresh OS entropy each run,
+    # matching MATLAB, which seeds nothing. See pipeline/rng.py.
+    random_seed: int | None = None
     verbose_level: str = "Normal"
     time_processes: bool = False
     output_spreadsheet_file_type: str = "csv"

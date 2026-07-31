@@ -1,15 +1,15 @@
 from pathlib import Path
 from typing import Callable
 
-import h5py
 import numpy as np
 import pandas as pd
 import json
 
 from meanap.params import Params
 from meanap.pipeline.cancellation import CancelCheck, check_cancel
+from meanap.pipeline.resume import build_input_locator
 from meanap.pipeline.spreadsheet import RecordingInfo, ground_spike_times_dict, parse_ground_electrodes
-from meanap.pipeline.io import load_spike_times_npz
+from meanap.pipeline.io import load_spike_times_npz, resolve_duration_s
 from meanap.pipeline.firing_rates import firing_rates_bursts
 from meanap.pipeline.plotting_step2 import plot_neuronal_activity_checks
 
@@ -100,7 +100,7 @@ def _run_step2_neuronal_activity(
 
     log("\n=== Step 2: Neuronal Activity & Burst Detection ===")
 
-    spike_data_dir = output_root / "1_SpikeDetection" / "1A_SpikeDetectedData"
+    locator = build_input_locator(params, output_root)
     out_dir = output_root / "2_NeuronalActivity"
     out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -114,11 +114,11 @@ def _run_step2_neuronal_activity(
 
     for rec in recordings:
         check_cancel(should_cancel)
-        npz_file = spike_data_dir / f"{rec.filename}_spikes.npz"
-        if not npz_file.exists():
-            log(f"  [{rec.filename}] SKIP: Spike data not found at {npz_file.name}")
+        npz_file = locator.spike_file(rec.filename)
+        if npz_file is None:
+            log(f"  [{rec.filename}] SKIP: spike data not found ({rec.filename}_spikes.npz)")
             continue
-            
+
         log(f"  [{rec.filename}] loading spike data...")
         try:
             data = np.load(npz_file)
@@ -127,22 +127,22 @@ def _run_step2_neuronal_activity(
         except Exception as e:
             log(f"  [{rec.filename}] ERROR loading npz: {e}")
             continue
-            
-        # Get duration_s by peeking at HDF5 raw data shape
-        raw_path = Path(params.raw_data) / f"{rec.filename}.mat"
-        try:
-            with h5py.File(raw_path, "r") as f:
-                n_samples = f["dat"].shape[0]
-                if n_samples == 64:  # Transposed check
-                    n_samples = f["dat"].shape[1]
-            duration_s = n_samples / fs
-        except Exception:
-            # Fallback if raw file not found/readable
-            log(f"  [{rec.filename}] Warning: could not read raw file, guessing duration from max spike time")
-            duration_s = 0.0
-            
+
+        duration_s, duration_src = resolve_duration_s(
+            data, Path(params.raw_data) / f"{rec.filename}.mat", fs, n_channels,
+        )
+        if duration_s is None:
+            # Every firing rate here is spikes/duration, so a guessed duration
+            # would be silently wrong rather than obviously missing.
+            log(f"  [{rec.filename}] SKIP: recording duration unavailable "
+                f"(no duration in the spike file and the raw recording could not be read)")
+            continue
+        if duration_src == "raw file":
+            log(f"  [{rec.filename}] duration read from the raw recording "
+                f"({duration_s:.1f}s) — spike file predates duration storage")
+
         spike_times_full = load_spike_times_npz(npz_file)
-        
+
         # Filter down to the chosen method
         method = params.spikes_method
         spike_times_dict = {}
@@ -150,15 +150,9 @@ def _run_step2_neuronal_activity(
             # Keys in spike_times_full might be string or int
             # Our loading code casts to int, so ch should match
             if ch in spike_times_full and method in spike_times_full[ch]:
-                times = spike_times_full[ch][method]
-                spike_times_dict[ch] = times
-                if duration_s == 0.0 and len(times) > 0:
-                    duration_s = max(duration_s, np.max(times))
+                spike_times_dict[ch] = spike_times_full[ch][method]
             else:
                 spike_times_dict[ch] = np.array([])
-                
-        if duration_s == 0.0:
-            duration_s = 60.0  # safe fallback
 
         ground_electrodes = parse_ground_electrodes(rec.ground)
         if ground_electrodes:

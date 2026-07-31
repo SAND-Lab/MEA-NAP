@@ -9,7 +9,6 @@ import json
 from pathlib import Path
 from typing import Callable
 
-import h5py
 import numpy as np
 import pandas as pd
 from scipy.spatial.distance import pdist, squareform
@@ -17,7 +16,7 @@ from scipy.spatial.distance import pdist, squareform
 from meanap.params import Params
 from meanap.pipeline import network_metrics as nm
 from meanap.pipeline.cancellation import CancelCheck, check_cancel
-from meanap.pipeline.io import load_spike_times_npz
+from meanap.pipeline.io import load_spike_times_npz, resolve_duration_s
 from meanap.pipeline.modularity import mod_consensus_cluster_iterate
 from meanap.pipeline.nmf import cal_nmf
 from meanap.pipeline.null_models import latmio_und_v2, randmio_und_v2
@@ -27,6 +26,8 @@ from meanap.pipeline.plotting_step4 import (
     plot_connectivity_stats, plot_graph_metrics_by_node,
     plot_node_cartography, plot_spatial_network, plot_spatial_network_combined,
 )
+from meanap.pipeline.resume import build_input_locator
+from meanap.pipeline.rng import make_rng
 from meanap.pipeline.spreadsheet import RecordingInfo, ground_spike_times_dict, parse_ground_electrodes
 
 
@@ -406,26 +407,27 @@ def _step4_compute_one(
     plot phase), and the log lines it produced."""
     params, rec, output_root_str = task
     output_root = Path(output_root_str)
-    mat_files_dir = output_root / "ExperimentMatFiles"
-    spike_data_dir = output_root / "1_SpikeDetection" / "1A_SpikeDetectedData"
+    locator = build_input_locator(params, output_root)
 
     method = params.spikes_method
     lag_values = params.func_con_lag_val
     min_nodes = params.min_number_of_nodes_to_cal_net_met
     logs: list[str] = []
 
-    adj_path = mat_files_dir / f"{rec.filename}_adjM.npz"
-    spike_path = spike_data_dir / f"{rec.filename}_spikes.npz"
-    if not adj_path.exists():
-        logs.append(f"  [{rec.filename}] SKIP: adjacency matrices not found at {adj_path.name}")
+    adj_path = locator.adjm_file(rec.filename)
+    spike_path = locator.spike_file(rec.filename)
+    if adj_path is None:
+        logs.append(f"  [{rec.filename}] SKIP: adjacency matrices not found "
+                    f"({rec.filename}_adjM.npz)")
         return rec.filename, None, None, logs
-    if not spike_path.exists():
-        logs.append(f"  [{rec.filename}] SKIP: spike data not found at {spike_path.name}")
+    if spike_path is None:
+        logs.append(f"  [{rec.filename}] SKIP: spike data not found ({rec.filename}_spikes.npz)")
         return rec.filename, None, None, logs
 
-    # Independent RNG per worker (Step 4's PC-norm/modularity are already
-    # non-bit-reproducible; separate default_rng()s give independent streams).
-    rng = np.random.default_rng()
+    # Derived from the recording name, not from a shared stream, so the
+    # stochastic metrics (Ci/Q/PC-norm/SW/NMF) don't depend on how many
+    # workers the pool used or what order recordings completed in.
+    rng = make_rng(params.random_seed, "step4", rec.filename)
 
     logs.append(f"  [{rec.filename}] loading adjacency matrices...")
     adj_data = np.load(adj_path)
@@ -434,15 +436,12 @@ def _step4_compute_one(
     channels_arr = spike_data["channels"]
     n_channels = len(channels_arr)
 
-    raw_path = Path(params.raw_data) / f"{rec.filename}.mat"
-    try:
-        with h5py.File(raw_path, "r") as f:
-            n_samples = f["dat"].shape[0]
-            if n_samples == n_channels:
-                n_samples = f["dat"].shape[1]
-        duration_s = n_samples / fs
-    except Exception:
-        logs.append(f"  [{rec.filename}] SKIP: could not read raw file for duration")
+    duration_s, _ = resolve_duration_s(
+        spike_data, Path(params.raw_data) / f"{rec.filename}.mat", fs, n_channels,
+    )
+    if duration_s is None:
+        logs.append(f"  [{rec.filename}] SKIP: recording duration unavailable "
+                    f"(not in the spike file, and the raw recording could not be read)")
         return rec.filename, None, None, logs
 
     spike_times_full = load_spike_times_npz(spike_path)

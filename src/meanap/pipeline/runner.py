@@ -15,6 +15,7 @@ from meanap.pipeline.step2 import _run_step2_neuronal_activity
 from meanap.pipeline.step3 import _run_step3_functional_connectivity
 from meanap.pipeline.step4 import _run_step4_network_metrics
 from meanap.pipeline.output_folders import create_output_folders
+from meanap.pipeline.resume import build_input_locator, missing_step_inputs
 from meanap.pipeline.spike_detection import SpikeDetectionParams, detect_spikes_recording
 from meanap.pipeline.spreadsheet import RecordingInfo, read_recording_csv
 
@@ -41,6 +42,11 @@ def run_pipeline(
     recording inside each step; when it returns ``True`` the run unwinds by
     raising :class:`~meanap.pipeline.cancellation.PipelineCancelled`. Callers
     that offer a Stop button should catch that and treat it as a clean stop.
+
+    When ``params.start_analysis_step > 1`` the inputs the starting step needs
+    are resolved through :mod:`meanap.pipeline.resume` — this run's output
+    folder first, then ``prior_analysis_path``/``spike_detected_data`` — and
+    validated before any compute starts.
     """
     if not params.spreadsheet_file_name:
         raise ValueError("Spreadsheet file must be set")
@@ -59,6 +65,17 @@ def run_pipeline(
     )
     log(f"Output folder ready: {output_root}")
 
+    # Raises on a misconfigured prior-analysis/spike-data path, before any work.
+    locator = build_input_locator(params, output_root)
+    if locator.is_resuming:
+        for line in locator.describe():
+            log(line)
+
+    if params.random_seed is None:
+        log("Random seed: not set — stochastic steps (3, 4) will differ between runs.")
+    else:
+        log(f"Random seed: {params.random_seed} — stochastic steps are reproducible.")
+
     # CAT-NAP (suite2p calcium imaging) path. In MATLAB, Params.suite2pMode == 1
     # replaces spike detection + connectivity (steps 1 & 3) with suite2pToAdjm,
     # swaps step-2 stats for calTwopActivityStats, and feeds the shared step-4
@@ -67,11 +84,38 @@ def run_pipeline(
     if params.suite2p_mode:
         log("\n=== CAT-NAP (suite2p) pipeline ===")
         from meanap.catnap.pipeline import run_catnap_pipeline
-        run_catnap_pipeline(params, recordings, output_root, log, should_cancel)
+        from meanap.pipeline.rng import make_rng
+        run_catnap_pipeline(
+            params, recordings, output_root, log, should_cancel,
+            rng=make_rng(params.random_seed, "catnap"),
+        )
         return output_root
 
     start = params.start_analysis_step
     stop = params.stop_analysis_step
+    if start > stop:
+        raise ValueError(
+            f"Start step ({start}) is after stop step ({stop}) — nothing to run."
+        )
+
+    # Fail fast when resuming with nothing to resume from. Without this a bad
+    # path just makes every recording log "SKIP: spike data not found" and the
+    # run "succeeds" with empty CSVs.
+    if start > 1:
+        missing = missing_step_inputs(locator, recordings, start)
+        if len(missing) == len(recordings):
+            detail = "; ".join(f"{name}: {', '.join(gaps)}" for name, gaps in missing.items())
+            hint = (
+                "Enable 'Use prior analysis' and set the previous analysis folder"
+                if not locator.is_resuming
+                else "Check that the previous analysis folder holds these recordings"
+            )
+            raise ValueError(
+                f"Cannot start at step {start}: no recording has the inputs it needs "
+                f"({detail}). {hint}, or start at step 1."
+            )
+        for name, gaps in missing.items():
+            log(f"  ! {name} will be skipped — missing {', '.join(gaps)}")
 
     # Port of MEApipeline.m's Params.timeProcesses: tic/toc around each step,
     # gated by the same flag, printed in the same "Step N duration (seconds):
@@ -205,7 +249,10 @@ def _run_step1_spike_detection(
         )
 
         out_path = spike_dir / f"{rec.filename}_spikes.npz"
-        save_spike_times_npz(out_path, result.spike_times, channels, fs)
+        save_spike_times_npz(
+            out_path, result.spike_times, channels, fs,
+            duration_s=dat.shape[0] / fs,
+        )
         log(f"  [{rec.filename}] saved → {out_path.relative_to(output_root)}")
 
         # Mirrors MEApipeline.m creating a per-recording checks folder here;
