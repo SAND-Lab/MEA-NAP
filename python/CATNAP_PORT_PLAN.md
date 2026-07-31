@@ -161,6 +161,70 @@ Both `plot_2p_traces` and the network plot are wired into `run_catnap_pipeline`
 
 ---
 
+### Phase 6 — Cell-type subnetworks ✅ (feature extension, no MATLAB counterpart)
+
+MATLAB only uses `Info.CellTypes` cosmetically (concentric rings around nodes in
+`StandardisedNetworkPlot.m`). This phase turns it into an analysis — the first
+CAT-NAP capability that goes **beyond** the MATLAB pipeline rather than porting
+it, so there is no parity ground truth; `python/test_catnap_subnetwork.py`
+checks correctness/self-consistency instead (45/45).
+
+| Piece | File |
+|---|---|
+| Group resolution, expressions, subgraph metrics, edge mixing, node split | `src/meanap/catnap/subnetwork.py` |
+| Figures (spatial, per-group panels, metric comparisons, mixing heatmaps) | `src/meanap/catnap/subnetwork_plotting.py` |
+| Runner wiring + 3 batch CSVs | `src/meanap/catnap/pipeline.py` (`_run_subnetwork_analysis`) |
+| Params (`twop_subnetwork_analysis` / `_groups` / `twop_cell_type_file`) | `src/meanap/params.py` |
+| GUI group editor (grid of groups × markers) | `src/meanap/gui/panels/cell_type_groups.py` |
+| GUI wiring (file picker, mode combo, live validation) | `src/meanap/gui/panels/catnap.py` |
+| Tests / demo run | `python/test_catnap_subnetwork.py`, `python/test_gui_cell_type_groups.py`, `python/run_catnap_subnetwork_demo.py` |
+| User docs | `docs/python/catnap.md` § Cell-type subnetworks |
+
+Two complementary comparisons, both requested and both shipped:
+
+1. **Induced subgraphs** — restrict `adjM` to one cell type's nodes and re-run
+   the *shared* `step4.compute_network_metrics`. Comparable across groups but
+   size-dependent, so every figure annotates `aN`.
+2. **Split whole-network node metrics** — leave the graph intact, label nodes
+   by type, compare ND/NS/PC/BC/Eloc distributions. Long format (one row per
+   node × group) because marker membership legitimately overlaps.
+
+Plus **edge mixing**: a group × group density / mean-weight matrix and a
+per-node `WithinGroupStrengthFrac`.
+
+Groups come from the recording folder's cell-type spreadsheet (MATLAB's
+`rawData/<FN>/*.csv` rule, extended to xlsx). Default is one group per marker
+column; `twop_subnetwork_groups="E/I"` derives excitatory/inhibitory from the
+inhibitory markers present; a dict takes boolean expressions
+(`"NeuN+ & ~GAD+ & ~PV+"`, `&` binding tighter than `|`).
+
+**GUI.** The CAT-NAP tab edits those expressions through a grid — rows are
+groups, columns are the spreadsheet's markers, each cell is include / exclude /
+irrelevant, plus a per-row any-of vs all-of match. Unlimited groups via **Add
+group** (two rows by default only because E/I is the common case).
+`build_group_expression` / `parse_group_expression_terms` in `subnetwork.py`
+round-trip the grid ↔ expression mapping exactly, including both shipped
+presets; anything the grid cannot represent (nested parens, mixed operators, a
+marker absent from the loaded file) makes `set_groups` return `False` and the
+panel falls back to a free-text mode, so a hand-written expression is never
+silently dropped. Group sizes are counted live from the spreadsheet as an upper
+bound on what a run will see.
+
+> ⚠️ **Two upstream hangs fixed in `pipeline/null_models.py`.** Small
+> subnetworks (`SST+` has 4 cells in the example data) reach graph shapes MEA
+> arrays never produce, and both BCT-derived rewiring routines spin forever
+> there — faithfully ported from MATLAB, which has the same bug:
+> - `randmio_und_signed` (via `participation_coef_norm`) draws 4 distinct nodes
+>   in a bare `while 1` → never terminates for `n < 4`. Now returns the input
+>   unchanged when `n < 4`.
+> - `_valid_quad_stream` (via `latmio_und_v2` / `randmio_und_v2`) searches for
+>   two edges with 4 distinct endpoints in a bare `while 1` → never terminates
+>   on a triangle, a star, or any degenerate component. Now bounded by a
+>   k²-scaled draw budget, after which the caller stops rewiring.
+>
+> Both only change behaviour where MATLAB would hang; ephys parity is
+> unaffected (null-model, small-worldness and step-4 suites still green).
+
 ## Reuse wins
 - Denoising / peak detection (`catnap/denoising.py`) — done.
 - STTC + probabilistic thresholding (`pipeline/probabilistic_threshold.py`) —

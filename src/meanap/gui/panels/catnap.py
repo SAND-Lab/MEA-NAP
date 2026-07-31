@@ -9,7 +9,7 @@ from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyQt6.QtWidgets import (
     QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QGroupBox,
     QHBoxLayout, QLabel, QLineEdit, QListWidget, QListWidgetItem,
-    QPushButton, QScrollArea, QSizePolicy, QSpinBox, QSplitter,
+    QPlainTextEdit, QPushButton, QScrollArea, QSizePolicy, QSpinBox, QSplitter,
     QTextEdit, QVBoxLayout, QWidget,
 )
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
@@ -18,9 +18,19 @@ from matplotlib.figure import Figure
 from meanap.catnap.scanner import Suite2pRecording, find_suite2p_recordings
 from meanap.catnap.loader import Suite2pData, load_suite2p
 from meanap.catnap.denoising import oasis_available
+from meanap.gui.panels.cell_type_groups import CellTypeGroupEditor
 from meanap.params import Params
 
 ACTIVITY_TYPES = ["peaks", "denoised F", "F", "spks"]
+
+# Subnetwork grouping modes, in combo-box order. The stored value of
+# ``Params.twop_subnetwork_groups`` is None / "E/I" / a dict of expressions;
+# CUSTOM and EXPRESSIONS both produce a dict, differing only in how it is edited.
+MODE_PER_MARKER = "One subnetwork per marker"
+MODE_EI = "Excitatory vs inhibitory"
+MODE_CUSTOM = "Custom groups"
+MODE_EXPRESSIONS = "Custom groups (expressions)"
+GROUP_MODES = [MODE_PER_MARKER, MODE_EI, MODE_CUSTOM, MODE_EXPRESSIONS]
 
 
 # ── Background worker threads ─────────────────────────────────────────────────
@@ -160,6 +170,9 @@ class CatNapPanel(QWidget):
         self._recordings: list[Suite2pRecording] = []
         self._current_data: Suite2pData | None = None
         self._current_plane0: str = ""
+        # (n_roi_ids, n_markers) membership from the cell-type spreadsheet,
+        # used to show live group sizes while editing. None until one is read.
+        self._celltype_matrix: np.ndarray | None = None
 
         # background worker refs (kept alive)
         self._scan_worker: _ScanWorker | None = None
@@ -302,6 +315,19 @@ class CatNapPanel(QWidget):
         # Embedded trace canvas
         self._canvas = _TraceCanvas()
 
+        preview = QWidget()
+        preview_layout = QVBoxLayout(preview)
+        preview_layout.setContentsMargins(0, 0, 0, 0)
+        preview_layout.addWidget(ctrl_box)
+        preview_layout.addWidget(self._canvas, stretch=1)
+
+        # Trace preview and the group editor both want vertical room, and which
+        # one matters depends on what the user is doing — let them decide.
+        splitter = QSplitter(Qt.Orientation.Vertical)
+        splitter.addWidget(preview)
+        splitter.addWidget(self._build_subnetwork_box())
+        splitter.setSizes([360, 360])
+
         # Status log
         log_box = QGroupBox("Log")
         log_layout = QVBoxLayout(log_box)
@@ -310,10 +336,65 @@ class CatNapPanel(QWidget):
         self._log.setMaximumHeight(100)
         log_layout.addWidget(self._log)
 
-        layout.addWidget(ctrl_box)
-        layout.addWidget(self._canvas, stretch=1)
+        layout.addWidget(splitter, stretch=1)
         layout.addWidget(log_box)
         return w
+
+    def _build_subnetwork_box(self) -> QWidget:
+        """Cell-type subnetwork settings (see catnap/subnetwork.py)."""
+        box = QGroupBox("Cell-type subnetworks")
+        layout = QVBoxLayout(box)
+
+        form = QFormLayout()
+        self._subnetwork_enabled = QCheckBox()
+        self._subnetwork_enabled.toggled.connect(self._update_subnetwork_enabled)
+        form.addRow("Analyse cell-type subnetworks", self._subnetwork_enabled)
+
+        file_row = QHBoxLayout()
+        self._celltype_file = QLineEdit()
+        self._celltype_file.setPlaceholderText(
+            "Auto-detect a spreadsheet in each recording's folder"
+        )
+        browse = QPushButton("Browse…")
+        browse.setFixedWidth(72)
+        browse.clicked.connect(self._on_browse_celltype)
+        self._load_markers_btn = QPushButton("Load markers")
+        self._load_markers_btn.setFixedWidth(96)
+        self._load_markers_btn.clicked.connect(lambda: self._load_markers(verbose=True))
+        file_row.addWidget(self._celltype_file)
+        file_row.addWidget(browse)
+        file_row.addWidget(self._load_markers_btn)
+        form.addRow("Cell-type file", file_row)
+
+        self._group_mode = QComboBox()
+        self._group_mode.addItems(GROUP_MODES)
+        self._group_mode.currentTextChanged.connect(self._update_subnetwork_enabled)
+        form.addRow("Grouping", self._group_mode)
+        layout.addLayout(form)
+
+        self._group_editor = CellTypeGroupEditor()
+        self._group_editor.changed.connect(self._validate_groups)
+
+        self._group_text = QPlainTextEdit()
+        self._group_text.setPlaceholderText(
+            "One group per line, as  Name = expression\n"
+            "e.g.  Inhibitory = GAD+ | PV+ | SST+\n"
+            "      Excitatory = NeuN+ & ~GAD+ & ~PV+ & ~SST+\n"
+            "Operators: & (and)  | (or)  ~ (not)  ( )"
+        )
+        self._group_text.setMaximumHeight(110)
+        self._group_text.textChanged.connect(self._validate_groups)
+
+        self._group_status = QLabel("")
+        self._group_status.setWordWrap(True)
+        self._group_status.setStyleSheet("font-size: 10px;")
+
+        layout.addWidget(self._group_editor)
+        layout.addWidget(self._group_text)
+        layout.addWidget(self._group_status)
+
+        self._update_subnetwork_enabled()
+        return box
 
     # ── Slots ─────────────────────────────────────────────────────────────────
 
@@ -347,6 +428,9 @@ class CatNapPanel(QWidget):
 
         self._log_msg(f"Found {len(recordings)} suite2p recording(s).")
         self._scan_btn.setEnabled(True)
+        # Pick up cell-type markers as soon as we know where the recordings are,
+        # so the group editor is usable without a separate click.
+        self._load_markers()
 
     def _on_recording_selected(self, row: int) -> None:
         if row < 0 or row >= len(self._recordings):
@@ -356,6 +440,7 @@ class CatNapPanel(QWidget):
         self._current_plane0 = str(rec.suite2p_dir)
         self._log_msg(f"Loading {rec.name}…")
         self._denoise_btn.setEnabled(False)
+        self._load_markers()
 
         self._load_worker = _LoadWorker(self._current_plane0)
         self._load_worker.finished.connect(self._on_load_done)
@@ -424,6 +509,174 @@ class CatNapPanel(QWidget):
         preview_indices = cell_indices[:n]
         self._canvas.plot_traces(data, preview_indices, activity)
 
+    # ── Cell-type subnetwork slots ────────────────────────────────────────────
+
+    def _update_subnetwork_enabled(self) -> None:
+        """Show only the editor the current grouping mode uses."""
+        on = self._subnetwork_enabled.isChecked()
+        mode = self._group_mode.currentText()
+        for widget in (self._celltype_file, self._load_markers_btn, self._group_mode):
+            widget.setEnabled(on)
+        self._group_editor.setVisible(on and mode == MODE_CUSTOM)
+        self._group_text.setVisible(on and mode == MODE_EXPRESSIONS)
+        self._group_status.setVisible(on)
+        self._validate_groups()
+
+    def _on_browse_celltype(self) -> None:
+        from PyQt6.QtWidgets import QFileDialog
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Select cell-type spreadsheet", self._celltype_file.text(),
+            "Spreadsheets (*.csv *.xlsx *.xls)",
+        )
+        if path:
+            self._celltype_file.setText(path)
+            self._load_markers(verbose=True)
+
+    def _resolve_celltype_file(self) -> Path | None:
+        """Explicit path if set, else auto-detect beside the selected recording."""
+        from meanap.catnap.subnetwork import find_cell_type_file
+
+        explicit = self._celltype_file.text().strip()
+        if explicit:
+            path = Path(explicit)
+            return path if path.exists() else None
+
+        row = self._recording_list.currentRow()
+        folders = []
+        if 0 <= row < len(self._recordings):
+            folders.append(Path(self._recordings[row].suite2p_dir).parent.parent)
+        folders += [Path(r.suite2p_dir).parent.parent for r in self._recordings]
+        for folder in folders:
+            found = find_cell_type_file(folder.parent, folder.name)
+            if found is not None:
+                return found
+        return None
+
+    def _load_markers(self, verbose: bool = False) -> None:
+        """Read the spreadsheet's marker columns into the group editor."""
+        from meanap.catnap.subnetwork import build_marker_matrix, load_cell_type_table
+
+        path = self._resolve_celltype_file()
+        if path is None:
+            if verbose:
+                self._log_msg("No cell-type spreadsheet found. Browse to one, or "
+                              "put a single .csv/.xlsx in each recording's folder.")
+            return
+        try:
+            table = load_cell_type_table(path)
+            markers = list(table.columns)
+            # Membership over every ROI id the spreadsheet mentions — the run's
+            # `channels` are not known here, so use the full id range to give
+            # the validator something concrete to count against.
+            max_id = int(table.max(numeric_only=True).max()) if markers else 0
+            self._celltype_matrix, markers = build_marker_matrix(
+                table, np.arange(1, max_id + 2)
+            )
+        except Exception as e:
+            self._celltype_matrix = None
+            self._log_msg(f"Could not read {Path(path).name}: {e}")
+            return
+        if not markers:
+            self._celltype_matrix = None
+            self._log_msg(f"{Path(path).name} has no columns with cell ids in them.")
+            return
+
+        self._group_editor.set_markers(markers)
+        if verbose:
+            self._log_msg(f"Loaded {len(markers)} marker(s) from {Path(path).name}: "
+                          + ", ".join(markers))
+        self._validate_groups()
+
+    def _current_groups(self) -> dict[str, str] | str | None:
+        """The value ``Params.twop_subnetwork_groups`` should take right now."""
+        mode = self._group_mode.currentText()
+        if mode == MODE_PER_MARKER:
+            return None
+        if mode == MODE_EI:
+            return "E/I"
+        if mode == MODE_CUSTOM:
+            return self._group_editor.groups()
+        groups: dict[str, str] = {}
+        for line in self._group_text.toPlainText().splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            name, expr = line.split("=", 1)
+            if name.strip() and expr.strip():
+                groups[name.strip()] = expr.strip()
+        return groups
+
+    def _validate_groups(self) -> None:
+        """Report group sizes (or the first error) beneath the editor.
+
+        Checking against the loaded markers here means a typo surfaces while
+        editing rather than as a skipped analysis mid-run.
+        """
+        from meanap.catnap.subnetwork import (
+            GroupExpressionError, default_ei_groups, eval_group_expression,
+        )
+        import numpy as np
+
+        if not self._subnetwork_enabled.isChecked():
+            self._group_status.setText("")
+            return
+
+        markers = self._group_editor.markers()
+        mode = self._group_mode.currentText()
+        if mode == MODE_PER_MARKER:
+            self._group_status.setText(
+                f"One subnetwork per marker: {', '.join(markers)}" if markers
+                else "One subnetwork per marker column found in each spreadsheet."
+            )
+            self._group_status.setStyleSheet("font-size: 10px; color: gray;")
+            return
+
+        groups = self._current_groups()
+        if mode == MODE_EI:
+            groups = default_ei_groups(markers) if markers else None
+            if markers and groups is None:
+                self._set_group_status(
+                    "No inhibitory marker (GAD+/PV+/SST+/VIP+/GABA+) in this file — "
+                    "an E/I split cannot be derived; the run falls back to one "
+                    "subnetwork per marker.", warn=True)
+                return
+        if not groups:
+            self._set_group_status("No groups defined yet.", warn=True)
+            return
+
+        if not markers or self._celltype_matrix is None:
+            self._set_group_status(
+                f"{len(groups)} group(s) defined. Load a cell-type file to check "
+                "them against its markers.")
+            return
+
+        # Counts are over every ROI the spreadsheet labels — an upper bound on
+        # what a run sees, since iscell / no-peaks / inactive-node filtering all
+        # happen later. Still the quickest way to catch a group that is empty or
+        # accidentally swallows everything.
+        summary = []
+        for name, expr in groups.items():
+            try:
+                mask = eval_group_expression(expr, self._celltype_matrix, markers)
+            except GroupExpressionError as e:
+                self._set_group_status(f"{name}: {e}", warn=True)
+                return
+            if not mask.any():
+                self._set_group_status(
+                    f"{name!r} matches no labelled cell — it will be dropped.",
+                    warn=True)
+                return
+            summary.append(f"{name} ({int(mask.sum())})")
+        self._set_group_status(
+            f"{len(groups)} group(s), cells labelled in the spreadsheet: "
+            + ", ".join(summary))
+
+    def _set_group_status(self, text: str, warn: bool = False) -> None:
+        self._group_status.setText(("⚠ " if warn else "") + text)
+        self._group_status.setStyleSheet(
+            "font-size: 10px; color: " + ("#aa6600;" if warn else "gray;")
+        )
+
     # ── Params sync ───────────────────────────────────────────────────────────
 
     def load(self, params: Params) -> None:
@@ -438,6 +691,27 @@ class CatNapPanel(QWidget):
         self._time_before.setValue(params.twop_denoising_time_before_peak)
         self._time_after.setValue(params.twop_denoising_time_after_peak)
 
+        self._subnetwork_enabled.setChecked(params.twop_subnetwork_analysis)
+        self._celltype_file.setText(params.twop_cell_type_file)
+        self._load_markers()
+
+        groups = params.twop_subnetwork_groups
+        if groups is None:
+            self._group_mode.setCurrentText(MODE_PER_MARKER)
+        elif isinstance(groups, str):
+            self._group_mode.setCurrentText(MODE_EI)
+        else:
+            # Prefer the grid; fall back to free text for anything it cannot
+            # represent, so a hand-written expression is never silently lost.
+            if self._group_editor.set_groups(groups):
+                self._group_mode.setCurrentText(MODE_CUSTOM)
+            else:
+                self._group_text.setPlainText(
+                    "\n".join(f"{name} = {expr}" for name, expr in groups.items())
+                )
+                self._group_mode.setCurrentText(MODE_EXPRESSIONS)
+        self._update_subnetwork_enabled()
+
     def save(self, params: Params) -> None:
         params.raw_data = self._folder_edit.text()
         params.suite2p_mode = self._suite2p_mode.isChecked()
@@ -447,6 +721,10 @@ class CatNapPanel(QWidget):
         params.twop_denoising_threshold = self._denoise_threshold.value()
         params.twop_denoising_time_before_peak = self._time_before.value()
         params.twop_denoising_time_after_peak = self._time_after.value()
+
+        params.twop_subnetwork_analysis = self._subnetwork_enabled.isChecked()
+        params.twop_cell_type_file = self._celltype_file.text().strip()
+        params.twop_subnetwork_groups = self._current_groups()
 
     # ── Helpers ───────────────────────────────────────────────────────────────
 

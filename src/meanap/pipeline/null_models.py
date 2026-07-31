@@ -92,6 +92,12 @@ def randmio_und_signed(
 
     r = w.astype(float).copy()
     n = r.shape[0]
+    if n < 4:
+        # A double-edge swap needs four distinct nodes. MATLAB's
+        # randmio_und_signed.m draws them in a bare `while 1`, which spins
+        # forever below n=4; MEA arrays are never that small, but a cell-type
+        # subnetwork can be. Nothing is rewirable, so return the input.
+        return r
     total_iter = int(iterations * n * (n - 1) / 2)
     max_attempts = round(n / 2)
 
@@ -250,26 +256,53 @@ def null_model_und_sign(
 # already-nonnegative adjacency matrices). Both batch their random draws for
 # speed, same trick as ``randmio_und_signed``'s ``next_quad``.
 
+# Consecutive rejected draws after which _valid_quad_stream concludes the graph
+# has no valid quad at all. See the deviation note in its docstring.
+_QUAD_SEARCH_BUDGET = 2_000_000
+
+
 def _valid_quad_stream(
     rng: np.random.Generator, k: int, i_arr: list[int], j_arr: list[int], batch_size: int = 8192,
-) -> Iterator[tuple[int, int, int, int, int, int]]:
+) -> Iterator[tuple[int, int, int, int, int, int] | None]:
     """Yields ``(e1, e2, a, b, c, d)``: two distinct edge indices into
     ``i_arr``/``j_arr`` whose four endpoint nodes are all distinct.
 
     ``i_arr``/``j_arr`` are read fresh on each yield (not snapshotted), so
     callers may mutate them between ``next()`` calls — required, since the
     edge-flip step below does exactly that.
+
+    **Deviation from MATLAB.** ``latmio_und_v2.m`` / ``randmio_und_v2.m`` wrap
+    this search in a bare ``while 1``, which never terminates on a graph where
+    no two edges have four distinct endpoints — a triangle, a star, any small
+    or degenerate component. MEA-NAP's ephys networks are large enough that
+    MATLAB never hit it, but a cell-type subnetwork can easily be three or four
+    cells, so the search is bounded here: after
+    ``_QUAD_SEARCH_BUDGET`` consecutive rejected draws this yields ``None``,
+    telling the caller to stop rewiring rather than spin forever. The budget is
+    far beyond what any graph that *does* admit a swap would need, so this only
+    changes behaviour in cases where MATLAB would hang.
     """
+    # A graph with any valid quad at all has at least ~2/k² of its draws
+    # succeed, so scaling the budget with k² keeps the false-give-up
+    # probability negligible while staying instant for the tiny graphs where
+    # giving up is the correct answer.
+    budget = min(_QUAD_SEARCH_BUDGET, max(10_000, 200 * k * k))
+    rejected = 0
     while True:
         e1_batch = rng.integers(0, k, size=batch_size)
         e2_batch = rng.integers(0, k, size=batch_size)
         for e1, e2 in zip(e1_batch.tolist(), e2_batch.tolist()):
-            if e1 == e2:
-                continue
-            a, b = i_arr[e1], j_arr[e1]
-            c, d = i_arr[e2], j_arr[e2]
-            if a != c and a != d and b != c and b != d:
-                yield e1, e2, a, b, c, d
+            if e1 != e2:
+                a, b = i_arr[e1], j_arr[e1]
+                c, d = i_arr[e2], j_arr[e2]
+                if a != c and a != d and b != c and b != d:
+                    rejected = 0
+                    yield e1, e2, a, b, c, d
+                    continue
+            rejected += 1
+            if rejected >= budget:
+                yield None
+                rejected = 0
 
 
 def _coin_flip_stream(rng: np.random.Generator, batch_size: int = 8192) -> Iterator[bool]:
@@ -305,7 +338,10 @@ def randmio_und_v2(
 
     for _ in range(iterations):
         for _attempt in range(max_attempts + 1):
-            e1, e2, a, b, c, d = next(quads)
+            quad = next(quads)
+            if quad is None:
+                return r  # no swappable edge pair exists — leave the graph as is
+            e1, e2, a, b, c, d = quad
             if next(flips):
                 i_arr[e2], j_arr[e2] = d, c
                 c, d = d, c
@@ -349,8 +385,13 @@ def latmio_und_v2(
         flips = _coin_flip_stream(rng)
 
         for _ in range(iterations):
+            exhausted = False
             for _attempt in range(max_attempts + 1):
-                e1, e2, a, b, c, dd = next(quads)
+                quad = next(quads)
+                if quad is None:
+                    exhausted = True  # no swappable edge pair — stop rewiring
+                    break
+                e1, e2, a, b, c, dd = quad
                 if next(flips):
                     i_arr[e2], j_arr[e2] = dd, c
                     c, dd = dd, c
@@ -365,6 +406,8 @@ def latmio_und_v2(
                         j_arr[e1] = dd
                         j_arr[e2] = b
                         break
+            if exhausted:
+                break
 
     ind_rp_reverse = np.argsort(ind_rp)
     return r[np.ix_(ind_rp_reverse, ind_rp_reverse)]
