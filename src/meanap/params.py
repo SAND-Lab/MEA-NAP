@@ -158,6 +158,21 @@ class Params:
     twop_denoising_time_after_peak: float = 2.05
     python_path: str = ""
 
+    # Cell-type subnetwork analysis (see catnap/subnetwork.py). When enabled,
+    # each recording's putative-cell-type spreadsheet splits the network into
+    # named groups; the pipeline then re-runs the step-4 metrics on each
+    # group's induced subgraph, splits the whole-network node metrics by group,
+    # and summarises within- vs between-type edge mixing.
+    twop_subnetwork_analysis: bool = False
+    # Explicit path to the cell-type spreadsheet; "" auto-discovers one inside
+    # each recording's folder (same rule as MEApipeline.m, extended to xlsx).
+    twop_cell_type_file: str = ""
+    # None      → one subnetwork per spreadsheet column;
+    # "E/I"     → excitatory vs inhibitory, derived from the markers present;
+    # dict      → {group name: boolean marker expression}, e.g.
+    #             {"Inhibitory": "GAD+ | PV+ | SST+"}.
+    twop_subnetwork_groups: dict[str, str] | str | None = None
+
     # ── Stimulation (MEA-Stim) ───────────────────────────────────────────────
     # See src/meanap/stim/ and python/MEASTIM_PORT_PLAN.md. When
     # ``stimulation_mode`` is set, the pipeline runs the stim analysis right

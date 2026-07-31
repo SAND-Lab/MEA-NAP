@@ -72,6 +72,149 @@ uv run pip install git+https://github.com/j-friedrich/OASIS.git
 ```
 :::
 
+## Cell-type subnetworks
+
+If a recording folder contains a putative-cell-type spreadsheet, CAT-NAP can
+split the network by cell type and analyse each type separately — for example
+comparing the excitatory and inhibitory subnetworks.
+
+### The spreadsheet
+
+MEA-NAP looks for a single `.csv` (or `.xlsx`) inside the recording folder,
+alongside `suite2p/` — the same rule the MATLAB pipeline uses:
+
+```
+raw_data/
+└── MyRecording_DIV21/
+    ├── PutativeCellType_MyRecording_DIV21.csv
+    └── suite2p/plane0/…
+```
+
+One column per marker; each column lists the **0-indexed suite2p ROI ids**
+positive for that marker, padded with blanks to the longest column:
+
+| NeuN+ | Mecp2+ | PV+ | GAD+ |
+|---|---|---|---|
+| 68 | 53 | 26 | 7 |
+| 78 | 97 | 267 | 8 |
+| 117 | 270 | | 9 |
+
+### Defining subnetworks in the GUI
+
+The **Cell-type subnetworks** box on the CAT-NAP tab does all of this without
+writing expressions.
+
+1. Tick **Analyse cell-type subnetworks**.
+2. Leave **Cell-type file** blank to auto-detect a spreadsheet in each
+   recording's folder, or browse to a specific one. Markers load automatically
+   after a scan or when you select a recording; **Load markers** forces it.
+3. Pick a **Grouping**:
+   - *One subnetwork per marker* — no further setup.
+   - *Excitatory vs inhibitory* — derived from the inhibitory markers present.
+   - *Custom groups* — the grid below.
+   - *Custom groups (expressions)* — free text, for shapes the grid can't express.
+
+In the grid, each row is a subnetwork and each column a marker. Set every cell
+to **include**, **exclude**, or **—** (irrelevant), and use **Match** to say
+whether the *included* markers combine as "any of" (OR) or "all of" (AND);
+excluded markers must always be absent. **Add group** appends as many
+subnetworks as you want — the two starting rows are just a convenience for the
+excitatory/inhibitory case, not a limit.
+
+The **Expression** column shows exactly what each row compiles to, and the line
+underneath reports how many labelled cells each group would capture, so an empty
+or over-broad group is obvious before you run anything.
+
+### Defining subnetworks in code
+
+Set `twop_subnetwork_analysis = True`, then choose how the columns become
+groups with `twop_subnetwork_groups`:
+
+| Value | Meaning |
+|---|---|
+| `None` (default) | one subnetwork per spreadsheet column |
+| `"E/I"` | excitatory vs inhibitory, derived from whichever inhibitory markers (`GAD+`, `PV+`, `SST+`, `VIP+`, `GABA+`) are present |
+| a dict | your own named boolean combinations |
+
+```python
+from meanap.params import Params
+
+params = Params(
+    suite2p_mode=True,
+    twop_subnetwork_analysis=True,
+    twop_subnetwork_groups={
+        "Excitatory": "NeuN+ & ~GAD+ & ~PV+ & ~SST+",
+        "Inhibitory": "GAD+ | PV+ | SST+",
+        "Mecp2 positive": "Mecp2+",
+    },
+)
+```
+
+Expressions support `&` (and), `|` (or), `~` or `!` (not) and parentheses, with
+`&` binding tighter than `|` as in Python. Groups may overlap — a cell can be
+both `NeuN+` and `Mecp2+` — and any group that ends up empty is dropped, so a
+spec written for a rich marker panel still runs on a sparser recording.
+
+### What comes out
+
+Two complementary comparisons are produced for every recording and lag.
+
+**Induced subgraphs** keep only one cell type's nodes and the edges *among*
+them, then re-run the full step-4 metric suite on that subgraph. This answers
+"is the inhibitory network denser / more efficient / more small-world than the
+excitatory one?". Note these metrics are size-dependent, so read them alongside
+each group's node count (the figures annotate it).
+
+**Split whole-network metrics** leave the graph intact and just label each node
+with its cell type, then compare the node-level distributions. This answers "are
+inhibitory cells more hub-like *within the whole network*?" — usually the more
+interesting question, and not the same as the first.
+
+Figures land in
+`4_NetworkActivity/4A_IndividualNetworkAnalysis/{group}/{recording}/{lag}mslag/cellTypeSubnetworks/`:
+
+| File | Content |
+|---|---|
+| `1_CellTypeNetwork.png` | whole network, nodes coloured by cell type, within-type edges highlighted over pale between-type ones |
+| `2_SubnetworkGraphs.png` | one panel per cell type showing just its induced subgraph, on shared axes |
+| `3_NodeMetricsByCellType.png` | half-violin distributions of whole-network node metrics, split by cell type |
+| `4_SubnetworkMetrics.png` | graph-level metrics of each induced subgraph, versus the whole network |
+| `5_EdgeMixing.png` | cell type × cell type edge-density and mean-weight heatmaps |
+
+2P peak/STTC networks are often more than 80% dense, so the two graph figures
+draw only the strongest 3000 edges per group and say so in the panel caption.
+Metrics are always computed on the complete graph.
+
+Batch CSVs land in `4_NetworkActivity/`:
+
+| File | One row per |
+|---|---|
+| `Subnetwork_RecordingLevel.csv` | recording × lag × cell type — subgraph metrics (`Dens`, `Eglob`, `SW`, `Q`, plus `*_mean` collapses of the node metrics) |
+| `Subnetwork_NodeLevel.csv` | recording × lag × node × cell type — whole-network node metrics plus `WithinGroupStrengthFrac` |
+| `Subnetwork_EdgeMix.csv` | recording × lag × cell-type pair — `Density`, `MeanWeightNonzero`, `MeanWeightAll` |
+
+`Subnetwork_NodeLevel.csv` is long format: a node positive for two markers
+appears once per group, so each group's distribution is complete. Nodes in no
+group appear once under `Unassigned`.
+
+### Using it directly
+
+```python
+from meanap.catnap import subnetwork as sn
+
+table = sn.load_cell_type_table("PutativeCellType_MyRecording.csv")
+groups = sn.resolve_groups(table, channels, "E/I")
+print(groups.counts())          # {'Excitatory': 142, 'Inhibitory': 61}
+
+results = sn.compute_subnetwork_metrics(adjM, spike_counts, duration_s,
+                                        groups, params)
+mix = sn.compute_edge_mix(adjM, groups)
+nodes = sn.split_node_metrics(full_metrics, groups, channels, adj_m=adjM)
+```
+
+`python/run_catnap_subnetwork_demo.py` runs the whole thing end-to-end on the
+example dataset if you want a worked example to inspect.
+
 ## Using CAT-NAP from Python
 
 The scanner, loader, and denoising pipeline are all usable without the GUI:

@@ -95,6 +95,7 @@ def run_catnap_pipeline(
     all_stats: dict[str, dict] = {}
     all_coords: dict[str, np.ndarray] = {}
     all_channels: dict[str, np.ndarray] = {}
+    subnetwork_tables: dict[str, list] = {"summary": [], "node": [], "mix": []}
 
     for rec in recordings:
         check_cancel(should_cancel)
@@ -151,7 +152,14 @@ def run_catnap_pipeline(
 
         _plot_recording(params, rec, data, res, rec_results, output_root, log)
 
+        if params.twop_subnetwork_analysis:
+            _run_subnetwork_analysis(
+                params, rec, res, rec_results, spike_counts, duration_s,
+                min_nodes, output_root, subnetwork_tables, log, rng,
+            )
+
     _save_catnap_results(recordings, all_results, all_stats, net_dir, log)
+    _save_subnetwork_results(subnetwork_tables, net_dir, log)
     log("  CAT-NAP pipeline complete.")
 
 
@@ -189,6 +197,122 @@ def _plot_recording(params, rec, data, res, rec_results, output_root, log) -> No
             )
         except Exception as e:
             log(f"  [{rec.filename}] warning: network plot (lag={lag_ms}) failed: {e}")
+
+
+# Node-level metrics compared across cell types (whole-network role of each
+# cell), and graph-level metrics compared across induced subgraphs. Both lists
+# are filtered against what a given run actually produced.
+_SUBNET_NODE_METRICS = ["ND", "NS", "MEW", "Eloc", "BC", "PC", "Z", "NE",
+                        "CC_raw", "WithinGroupStrengthFrac"]
+_SUBNET_GRAPH_METRICS = ["Dens", "NDmean", "NSmean", "MEW_mean", "Eglob",
+                         "ElocMean", "CC_rawMean", "SW", "SWw", "Q", "nMod"]
+
+
+def _run_subnetwork_analysis(
+    params, rec, res, rec_results, spike_counts, duration_s, min_nodes,
+    output_root, tables, log, rng,
+) -> None:
+    """Cell-type subnetwork analysis for one recording, across all lags.
+
+    Guarded end-to-end: a missing/unparseable cell-type spreadsheet or a
+    failing figure logs a warning and leaves the rest of the run intact — the
+    core CAT-NAP outputs never depend on this.
+    """
+    from meanap.catnap import subnetwork as sn
+    from meanap.catnap import subnetwork_plotting as snp
+
+    try:
+        path = (Path(params.twop_cell_type_file) if params.twop_cell_type_file
+                else sn.find_cell_type_file(params.raw_data, rec.filename))
+        if path is None or not Path(path).exists():
+            log(f"  [{rec.filename}] subnetworks: no cell-type file found — skipping")
+            return
+        table = sn.load_cell_type_table(path)
+        groups = sn.resolve_groups(table, res.channels, params.twop_subnetwork_groups)
+    except Exception as e:
+        log(f"  [{rec.filename}] warning: subnetwork setup failed: {e}")
+        return
+
+    if groups.n_groups == 0:
+        log(f"  [{rec.filename}] subnetworks: no non-empty groups in {Path(path).name}")
+        return
+    counts = ", ".join(f"{k}={v}" for k, v in groups.counts().items())
+    log(f"  [{rec.filename}] subnetworks from {Path(path).name}: {counts}")
+
+    for lag_key, full_metrics in rec_results.items():
+        if "adjMsub" not in full_metrics:
+            continue
+        lag_ms = int(lag_key.replace("mslag", ""))
+        adj_full = res.adjMs[f"adjM{lag_ms}mslag"]
+        base = {"FileName": rec.filename, "Grp": rec.group, "DIV": rec.div, "Lag": lag_key}
+        out_dir = (output_root / "4_NetworkActivity" / "4A_IndividualNetworkAnalysis"
+                   / rec.group / rec.filename / f"{lag_ms}mslag" / "cellTypeSubnetworks")
+
+        try:
+            log(f"  [{rec.filename}] subnetwork metrics (lag={lag_ms}ms)…")
+            results = sn.compute_subnetwork_metrics(
+                adj_full, spike_counts, duration_s, groups, params,
+                min_nodes=min_nodes, rng=rng, full_metrics=full_metrics,
+            )
+            summary = pd.DataFrame(sn.subnetwork_summary_rows(results))
+            node_df = sn.split_node_metrics(full_metrics, groups, res.channels,
+                                            adj_m=adj_full)
+
+            # Edge mixing is measured on the analysed (active) subgraph, so it
+            # describes the same network the whole-network metrics do.
+            active = np.asarray(full_metrics["activeChannelIndex"], dtype=int)
+            active_groups = groups.subset(active)
+            edge_mix = sn.compute_edge_mix(full_metrics["adjMsub"], active_groups)
+        except Exception as e:
+            log(f"  [{rec.filename}] warning: subnetwork metrics (lag={lag_ms}) failed: {e}")
+            continue
+
+        tables["summary"].extend(dict(base, **row) for row in summary.to_dict("records"))
+        tables["node"].extend(dict(base, **row) for row in node_df.to_dict("records"))
+        tables["mix"].extend(dict(base, **row) for row in edge_mix.to_dict("records"))
+
+        title = f"{rec.filename}  {lag_ms} ms lag"
+        coords_active = res.coords[active]
+        figures = [
+            ("1_CellTypeNetwork.png",
+             lambda p: snp.plot_subnetwork_spatial(
+                 full_metrics["adjMsub"], coords_active, active_groups, p, title)),
+            ("2_SubnetworkGraphs.png",
+             lambda p: snp.plot_subnetwork_panels(
+                 full_metrics["adjMsub"], coords_active, active_groups, p, title)),
+            ("3_NodeMetricsByCellType.png",
+             lambda p: snp.plot_node_metrics_by_group(
+                 node_df, _SUBNET_NODE_METRICS, p,
+                 f"{title} — whole-network node metrics by cell type", rng)),
+            ("4_SubnetworkMetrics.png",
+             lambda p: snp.plot_subnetwork_metric_bars(
+                 summary, _SUBNET_GRAPH_METRICS, p,
+                 f"{title} — metrics of each cell-type subnetwork")),
+            ("5_EdgeMixing.png",
+             lambda p: snp.plot_edge_mix_matrix(
+                 edge_mix, active_groups, p, f"{title} — connectivity within/between cell types")),
+        ]
+        for name, draw in figures:
+            try:
+                draw(out_dir / name)
+            except Exception as e:
+                log(f"  [{rec.filename}] warning: subnetwork figure {name} failed: {e}")
+
+
+def _save_subnetwork_results(tables: dict[str, list], net_dir: Path, log) -> None:
+    """Write the three batch-level cell-type subnetwork CSVs."""
+    outputs = {
+        "summary": "Subnetwork_RecordingLevel.csv",
+        "node": "Subnetwork_NodeLevel.csv",
+        "mix": "Subnetwork_EdgeMix.csv",
+    }
+    for key, filename in outputs.items():
+        if not tables[key]:
+            continue
+        try:
+            pd.DataFrame(tables[key]).to_csv(net_dir / filename, index=False)
+        except Exception as e:
+            log(f"  Warning: could not save {filename}: {e}")
 
 
 def _save_catnap_results(
