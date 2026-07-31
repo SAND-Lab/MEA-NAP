@@ -854,6 +854,90 @@ which would make the bug not manifest for those files by coincidence, not
 because of different code. Worth checking directly against a real
 stimulation dataset before trusting this hypothesis.
 
+## Resuming from a previous run (`Params.prior_analysis`, 2026-07-31)
+
+MATLAB's `Params.priorAnalysis` + `startAnalysisStep` workflow now works in the
+port. `pipeline/resume.py` owns it. Semantics, mirroring MATLAB: **output still
+goes to this run's own (fresh, dated) folder — the prior run is only ever
+read.**
+
+Only two artefacts cross step boundaries in this port, so resuming is a search
+path over two lookups rather than MATLAB's chained-`.mat` machinery:
+
+| Produced by | Consumed by | File |
+|---|---|---|
+| Step 1 | Steps 2, 3, 4 | `1_SpikeDetection/1A_SpikeDetectedData/<rec>_spikes.npz` |
+| Step 3 | Step 4 | `ExperimentMatFiles/<rec>_adjM.npz` |
+
+`InputLocator` resolves both against, in order: this run's output folder →
+`Params.spike_detected_data` (spike files only, MATLAB's `spikeDetectedData`)
+→ `Params.prior_analysis_path`. It's a frozen dataclass of plain paths so it
+pickles into the `spawn`ed Step 3/4 workers; each step rebuilds its own via
+`build_input_locator(params, output_root)` rather than threading it through the
+task tuples.
+
+Two things this needed on top of the lookup itself:
+
+- **Fail fast.** `runner.py` calls `missing_step_inputs()` before any compute
+  and raises if *no* recording has what the starting step needs (it warns and
+  continues if only some do). Previously a typo'd path just produced "SKIP:
+  spike data not found" per recording and a "successful" run with empty CSVs.
+- **Duration no longer requires the raw recording.** Steps 2/3/4 each used to
+  re-derive `duration_s` by reopening the raw `.mat`, which made resuming
+  useless without the raw data mounted. Step 1 now stores `duration_s` in the
+  spike `.npz` and everything reads it back via `io.resolve_duration_s()`,
+  falling back to the raw file only for `.npz` files written before this
+  change. That also collapsed three divergent implementations into one — step
+  2's had a hardcoded `if n_samples == 64` transposed-check (Axion64-specific,
+  so a channels-major MCS60 file would have given `duration_s = 60/fs` and
+  firing rates wrong by orders of magnitude) while steps 3/4 compared against
+  the real channel count. Step 2 also used to invent a duration (max spike
+  time, else literally 60 s) when the raw file was unreadable; it now skips the
+  recording like steps 3/4 do, since every firing rate scales with this number.
+
+Verified end to end on the example data: steps 1-3 into folder A, then step 3
+alone and step 4 alone resumed from A with `raw_data` pointed at a
+non-existent folder — same seed reproduced A's adjacency bit-for-bit, and step
+4 produced its CSVs from A's spikes + adjacency.
+
+## Random seed (`Params.random_seed`, 2026-07-31)
+
+`pipeline/rng.py`'s `make_rng(seed, *labels)`. `None` (the default) keeps the
+old behaviour — fresh OS entropy per run, matching MATLAB, which seeds nothing.
+Set an integer and every stochastic stage becomes reproducible **within the
+Python port** (this can't and doesn't make anything match MATLAB — see item 4
+under "Known limitations").
+
+Two non-obvious constraints drove the design:
+
+1. **Results must not depend on scheduling.** Steps 3/4 run recordings across a
+   process pool auto-sized from the machine's cores/RAM, so one shared stream
+   would make the numbers depend on the host. Every generator is instead
+   derived from `(seed, "step3"|"step4", rec.filename)` — a recording gets the
+   same stream whether it ran first, last, or alone.
+2. **Labels are hashed with BLAKE2b, not `hash()`.** Python randomizes string
+   hashing per process, so `hash("rec_A")` differs between the parent and a
+   spawned worker — exactly the failure this is meant to prevent. Verified
+   under two `PYTHONHASHSEED` values.
+
+Wired at: `step3.py` (thresholding surrogates), `step4.py` (modularity, PC-norm
+and small-worldness null models, NMF), `plotting.py` (which example channels
+the step-1 check figure shows), `stim_step.py` figures, and the CAT-NAP path.
+
+**One extra fix was needed to make "same seed → same numbers" literally true.**
+`average_controllability`/`modal_controllability` are deterministic metrics, but
+both call `svds(A, 1)`, and ARPACK draws its start vector from NumPy's *global*
+RNG — so they wobbled in the last ~2 ulps between runs on identical input, and
+no `random_seed` could have fixed it (the draw doesn't come from any generator
+this pipeline owns). `_dominant_singular_value()` now pins `v0` to a fixed
+vector. MATLAB parity is unaffected: `parityRun/compare_step4_same_adjacency.py`
+still reports worst-diff 2.842e-14 with `aveControl` at ~2.9e-15, unchanged.
+
+With that in place, two runs at `random_seed=42` produce byte-identical
+`NetworkActivity_RecordingLevel.csv` *and* `NetworkActivity_NodeLevel.csv`
+(all 48 columns, `Q`/`SW`/`PC`/`num_nnmf_components` included); `random_seed=7`
+differs, as it should. No BLAS thread pinning was needed.
+
 ## Spreadsheet range convention
 
 `Params.spreadsheet_range` is a string like `"A2:A100000"`. The parser
@@ -1030,7 +1114,10 @@ of this list did._
    it's inherent to comparing two independently-seeded RNG streams. The
    deterministic STTC computation itself has exact parity. Same situation for
    Step 4's modularity (Ci) and the null-model randomization inside the
-   normalized participation coefficient.
+   normalized participation coefficient. **Run-to-run reproducibility *within*
+   the Python port is now available** via `Params.random_seed` (see the
+   "Random seed" section above) — that is a different guarantee from parity
+   with MATLAB, and it does not move any of these closer to MATLAB's numbers.
 5. **No `Parameters_*.csv/.mat` or `channel_layout.png` generation.** MATLAB
    writes these as part of its run; Python writes `.npz`/`.json` outputs per
    step instead (see "Key files" above for exactly what each step writes) and

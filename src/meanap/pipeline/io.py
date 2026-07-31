@@ -79,6 +79,7 @@ def save_spike_times_npz(
     channels: np.ndarray,
     fs: float,
     params: dict[str, Any] | None = None,
+    duration_s: float | None = None,
 ) -> None:
     """Save spike detection results to a ``.npz`` file.
 
@@ -86,9 +87,14 @@ def save_spike_times_npz(
     ------------
     ``channels`` — channel IDs
     ``fs`` — sampling frequency
+    ``duration_s`` — recording duration in seconds (omitted if not supplied)
     ``spike_times_{ch}_{method}`` — spike times in seconds for each channel/method
 
     Also saves a text file ``{stem}_params.txt`` alongside if ``params`` given.
+
+    ``duration_s`` is stored so Steps 2-4 don't have to re-open the raw
+    recording just to recover it — which is what makes resuming from a previous
+    run work when the raw data isn't mounted (see ``read_duration_npz``).
     """
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -97,6 +103,8 @@ def save_spike_times_npz(
         "channels": channels,
         "fs": np.array([fs]),
     }
+    if duration_s is not None:
+        arrays["duration_s"] = np.array([float(duration_s)])
     for ch_idx, methods in spike_times.items():
         for method, times in methods.items():
             arrays[f"spike_times_{ch_idx}_{method}"] = times
@@ -108,6 +116,39 @@ def save_spike_times_npz(
         with open(params_path, "w") as fh:
             for k, v in params.items():
                 fh.write(f"{k}: {v}\n")
+
+
+def resolve_duration_s(
+    spike_data: "np.lib.npyio.NpzFile",
+    raw_path: str | Path,
+    fs: float,
+    n_channels: int,
+) -> tuple[float | None, str]:
+    """Recording duration in seconds, with the source it came from.
+
+    Prefers the value Step 1 stored in the spike ``.npz``; falls back to the
+    sample count in the raw recording for files written before that field
+    existed (or by an external spike detector). Returns ``(None, "unavailable")``
+    when neither is readable, so callers can decide whether to skip or warn
+    rather than silently inventing a duration — every firing rate in Step 2 and
+    every surrogate in Step 3 scales with this number.
+    """
+    if "duration_s" in spike_data.files:
+        value = float(np.asarray(spike_data["duration_s"]).flatten()[0])
+        if value > 0:
+            return value, "spike file"
+
+    try:
+        with h5py.File(raw_path, "r") as f:
+            shape = f["dat"].shape
+        n_samples = shape[0]
+        # Raw files are (n_samples, n_channels), but some are stored
+        # transposed; the sample axis is whichever one isn't the channel count.
+        if len(shape) > 1 and n_samples == n_channels:
+            n_samples = shape[1]
+        return n_samples / fs, "raw file"
+    except Exception:
+        return None, "unavailable"
 
 
 def load_spike_times_npz(path: str | Path) -> dict[int, dict[str, np.ndarray]]:

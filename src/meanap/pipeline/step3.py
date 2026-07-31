@@ -14,14 +14,15 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Callable
 
-import h5py
 import numpy as np
 
 from meanap.params import Params
 from meanap.pipeline.cancellation import CancelCheck, check_cancel
-from meanap.pipeline.io import load_spike_times_npz
+from meanap.pipeline.io import load_spike_times_npz, resolve_duration_s
 from meanap.pipeline.parallel import map_recordings
 from meanap.pipeline.probabilistic_threshold import adjm_thr
+from meanap.pipeline.resume import build_input_locator
+from meanap.pipeline.rng import make_rng
 from meanap.pipeline.spreadsheet import RecordingInfo, ground_spike_times_dict, parse_ground_electrodes
 
 # Peak per-worker RAM for Step 3: spike times (sparse) + a few 64x64xrep_num
@@ -36,7 +37,7 @@ def _step3_one_recording(task: tuple[Params, RecordingInfo, str]) -> tuple[str, 
     in the parent, in completion order)."""
     params, rec, output_root_str = task
     output_root = Path(output_root_str)
-    spike_data_dir = output_root / "1_SpikeDetection" / "1A_SpikeDetectedData"
+    locator = build_input_locator(params, output_root)
     mat_files_dir = output_root / "ExperimentMatFiles"
 
     method = params.spikes_method
@@ -46,24 +47,21 @@ def _step3_one_recording(task: tuple[Params, RecordingInfo, str]) -> tuple[str, 
     plot_checks = bool(getattr(params, "prob_thresh_plot_checks", False))
 
     logs: list[str] = []
-    npz_file = spike_data_dir / f"{rec.filename}_spikes.npz"
-    if not npz_file.exists():
-        logs.append(f"  [{rec.filename}] SKIP: Spike data not found at {npz_file.name}")
+    npz_file = locator.spike_file(rec.filename)
+    if npz_file is None:
+        logs.append(f"  [{rec.filename}] SKIP: spike data not found ({rec.filename}_spikes.npz)")
         return rec.filename, logs
 
     data = np.load(npz_file)
     fs = float(data["fs"][0])
     n_channels = len(data["channels"])
 
-    raw_path = Path(params.raw_data) / f"{rec.filename}.mat"
-    try:
-        with h5py.File(raw_path, "r") as f:
-            n_samples = f["dat"].shape[0]
-            if n_samples == n_channels:
-                n_samples = f["dat"].shape[1]
-        duration_s = n_samples / fs
-    except Exception:
-        logs.append(f"  [{rec.filename}] Warning: could not read raw file for duration")
+    duration_s, _ = resolve_duration_s(
+        data, Path(params.raw_data) / f"{rec.filename}.mat", fs, n_channels,
+    )
+    if duration_s is None:
+        logs.append(f"  [{rec.filename}] SKIP: recording duration unavailable "
+                    f"(not in the spike file, and the raw recording could not be read)")
         return rec.filename, logs
 
     spike_times_full = load_spike_times_npz(npz_file)
@@ -76,7 +74,10 @@ def _step3_one_recording(task: tuple[Params, RecordingInfo, str]) -> tuple[str, 
         spike_times_dict = ground_spike_times_dict(spike_times_dict, data["channels"], ground_electrodes)
 
     out_arrays: dict[str, np.ndarray] = {}
-    rng = np.random.default_rng()
+    # Derived from the recording name, not from a shared stream, so results
+    # don't depend on how many workers the pool decided to use or what order
+    # recordings completed in.
+    rng = make_rng(params.random_seed, "step3", rec.filename)
     check_dir = output_root / "3_EdgeThresholdingCheck"
     for lag_ms in lag_values:
         logs.append(f"  [{rec.filename}] computing adjacency matrix (lag={lag_ms}ms, "

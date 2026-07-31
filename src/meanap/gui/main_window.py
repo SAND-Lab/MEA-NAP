@@ -413,12 +413,29 @@ class MainWindow(QMainWindow):
         self._params = params
 
         missing = []
-        if not params.raw_data and not params.prior_analysis:
-            missing.append("Raw data folder")
+        # Only step 1 reads the raw recordings; later steps work from the spike
+        # files, so a resumed run doesn't need the raw data mounted at all.
+        if not params.raw_data and params.start_analysis_step == 1:
+            missing.append("Raw data folder (needed for step 1 — spike detection)")
         if not params.output_data_folder:
             missing.append("Output data folder")
         if not params.spreadsheet_file_name:
             missing.append("Spreadsheet file")
+        if params.prior_analysis and not params.prior_analysis_path:
+            missing.append("Previous analysis folder (required by 'Use prior analysis')")
+        # Starting mid-pipeline needs the earlier steps' output from somewhere:
+        # a prior analysis folder, an explicit spike-data folder, or an existing
+        # output folder named on the Paths tab (continuing a run in place).
+        if (
+            params.start_analysis_step > 1
+            and not params.prior_analysis
+            and not params.spike_detected_data
+            and not params.output_data_folder_name
+        ):
+            missing.append(
+                f"'Use prior analysis' — starting at step {params.start_analysis_step} needs "
+                "the earlier steps' output, but this run would create an empty output folder"
+            )
 
         if missing:
             QMessageBox.warning(

@@ -48,7 +48,12 @@ class PipelinePanel(QWidget):
         )
 
         self.prior_analysis = QCheckBox()
-        self.prior_analysis.setToolTip("Load results from a previous run instead of re-computing")
+        self.prior_analysis.setToolTip(
+            "Resume from an earlier run: steps before 'Start at step' are read from the "
+            "previous analysis folder (set on the Paths tab) instead of being recomputed. "
+            "Results are written to this run's own output folder — the previous run is "
+            "only ever read."
+        )
 
         self.optional_steps = QListWidget()
         self.optional_steps.setSelectionMode(QListWidget.SelectionMode.MultiSelection)
@@ -76,8 +81,30 @@ class PipelinePanel(QWidget):
 
         self.time_processes = QCheckBox()
 
+        # Steps 3 and 4 are stochastic (surrogate thresholding, modularity, null
+        # models, NMF). Off = a fresh seed per run, matching MATLAB; on = the
+        # same inputs give the same numbers every time.
+        self.use_random_seed = QCheckBox()
+        self.use_random_seed.setToolTip(
+            "Make the stochastic steps reproducible. Off: edge thresholding, modularity, "
+            "small-worldness and NMF differ slightly between runs on the same data."
+        )
+        self.random_seed = QSpinBox()
+        self.random_seed.setRange(0, 2_147_483_647)
+        self.random_seed.setValue(1)
+        self.random_seed.setEnabled(False)
+        self.use_random_seed.toggled.connect(self.random_seed.setEnabled)
+
+        seed_row = QWidget()
+        seed_layout = QHBoxLayout(seed_row)
+        seed_layout.setContentsMargins(0, 0, 0, 0)
+        seed_layout.addWidget(self.use_random_seed)
+        seed_layout.addWidget(self.random_seed)
+        seed_layout.addStretch()
+
         form2.addRow("Verbose level", self.verbose_level)
         form2.addRow("Time each step", self.time_processes)
+        form2.addRow("Fixed random seed", seed_row)
 
         # ── Run controls ──────────────────────────────────────────────────────
         run_box = QGroupBox("Run")
@@ -136,6 +163,9 @@ class PipelinePanel(QWidget):
         if idx >= 0:
             self.verbose_level.setCurrentIndex(idx)
         self.time_processes.setChecked(params.time_processes)
+        self.use_random_seed.setChecked(params.random_seed is not None)
+        if params.random_seed is not None:
+            self.random_seed.setValue(int(params.random_seed))
         for i in range(self.optional_steps.count()):
             item = self.optional_steps.item(i)
             item.setSelected(item.text() in params.optional_steps_to_run)
@@ -146,6 +176,9 @@ class PipelinePanel(QWidget):
         params.prior_analysis = self.prior_analysis.isChecked()
         params.verbose_level = self.verbose_level.currentText()
         params.time_processes = self.time_processes.isChecked()
+        params.random_seed = (
+            self.random_seed.value() if self.use_random_seed.isChecked() else None
+        )
         params.optional_steps_to_run = [
             self.optional_steps.item(i).text()
             for i in range(self.optional_steps.count())

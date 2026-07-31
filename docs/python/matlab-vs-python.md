@@ -38,6 +38,9 @@ Python port validates that its **formulas** match MATLAB exactly when fed the
 specific RNG stream (which isn't reproducible even between two MATLAB runs).
 This covers significance thresholding (step 3), community detection and the
 normalized participation coefficient, and small-worldness's null models.
+
+Unlike MATLAB, the Python port can make these repeatable **between its own
+runs** — see [Reproducible runs](#reproducible-runs) below.
 :::
 
 :::{grid-item-card} 🧮 Algorithm differs, not just RNG
@@ -57,6 +60,48 @@ different algorithm, not just a different random seed. Treat
 | **2. Neuronal activity** (firing rates, bursts) | Exact parity confirmed field-by-field against MATLAB's own summary CSVs, when fed the same spike times. |
 | **3. Functional connectivity** (STTC) | The STTC computation itself has exact parity. Significance thresholding is inherently non-reproducible between runs (see above) — this is true of MATLAB too. |
 | **4. Network metrics** | Core graph metrics (ND, NS, density, clustering, path length, global/local efficiency, betweenness centrality) have exact parity. Modularity-dependent metrics (participation coefficient, module z-score, rich club, node cartography, hub classification, small-worldness) have exact parity *given the same community assignment* — the community assignment itself is stochastic in both MATLAB and Python. Controllability metrics are fully ported. NMF-based metrics are approximate (different algorithm, see above). |
+
+(reproducible-runs)=
+## Reproducible runs
+
+Steps 3 and 4 are stochastic — edge significance thresholding, community
+detection, the null models behind the normalized participation coefficient and
+small-worldness, and NMF all draw random numbers. By default (and in MATLAB,
+always) those draws are unseeded, so running the same data twice gives slightly
+different `Q`, `nMod`, `SW`, `PC`, `Z` and node-cartography roles.
+
+Tick **Fixed random seed** on the Pipeline tab (or set `Params.random_seed` to
+an integer) and the whole run becomes repeatable: the same input plus the same
+seed produces byte-identical `NetworkActivity_RecordingLevel.csv` and
+`NetworkActivity_NodeLevel.csv`, regardless of how many CPU cores the machine
+has or what order the recordings finish in. Record the seed alongside your
+results when you publish a figure.
+
+This makes the port repeatable against *itself*. It does not make it match
+MATLAB — MATLAB's own numbers aren't repeatable between MATLAB runs either, for
+the same reason.
+
+## Resuming a previous run
+
+Steps don't have to be re-run from scratch. Set **Start at step** to where you
+want to pick up, tick **Use prior analysis**, and point **Previous analysis
+folder** (Paths tab) at an earlier `OutputData…` folder. Whatever the starting
+step needs — spike times from step 1, adjacency matrices from step 3 — is read
+from that folder, and everything from the starting step onwards is recomputed
+into a *new* output folder. The previous run is never modified.
+
+Two useful consequences:
+
+- **The raw recordings don't need to be available** to resume at step 2 or
+  later; the spike files carry everything the later steps need. (Spike files
+  written by versions before this feature are the exception — those still fall
+  back to reading the raw recording for its duration.)
+- **You get told up front** if the previous folder doesn't hold what the
+  starting step needs, instead of the run finishing "successfully" with empty
+  result tables.
+
+If you have spike times from somewhere other than a MEA-NAP run, point
+**Spike-detected data folder** at them instead — it's searched the same way.
 
 ## Known gaps
 

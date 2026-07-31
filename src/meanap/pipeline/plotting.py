@@ -3,6 +3,7 @@ import numpy as np
 from pathlib import Path
 
 from meanap.params import Params
+from meanap.pipeline.rng import make_rng
 from meanap.pipeline.spike_detection import SpikeDetectionResult, bandpass_filter
 
 
@@ -16,6 +17,10 @@ def plot_spike_detection_checks(
     """Generate diagnostic plots for step 1 (spike detection)."""
     # Use non-interactive backend
     plt.switch_backend("Agg")
+
+    # Which channels/spikes the example-trace panels show is a random choice;
+    # seeded so a re-run of the same recording produces the same figure.
+    rng = make_rng(params.random_seed, "step1-plots", rec_name)
 
     fs = result.fs
     n_samples, n_channels = dat.shape
@@ -107,7 +112,7 @@ def plot_spike_detection_checks(
     # We plot 9 example traces, leaving the 10th axis empty or turning it off
     for i in range(9):
         ax = axes[i]
-        ch = np.random.choice(active_channels)
+        ch = rng.choice(active_channels)
         last_channel = ch
         
         # We need the filtered trace
@@ -122,7 +127,7 @@ def plot_spike_detection_checks(
         # Pick a random spike from the first available method to center the window
         times_s = result.spike_times[ch].get(methods[0], np.array([]))
         if len(times_s) > 0:
-            st = int(round(np.random.choice(times_s) * fs))
+            st = int(round(rng.choice(times_s) * fs))
         else:
             st = n_samples // 2
             

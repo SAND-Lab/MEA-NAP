@@ -23,6 +23,8 @@ from meanap.params import Params
 from meanap.pipeline.cancellation import CancelCheck, check_cancel
 from meanap.pipeline.io import load_raw_recording, load_spike_times_npz
 from meanap.pipeline.channel_layout import get_coords_from_layout
+from meanap.pipeline.resume import build_input_locator
+from meanap.pipeline.rng import make_rng
 from meanap.pipeline.spreadsheet import RecordingInfo
 from meanap.stim.detection import detect_stim_times, get_stim_patterns, _matlab_mode
 from meanap.stim.cleaning import clean_spikes_from_stim
@@ -62,7 +64,9 @@ def run_stim_analysis(
         return
 
     raw_dir = Path(params.raw_data)
-    spike_dir = output_root / "1_SpikeDetection" / "1A_SpikeDetectedData"
+    # Same resolution as the numbered steps, so stim analysis can run against a
+    # previous run's spike detection rather than only this run's.
+    locator = build_input_locator(params, output_root)
     indiv_dir = output_root / "2_NeuronalActivity" / "2A_IndividualNeuronalAnalysis"
     method = params.spikes_method
     base = params.to_stim_params_dict()
@@ -72,12 +76,13 @@ def run_stim_analysis(
     for rec in recordings:
         check_cancel(should_cancel)
         raw_path = raw_dir / f"{rec.filename}.mat"
-        npz_path = spike_dir / f"{rec.filename}_spikes.npz"
+        npz_path = locator.spike_file(rec.filename)
         if not raw_path.exists():
             log(f"  ! [{rec.filename}] raw file not found, skipping: {raw_path.name}")
             continue
-        if not npz_path.exists():
-            log(f"  ! [{rec.filename}] spike times not found ({npz_path.name}); run step 1 first. Skipping.")
+        if npz_path is None:
+            log(f"  ! [{rec.filename}] spike times not found ({rec.filename}_spikes.npz); "
+                f"run step 1 first. Skipping.")
             continue
 
         log(f"  [{rec.filename}] detecting stimulation…")
@@ -116,7 +121,8 @@ def run_stim_analysis(
             dest = indiv_dir / rec.group / rec.filename
             figs = write_stim_figures(dest, stim_info, patterns, spikes, sp_params,
                                       dat, artifact_dur, info,
-                                      rng=np.random.default_rng(1))
+                                      rng=make_rng(params.random_seed or 1,
+                                                   "stim-figures", rec.filename))
             log(f"  [{rec.filename}] wrote {len(figs)} stim figures")
         except Exception as e:   # plotting must never sink the numeric results
             log(f"  [{rec.filename}] Warning: stim plotting failed: {e}")
