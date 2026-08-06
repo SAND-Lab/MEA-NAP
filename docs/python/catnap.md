@@ -420,6 +420,52 @@ example dataset if you want a worked example to inspect. For the complete
 output tree — every figure, every CSV and a browsable `report.html` — use
 `python/run_catnap_example.py` instead.
 
+## Re-running from a previous run
+
+```{tip}
+A run made with {doc}`express-mode` writes a single `.meanap` bundle that is
+*also* a resume artifact — point **Use prior analysis** straight at the file.
+```
+
+
+Every run writes one `ExperimentMatFiles/<recording>_catnap.npz` per recording,
+holding the adjacency matrices and activity statistics — the products of what
+MATLAB calls step 2. To re-run the network analysis without rebuilding them,
+set **Start at step** to 4 on the Pipeline tab, tick **Use prior analysis**,
+and point it at the earlier `OutputData…` folder. As in MATLAB, results still
+go to a fresh output folder; the previous run is only ever read.
+
+This skips loading the suite2p data, denoising, and the STTC / probabilistic
+thresholding. It always recomputes the network metrics, the node-cartography
+boundaries and every figure — that is what step 4 *is*, and it is what you are
+usually re-running for (changed plotting options, a different cartography
+setting, an edited cell-type spreadsheet, which is re-read each run rather than
+frozen into the saved file).
+
+How much time this saves depends on where your run spends it. Thresholding
+scales with recordings × lags × `probThreshRepNum`, and denoising — by far the
+most expensive stage — only runs when `Fdenoised.npy` is missing or
+**Redo denoising** is ticked. On the single-recording, single-lag example
+dataset with denoising already cached, a resume saves roughly 13% of a ~5.5 min
+run; with denoising to redo, or a real multi-recording batch, the fraction is
+far larger.
+
+Two things to be aware of:
+
+- **Step 4 is the only resumable point.** CAT-NAP has no step 1 or 3 —
+  adjacency is built in step 2, as in MATLAB — so starting at 2 or 3 is the
+  same as starting at 1, and **Stop at step** has no effect. The run log says
+  so rather than silently ignoring the setting.
+- **Resume the whole batch, not a subset.** The node-cartography boundaries are
+  placed from participation-coefficient and within-module z-score values pooled
+  across *every* recording in the run. Resuming with fewer recordings re-derives
+  them from that subset, so the roles won't match the original run.
+
+With `Random seed` set, a resumed run reproduces the original run's numbers
+exactly (verified on the example dataset: all four CSVs byte-identical).
+Without a seed, the stochastic stages differ between any two runs anyway —
+resumed or not — as they do in MATLAB.
+
 ## Browsing the output
 
 Every run's output folder can be turned into a single self-contained

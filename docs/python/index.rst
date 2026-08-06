@@ -60,6 +60,13 @@ results.
       Load a real MEA-NAP output file and drive the plotting API directly
       from Python — runnable, with real output baked in.
 
+   .. grid-item-card:: 📦 Express mode & bundles
+      :link: express-mode
+      :link-type: doc
+
+      Skip the figures, ship one small ``.meanap`` file, and redraw any plot
+      on demand — in PNG or editable SVG — with the built-in viewer.
+
    .. grid-item-card:: 📊 Output report
       :link: output-report
       :link-type: doc
@@ -114,5 +121,6 @@ figure.
    network-viewer
    notebooks/network-plotting-tutorial
    output-report
+   express-mode
    matlab-vs-python
    api/index

@@ -47,6 +47,7 @@ dev = [
 
 [project.scripts]
 meanap-gui = "meanap.gui.app:main"
+meanap-viewer = "meanap.viewer.server:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/meanap"]

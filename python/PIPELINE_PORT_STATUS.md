@@ -861,13 +861,14 @@ port. `pipeline/resume.py` owns it. Semantics, mirroring MATLAB: **output still
 goes to this run's own (fresh, dated) folder — the prior run is only ever
 read.**
 
-Only two artefacts cross step boundaries in this port, so resuming is a search
-path over two lookups rather than MATLAB's chained-`.mat` machinery:
+Only three artefacts cross step boundaries in this port, so resuming is a
+search path over a few lookups rather than MATLAB's chained-`.mat` machinery:
 
 | Produced by | Consumed by | File |
 |---|---|---|
 | Step 1 | Steps 2, 3, 4 | `1_SpikeDetection/1A_SpikeDetectedData/<rec>_spikes.npz` |
 | Step 3 | Step 4 | `ExperimentMatFiles/<rec>_adjM.npz` |
+| CAT-NAP step 2 | CAT-NAP step 4 | `ExperimentMatFiles/<rec>_catnap.npz` |
 
 `InputLocator` resolves both against, in order: this run's output folder →
 `Params.spike_detected_data` (spike files only, MATLAB's `spikeDetectedData`)
@@ -899,6 +900,72 @@ Verified end to end on the example data: steps 1-3 into folder A, then step 3
 alone and step 4 alone resumed from A with `raw_data` pointed at a
 non-existent folder — same seed reproduced A's adjacency bit-for-bit, and step
 4 produced its CSVs from A's spikes + adjacency.
+
+### CAT-NAP resume (2026-08-06)
+
+The calcium path had none of this: `runner.py` returned straight out of the
+`suite2p_mode` branch before the step-range logic, so `start_analysis_step`,
+`stop_analysis_step` and `prior_analysis` were silently ignored — and nothing
+intermediate was written, so there was nothing to resume from even in
+principle. (Only denoising was reused, and via the *raw* suite2p folder:
+`Fdenoised.npy` & friends are written next to the inputs, not into the output
+folder.) MATLAB has always supported this: its step 2 appends `adjMs` to
+`ExperimentMatFiles/<rec>_<folder>.mat`, and step 4's
+`priorAnalysis == 1 && startAnalysisStep == 4` branch loads it back.
+
+Ported in `catnap/store.py`: phase 1 writes one `<rec>_catnap.npz` per
+recording (adjacency, coords, channels, per-node activity counts, duration,
+the coordinate normalisation, and the `calc_twop_activity_stats` dict), and
+`start_analysis_step >= 4` reads it via `InputLocator.catnap_file()` instead of
+recomputing. Step 4 is the only resumable boundary here, because CAT-NAP has
+no step 1 or 3 — adjacency is built in step 2, as in MATLAB.
+
+Deliberate choices worth knowing:
+
+- **The fluorescence matrices are not stored.** MATLAB saves `F`/`denoisedF`/
+  `spks` because its step 4 re-derives the activity matrix from them; this port
+  stores the per-node quantity step 4 actually consumes (`spike_counts`) and
+  keeps the file small — a resumed run rewrites it into the new output folder
+  so that folder is resumable in turn. Phase 3 still re-reads the suite2p
+  folder for the trace figures and the mean-projection backdrop, and already
+  degrades gracefully when the raw data isn't mounted.
+- **Cell-type groups are re-read, not stored**, so a resumed run picks up an
+  edited spreadsheet rather than freezing the first run's grouping.
+- **Different filename from the ephys `_adjM.npz`.** The two hold different
+  things; pointing a CAT-NAP resume at an ephys output folder now reports a
+  missing input instead of failing deep inside a load.
+- **The phase-2 cartography barrier is batch-wide.** Resuming a *subset* of the
+  batch re-derives the boundaries from that subset alone, so the roles won't
+  match the original run. Documented rather than worked around — pooling is the
+  point of that barrier.
+
+Two bugs fell out of the same code and were fixed alongside:
+
+1. **The metric loop was driven by `Params.funcConLagval`.** `suite2pToAdjm`
+   derives a *single* lag `round(1000 / fs)` for the `F`/`spks`/`denoised F`
+   activity types and ignores `funcConLagval` entirely (MATLAB even overwrites
+   `Params.FuncConLagval` with it). Iterating the Params list meant the key
+   `adjM{lag}mslag` matched nothing and those three activity types produced no
+   network metrics at all. The loop now follows the adjacency that was actually
+   built (`store.sorted_adjm_items`). Only `twop_activity="peaks"` was ever
+   exercised end to end, which is why this survived.
+2. **One RNG stream for the whole batch.** Unlike steps 3/4, CAT-NAP drew every
+   stochastic stage from a single `make_rng(seed, "catnap")`, so a recording's
+   metrics depended on how much randomness the recordings before it consumed —
+   and a resumed run, having skipped the thresholding draws, would have
+   produced different numbers from the run it resumed. Now per-recording:
+   `("catnap", rec)` for adjacency, `("step4", rec)` for network metrics (same
+   label as the ephys path — same work, same recording),
+   `("catnap_subnetwork", rec)` for the subnetwork analysis.
+
+`stop_analysis_step` is still not honoured on this path — the calcium flow is
+one step, not four — but the runner now says so in the log instead of ignoring
+it, as it does for a `start_analysis_step` of 2 or 3.
+
+Tests: `python/test_catnap_resume.py` (46 checks — round-trip including the
+`None`-vs-NaN distinction in the 2P stats, locator resolution, fail-fast,
+resuming with no suite2p folder on disk at all, and a determinism check that
+was confirmed to fail against the old batch-wide RNG before being kept).
 
 ## Random seed (`Params.random_seed`, 2026-07-31)
 
@@ -1351,6 +1418,55 @@ Items 1-4 are genuine MATLAB-side bugs (would affect anyone scripting
 MEA-NAP outside the GUI, e.g. for HPC batch jobs); item 5 is this
 benchmark's own config error, not a MATLAB bug — noted here so a future
 re-run doesn't have to rediscover it.
+
+### Express mode — same dataset, figures skipped (2026-08-06)
+
+`python/benchmark_express.py` re-runs the *same* dataset and config as the
+table above (`ExampleData/`, `NGN2_20230208_P1_DIV14_A2`/`_A3`, `Axion64`,
+lags `[10, 25, 50]`ms, `ProbThreshRepNum=200`) twice — once normally, once
+with `Params.express_mode` — so the two sets of numbers are directly
+comparable. Deliberately not the smaller `local/testBurstDetection` recording:
+a 16-channel single recording flatters express mode, because its figure count
+barely shrinks while its compute does.
+
+| Step | Full | Express | Saved |
+|---|---|---|---|
+| 1. Spike detection | 69.8s | 69.9s | — (untouched) |
+| 2. Neuronal activity | 7.7s | 0.0s | **7.7s** |
+| 3. Functional connectivity | 14.6s | 14.6s | — (untouched) |
+| 4. Network activity | 159.0s | 113.4s | **45.6s** |
+| **Total** | **251.1s** | **198.0s** | **53.1s (21%)** |
+
+| | figures | folder | bundle |
+|---|---|---|---|
+| Full | 483 | 56.4 MB | — |
+| Express | 6 | 3.2 MB | **2.2 MB** |
+
+Size is the real win — **17x** off the folder, **25x** off it as a single
+shareable file. Time is a secondary benefit and *bounded*: steps 1 and 3 draw
+almost nothing, so 84.4s of the 251.1s can never be saved no matter how many
+figures are skipped. Step 4 keeps 113.4s of compute (null models, NMF,
+modularity) after its plotting is removed. Expect ~20%, not the ~36% a small
+single-recording dataset suggests.
+
+The 6 remaining figures are the spike-detection checks (3 per recording) —
+the only family that can't be rebuilt, since it needs the raw voltage.
+
+Verified alongside the timings, not assumed:
+
+- both runs write **byte-identical** CSVs at the recording and node level for
+  steps 2 and 4 — express changes what is drawn, never what is computed;
+- all **66** per-recording 4A figures (2 recordings × 3 lags × 11 figures)
+  re-render from the bundle **pixel-identical** to the full run's, in 13.6s;
+- the bundle is a complete resume artifact: step 4 re-run from the `.meanap`
+  alone, with `raw_data` pointed at a non-existent folder, reproduced the full
+  run's metrics exactly. The ephys spike `.npz` is small enough (~0.3 MB per
+  recording here) to travel with it.
+
+Measured on a 32-core box, so these absolute numbers are *not* comparable to
+the 350.0s in the table above (shared 16-core machine) — the same full run
+takes 251.1s here. The full-vs-express comparison is the meaningful part,
+since both halves ran back to back on the same machine.
 
 ## How to verify changes
 

@@ -7,7 +7,10 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Callable
+from typing import TYPE_CHECKING, Callable
+
+if TYPE_CHECKING:
+    from meanap.network_plot import NetworkStyle
 
 import numpy as np
 import pandas as pd
@@ -262,7 +265,10 @@ def _plot_recording_lag(
     sub_dir: str | None = None,
     background: tuple | None = None,
     node_size_scale: float | str = 1.0,
-) -> None:
+    fmt: str = "png",
+    only: str | None = None,
+    style: "NetworkStyle | None" = None,
+) -> list[Path]:
     """Draw every step-4A plot for one recording/lag.
 
     Produces both the individual-scaled plots (each colored/sized to this
@@ -295,20 +301,42 @@ def _plot_recording_lag(
     ``node_size_scale`` is forwarded to ``plot_network``; ``"auto"`` sizes nodes
     from how densely they are packed, which two-photon fields need and MEA
     layouts are unaffected by.
+    ``fmt`` is the image format — the suffix drives matplotlib, so ``"svg"`` (or
+    ``"pdf"``) yields editable vector output for figures headed to a paper.
+    ``only`` restricts the call to the single figure with that base name, which
+    is how the viewer renders one plot per request instead of the whole set.
+    Returns the paths actually written.
     """
     if "adjMsub" not in metrics:
-        return
+        return []
 
     rec_out_dir = out_dir / "4A_IndividualNetworkAnalysis" / rec.group / rec.filename
     lag_dir = rec_out_dir / f"{lag_ms}mslag"
     if sub_dir:
         lag_dir = lag_dir.joinpath(*str(sub_dir).split("/"))
 
-    plot_connectivity_stats(
-        metrics["adjMsub"], metrics["ND"], metrics["NS"], lag_ms,
-        rec.filename, lag_dir / f"1_adjM{lag_ms}msConnectivityStats.png",
-        exclude_edges_below_threshold=params.exclude_edges_below_threshold,
-    )
+    written: list[Path] = []
+
+    def want(name: str) -> Path | None:
+        """Path for one figure, or ``None`` when this render skips it.
+
+        Centralising the naming here is what lets the same call sites serve
+        both the pipeline (every figure, PNG) and the viewer (one figure, any
+        format) without a second copy of the figure list.
+        """
+        stem = Path(name).stem
+        if only is not None and stem != only:
+            return None
+        path = lag_dir / f"{stem}.{fmt}"
+        written.append(path)
+        return path
+
+    if (p := want(f"1_adjM{lag_ms}msConnectivityStats.png")) is not None:
+        plot_connectivity_stats(
+            metrics["adjMsub"], metrics["ND"], metrics["NS"], lag_ms,
+            rec.filename, p,
+            exclude_edges_below_threshold=params.exclude_edges_below_threshold,
+        )
 
     nd_max = batch_bounds["ND"][1] if batch_bounds.get("ND") else None
     ns_max = batch_bounds["NS"][1] if batch_bounds.get("NS") else None
@@ -351,29 +379,31 @@ def _plot_recording_lag(
             z2 = metrics[color_key] if color_key is not None else None
 
             # Individual-scaled (this recording's own range).
-            plot_spatial_network(
-                metrics["adjMsub"], channels_active, params.channel_layout,
-                z, z2, color_name, lag_ms, rec.filename,
-                lag_dir / fname, z_name=size_name,
-                coords_override=coords_active, cell_types=ct_active,
-                node_size_scale=node_size_scale,
-            )
+            if (p := want(fname)) is not None:
+                plot_spatial_network(
+                    metrics["adjMsub"], channels_active, params.channel_layout,
+                    z, z2, color_name, lag_ms, rec.filename,
+                    p, z_name=size_name,
+                    coords_override=coords_active, cell_types=ct_active,
+                    node_size_scale=node_size_scale, style=style,
+                )
 
             # Batch-scaled variant + side-by-side combined figure, if we have a
             # batch max for the size metric.
             if size_max is not None:
                 color_bounds = batch_bounds.get(color_key) if color_key is not None else None
                 scaled_name = fname.replace("_MEA_NetworkPlot", "_scaled_MEA_NetworkPlot", 1)
-                plot_spatial_network(
-                    metrics["adjMsub"], channels_active, params.channel_layout,
-                    z, z2, color_name, lag_ms, rec.filename,
-                    lag_dir / scaled_name, z_name=size_name,
-                    z_scale_override=size_max,
-                    z2_bounds_override=color_bounds,
-                    edge_bounds_override=_EDGE_BATCH_BOUNDS,
-                    coords_override=coords_active, cell_types=ct_active,
-                    node_size_scale=node_size_scale,
-                )
+                if (p := want(scaled_name)) is not None:
+                    plot_spatial_network(
+                        metrics["adjMsub"], channels_active, params.channel_layout,
+                        z, z2, color_name, lag_ms, rec.filename,
+                        p, z_name=size_name,
+                        z_scale_override=size_max,
+                        z2_bounds_override=color_bounds,
+                        edge_bounds_override=_EDGE_BATCH_BOUNDS,
+                        coords_override=coords_active, cell_types=ct_active,
+                        node_size_scale=node_size_scale, style=style,
+                    )
                 # MATLAB names the combined figure "<n>_combined_MEA_NetworkPlot"
                 # plus "_<color legend name>" when there's a colour metric (e.g.
                 # "10_combined_MEA_NetworkPlot_Average controllability"), rather
@@ -383,69 +413,81 @@ def _plot_recording_lag(
                 if color_key is not None:
                     combined_name += f"_{color_name}"
                 combined_name += ".png"
-                plot_spatial_network_combined(
-                    metrics["adjMsub"], channels_active, params.channel_layout,
-                    z, z2, color_name, lag_ms, rec.filename,
-                    lag_dir / combined_name, z_name=size_name,
-                    z_scale_override=size_max,
-                    z2_bounds_override=color_bounds,
-                    edge_bounds_override=_EDGE_BATCH_BOUNDS,
-                    coords_override=coords_active,
-                )
+                if (p := want(combined_name)) is not None:
+                    plot_spatial_network_combined(
+                        metrics["adjMsub"], channels_active, params.channel_layout,
+                        z, z2, color_name, lag_ms, rec.filename,
+                        p, z_name=size_name,
+                        z_scale_override=size_max,
+                        z2_bounds_override=color_bounds,
+                        edge_bounds_override=_EDGE_BATCH_BOUNDS,
+                        coords_override=coords_active,
+                    )
     except ValueError as e:
         log(f"  [{rec.filename}] skipped spatial network plot: {e}")
 
     if background is not None:
         try:
-            plot_network_beside_field(
-                metrics["adjMsub"], channels_active, params.channel_layout,
-                metrics["ND"], lag_ms, rec.filename,
-                lag_dir / "12_MeanImageAndNetwork.png",
-                background=background,
-                coords_override=coords_active,
-                node_size_scale=node_size_scale,
-            )
+            if (p := want("12_MeanImageAndNetwork.png")) is not None:
+                plot_network_beside_field(
+                    metrics["adjMsub"], channels_active, params.channel_layout,
+                    metrics["ND"], lag_ms, rec.filename, p,
+                    background=background,
+                    coords_override=coords_active,
+                    node_size_scale=node_size_scale,
+                )
         except Exception as e:
             log(f"  [{rec.filename}] skipped field-of-view figure: {e}")
 
     if "PC" in metrics:
-        plot_node_cartography(
-            metrics["PC"], metrics["Z"], params, lag_ms, rec.filename,
-            lag_dir / f"9_adjM{lag_ms}msNodeCartography.png",
-            boundaries=metrics.get("cartographyBoundaries"),
-            nd_cart_div=metrics.get("NdCartDiv"),
-        )
+        if (p := want(f"9_adjM{lag_ms}msNodeCartography.png")) is not None:
+            plot_node_cartography(
+                metrics["PC"], metrics["Z"], params, lag_ms, rec.filename, p,
+                boundaries=metrics.get("cartographyBoundaries"),
+                nd_cart_div=metrics.get("NdCartDiv"),
+            )
 
     if "NdCartDiv" in metrics:
-        plot_circular_cartography_network(
-            metrics["adjMsub"], metrics["NdCartDiv"],
-            lag_ms, rec.filename,
-            lag_dir / "9_circular_NetworkPlotNodeCartography.png",
-            edge_thresh=params.exclude_edges_below_threshold * 0.0001,
-        )
+        if (p := want("9_circular_NetworkPlotNodeCartography.png")) is not None:
+            plot_circular_cartography_network(
+                metrics["adjMsub"], metrics["NdCartDiv"],
+                lag_ms, rec.filename, p,
+                edge_thresh=params.exclude_edges_below_threshold * 0.0001,
+            )
 
     if "Ci" in metrics:
-        plot_circular_module_network(
-            metrics["adjMsub"], metrics["Ci"], metrics["ND"],
-            lag_ms, rec.filename,
-            lag_dir / "6_circular_NetworkPlotNodedegreeModule.png",
-        )
+        if (p := want("6_circular_NetworkPlotNodedegreeModule.png")) is not None:
+            plot_circular_module_network(
+                metrics["adjMsub"], metrics["Ci"], metrics["ND"],
+                lag_ms, rec.filename, p,
+            )
 
     try:
-        plot_graph_metrics_by_node(
-            nd=metrics["ND"],
-            mew=metrics["MEW"],
-            ns=metrics["NS"],
-            z=metrics.get("Z"),
-            eloc=metrics.get("Eloc"),
-            pc=metrics.get("PC"),
-            bc=metrics.get("BC"),
-            lag_ms=lag_ms,
-            recording_name=rec.filename,
-            out_path=lag_dir / f"7_adjM{lag_ms}msGraphMetricsByNode.png",
-        )
+        if (p := want(f"7_adjM{lag_ms}msGraphMetricsByNode.png")) is not None:
+            plot_graph_metrics_by_node(
+                nd=metrics["ND"],
+                mew=metrics["MEW"],
+                ns=metrics["NS"],
+                z=metrics.get("Z"),
+                eloc=metrics.get("Eloc"),
+                pc=metrics.get("PC"),
+                bc=metrics.get("BC"),
+                lag_ms=lag_ms,
+                recording_name=rec.filename,
+                out_path=p,
+                # The half-violin jitter is the only randomness in the 4A set.
+                # Left unseeded it made this one figure differ between two
+                # otherwise-identical seeded runs — and between the pipeline's
+                # copy and a viewer's. Derived per recording+lag like every
+                # other stochastic stage (see pipeline/rng.py).
+                rng=make_rng(params.random_seed, "step4-plots", rec.filename, lag_ms),
+            )
     except Exception as e:
         log(f"  [{rec.filename}] skipped graph-metrics-by-node plot: {e}")
+
+    # ``want`` records intent; a plot guarded by a try/except may not have
+    # produced its file, so report what is actually on disk.
+    return [p for p in written if p.exists()]
 
 
 # Peak per-worker RAM for Step 4: NMF's downsampled spike matrix + sklearn NMF
@@ -563,6 +605,12 @@ def _step4_plot_one(
 
     def _log(msg: str) -> None:
         logs.append(msg)
+
+    # Every 4A figure is a function of `metrics` + the stored adjacency, both of
+    # which the bundle carries, so express mode skips them and the viewer
+    # redraws on demand.
+    if params.express_mode:
+        return rec.filename, logs
 
     for lag_key, metrics in rec_results.items():
         lag_ms = int(lag_key.replace("mslag", ""))
@@ -710,7 +758,11 @@ def _run_step4_network_metrics(
     # re-classify every node. Mirrors MEApipeline.m's autoSetCartographyBoundaries
     # barrier between per-recording ExtractNetMet and calNodeCartography.
     if params.auto_set_cartography_boundaries:
-        _apply_cartography_boundaries(params, all_results, log, out_dir=out_dir)
+        # out_dir=None suppresses the pooled PC/Z landscape scatter — a figure,
+        # and one the bundle's metrics can redraw.
+        _apply_cartography_boundaries(
+            params, all_results, log,
+            out_dir=None if params.express_mode else out_dir)
 
     # Pool node-level metrics across every recording for the batch-scaled plot
     # bounds.
@@ -809,16 +861,17 @@ def _run_step4_network_metrics(
     except Exception as e:
         log(f"  Warning: could not save network metrics results: {e}")
 
-    log("  Generating group comparison plots...")
-    from meanap.pipeline.plotting_step4 import plot_step4_group_comparisons
-    try:
-        plot_step4_group_comparisons(
-            recordings,
-            all_results,
-            out_dir,
-            params.custom_grp_order
-        )
-    except Exception as e:
-        log(f"  Warning: failed to generate group comparison plots: {e}")
+    if not params.express_mode:
+        log("  Generating group comparison plots...")
+        from meanap.pipeline.plotting_step4 import plot_step4_group_comparisons
+        try:
+            plot_step4_group_comparisons(
+                recordings,
+                all_results,
+                out_dir,
+                params.custom_grp_order
+            )
+        except Exception as e:
+            log(f"  Warning: failed to generate group comparison plots: {e}")
 
     log("  Step 4 complete.")

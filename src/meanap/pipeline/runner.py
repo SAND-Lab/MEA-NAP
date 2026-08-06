@@ -8,7 +8,7 @@ import time
 from pathlib import Path
 from typing import Callable
 
-from meanap.params import Params
+from meanap.params import PARAMS_FILENAME, Params, save_params
 from meanap.pipeline.cancellation import CancelCheck, check_cancel
 from meanap.pipeline.io import (
     RAW_EXTENSIONS,
@@ -70,6 +70,14 @@ def run_pipeline(
     )
     log(f"Output folder ready: {output_root}")
 
+    # Snapshot the settings alongside the results. Until this, an output folder
+    # recorded nothing about how it was produced — and every plotting routine
+    # reads Params, so reconstructing a figure later needs it.
+    try:
+        save_params(params, output_root)
+    except Exception as e:
+        log(f"Warning: could not write {PARAMS_FILENAME}: {e}")
+
     # Raises on a misconfigured prior-analysis/spike-data path, before any work.
     locator = build_input_locator(params, output_root)
     if locator.is_resuming:
@@ -88,12 +96,27 @@ def run_pipeline(
     # the raw MEA .mat files those steps expect don't exist for 2P data.
     if params.suite2p_mode:
         log("\n=== CAT-NAP (suite2p) pipeline ===")
-        from meanap.catnap.pipeline import run_catnap_pipeline
-        from meanap.pipeline.rng import make_rng
+        from meanap.catnap.pipeline import RESUME_STEP, run_catnap_pipeline
+
+        # CAT-NAP has no step 1 or 3 — adjacency is built in step 2, as in
+        # MATLAB — so step 4 is the only boundary the step range can act on.
+        # Say so rather than silently ignoring a setting the Pipeline tab
+        # happily lets the user change.
+        if 1 < params.start_analysis_step < RESUME_STEP:
+            log(f"  Note: starting at step {params.start_analysis_step} is the same as "
+                "starting at step 1 in CAT-NAP mode — only step 4 can be resumed.")
+        if params.stop_analysis_step < RESUME_STEP:
+            log(f"  Note: stopping at step {params.stop_analysis_step} has no effect in "
+                "CAT-NAP mode — the calcium path runs as one step.")
+        if params.start_analysis_step >= RESUME_STEP:
+            _check_catnap_resume_inputs(locator, recordings, params, log)
+
         run_catnap_pipeline(
-            params, recordings, output_root, log, should_cancel,
-            rng=make_rng(params.random_seed, "catnap"),
+            params, recordings, output_root, log, should_cancel, locator=locator,
         )
+        if params.express_mode:
+            _write_run_bundle(params, recordings, output_root, log, mode="catnap",
+                              embedded_figures=["2p_traces"] if params.num_2p_traces else [])
         return output_root
 
     start = params.start_analysis_step
@@ -187,6 +210,15 @@ def run_pipeline(
     else:
         log("Skipping step 4 (network activity) — outside the selected step range.")
 
+    if params.express_mode:
+        # Spike-detection checks are the one family here that can't be rebuilt
+        # from the bundle — they need the raw voltage — so they are kept as
+        # images and named in the manifest.
+        _write_run_bundle(
+            params, recordings, output_root, log, mode="ephys",
+            embedded_figures=["spike_detection_checks"] if start <= 1 <= stop else [],
+        )
+
     if params.time_processes:
         total_duration = time.perf_counter() - pipeline_start
         for step_num in (1, 2, 3, 4, 5):
@@ -207,6 +239,55 @@ def run_pipeline(
             log(f"Warning: could not save step_durations.json: {e}")
 
     return output_root
+
+
+def _write_run_bundle(
+    params: Params, recordings, output_root: Path, log, *, mode: str,
+    embedded_figures: list[str] | None = None,
+) -> Path | None:
+    """Pack an express run into one shareable ``.meanap`` file.
+
+    Guarded: the output folder is already complete and usable by this point, so
+    a packing failure costs the run nothing but the convenience file.
+    """
+    from meanap.pipeline.bundle import build_manifest, write_bundle
+
+    try:
+        manifest = build_manifest(params, recordings, mode=mode,
+                                  embedded_figures=embedded_figures)
+        path = write_bundle(output_root, manifest)
+        size_mb = path.stat().st_size / 1e6
+        log(f"\nBundle written: {path}  ({size_mb:.1f} MB)")
+        log("  Open it in viewer mode, or pass it as the prior analysis folder "
+            "to re-run from it.")
+        return path
+    except Exception as e:
+        log(f"Warning: could not write the run bundle: {e}")
+        return None
+
+
+def _check_catnap_resume_inputs(locator, recordings, params: Params, log) -> None:
+    """Fail fast when a CAT-NAP step-4 resume has nothing to resume from.
+
+    Same reasoning as the ephys check in :func:`run_pipeline`: without it a
+    mis-set path just logs "SKIP" for every recording and the run "succeeds"
+    with empty CSVs.
+    """
+    missing = missing_step_inputs(
+        locator, recordings, params.start_analysis_step, suite2p_mode=True)
+    if len(missing) == len(recordings):
+        detail = "; ".join(f"{name}: {', '.join(gaps)}" for name, gaps in missing.items())
+        hint = (
+            "Enable 'Use prior analysis' and set the previous analysis folder"
+            if not locator.is_resuming
+            else "Check that the previous analysis folder holds these recordings"
+        )
+        raise ValueError(
+            f"Cannot start at step {params.start_analysis_step}: no recording has the "
+            f"inputs it needs ({detail}). {hint}, or start at step 1."
+        )
+    for name, gaps in missing.items():
+        log(f"  ! {name} will be skipped — missing {', '.join(gaps)}")
 
 
 def _run_step1_spike_detection(

@@ -370,9 +370,8 @@ def _runner_tail_checks() -> list[Check]:
     models), so this exercises the wiring — the pieces that break when a
     signature or a folder name drifts — without recomputing any of it.
     """
-    from meanap.catnap.pipeline import (
-        _RecordingState, _plot_group_comparisons, _save_catnap_results,
-    )
+    from meanap.catnap.pipeline import _plot_group_comparisons, _save_catnap_results
+    from meanap.catnap.store import RecordingState
     from meanap.catnap.subnetwork import CellTypeGroups
     from meanap.params import Params
     from meanap.pipeline.output_folders import create_output_folders
@@ -393,7 +392,7 @@ def _runner_tail_checks() -> list[Check]:
     exc[: N_UNITS // 2] = True
     masks = np.column_stack([exc, ~exc])
     states = {
-        r.filename: _RecordingState(
+        r.filename: RecordingState(
             adjMs={}, coords=np.zeros((N_UNITS, 2)), channels=channels[r.filename],
             spike_counts=np.ones(N_UNITS), duration_s=600.0, plane0=Path("."),
             groups=CellTypeGroups(["Excitatory", "Inhibitory"], masks,

@@ -139,6 +139,25 @@ generate_report("/path/to/OutputData...")  # writes report.html there, returns i
 
 The same report is deep-linkable — `report.html#4_NetworkActivity/4A_IndividualNetworkAnalysis/<group>/<recording>/<lag>mslag` auto-navigates the sidebar to that folder on load, useful for sharing a link to a specific plot.
 
+## Express mode & run bundles
+
+`Params(express_mode=True)` skips every figure that can be rebuilt from the
+run's own data and writes one shareable `.meanap` bundle instead — 483 figures
+and 56 MB become 6 figures and a 2.2 MB file on the example dataset, with the
+numbers byte-identical either way.
+
+```bash
+uv run meanap-viewer path/to/OutputData….meanap
+```
+
+The viewer redraws any figure on demand with the full Network Viewer control
+set, and exports PNG, **SVG** or PDF. A bundle also works as a resume artifact:
+point `prior_analysis_path` at it to re-run step 4 without the raw data.
+
+One figure family can't be rebuilt yet and is simply absent from an express run
+— CAT-NAP's per-recording cell-type subnetwork figures. See
+`docs/python/express-mode.md`.
+
 ## CAT-NAP (2P)
 
 CAT-NAP is the calcium imaging analysis pathway, triggered by loading a folder that contains suite2p output. It is the Python equivalent of the MATLAB `suite2pToAdjm` / `denoiseSuite2pData` workflow.

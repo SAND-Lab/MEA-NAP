@@ -17,7 +17,6 @@ folders the ephys path produces.
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
@@ -32,7 +31,15 @@ from meanap.catnap.group_plots import (
 from meanap.catnap.loader import load_suite2p
 from meanap.catnap.subnetwork import WHOLE_NETWORK
 from meanap.catnap.stats import calc_twop_activity_stats
+from meanap.catnap.store import (
+    BACKGROUND_SUFFIX, RecordingState, load_recording_state, quantize_background,
+    save_background, save_recording_state, sorted_adjm_items,
+)
 from meanap.pipeline.cancellation import CancelCheck, check_cancel
+from meanap.pipeline.resume import (
+    ADJM_SUBDIR, CATNAP_SUFFIX, InputLocator, build_input_locator,
+)
+from meanap.pipeline.rng import make_rng
 from meanap.pipeline.spreadsheet import RecordingInfo
 from meanap.pipeline.step4 import (
     _apply_cartography_boundaries, _batch_metric_bounds, _convert_numpy,
@@ -41,35 +48,11 @@ from meanap.pipeline.step4 import (
 
 _NEEDS_DENOISING = ("peaks", "denoised F", "spks")
 
-
-@dataclass
-class _RecordingState:
-    """What phase 3 needs about a recording, without its activity matrices.
-
-    ``suite2p_to_adjm`` returns the full ``(n_frames, n_units)`` fluorescence,
-    denoised-fluorescence and spks matrices — hundreds of MB per recording, so
-    holding them for a whole batch across the cartography barrier is not an
-    option. Everything here is small (adjacency matrices are ``n_units²``); the
-    trace figures re-read the suite2p folder at ``plane0`` instead.
-    """
-
-    adjMs: dict[str, np.ndarray]
-    coords: np.ndarray
-    channels: np.ndarray
-    spike_counts: np.ndarray
-    duration_s: float
-    plane0: Path
-    #: User-defined cell-type groups (E/I, per-marker, …) — drives the
-    #: subnetwork analysis and the by-cell-type activity comparisons.
-    groups: object | None = None
-    #: ``(n_channels, n_markers)`` raw marker membership + names, straight from
-    #: the spreadsheet. Distinct from ``groups``: this is the cell's full
-    #: genetic identity, drawn as concentric rings on the network plots, and it
-    #: is not collapsed into whatever grouping the user chose.
-    markers: tuple[np.ndarray, list[str]] | None = None
-    #: ``(min, max)`` used to normalise the pixel centroids onto ``coords`` —
-    #: needed to map the mean projection image into the same frame.
-    coord_norm: tuple[float, float] = (0.0, 1.0)
+#: ``Params.startAnalysisStep`` at or above which a CAT-NAP run reads the prior
+#: run's adjacency instead of rebuilding it. There is no step 1 or 3 on this
+#: path (adjacency is built in step 2, as in MATLAB), so 4 is the only boundary
+#: that means anything.
+RESUME_STEP = 4
 
 
 def suite2p_plane0_dir(raw_data: str, filename: str) -> Path:
@@ -117,7 +100,7 @@ def run_catnap_pipeline(
     output_root: Path,
     log: Callable[[str], None] = print,
     should_cancel: CancelCheck = None,
-    rng: np.random.Generator | None = None,
+    locator: InputLocator | None = None,
 ) -> None:
     """Run the CAT-NAP path over all recordings, writing NetMet JSON + CSVs.
 
@@ -132,81 +115,96 @@ def run_catnap_pipeline(
 
     The barrier matters: cartography roles are re-derived in phase 2, so every
     figure and CSV that shows a role has to be produced after it. Phase 1 keeps
-    only a small per-recording state (:class:`_RecordingState`) — the raw
-    fluorescence matrices are hundreds of MB per recording and are re-read from
-    disk in phase 3 for the trace figures.
+    only a small per-recording state (:class:`~meanap.catnap.store.RecordingState`)
+    — the raw fluorescence matrices are hundreds of MB per recording and are
+    re-read from disk in phase 3 for the trace figures.
+
+    **Resuming.** Phase 1 writes each recording's adjacency + activity stats to
+    ``ExperimentMatFiles/<rec>_catnap.npz`` (:mod:`meanap.catnap.store`). When
+    ``params.start_analysis_step >= 4`` it reads that back from ``locator``
+    instead of recomputing, skipping the expensive part — denoising, STTC and
+    the circular-shift thresholding — exactly as MATLAB's
+    ``priorAnalysis``/``startAnalysisStep = 4`` branch does. The file is
+    rewritten into *this* run's output folder either way, so a resumed run is
+    itself resumable. Network metrics, cartography and every figure are always
+    recomputed: that is what step 4 *is*.
+
+    Note the batch reduce in phase 2 pools PC/Z over every recording that
+    phase 1 produced, so resuming a subset of the batch places the cartography
+    boundaries from that subset alone — the roles will not match the original
+    run's unless the same recordings are present.
+
+    Stochastic stages draw from per-recording generators derived from
+    ``params.random_seed`` (see :mod:`meanap.pipeline.rng`), the same scheme the
+    ephys steps use. A single batch-wide stream would make every recording's
+    metrics depend on how much randomness the recordings before it consumed —
+    which a resumed run, having skipped the thresholding draws entirely, would
+    change. With per-recording streams a seeded resume reproduces the numbers
+    of the run it resumed from.
     """
-    from meanap.catnap.denoising import process_suite2p_folder
+    if locator is None:
+        locator = build_input_locator(params, output_root)
 
-    if rng is None:
-        rng = np.random.default_rng()
-
-    lag_values = params.func_con_lag_val
     min_nodes = params.min_number_of_nodes_to_cal_net_met
     net_dir = output_root / "4_NetworkActivity"
     net_dir.mkdir(parents=True, exist_ok=True)
+    state_dir = output_root / ADJM_SUBDIR
+    state_dir.mkdir(parents=True, exist_ok=True)
+
+    resuming = params.start_analysis_step >= RESUME_STEP
 
     all_results: dict[str, dict] = {}
     all_stats: dict[str, dict] = {}
     all_channels: dict[str, np.ndarray] = {}
-    states: dict[str, _RecordingState] = {}
+    states: dict[str, RecordingState] = {}
     subnetwork_tables: dict[str, list] = {"summary": [], "node": [], "mix": []}
 
-    # ── Phase 1: compute ──────────────────────────────────────────────────────
+    # ── Phase 1: compute (or reload) ──────────────────────────────────────────
     for rec in recordings:
         check_cancel(should_cancel)
         plane0 = suite2p_plane0_dir(params.raw_data, rec.filename)
-        if not (plane0 / "stat.npy").exists():
-            log(f"  [{rec.filename}] SKIP: no suite2p output at {plane0}")
+
+        loaded = (
+            _load_recording(locator, rec, plane0, log) if resuming else
+            _compute_recording(params, rec, plane0, log,
+                               make_rng(params.random_seed, "catnap", rec.filename))
+        )
+        if loaded is None:
             continue
+        state, stats = loaded
 
-        log(f"  [{rec.filename}] loading suite2p data…")
-        data = load_suite2p(plane0)
+        # Always re-read: cheap, and it means a resumed run picks up an edited
+        # cell-type spreadsheet instead of freezing the first run's grouping.
+        # A bundle carries a copy of the markers for recipients who have no
+        # spreadsheet at all, so the live reading only wins when it found one.
+        groups, markers = _resolve_cell_types(params, rec, state.channels, log)
+        if groups is not None or state.groups is None:
+            state.groups = groups
+        if markers is not None or state.markers is None:
+            state.markers = markers
 
-        if params.twop_activity in _NEEDS_DENOISING and (
-            data.F_denoised is None or params.twop_redo_denoising
-        ):
-            log(f"  [{rec.filename}] denoising ({data.F.shape[0]} ROIs)…")
-            process_suite2p_folder(
-                plane0,
-                overwrite=params.twop_redo_denoising,
-                denoising_threshold=params.twop_denoising_threshold,
-                time_before_peak_s=params.twop_denoising_time_before_peak,
-                time_after_peak_s=params.twop_denoising_time_after_peak,
-            )
-            data = load_suite2p(plane0)
+        all_stats[rec.filename] = stats
+        all_channels[rec.filename] = state.channels
+        states[rec.filename] = state
 
-        log(f"  [{rec.filename}] building adjacency matrices…")
-        res = suite2p_to_adjm(
-            data, params.twop_activity, lag_values,
-            remove_nodes_with_no_peaks=params.remove_nodes_with_no_peaks,
-            prob_thresh_tail=params.prob_thresh_tail,
-            prob_thresh_rep_num=params.prob_thresh_rep_num,
-            rng=rng,
-        )
-        duration_s = res.F.shape[0] / res.fs
-        spike_counts = _spike_counts(res, params.twop_activity)
+        try:
+            save_recording_state(
+                state_dir / f"{rec.filename}{CATNAP_SUFFIX}", state, stats)
+        except Exception as e:
+            log(f"  [{rec.filename}] warning: could not save step-2 data for "
+                f"re-runs: {e}")
 
-        all_stats[rec.filename] = _activity_stats_for(res, params, duration_s)
-        all_channels[rec.filename] = res.channels
-        groups, markers = _resolve_cell_types(params, rec, res.channels, log)
-        states[rec.filename] = _RecordingState(
-            adjMs=res.adjMs, coords=res.coords, channels=res.channels,
-            spike_counts=spike_counts, duration_s=duration_s, plane0=plane0,
-            groups=groups, markers=markers, coord_norm=res.coord_norm,
-        )
-
+        # Same label as the ephys path: this is the same work on the same
+        # recording, and one generator serves every lag (as in step4.py).
+        metric_rng = make_rng(params.random_seed, "step4", rec.filename)
         rec_results: dict = {}
-        for lag_ms in lag_values:
-            key = f"adjM{lag_ms}mslag"
-            if key not in res.adjMs:
-                continue
+        for lag_ms, adj in sorted_adjm_items(state.adjMs):
             log(f"  [{rec.filename}] network metrics (lag={lag_ms}ms)…")
             metrics = compute_network_metrics(
-                res.adjMs[key], spike_counts, duration_s,
+                adj, state.spike_counts, state.duration_s,
                 params.min_activity_level, min_nodes,
                 exclude_edges_below_threshold=params.exclude_edges_below_threshold,
-                params=params, rng=rng,
+                params=params, rng=metric_rng,
             )
             rec_results[f"{lag_ms}mslag"] = metrics
         all_results[rec.filename] = rec_results
@@ -218,7 +216,11 @@ def run_catnap_pipeline(
     # almost every node lands in role 1.
     if params.auto_set_cartography_boundaries and all_results:
         check_cancel(should_cancel)
-        _apply_cartography_boundaries(params, all_results, log, out_dir=net_dir)
+        # ``out_dir=None`` suppresses the pooled PC/Z landscape scatter — a
+        # figure, and one the bundle's metrics can redraw.
+        _apply_cartography_boundaries(
+            params, all_results, log,
+            out_dir=None if params.express_mode else net_dir)
 
     # Pooled node-metric ranges, so the ``_scaled`` network plots of different
     # recordings share an axis.
@@ -235,13 +237,24 @@ def run_catnap_pipeline(
         # and the trace figures both need the suite2p folder re-opened, and the
         # subnetwork figures want the same backdrop as the whole-network ones.
         data, background = _reload_for_plots(params, rec, state, log)
+        # Captured, not just drawn: figure 12 is the one plot that needs pixels
+        # rather than metrics, so a bundle has to carry the projection or it
+        # could never be reconstructed.
+        try:
+            save_background(
+                state_dir / f"{rec.filename}{BACKGROUND_SUFFIX}", background)
+        except Exception as e:
+            log(f"  [{rec.filename}] warning: could not save mean projection: {e}")
+
         _plot_recording(params, rec, state, all_results[rec.filename],
                         batch_bounds, output_root, log, data, background)
 
         if params.twop_subnetwork_analysis:
             _run_subnetwork_analysis(
                 params, rec, state, all_results[rec.filename],
-                min_nodes, output_root, subnetwork_tables, log, rng, background,
+                min_nodes, output_root, subnetwork_tables, log,
+                make_rng(params.random_seed, "catnap_subnetwork", rec.filename),
+                background,
             )
 
     _save_catnap_results(recordings, all_results, all_stats, all_channels, net_dir, log)
@@ -251,6 +264,81 @@ def run_catnap_pipeline(
         subnetwork_tables, states, output_root, log,
     )
     log("  CAT-NAP pipeline complete.")
+
+
+def _compute_recording(
+    params: Params, rec: RecordingInfo, plane0: Path, log, rng,
+) -> tuple[RecordingState, dict] | None:
+    """Build one recording's adjacency + activity stats from its suite2p folder.
+
+    This is the expensive half of the CAT-NAP path — denoising, then STTC with
+    ``prob_thresh_rep_num`` circular-shift surrogates per lag — and the half a
+    step-4 resume skips. Returns ``None`` (having logged why) when the
+    recording has no suite2p output to read.
+    """
+    from meanap.catnap.denoising import process_suite2p_folder
+
+    if not (plane0 / "stat.npy").exists():
+        log(f"  [{rec.filename}] SKIP: no suite2p output at {plane0}")
+        return None
+
+    log(f"  [{rec.filename}] loading suite2p data…")
+    data = load_suite2p(plane0)
+
+    if params.twop_activity in _NEEDS_DENOISING and (
+        data.F_denoised is None or params.twop_redo_denoising
+    ):
+        log(f"  [{rec.filename}] denoising ({data.F.shape[0]} ROIs)…")
+        process_suite2p_folder(
+            plane0,
+            overwrite=params.twop_redo_denoising,
+            denoising_threshold=params.twop_denoising_threshold,
+            time_before_peak_s=params.twop_denoising_time_before_peak,
+            time_after_peak_s=params.twop_denoising_time_after_peak,
+        )
+        data = load_suite2p(plane0)
+
+    log(f"  [{rec.filename}] building adjacency matrices…")
+    res = suite2p_to_adjm(
+        data, params.twop_activity, params.func_con_lag_val,
+        remove_nodes_with_no_peaks=params.remove_nodes_with_no_peaks,
+        prob_thresh_tail=params.prob_thresh_tail,
+        prob_thresh_rep_num=params.prob_thresh_rep_num,
+        rng=rng,
+    )
+    duration_s = res.F.shape[0] / res.fs
+
+    state = RecordingState(
+        adjMs=res.adjMs, coords=res.coords, channels=res.channels,
+        spike_counts=_spike_counts(res, params.twop_activity),
+        duration_s=duration_s, plane0=plane0, coord_norm=res.coord_norm,
+    )
+    return state, _activity_stats_for(res, params, duration_s)
+
+
+def _load_recording(
+    locator: InputLocator, rec: RecordingInfo, plane0: Path, log,
+) -> tuple[RecordingState, dict] | None:
+    """Read one recording's step-2 products back from a previous run.
+
+    Mirrors MEApipeline.m's ``priorAnalysis == 1 && startAnalysisStep == 4``
+    branch, which loads ``adjMs`` out of the prior ``ExperimentMatFiles`` rather
+    than calling ``suite2pToAdjm`` again. Returns ``None`` (having logged why)
+    when the file is absent or unreadable, so one bad recording costs the batch
+    that recording and not the run.
+    """
+    path = locator.catnap_file(rec.filename)
+    if path is None:
+        log(f"  [{rec.filename}] SKIP: no saved step-2 data "
+            f"({rec.filename}{CATNAP_SUFFIX}) to resume from")
+        return None
+    try:
+        state, stats = load_recording_state(path, plane0)
+    except Exception as e:
+        log(f"  [{rec.filename}] SKIP: could not read {path}: {e}")
+        return None
+    log(f"  [{rec.filename}] reusing adjacency matrices from {path}")
+    return state, stats
 
 
 def _mean_image_background(mean_img, coord_norm) -> tuple | None:
@@ -339,7 +427,10 @@ def _reload_for_plots(params, rec, state, log):
 
     background = None
     if params.twop_network_background:
-        background = _mean_image_background(data.mean_img, state.coord_norm)
+        # Quantised here, before anything draws it, so the pipeline's figure and
+        # a viewer's reconstruction come from the same array (see store.py).
+        background = quantize_background(
+            _mean_image_background(data.mean_img, state.coord_norm))
         if background is None:
             log(f"  [{rec.filename}] note: no mean projection in ops — "
                 "network plots drawn without a backdrop")
@@ -360,6 +451,11 @@ def _plot_recording(params, rec, state, rec_results, batch_bounds, output_root, 
     Runs after the cartography barrier, so the cartography scatter and the
     circular cartography plot show the batch-derived boundaries and the roles
     that the CSVs report.
+
+    In express mode only the trace figures are drawn. They are the one family
+    here that cannot be rebuilt from the run's own outputs — they need the full
+    fluorescence matrices, which are hundreds of MB and deliberately not carried
+    — whereas every network figure is a pure function of data the bundle holds.
     """
     from meanap.catnap.plotting import plot_2p_traces
     from meanap.pipeline.step4 import _plot_recording_lag
@@ -373,6 +469,9 @@ def _plot_recording(params, rec, state, rec_results, batch_bounds, output_root, 
                            num_traces=params.num_2p_traces)
         except Exception as e:
             log(f"  [{rec.filename}] warning: 2P trace plots failed: {e}")
+
+    if params.express_mode:
+        return
 
     for lag_key, metrics in rec_results.items():
         if "adjMsub" not in metrics:
@@ -452,6 +551,11 @@ def _run_subnetwork_analysis(
         tables["summary"].extend(dict(base, **row) for row in summary.to_dict("records"))
         tables["node"].extend(dict(base, **row) for row in node_df.to_dict("records"))
         tables["mix"].extend(dict(base, **row) for row in edge_mix.to_dict("records"))
+
+        # The metrics above are data and always computed; only the figures below
+        # are reconstructable from them, so express mode stops here.
+        if params.express_mode:
+            continue
 
         title = f"{rec.filename}  {lag_ms} ms lag"
         coords_active = state.coords[active]
@@ -588,31 +692,40 @@ def _plot_group_comparisons(
     from meanap.pipeline.plotting_step4 import plot_step4_group_comparisons
 
     order = params.custom_grp_order or None
-    log("  Generating group comparison plots…")
+    express = params.express_mode
+    log("  Writing batch tables…" if express else "  Generating group comparison plots…")
 
+    # The pooled frames are *data*, not figures — express mode still needs them
+    # for the CSVs. In full mode the plotter derives the same frames internally
+    # (``plot_twop_group_comparisons`` calls ``twop_stats_frames`` itself), so
+    # neither path recomputes anything the other doesn't.
     df_node = pd.DataFrame()
     try:
-        _, df_node = gp.plot_twop_group_comparisons(
-            recordings, all_stats, output_root / "2_NeuronalActivity",
-            custom_grp_order=order, channels_by_rec=all_channels,
-        )
+        if express:
+            _, df_node = gp.twop_stats_frames(recordings, all_stats, all_channels)
+        else:
+            _, df_node = gp.plot_twop_group_comparisons(
+                recordings, all_stats, output_root / "2_NeuronalActivity",
+                custom_grp_order=order, channels_by_rec=all_channels,
+            )
     except Exception as e:
-        log(f"  Warning: two-photon activity group comparison plots failed: {e}")
+        log(f"  Warning: two-photon activity group comparisons failed: {e}")
 
     # The same activity metrics again, split by cell type, plus how many cells
     # of each type each recording had.
     groups_by_rec = {name: st.groups for name, st in states.items() if st.groups}
     if groups_by_rec:
         try:
-            by_type = gp.add_cell_type_column(df_node, groups_by_rec, all_channels)
             composition = gp.composition_frame(
                 recordings, groups_by_rec, all_channels,
                 active_by_rec=_active_channels(df_node),
             )
-            gp.plot_activity_by_cell_type(
-                by_type, composition, output_root / "2_NeuronalActivity",
-                custom_grp_order=order,
-            )
+            if not express:
+                by_type = gp.add_cell_type_column(df_node, groups_by_rec, all_channels)
+                gp.plot_activity_by_cell_type(
+                    by_type, composition, output_root / "2_NeuronalActivity",
+                    custom_grp_order=order,
+                )
             if not composition.empty:
                 composition.to_csv(
                     output_root / "2_NeuronalActivity" / "CellTypeComposition.csv",
@@ -620,6 +733,9 @@ def _plot_group_comparisons(
                 )
         except Exception as e:
             log(f"  Warning: by-cell-type activity comparisons failed: {e}")
+
+    if express:
+        return
 
     try:
         plot_step4_group_comparisons(

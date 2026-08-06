@@ -7,13 +7,20 @@ from. Results still go to a *fresh* output folder — the prior run is only ever
 read — which is the behaviour mirrored here.
 
 Because this port writes discrete per-recording files rather than MATLAB's one
-chained ``.mat`` per recording, resuming reduces to a search path. Only two
+chained ``.mat`` per recording, resuming reduces to a search path. Only three
 artefacts cross step boundaries:
 
 ===========================  ================================================
 Step 1 → Steps 2, 3, 4       ``1_SpikeDetection/1A_SpikeDetectedData/<rec>_spikes.npz``
 Step 3 → Step 4              ``ExperimentMatFiles/<rec>_adjM.npz``
+CAT-NAP step 2 → step 4      ``ExperimentMatFiles/<rec>_catnap.npz``
 ===========================  ================================================
+
+The CAT-NAP (``suite2pMode``) path has no step 1 or 3 — adjacency is built in
+step 2, as it is in MATLAB — so step 4 is its only resumable boundary. Its file
+is deliberately named differently from the ephys ``_adjM.npz``: the two hold
+different things, and pointing a CAT-NAP resume at an ephys output folder (or
+the reverse) should report a missing input rather than fail deep inside a load.
 
 :class:`InputLocator` resolves those two lookups against, in order:
 
@@ -45,10 +52,17 @@ __all__ = [
     "missing_step_inputs",
     "SPIKE_SUBDIR",
     "ADJM_SUBDIR",
+    "CATNAP_SUFFIX",
+    "ADJM_SUFFIX",
 ]
 
 SPIKE_SUBDIR = Path("1_SpikeDetection") / "1A_SpikeDetectedData"
 ADJM_SUBDIR = Path("ExperimentMatFiles")
+#: Per-recording array files inside :data:`ADJM_SUBDIR`. Both suffixes are
+#: owned here rather than by the pipelines that write them, so this module
+#: stays the single place describing the output layout.
+ADJM_SUFFIX = "_adjM.npz"       # electrophysiology, step 3
+CATNAP_SUFFIX = "_catnap.npz"   # CAT-NAP, step 2
 
 
 @dataclass(frozen=True)
@@ -73,7 +87,19 @@ class InputLocator:
 
     def adjm_file(self, recording_name: str) -> Path | None:
         """Path to a recording's Step-3 adjacency file, or ``None`` if absent."""
-        name = f"{recording_name}_adjM.npz"
+        name = f"{recording_name}{ADJM_SUFFIX}"
+        candidates = [self.output_root / ADJM_SUBDIR / name]
+        if self.prior_root is not None:
+            candidates.append(self.prior_root / ADJM_SUBDIR / name)
+        return _first_existing(candidates)
+
+    def catnap_file(self, recording_name: str) -> Path | None:
+        """Path to a recording's CAT-NAP step-2 file, or ``None`` if absent.
+
+        ``spike_dir`` is not consulted: it holds externally *spike-detected*
+        MEA data, which has nothing to say about a suite2p recording.
+        """
+        name = f"{recording_name}{CATNAP_SUFFIX}"
         candidates = [self.output_root / ADJM_SUBDIR / name]
         if self.prior_root is not None:
             candidates.append(self.prior_root / ADJM_SUBDIR / name)
@@ -102,6 +128,33 @@ def _first_existing(candidates: list[Path]) -> Path | None:
     return None
 
 
+#: Bundles unpacked this process, keyed by source path. Held for the process
+#: lifetime because :class:`InputLocator` is a plain-paths dataclass that gets
+#: pickled into spawned workers — the extracted directory has to outlive the
+#: locator, and re-unpacking per worker would be both slower and a different
+#: path in each one.
+_UNPACKED_BUNDLES: dict[Path, Path] = {}
+
+
+def _unpack_prior_bundle(path: Path) -> Path:
+    """Resolve a ``.meanap`` prior-analysis path to the folder it unpacks to."""
+    from meanap.pipeline.bundle import BUNDLE_SUFFIX, open_bundle
+
+    resolved = path.resolve()
+    if resolved in _UNPACKED_BUNDLES:
+        return _UNPACKED_BUNDLES[resolved]
+    if resolved.suffix != BUNDLE_SUFFIX:
+        raise ValueError(
+            f"Previous analysis path is a file, not a folder: {resolved}. Point it "
+            f"at an OutputData… folder or a '{BUNDLE_SUFFIX}' bundle."
+        )
+    # Deliberately not closed: the run reads from it throughout, and the OS
+    # reclaims the temp directory. Bundles are ~1 MB.
+    bundle = open_bundle(resolved)
+    _UNPACKED_BUNDLES[resolved] = bundle.root
+    return bundle.root
+
+
 def build_input_locator(params: Params, output_root: Path) -> InputLocator:
     """Build the locator for a run, validating the configured paths up front.
 
@@ -118,6 +171,12 @@ def build_input_locator(params: Params, output_root: Path) -> InputLocator:
                 "disable prior analysis."
             )
         prior_root = Path(params.prior_analysis_path).expanduser()
+        # A ``.meanap`` bundle is an output folder in a zip, so resuming from
+        # one is just resuming from where it unpacks to — no lookup below needs
+        # to know the difference. This is what lets the file you share double as
+        # the file you re-run from.
+        if prior_root.is_file():
+            prior_root = _unpack_prior_bundle(prior_root)
         if not prior_root.is_dir():
             raise ValueError(f"Previous analysis folder does not exist: {prior_root}")
         if not (prior_root / SPIKE_SUBDIR).is_dir() and not (prior_root / ADJM_SUBDIR).is_dir():
@@ -142,6 +201,8 @@ def missing_step_inputs(
     locator: InputLocator,
     recordings: list[RecordingInfo],
     start_step: int,
+    *,
+    suite2p_mode: bool = False,
 ) -> dict[str, list[str]]:
     """Which recordings lack the inputs the *starting* step needs.
 
@@ -149,14 +210,21 @@ def missing_step_inputs(
     produce during this run. Returns ``{recording_name: [missing artefact, …]}``
     for recordings that would be skipped, so the caller can fail fast (nothing
     resolvable) or warn (only some missing).
+
+    ``suite2p_mode`` selects the CAT-NAP artefacts instead of the ephys ones —
+    a different file, and only one resumable boundary (step 4).
     """
     missing: dict[str, list[str]] = {}
     for rec in recordings:
         gaps: list[str] = []
-        if start_step >= 2 and locator.spike_file(rec.filename) is None:
-            gaps.append("spike times (step 1)")
-        if start_step >= 4 and locator.adjm_file(rec.filename) is None:
-            gaps.append("adjacency matrices (step 3)")
+        if suite2p_mode:
+            if start_step >= 4 and locator.catnap_file(rec.filename) is None:
+                gaps.append("adjacency matrices + activity stats (step 2)")
+        else:
+            if start_step >= 2 and locator.spike_file(rec.filename) is None:
+                gaps.append("spike times (step 1)")
+            if start_step >= 4 and locator.adjm_file(rec.filename) is None:
+                gaps.append("adjacency matrices (step 3)")
         if gaps:
             missing[rec.filename] = gaps
     return missing

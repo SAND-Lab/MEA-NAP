@@ -135,6 +135,12 @@ class Params:
     verbose_level: str = "Normal"
     time_processes: bool = False
     output_spreadsheet_file_type: str = "csv"
+    # Express mode: skip every figure that can be rebuilt from the run's data,
+    # and write a single shareable ``.meanap`` bundle instead. Only the
+    # quality-control figures that depend on raw data too large to carry (2P
+    # traces; step-1 spike-detection checks) are still saved as images. A viewer
+    # reconstructs the rest on demand — see pipeline/bundle.py.
+    express_mode: bool = False
 
     # ── Parallelism ──────────────────────────────────────────────────────────
     # None = auto-size against available cores/RAM (see pipeline/parallel.py).
@@ -232,3 +238,49 @@ class Params:
             "axionStimCSV": self.axion_stim_csv,
             "fs": self.fs,
         }
+
+
+#: Name of the parameter snapshot written into every output folder.
+PARAMS_FILENAME = "params.json"
+
+
+def save_params(params: Params, output_root: Path | str) -> Path:
+    """Write ``params.json`` into an output folder.
+
+    Two reasons this exists. Reproducibility: until now an output folder
+    recorded nothing about the settings that produced it, so a run could not be
+    repeated from its own results. And reconstruction: nearly every plotting
+    routine reads ``Params`` (channel layout, colour maps, node sizing, group
+    order, edge-threshold rules), so a bundle that omits it cannot redraw
+    anything faithfully.
+    """
+    import dataclasses
+    import json
+
+    path = Path(output_root) / PARAMS_FILENAME
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w") as fh:
+        json.dump(dataclasses.asdict(params), fh, indent=2, sort_keys=True)
+    return path
+
+
+def load_params(path: Path | str) -> tuple[Params, list[str]]:
+    """Read a ``params.json`` back, tolerating version skew.
+
+    Returns ``(params, unknown_keys)``. Fields the file doesn't carry keep their
+    defaults; fields this version doesn't know are dropped and reported rather
+    than raising, because bundles get shared between people running different
+    versions of the port and a single renamed field should not make a whole run
+    unopenable.
+    """
+    import dataclasses
+    import json
+
+    with open(path) as fh:
+        raw = json.load(fh)
+    if not isinstance(raw, dict):
+        raise ValueError(f"{path} does not contain a parameter object")
+
+    known = {f.name for f in dataclasses.fields(Params)}
+    unknown = sorted(set(raw) - known)
+    return Params(**{k: v for k, v in raw.items() if k in known}), unknown

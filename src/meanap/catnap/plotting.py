@@ -12,6 +12,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import numpy as np
+from meanap.pipeline.figure_output import savefig
 import matplotlib
 
 matplotlib.use("Agg")
@@ -91,7 +92,7 @@ def plot_2p_traces(
 
         fig.tight_layout()
         out_path = out_dir / f"unit_{roi + 1}_2ptraces.png"
-        fig.savefig(out_path, dpi=120)
+        savefig(fig, out_path, default_dpi=120)
         plt.close(fig)
         saved.append(out_path)
 
