@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=meanap
-#SBATCH --output=meanap-%j.log
+#SBATCH --output=logs/meanap-%j.log
 #SBATCH --time=24:00:00
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=64G
