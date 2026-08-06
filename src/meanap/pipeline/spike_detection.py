@@ -16,6 +16,7 @@ filters are identical and ``wavefun`` agrees to 1.6e-15 — see
 
 from __future__ import annotations
 
+import threading
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from typing import NamedTuple
@@ -198,6 +199,84 @@ def _cwt_bior15(signal: np.ndarray, scales: np.ndarray) -> np.ndarray:
     return coeffs
 
 
+def _fit_widths_to_table(
+    width_target: np.ndarray,
+    width_table: np.ndarray,
+    wid_ms: tuple[float, float],
+    fs_hz: float,
+    wname: str,
+) -> np.ndarray:
+    """Pull requested spike widths inside the range the sampling rate can express.
+
+    The width a scale resolves is a whole number of samples, so the narrowest
+    width available is quantised by ``fs``: 0.16 ms at 25 kHz but 0.4 ms at
+    10 kHz. MEA-NAP's default ``Wid = [0.4, 0.8]`` therefore sits *exactly* on
+    the narrowest achievable width at 10 kHz — and MATLAB rejects it anyway,
+    because ``determine_scales`` nudges the lookup table by
+    ``[1:N] * 1e-15`` to keep it strictly increasing for ``interp1``, lifting
+    its first entry a few ulps above the target. MATLAB warns "Your choice of
+    Wid is not valid given the sampling rate and wavelet family", returns a NaN
+    scale, and then dies inside the detection loop with
+    ``MATLAB:colon:nonFiniteEndpoint`` (verified against MATLAB R2024b).
+
+    Two adjustments, both reported to the caller:
+
+    * targets within floating-point noise of an endpoint snap onto it — the
+      width *is* achievable and only the epsilon nudge said otherwise;
+    * targets genuinely outside the range clamp to the nearest achievable
+      width, since a slightly different width beats refusing to detect spikes.
+
+    Targets that already interpolate cleanly are returned untouched, so this
+    changes nothing at 25 kHz or 12.5 kHz.
+    """
+    lo, hi = float(width_table.min()), float(width_table.max())
+    fitted = width_target.copy()
+    snapped: list[str] = []
+    clamped: list[str] = []
+
+    for i, target in enumerate(width_target):
+        if lo <= target <= hi:
+            continue
+        endpoint = lo if target < lo else hi
+        # rtol=1e-9 is far below the ~0.01 ms granularity of real spike widths
+        # but far above the 1e-13 worst case of MATLAB's monotonicity nudge.
+        if np.isclose(target, endpoint, rtol=1e-9, atol=0.0):
+            fitted[i] = endpoint
+            snapped.append(f"{target:g}")
+        else:
+            fitted[i] = endpoint
+            clamped.append(f"{target:g}→{endpoint:g}")
+
+    if clamped:
+        _notify_once(
+            f"    ! Wid {list(wid_ms)} ms is not achievable at fs={fs_hz:g} Hz with "
+            f"{wname!r} (achievable range [{lo:.3g}, {hi:.3g}] ms); "
+            f"adjusted width(s): {', '.join(clamped)} ms."
+        )
+    elif snapped:
+        _notify_once(
+            f"    Wid {list(wid_ms)} ms sits on the narrowest width fs={fs_hz:g} Hz "
+            f"can express ({', '.join(snapped)} ms); using it directly "
+            f"(MATLAB rejects this case on rounding error alone)."
+        )
+    return fitted
+
+
+# Scales are recomputed per channel, so an unguarded notice would repeat once
+# per electrode per method — 60+ identical lines drowning the run log.
+_notified: set[str] = set()
+_notified_lock = threading.Lock()
+
+
+def _notify_once(message: str) -> None:
+    """Print ``message`` the first time it occurs in this process."""
+    with _notified_lock:
+        if message in _notified:
+            return
+        _notified.add(message)
+    print(message)
+
+
 def _determine_scales(
     wname: str,
     wid_ms: tuple[float, float],
@@ -242,6 +321,8 @@ def _determine_scales(
 
         # Target widths
         width_target = np.linspace(wid_ms[0], wid_ms[1], ns)
+
+        width_target = _fit_widths_to_table(width_target, width_table, wid_ms, fs_hz, wname)
 
         # MATLAB: Scale = round(interp1(WidthTable, Scales, Width, 'linear')).
         # interp1 returns NaN outside WidthTable's range; np.interp would

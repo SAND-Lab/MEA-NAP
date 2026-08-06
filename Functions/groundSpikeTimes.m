@@ -7,7 +7,7 @@ if isstr(electrodesToGround)
     groundElectrodeCell = strsplit(electrodesToGround,',');
     groundElectrodeVec = str2double(groundElectrodeCell);
 else
-    groundElectrodeVec = groundElectrodeStr;
+    groundElectrodeVec = electrodesToGround;
 end 
 
 if useName 

@@ -21,7 +21,12 @@ import numpy as np
 
 from meanap.params import Params
 from meanap.pipeline.cancellation import CancelCheck, check_cancel
-from meanap.pipeline.io import load_raw_recording, load_spike_times_npz
+from meanap.pipeline.io import (
+    RAW_EXTENSIONS,
+    find_raw_file,
+    load_raw_recording,
+    load_spike_times_npz,
+)
 from meanap.pipeline.channel_layout import get_coords_from_layout
 from meanap.pipeline.resume import build_input_locator
 from meanap.pipeline.rng import make_rng
@@ -75,10 +80,11 @@ def run_stim_analysis(
     n_done = 0
     for rec in recordings:
         check_cancel(should_cancel)
-        raw_path = raw_dir / f"{rec.filename}.mat"
+        raw_path = find_raw_file(raw_dir, rec.filename)
         npz_path = locator.spike_file(rec.filename)
-        if not raw_path.exists():
-            log(f"  ! [{rec.filename}] raw file not found, skipping: {raw_path.name}")
+        if raw_path is None:
+            log(f"  ! [{rec.filename}] raw file not found, skipping"
+                f" (looked for {', '.join(RAW_EXTENSIONS)})")
             continue
         if npz_path is None:
             log(f"  ! [{rec.filename}] spike times not found ({rec.filename}_spikes.npz); "

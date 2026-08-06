@@ -10,7 +10,12 @@ from typing import Callable
 
 from meanap.params import Params
 from meanap.pipeline.cancellation import CancelCheck, check_cancel
-from meanap.pipeline.io import load_raw_recording, save_spike_times_npz
+from meanap.pipeline.io import (
+    RAW_EXTENSIONS,
+    find_raw_file,
+    load_raw_recording,
+    save_spike_times_npz,
+)
 from meanap.pipeline.step2 import _run_step2_neuronal_activity
 from meanap.pipeline.step3 import _run_step3_functional_connectivity
 from meanap.pipeline.step4 import _run_step4_network_metrics
@@ -220,9 +225,10 @@ def _run_step1_spike_detection(
 
     for rec in recordings:
         check_cancel(should_cancel)
-        raw_path = raw_dir / f"{rec.filename}.mat"
-        if not raw_path.exists():
-            log(f"  ! raw file not found, skipping: {raw_path.name}")
+        raw_path = find_raw_file(raw_dir, rec.filename)
+        if raw_path is None:
+            log(f"  ! raw file not found, skipping: {rec.filename}"
+                f" (looked for {', '.join(RAW_EXTENSIONS)})")
             continue
 
         log(f"  [{rec.filename}] loading raw data…")

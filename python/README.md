@@ -24,7 +24,8 @@ MEA-NAP/
 │       │   ├── output_folders.py     # Output folder tree (CreateOutputFolders.m port)
 │       │   ├── spreadsheet.py        # Recording CSV/spreadsheet parsing
 │       │   ├── example_data.py       # Downloads the example dataset (downloadExampleData.m port)
-│       │   ├── io.py                 # HDF5/v7.3 .mat I/O
+│       │   ├── io.py                 # Raw recording I/O: MCS .h5, Axion .raw, .mat v7/v7.3
+│       │   ├── axion_raw.py         # Axion .raw reader (AxionFileLoader port)
 │       │   ├── spike_detection.py    # Step 1: threshold + bior1.5 wavelet CWT
 │       │   ├── plotting.py           # Step 1 check plots
 │       │   ├── firing_rates.py       # Step 2: firing rates
@@ -91,15 +92,20 @@ This creates a `.venv/` and installs all dependencies. No manual environment act
 Launch the graphical interface from the repo root:
 
 ```bash
-uv run meanap-gui
+uv run meanap-gui                  # MEA-NAP (ephys), the default
+uv run meanap-gui --mode meastim   # + stimulation analysis
+uv run meanap-gui --mode catnap    # two-photon imaging (suite2p)
 ```
 
-The GUI is a tabbed desktop application (PyQt6) that mirrors the MATLAB App Designer interface. Each tab corresponds to a section of the pipeline:
+The GUI is a tabbed desktop application (PyQt6) that mirrors the MATLAB App Designer interface. `--mode` picks which of the three pipelines to start in, and the window shows only that pipeline's tabs; the **Mode** selector in the toolbar switches at any time without losing what you have entered. See [Modes](../docs/python/gui-guide.md#modes).
+
+Each tab corresponds to a section of the pipeline:
 
 | Tab | Description |
 |---|---|
 | **Paths** | Set all input/output folder and file paths, with Browse buttons |
 | **Recording** | Sampling frequency, downsample rate, channel layout, potential unit |
+| **Raw formats** | No conversion needed — point the raw data folder at MCS `.h5`, Axion `.raw`, or `.mat` files; see [Raw data formats](../docs/python/gui-guide.md#raw-data-formats) |
 | **Spike detection** | Thresholds, wavelet methods, bandpass filter, template settings |
 | **Connectivity** | STTC lag values, adjacency matrix type, probabilistic thresholding |
 | **CAT-NAP (2P)** | Suite2p pipeline — see below |

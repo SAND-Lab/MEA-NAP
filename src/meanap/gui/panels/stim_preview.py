@@ -270,7 +270,8 @@ class StimPreviewPanel(QWidget):
     # --- raw loading ------------------------------------------------------------
     def _on_browse(self) -> None:
         path, _ = QFileDialog.getOpenFileName(self, "Select raw recording", "",
-                                              "MAT files (*.mat);;All files (*)")
+                                              "Raw recordings (*.mat *.h5);;MAT files (*.mat);;"
+                                              "MCS HDF5 files (*.h5);;All files (*)")
         if not path:
             return
         self._path.setText(path)

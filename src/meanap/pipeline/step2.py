@@ -9,7 +9,7 @@ from meanap.params import Params
 from meanap.pipeline.cancellation import CancelCheck, check_cancel
 from meanap.pipeline.resume import build_input_locator
 from meanap.pipeline.spreadsheet import RecordingInfo, ground_spike_times_dict, parse_ground_electrodes
-from meanap.pipeline.io import load_spike_times_npz, resolve_duration_s
+from meanap.pipeline.io import find_raw_file, load_spike_times_npz, resolve_duration_s
 from meanap.pipeline.firing_rates import firing_rates_bursts
 from meanap.pipeline.plotting_step2 import plot_neuronal_activity_checks
 
@@ -129,7 +129,7 @@ def _run_step2_neuronal_activity(
             continue
 
         duration_s, duration_src = resolve_duration_s(
-            data, Path(params.raw_data) / f"{rec.filename}.mat", fs, n_channels,
+            data, find_raw_file(params.raw_data, rec.filename), fs, n_channels,
         )
         if duration_s is None:
             # Every firing rate here is spikes/duration, so a guessed duration

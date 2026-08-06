@@ -5,16 +5,22 @@ import webbrowser
 from pathlib import Path
 
 from PyQt6.QtWidgets import (
-    QApplication, QFileDialog, QMainWindow, QMessageBox, QScrollArea,
-    QTabWidget, QToolBar, QWidget,
+    QApplication, QComboBox, QFileDialog, QLabel, QMainWindow, QMessageBox,
+    QLineEdit, QScrollArea, QSizePolicy, QTabWidget, QToolBar, QWidget,
 )
 from PyQt6.QtGui import QAction
-from PyQt6.QtCore import Qt, QSettings
+from PyQt6.QtCore import Qt, QSettings, QSignalBlocker
 
 from meanap.params import Params
 from meanap.pipeline.example_data import download_example_data
 from meanap.pipeline.report import generate_report
 from meanap.gui import theme
+from meanap.gui.branding import logo_icon, logo_pixmap
+from meanap.gui.modes import (
+    DEFAULT_MODE, MODES, TAB_CATNAP, TAB_CONNECTIVITY, TAB_NETWORK, TAB_PATHS,
+    TAB_PIPELINE, TAB_RECORDING, TAB_SPIKE, TAB_STIM, TAB_STIM_PREVIEW,
+    apply_mode_to_params, mode_for_params,
+)
 from meanap.gui.pipeline_worker import PipelineWorker
 from meanap.gui.panels.paths import PathsPanel
 from meanap.gui.panels.recording import RecordingPanel
@@ -37,12 +43,25 @@ def _scrollable(widget: QWidget) -> QScrollArea:
 
 
 class MainWindow(QMainWindow):
-    def __init__(self) -> None:
+    def __init__(self, mode: str = DEFAULT_MODE) -> None:
         super().__init__()
+        if mode not in MODES:
+            raise ValueError(
+                f"Unknown mode {mode!r} (expected one of: {', '.join(MODES)})"
+            )
+        self._mode = mode
+        self._mode_combo: QComboBox | None = None
         self.setWindowTitle("MEA-NAP")
+        # Also set in app.main() so dialogs inherit it; repeated here so the
+        # window is branded however it was constructed (tests, embedding, …).
+        self.setWindowIcon(logo_icon())
         self.resize(980, 780)
 
         self._params = Params()
+        # Stamp the launch mode onto the defaults before anything reads them:
+        # _load_params derives the mode from these flags, so leaving them unset
+        # would snap a "--mode catnap" launch straight back to the ephys tabs.
+        apply_mode_to_params(mode, self._params)
         self._last_output_root: Path | None = None
         self._current_theme = "dark"
         self._worker: PipelineWorker | None = None
@@ -88,6 +107,31 @@ class MainWindow(QMainWindow):
         tb.addSeparator()
         tb.addAction(self._act_theme)
         tb.addAction(act_tutorial)
+        tb.addSeparator()
+
+        # Mode selector: switching it re-tabs the window for that pipeline.
+        tb.addWidget(QLabel("  Mode "))
+        self._mode_combo = QComboBox()
+        for key, mode in MODES.items():
+            self._mode_combo.addItem(mode.label, key)
+        self._mode_combo.setCurrentIndex(self._mode_combo.findData(self._mode))
+        self._mode_combo.setToolTip(MODES[self._mode].blurb)
+        self._mode_combo.currentIndexChanged.connect(self._on_mode_changed)
+        tb.addWidget(self._mode_combo)
+
+        # Logo sits at the far right, past a stretch, so it reads as branding
+        # rather than competing with the actions for the eye.
+        spacer = QWidget()
+        spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        tb.addWidget(spacer)
+
+        pixmap = logo_pixmap(32, self.devicePixelRatioF())
+        if pixmap is not None:
+            logo = QLabel()
+            logo.setPixmap(pixmap)
+            logo.setContentsMargins(0, 0, 10, 0)
+            logo.setToolTip("MEA-NAP — MEA Network Analysis Pipeline")
+            tb.addWidget(logo)
 
     def _build_tabs(self) -> None:
         self._tabs = QTabWidget()
@@ -104,17 +148,32 @@ class MainWindow(QMainWindow):
         self._pipeline_panel = PipelinePanel()
         self._network_viewer_panel = NetworkViewerPanel()
 
-        self._tab_paths = self._tabs.addTab(_scrollable(self._paths_panel), "  Paths  ")
-        self._tab_recording = self._tabs.addTab(_scrollable(self._recording_panel), "  Recording  ")
-        self._tab_spike = self._tabs.addTab(_scrollable(self._spike_panel), "  Spike detection  ")
-        self._tab_connectivity = self._tabs.addTab(_scrollable(self._connectivity_panel), "  Connectivity  ")
-        self._tab_stim = self._tabs.addTab(_scrollable(self._stim_panel), "  Stimulation  ")
-        self._tab_stim_preview = self._tabs.addTab(self._stim_preview_panel, "  Stim Preview  ")
-        self._tab_catnap = self._tabs.addTab(self._catnap_panel, "  CAT-NAP (2P)  ")
-        self._tab_network = self._tabs.addTab(self._network_viewer_panel, "  Network Viewer  ")
-        self._pipeline_tab_index = self._tabs.addTab(_scrollable(self._pipeline_panel), "  Pipeline  ")
+        # Every tab is built once and kept alive here; the current mode decides
+        # which of them are actually in the QTabWidget (see _apply_mode). Order
+        # is the order they appear in, whichever subset is showing.
+        self._tab_specs: list[tuple[str, QWidget, str]] = [
+            (TAB_PATHS, _scrollable(self._paths_panel), "  Paths  "),
+            (TAB_RECORDING, _scrollable(self._recording_panel), "  Recording  "),
+            (TAB_SPIKE, _scrollable(self._spike_panel), "  Spike detection  "),
+            (TAB_CONNECTIVITY, _scrollable(self._connectivity_panel), "  Connectivity  "),
+            (TAB_STIM, _scrollable(self._stim_panel), "  Stimulation  "),
+            (TAB_STIM_PREVIEW, self._stim_preview_panel, "  Stim Preview  "),
+            (TAB_CATNAP, self._catnap_panel, "  CAT-NAP (2P)  "),
+            (TAB_NETWORK, self._network_viewer_panel, "  Network Viewer  "),
+            (TAB_PIPELINE, _scrollable(self._pipeline_panel), "  Pipeline  "),
+        ]
+        self._apply_mode(self._mode, sync_params=False)
 
         self._catnap_panel.log_message.connect(self._pipeline_panel.append_log)
+
+        # The Paths "Raw data folder" and the CAT-NAP "Recordings folder" are
+        # two views of one setting (Params.raw_data), and both panels write it
+        # in _collect_params — so whichever saves last silently wins. Mirror
+        # them instead. Without this, setting the folder on Paths and pressing
+        # Run reports it missing, because the empty CAT-NAP field overwrites it.
+        self._bind_mirrored(
+            self._paths_panel.raw_data.line_edit, self._catnap_panel._folder_edit
+        )
 
         # Mark Run / Stop with object names so QSS can style them distinctly
         self._pipeline_panel.run_btn.setObjectName("primary")
@@ -134,6 +193,87 @@ class MainWindow(QMainWindow):
         self._catnap_panel._scan_btn.setObjectName("secondary")
         self._catnap_panel._denoise_btn.setObjectName("secondary")
 
+    @staticmethod
+    def _bind_mirrored(first: QLineEdit, second: QLineEdit) -> None:
+        """Keep two line edits showing the same text, in both directions."""
+
+        def sync(source: QLineEdit, target: QLineEdit) -> None:
+            def handler(text: str) -> None:
+                if target.text() != text:
+                    with QSignalBlocker(target):
+                        target.setText(text)
+            return handler
+
+        first.textChanged.connect(sync(first, second))
+        second.textChanged.connect(sync(second, first))
+        second.setText(first.text())
+
+    # ── Modes ─────────────────────────────────────────────────────────────────
+
+    def _apply_mode(self, mode_key: str, *, sync_params: bool = True) -> None:
+        """Show exactly the tabs *mode_key* needs, keeping the rest alive.
+
+        QTabWidget has no "hide tab", so switching modes means rebuilding the
+        tab strip. The pages themselves are never destroyed, so anything a user
+        typed into a tab that is currently hidden is still there when the mode
+        brings it back.
+        """
+        mode = MODES[mode_key]
+        self._mode = mode_key
+
+        keep = self._current_tab_key()
+        self._tabs.blockSignals(True)
+        while self._tabs.count():
+            self._tabs.removeTab(0)
+        # removeTab() leaves the page parented to the tab widget's stack but
+        # does not hide it, so without this the hidden pages paint themselves
+        # over the window as free-floating children.
+        for _, widget, _ in self._tab_specs:
+            widget.hide()
+        for key, widget, label in self._tab_specs:
+            if key in mode.tabs:
+                self._tabs.addTab(widget, label)
+        self._tabs.blockSignals(False)
+
+        # Stay on the same tab across the switch when that tab still exists,
+        # rather than dumping the user back on Paths every time.
+        index = self._tab_index(keep) if keep else -1
+        self._tabs.setCurrentIndex(index if index >= 0 else 0)
+
+        if sync_params:
+            # Read the panels back before touching the flags, so reloading the
+            # two mode-flag panels can't overwrite edits with stale values, and
+            # so a run started right after a switch does what the tabs show.
+            params = self._collect_params()
+            apply_mode_to_params(mode_key, params)
+            self._params = params
+            self._stim_panel.load(params)
+            self._catnap_panel.load(params)
+
+        if getattr(self, "_mode_combo", None) is not None:
+            with QSignalBlocker(self._mode_combo):
+                self._mode_combo.setCurrentIndex(self._mode_combo.findData(mode_key))
+            self._mode_combo.setToolTip(mode.blurb)
+
+    def _tab_index(self, key: str) -> int:
+        """Current index of tab *key*, or -1 when this mode hides it."""
+        for spec_key, widget, _ in self._tab_specs:
+            if spec_key == key:
+                return self._tabs.indexOf(widget)
+        return -1
+
+    def _current_tab_key(self) -> str | None:
+        current = self._tabs.currentWidget()
+        for key, widget, _ in self._tab_specs:
+            if widget is current:
+                return key
+        return None
+
+    def _on_mode_changed(self, index: int) -> None:
+        key = self._mode_combo.itemData(index)
+        if key and key != self._mode:
+            self._apply_mode(key)
+
     # ── Tutorial ──────────────────────────────────────────────────────────────
 
     def _maybe_show_tutorial_on_first_launch(self) -> None:
@@ -149,6 +289,12 @@ class MainWindow(QMainWindow):
         self._tutorial.start()
 
     def _on_pipeline_chosen(self, kind: str) -> None:
+        # Picking a pipeline in the tutorial is the same choice as the Mode
+        # selector, so make it one: switch first, then build the steps, whose
+        # tab indices are resolved against the tabs this mode shows.
+        if kind != self._mode:
+            self._apply_mode(kind)
+
         builders = {
             "meanap": self._build_meanap_steps,
             "meastim": self._build_meastim_steps,
@@ -171,53 +317,64 @@ class MainWindow(QMainWindow):
         return [
             TutorialStep(
                 "Raw data folder", "The MEA-NAP pipeline starts on the Paths tab. "
-                "First, choose the folder holding your recordings "
-                "(.mat files, one per recording).",
-                self._tab_paths, lambda: paths.raw_data),
+                "Choose the folder holding your recordings. No conversion needed: "
+                "Multi Channel Systems .h5 and Axion .raw are read as they come off "
+                "the recorder, alongside .mat files from the MATLAB converters.",
+                self._tab_index(TAB_PATHS), lambda: paths.raw_data),
             TutorialStep(
                 "Recording spreadsheet", "Select the CSV/XLSX that lists each recording, "
-                "its group and its age (DIV). This drives the whole batch.",
-                self._tab_paths, lambda: paths.spreadsheet),
+                "its group and its age (DIV). This drives the whole batch. Name recordings "
+                "without the file extension. An Axion .raw holds a whole plate, so name "
+                "one row per well — 'Plate2_DIV75_A1' — exactly as the MATLAB converter "
+                "would have named the file it wrote.",
+                self._tab_index(TAB_PATHS), lambda: paths.spreadsheet),
             TutorialStep(
                 "Spreadsheet range", "The cell range to read from the spreadsheet, "
                 "e.g. A2:A100000 to read every row after the header.",
-                self._tab_paths, lambda: paths.spreadsheet_range),
+                self._tab_index(TAB_PATHS), lambda: paths.spreadsheet_range),
             TutorialStep(
                 "Where results go", "Set the output folder and give this analysis run "
                 "a name — a subfolder with that name will hold all results and plots.",
-                self._tab_paths, lambda: paths.output_data_folder),
+                self._tab_index(TAB_PATHS), lambda: paths.output_data_folder),
             TutorialStep(
                 "Recording settings", "On the Recording tab, set the sampling frequency "
                 "of your acquisition (Hz) so spike detection and downsampling are correct.",
-                self._tab_recording, lambda: rec.fs),
+                self._tab_index(TAB_RECORDING), lambda: rec.fs),
             TutorialStep(
-                "Channel layout", "Pick the MEA layout that matches your hardware "
-                "(MCS60, Axion64, …). This maps channels to electrode positions.",
-                self._tab_recording, lambda: rec.channel_layout),
+                "Voltage units", "Set this to the units your recordings are in — µV for "
+                "Multi Channel Systems, V for Axion. Getting it wrong scales every "
+                "amplitude, so spike detection thresholds land in the wrong place.",
+                self._tab_index(TAB_RECORDING), lambda: rec.potential_difference_unit),
+            TutorialStep(
+                "Channel layout", "Pick the MEA layout that matches your hardware: MCS60 "
+                "for a 60-electrode MCS array, Axion64 for 6-well Axion plates, Axion16 "
+                "for 24-well plates (16 electrodes per well). This maps channels to "
+                "electrode positions.",
+                self._tab_index(TAB_RECORDING), lambda: rec.channel_layout),
             TutorialStep(
                 "Spike detection", "Step 1 detects spikes. Leave 'Detect spikes' ticked "
                 "for a fresh run; untick it if you already have detected spike data.",
-                self._tab_spike, lambda: spike.detect_spikes),
+                self._tab_index(TAB_SPIKE), lambda: spike.detect_spikes),
             TutorialStep(
                 "Detection thresholds", "These MAD multipliers set how far below the "
                 "median a deflection must go to count as a spike. 3, 4, 5 is a good start.",
-                self._tab_spike, lambda: spike.thresholds),
+                self._tab_index(TAB_SPIKE), lambda: spike.thresholds),
             TutorialStep(
                 "Connectivity lags", "Step 3 builds functional networks with the spike "
                 "time tiling coefficient. These lag values (ms) set the coincidence window.",
-                self._tab_connectivity, lambda: conn.lag_vals),
+                self._tab_index(TAB_CONNECTIVITY), lambda: conn.lag_vals),
             TutorialStep(
                 "Choose the steps", "On the Pipeline tab, pick which steps to run "
                 "(1–4). The default runs the whole pipeline end to end.",
-                self._pipeline_tab_index, lambda: pipe.start_step),
+                self._tab_index(TAB_PIPELINE), lambda: pipe.start_step),
             TutorialStep(
                 "Try it first", "Not sure your setup works? 'Test pipeline' downloads a "
                 "small example dataset and runs all four steps on it.",
-                self._pipeline_tab_index, lambda: pipe.test_btn),
+                self._tab_index(TAB_PIPELINE), lambda: pipe.test_btn),
             TutorialStep(
                 "Run the pipeline", "When your paths are filled in, press Run. Progress "
                 "appears in the status log, and 'View report' opens the results in your browser.",
-                self._pipeline_tab_index, lambda: pipe.run_btn),
+                self._tab_index(TAB_PIPELINE), lambda: pipe.run_btn),
         ]
 
     def _build_meastim_steps(self) -> list[TutorialStep]:
@@ -226,42 +383,44 @@ class MainWindow(QMainWindow):
         pipe = self._pipeline_panel
         return [
             TutorialStep(
-                "Raw data folder", "MEA-Stim reuses the same Paths tab. Start by choosing "
-                "the folder with your stimulation recordings.",
-                self._tab_paths, lambda: paths.raw_data),
+                "Raw data folder", "MEA-Stim reuses the same Paths tab. Choose the folder "
+                "with your stimulation recordings — .mat, Multi Channel Systems .h5 or "
+                "Axion .raw, no conversion needed.",
+                self._tab_index(TAB_PATHS), lambda: paths.raw_data),
             TutorialStep(
                 "Recording spreadsheet", "Select the CSV/XLSX listing each recording, "
                 "its group and DIV.",
-                self._tab_paths, lambda: paths.spreadsheet),
+                self._tab_index(TAB_PATHS), lambda: paths.spreadsheet),
             TutorialStep(
                 "Where results go", "Set the output folder and a name for this run's "
                 "results subfolder.",
-                self._tab_paths, lambda: paths.output_data_folder),
+                self._tab_index(TAB_PATHS), lambda: paths.output_data_folder),
             TutorialStep(
                 "Turn on MEA-Stim", "On the Stimulation tab, tick this to run the "
                 "stimulation analysis after spike detection.",
-                self._tab_stim, lambda: stim.stim_mode),
+                self._tab_index(TAB_STIM), lambda: stim.stim_mode),
             TutorialStep(
                 "Detection method", "Choose how stimulation artefacts are found. "
                 "'longblank' and 'blanking' suit blanked recordings; the threshold "
                 "methods detect by amplitude; 'axionStimEvents' reads an Axion CSV.",
-                self._tab_stim, lambda: stim.method),
+                self._tab_index(TAB_STIM), lambda: stim.method),
             TutorialStep(
                 "Analysis window", "Set the window around each stimulus (seconds) over "
                 "which evoked responses are measured — e.g. −0.03 to 0.03 s.",
-                self._tab_stim, lambda: stim.win_start),
+                self._tab_index(TAB_STIM), lambda: stim.win_start),
             TutorialStep(
                 "Significance test", "Responses are tested against shuffled surrogates. "
                 "More shuffles give a tighter p-value but take longer; 500 is a good default.",
-                self._tab_stim, lambda: stim.n_shuffles),
+                self._tab_index(TAB_STIM), lambda: stim.n_shuffles),
             TutorialStep(
                 "Preview detection", "The Stim Preview tab lets you check the detected "
                 "stimulus times on an example recording before running the full batch.",
-                self._tab_stim_preview, tabbar_target(self._tabs, self._tab_stim_preview)),
+                self._tab_index(TAB_STIM_PREVIEW),
+                tabbar_target(self._tabs, self._tab_index(TAB_STIM_PREVIEW))),
             TutorialStep(
                 "Run the pipeline", "On the Pipeline tab, press Run. Spike detection runs "
                 "first, then the stimulation analysis and its plots.",
-                self._pipeline_tab_index, lambda: pipe.run_btn),
+                self._tab_index(TAB_PIPELINE), lambda: pipe.run_btn),
         ]
 
     def _build_catnap_steps(self) -> list[TutorialStep]:
@@ -271,28 +430,43 @@ class MainWindow(QMainWindow):
             TutorialStep(
                 "Turn on CAT-NAP", "CAT-NAP analyses two-photon calcium imaging. On the "
                 "CAT-NAP tab, tick this to analyse suite2p output instead of MEA data.",
-                self._tab_catnap, lambda: cat._suite2p_mode),
+                self._tab_index(TAB_CATNAP), lambda: cat._suite2p_mode),
             TutorialStep(
-                "suite2p folder", "Point this to the parent folder containing your "
-                "suite2p output (the plane0 folders live beneath it).",
-                self._tab_catnap, lambda: cat._folder_edit),
+                "Recordings folder", "Point this at the folder holding all your "
+                "recordings — not at a single recording's folder. Each sub-folder's "
+                "name becomes that recording's name.",
+                self._tab_index(TAB_CATNAP), lambda: cat._folder_edit,
+                diagram="my_experiment/       ← pick this\n"
+                        "├── slice1_DIV14/    ← not this\n"
+                        "│   └── suite2p/plane0/\n"
+                        "├── slice2_DIV14/\n"
+                        "│   └── suite2p/plane0/\n"
+                        "└── slice3_DIV21/\n"
+                        "    └── suite2p/plane0/"),
             TutorialStep(
                 "Scan for recordings", "Press this to find every suite2p recording under "
                 "that folder. Select one to preview its traces.",
-                self._tab_catnap, lambda: cat._scan_btn),
+                self._tab_index(TAB_CATNAP), lambda: cat._scan_btn),
             TutorialStep(
                 "Denoising", "Optionally denoise the fluorescence traces before analysis. "
                 "The threshold multiplier and peak windows control event extraction.",
-                self._tab_catnap, lambda: cat._denoise_btn),
+                self._tab_index(TAB_CATNAP), lambda: cat._denoise_btn),
             TutorialStep(
                 "Run the pipeline", "With CAT-NAP mode on and a folder selected, go to "
                 "the Pipeline tab and press Run to analyse the imaging data.",
-                self._pipeline_tab_index, lambda: pipe.run_btn),
+                self._tab_index(TAB_PIPELINE), lambda: pipe.run_btn),
         ]
 
     # ── Param sync ────────────────────────────────────────────────────────────
 
     def _load_params(self, params: Params) -> None:
+        # A parameter file carries the pipeline it was written for, so follow
+        # it — otherwise opening a CAT-NAP config would leave the window showing
+        # ephys tabs while the run does 2P.
+        wanted = mode_for_params(params)
+        if wanted != self._mode:
+            self._apply_mode(wanted, sync_params=False)
+
         self._paths_panel.load(params)
         self._recording_panel.load(params)
         self._spike_panel.load(params)
@@ -370,7 +544,7 @@ class MainWindow(QMainWindow):
             out_folder = str(Path.home() / "MEA-NAP")
             self._paths_panel.output_data_folder.set_value(out_folder)
 
-        self._tabs.setCurrentIndex(self._pipeline_tab_index)
+        self._tabs.setCurrentIndex(self._tab_index(TAB_PIPELINE))
         self._pipeline_panel.append_log("Downloading example data for pipeline test…")
         QApplication.processEvents()
 
