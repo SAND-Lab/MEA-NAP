@@ -1,7 +1,75 @@
-function MEApipeline_run2_fromStep2(InputParamsFilePath)
+function MEApipeline_headless_fromStep2_20files(InputParamsFilePath)
 % Process data from MEA recordings of 2D and 3D neuronal cultures
 % Created: RC Feord, May 2021
 % Authors: T Sit, RC Feord, AWE Dunn, J Chabros and other members of the Synaptic and Network Development (SAND) Group
+%
+% =====================================================================
+% HEADLESS (Params.guiMode=0) copy of MEApipeline.m for running Steps 2-4
+% (neuronal activity -> functional connectivity -> network activity) on
+% ALREADY SPIKE-DETECTED data, skipping Step 1 entirely. This is the
+% pipeline entry point for data that arrives pre-spike-detected (e.g.
+% reformatted from another lab's pipeline), and for cluster submission via
+% `matlab -batch "MEApipeline_headless_fromStep2"` (see run_meanap.sh).
+%
+% WHAT YOU NEED BEFORE RUNNING THIS:
+%   1. A folder of "<RecordingName>_spikes.mat" files (one per recording),
+%      each containing at minimum: spikeTimes, spikeDetectionResult,
+%      channels (see Functions/formatSpikeTimes.m for the exact fields
+%      read). -> point `spikeDetectedData` at this folder below.
+%   2. A folder with one "<RecordingName>.mat" file per recording,
+%      containing ONLY a `channels` variable (the list of electrode/channel
+%      IDs present in that recording) -- setUpSpreadSheet.m reads this to
+%      build Params.channels/Params.coords. It does NOT need the actual
+%      voltage trace, so if you don't have the original raw recording, a
+%      few-KB placeholder file with just `channels` (e.g. copied out of the
+%      recording's own _spikes.mat) is enough -- see
+%      make_channel_placeholder_mats.m for a helper that does this.
+%      -> point `rawData` at this folder below.
+%   3. A CSV listing every recording to analyse (filename, DIV, group) —
+%      see docs/setting-up-meanap.rst's "Prepare batch analysis CSV file".
+%      -> point `spreadsheet_filename` at this file below.
+%
+% Real bugs in stock MEA-NAP found and worked around while building this
+% (all headless/non-GUI-execution issues -- the GUI's own parameter
+% construction in getParamsFromApp.m avoids these, which is presumably why
+% nobody had hit them before):
+%   1. batchDetectSpikes(...) needs a 6th arg in the non-GUI branch (MEANAPapp
+%      has no default) -- passed a placeholder struct() (harmless: Step 1 is
+%      skipped here anyway since detectSpikes=0, but kept for parity with
+%      the full-pipeline script).
+%   2. Params.electrodesToGroundPerRecording is left as a plain empty double
+%      `[]` by setUpSpreadSheet.m when the recording spreadsheet has no
+%      'Ground' column, but Step 2/3/4 unconditionally brace-index it
+%      (`{ExN}`), which only works on a cell array -- converted to a cell
+%      array of empty strings after setUpSpreadSheet runs.
+%   3. AdvancedSettings.m's default Params.netMetToCal includes 'PC_raw',
+%      whose computation is dead code in ExtractNetMet.m -- crashes Step 4.
+%      Overridden to the real list a completed GUI run actually uses.
+%   4. Several Params fields (Params.minActivityLevel and others below) are
+%      only ever set by getParamsFromApp.m (the GUI), with no
+%      AdvancedSettings.m fallback -- simply undefined in headless execution.
+%      Values below are taken from a real completed GUI run's exported
+%      Parameters_*.csv, not guessed.
+%   5. AdvancedSettings.m unconditionally resets Params.timeProcesses (and
+%      several other fields) after this script sets them -- anything you set
+%      above the "USER INPUT" section needs re-applying after the
+%      `AdvancedSettings` call below if AdvancedSettings.m also assigns it.
+%   6. Step 4's spike-reuse branch (search "FIX:" below) only checked
+%      Params.priorAnalysis==1 to decide whether to use `spikeDetectedData`,
+%      unlike Step 2/3 which also fall back to it whenever detectSpikes==0.
+%      That meant the documented "priorAnalysis=0, startAnalysisStep=2,
+%      detectSpikes=0, spikeDetectedData=<folder>" config (exactly this
+%      script's use case) crashed in Step 4 even though Step 2 handled the
+%      identical config fine. Patched to match Step 2/3's pattern.
+%   7. Under -batch/-nodisplay + software OpenGL (common on a headless HPC
+%      node), PlotIndvNetMet.m's copyobj() figure-merge for the "combined"
+%      side-by-side network plot can throw "TriangleStrip cannot be a child
+%      of Rectangle" -- an OpenGL renderer/primitive mismatch, not a data
+%      problem. Functions/PlotIndvNetMet.m now wraps that one plot in a
+%      try/catch so it's skipped (logged) rather than crashing the run;
+%      forcing the 'painters' renderer below reduces how often this
+%      triggers but doesn't eliminate it on this MATLAB/driver combination.
+% =====================================================================
 %% USER INPUT REQUIRED FOR THIS SECTION
 % In this section all modifiable parameters of the analysis are defined.
 % No subsequent section requires user input.
@@ -22,51 +90,44 @@ cd(MEANAPfolder)
 
 restoredefaultpath
 
+% ============================ EDIT PER DATASET ============================
 % Directories
-% --- MODIFIED FOR HEADLESS TIMING BENCHMARK (vs. the Python port) ---
-% All settings below mirror Parameters_OutputData26Jun2025.csv, a real
-% GUI-driven MATLAB run on this exact ExampleData/, so this is an
-% apples-to-apples config vs. the Python side rather than a guess.
-HomeDir = '/home/ad04/GitHub/MEA-NAP';
-Params.outputDataFolder = '/imaging/astle/alex/MEA-NAP-storage/OutputData';
-Params.outputDataFolderName = 'OutputDataExampleRun2FromStep2';
-rawData = '/imaging/astle/alex/MEA-NAP-storage/ExampleData';
-Params.priorAnalysisPath = '/imaging/astle/alex/MEA-NAP-storage/OutputData/OutputDataExampleRun1';
-% Step 4's spike-reuse branch only checks Params.priorAnalysis (not detectSpikes,
-% unlike Step 2/3), so priorAnalysis must be 1 here even though we're not using
-% Params.priorAnalysisDate-style prior *network* metrics — just reusing spikes.
-% priorAnalysisFolderName/SubFolderName are normally derived by getParamsFromApp.m
-% (the GUI) by splitting priorAnalysisPath; headless execution skips that, so set
-% them explicitly to match (see setUpSpreadSheet.m's prevParamFpath lookup).
-Params.priorAnalysisFolderName = '/imaging/astle/alex/MEA-NAP-storage/OutputData';
-Params.priorAnalysisSubFolderName = 'OutputDataExampleRun1';
-spikeDetectedData = '/imaging/astle/alex/MEA-NAP-storage/OutputData/OutputDataExampleRun1/1_SpikeDetection/1A_SpikeDetectedData';
+HomeDir = '/home/ad04/GitHub/MEA-NAP';                                    % EDIT: where this repo lives
+Params.outputDataFolder = '/imaging/astle/alex/MEA-NAP-storage/OutputData'; % EDIT: where to write results
+Params.outputDataFolderName = 'OutputData20FilesFromStep2'; % EDIT: name for this run's output subfolder
+rawData = '/imaging/astle/alex/MEA-NAP-storage/ExampleData_20files/ChannelPlaceholders'; % EDIT: folder of "<name>.mat" channel-placeholder (or real raw) files
+Params.priorAnalysisPath = [''];   % leave empty -- not used when priorAnalysis=0
+spikeDetectedData = '/imaging/astle/alex/MEA-NAP-storage/ExampleData_20files/SpikeDetectedData'; % EDIT: folder of "<name>_spikes.mat" files
 
 % Input and output filetype
 spreadsheet_file_type = 'csv'; % 'csv' or 'excel'
-spreadsheet_filename = '/imaging/astle/alex/MEA-NAP-storage/ExampleData/exampleData_subset.csv';
+spreadsheet_filename = '/imaging/astle/alex/MEA-NAP-storage/ExampleData_20files/exampleData_20files.csv'; % EDIT: batch CSV (filename, DIV, group[, Ground])
 sheet = 1; % specify excel sheet
 xlRange = 'A2:C7'; % specify range on the sheet (e.g., 'A2:C7' would analyse the first 6 files)
-csvRange = [2, 3]; % 2 recordings, matching the Python benchmark's spreadsheet_range='A2:A3'
+csvRange = [2, Inf]; % [2, Inf] = read all rows; e.g. [2, 3] = just the first recording
 Params.output_spreadsheet_file_type = 'csv';  % .xlsx or .csv
+% ============================================================================
 
 % Analysis step settings
 Params.priorAnalysisDate = '';
-Params.priorAnalysis = 1;
-Params.startAnalysisStep = 2; % DEBUG: skip step 1 (spike files already exist from a prior run)
+Params.priorAnalysis = 0;      % keep 0 -- see "FIX" #6 above for why (not the documented meaning of "no prior analysis")
+Params.startAnalysisStep = 2;  % 2 = start at neuronal activity, skipping spike detection
 Params.optionalStepsToRun = {''};
 
-% Spike detection settings
-detectSpikes = 0; % DEBUG: skip re-running spike detection, reuse prior output
+% Spike detection settings -- thresholds/wnameList/costList are unused here
+% (detectSpikes=0 means Step 1 never runs) but fs/channelLayout/
+% potentialDifferenceUnit still matter: they determine the electrode
+% coordinate layout and units used when interpreting the existing spike data.
+detectSpikes = 0; % must be 0: this script starts from already-detected spikes
 Params.runSpikeCheckOnPrevSpikeData = 0;
-Params.fs = 12500; % Axion sampling rate (this dataset), matches the real reference run
+Params.fs = 12500;                    % EDIT: sampling frequency (Hz) used for these recordings
 Params.dSampF = 12500;
-Params.potentialDifferenceUnit = 'V'; % Axion uses V, not uV
-Params.channelLayout = 'Axion64'; % this dataset's real layout (not the MCS60 default)
+Params.potentialDifferenceUnit = 'V'; % EDIT: 'uV' (MCS) or 'V' (Axion)
+Params.channelLayout = 'Axion64';     % EDIT: 'MCS60', 'Axion64', or 'MCS60old'
 Params.thresholds = {'3', '4', '5'};
-Params.wnameList = {'bior1.5'}; % single wavelet method, matching Python's default (not the 3-method default)
+Params.wnameList = {'bior1.5', 'bior1.3', 'db2'};
 Params.costList = -0.12;
-Params.SpikesMethod = 'bior1p5';
+Params.SpikesMethod = 'bior1p5';      % EDIT: must match the method used to generate the existing spike files
 
 % Functional connectivity inference settings
 Params.FuncConLagval = [10, 25, 50];
@@ -95,17 +156,12 @@ Params.figExt = {'.png'}; % PNG only, matching Python's default (not the 2-forma
 Params.fullSVG = 0;
 Params.showOneFig = 1;
 
-% Re-computation of metrics 
-% Params.priorAnalysis=1 (set above, needed for Step 4's spike-reuse branch)
-% makes ExtractNetMet.m load Params.priorAnalysisPath's own NetMet as a cache
-% (checkIfRecomputeMetric.m) and reuse Eloc/BC/Z/PC/Eglob/SW from it whenever
-% recomputeMetrics=0 — but Step 3's probabilistic thresholding is stochastic,
-% so a fresh run's adjM/active-node set can differ from the cached run's,
-% desyncing those metrics' length from freshly-computed ND/MEW/NS and crashing
-% saveNetMet.m's struct2table ("Table conversion failed"). Force full
-% recomputation to keep everything derived from this run's own adjM.
-Params.recomputeMetrics = 1;
-Params.metricsToRecompute = {'all'};
+% Re-computation of metrics
+% (ExtractNetMet.m's prevNetMet cache only activates when Params.priorAnalysis==1,
+% which this script keeps at 0 -- see "FIX" #6 above -- so these are moot here,
+% left at stock defaults for clarity.)
+Params.recomputeMetrics = 0;
+Params.metricsToRecompute = {};
 
 %% GUI / Tutorial mode settings
 Params.guiMode = 0;   % headless — required for non-interactive matlab -batch execution
@@ -192,15 +248,9 @@ end
 % AdvancedSettings.m unconditionally resets this — re-apply after it runs.
 Params.timeProcesses = 1;
 
-% AdvancedSettings.m also unconditionally resets these two to 0/{} — re-apply
-% after it runs. Needed here because Params.priorAnalysis=1 makes ExtractNetMet.m
-% cache-reuse hub metrics (Eloc/BC/Z/PC) from Params.priorAnalysisPath's own
-% NetMet data via checkIfRecomputeMetric.m whenever recomputeMetrics=0, and that
-% cached data can have a different active-node count than this run's freshly
-% thresholded adjM (Step 3 is stochastic), desyncing array lengths and crashing
-% saveNetMet.m's struct2table.
-Params.recomputeMetrics = 1;
-Params.metricsToRecompute = {'all'};
+% (AdvancedSettings.m also resets Params.recomputeMetrics/metricsToRecompute,
+% but back to the same 0/{} defaults this script wants -- see the comment
+% by their first assignment above -- so no re-apply needed here.)
 
 % See MEApipeline_timingBenchmark.m for why: AdvancedSettings.m's default
 % netMetToCal includes 'PC_raw', whose computation is dead code, crashing
@@ -912,19 +962,30 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
                 mkdir(idvNetworkAnalysisFNFolder)
             end 
 
+            % FIX: stock MEA-NAP only reuses spikeDetectedData here when
+            % Params.priorAnalysis==1, unlike Step 2/3 which also fall back to
+            % it whenever detectSpikes==0 (see Step 2's equivalent block above).
+            % That asymmetry means "priorAnalysis=0, startAnalysisStep=2,
+            % detectSpikes=0, spikeDetectedData=<folder>" — the documented way
+            % to reuse previously-detected spikes without a full prior
+            % MEA-NAP run to point Params.priorAnalysisPath at — crashes here
+            % in Step 4 even though Step 2 handled the identical config fine.
+            % Added the same detectSpikes fallback Step 2/3 already use.
             if Params.priorAnalysis == 1
                 if isempty(spikeDetectedData)
                     spikeDetectedDataFolder = fullfile(Params.outputDataFolder, ...
                         Params.outputDataFolderName, '1_SpikeDetection', ...
                         '1A_SpikeDetectedData');
-                else 
+                else
                     spikeDetectedDataFolder = spikeDetectedData;
-                end 
+                end
+            elseif detectSpikes == 0 && ~isempty(spikeDetectedData)
+                spikeDetectedDataFolder = spikeDetectedData;
             else
                 spikeDetectedDataFolder = fullfile(Params.outputDataFolder, ...
                         Params.outputDataFolderName, '1_SpikeDetection', ...
                         '1A_SpikeDetectedData');
-            end 
+            end
 
             channelLayout = Params.channelLayoutPerRecording{ExN};
             electrodesToGround = Params.electrodesToGroundPerRecording{ExN};

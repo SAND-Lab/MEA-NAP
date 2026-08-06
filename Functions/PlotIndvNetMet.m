@@ -293,6 +293,17 @@ for e = 1:length(lagval)
             %}
             
             %
+            % NOTE: under headless (-nodisplay/-batch) execution on some MATLAB/
+            % graphics-driver combinations (seen with software OpenGL on a
+            % remote/HPC node), copyobj() below can throw "TriangleStrip cannot
+            % be a child of Rectangle" — an OpenGL-primitive/renderer mismatch
+            % between the source figures and the destination subplot axes, not
+            % a data problem. That failure only affects this one side-by-side
+            % convenience figure; wrapped in try/catch so it doesn't take down
+            % the rest of Step 4 (all the other individual plots and metrics
+            % for this recording are unaffected). If you hit this, please open
+            % a GitHub issue with your MATLAB version/graphics driver.
+            try
             combinedFigure = figure('visible','off'); % create a new figure for saving and printing
             p =  [50   100   660*2 + 400  550];
             set(combinedFigure, 'Position', p);
@@ -303,54 +314,60 @@ for e = 1:length(lagval)
                 h1cbar = colorbar(h(1));
                 h1cbar.Location = cbOriginal.Location;
                 h1cbar.Limits = cbOriginal.Limits;
-                h1cbar.Label.String = cbOriginal.Label.String; 
+                h1cbar.Label.String = cbOriginal.Label.String;
                 h1cbar.Units = cbOriginal.Units;
                 h1cbar.Ticks = cbOriginal.Ticks;
                 h1cbar.TickLabels = cbOriginal.TickLabels;
-                
+
                 h2cbar = colorbar(h(2));
-               
-                h2cbar.Location = cbScaled.Location; 
+
+                h2cbar.Location = cbScaled.Location;
                 h2cbar.Limits = cbScaled.Limits;
                 h2cbar.Label.String = cbScaled.Label.String;
                 h2cbar.Units = cbScaled.Units;
                 h2cbar.Ticks = cbScaled.Ticks;
                 h2cbar.TickLabels = cbScaled.TickLabels;
-            end 
+            end
             axis off
-            
-            copyobj(allchild(get(figureHandleOriginal, 'Currentaxes')), h(1)); 
-            copyobj(allchild(get(figureHandleScaled, 'Currentaxes')), h(2)); 
-            
+
+            copyobj(allchild(get(figureHandleOriginal, 'Currentaxes')), h(1));
+            copyobj(allchild(get(figureHandleScaled, 'Currentaxes')), h(2));
+
             if ~sum(isnan(colorMapMetricsToPlot{networkPlotIdx}))
                % The default doesn't work sometimes, so hard-coding it now
                h1cbar.Position = [0.51, 0.1109, 0.0123, 0.8145];
                h2cbar.Position = [0.95, 0.1109, 0.0123, 0.8145];
             end
             %}
-            
+
             set(gcf, 'color', 'white');
-            
+
             if isnan(colorMapMetricName{networkPlotIdx})
                 figPath = fullfile(lagFolderName, ...
                 sprintf('%s_combined_MEA_NetworkPlot', plotPrefixes{networkPlotIdx}));
             else
                 figPath = fullfile(lagFolderName, ...
-                sprintf('%s_combined_MEA_NetworkPlot_%s', plotPrefixes{networkPlotIdx}, ... 
+                sprintf('%s_combined_MEA_NetworkPlot_%s', plotPrefixes{networkPlotIdx}, ...
                 colorMapMetricName{networkPlotIdx}));
             end
-            
+
             pipelineSaveFig(figPath, Params.figExt, Params.fullSVG, combinedFigure);
-            
+
             if Params.timeProcesses
                 toc
-            end 
-            
-            
-            
-            close(figureHandleOriginal) 
-            close(figureHandleScaled) 
+            end
+
             close(combinedFigure)
+            catch mergeErr
+                fprintf('WARNING: could not create combined side-by-side network plot for %s (%s): %s\n', ...
+                    char(Info.FN), plotPrefixes{networkPlotIdx}, mergeErr.message)
+                if exist('combinedFigure', 'var') && isvalid(combinedFigure)
+                    close(combinedFigure)
+                end
+            end
+
+            close(figureHandleOriginal)
+            close(figureHandleScaled)
             
             % delete(figureHandleOriginal) 
             % delete(figureHandleScaled) 

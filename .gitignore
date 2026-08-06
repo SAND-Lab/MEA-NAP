@@ -18,5 +18,14 @@ OutputData*/
 ExampleData/
 local/
 
+# MATLAB Parallel Computing Toolbox job storage (regenerated every parpool run,
+# e.g. by Step 3's probabilistic thresholding -- see CLUSTER_SUBMISSION.md)
+Job*.in.mat
+Job*.out.mat
+Job*.state.mat
+Job*.common.mat
+Job[0-9]*/
+meanap-*.log
+
 # Sphinx autosummary-generated API stub pages (regenerated on every docs build)
 docs/python/api/generated/
