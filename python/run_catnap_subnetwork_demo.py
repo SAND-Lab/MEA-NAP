@@ -29,7 +29,6 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
-import numpy as np  # noqa: E402
 
 from meanap.catnap.pipeline import run_catnap_pipeline  # noqa: E402
 from meanap.catnap.subnetwork import EXCITATORY_INHIBITORY_PRESET  # noqa: E402
@@ -91,7 +90,6 @@ def main() -> int:
     run_catnap_pipeline(
         params, recordings, out_root,
         log=lambda m: print(m, flush=True),
-        rng=np.random.default_rng(params.random_seed),
     )
     print(f"\nDone in {time.time() - start:.0f}s → {out_root}")
 

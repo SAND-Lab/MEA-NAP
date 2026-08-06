@@ -2,6 +2,8 @@ import math
 from pathlib import Path
 
 import numpy as np
+from meanap.pipeline.figure_output import savefig
+from meanap.pipeline.rng import derive_seed_int
 import matplotlib.pyplot as plt
 from matplotlib.colors import LinearSegmentedColormap
 import seaborn as sns
@@ -12,21 +14,36 @@ from meanap.pipeline.plotting_step4 import plot_half_violin_by_x
 # Create 85% parula colormap
 parula_85 = LinearSegmentedColormap.from_list('parula_85', parula_data[:int(len(parula_data)*0.85)])
 
-def plot_firing_rate_distribution(ephys: dict, out_path: Path):
+def plot_firing_rate_distribution(ephys: dict, out_path: Path, seed: int | None = None):
+    """Violin + jittered strip of per-electrode firing rate.
+
+    ``seed`` fixes the strip plot's jitter. seaborn draws it from numpy's
+    *legacy global* random state and offers no seed argument, so the state is
+    set and restored around the call rather than threaded through. Without
+    this the figure differs between two otherwise-identical seeded runs — and
+    between the pipeline's copy and one redrawn from a bundle.
+    """
     fr = ephys.get("FR", [])
     if len(fr) == 0:
         return
-        
-    fig, ax = plt.subplots(figsize=(4, 6))
-    sns.violinplot(y=fr, ax=ax, inner=None, color="lightgray")
-    sns.stripplot(y=fr, ax=ax, color="black", size=4, jitter=True)
+
+    state = np.random.get_state() if seed is not None else None
+    if seed is not None:
+        np.random.seed(seed)
+    try:
+        fig, ax = plt.subplots(figsize=(4, 6))
+        sns.violinplot(y=fr, ax=ax, inner=None, color="lightgray")
+        sns.stripplot(y=fr, ax=ax, color="black", size=4, jitter=True)
+    finally:
+        if state is not None:
+            np.random.set_state(state)
     
     ax.set_ylabel("Mean firing rate per electrode (Hz)")
     ax.set_title("Firing Rate by Electrode")
     
     ax.set_ylim(bottom=0)
     plt.tight_layout()
-    fig.savefig(out_path, dpi=300)
+    savefig(fig, out_path, default_dpi=300)
     plt.close(fig)
 
 def _draw_heatmap_panel(ax, xs, ys, metric, valid_mask, vmin, vmax, cmap, clabel, panel_title):
@@ -88,7 +105,7 @@ def plot_heatmap(
         fig, ax = plt.subplots(figsize=(6, 5))
         _draw_heatmap_panel(ax, xs, ys, metric, valid_mask, vmin, recording_vmax, cmap, clabel, title)
         plt.tight_layout()
-        fig.savefig(out_path, dpi=300)
+        savefig(fig, out_path, default_dpi=300)
         plt.close(fig)
         return
 
@@ -102,7 +119,7 @@ def plot_heatmap(
     _draw_heatmap_panel(ax_batch, xs, ys, metric, valid_mask, vmin, batch_vmax, cmap,
                         clabel, f"{title}\nscaled to entire dataset")
     plt.tight_layout()
-    fig.savefig(out_path, dpi=300)
+    savefig(fig, out_path, default_dpi=300)
     plt.close(fig)
 
 def plot_raster(
@@ -154,7 +171,7 @@ def plot_raster(
     ax_batch.set_xlabel("Time (s)")
 
     plt.tight_layout()
-    fig.savefig(out_path, dpi=300)
+    savefig(fig, out_path, default_dpi=300)
     plt.close(fig)
 
 def plot_burst_detection_info(spike_times_dict: dict, ephys: dict, duration_s: float, fs: float, out_path: Path):
@@ -239,8 +256,27 @@ def plot_burst_detection_info(spike_times_dict: dict, ephys: dict, duration_s: f
                 ax_isi.set_title("ISI Distribution")
     
     plt.tight_layout()
-    fig.savefig(out_path, dpi=300)
+    savefig(fig, out_path, default_dpi=300)
     plt.close(fig)
+
+#: The per-channel heatmaps, as ``(figure name, ephys key, title, colour-bar
+#: label, colormap)``. One list rather than six near-identical call sites, so
+#: the pipeline and the bundle renderer cannot disagree about which figures
+#: exist or what they are called.
+ACTIVITY_HEATMAPS = (
+    ("2_Heatmap.png", "FR", "Firing Rate", "Mean FR (Hz)", "viridis"),
+    ("3_BurstRate_heatmap.png", "channelBurstRate", "Burst Rate",
+     "Burst Rate (bursts/min)", "plasma"),
+    ("4_BurstDur_heatmap.png", "channelBurstDur", "Burst Duration",
+     "Duration (ms)", "plasma"),
+    ("5_FractSpikesInBursts_heatmap.png", "channelFracSpikesInBursts",
+     "Fraction Spikes in Bursts", "Fraction", "plasma"),
+    ("6_ISIwithinBurst_heatmap.png", "channelISIwithinBurst", "ISI Within Burst",
+     "ISI (ms)", "plasma"),
+    ("7_ISIoutsideBurst_heatmap.png", "channeISIoutsideBurst",
+     "ISI Outside Burst", "ISI (ms)", "plasma"),
+)
+
 
 def plot_neuronal_activity_checks(
     rec,
@@ -254,36 +290,58 @@ def plot_neuronal_activity_checks(
     output_root: Path,
     spike_freq_max: float | None = None,
     batch_max: dict | None = None,
-):
+    fmt: str = "png",
+    only: str | None = None,
+) -> list[Path]:
+    """Draw one recording's step-2 activity figures.
+
+    ``fmt`` selects the image format (``svg``/``pdf`` give vector output) and
+    ``only`` restricts the call to the single figure with that base name — the
+    two hooks the bundle viewer needs to render one plot per request. Both
+    default to the pipeline's behaviour: every figure, as PNG.
+
+    Returns the paths actually written.
+    """
     out_dir = output_root / rec.group / rec.filename
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    plot_firing_rate_distribution(ephys, out_dir / "1_FiringRateByElectrode.png")
+    written: list[Path] = []
+
+    def want(name: str) -> Path | None:
+        stem = Path(name).stem
+        if only is not None and stem != only:
+            return None
+        path = out_dir / f"{stem}.{fmt}"
+        written.append(path)
+        return path
 
     channel_layout = getattr(params, "channel_layout", "Axion64")
     bmax = batch_max or {}
 
-    if "FR" in ephys:
-        plot_heatmap(ephys["FR"], chs, "Firing Rate", "Mean FR (Hz)", out_dir / "2_Heatmap.png", channel_layout=channel_layout, batch_max=bmax.get("FR"))
+    if (p := want("1_FiringRateByElectrode.png")) is not None:
+        plot_firing_rate_distribution(
+            ephys, p,
+            seed=derive_seed_int(params.random_seed, "step2-plots", rec.filename))
 
-    plot_raster(
-        spike_times_dict, duration_s, out_dir / "3_Raster.png",
-        spike_freq_max=spike_freq_max,
-        raster_upper_percentile=getattr(params, "raster_plot_upper_percentile", 99.0),
-    )
+    for name, key, title, cbar, cmap in ACTIVITY_HEATMAPS:
+        if key not in ephys:
+            continue
+        if (p := want(name)) is not None:
+            plot_heatmap(ephys[key], chs, title, cbar, p, cmap=cmap,
+                         channel_layout=channel_layout, batch_max=bmax.get(key))
 
-    if "channelBurstRate" in ephys:
-        plot_heatmap(ephys["channelBurstRate"], chs, "Burst Rate", "Burst Rate (bursts/min)", out_dir / "3_BurstRate_heatmap.png", cmap="plasma", channel_layout=channel_layout, batch_max=bmax.get("channelBurstRate"))
-    if "channelBurstDur" in ephys:
-        plot_heatmap(ephys["channelBurstDur"], chs, "Burst Duration", "Duration (ms)", out_dir / "4_BurstDur_heatmap.png", cmap="plasma", channel_layout=channel_layout, batch_max=bmax.get("channelBurstDur"))
-    if "channelFracSpikesInBursts" in ephys:
-        plot_heatmap(ephys["channelFracSpikesInBursts"], chs, "Fraction Spikes in Bursts", "Fraction", out_dir / "5_FractSpikesInBursts_heatmap.png", cmap="plasma", channel_layout=channel_layout, batch_max=bmax.get("channelFracSpikesInBursts"))
-    if "channelISIwithinBurst" in ephys:
-        plot_heatmap(ephys["channelISIwithinBurst"], chs, "ISI Within Burst", "ISI (ms)", out_dir / "6_ISIwithinBurst_heatmap.png", cmap="plasma", channel_layout=channel_layout, batch_max=bmax.get("channelISIwithinBurst"))
-    if "channeISIoutsideBurst" in ephys:
-        plot_heatmap(ephys["channeISIoutsideBurst"], chs, "ISI Outside Burst", "ISI (ms)", out_dir / "7_ISIoutsideBurst_heatmap.png", cmap="plasma", channel_layout=channel_layout, batch_max=bmax.get("channeISIoutsideBurst"))
-        
-    plot_burst_detection_info(spike_times_dict, ephys, duration_s, fs, out_dir / "8_BurstDetectionInfo.png")
+    if (p := want("3_Raster.png")) is not None:
+        plot_raster(
+            spike_times_dict, duration_s, p,
+            spike_freq_max=spike_freq_max,
+            raster_upper_percentile=getattr(params, "raster_plot_upper_percentile", 99.0),
+        )
+
+    if (p := want("8_BurstDetectionInfo.png")) is not None:
+        plot_burst_detection_info(spike_times_dict, ephys, duration_s, fs, p)
+
+    return [p for p in written if p.exists()]
+
 
 import pandas as pd
 
@@ -341,14 +399,15 @@ def _plot_violin(df: pd.DataFrame, metric: str, group_col: str, out_path: Path, 
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
     fig.tight_layout()
-    fig.savefig(out_path, dpi=300, bbox_inches="tight")
+    savefig(fig, out_path, default_dpi=300, bbox_inches="tight")
     plt.close(fig)
 
 def plot_step2_group_comparisons(
     recordings: list,
     all_ephys: dict,
     out_dir: Path,
-    custom_grp_order: list[str] | None = None
+    custom_grp_order: list[str] | None = None,
+    fmt: str = "png",
 ) -> None:
     """Generate group comparison plots for step 2."""
     rec_rows = []
@@ -398,7 +457,7 @@ def plot_step2_group_comparisons(
     
     for k, name in EPHYS_REC_METRICS.items():
         plot_half_violin_by_x(df_rec, k, name, "group",
-                              grp_dir / f"{k}_byGroup.png", group_order=custom_grp_order)
+                              grp_dir / f"{k}_byGroup.{fmt}", group_order=custom_grp_order)
 
     # 1_NodeByGroup
     node_grp_dir = out_dir / "2B_GroupComparisons" / "1_NodeByGroup"
@@ -406,7 +465,7 @@ def plot_step2_group_comparisons(
 
     for k, name in EPHYS_NODE_METRICS.items():
         plot_half_violin_by_x(df_node, k, name, "group",
-                              node_grp_dir / f"{k}_byGroup_node.png", group_order=custom_grp_order)
+                              node_grp_dir / f"{k}_byGroup_node.{fmt}", group_order=custom_grp_order)
 
     # 4_RecordingsByAge
     age_dir = out_dir / "2B_GroupComparisons" / "4_RecordingsByAge" / "HalfViolinPlots"
@@ -414,7 +473,7 @@ def plot_step2_group_comparisons(
 
     for k, name in EPHYS_REC_METRICS.items():
         plot_half_violin_by_x(df_rec, k, name, "DIV",
-                              age_dir / f"{k}_byDIV.png", group_order=custom_grp_order)
+                              age_dir / f"{k}_byDIV.{fmt}", group_order=custom_grp_order)
 
     # 2_NodeByAge
     node_age_dir = out_dir / "2B_GroupComparisons" / "2_NodeByAge"
@@ -422,4 +481,4 @@ def plot_step2_group_comparisons(
 
     for k, name in EPHYS_NODE_METRICS.items():
         plot_half_violin_by_x(df_node, k, name, "DIV",
-                              node_age_dir / f"{k}_byDIV_node.png", group_order=custom_grp_order)
+                              node_age_dir / f"{k}_byDIV_node.{fmt}", group_order=custom_grp_order)

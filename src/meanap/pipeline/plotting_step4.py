@@ -11,6 +11,11 @@ Not ported: null-model panels (small-worldness — stochastic, see
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from meanap.network_plot import NetworkStyle
+
 from pathlib import Path
 
 import matplotlib
@@ -19,6 +24,7 @@ matplotlib.use("Agg")
 import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import numpy as np
+from meanap.pipeline.figure_output import savefig
 
 from meanap.network_plot import plot_network
 from meanap.params import Params
@@ -93,7 +99,7 @@ def plot_connectivity_stats(
 
     fig.tight_layout()
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(out_path, dpi=150)
+    savefig(fig, out_path, default_dpi=150)
     plt.close(fig)
 
 
@@ -116,6 +122,7 @@ def plot_spatial_network(
     cell_types: tuple[np.ndarray, list[str]] | None = None,
     background: tuple | None = None,
     node_size_scale: float | str = 1.0,
+    style: "NetworkStyle | None" = None,
 ) -> None:
     """Spatial network plot, port of the base ``2_MEA_NetworkPlot.png`` from
     ``StandardisedNetworkPlot.m`` (reuses ``network_plot.py``'s
@@ -142,6 +149,18 @@ def plot_spatial_network(
         return
     sub, coords, z_sub, z2_sub, ct_matrix = prepared
 
+    # ``style`` carries the Network Viewer control set (edge subsampling and
+    # threshold, layout, node scaling, edge widths, colormap). Left as None the
+    # pipeline's long-standing styling applies unchanged — see
+    # NetworkStyle.pipeline_default, which the renderer relies on for parity.
+    from meanap.network_plot import NetworkStyle
+
+    if style is None:
+        # No restyling: keep the caller's edge_thresh and coordinates exactly.
+        style = NetworkStyle.pipeline_default(node_size_scale)
+    else:
+        sub, coords, edge_thresh = style.prepare(sub, coords)
+
     scaled = z_scale_override is not None
     title_suffix = " (scaled to data batch)" if scaled else ""
     fig, ax = plt.subplots(figsize=(8, 8))
@@ -152,11 +171,17 @@ def plot_spatial_network(
         z2_bounds_override=z2_bounds_override,
         edge_bounds_override=edge_bounds_override,
         cell_type_matrix=ct_matrix, cell_type_names=ct_names,
-        background=background, node_size_scale=node_size_scale,
+        background=background,
+        node_size_scale=style.node_size_scale,
+        node_scaling_method=style.node_scaling_method,
+        node_scaling_power=style.node_scaling_power,
+        min_node_size=style.min_node_size,
+        min_ew=style.min_edge_width, max_ew=style.max_edge_width,
+        colormap=style.colormap,
     )
     fig.tight_layout()
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(out_path, dpi=150)
+    savefig(fig, out_path, default_dpi=150)
     plt.close(fig)
 
 
@@ -219,7 +244,7 @@ def plot_network_beside_field(
 
     fig.tight_layout()
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(out_path, dpi=150)
+    savefig(fig, out_path, default_dpi=150)
     plt.close(fig)
 
 
@@ -322,7 +347,7 @@ def plot_spatial_network_combined(
     )
     fig.tight_layout()
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(out_path, dpi=150)
+    savefig(fig, out_path, default_dpi=150)
     plt.close(fig)
 
 
@@ -463,7 +488,7 @@ def plot_node_cartography(
         ax.legend(loc="upper left", bbox_to_anchor=(1.02, 1.0), fontsize=8, frameon=False)
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(out_path, dpi=150, bbox_inches="tight")
+    savefig(fig, out_path, default_dpi=150, bbox_inches="tight")
     plt.close(fig)
 
 
@@ -779,7 +804,7 @@ def plot_circular_module_network(
         )
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(out_path, dpi=150, bbox_inches="tight")
+    savefig(fig, out_path, default_dpi=150, bbox_inches="tight")
     plt.close(fig)
 
 
@@ -920,7 +945,7 @@ def plot_circular_cartography_network(
         current_y -= 0.08
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(out_path, dpi=150, bbox_inches="tight")
+    savefig(fig, out_path, default_dpi=150, bbox_inches="tight")
     plt.close(fig)
 
 
@@ -1218,7 +1243,7 @@ def plot_half_violin_by_x(
                  ha="center", va="bottom", fontsize=8, color="0.5")
 
     fig.tight_layout()
-    fig.savefig(out_path, dpi=300, bbox_inches="tight")
+    savefig(fig, out_path, default_dpi=300, bbox_inches="tight")
     plt.close(fig)
 
 
@@ -1320,8 +1345,8 @@ def plot_node_cartography_by_lag(
                       bbox_to_anchor=(1.01, 0.5), fontsize=8, frameon=False)
 
         fig.tight_layout()
-        fig.savefig(out_dir / f"NodeCartography{_lag_num(lag)}mslag.png",
-                    dpi=300, bbox_inches="tight")
+        savefig(fig, out_dir / f"NodeCartography{_lag_num(lag)}mslag.png",
+                default_dpi=300, bbox_inches="tight")
         plt.close(fig)
 
 
@@ -1362,7 +1387,7 @@ def plot_density_landscape(
     ax.spines["right"].set_visible(False)
     fig.tight_layout()
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(out_path, dpi=300, bbox_inches="tight")
+    savefig(fig, out_path, default_dpi=300, bbox_inches="tight")
     plt.close(fig)
 
 
@@ -1453,7 +1478,7 @@ def plot_graph_metrics_by_lag(
             plt.close(fig)
             continue
         fig.tight_layout()
-        fig.savefig(out_dir / f"{metric}.png", dpi=300, bbox_inches="tight")
+        savefig(fig, out_dir / f"{metric}.png", default_dpi=300, bbox_inches="tight")
         plt.close(fig)
 
 
@@ -1614,7 +1639,7 @@ def plot_graph_metrics_by_node(
                 ax.set_ylim(*ylim)
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(out_path, dpi=150, bbox_inches="tight")
+    savefig(fig, out_path, default_dpi=150, bbox_inches="tight")
     plt.close(fig)
 
 import pandas as pd
@@ -1691,14 +1716,15 @@ def _plot_violin(df: pd.DataFrame, metric: str, group_col: str, out_path: Path, 
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
     fig.tight_layout()
-    fig.savefig(out_path, dpi=300, bbox_inches="tight")
+    savefig(fig, out_path, default_dpi=300, bbox_inches="tight")
     plt.close(fig)
 
 def plot_step4_group_comparisons(
     recordings: list,
     all_results: dict,
     out_dir: Path,
-    custom_grp_order: list[str] | None = None
+    custom_grp_order: list[str] | None = None,
+    fmt: str = "png",
 ) -> None:
     """Generate group comparison plots for step 4."""
     rec_rows = []
@@ -1760,7 +1786,7 @@ def plot_step4_group_comparisons(
         df_rec_lag = df_rec[df_rec["Lag"] == lag]
         for k, name in NETMET_REC_METRICS.items():
             plot_half_violin_by_x(df_rec_lag, k, name, "group",
-                                  lag_grp_dir / f"{k}_byGroup.png",
+                                  lag_grp_dir / f"{k}_byGroup.{fmt}",
                                   group_order=custom_grp_order)
 
         lag_node_grp_dir = node_grp_dir / f"Lag{lag_str}ms" if "ms" not in str(lag_str) else node_grp_dir / f"Lag{lag_str}"
@@ -1769,7 +1795,7 @@ def plot_step4_group_comparisons(
         df_node_lag = df_node[df_node["Lag"] == lag]
         for k, name in NETMET_NODE_METRICS.items():
             plot_half_violin_by_x(df_node_lag, k, name, "group",
-                                  lag_node_grp_dir / f"{k}_byGroup_node.png",
+                                  lag_node_grp_dir / f"{k}_byGroup_node.{fmt}",
                                   group_order=custom_grp_order)
         
     # 4_RecordingsByAge and 2_NodeByAge
@@ -1785,7 +1811,7 @@ def plot_step4_group_comparisons(
         df_rec_lag = df_rec[df_rec["Lag"] == lag]
         for k, name in NETMET_REC_METRICS.items():
             plot_half_violin_by_x(df_rec_lag, k, name, "DIV",
-                                  lag_age_dir / f"{k}_byDIV.png",
+                                  lag_age_dir / f"{k}_byDIV.{fmt}",
                                   group_order=custom_grp_order)
 
         lag_node_age_dir = node_age_dir / f"Lag{lag_str}ms" if "ms" not in str(lag_str) else node_age_dir / f"Lag{lag_str}"
@@ -1794,7 +1820,7 @@ def plot_step4_group_comparisons(
         df_node_lag = df_node[df_node["Lag"] == lag]
         for k, name in NETMET_NODE_METRICS.items():
             plot_half_violin_by_x(df_node_lag, k, name, "DIV",
-                                  lag_node_age_dir / f"{k}_byDIV_node.png",
+                                  lag_node_age_dir / f"{k}_byDIV_node.{fmt}",
                                   group_order=custom_grp_order)
 
     # 5_GraphMetricsByLag — network metric vs. STTC lag, one figure per metric

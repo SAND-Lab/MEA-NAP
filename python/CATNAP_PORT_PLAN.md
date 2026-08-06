@@ -215,10 +215,11 @@ recording is computed and everything that displays a role must come after that:
    `_batch_metric_bounds` for the `_scaled` plot ranges);
 3. plot (per-recording figures, subnetwork analysis, batch comparisons).
 
-Phase 1 keeps only a small `_RecordingState` (adjacency matrices, coords,
+Phase 1 keeps only a small `RecordingState` (adjacency matrices, coords,
 channels, spike counts, duration, suite2p path) — the fluorescence matrices are
 hundreds of MB per recording, so phase 3 re-reads them from disk for the trace
-figures instead of holding a batch's worth in memory.
+figures instead of holding a batch's worth in memory. That same state is what
+Phase 11 persists for re-runs.
 
 **Figure set.** `_plot_recording_lag` gained a `coords_all` parameter and
 `plot_spatial_network_combined` a `coords_override`, so CAT-NAP now draws the
@@ -395,6 +396,34 @@ bound on what a run will see.
 >
 > Both only change behaviour where MATLAB would hang; ephys parity is
 > unaffected (null-model, small-worldness and step-4 suites still green).
+
+### Phase 11 — Re-running from a previous run ✅
+
+MATLAB's step 2 appends `adjMs` to `ExperimentMatFiles/<rec>_<folder>.mat` and
+step 4's `priorAnalysis == 1 && startAnalysisStep == 4` branch loads it back.
+The port had neither half: `runner.py` returned out of the `suite2p_mode`
+branch before the step-range logic ran, so `startAnalysisStep` /
+`stopAnalysisStep` / `priorAnalysis` were ignored, and nothing intermediate was
+written to resume *from*.
+
+`catnap/store.py` now saves one `<rec>_catnap.npz` per recording (the
+`RecordingState` above plus the `calc_twop_activity_stats` dict) and
+`start_analysis_step >= 4` reads it through `InputLocator.catnap_file()`. Step
+4 is the only resumable boundary — CAT-NAP has no step 1 or 3.
+
+Fixed in passing, both in the same loop:
+
+- the metric loop iterated `Params.funcConLagval`, but `suite2pToAdjm` derives
+  a single lag `round(1000 / fs)` for the `F` / `spks` / `denoised F` paths and
+  ignores that list — so those three activity types produced **no** network
+  metrics at all. It now follows the adjacency actually built. Only `peaks` was
+  ever run end to end, which is why this went unnoticed;
+- the whole batch drew from one RNG stream, so metrics depended on recording
+  order and a resumed run would not have reproduced the run it resumed from.
+  Now per-recording, like steps 3/4.
+
+See `PIPELINE_PORT_STATUS.md` § "CAT-NAP resume" for the design choices and
+`python/test_catnap_resume.py` for the tests.
 
 ## Reuse wins
 - Denoising / peak detection (`catnap/denoising.py`) — done.

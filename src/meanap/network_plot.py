@@ -5,6 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from dataclasses import dataclass
+
 import numpy as np
 import pandas as pd
 import scipy.io as sio
@@ -278,6 +280,84 @@ EDGE_THRESHOLD_METHODS = [
 ]
 
 
+@dataclass(frozen=True)
+class NetworkStyle:
+    """Styling knobs for a spatial network plot — the Network Viewer control set.
+
+    The viewer tab and the pipeline draw the same networks through
+    :func:`plot_network`, but until now only the viewer could restyle them: its
+    controls lived in the Qt panel, so a pipeline figure was stuck with the
+    defaults and a viewer could not reproduce a pipeline figure exactly. This
+    dataclass is that control set, extracted so both sides — and the bundle
+    renderer behind the web viewer — drive the same code.
+
+    :meth:`pipeline_default` is deliberately *not* the viewer's defaults: it is
+    the styling the pipeline has always used (no edge limiting, no derived
+    threshold, electrode coordinates). Passing it must leave existing figures
+    byte-identical, which is what lets the renderer prove parity.
+    """
+
+    #: Cap on the number of strongest edges drawn; ``None`` draws all of them.
+    max_edges: int | None = None
+    #: One of :data:`EDGE_THRESHOLD_METHODS`.
+    edge_threshold_method: str = "Absolute value"
+    #: Interpreted per method: a weight for "Absolute value", else a percentile.
+    edge_threshold: float = 0.0
+    #: One of :data:`LAYOUT_OPTIONS`.
+    layout: str = "Original (electrodes)"
+    node_size_scale: float | str = 1.0
+    #: One of :data:`NODE_SCALING_METHODS`.
+    node_scaling_method: str = "Linear"
+    node_scaling_power: float = 1.0
+    min_node_size: float = 0.01
+    min_edge_width: float = 0.001
+    max_edge_width: float = 4.0
+    #: Any matplotlib colormap name, applied to the node-colour metric.
+    colormap: str = "viridis"
+
+    @classmethod
+    def pipeline_default(cls, node_size_scale: float | str = 1.0) -> "NetworkStyle":
+        """The styling the pipeline draws with — the identity transform."""
+        return cls(node_size_scale=node_size_scale)
+
+    @classmethod
+    def from_params(cls, params, node_size_scale: float | str = 1.0) -> "NetworkStyle":
+        """Build from a :class:`~meanap.params.Params`' network-plot fields.
+
+        These fields drive the Network Viewer, not the pipeline's own figures,
+        so this is what a viewer should start from — not what
+        ``_plot_recording_lag`` uses by default.
+        """
+        method = str(getattr(params, "network_plot_edge_threshold_method", "percentile"))
+        percentile_like = method.lower().startswith("percentile")
+        return cls(
+            max_edges=(getattr(params, "max_num_edges_to_plot", 0) or None),
+            edge_threshold_method="Percentile" if percentile_like else "Absolute value",
+            edge_threshold=(params.network_plot_edge_threshold_percentile
+                            if percentile_like else params.network_plot_edge_threshold),
+            layout=str(getattr(params, "node_layout", "MEA")).replace(
+                "MEA", "Original (electrodes)"),
+            node_size_scale=node_size_scale,
+        )
+
+    def prepare(self, adj_m: np.ndarray, coords: np.ndarray):
+        """Apply the topology-affecting knobs.
+
+        Returns ``(adjM, coords, edge_thresh)`` — edge subsampling first, then
+        the threshold derived *on the subsampled matrix*, then the layout, in
+        the order ``PlotIndvNetMet.m`` uses and the viewer panel mirrors.
+        """
+        adj = limit_edges_for_plotting(adj_m, self.max_edges)
+        percentile_like = self.edge_threshold_method.startswith("Percentile")
+        edge_thresh = get_edge_threshold(
+            adj,
+            method=self.edge_threshold_method,
+            threshold=0.0 if percentile_like else self.edge_threshold,
+            percentile=self.edge_threshold if percentile_like else 90.0,
+        )
+        return adj, compute_node_coords(adj, coords, self.layout), edge_thresh
+
+
 def limit_edges_for_plotting(
     adjM: np.ndarray,
     max_edges: int | None = None,
@@ -492,6 +572,7 @@ def plot_network(
     node_size_scale: float | str = 1.0,
     node_scaling_method: str = "Linear",
     node_scaling_power: float = 1.0,
+    colormap: str = "viridis",
 ) -> None:
     """Render the MEA network onto *ax*.
 
@@ -601,7 +682,7 @@ def plot_network(
         and not np.all(np.isnan(z2))
     )
     if use_colormap:
-        cmap = matplotlib.colormaps["viridis"]
+        cmap = matplotlib.colormaps[colormap]
         if z2_bounds_override is not None:
             z2_min, z2_max = (float(v) for v in z2_bounds_override)
         else:

@@ -191,7 +191,10 @@ def _run_step2_neuronal_activity(
         batch_max[metric] = max(maxes) if maxes else None
     spike_freq_max = batch_max.get("FR")
 
-    for ctx in plot_contexts:
+    # Express mode keeps every number and drops every picture here: the step-2
+    # figures are all functions of `ephys`, which is written to JSON and CSV
+    # just below, so a viewer can redraw them from the bundle.
+    for ctx in [] if params.express_mode else plot_contexts:
         check_cancel(should_cancel)
         log(f"  [{ctx['rec'].filename}] generating neuronal activity plots...")
         plot_neuronal_activity_checks(
@@ -208,17 +211,18 @@ def _run_step2_neuronal_activity(
             batch_max=batch_max,
         )
 
-    log("  Generating group comparison plots...")
-    from meanap.pipeline.plotting_step2 import plot_step2_group_comparisons
-    try:
-        plot_step2_group_comparisons(
-            recordings,
-            all_ephys,
-            out_dir,
-            params.custom_grp_order
-        )
-    except Exception as e:
-        log(f"  Warning: failed to generate group comparison plots: {e}")
+    if not params.express_mode:
+        log("  Generating group comparison plots...")
+        from meanap.pipeline.plotting_step2 import plot_step2_group_comparisons
+        try:
+            plot_step2_group_comparisons(
+                recordings,
+                all_ephys,
+                out_dir,
+                params.custom_grp_order
+            )
+        except Exception as e:
+            log(f"  Warning: failed to generate group comparison plots: {e}")
         
     try:
         with open(out_dir / "ephys_results.json", "w") as f:

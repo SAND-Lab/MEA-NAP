@@ -30,6 +30,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
+from meanap.pipeline.figure_output import savefig
 import pandas as pd
 
 from meanap.catnap.subnetwork import CellTypeGroups, WHOLE_NETWORK
@@ -229,7 +230,7 @@ def plot_subnetwork_spatial(
                  else "  ·  ".join(captions), fontsize=10)
     fig.tight_layout()
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(out_path, dpi=150)
+    savefig(fig, out_path, default_dpi=150)
     plt.close(fig)
 
 
@@ -290,7 +291,7 @@ def plot_subnetwork_panels(
         fig.suptitle(title, fontsize=12)
     fig.tight_layout()
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(out_path, dpi=150)
+    savefig(fig, out_path, default_dpi=150)
     plt.close(fig)
 
 
@@ -347,7 +348,7 @@ def plot_node_metrics_by_group(
         fig.suptitle(title, fontsize=12)
     fig.tight_layout()
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(out_path, dpi=150)
+    savefig(fig, out_path, default_dpi=150)
     plt.close(fig)
 
 
@@ -414,7 +415,7 @@ def plot_subnetwork_metric_bars(
         fig.suptitle(title, fontsize=12)
     fig.tight_layout()
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(out_path, dpi=150)
+    savefig(fig, out_path, default_dpi=150)
     plt.close(fig)
 
 
@@ -468,5 +469,5 @@ def plot_edge_mix_matrix(
         fig.suptitle(title, fontsize=12)
     fig.tight_layout()
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(out_path, dpi=150)
+    savefig(fig, out_path, default_dpi=150)
     plt.close(fig)

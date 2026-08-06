@@ -95,6 +95,15 @@ SUBNET_NODE_METRICS = {
 
 # ── Two-photon activity ───────────────────────────────────────────────────────
 
+def _named(template: str, fmt: str) -> str:
+    """Retarget a ``…png`` filename template at another image format.
+
+    The templates below are the canonical figure names; only the container
+    changes when a viewer asks for vector output.
+    """
+    return f"{template[:-4]}.{fmt}" if template.endswith(".png") else template
+
+
 def twop_stats_frames(
     recordings: list,
     all_stats: dict[str, dict],
@@ -157,6 +166,7 @@ def plot_twop_group_comparisons(
     out_dir: Path,
     custom_grp_order: list[str] | None = None,
     channels_by_rec: dict[str, np.ndarray] | None = None,
+    fmt: str = "png",
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Draw the ``2B_GroupComparisons`` figures for two-photon activity.
 
@@ -188,7 +198,8 @@ def plot_twop_group_comparisons(
             if key not in df.columns:
                 continue
             plot_half_violin_by_x(
-                df, key, label, x_kind, directory / pattern.format(key=key),
+                df, key, label, x_kind,
+                directory / _named(pattern, fmt).format(key=key),
                 group_order=custom_grp_order,
             )
 
@@ -312,6 +323,7 @@ def plot_activity_by_cell_type(
     composition: pd.DataFrame,
     out_dir: Path,
     custom_grp_order: list[str] | None = None,
+    fmt: str = "png",
     cell_type_order: list[str] | None = None,
 ) -> None:
     """Two-photon activity and cell-type composition, split by cell type.
@@ -346,7 +358,8 @@ def plot_activity_by_cell_type(
             if key not in df.columns:
                 continue
             plot_half_violin_by_x(
-                df, key, label, x_kind, directory / pattern.format(key=key),
+                df, key, label, x_kind,
+                directory / _named(pattern, fmt).format(key=key),
                 group_order=custom_grp_order,
                 series_col="CellType", series_order=order,
             )
@@ -370,6 +383,7 @@ def plot_subnetwork_group_comparisons(
     node_rows: list[dict],
     out_dir: Path,
     custom_grp_order: list[str] | None = None,
+    fmt: str = "png",
 ) -> None:
     """Compare cell-type subnetworks across experimental groups and ages.
 
@@ -422,6 +436,6 @@ def plot_subnetwork_group_comparisons(
                             continue
                         plot_half_violin_by_x(
                             df_ct, key, f"{label} — {cell_type}", x_kind,
-                            directory / pattern.format(key=key, ct=safe),
+                            directory / _named(pattern, fmt).format(key=key, ct=safe),
                             group_order=custom_grp_order,
                         )

@@ -1,0 +1,756 @@
+"""Redraw a run's figures from a bundle, on demand.
+
+Express mode ships the data and drops the pictures; this module puts the
+pictures back. It is deliberately thin: every figure is produced by calling
+:func:`meanap.pipeline.step4._plot_recording_lag` — *the same function the
+pipeline calls* — with state reassembled from the bundle. No plotting code is
+duplicated here, so a reconstructed figure cannot drift from the one the
+pipeline would have drawn. :func:`python/test_bundle_render.py` pins that down
+by rendering both ways and comparing pixels.
+
+Three things have to be rebuilt from what the bundle stores:
+
+``adjMsub``
+    The active-node subgraph every network figure draws. Not stored, because it
+    is a pure function of the full adjacency (in the state ``.npz``) and
+    ``activeChannelIndex`` (in the metrics JSON) — see
+    :func:`meanap.pipeline.step4.compute_network_metrics`, which this mirrors.
+``batch_bounds``
+    Pooled node-metric ranges for the ``_scaled`` figure variants. Recomputed
+    across every recording in the bundle, exactly as the pipeline's phase 2
+    does, so the batch-scaled plots keep their shared axes.
+numpy arrays
+    JSON round-trips arrays to lists; the plotters want arrays back.
+
+Two capabilities the pipeline itself doesn't need fall out for free. Any figure
+can be emitted as **SVG or PDF** — vector, editable, publication-ready —
+because matplotlib picks the format from the suffix. And ``overrides`` re-renders
+with different styling (node size, edge threshold, colour map) without touching
+the stored results, which is what makes an interactive viewer possible.
+"""
+
+from __future__ import annotations
+
+import dataclasses
+import json
+from dataclasses import dataclass
+from pathlib import Path
+
+import numpy as np
+
+from meanap.params import Params
+from meanap.pipeline.bundle import RunBundle
+from meanap.pipeline.resume import ADJM_SUFFIX, CATNAP_SUFFIX
+from meanap.pipeline.spreadsheet import RecordingInfo
+
+__all__ = [
+    "FIGURES",
+    "GROUP_FAMILIES",
+    "VECTOR_FORMATS",
+    "FigureSpec",
+    "RenderContext",
+    "available_figures",
+    "available_activity_figures",
+    "ACTIVITY_FIGURES",
+    "available_group_families",
+    "load_context",
+    "render_figure",
+    "render_activity_figure",
+    "render_group_family",
+    "gallery",
+    "cached_figure",
+    "style_from_overrides",
+]
+
+#: Formats that produce editable vector output rather than pixels.
+VECTOR_FORMATS = ("svg", "pdf")
+
+
+@dataclass(frozen=True)
+class FigureSpec:
+    """One redrawable figure: its file stem and a human-readable label."""
+
+    name: str
+    label: str
+    #: Metrics key that must be present for this figure to exist.
+    requires: str | None = None
+
+
+#: The 4A figure set, keyed by the base filename ``_plot_recording_lag`` writes.
+#: ``requires`` mirrors that function's own guards so a viewer can list only
+#: what a given recording actually has, rather than offering a button that
+#: silently produces nothing.
+FIGURES: tuple[FigureSpec, ...] = (
+    FigureSpec("1_adjM{lag}msConnectivityStats", "Connectivity statistics"),
+    FigureSpec("2_MEA_NetworkPlot", "Network — node degree", "ND"),
+    FigureSpec("3_MEA_NetworkPlotNodedegreeBetweennesscentrality",
+               "Network — betweenness centrality", "BC"),
+    FigureSpec("4_MEA_NetworkPlotNodedegreeParticipationcoefficient",
+               "Network — participation coefficient", "PC"),
+    FigureSpec("5_MEA_NetworkPlotNodestrengthLocalefficiency",
+               "Network — local efficiency", "Eloc"),
+    FigureSpec("6_circular_NetworkPlotNodedegreeModule", "Circular — modules", "Ci"),
+    FigureSpec("7_adjM{lag}msGraphMetricsByNode", "Graph metrics by node", "ND"),
+    FigureSpec("9_adjM{lag}msNodeCartography", "Node cartography", "PC"),
+    FigureSpec("9_circular_NetworkPlotNodeCartography",
+               "Circular — cartography", "NdCartDiv"),
+    FigureSpec("10_MEA_NetworkPlotNodedegreeAveragecontrollability",
+               "Network — average controllability", "aveControl"),
+    FigureSpec("11_MEA_NetworkPlotNodedegreeModalcontrollability",
+               "Network — modal controllability", "modalControl"),
+    FigureSpec("12_MeanImageAndNetwork", "Field of view beside network"),
+)
+
+
+#: The step-2 per-recording activity figures, in the order the pipeline writes
+#: them. ``requires`` is the ``ephys`` key each needs; the two with ``None``
+#: are always available because they are drawn from the spike times.
+ACTIVITY_FIGURES: tuple[FigureSpec, ...] = (
+    FigureSpec("1_FiringRateByElectrode", "Firing rate by electrode"),
+    FigureSpec("2_Heatmap", "Firing rate heatmap", "FR"),
+    FigureSpec("3_Raster", "Raster"),
+    FigureSpec("3_BurstRate_heatmap", "Burst rate heatmap", "channelBurstRate"),
+    FigureSpec("4_BurstDur_heatmap", "Burst duration heatmap", "channelBurstDur"),
+    FigureSpec("5_FractSpikesInBursts_heatmap", "Fraction of spikes in bursts",
+               "channelFracSpikesInBursts"),
+    FigureSpec("6_ISIwithinBurst_heatmap", "ISI within burst",
+               "channelISIwithinBurst"),
+    FigureSpec("7_ISIoutsideBurst_heatmap", "ISI outside bursts",
+               "channeISIoutsideBurst"),
+    FigureSpec("8_BurstDetectionInfo", "Burst detection detail"),
+)
+
+#: Per-channel metrics whose heatmap colour ceiling is pooled across the batch
+#: (MATLAB's ``maxValStruct``). Must match step 2's own list, or a rebuilt
+#: heatmap would use a different colour scale from the pipeline's.
+_ACTIVITY_BATCH_METRICS = (
+    "FR", "channelBurstRate", "channelBurstDur",
+    "channelFracSpikesInBursts", "channelISIwithinBurst", "channeISIoutsideBurst",
+)
+
+
+@dataclass
+class RenderContext:
+    """Everything needed to redraw one bundle's figures, loaded once.
+
+    Loading is not free (metrics JSON plus one ``.npz`` per recording), and a
+    viewer answers many requests against the same bundle, so callers should
+    build this once and reuse it.
+    """
+
+    params: Params
+    recordings: dict[str, RecordingInfo]
+    results: dict[str, dict]
+    batch_bounds: dict[str, tuple[float, float] | None]
+    root: Path
+    mode: str = "catnap"
+
+    def lags(self, recording: str) -> list[int]:
+        return sorted(int(k.replace("mslag", ""))
+                      for k in self.results.get(recording, {}))
+
+
+def _to_arrays(obj):
+    """Undo the array→list flattening ``_convert_numpy`` applies for JSON."""
+    if isinstance(obj, dict):
+        return {k: _to_arrays(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        # Only numeric lists become arrays; a list of strings (marker names,
+        # say) must stay a list or the plotters' string handling breaks.
+        flat = np.asarray(obj)
+        return flat if flat.dtype.kind in "fiub" else obj
+    return obj
+
+
+def load_context(bundle: RunBundle | Path | str) -> RenderContext:
+    """Assemble a :class:`RenderContext` from an opened bundle or a folder.
+
+    Accepts a plain output folder too, so the renderer works against a run that
+    was never bundled — useful for regenerating one figure as SVG after a
+    normal run.
+    """
+    if isinstance(bundle, RunBundle):
+        root, params, mode = bundle.root, bundle.params, bundle.mode
+        rec_rows = bundle.recordings
+    else:
+        from meanap.params import PARAMS_FILENAME, load_params
+        root = Path(bundle)
+        params = (load_params(root / PARAMS_FILENAME)[0]
+                  if (root / PARAMS_FILENAME).exists() else Params())
+        mode = "catnap" if params.suite2p_mode else "ephys"
+        rec_rows = _recordings_from_csv(root)
+
+    recordings = {
+        r["filename"]: RecordingInfo(
+            filename=r["filename"], div=float(r.get("div") or 0), group=r.get("group", ""),
+        )
+        for r in rec_rows
+    }
+
+    metrics_path = root / "4_NetworkActivity" / "netmet_results.json"
+    if not metrics_path.exists():
+        raise ValueError(
+            f"No network metrics in {root} — expected "
+            "4_NetworkActivity/netmet_results.json. This run may predate express "
+            "mode, or may not have reached step 4."
+        )
+    with open(metrics_path) as fh:
+        results = _to_arrays(json.load(fh))
+
+    # adjMsub is derived, not stored — see the module docstring.
+    for rec_name, per_lag in results.items():
+        state_path = _state_file(root, rec_name)
+        if state_path is None:
+            continue
+        with np.load(state_path) as data:
+            adj_keys = _adjacency_keys(data)
+            for lag_key, metrics in per_lag.items():
+                full_key = f"adjM{lag_key.replace('mslag', '')}mslag"
+                if full_key not in adj_keys or "activeChannelIndex" not in metrics:
+                    continue
+                metrics["adjMsub"] = _active_subgraph(
+                    data[adj_keys[full_key]], metrics["activeChannelIndex"])
+
+    from meanap.pipeline.step4 import _batch_metric_bounds
+    batch_bounds = {m: _batch_metric_bounds(results, m)
+                    for m in ("ND", "NS", "BC", "PC", "Eloc")}
+
+    return RenderContext(params=params, recordings=recordings, results=results,
+                         batch_bounds=batch_bounds, root=root, mode=mode)
+
+
+def _state_file(root: Path, recording: str) -> Path | None:
+    """The per-recording array file, whichever pipeline produced it.
+
+    CAT-NAP writes ``<rec>_catnap.npz`` (adjacency, coords, cell types); the
+    electrophysiology path writes ``<rec>_adjM.npz`` (adjacency + channels).
+    Both hold what the 4A figures need — for ephys, node positions come from
+    the channel layout rather than being stored — so the renderer takes
+    whichever is present instead of having two code paths.
+    """
+    for suffix in (CATNAP_SUFFIX, ADJM_SUFFIX):
+        path = root / "ExperimentMatFiles" / f"{recording}{suffix}"
+        if path.exists():
+            return path
+    return None
+
+
+def _adjacency_keys(data) -> dict[str, str]:
+    """Map ``adjM{lag}mslag`` → the key holding it in *data*.
+
+    CAT-NAP prefixes its adjacency entries (``adj__``) to keep them apart from
+    the stats in the same file; step 3 stores them bare, alongside a ``_raw``
+    (pre-thresholding) copy that the metrics were *not* computed from.
+    """
+    prefixed = {k[len("adj__"):]: k for k in data.files if k.startswith("adj__")}
+    if prefixed:
+        return prefixed
+    return {k: k for k in data.files
+            if k.startswith("adjM") and k.endswith("mslag")}
+
+
+def _active_subgraph(adj_m: np.ndarray, active_index) -> np.ndarray:
+    """Rebuild ``adjMsub`` exactly as ``compute_network_metrics`` does.
+
+    The clip-and-fill must match that function or reconstructed figures would
+    differ from the pipeline's on any matrix with negatives or NaNs.
+    """
+    adj = np.asarray(adj_m, dtype=float).copy()
+    adj[adj < 0] = 0.0
+    adj = np.nan_to_num(adj, nan=0.0)
+    idx = np.asarray(active_index, dtype=int)
+    return adj[np.ix_(idx, idx)]
+
+
+def _recordings_from_csv(root: Path) -> list[dict]:
+    """Recover the recordings table from the recording-level CSV."""
+    import pandas as pd
+
+    path = root / "4_NetworkActivity" / "NetworkActivity_RecordingLevel.csv"
+    if not path.exists():
+        return []
+    df = pd.read_csv(path).drop_duplicates("FileName")
+    return [{"filename": r.FileName, "group": r.Grp, "div": r.DIV}
+            for r in df.itertuples()]
+
+
+def available_figures(ctx: RenderContext, recording: str, lag: int) -> list[FigureSpec]:
+    """Which figures this recording/lag can actually produce."""
+    metrics = ctx.results.get(recording, {}).get(f"{lag}mslag", {})
+    if "adjMsub" not in metrics:
+        return []
+    out = []
+    for spec in FIGURES:
+        if spec.requires is not None and spec.requires not in metrics:
+            continue
+        if spec.name == "12_MeanImageAndNetwork" and _background_path(ctx, recording) is None:
+            continue
+        out.append(dataclasses.replace(spec, name=spec.name.format(lag=lag)))
+    return out
+
+
+def _background_path(ctx: RenderContext, recording: str) -> Path | None:
+    from meanap.catnap.store import BACKGROUND_SUFFIX
+
+    path = ctx.root / "ExperimentMatFiles" / f"{recording}{BACKGROUND_SUFFIX}"
+    return path if path.exists() else None
+
+
+def render_figure(
+    ctx: RenderContext,
+    recording: str,
+    lag: int,
+    figure: str,
+    out_dir: Path | str,
+    *,
+    fmt: str = "png",
+    dpi: int | None = None,
+    overrides: dict | None = None,
+) -> Path:
+    """Redraw one figure and return the file written.
+
+    ``fmt`` may be any format matplotlib writes; ``svg`` and ``pdf`` give
+    editable vector output. ``overrides`` is a mapping of ``Params`` field names
+    to values, applied to a *copy* — so a viewer can restyle a plot (node size,
+    edge threshold, colour map) without disturbing the bundle or any other
+    request.
+
+    Raises :class:`ValueError` when the figure isn't available for this
+    recording/lag, rather than silently writing nothing.
+    """
+    from meanap.catnap.store import load_background
+    from meanap.pipeline.figure_output import figure_dpi
+    from meanap.pipeline.step4 import _plot_recording_lag
+
+    lag_key = f"{lag}mslag"
+    metrics = ctx.results.get(recording, {}).get(lag_key)
+    if not metrics:
+        raise ValueError(f"No results for {recording} at {lag} ms lag")
+    if "adjMsub" not in metrics:
+        raise ValueError(
+            f"{recording} at {lag} ms lag has no adjacency subgraph — the run "
+            "excluded it (too few active nodes) or its state file is missing."
+        )
+
+    rec = ctx.recordings.get(recording) or RecordingInfo(
+        filename=recording, div=0.0, group="")
+
+    params, style = _apply_overrides(ctx.params, overrides)
+
+    channels, coords, markers = _recording_arrays(ctx, recording)
+    background = None
+    bg_path = _background_path(ctx, recording)
+    if bg_path is not None:
+        background = load_background(bg_path)
+
+    with figure_dpi(dpi):
+        written = _plot_recording_lag(
+            rec, lag, metrics, channels, params, Path(out_dir), lambda m: None,
+            ctx.batch_bounds, coords_all=coords, cell_types=markers,
+            background=background,
+            node_size_scale="auto" if params.twop_auto_node_size else 1.0,
+            fmt=fmt, only=figure, style=style,
+        )
+    if not written:
+        raise ValueError(
+            f"'{figure}' is not one of the figures available for {recording} at "
+            f"{lag} ms lag. Use available_figures() to list them."
+        )
+    return written[0]
+
+
+#: Styling knobs the viewer exposes, forwarded to
+#: :class:`~meanap.network_plot.NetworkStyle` rather than to ``Params``. These
+#: are the Network Viewer tab's controls; keeping them separate is what lets a
+#: request restyle a figure without pretending the run used those settings.
+STYLE_KEYS = frozenset({
+    "max_edges", "edge_threshold_method", "edge_threshold", "layout",
+    "node_size_scale", "node_scaling_method", "node_scaling_power",
+    "min_node_size", "min_edge_width", "max_edge_width", "colormap",
+})
+
+
+def style_from_overrides(overrides: dict | None):
+    """Split a request's overrides into the styling half.
+
+    Returns ``None`` when nothing styling-related was asked for, which keeps
+    the pipeline's own styling — and therefore pixel parity — in force.
+    """
+    from meanap.network_plot import NetworkStyle
+
+    picked = {k: v for k, v in (overrides or {}).items() if k in STYLE_KEYS}
+    return NetworkStyle(**picked) if picked else None
+
+
+def _apply_overrides(params: Params, overrides: dict | None):
+    """Split overrides into ``(Params, NetworkStyle | None)``.
+
+    Both are applied to copies, so a request never mutates the loaded context.
+    An unrecognised key is an error rather than a silent no-op: a viewer
+    control that quietly does nothing is worse than one that reports itself.
+    """
+    style = style_from_overrides(overrides)
+    param_names = {f.name for f in dataclasses.fields(Params)}
+    rest = {k: v for k, v in (overrides or {}).items() if k not in STYLE_KEYS}
+    unknown = set(rest) - param_names
+    if unknown:
+        raise ValueError(f"Unknown parameter override(s): {sorted(unknown)}")
+    return (dataclasses.replace(params, **rest) if rest else params), style
+
+
+# ── Batch (2B / 4B) comparison figures ────────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class GroupFamily:
+    """One batch-comparison figure family and where it lands."""
+
+    key: str
+    label: str
+    #: Output subfolder, relative to the run root.
+    out_subdir: str
+
+
+GROUP_FAMILIES: tuple[GroupFamily, ...] = (
+    GroupFamily("network", "Network metrics by group and age", "4_NetworkActivity"),
+    GroupFamily("activity", "Two-photon activity by group and age", "2_NeuronalActivity"),
+    GroupFamily("cell_type", "Activity by cell type", "2_NeuronalActivity"),
+    GroupFamily("subnetwork", "Cell-type subnetworks by group and age", "4_NetworkActivity"),
+    GroupFamily("ephys_activity", "Neuronal activity by group and age",
+                "2_NeuronalActivity"),
+)
+
+
+def _ephys_stats(ctx: RenderContext) -> dict:
+    """Step-2 ``Ephys`` dicts, read back from ``ephys_results.json``.
+
+    The electrophysiology counterpart of the CAT-NAP activity stats; a
+    different file and a different plotter, but the same idea — the numbers the
+    2B comparison figures are drawn from.
+    """
+    path = ctx.root / "2_NeuronalActivity" / "ephys_results.json"
+    if not path.exists():
+        return {}
+    with open(path) as fh:
+        return _to_arrays(json.load(fh))
+
+
+def available_group_families(ctx: RenderContext) -> list[GroupFamily]:
+    """Which batch families this bundle has the inputs for.
+
+    Each depends on something optional — activity stats, a cell-type grouping,
+    the subnetwork analysis having been switched on — so a viewer should ask
+    rather than assume.
+    """
+    out = []
+    for fam in GROUP_FAMILIES:
+        if fam.key == "network" and ctx.results:
+            out.append(fam)
+        elif fam.key == "activity" and _all_stats(ctx):
+            out.append(fam)
+        elif fam.key == "cell_type" and _groups_by_rec(ctx):
+            out.append(fam)
+        elif fam.key == "subnetwork" and _subnetwork_rows(ctx)[0]:
+            out.append(fam)
+        elif fam.key == "ephys_activity" and _ephys_stats(ctx):
+            out.append(fam)
+    return out
+
+
+def _states(ctx: RenderContext) -> dict:
+    """Per-recording stored state, loaded once and cached on the context."""
+    cached = getattr(ctx, "_states_cache", None)
+    if cached is not None:
+        return cached
+    from meanap.catnap.store import load_recording_state
+
+    states: dict = {}
+    for name in ctx.recordings:
+        path = ctx.root / "ExperimentMatFiles" / f"{name}{CATNAP_SUFFIX}"
+        if path.exists():
+            states[name] = load_recording_state(path, Path("."))
+    object.__setattr__(ctx, "_states_cache", states)
+    return states
+
+
+def _all_stats(ctx: RenderContext) -> dict:
+    return {name: stats for name, (_, stats) in _states(ctx).items() if stats}
+
+
+def _channels_by_rec(ctx: RenderContext) -> dict:
+    return {name: state.channels for name, (state, _) in _states(ctx).items()}
+
+
+def _groups_by_rec(ctx: RenderContext) -> dict:
+    return {name: state.groups for name, (state, _) in _states(ctx).items()
+            if state.groups is not None and state.groups.n_groups}
+
+
+def _subnetwork_rows(ctx: RenderContext) -> tuple[list, list]:
+    """The cell-type subnetwork tables, read back from the bundle's CSVs."""
+    import pandas as pd
+
+    def read(name: str) -> list:
+        path = ctx.root / "4_NetworkActivity" / name
+        return (pd.read_csv(path).to_dict("records") if path.exists() else [])
+
+    return read("Subnetwork_RecordingLevel.csv"), read("Subnetwork_NodeLevel.csv")
+
+
+def render_group_family(
+    ctx: RenderContext,
+    family: str,
+    out_root: Path | str,
+    *,
+    fmt: str = "png",
+    dpi: int | None = None,
+    overrides: dict | None = None,
+) -> list[Path]:
+    """Redraw one batch-comparison family, returning the files written.
+
+    These are whole folders of small multiples rather than single figures, so
+    unlike :func:`render_figure` this renders a family at a time — which is
+    also how the pipeline produces them.
+
+    ``dpi`` overrides each plot's authored resolution; pass
+    :data:`~meanap.pipeline.figure_output.DEFAULT_THUMBNAIL_DPI` for a gallery.
+    Leave it ``None`` for figures meant to be looked at closely.
+    """
+    from meanap.catnap import group_plots as gp
+    from meanap.pipeline.figure_output import figure_dpi
+    from meanap.pipeline.plotting_step4 import plot_step4_group_comparisons
+
+    fam = next((f for f in GROUP_FAMILIES if f.key == family), None)
+    if fam is None:
+        raise ValueError(
+            f"Unknown figure family {family!r}; expected one of "
+            f"{[f.key for f in GROUP_FAMILIES]}")
+
+    params, _ = _apply_overrides(ctx.params, overrides)
+    order = params.custom_grp_order or None
+    out_root = Path(out_root)
+    out_dir = out_root / fam.out_subdir
+    recordings = list(ctx.recordings.values())
+    before = set(out_dir.rglob("*")) if out_dir.exists() else set()
+
+    with figure_dpi(dpi):
+        if fam.key == "network":
+            plot_step4_group_comparisons(recordings, ctx.results, out_dir, order, fmt=fmt)
+        elif fam.key == "activity":
+            gp.plot_twop_group_comparisons(
+                recordings, _all_stats(ctx), out_dir, custom_grp_order=order,
+                channels_by_rec=_channels_by_rec(ctx), fmt=fmt)
+        elif fam.key == "cell_type":
+            _, df_node = gp.twop_stats_frames(
+                recordings, _all_stats(ctx), _channels_by_rec(ctx))
+            groups_by_rec = _groups_by_rec(ctx)
+            by_type = gp.add_cell_type_column(
+                df_node, groups_by_rec, _channels_by_rec(ctx))
+            composition = gp.composition_frame(
+                recordings, groups_by_rec, _channels_by_rec(ctx))
+            gp.plot_activity_by_cell_type(
+                by_type, composition, out_dir, custom_grp_order=order, fmt=fmt)
+        elif fam.key == "ephys_activity":
+            from meanap.pipeline.plotting_step2 import plot_step2_group_comparisons
+            plot_step2_group_comparisons(
+                recordings, _ephys_stats(ctx), out_dir, order, fmt=fmt)
+        else:  # subnetwork
+            summary, node = _subnetwork_rows(ctx)
+            gp.plot_subnetwork_group_comparisons(summary, node, out_dir, order, fmt=fmt)
+
+    return sorted(p for p in out_dir.rglob(f"*.{fmt}")
+                  if p.is_file() and p not in before)
+
+
+def cached_figure(
+    ctx: RenderContext,
+    cache,
+    recording: str,
+    lag: int,
+    figure: str,
+    *,
+    fmt: str = "png",
+    dpi: int | None = None,
+    overrides: dict | None = None,
+) -> tuple[Path, bool]:
+    """One figure, rendered once per (figure, style, format) and cached.
+
+    Returns ``(path, was_cached)``. Single figures are ~0.1 s so the cache
+    matters less than it does for a family, but flicking back and forth between
+    two plots is the commonest thing a reader does, and it should be instant.
+    """
+    from meanap.pipeline.render_cache import bundle_identity, cache_key
+
+    key = cache_key(bundle_identity(ctx.root), f"fig:{recording}:{lag}:{figure}",
+                    fmt=fmt, dpi=dpi, overrides=overrides)
+    files, was_cached = cache.get_or_render(
+        key,
+        lambda dest: [render_figure(ctx, recording, lag, figure, dest,
+                                    fmt=fmt, dpi=dpi, overrides=overrides)],
+    )
+    return files[0], was_cached
+
+
+def gallery(
+    ctx: RenderContext,
+    family: str,
+    cache,
+    *,
+    fmt: str = "png",
+    dpi: int | None = None,
+    overrides: dict | None = None,
+) -> tuple[list[Path], bool]:
+    """A family's figures, rendered once and served from *cache* thereafter.
+
+    Returns ``(files, was_cached)``. This is what a viewer should call to show
+    a family: the first request pays the render (about six seconds for the
+    109-figure network family at thumbnail resolution), every later one is a
+    directory listing.
+
+    ``dpi`` defaults to :data:`~meanap.pipeline.figure_output.DEFAULT_THUMBNAIL_DPI`
+    because the caller is a gallery; pass ``dpi=None`` explicitly via
+    :func:`render_group_family` when you want the authored resolution.
+    """
+    from meanap.pipeline.figure_output import DEFAULT_THUMBNAIL_DPI
+    from meanap.pipeline.render_cache import bundle_identity, cache_key
+
+    if dpi is None:
+        dpi = DEFAULT_THUMBNAIL_DPI
+    key = cache_key(bundle_identity(ctx.root), family,
+                    fmt=fmt, dpi=dpi, overrides=overrides)
+    return cache.get_or_render(
+        key,
+        lambda dest: render_group_family(
+            ctx, family, dest, fmt=fmt, dpi=dpi, overrides=overrides),
+    )
+
+
+def available_activity_figures(ctx: RenderContext, recording: str) -> list[FigureSpec]:
+    """Which step-2 activity figures this recording can produce.
+
+    Empty when the bundle has no spike times for it — the raster and the
+    burst-detection detail are drawn from spike times, not from the summary
+    metrics, so without them there is nothing to redraw.
+    """
+    ephys = _ephys_stats(ctx).get(recording)
+    if not ephys or _spike_file(ctx, recording) is None:
+        return []
+    return [spec for spec in ACTIVITY_FIGURES
+            if spec.requires is None or spec.requires in ephys]
+
+
+def _spike_file(ctx: RenderContext, recording: str) -> Path | None:
+    from meanap.pipeline.resume import SPIKE_SUBDIR
+
+    path = ctx.root / SPIKE_SUBDIR / f"{recording}_spikes.npz"
+    return path if path.exists() else None
+
+
+def _activity_batch_max(ctx: RenderContext) -> dict:
+    """Pooled per-channel maxima, recomputed exactly as step 2 does.
+
+    These set the shared colour ceiling for the batch-scaled heatmap panels, so
+    getting them from the whole batch rather than one recording is what keeps a
+    rebuilt heatmap identical to the pipeline's.
+    """
+    stats = _ephys_stats(ctx)
+    out: dict = {}
+    for metric in _ACTIVITY_BATCH_METRICS:
+        maxes = [
+            float(np.nanmax(e[metric]))
+            for e in stats.values()
+            if e.get(metric) is not None and np.size(e[metric]) > 0
+            and np.any(np.isfinite(e[metric]))
+        ]
+        out[metric] = max(maxes) if maxes else None
+    return out
+
+
+def render_activity_figure(
+    ctx: RenderContext,
+    recording: str,
+    figure: str,
+    out_dir: Path | str,
+    *,
+    fmt: str = "png",
+    dpi: int | None = None,
+    overrides: dict | None = None,
+) -> Path:
+    """Redraw one step-2 activity figure from the bundle.
+
+    Same contract as :func:`render_figure`, for the other per-recording family:
+    it calls ``plot_neuronal_activity_checks`` — the function the pipeline
+    calls — with the spike times and metrics reassembled from the bundle.
+    """
+    from meanap.pipeline.figure_output import figure_dpi
+    from meanap.pipeline.io import load_spike_times_npz
+    from meanap.pipeline.plotting_step2 import plot_neuronal_activity_checks
+    from meanap.pipeline.spreadsheet import ground_spike_times_dict, parse_ground_electrodes
+
+    ephys = _ephys_stats(ctx).get(recording)
+    spike_path = _spike_file(ctx, recording)
+    if not ephys or spike_path is None:
+        raise ValueError(
+            f"No step-2 activity data for {recording} in this bundle — it needs "
+            "both ephys_results.json and the spike times.")
+
+    params, _ = _apply_overrides(ctx.params, overrides)
+    rec = ctx.recordings.get(recording) or RecordingInfo(
+        filename=recording, div=0.0, group="")
+
+    data = np.load(spike_path)
+    fs = float(data["fs"][0])
+    channels = data["channels"]
+    n_channels = len(channels)
+    duration_s = float(data["duration_s"][0]) if "duration_s" in data else None
+    if duration_s is None:
+        raise ValueError(
+            f"{spike_path.name} has no stored duration; it predates express mode "
+            "and the raster cannot be scaled without it.")
+
+    # Same spike-time selection step 2 makes, including grounding — a grounded
+    # electrode must stay empty in the raster.
+    full = load_spike_times_npz(spike_path)
+    spike_times_dict = {
+        ch: full.get(ch, {}).get(params.spikes_method, np.array([]))
+        for ch in range(n_channels)
+    }
+    ground = parse_ground_electrodes(rec.ground)
+    if ground:
+        spike_times_dict = ground_spike_times_dict(spike_times_dict, channels, ground)
+
+    batch_max = _activity_batch_max(ctx)
+    with figure_dpi(dpi):
+        written = plot_neuronal_activity_checks(
+            rec=rec, params=params, spike_times_dict=spike_times_dict,
+            n_channels=n_channels, chs=channels, fs=fs, duration_s=duration_s,
+            ephys=ephys, output_root=Path(out_dir),
+            spike_freq_max=batch_max.get("FR"), batch_max=batch_max,
+            fmt=fmt, only=figure,
+        )
+    if not written:
+        raise ValueError(
+            f"'{figure}' is not one of the activity figures available for "
+            f"{recording}. Use available_activity_figures() to list them.")
+    return written[0]
+
+
+def _recording_arrays(ctx: RenderContext, recording: str):
+    """``(channels, coords, markers)`` for one recording, from its state file.
+
+    ``coords`` is ``None`` on the electrophysiology path: node positions there
+    come from the MEA channel layout, which the plotters derive from
+    ``params.channel_layout`` and the channel list, so storing them would be
+    redundant.
+    """
+    path = _state_file(ctx.root, recording)
+    if path is None:
+        raise ValueError(f"No stored state for {recording} in {ctx.root}")
+    with np.load(path) as data:
+        channels = np.asarray(data["channels"])
+        coords = np.asarray(data["coords"]) if "coords" in data.files else None
+        markers = None
+        if "marker_matrix" in data.files:
+            markers = (np.asarray(data["marker_matrix"]),
+                       [str(n) for n in data["marker_names"]])
+    return channels, coords, markers

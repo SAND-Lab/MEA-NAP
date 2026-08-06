@@ -48,3 +48,11 @@ report.html#4_NetworkActivity/4A_IndividualNetworkAnalysis/<group>/<recording>/<
 Opening a link like this auto-expands the sidebar tree and navigates straight
 to that folder — useful for pointing a labmate at one specific plot without
 walking them through the tree by hand.
+
+## Related: the interactive viewer
+
+`report.html` shows the figures a run *wrote*. If you ran with
+{doc}`express-mode`, most figures were never written — use `meanap-viewer`
+instead, which redraws them on demand and can export SVG. The two are
+complementary: `report.html` needs nothing installed, the viewer needs Python
+running but can restyle and re-export.
