@@ -72,6 +72,165 @@ uv run pip install git+https://github.com/j-friedrich/OASIS.git
 ```
 :::
 
+## What a run produces
+
+Per recording, in
+`4_NetworkActivity/4A_IndividualNetworkAnalysis/{group}/{recording}/{lag}mslag/`,
+CAT-NAP draws the **same figure set as the electrophysiology pipeline** —
+connectivity statistics, the five spatial network plots (plus their
+batch-scaled and side-by-side combined variants), node cartography, the two
+circular network plots, and graph-metrics-by-node. Node positions come from
+suite2p cell centroids rather than an electrode grid; everything else is the
+shared code path, so a 2P figure and an MEA figure of the same name mean the
+same thing.
+
+Per cell, `2_NeuronalActivity/2A_IndividualNeuronalAnalysis/{group}/{recording}/`
+holds `unit_<roi>_2ptraces.png` — raw fluorescence, the raw trace scaled over
+the denoised one, and the denoised trace with detected event onsets. Check
+these first: if the event markers don't sit on real transients, retune the
+denoising threshold before trusting anything downstream.
+
+### The field of view beside the network
+
+Each lag folder gets one extra figure, `12_MeanImageAndNetwork.png`: the imaged
+field (suite2p's mean projection — `meanImgE` when present, else `meanImg`) on
+the left, the network derived from it on the right, on identical axes so a
+position on one panel is the same position on the other. It is the quickest way
+to check the analysis is looking at real cells. Set
+`twop_network_background = False` to skip it.
+
+Side by side rather than overlaid: superimposing the two sounds better but
+doesn't work in practice — a few hundred nodes plus a dense edge set cover the
+image completely, so the thing you wanted to look at is exactly the thing that
+gets hidden.
+
+:::{admonition} How the image is aligned
+:class: note
+suite2p's `stat['med']` is `(row, column)`, but `suite2pToAdjm.m` stores it as
+if it were `(x, y)`, and this port keeps that for exact parity with MATLAB's
+saved coordinates. The plotted x axis is therefore the pixel *row* and the y
+axis the pixel *column*, so the backdrop is transposed to match. Transposing
+the picture rather than the coordinates puts each node on its own soma without
+breaking parity. Verified on the example data: reading `med` as `(row, column)`
+lands 78% of cells on above-median-brightness pixels, against 48% for the
+swapped reading and 50% for random pixels.
+:::
+
+### Genetic identity on the network plots
+
+When a recording has a cell-type spreadsheet, every spatial network plot draws
+each node's **full genetic identity** as concentric marker rings: one ring per
+spreadsheet column, at a radius fixed by that column's position, in that
+marker's own dash pattern — bright where the cell is positive for the marker,
+faint where it is negative. A cell that is negative for everything still shows
+every slot, so "not positive" is distinguishable from "not measured".
+
+Three things to note:
+
+- Markers are distinguished by **line style, not colour**. Colour is already
+  carrying the node metric on most of these figures, and overloading it makes
+  both harder to read. Each ring is drawn white over a dark halo so the pattern
+  stays legible at either end of the viridis colormap.
+- The rings show the **raw markers**, not the groups you defined. Grouping
+  (`Excitatory` vs `Inhibitory`) collapses information; the rings deliberately
+  don't, so `NeuN+ PV+` and `NeuN+ SST+` cells stay distinguishable even when
+  both were grouped as inhibitory.
+- Rings are unfilled, so the node's interior still carries whatever metric that
+  figure colours by (participation coefficient, betweenness, …).
+
+MATLAB draws these rings too, but all solid white, so a marker is identifiable
+only by which radius its ring sits at, and negative markers are not drawn at
+all.
+
+:::{admonition} Rings need room
+:class: warning
+With many markers, or a dense field of cells whose plotted nodes overlap, the
+rings become hard to read however they're drawn. They work best on sparser
+fields — the per-cell-type subnetwork figures are usually the clearest place to
+read them.
+:::
+
+### Node cartography
+
+Cartography roles depend on five boundaries in the participation-coefficient /
+within-module-z-score plane. With `auto_set_cartography_boundaries` (the
+default), CAT-NAP pools PC and Z over **every recording in the batch** and
+places the boundaries where that dataset's nodes actually cluster, exactly as
+MATLAB's `autoSetCartographyBoundaries` does — the fixed `Params` defaults are
+tuned for MEA data and put almost every 2P cell in the peripheral-node role.
+
+The pooled landscape those boundaries came from is saved to
+`4B_GroupComparisons/7_DensityLandscape/`, and the resulting roles feed the
+per-recording cartography figures and the `NCpn1`–`NCpn6` columns of
+`NetworkActivity_RecordingLevel.csv`.
+
+:::{admonition} Boundaries are a property of the batch, not the recording
+:class: note
+Because they are derived from the pooled data, adding or removing recordings
+changes the boundaries and therefore every recording's roles. Role proportions
+are comparable *within* a run, not across two runs over different recording
+sets.
+:::
+
+## Batch comparisons across groups and ages
+
+Once every recording has been analysed, CAT-NAP pools them and draws the same
+half-violin comparison figures the electrophysiology pipeline produces, in the
+same folders — so a 2P batch and an MEA batch have an identically-shaped output
+tree.
+
+**Calcium activity** — `2_NeuronalActivity/2B_GroupComparisons/`:
+
+| Folder | Content |
+|---|---|
+| `3_RecordingsByGroup/HalfViolinPlots` | one recording-level metric per figure, subplot per experimental group, x-axis = age |
+| `4_RecordingsByAge/HalfViolinPlots` | the same metrics, subplot per age, x-axis = experimental group |
+| `1_NodeByGroup`, `2_NodeByAge` | the per-cell metrics, laid out the same way |
+
+Recording-level metrics are the number of active cells, mean/median/IQR event
+rate, mean inter-event interval, and mean event amplitude, duration and area.
+Per-cell metrics are event rate (all cells and active-only), mean inter-event
+interval, and mean amplitude, duration, area and total area. The rate metrics
+are the calcium counterparts of the ephys firing-rate ones; amplitude, duration
+and area have no ephys equivalent.
+
+The same pooled numbers are written to
+`2_NeuronalActivity/TwoPhotonActivity_RecordingLevel.csv` and
+`TwoPhotonActivity_NodeLevel.csv`.
+
+**Split by cell type.** When cell types are available, each per-cell metric is
+drawn a second time with cell type as a *third* factor — paired half-violins at
+every age, within every experimental group — in
+`1_NodeByGroup/ByCellType/` and `2_NodeByAge/ByCellType/`. One figure answers
+"do inhibitory cells fire faster, and does that differ by genotype?", rather
+than requiring two files to be compared by eye.
+
+**Composition** lands in `5_CellTypeComposition/` and
+`CellTypeComposition.csv`: per recording and cell type, the number of cells,
+their fraction of all cells, the number that cleared the activity threshold and
+the fraction of that type which is active. Partly a result in its own right,
+partly a confound check — if one group has systematically more inhibitory cells,
+differences downstream may be compositional rather than functional.
+
+Both are generic over whatever groups you defined; nothing assumes an
+excitatory/inhibitory split. Because groups may overlap, these tables are long
+format (one row per cell × group), so `nCells` need not sum to the recording's
+cell count.
+
+**Network metrics** — `4_NetworkActivity/4B_GroupComparisons/`, folders `1_`
+through `6_`, one sub-folder per lag. These come from the shared step-4
+comparison plotter, so they cover exactly the metrics the ephys pipeline
+compares (density, efficiency, small-worldness, modularity, node degree,
+participation coefficient, node cartography proportions, …).
+
+:::{admonition} Metrics only separate if the spreadsheet says so
+:class: note
+Both the group and the age axes are read from the recording-list spreadsheet
+(`Grp` and `DIV` columns). A batch that is all one group at one age still
+produces every figure — each will just have a single panel with a single
+distribution.
+:::
+
 ## Cell-type subnetworks
 
 If a recording folder contains a putative-cell-type spreadsheet, CAT-NAP can
@@ -185,6 +344,23 @@ Figures land in
 draw only the strongest 3000 edges per group and say so in the panel caption.
 Metrics are always computed on the complete graph.
 
+### The full figure set, per cell type
+
+Alongside those five, each cell type gets its **own copy of the entire step-4A
+figure set** in `cellTypeSubnetworks/<CellType>/` — the same renderer as the
+whole network, pointed at that type's induced subgraph. So
+`cellTypeSubnetworks/Inhibitory/2_MEA_NetworkPlot.png` can be read directly
+against the whole-network `2_MEA_NetworkPlot.png` one folder up.
+
+Cartography roles inside a subnetwork are classified against the
+**whole-network** boundaries rather than the subgraph's own. The subgraph's
+pooled PC/Z would place its boundaries somewhere else entirely, and then
+"connector hub" would mean a different thing in each panel.
+
+This multiplies the per-recording figure count by roughly the number of groups.
+Set `twop_subnetwork_network_plots = False` to keep the analysis and the five
+summary figures without it.
+
 Batch CSVs land in `4_NetworkActivity/`:
 
 | File | One row per |
@@ -196,6 +372,33 @@ Batch CSVs land in `4_NetworkActivity/`:
 `Subnetwork_NodeLevel.csv` is long format: a node positive for two markers
 appears once per group, so each group's distribution is complete. Nodes in no
 group appear once under `Unassigned`.
+
+### Comparing cell types across groups and ages
+
+Those same tables are also pooled across the batch and drawn as half-violin
+comparisons, under
+`4_NetworkActivity/4B_GroupComparisons/8_CellTypeSubnetworks/Lag{n}ms/`:
+
+| Folder | Content |
+|---|---|
+| `RecordingsByGroup`, `RecordingsByAge` | induced-subgraph metrics (`Dens`, `Eglob`, `SW`, `Q`, …) |
+| `NodeByGroup`, `NodeByAge` | whole-network node metrics split by cell type, plus `WithinGroupStrengthFrac` |
+
+There is one file per (metric, cell type) — `Dens_Inhibitory_byGroup.png` next
+to `Dens_Excitatory_byGroup.png` — each laid out exactly like the whole-network
+comparison of the same metric. `Whole network` is itself one of the cell types,
+so `Dens_Whole_network_byGroup.png` sits in the same folder as the reference to
+read the others against.
+
+:::{admonition} Subgraph metrics are size-dependent
+:class: warning
+A group of 4 SST+ cells and a group of 140 excitatory cells do not have
+comparable densities or small-worldness, and these figures do not correct for
+that. Read `aN` (in `Subnetwork_RecordingLevel.csv`) alongside them, and treat
+a difference between cell types with very different node counts as
+uninterpretable. Comparing *the same* cell type across experimental groups or
+ages — which is what these figures are for — is not affected.
+:::
 
 ### Using it directly
 
@@ -213,7 +416,23 @@ nodes = sn.split_node_metrics(full_metrics, groups, channels, adj_m=adjM)
 ```
 
 `python/run_catnap_subnetwork_demo.py` runs the whole thing end-to-end on the
-example dataset if you want a worked example to inspect.
+example dataset if you want a worked example to inspect. For the complete
+output tree — every figure, every CSV and a browsable `report.html` — use
+`python/run_catnap_example.py` instead.
+
+## Browsing the output
+
+Every run's output folder can be turned into a single self-contained
+`report.html` — a folder tree on the left, an image gallery on the right, with
+a caption under each figure explaining what it shows. The GUI writes it
+automatically at the end of a run; from a script:
+
+```python
+from meanap.pipeline.report import generate_report
+generate_report("/path/to/OutputData…")
+```
+
+No server or internet access is needed — open the file directly in a browser.
 
 ## Using CAT-NAP from Python
 

@@ -18,7 +18,7 @@ import numpy as np
 
 from meanap.params import Params
 from meanap.pipeline.cancellation import CancelCheck, check_cancel
-from meanap.pipeline.io import load_spike_times_npz, resolve_duration_s
+from meanap.pipeline.io import find_raw_file, load_spike_times_npz, resolve_duration_s
 from meanap.pipeline.parallel import map_recordings
 from meanap.pipeline.probabilistic_threshold import adjm_thr
 from meanap.pipeline.resume import build_input_locator
@@ -57,7 +57,7 @@ def _step3_one_recording(task: tuple[Params, RecordingInfo, str]) -> tuple[str, 
     n_channels = len(data["channels"])
 
     duration_s, _ = resolve_duration_s(
-        data, Path(params.raw_data) / f"{rec.filename}.mat", fs, n_channels,
+        data, find_raw_file(params.raw_data, rec.filename), fs, n_channels,
     )
     if duration_s is None:
         logs.append(f"  [{rec.filename}] SKIP: recording duration unavailable "

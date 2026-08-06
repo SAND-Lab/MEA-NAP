@@ -79,6 +79,8 @@ To quickly get started, open `MEApipeline.m` in matlab.
 
 You will first need to ensure that [your data has been converted to mat files](https://analysis-pipeline.readthedocs.io/en/latest/setting-up-meanap.html#prepare-your-data-for-mea-nap) with the appropriate variables and that you have [created a spreadsheet](https://analysis-pipeline.readthedocs.io/en/latest/setting-up-meanap.html#prepare-batch-analysis-csv-file) (csv file) with the names of your mat files for each recording and their group and ages to guide the batch analysis.
 
+> The conversion step applies to the MATLAB pipeline. The [Python pipeline](python/README.md) reads Multichannel Systems `.h5` and Axion `.raw` recordings directly, so you can point it at your data as it comes off the recorder and skip the conversion.
+
 If your data is in the right format, you can then press run in `MEApipeline.m`.  The guided user interface (GUI) will prompt you to select the location of the folder where you downloaded MEA-NAP, the folder with your data, and the name and location of the batch analysis csv or xlsx file.  Then the batch analysis will run autonomously. 
 
 **New users can watch our video tutorial** at [https://www.youtube.com/watch?v=oxFyqRyemRM](https://www.youtube.com/watch?v=oxFyqRyemRM) or download the video at the Harvard Dataverse [https://doi.org/10.7910/DVN/Z14LWA](https://doi.org/10.7910/DVN/Z14LWA). 

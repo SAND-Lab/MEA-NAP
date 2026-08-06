@@ -14,6 +14,40 @@ button, which fills in sensible defaults and the bundled example dataset
 automatically.
 ```
 
+(modes)=
+## Modes
+
+MEA-NAP is three pipelines sharing one window, and each reads a different slice
+of the settings. The **Mode** selector in the toolbar narrows the window to the
+tabs its pipeline actually uses, so you aren't reading settings your run will
+never consult:
+
+| Mode | Pipeline | Tabs shown |
+|---|---|---|
+| **MEA-NAP · Ephys** | Spike detection → activity → connectivity → network analysis | Paths, Recording, Spike detection, Connectivity, Network Viewer, Pipeline |
+| **MEA-Stim · Stimulation** | The ephys pipeline plus the stimulation analysis that runs after it | the above, plus Stimulation and Stim Preview |
+| **CAT-NAP · 2P imaging** | Network analysis of suite2p calcium imaging | Paths, Connectivity, CAT-NAP (2P), Network Viewer, Pipeline |
+
+Start in a mode from the command line:
+
+```bash
+meanap-gui --mode catnap      # meanap (default) | meastim | catnap
+```
+
+or switch at any time with the toolbar selector — nothing is lost, since tabs
+are only hidden, never reset. Anything you typed into a tab that the current
+mode hides is still there when you switch back.
+
+Two things follow the mode automatically, so what runs always matches what you
+see: picking a mode sets the pipeline's own switches (`suite2p_mode`,
+`stimulation_mode`), and **Open params…** switches the window to whichever mode
+that file was saved for. Choosing a pipeline in the guided tutorial switches
+mode too — it is the same choice.
+
+CAT-NAP has no Recording or Spike detection tab because `run_catnap_pipeline`
+never reads sampling rate, electrode layout or spike-detection settings. It does
+read the connectivity settings, so that tab stays.
+
 ## Paths
 
 Where MEA-NAP reads your data from and writes results to.
@@ -21,13 +55,62 @@ Where MEA-NAP reads your data from and writes results to.
 | Field | Description |
 |---|---|
 | **MEA-NAP folder** | Location of your MEA-NAP clone. |
-| **Raw data folder** | Folder containing your recordings in `.mat` format. All recordings for one batch analysis should live in the same folder. |
+| **Raw data folder** | Folder containing your recordings, either as `.mat` (v7 or v7.3, holding `dat`/`channels`/`fs`) or as Multi Channel Systems `.h5` straight off the recorder — see [Raw data formats](#raw-data-formats). All recordings for one batch analysis should live in the same folder. |
 | **Spreadsheet file** | `.csv` or `.xlsx` listing each recording's filename, group, and age/DIV — see [Setting up MEA-NAP](../setting-up-meanap.rst) for the required columns (that guide applies equally to the Python port). |
 | **Spreadsheet range** | Which rows of the spreadsheet to read, e.g. `A2:A100000` (1-indexed file lines, header = line 1). |
 | **Custom group order** | Optional comma-separated group names (e.g. `WT,KO`) to control display/plot order instead of alphabetical. |
 | **Spike data folder** | Only needed if you're starting from step 2+ using previously-detected spike times instead of raw data. |
 | **Output data folder** / **Output folder name** | Where results are written, and the name of the run's output subfolder. |
 | **Previous analysis folder** | Only needed when re-using a prior run (**Use prior analysis** on the Pipeline tab). |
+
+(raw-data-formats)=
+### Raw data formats
+
+Unlike the MATLAB pipeline, the Python port does not require you to convert your
+recordings to MATLAB format first. It picks the format by looking inside each
+file, so nothing needs renaming:
+
+| Format | Notes |
+|---|---|
+| **Multi Channel Systems `.h5`** | Read directly, exactly as exported by Multi Channel DataManager. ADC counts are scaled to µV using each channel's `ConversionFactor`/`ADZero`/`Exponent`, the sampling rate comes from `Tick`, and the electrode number is the last part of the channel label (`Ref` becomes electrode 15) — the same arithmetic as `Functions/convertMCSh5toMat.m`, so results are identical to running on the converted `.mat`. |
+| **Axion `.raw`** | Read directly, as exported by AxIS. See [Axion plates](#axion-plates) below — one file holds every well. Samples are scaled to **volts** by the file's own `VoltageScale`, and electrodes are numbered `column * 10 + row`, matching `rawConvertFunc.m`. |
+| **`.mat` (v7.3)** | HDF5-based MATLAB file holding `dat`, `channels`, `fs`. What the MEA-NAP converters write for recordings over 2 GB. |
+| **`.mat` (v7)** | The older MATLAB format, holding the same variables. What the converters write for smaller recordings. |
+
+In your spreadsheet, list recordings **without** the extension (e.g. `TEST_DIV4`,
+not `TEST_DIV4.h5`) — the pipeline finds whichever format is present. If both a
+`.h5` and a `.mat` of the same name sit in the folder, the `.mat` is used, since
+it holds the same data and is faster to read.
+
+Multi Channel Systems `.mcd` and MC_Rack `.raw` still need converting to `.mat`
+first, using the MATLAB GUI's File Conversion tab.
+
+(axion-plates)=
+#### Axion plates
+
+An Axion `.raw` holds an entire plate — every well recorded together — but
+MEA-NAP analyses one well as one recording. Name each row of your spreadsheet
+`<file stem>_<well>`, which is exactly what `rawConvertFunc.m` calls the `.mat`
+files it writes, so a spreadsheet built for the converted workflow works
+unchanged against the plate itself:
+
+```text
+Recording filename,DIV group,Genotype,Ground
+Plate2_treated24hrs_DIV75_A1,75,WT,
+Plate2_treated24hrs_DIV75_D6,75,WT,
+```
+
+Two settings must match the plate:
+
+- **Potential difference unit** → `V`. Axion samples convert to volts, not µV.
+- **Channel layout** → `Axion16` for plates with 16 electrodes per well (24-well),
+  `Axion64` for 64 electrodes per well (6-well).
+
+Only the wells you list are read, and only their electrodes are converted, so
+memory scales with one well instead of the whole plate — well under a gigabyte
+for a 5-minute 24-well recording, against roughly 11 GB for MATLAB's
+whole-plate `LoadData`. Naming a `.raw` without a well suffix is an error that
+lists the wells the file actually contains.
 
 ## Recording
 

@@ -831,7 +831,12 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
             end 
 
             channelLayout = Params.channelLayoutPerRecording{ExN};
-            electrodesToGround = Params.electrodesToGroundPerRecording{ExN};
+
+            if isempty(Params.electrodesToGroundPerRecording)
+                electrodesToGround = [];
+            else 
+                electrodesToGround = Params.electrodesToGroundPerRecording{ExN};
+            end
             
             if Params.suite2pMode
                 if strcmp(Params.twopActivity, 'denoised F')

@@ -16,7 +16,7 @@ from scipy.spatial.distance import pdist, squareform
 from meanap.params import Params
 from meanap.pipeline import network_metrics as nm
 from meanap.pipeline.cancellation import CancelCheck, check_cancel
-from meanap.pipeline.io import load_spike_times_npz, resolve_duration_s
+from meanap.pipeline.io import find_raw_file, load_spike_times_npz, resolve_duration_s
 from meanap.pipeline.modularity import mod_consensus_cluster_iterate
 from meanap.pipeline.nmf import cal_nmf
 from meanap.pipeline.null_models import latmio_und_v2, randmio_und_v2
@@ -24,7 +24,8 @@ from meanap.pipeline.parallel import map_recordings
 from meanap.pipeline.plotting_step4 import (
     plot_circular_cartography_network, plot_circular_module_network,
     plot_connectivity_stats, plot_graph_metrics_by_node,
-    plot_node_cartography, plot_spatial_network, plot_spatial_network_combined,
+    plot_network_beside_field, plot_node_cartography, plot_spatial_network,
+    plot_spatial_network_combined,
 )
 from meanap.pipeline.resume import build_input_locator
 from meanap.pipeline.rng import make_rng
@@ -256,6 +257,11 @@ def _plot_recording_lag(
     out_dir: Path,
     log: Callable[[str], None],
     batch_bounds: dict[str, tuple[float, float] | None],
+    coords_all: np.ndarray | None = None,
+    cell_types: tuple[np.ndarray, list[str]] | None = None,
+    sub_dir: str | None = None,
+    background: tuple | None = None,
+    node_size_scale: float | str = 1.0,
 ) -> None:
     """Draw every step-4A plot for one recording/lag.
 
@@ -265,12 +271,38 @@ def _plot_recording_lag(
     ``batch_bounds`` (the whole batch's pooled range) so they can be compared
     across recordings — matching MATLAB's ``useMinMaxBoundsForPlots`` pass in
     ``PlotIndvNetMet.m``.
+
+    ``coords_all`` supplies node positions directly (one row per channel in
+    ``channels_arr``) instead of looking them up in the MEA channel layout —
+    the CAT-NAP path passes suite2p cell centroids, so the whole figure set is
+    shared between electrophysiology and calcium imaging rather than
+    duplicated.
+
+    ``cell_types`` is an ``(n_channels, n_markers)`` membership matrix and its
+    marker names, aligned with ``channels_arr``. When given, every spatial
+    network plot draws each node's full genetic identity as concentric marker
+    rings — CAT-NAP's use for the immunohistochemistry panel.
+
+    ``sub_dir`` nests the output under the recording's lag folder, so the same
+    figure set can be drawn more than once per lag — CAT-NAP uses it to redraw
+    everything per cell-type subnetwork alongside the whole-network version.
+
+    ``background`` is an ``(image, extent)`` pair — CAT-NAP passes suite2p's
+    mean projection — used for **one** extra side-by-side figure showing the
+    field of view next to the network. It is deliberately not drawn under the
+    ordinary spatial plots: with a few hundred nodes and a dense edge set the
+    image is completely covered, so it adds clutter without adding information.
+    ``node_size_scale`` is forwarded to ``plot_network``; ``"auto"`` sizes nodes
+    from how densely they are packed, which two-photon fields need and MEA
+    layouts are unaffected by.
     """
     if "adjMsub" not in metrics:
         return
 
     rec_out_dir = out_dir / "4A_IndividualNetworkAnalysis" / rec.group / rec.filename
     lag_dir = rec_out_dir / f"{lag_ms}mslag"
+    if sub_dir:
+        lag_dir = lag_dir.joinpath(*str(sub_dir).split("/"))
 
     plot_connectivity_stats(
         metrics["adjMsub"], metrics["ND"], metrics["NS"], lag_ms,
@@ -304,6 +336,12 @@ def _plot_recording_lag(
 
     try:
         channels_active = channels_arr[metrics["activeChannelIndex"]]
+        coords_active = (None if coords_all is None
+                         else np.asarray(coords_all)[metrics["activeChannelIndex"]])
+        ct_active = None
+        if cell_types is not None:
+            ct_matrix, ct_names = cell_types
+            ct_active = (np.asarray(ct_matrix)[metrics["activeChannelIndex"]], ct_names)
         for fname, color_key, color_name, size_key, size_name, size_max in spatial_specs:
             if size_key not in metrics:
                 continue
@@ -317,6 +355,8 @@ def _plot_recording_lag(
                 metrics["adjMsub"], channels_active, params.channel_layout,
                 z, z2, color_name, lag_ms, rec.filename,
                 lag_dir / fname, z_name=size_name,
+                coords_override=coords_active, cell_types=ct_active,
+                node_size_scale=node_size_scale,
             )
 
             # Batch-scaled variant + side-by-side combined figure, if we have a
@@ -331,6 +371,8 @@ def _plot_recording_lag(
                     z_scale_override=size_max,
                     z2_bounds_override=color_bounds,
                     edge_bounds_override=_EDGE_BATCH_BOUNDS,
+                    coords_override=coords_active, cell_types=ct_active,
+                    node_size_scale=node_size_scale,
                 )
                 # MATLAB names the combined figure "<n>_combined_MEA_NetworkPlot"
                 # plus "_<color legend name>" when there's a colour metric (e.g.
@@ -348,9 +390,23 @@ def _plot_recording_lag(
                     z_scale_override=size_max,
                     z2_bounds_override=color_bounds,
                     edge_bounds_override=_EDGE_BATCH_BOUNDS,
+                    coords_override=coords_active,
                 )
     except ValueError as e:
         log(f"  [{rec.filename}] skipped spatial network plot: {e}")
+
+    if background is not None:
+        try:
+            plot_network_beside_field(
+                metrics["adjMsub"], channels_active, params.channel_layout,
+                metrics["ND"], lag_ms, rec.filename,
+                lag_dir / "12_MeanImageAndNetwork.png",
+                background=background,
+                coords_override=coords_active,
+                node_size_scale=node_size_scale,
+            )
+        except Exception as e:
+            log(f"  [{rec.filename}] skipped field-of-view figure: {e}")
 
     if "PC" in metrics:
         plot_node_cartography(
@@ -437,7 +493,7 @@ def _step4_compute_one(
     n_channels = len(channels_arr)
 
     duration_s, _ = resolve_duration_s(
-        spike_data, Path(params.raw_data) / f"{rec.filename}.mat", fs, n_channels,
+        spike_data, find_raw_file(params.raw_data, rec.filename), fs, n_channels,
     )
     if duration_s is None:
         logs.append(f"  [{rec.filename}] SKIP: recording duration unavailable "

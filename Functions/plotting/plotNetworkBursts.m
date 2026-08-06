@@ -75,6 +75,9 @@ for burstIdx = 1:Ephys.numNbursts
 end
 
 combinedISI(combinedISI == 0) = nan;
+
+% TODO: need to do somehting about mininum and maximum values
+
 binEdges = logspace(log10(min(combinedISI)), log10(max(combinedISI)), 100);
 
 % plot normalized histogram of outsideBurstISI and withinBurstISI

@@ -83,8 +83,9 @@ script.
 :::{grid-item-card} Run on your own recordings
 :link: /setting-up-meanap
 :link-type: doc
-The MATLAB "preparing your data" guide (spreadsheet format, `.mat` conversion)
-applies equally to the Python port.
+The MATLAB "preparing your data" guide (spreadsheet format) applies equally to
+the Python port — except that the Python port also reads Multi Channel Systems
+`.h5` files directly, so you can skip the `.mat` conversion step.
 :::
 
 :::{grid-item-card} Check what's implemented

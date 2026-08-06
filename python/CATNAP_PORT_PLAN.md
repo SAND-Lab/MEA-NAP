@@ -159,6 +159,177 @@ layout) is deferred to Phase 5.
 Both `plot_2p_traces` and the network plot are wired into `run_catnap_pipeline`
 (`_plot_recording`), guarded so a plotting failure never aborts the run.
 
+### Phase 7 — Batch group × age comparison figures ✅
+
+The per-recording figures were in place but nothing pooled the batch, so a
+CAT-NAP run produced none of the `2B_`/`4B_GroupComparisons` output the ephys
+path (and MATLAB's own suite2p branch, via `PlotEphysStats`/`PlotNetMet`) does.
+`catnap/group_plots.py` + `pipeline.py::_plot_group_comparisons` add it:
+
+| Family | Output | Source |
+|---|---|---|
+| Two-photon activity | `2_NeuronalActivity/2B_GroupComparisons/{1_NodeByGroup, 2_NodeByAge, 3_RecordingsByGroup, 4_RecordingsByAge}` | new `plot_twop_group_comparisons` |
+| Network metrics | `4_NetworkActivity/4B_GroupComparisons/1_`…`6_` | **shared** `plot_step4_group_comparisons`, called unchanged |
+| Cell-type subnetworks | `4_NetworkActivity/4B_GroupComparisons/8_CellTypeSubnetworks/Lag{n}ms/` | new `plot_subnetwork_group_comparisons` |
+
+Every figure goes through the shared `plot_half_violin_by_x`
+(`plotHalfViolinByX.m`), so CAT-NAP and ephys comparison plots are visually and
+structurally identical. The network family needed no new code at all — CAT-NAP's
+per-recording results dict already has the ephys shape.
+
+Two-photon metrics: recording level = active-cell count, mean/median/IQR event
+rate, mean inter-event interval, mean event amplitude/duration/area; node level
+= event rate (all + active-only), inter-event interval, amplitude, duration,
+area, total area. Rates parallel the ephys firing-rate comparisons; amplitude /
+duration / area have no ephys counterpart.
+
+Subnetwork comparisons emit one figure per (metric, cell type) rather than
+crowding a third dimension into the half-violin layout, whose two axes are
+already spent on group and age; `Whole network` is one of the cell types, so the
+reference panel sits in the same folder. `SUBNET_GRAPH_METRICS` /
+`SUBNET_NODE_METRICS` in `group_plots.py` are now the single source of truth for
+which subnetwork metrics *both* the per-recording and the batch figures cover.
+
+**Also fixed here.** The per-unit two-photon stats (`FR`, `ISI`,
+`unitHeightMean`, `unitPeakDurMean`, `unitEventAreaMean`, `unitEventAreaSum`)
+were computed and then dropped — `_save_catnap_results` kept only scalars, so
+nothing per-cell reached disk. They now go to
+`2_NeuronalActivity/TwoPhotonActivity_NodeLevel.csv`, keyed by the real suite2p
+ROI id, which is also what the node-level figures plot.
+
+### Phase 8 — Node cartography + the rest of the shared 4A figure set ✅
+
+**The bug.** Cartography roles depend on five boundaries in the PC/Z plane.
+MATLAB's `autoSetCartographyBoundaries` places them from the batch's *pooled*
+PC/Z; the ephys path ports this as `step4._apply_cartography_boundaries`, run as
+a reduce barrier between per-recording compute and per-recording plotting.
+CAT-NAP never called it, so its `NCpn1-6` came from the fixed `Params` defaults
+— the same pile-into-role-1 problem that was already fixed for ephys.
+
+**The fix** required restructuring `run_catnap_pipeline` into the same three
+phases the ephys step 4 uses, because roles are re-derived *after* every
+recording is computed and everything that displays a role must come after that:
+
+1. compute (adjacency, activity stats, network metrics per lag);
+2. reduce (`_apply_cartography_boundaries` over the pooled batch, plus
+   `_batch_metric_bounds` for the `_scaled` plot ranges);
+3. plot (per-recording figures, subnetwork analysis, batch comparisons).
+
+Phase 1 keeps only a small `_RecordingState` (adjacency matrices, coords,
+channels, spike counts, duration, suite2p path) — the fluorescence matrices are
+hundreds of MB per recording, so phase 3 re-reads them from disk for the trace
+figures instead of holding a batch's worth in memory.
+
+**Figure set.** `_plot_recording_lag` gained a `coords_all` parameter and
+`plot_spatial_network_combined` a `coords_override`, so CAT-NAP now draws the
+*entire* shared 4A set — connectivity stats, five spatial network plots plus
+their `_scaled` and `combined` variants, node cartography, both circular plots,
+graph-metrics-by-node — from suite2p centroids, with nothing duplicated from the
+ephys path. Previously it drew only the base `2_MEA_NetworkPlot.png`.
+
+**HTML report.** `report.py` had no descriptions for any CAT-NAP output and two
+stale folder captions claiming group comparisons were unimplemented. Added
+captions for the trace figures, the five cell-type subnetwork figures, the
+pooled cartography landscape, the comparison sub-folders, generic
+`*_byGroup`/`*_byDIV` half-violins (which covers the ephys side too, previously
+undescribed), and all seven CAT-NAP/network CSVs.
+
+Tests: `python/test_catnap_cartography.py` (24/24) — the barrier re-classifies
+nodes and records one shared boundary set differing from the Params defaults
+(on a synthetic *modular* graph, since a uniform random graph would pass
+vacuously); the phase ordering is pinned by driving `run_catnap_pipeline` with
+stubbed I/O and asserting no recording is plotted before all are computed and
+that each carries the pooled boundaries when it is; and the whole 4A set renders
+from a coordinate array with no channel layout involved.
+
+Example run: `python/run_catnap_example.py` writes a complete output tree plus
+`report.html`.
+
+### Phase 9 — Cell-type information in the activity and network figures ✅
+
+Cell types were confined to the `cellTypeSubnetworks` figures; every other
+figure was type-blind. Three additions, all driven by the *same*
+`CellTypeGroups` the subnetwork analysis already uses (resolved once per
+recording in phase 1, so nothing reads the spreadsheet twice):
+
+**1. Genetic-identity rings on every spatial network plot.** `plot_network`
+already implemented MATLAB's concentric rings but nothing in the pipeline ever
+passed `cell_type_matrix` — only the Network Viewer did. Now threaded through
+`_plot_recording_lag` → `plot_spatial_network` → `plot_network`, and the
+rendering is reworked: each marker keeps a fixed radius *and* its own colour,
+negative markers are drawn faintly in the same hue instead of omitted, and the
+rings are unfilled so the metric colormap stays visible underneath. MATLAB draws
+all rings white and omits negatives, so a marker was identifiable only by
+radius. Rings show the **raw markers**, not the user's groups — grouping
+collapses information the rings deliberately keep.
+
+**2. Activity split by cell type (2B).** `plot_half_violin_by_x` gained an
+optional `series_col`: at each x position it draws one violin per series value,
+with colour switching from the (redundant) x position to the series, plus a
+legend. Omitting it reproduces the two-factor plot exactly — verified by
+counting rendered violins. CAT-NAP uses it for per-cell activity metrics in
+`1_NodeByGroup/ByCellType/` and `2_NodeByAge/ByCellType/`.
+
+**3. Cell-type composition (2B).** Per recording × cell type: `nCells`,
+`fracOfCells`, `nActiveCells`, `fracActive` → `5_CellTypeComposition/` +
+`CellTypeComposition.csv`. Active membership is read off `FRactive`'s NaN
+pattern, which is already the authoritative record of what the network analysis
+kept. Generic over user-defined groups — nothing assumes E/I.
+
+**4. The whole 4A figure set per subnetwork.** `_plot_recording_lag` gained
+`sub_dir`, so each cell type gets its own copy of all 23 figures in
+`cellTypeSubnetworks/<CellType>/`, readable directly against the whole-network
+version. Subnetwork cartography is re-classified against the **whole-network**
+boundaries — the subgraph's own pooled PC/Z would put the boundaries elsewhere
+and "connector hub" would then mean something different in each panel. Gated by
+`Params.twop_subnetwork_network_plots` since it multiplies the figure count by
+roughly the number of groups.
+
+### Phase 10 — Mean-image backdrop, linestyle rings, violin layout ✅
+
+**Mean projection behind the network.** `plot_network` gained a `background`
+`(image, extent)` param; the loader reads `ops['meanImgE']` (suite2p's
+contrast-enhanced projection, falling back to `meanImg`), and
+`_mean_image_background` maps it into the node coordinate frame using the
+`coord_norm` now returned by `suite2p_to_adjm`. Gated by
+`Params.twop_network_background`.
+
+The alignment is the subtle part. `stat['med']` is `(row, col)` but
+`suite2pToAdjm.m` stores it as `(x, y)`, so the plotted x axis is the pixel row
+and the y axis the pixel column; the **image is transposed** to match, which
+puts nodes on their somata without touching `coords` and therefore without
+breaking the MATLAB coordinate parity test. Verified numerically on the example
+data: `med` read as `(row, col)` lands 78% of cells on above-median-brightness
+pixels vs 48% swapped and 50% for random pixels — an independent confirmation of
+the ypix/xpix finding.
+
+**Rings by line style, not colour.** Colour was already carrying the node
+metric, so overloading it made both harder to read. Each marker now has a fixed
+dash pattern (`_cell_type_styles`), drawn white over a dark halo so it stays
+legible at both ends of viridis; negatives keep the same pattern at low alpha.
+
+**Half-violin layout fix.** With a series dimension the violins overlapped —
+one series' scatter dots landed on the next series' KDE fill, because
+`_half_violin` hard-coded a 0.1 gap that is right for one violin per x position
+but too wide when several share a slot. `gap` is now a parameter, and the series
+path sizes `width`/`gap` so `2*(width + gap)` stays inside one slot. The mean
+marker and SEM bar also take the series colour (darkened 55%) instead of black:
+once colour is what distinguishes the series, a black marker reads as a separate
+one. Non-series plots keep black, preserving the MATLAB look.
+
+Tests: `python/test_catnap_cell_type_plots.py` (38/38) — ring counts checked
+against the membership matrix rather than by eye (solid rings = positives, faint
+= negatives, every node showing every slot); long-format tagging with
+overlapping membership; composition consistency; and violin counts proving the
+series dimension adds panels without changing the no-series output.
+
+Tests: `python/test_catnap_group_plots.py` (49/49) — pooled-frame correctness,
+folder/filename layout for all three families, degenerate batches (single
+recording, empty batch, all-NaN metric, unsafe cell-type names like
+`NeuN+ & ~GAD+`), and a runner save+plot tail driven with the exact structures
+`run_catnap_pipeline` holds, so signature drift is caught without a full
+multi-minute run.
+
 ---
 
 ### Phase 6 — Cell-type subnetworks ✅ (feature extension, no MATLAB counterpart)

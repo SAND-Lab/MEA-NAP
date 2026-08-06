@@ -103,6 +103,35 @@ Two useful consequences:
 If you have spike times from somewhere other than a MEA-NAP run, point
 **Spike-detected data folder** at them instead — it's searched the same way.
 
+## Where the Python port goes further
+
+**No file conversion step.** MATLAB requires every recording to be converted to
+a `.mat` holding `dat`/`channels`/`fs` before analysis. The Python port reads
+the recorder's own formats instead, dispatching on file content rather than
+extension:
+
+| Format | Equivalent MATLAB conversion | Verified against |
+|---|---|---|
+| Multi Channel Systems `.h5` | `Functions/convertMCSh5toMat.m` | the `.mat` that converter produces — traces bit-exact |
+| Axion `.raw` | `Functions/convertRawToMat/rawConvertFunc.m` | Axion's own `AxisFile` MATLAB toolbox — traces bit-exact |
+| `.mat` v7 and v7.3 | — | both read; MATLAB's own loaders |
+
+Beyond skipping a slow step, this avoids the storage duplication (a converted
+`.mat` is often larger than the recording it came from) and, for Axion, the
+memory cost: MATLAB's `LoadData` materialises the whole plate, while the Python
+reader converts only the well being analysed.
+
+Two consequences worth knowing:
+
+- An Axion `.raw` is a whole plate, so one file supplies many recordings. Name
+  them `<file stem>_<well>` in your spreadsheet — the same names
+  `rawConvertFunc.m` gives the files it writes, so existing spreadsheets work
+  unchanged. See [Axion plates](axion-plates).
+- Units follow the source, as they do after conversion: µV for MCS, volts for
+  Axion. Set **Potential difference unit** accordingly.
+
+MC_Rack `.raw` and `.mcd` still need the MATLAB File Conversion tab.
+
 ## Known gaps
 
 - **No group-level statistical comparisons yet.** MATLAB's step 5 (comparing

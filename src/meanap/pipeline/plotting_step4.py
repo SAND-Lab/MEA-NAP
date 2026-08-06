@@ -16,6 +16,7 @@ from pathlib import Path
 import matplotlib
 
 matplotlib.use("Agg")
+import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -112,6 +113,9 @@ def plot_spatial_network(
     z2_bounds_override: tuple[float, float] | None = None,
     edge_bounds_override: tuple[float, float] | None = None,
     coords_override: np.ndarray | None = None,
+    cell_types: tuple[np.ndarray, list[str]] | None = None,
+    background: tuple | None = None,
+    node_size_scale: float | str = 1.0,
 ) -> None:
     """Spatial network plot, port of the base ``2_MEA_NetworkPlot.png`` from
     ``StandardisedNetworkPlot.m`` (reuses ``network_plot.py``'s
@@ -130,12 +134,13 @@ def plot_spatial_network(
     e.g. ``"node strength"`` whenever ``z`` isn't literally node degree (see
     ``network_plot.py``'s ``plot_network`` docstring).
     """
+    ct_matrix, ct_names = cell_types if cell_types else (None, None)
     prepared = _prepare_network_plot_data(
-        adj_m_sub, channels_active, channel_layout, z, z2, coords_override,
+        adj_m_sub, channels_active, channel_layout, z, z2, coords_override, ct_matrix,
     )
     if prepared is None:
         return
-    sub, coords, z_sub, z2_sub = prepared
+    sub, coords, z_sub, z2_sub, ct_matrix = prepared
 
     scaled = z_scale_override is not None
     title_suffix = " (scaled to data batch)" if scaled else ""
@@ -146,7 +151,72 @@ def plot_spatial_network(
         z_scale_override=z_scale_override,
         z2_bounds_override=z2_bounds_override,
         edge_bounds_override=edge_bounds_override,
+        cell_type_matrix=ct_matrix, cell_type_names=ct_names,
+        background=background, node_size_scale=node_size_scale,
     )
+    fig.tight_layout()
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out_path, dpi=150)
+    plt.close(fig)
+
+
+def plot_network_beside_field(
+    adj_m_sub: np.ndarray,
+    channels_active: np.ndarray,
+    channel_layout: str,
+    z: np.ndarray,
+    lag_ms: float,
+    recording_name: str,
+    out_path: Path,
+    background: tuple,
+    edge_thresh: float = 0.0,
+    z_name: str = "node degree",
+    coords_override: np.ndarray | None = None,
+    node_size_scale: float | str = 1.0,
+) -> None:
+    """The imaged field beside the network derived from it.
+
+    Left: the raw field of view (CAT-NAP passes suite2p's mean projection).
+    Right: the network, drawn exactly as the standalone spatial plot draws it.
+
+    Deliberately *not* an overlay. Superimposing the two hides the image
+    entirely once there are a few hundred nodes and a dense edge set — the
+    thing you wanted to look at is the thing that gets covered. Side by side,
+    on identical axes, you can still check node-by-node that the analysis sits
+    on real cells, which is the only question this figure exists to answer.
+    """
+    prepared = _prepare_network_plot_data(
+        adj_m_sub, channels_active, channel_layout, z, None, coords_override,
+    )
+    if prepared is None:
+        return
+    sub, coords, z_sub, _z2, _ct = prepared
+
+    bg_img, bg_extent = background
+    bg_img = np.asarray(bg_img, dtype=float)
+
+    fig, (ax_img, ax_net) = plt.subplots(1, 2, figsize=(16, 8))
+
+    # Draw the network first: plot_network sets the axis limits (it reserves
+    # room for its legends), and the image panel then adopts them, so a
+    # position on the left maps to the same position on the right.
+    plot_network(
+        ax_net, sub, coords, edge_thresh, z_sub, None, "None",
+        title=f"{recording_name}  {lag_ms} ms lag\nnetwork", z_name=z_name,
+        node_size_scale=node_size_scale,
+    )
+
+    finite = bg_img[np.isfinite(bg_img)]
+    lo, hi = (np.percentile(finite, [1, 99]) if finite.size else (0.0, 1.0))
+    if hi <= lo:
+        lo, hi = (float(finite.min()), float(finite.max()) or 1.0) if finite.size else (0.0, 1.0)
+    ax_img.imshow(bg_img, cmap="gray", origin="lower", extent=bg_extent,
+                  vmin=lo, vmax=hi, interpolation="bilinear", aspect="equal")
+    ax_img.set_title(f"{recording_name}\nimaged field of view", fontsize=9, color="black")
+    ax_img.set_xlim(ax_net.get_xlim())
+    ax_img.set_ylim(ax_net.get_ylim())
+    ax_img.axis("off")
+
     fig.tight_layout()
     out_path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out_path, dpi=150)
@@ -160,9 +230,14 @@ def _prepare_network_plot_data(
     z: np.ndarray,
     z2: np.ndarray | None,
     coords_override: np.ndarray | None = None,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray | None] | None:
+    ct_matrix: np.ndarray | None = None,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray | None, np.ndarray | None] | None:
     """Map active channels to coordinates and subset the adjacency matrix /
     per-node metrics to the channels that have one.
+
+    ``ct_matrix`` (an ``(n_active, n_markers)`` membership matrix) is subset by
+    the same index as everything else, so cell-type rings cannot drift out of
+    alignment with the nodes they belong to when a channel is dropped.
 
     ``coords_override`` (an ``(n_active, 2)`` array aligned with
     ``channels_active``) supplies coordinates directly instead of the MEA
@@ -170,13 +245,13 @@ def _prepare_network_plot_data(
     come from suite2p cell centroids rather than an electrode grid. In that
     case every active node has a coordinate, so nothing is dropped.
 
-    Returns ``(sub_adj, coords, z_sub, z2_sub)`` or ``None`` if no active
-    channel has a coordinate (e.g. an all-grounded layout). Shared by
+    Returns ``(sub_adj, coords, z_sub, z2_sub, ct_sub)`` or ``None`` if no
+    active channel has a coordinate (e.g. an all-grounded layout). Shared by
     ``plot_spatial_network`` and ``plot_spatial_network_combined`` so both
     subset identically.
     """
     if coords_override is not None:
-        return adj_m_sub, np.asarray(coords_override, dtype=float), z, z2
+        return adj_m_sub, np.asarray(coords_override, dtype=float), z, z2, ct_matrix
 
     layout_channels, layout_coords = get_coords_from_layout(channel_layout)
     coord_by_channel = dict(zip(layout_channels.tolist(), map(tuple, layout_coords)))
@@ -190,7 +265,8 @@ def _prepare_network_plot_data(
     coords = np.array([coord_by_channel[int(channels_active[i])] for i in idx])
     z_sub = z[idx]
     z2_sub = z2[idx] if z2 is not None else None
-    return sub, coords, z_sub, z2_sub
+    ct_sub = np.asarray(ct_matrix)[idx] if ct_matrix is not None else None
+    return sub, coords, z_sub, z2_sub, ct_sub
 
 
 def plot_spatial_network_combined(
@@ -208,6 +284,7 @@ def plot_spatial_network_combined(
     edge_bounds_override: tuple[float, float] | None,
     edge_thresh: float = 0.0,
     z_name: str = "node degree",
+    coords_override: np.ndarray | None = None,
 ) -> None:
     """Side-by-side "combined" network plot, port of the
     ``N_combined_MEA_NetworkPlot`` figure from ``PlotIndvNetMet.m``.
@@ -218,13 +295,16 @@ def plot_spatial_network_combined(
     figures into one two-subplot figure — here we just render
     ``plot_network`` onto two axes of a single wide figure, each with its own
     inline legend/colorbar.
+
+    ``coords_override`` behaves as in :func:`plot_spatial_network` — suite2p
+    cell centroids for the CAT-NAP path instead of an electrode-grid lookup.
     """
     prepared = _prepare_network_plot_data(
-        adj_m_sub, channels_active, channel_layout, z, z2,
+        adj_m_sub, channels_active, channel_layout, z, z2, coords_override,
     )
     if prepared is None:
         return
-    sub, coords, z_sub, z2_sub = prepared
+    sub, coords, z_sub, z2_sub, _ = prepared
 
     fig, (ax_ind, ax_batch) = plt.subplots(1, 2, figsize=(16, 8))
     plot_network(
@@ -853,6 +933,8 @@ def _half_violin(
     colour: tuple = (0.3, 0.3, 0.3),
     width: float = 1.0,
     rng: np.random.Generator | None = None,
+    gap: float = 0.1,
+    mean_colour: tuple | str = "black",
 ) -> None:
     """Draw a half-violin plot on *ax*, mirroring ``HalfViolinPlot.m``.
 
@@ -864,6 +946,13 @@ def _half_violin(
     Uses scipy Gaussian KDE with Silverman's rule (MATLAB ``ksdensity``
     default) and a minimum bandwidth of 10% of the data range, matching
     the ``min_bandwidth`` guard in ``HalfViolinPlot.m``.
+
+    The drawing spans ``pos ± (width + gap)``. ``gap`` is the dead space either
+    side of ``pos``; MATLAB hard-codes 0.1, which is right for one violin per x
+    position but too wide once several are packed into the same slot — hence
+    the parameter. ``mean_colour`` defaults to black, as MATLAB draws it; pass a
+    colour when the violins at one position are distinguished *by* colour, so
+    the mean marker doesn't read as belonging to a different series.
     """
     from scipy.stats import gaussian_kde
 
@@ -892,21 +981,23 @@ def _half_violin(
     # Scale width: widthFactor = width / max(f)  (MATLAB line 69)
     width_factor = width / max(f.max(), 1e-12)
     # KDE fills to the RIGHT of pos (MATLAB: fill(f*widthFactor + pos + 0.1, xi, colour))
-    kde_x = f * width_factor + pos + 0.1
-    ax.fill_betweenx(xi, pos + 0.1, kde_x, color=colour, linewidth=1,
+    kde_x = f * width_factor + pos + gap
+    ax.fill_betweenx(xi, pos + gap, kde_x, color=colour, linewidth=1,
                      edgecolor=colour)
 
     # ── Jittered scatter ─────────────────────────────────────────────────────
     jitter = rng.random(len(data)) * width
-    drops_x = jitter + pos - (width + 0.1)  # MATLAB line 77
+    drops_x = jitter + pos - (width + gap)  # MATLAB line 77
     ax.scatter(drops_x, data, s=20, color=colour, zorder=3)
 
     # ── Mean dot + SEM bar ───────────────────────────────────────────────────
     mean_val = float(np.mean(data))
     sem_val = float(np.std(data) / np.sqrt(len(data))) if len(data) > 1 else 0.0
-    ax.scatter([pos], [mean_val], s=100, color="black", zorder=4)
+    ax.scatter([pos], [mean_val], s=100, color=mean_colour, zorder=4,
+               edgecolors="white", linewidths=0.8)
     ax.plot([pos, pos], [mean_val - sem_val, mean_val + sem_val],
-            color="black", linewidth=3, zorder=4)
+            color=mean_colour, linewidth=3, zorder=4,
+            solid_capstyle="round")
 
 
 # ── Group-comparison half-violin (port of plotHalfViolinByX.m) ────────────────
@@ -960,6 +1051,9 @@ def plot_half_violin_by_x(
     group_order: list | None = None,
     div_order: list | None = None,
     kde_height: float = 0.3,
+    series_col: str | None = None,
+    series_order: list | None = None,
+    series_colors: list | None = None,
 ) -> None:
     """Group-comparison half-violin plot, port of ``plotHalfViolinByX.m``.
 
@@ -977,6 +1071,14 @@ def plot_half_violin_by_x(
     titles/labels plus a centred note stating how many recordings had no data —
     so it pairs with MATLAB's placeholder output and tells the reader why it's
     blank.
+
+    ``series_col`` adds a **third** factor: at every x position one violin is
+    drawn per distinct value of that column, side by side, and colour switches
+    from encoding the x position (where it is redundant with the axis anyway) to
+    encoding the series, with a legend. CAT-NAP uses this to split each metric
+    by cell type, so "excitatory vs inhibitory, per genotype, per age" is one
+    figure rather than one file per cell type. Omitting it reproduces the
+    original two-factor plot exactly.
     """
     if df.empty:
         return
@@ -1015,16 +1117,45 @@ def plot_half_violin_by_x(
         within_items, within_col = groups, "Grp"
         within_colors = _group_colors(len(groups))
         xlabel = "Group"
-        titles = [f"Age {d}" for d in divs]
+        # _tick_label so the title reads "Age 14", matching the tick labels on
+        # the other layout rather than the raw float DIV ("Age 14.0").
+        titles = [f"Age {_tick_label(d)}" for d in divs]
     else:
         raise ValueError(f"x_kind must be 'group' or 'DIV', got {x_kind!r}")
+
+    # Third factor (e.g. cell type): one violin per series value at each x
+    # position. Colour then encodes the series rather than the x position.
+    series_items: list = []
+    if series_col is not None and series_col in df.columns:
+        series_items = (list(series_order) if series_order
+                        else sorted(struct_src[series_col].dropna().unique().tolist()))
+    n_series = len(series_items)
+    series_gap = 0.1
+    series_mean_colors: list = []
+    if n_series:
+        if series_colors is None:
+            series_colors = _group_colors(n_series)
+        # Split the unit-wide x slot between the series. A violin spans
+        # pos ± (width + gap), so keeping 2*(width + gap) safely under one
+        # slot is what stops one series' scatter dots landing on top of the
+        # next series' KDE fill.
+        slot = 0.92 / n_series
+        offsets = [(s - (n_series - 1) / 2.0) * slot for s in range(n_series)]
+        kde_height = 0.34 * slot
+        series_gap = 0.12 * slot
+        # Mean marker in a darkened version of the series colour: black would
+        # read as a separate series once colour is what distinguishes them,
+        # but the undarkened colour disappears against its own KDE fill.
+        series_mean_colors = [tuple(0.45 * c for c in mcolors.to_rgb(col))
+                              for col in series_colors]
 
     n_sub = len(subplot_items)
     if n_sub == 0 or len(within_items) == 0:
         return
 
     fig, axes = plt.subplots(
-        1, n_sub, figsize=(max(4.0, n_sub * 3.0), 5.0), squeeze=False, sharey=True
+        1, n_sub, figsize=(max(4.0, n_sub * 3.0 * max(1, n_series * 0.6)), 5.0),
+        squeeze=False, sharey=True,
     )
     axes = axes[0]
     xt = np.arange(1, len(within_items) + 1)
@@ -1035,7 +1166,19 @@ def plot_half_violin_by_x(
         if not is_empty:
             sdf = data[data[sub_col].astype(str) == str(sub)]
             for wi, within in enumerate(within_items):
-                vals = sdf[sdf[within_col].astype(str) == str(within)][metric].to_numpy(float)
+                wdf = sdf[sdf[within_col].astype(str) == str(within)]
+                if n_series:
+                    for se, series in enumerate(series_items):
+                        vals = wdf[wdf[series_col].astype(str) == str(series)][metric].to_numpy(float)
+                        vals = vals[np.isfinite(vals)]
+                        if len(vals) == 0:
+                            continue
+                        _half_violin(ax, vals, pos=float(xt[wi]) + offsets[se],
+                                     colour=series_colors[se], width=kde_height,
+                                     rng=rng, gap=series_gap,
+                                     mean_colour=series_mean_colors[se])
+                    continue
+                vals = wdf[metric].to_numpy(float)
                 vals = vals[np.isfinite(vals)]
                 if len(vals) == 0:
                     continue
@@ -1051,6 +1194,15 @@ def plot_half_violin_by_x(
         ax.tick_params(direction="out")
         if si == 0:
             ax.set_ylabel(metric_label)
+
+    if n_series:
+        import matplotlib.patches as mpatches
+        axes[-1].legend(
+            handles=[mpatches.Patch(facecolor=series_colors[s], label=str(name))
+                     for s, name in enumerate(series_items)],
+            title=series_col, loc="upper left", bbox_to_anchor=(1.02, 1.0),
+            frameon=False, fontsize=8, title_fontsize=8,
+        )
 
     # Note explaining an empty (or partially-empty) plot.
     noun = "bursts detected" if "burst" in f"{metric} {metric_label}".lower() else "values"

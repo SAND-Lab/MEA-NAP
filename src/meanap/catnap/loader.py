@@ -32,6 +32,11 @@ class Suite2pData:
     peak_heights: np.ndarray | None = None
     event_areas: np.ndarray | None = None
     time_points: np.ndarray | None = None          # (n_frames,) in seconds
+    # suite2p's mean projection of the registered movie, (height, width) —
+    # the enhanced ``meanImgE`` when present, else the raw ``meanImg``. Used as
+    # the backdrop for spatial network plots so nodes can be checked against
+    # the actual field of view.
+    mean_img: np.ndarray | None = None
 
     # Derived: cell-only views (filtered by iscell)
     @property
@@ -83,6 +88,13 @@ def load_suite2p(plane0_dir: str | Path) -> Suite2pData:
 
     ops = np.load(d / "ops.npy", allow_pickle=True).item()
     fs = float(ops["fs"])
+    # meanImgE is suite2p's contrast-enhanced projection, made for exactly this
+    # kind of display; meanImg is the raw average and is much flatter.
+    mean_img = None
+    for key in ("meanImgE", "meanImg"):
+        if key in ops and np.ndim(ops[key]) == 2:
+            mean_img = np.asarray(ops[key])
+            break
 
     n_frames = F.shape[1]
     duration_s = n_frames / fs
@@ -97,6 +109,7 @@ def load_suite2p(plane0_dir: str | Path) -> Suite2pData:
         fs=fs,
         n_frames=n_frames,
         duration_s=duration_s,
+        mean_img=mean_img,
     )
 
     # Load pre-computed denoising outputs if present

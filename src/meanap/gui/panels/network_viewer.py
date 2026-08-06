@@ -87,9 +87,15 @@ class _NetworkCanvas(FigureCanvasQTAgg):
         self._fig.clear()
         ax = self._fig.add_subplot(111)
         self._fig.patch.set_facecolor("white")
+        # Everything past the metric arrays goes by keyword: plot_network takes a
+        # long tail of optional arguments, and passing them positionally silently
+        # mis-binds as soon as a new one is inserted in the middle.
         plot_network(
             ax, adjM, coords, edge_thresh, z, z2, z2_name,
-            cell_type_matrix, cell_type_names, min_node_size, title,
+            cell_type_matrix=cell_type_matrix,
+            cell_type_names=cell_type_names,
+            min_node_size=min_node_size,
+            title=title,
             z_name=z_name,
             min_ew=min_ew, max_ew=max_ew,
             node_size_scale=node_size_scale,

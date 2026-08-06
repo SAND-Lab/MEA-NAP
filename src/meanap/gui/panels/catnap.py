@@ -202,7 +202,7 @@ class CatNapPanel(QWidget):
 
         folder_row = QHBoxLayout()
         self._folder_edit = QLineEdit()
-        self._folder_edit.setPlaceholderText("Raw data folder…")
+        self._folder_edit.setPlaceholderText("Folder holding all your recordings…")
         self._browse_btn = QPushButton("Browse…")
         self._browse_btn.setFixedWidth(72)
         self._browse_btn.clicked.connect(self._on_browse)

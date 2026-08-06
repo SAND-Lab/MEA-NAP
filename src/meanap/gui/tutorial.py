@@ -23,7 +23,13 @@ from PyQt6.QtWidgets import (
     QScrollArea, QTabWidget, QVBoxLayout, QWidget,
 )
 
+from meanap.gui.branding import logo_pixmap
+
 ACCENT = "#4f8ef7"
+
+# Bubble border width, in px. Kept as a constant because _size_bubble must
+# subtract it when working out how wide the wrapped text really gets.
+BUBBLE_BORDER = 1
 
 # A step's target is resolved lazily (after the tab switch) and may be a live
 # widget, a global-coordinate QRect (e.g. a tab-bar tab), or None (centred).
@@ -32,12 +38,18 @@ TargetT = Callable[[], Union[QWidget, QRect, None]]
 
 @dataclass
 class TutorialStep:
-    """One coach-mark: switch to *tab_index*, highlight *target*, show text."""
+    """One coach-mark: switch to *tab_index*, highlight *target*, show text.
+
+    ``diagram`` is optional pre-formatted text — a folder tree, say — shown in a
+    monospace block under the body. Keep its lines short: unlike the body it
+    does not wrap, so a long line widens the whole bubble.
+    """
 
     title: str
     body: str
     tab_index: Optional[int] = None
     target: Optional[TargetT] = None
+    diagram: Optional[str] = None
 
 
 def tabbar_target(tabs: QTabWidget, index: int) -> TargetT:
@@ -75,16 +87,23 @@ class TutorialOverlay(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, True)
 
         self._bubble = QFrame(self)
+        self._body_label: QLabel | None = None
         self._bubble.setObjectName("tutorialBubble")
         self._bubble.setStyleSheet(
             "#tutorialBubble {"
             "  background-color: #2d323b;"
-            f"  border: 1px solid {ACCENT};"
+            f"  border: {BUBBLE_BORDER}px solid {ACCENT};"
             "  border-radius: 10px;"
             "}"
             "#tutorialBubble QLabel { color: #f2f4f8; background: transparent; }"
             "#tutorialBubble QLabel#tutTitle { font-size: 14px; font-weight: 700; }"
             "#tutorialBubble QLabel#tutBody  { font-size: 12px; }"
+            "#tutorialBubble QLabel#tutDiagram {"
+            "  font-family: 'DejaVu Sans Mono', Menlo, Consolas, monospace;"
+            "  font-size: 11px; color: #c9d3e0;"
+            "  background: rgba(255, 255, 255, 0.06);"
+            "  border-radius: 5px; padding: 8px 10px;"
+            "}"
             "#tutorialBubble QLabel#tutCount { color: #9aa4b2; font-size: 11px; }"
             "#tutorialBubble QPushButton {"
             "  padding: 6px 14px; border-radius: 6px; font-weight: 600;"
@@ -130,12 +149,21 @@ class TutorialOverlay(QWidget):
         lay.setContentsMargins(22, 20, 22, 18)
         lay.setSpacing(10)
 
+        logo_pix = logo_pixmap(96, self.devicePixelRatioF())
+        if logo_pix is not None:
+            logo = QLabel()
+            logo.setPixmap(logo_pix)
+            logo.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+            lay.addWidget(logo)
+            lay.addSpacing(2)
+
         title = QLabel("Welcome to MEA-NAP")
         title.setObjectName("tutTitle")
         subtitle = QLabel("Which analysis would you like to run? "
                           "The tutorial will guide you through the settings it needs.")
         subtitle.setObjectName("tutBody")
         subtitle.setWordWrap(True)
+        self._body_label = subtitle   # so the intro screen is measured the same way
         lay.addWidget(title)
         lay.addWidget(subtitle)
         lay.addSpacing(4)
@@ -208,8 +236,15 @@ class TutorialOverlay(QWidget):
         body = QLabel(step.body)
         body.setObjectName("tutBody")
         body.setWordWrap(True)
+        self._body_label = body   # _size_bubble measures this to avoid clipping
         lay.addWidget(title)
         lay.addWidget(body)
+
+        if step.diagram:
+            diagram = QLabel(step.diagram)
+            diagram.setObjectName("tutDiagram")
+            diagram.setTextFormat(Qt.TextFormat.PlainText)
+            lay.addWidget(diagram)
 
         footer = QHBoxLayout()
         count = QLabel(f"{self._index + 1} / {len(self._steps)}")
@@ -362,14 +397,59 @@ class TutorialOverlay(QWidget):
         lay = self._bubble.layout()
         if lay is not None:
             lay.activate()
-        self._bubble.adjustSize()
+        self._size_bubble()
         self._position_bubble()
         self._bubble.show()
         self._bubble.raise_()
         self._update_mask()
         self.update()
 
+    def _size_bubble(self) -> None:
+        """Size the bubble to its wrapped text.
+
+        ``adjustSize()`` alone is not enough: the body is a word-wrapping
+        QLabel, so its height depends on the width it ends up at, but
+        ``sizeHint()`` reports the height the text *would* need at its own
+        preferred (unwrapped) width. For a long step that yields a box wide
+        enough but too short, clipping the first and last lines. So settle the
+        width first, then ask the layout how tall it needs to be at exactly
+        that width.
+        """
+        hint = self._bubble.sizeHint()
+        width = min(hint.width(), self._bubble.maximumWidth())
+        lay = self._bubble.layout()
+        if lay is None:
+            self._bubble.resize(width, hint.height())
+            return
+
+        height = lay.heightForWidth(width) if lay.hasHeightForWidth() else hint.height()
+
+        # heightForWidth answers for the *contents*, but the stylesheet border
+        # sits outside them, so the frame needs those pixels on top — otherwise
+        # the last line of the body is cropped by exactly the border width.
+        height += 2 * BUBBLE_BORDER
+
+        # The same border also narrows the contents, so a wrapping label can
+        # need one more line than the layout assumed when it computed the
+        # height above. Add back what that costs. Measuring the labels' live
+        # geometry instead would be simpler but is wrong on the first render,
+        # when children have no geometry yet and a wrapped label claims it
+        # needs many lines in ~50px.
+        margins = lay.contentsMargins()
+        assumed = max(1, width - margins.left() - margins.right())
+        actual = max(1, assumed - 2 * BUBBLE_BORDER)
+        for i in range(lay.count()):
+            widget = lay.itemAt(i).widget()
+            if widget is not None and widget.hasHeightForWidth():
+                height += max(0, widget.heightForWidth(actual) - widget.heightForWidth(assumed))
+
+        self._bubble.resize(width, height)
+        lay.activate()
+
     def _clear_bubble(self) -> None:
+        # Dropped here rather than left dangling: _drain_layout deletes the
+        # label, and touching a deleted QLabel raises.
+        self._body_label = None
         old = self._bubble.layout()
         if old is not None:
             self._drain_layout(old)
