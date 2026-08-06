@@ -367,6 +367,75 @@ def count_edges_shown(adjM: np.ndarray, edge_thresh: float) -> int:
 
 # ── Network rendering ─────────────────────────────────────────────────────────
 
+#: Dash patterns distinguishing cell-type marker rings. Colour is left to encode
+#: the node's metric, so identity is carried by line style instead: each marker
+#: gets its own pattern, ordered so neighbouring markers look as different as
+#: possible (solid → fine dot → long dash → …) rather than shading gradually
+#: into one another.
+_CELL_TYPE_RING_STYLES = [
+    "solid",
+    (0, (1, 1.4)),          # fine dotted
+    (0, (5, 2)),            # long dashed
+    (0, (1.2, 1.2, 4, 1.2)),  # dash-dot
+    (0, (2.5, 1.6)),        # short dashed
+    (0, (0.8, 2.2)),        # sparse dotted
+    (0, (6, 1.4, 1, 1.4)),  # long dash-dot
+    (0, (3.5, 1.2, 3.5, 3)),  # uneven dashed
+]
+
+
+#: The largest node's diameter, as a fraction of the median distance between
+#: neighbouring nodes. Calibrated so ``"auto"`` reproduces the historic fixed
+#: scale of 1.0 exactly on a standard MEA layout (whose median nearest-neighbour
+#: spacing is ~1.143 data units), while shrinking nodes on denser fields — a 2P
+#: field of ~250 cells packs them ~5x closer, where the fixed scale drew each
+#: node 4.6x the inter-cell distance and the network became a solid mass.
+_NODE_DIAMETER_PER_SPACING = 0.875
+
+
+def median_node_spacing(coords: np.ndarray) -> float:
+    """Median distance from a node to its nearest neighbour. 0 if undefined."""
+    coords = np.asarray(coords, dtype=float)
+    if coords.ndim != 2 or len(coords) < 2:
+        return 0.0
+    from scipy.spatial.distance import pdist, squareform
+    d = squareform(pdist(coords))
+    np.fill_diagonal(d, np.inf)
+    nearest = d.min(axis=1)
+    nearest = nearest[np.isfinite(nearest)]
+    return float(np.median(nearest)) if nearest.size else 0.0
+
+
+def auto_node_size_scale(coords: np.ndarray) -> float:
+    """Node-size multiplier that keeps nodes from overlapping on dense fields.
+
+    Node sizes are in data units, so a scale tuned for a 60-electrode MEA grid
+    draws hugely oversized nodes on a two-photon field of hundreds of cells
+    packed into the same coordinate box. Deriving the scale from the actual
+    median nearest-neighbour spacing fixes that, and is a no-op on MEA layouts
+    by construction (see :data:`_NODE_DIAMETER_PER_SPACING`).
+    """
+    spacing = median_node_spacing(coords)
+    if spacing <= 0:
+        return 1.0
+    return _NODE_DIAMETER_PER_SPACING * spacing
+
+
+def _cell_type_styles(k: int) -> list:
+    """Ring dash patterns for *k* markers, cycling past the end of the set."""
+    return [_CELL_TYPE_RING_STYLES[i % len(_CELL_TYPE_RING_STYLES)] for i in range(k)]
+
+
+def _ring_radii(k: int) -> np.ndarray:
+    """Ring radius per marker as a fraction of node diameter, outermost first.
+
+    Fixed by marker *index*, so the same marker always sits at the same radius
+    across every node and every figure — that is what makes a ring readable as
+    an identity rather than just a count.
+    """
+    return np.linspace(0.92, 0.34, k) if k > 1 else np.array([0.7])
+
+
 def _get_node_size(
     z_i: float,
     node_scale_f: float,
@@ -410,6 +479,8 @@ def plot_network(
     z2_name: str = "None",
     cell_type_matrix: np.ndarray | None = None,
     cell_type_names: list[str] | None = None,
+    cell_type_styles: list | None = None,
+    background: tuple | None = None,
     min_node_size: float = 0.01,
     title: str = "",
     z_name: str = "node degree",
@@ -418,7 +489,7 @@ def plot_network(
     edge_bounds_override: tuple[float, float] | None = None,
     min_ew: float = 0.001,
     max_ew: float = 4.0,
-    node_size_scale: float = 1.0,
+    node_size_scale: float | str = 1.0,
     node_scaling_method: str = "Linear",
     node_scaling_power: float = 1.0,
 ) -> None:
@@ -436,8 +507,20 @@ def plot_network(
         non-negative per-node metric works (e.g. node strength)
     z2 : (N,) optional metric driving node COLOR; None / all-NaN = flat cyan
     z2_name : display name for the color metric
-    cell_type_matrix : (N, K) binary membership matrix, or None
+    cell_type_matrix : (N, K) binary membership matrix, or None. Drawn as K
+        concentric rings per node — marker ``k`` always at radius ``k``, in its
+        own dash pattern, solid-drawn when the cell is positive and faint when
+        it is negative, so each node carries its full genetic identity. Rings
+        are unfilled and uncoloured, so the ``z2`` colormap stays visible
+        underneath and colour is not overloaded.
     cell_type_names : length-K list of type names
+    cell_type_styles : length-K ring dash patterns; defaults to a fixed set so a
+        marker keeps the same pattern across every figure
+    background : ``(image_2d, (x0, x1, y0, y1))`` drawn under the network, in
+        data coordinates — the CAT-NAP path passes suite2p's mean projection so
+        nodes can be checked against the actual field of view. Contrast is
+        clipped to the 1st–99th percentile and dimmed, so the image reads as a
+        backdrop rather than competing with the edges.
     z_name : display name for the size metric ``z`` (legend label) —
         defaults to "node degree" since that's the Network Viewer GUI's only
         use of this function; pass e.g. "node strength" when ``z`` isn't ND
@@ -458,7 +541,10 @@ def plot_network(
         defaults: 4.0 / 0.001 for the MEA plot type). User-adjustable in the
         interactive viewer.
     node_size_scale : final multiplier applied to every node size (MATLAB's
-        ``maxNodeSize``); 1.0 reproduces the original scaling, >1 enlarges nodes.
+        ``maxNodeSize``); 1.0 reproduces the original scaling, >1 enlarges
+        nodes. Pass ``"auto"`` to derive it from how densely the nodes are
+        packed (:func:`auto_node_size_scale`) — necessary for two-photon fields,
+        and a no-op on MEA electrode layouts.
     node_scaling_method : one of Linear / Log2 / Log10 / Square / Cube / Power —
         how ``z`` maps onto node size (MATLAB ``nodeScalingMethod``).
     node_scaling_power : exponent used when ``node_scaling_method == "Power"``.
@@ -477,6 +563,23 @@ def plot_network(
     n = len(adjM)
     xc = coords[:, 0]
     yc = coords[:, 1]
+
+    if isinstance(node_size_scale, str):
+        node_size_scale = (auto_node_size_scale(coords)
+                           if node_size_scale == "auto" else 1.0)
+
+    # ── Optional backdrop image ───────────────────────────────────────────────
+    if background is not None:
+        bg_img, bg_extent = background
+        bg_img = np.asarray(bg_img, dtype=float)
+        finite = bg_img[np.isfinite(bg_img)]
+        if finite.size:
+            lo, hi = np.percentile(finite, [1, 99])
+            if hi <= lo:
+                lo, hi = float(finite.min()), float(finite.max()) or 1.0
+            ax.imshow(bg_img, cmap="gray", origin="lower", extent=bg_extent,
+                      vmin=lo, vmax=hi, alpha=0.85, zorder=0,
+                      interpolation="bilinear", aspect="equal")
 
     z_max = float(np.nanmax(z)) if np.any(~np.isnan(z)) else 0.0
     # The "at least 3" floor only makes sense for integer-valued node degree
@@ -581,17 +684,26 @@ def plot_network(
         ax.add_collection(lc)
 
     # ── Nodes ─────────────────────────────────────────────────────────────────
-    ct_line_styles = ["-", "--", ":", "-.", "-"]
-    ct_edge_colors = ["white", "white", "white", "white", "white"]
-
     has_ct = (
         cell_type_matrix is not None
         and cell_type_names is not None
         and cell_type_matrix.shape[1] > 0
     )
 
+    # Concentric marker rings (MATLAB StandardisedNetworkPlot draws these too,
+    # but all solid white, so a marker is identifiable only by which radius its
+    # ring sits at). Here each marker gets its own dash pattern at its own fixed
+    # radius, and the slots a cell is *negative* for are still drawn, faintly —
+    # so a node shows its complete genetic identity rather than only the
+    # markers it happens to be positive for. Rings are unfilled and uncoloured,
+    # leaving the node's interior and its colour free for the metric colormap.
+    if has_ct and cell_type_styles is None:
+        cell_type_styles = _cell_type_styles(cell_type_matrix.shape[1])
+
     outer_patches = []
+    halo_patches = []
     inner_patches = []
+    absent_patches = []
     for i in range(n):
         zi = float(z[i]) if not np.isnan(z[i]) else 0.0
         if zi <= 0:
@@ -605,16 +717,30 @@ def plot_network(
         ))
 
         if has_ct:
-            ct_sizes = np.linspace(0.9, 0.3, cell_type_matrix.shape[1]) * node_size
+            ct_sizes = _ring_radii(cell_type_matrix.shape[1]) * node_size
+            # Ring strokes are in points but node radii are in data units, so a
+            # fixed line width swamps a small node — scale them together, with
+            # a floor so the thinnest rings stay visible.
+            rel = float(np.clip(node_size / max(node_size_scale, 1e-9), 0.3, 1.0))
             for k in range(cell_type_matrix.shape[1]):
+                r = ct_sizes[k] / 2
+                style = cell_type_styles[k % len(cell_type_styles)]
                 if cell_type_matrix[i, k] == 1:
-                    r = ct_sizes[k] / 2
+                    # Dark halo under a white dashed ring, so the pattern stays
+                    # readable at both ends of viridis — white alone vanishes on
+                    # the yellow end, black alone on the blue end.
+                    halo_patches.append(mpatches.Circle(
+                        (xc[i], yc[i]), r, facecolor="none",
+                        edgecolor=(0, 0, 0, 0.55), linewidth=2.2 * rel,
+                    ))
                     inner_patches.append(mpatches.Circle(
-                        (xc[i], yc[i]), r,
-                        facecolor=fc,
-                        edgecolor=ct_edge_colors[k % len(ct_edge_colors)],
-                        linewidth=1.0,
-                        linestyle=ct_line_styles[k % len(ct_line_styles)],
+                        (xc[i], yc[i]), r, facecolor="none",
+                        edgecolor="white", linewidth=1.1 * rel, linestyle=style,
+                    ))
+                else:
+                    absent_patches.append(mpatches.Circle(
+                        (xc[i], yc[i]), r, facecolor="none",
+                        edgecolor=(1, 1, 1, 0.18), linewidth=0.5 * rel, linestyle=style,
                     ))
 
     # Batch node circles into PatchCollections (match_original keeps each
@@ -626,8 +752,14 @@ def plot_network(
 
     if outer_patches:
         ax.add_collection(PatchCollection(outer_patches, match_original=True, zorder=2))
+    if absent_patches:
+        # Negative-marker slots go under the positive rings, so an overlap never
+        # hides a marker the cell actually carries.
+        ax.add_collection(PatchCollection(absent_patches, match_original=True, zorder=3))
+    if halo_patches:
+        ax.add_collection(PatchCollection(halo_patches, match_original=True, zorder=4))
     if inner_patches:
-        ax.add_collection(PatchCollection(inner_patches, match_original=True, zorder=3))
+        ax.add_collection(PatchCollection(inner_patches, match_original=True, zorder=5))
 
     # ── Legend: node size metric ────────────────────────────────────────────────
     x_max = float(xc.max())
@@ -690,30 +822,50 @@ def plot_network(
         ax.text(legend_x + 0.8, leg_y - bar_h * n_steps, f"{z2_min:.3f}", fontsize=6, va="bottom", color="black")
         leg_y -= bar_h * n_steps + 0.4
 
-    # ── Legend: cell types ────────────────────────────────────────────────────
+    # ── Legend: cell-type marker rings ────────────────────────────────────────
+    # A single schematic node showing every ring slot in its own colour, with
+    # the marker names listed in the same outermost→innermost order — so the
+    # reader can map a ring's radius *and* its colour back to a marker.
     if has_ct:
-        leg_y_ct = y_min - 0.8
         n_ct = len(cell_type_names)
-        ct_x_positions = np.linspace(x_min, x_max, n_ct) if n_ct > 1 else [x_min]
-        leg_node_size = node_size_of(leg_vals[1])
-        ct_sizes = np.linspace(0.9, 0.3, n_ct) * leg_node_size
+        leg_node_size = max(node_size_of(leg_vals[-1]), (x_max - x_min) * 0.12)
+        cx = x_min + leg_node_size / 2
+        leg_y_ct = y_min - 0.8 - leg_node_size / 2
 
+        ax.add_patch(mpatches.Circle(
+            (cx, leg_y_ct), leg_node_size / 2,
+            facecolor=default_node_color, edgecolor="white", linewidth=0.1, zorder=4,
+        ))
+        radii = _ring_radii(n_ct) * leg_node_size
+        for k in range(n_ct):
+            style = cell_type_styles[k % len(cell_type_styles)]
+            ax.add_patch(mpatches.Circle(
+                (cx, leg_y_ct), radii[k] / 2, facecolor="none",
+                edgecolor=(0, 0, 0, 0.55), linewidth=2.6, zorder=5,
+            ))
+            ax.add_patch(mpatches.Circle(
+                (cx, leg_y_ct), radii[k] / 2, facecolor="none",
+                edgecolor="white", linewidth=1.4, linestyle=style, zorder=6,
+            ))
+
+        label_x = cx + leg_node_size * 0.75
+        step = leg_node_size / max(n_ct, 1)
+        top = leg_y_ct + leg_node_size / 2 - step / 2
         for k, ct_name in enumerate(cell_type_names):
-            cx = ct_x_positions[k]
-            ax.add_patch(mpatches.Circle(
-                (cx, leg_y_ct), leg_node_size / 2,
-                facecolor=default_node_color, edgecolor="white", linewidth=0.1, zorder=4,
-            ))
-            ax.add_patch(mpatches.Circle(
-                (cx, leg_y_ct), ct_sizes[k] / 2,
-                facecolor=default_node_color,
-                edgecolor=ct_edge_colors[k % len(ct_edge_colors)],
-                linewidth=1.0,
-                linestyle=ct_line_styles[k % len(ct_line_styles)],
-                zorder=5,
-            ))
-            ax.text(cx, leg_y_ct - leg_node_size * 0.65, ct_name,
-                    fontsize=6, ha="center", va="top", color="black")
+            ly = top - k * step
+            # A long segment: two dash patterns are only telling apart over
+            # enough length to show a full repeat of each.
+            seg_x = [label_x, label_x + leg_node_size * 0.85]
+            ax.plot(seg_x, [ly, ly], color=(0, 0, 0, 0.55), linewidth=3.2, zorder=5)
+            ax.plot(seg_x, [ly, ly], color="white", linewidth=1.7, zorder=6,
+                    linestyle=cell_type_styles[k % len(cell_type_styles)])
+            ax.text(label_x + leg_node_size * 0.95, ly, str(ct_name),
+                    fontsize=6, ha="left", va="center", color="black")
+        ax.text(cx, leg_y_ct + leg_node_size * 0.62, "genetic identity",
+                fontsize=6, ha="center", va="bottom", color="black")
+        ax.text(cx, leg_y_ct - leg_node_size * 0.62,
+                "bright ring = positive, faint = negative",
+                fontsize=5, ha="center", va="top", color="0.45")
 
     # ── Axis limits ───────────────────────────────────────────────────────────
     ax.set_xlim(x_min - 1, x_max + 4.0)

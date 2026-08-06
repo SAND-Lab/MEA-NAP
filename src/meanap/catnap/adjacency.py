@@ -40,6 +40,10 @@ class Suite2pAdjmResult:
     fs: float
     activity_properties: dict             # peakDurationFrames/peakHeights/eventAreas/cellsWithPeaks
     func_con_lag_val: list[int]           # lags actually used (single deriv. lag for corr paths)
+    #: ``(min, max)`` of the raw pixel centroids, the normalisation that mapped
+    #: them onto ``coords``. Kept so anything else in pixel space — the mean
+    #: projection image, most usefully — can be mapped into the same frame.
+    coord_norm: tuple[float, float] = (0.0, 1.0)
 
 
 def _corr_columns(x: np.ndarray) -> np.ndarray:
@@ -190,4 +194,5 @@ def suite2p_to_adjm(
         fs=fs,
         activity_properties=activity_properties,
         func_con_lag_val=used_lags,
+        coord_norm=(min_xy, max_xy),
     )

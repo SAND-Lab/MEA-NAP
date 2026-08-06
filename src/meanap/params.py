@@ -163,7 +163,20 @@ class Params:
     # named groups; the pipeline then re-runs the step-4 metrics on each
     # group's induced subgraph, splits the whole-network node metrics by group,
     # and summarises within- vs between-type edge mixing.
+    # Emit the field-of-view figure: suite2p's mean projection beside the
+    # network, on shared axes, so nodes can be checked against the imaged
+    # cells. Not drawn *under* the network plots — a few hundred nodes and a
+    # dense edge set cover the image completely.
+    twop_network_background: bool = True
+    # Size network-plot nodes from how densely the cells are packed. Node sizes
+    # are in data units and the default was tuned for ~60 MEA electrodes, which
+    # draws each node several times the inter-cell distance on a 2P field.
+    twop_auto_node_size: bool = True
     twop_subnetwork_analysis: bool = False
+    # Redraw the whole step-4A figure set once per cell-type subnetwork, beside
+    # the whole-network version. Multiplies the per-recording figure count by
+    # roughly the number of groups, so it is separable from the analysis itself.
+    twop_subnetwork_network_plots: bool = True
     # Explicit path to the cell-type spreadsheet; "" auto-discovers one inside
     # each recording's folder (same rule as MEApipeline.m, extended to xlsx).
     twop_cell_type_file: str = ""
