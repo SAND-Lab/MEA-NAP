@@ -20,7 +20,9 @@ from meanap.pipeline.io import (
 from meanap.pipeline.step2 import _run_step2_neuronal_activity
 from meanap.pipeline.step3 import _run_step3_functional_connectivity
 from meanap.pipeline.step4 import _run_step4_network_metrics
-from meanap.pipeline.output_folders import create_output_folders
+from meanap.pipeline.output_folders import (
+    create_output_folders, next_free_output_name, output_name_taken,
+)
 from meanap.pipeline.progress import (
     ProgressFn, RunProgress, plan_catnap, plan_ephys,
 )
@@ -32,6 +34,51 @@ from meanap.pipeline.spreadsheet import RecordingInfo, read_recording_csv
 def default_output_folder_name() -> str:
     """Default output folder name, matching MATLAB's ``'OutputData' + ddmmmyyyy``."""
     return "OutputData" + datetime.date.today().strftime("%d%b%Y")
+
+
+def resumes_in_place(params: Params) -> bool:
+    """Whether this run *means* to write into an existing output folder.
+
+    Starting mid-pipeline with nothing else configured to read from is the
+    "continue where I left off" case: the earlier steps' output is in that
+    folder, and the run is going to read it. Renaming there would strand the
+    inputs — so the collision check has to know the difference between
+    re-entering a run and landing on top of an unrelated one.
+    """
+    return (
+        params.start_analysis_step > 1
+        and not params.prior_analysis
+        and not params.spike_detected_data
+        and bool(params.output_data_folder_name)
+    )
+
+
+def resolve_output_folder_name(
+    params: Params, log: Callable[[str], None] = print,
+) -> str:
+    """The folder name this run writes to, avoiding an existing run's.
+
+    Both the folder and the ``.meanap`` beside it are checked — see
+    :func:`~meanap.pipeline.output_folders.output_name_taken`. Set
+    ``Params.overwrite_existing_output`` to land on it deliberately.
+    """
+    name = params.output_data_folder_name or default_output_folder_name()
+    parent = Path(params.output_data_folder or ".")
+
+    if resumes_in_place(params) or params.overwrite_existing_output:
+        if params.overwrite_existing_output and output_name_taken(parent, name):
+            log(f"Overwriting the existing run in {parent / name} (as configured).")
+        return name
+
+    if not output_name_taken(parent, name):
+        return name
+
+    fresh = next_free_output_name(parent, name)
+    log(f"'{name}' already holds a run — writing to '{fresh}' instead so it is "
+        f"not overwritten.")
+    log(f"  To replace the earlier run instead, delete it or set "
+        f"Params.overwrite_existing_output = True.")
+    return fresh
 
 
 def run_pipeline(
@@ -84,7 +131,7 @@ def run_pipeline(
         )
     )
 
-    folder_name = params.output_data_folder_name or default_output_folder_name()
+    folder_name = resolve_output_folder_name(params, log)
     output_root = create_output_folders(
         Path(params.output_data_folder), folder_name, group_names,
         include_not_box_plots=params.include_not_box_plots,

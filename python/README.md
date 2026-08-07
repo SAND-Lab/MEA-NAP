@@ -128,6 +128,23 @@ Set the required paths (MEA-NAP folder, raw data folder, output folder), configu
 
 The pipeline mirrors MATLAB's 4 steps — spike detection, neuronal activity (firing rates/bursts), functional connectivity (STTC), and network metrics — writing the same output folder structure MATLAB's `CreateOutputFolders.m` builds. **Not every step or metric is fully ported yet**; see [`PIPELINE_PORT_STATUS.md`](PIPELINE_PORT_STATUS.md) for exactly what's done, what's approximate, and what's still missing before relying on this for real analysis.
 
+### Not overwriting an earlier run
+
+The output folder defaults to today's date, so two runs in a day both want
+`OutputData07Aug2026`. Rather than replacing the first one, the second writes to
+`OutputData07Aug2026_v2` and says so; the GUI asks first, offering the new name,
+**Overwrite**, or **Cancel**. Past `_v99` it falls back to a `_HHMMSS` stamp.
+
+The `.meanap` bundle counts on its own — an express run's folder is often
+deleted once the bundle is in hand, and it would otherwise be the one artefact
+left to overwrite. An empty tree from a crashed run does not count.
+
+Resuming *into* a folder (start at step > 1 with a named output folder and no
+prior-analysis path) is left alone: that run reads what it then rewrites. To
+replace a run deliberately, delete it or set
+`Params(overwrite_existing_output=True)` — which is still reported in the log,
+never silent.
+
 ### Progress and time estimates
 
 A run shows a progress bar on the Pipeline tab with the phase, the recording

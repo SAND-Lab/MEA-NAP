@@ -2,6 +2,7 @@
 
 import json
 import webbrowser
+from dataclasses import replace
 from pathlib import Path
 
 from PyQt6.QtWidgets import (
@@ -675,6 +676,10 @@ class MainWindow(QMainWindow):
             f"Starting MEA-NAP: steps {params.start_analysis_step}-{params.stop_analysis_step}…"
         )
 
+        params = self._confirm_output_folder(params)
+        if params is None:
+            return
+
         self._pipeline_panel.start_progress()
 
         worker = PipelineWorker(params, parent=self)
@@ -685,6 +690,64 @@ class MainWindow(QMainWindow):
         worker.failed.connect(self._on_pipeline_failed)
         self._worker = worker
         worker.start()
+
+    def _confirm_output_folder(self, params: Params) -> Params | None:
+        """Ask before a run lands on an existing one. ``None`` = don't run.
+
+        The default folder name is today's date, so the second run of a day
+        collides with the first without the user having done anything wrong —
+        which is exactly when a silent overwrite is least expected and most
+        expensive. ``run_pipeline`` would move aside on its own; asking here
+        lets the choice be an informed one, and puts the name that will actually
+        be used on the Paths tab where it can be seen.
+        """
+        from meanap.pipeline.output_folders import (
+            next_free_output_name, output_name_taken,
+        )
+        from meanap.pipeline.runner import (
+            default_output_folder_name, resumes_in_place,
+        )
+
+        if resumes_in_place(params):
+            return params   # the run is going to read what is in there
+
+        name = params.output_data_folder_name or default_output_folder_name()
+        parent = Path(params.output_data_folder or ".")
+        if not output_name_taken(parent, name):
+            return params
+
+        fresh = next_free_output_name(parent, name)
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.Warning)
+        box.setWindowTitle("That run already exists")
+        # Qt auto-detects rich text on the main label but not the informative
+        # one, so say which it is rather than leaving markup showing.
+        box.setTextFormat(Qt.TextFormat.RichText)
+        box.setText(f"<b>{name}</b> already holds a run's results.")
+        box.setInformativeText(
+            "Running now would overwrite it — its figures, its CSVs and its "
+            f"bundle.<br><br>Save this run as <b>{fresh}</b> instead?"
+        )
+        use_new = box.addButton(f"Use {fresh}", QMessageBox.ButtonRole.AcceptRole)
+        overwrite = box.addButton("Overwrite", QMessageBox.ButtonRole.DestructiveRole)
+        box.addButton(QMessageBox.StandardButton.Cancel)
+        box.setDefaultButton(use_new)
+        box.exec()
+
+        clicked = box.clickedButton()
+        if clicked is use_new:
+            # Onto the Paths tab too: the name a run wrote to should be visible
+            # afterwards, not something the user has to reconstruct from a log.
+            self._paths_panel.output_data_folder_name.setText(fresh)
+            params.output_data_folder_name = fresh
+            self._pipeline_panel.append_log(f"Saving this run as {fresh}.")
+            return params
+        if clicked is overwrite:
+            self._pipeline_panel.append_log(f"Overwriting the existing run in {name}.")
+            # A copy, so "overwrite this once" cannot be saved into a parameter
+            # file and quietly overwrite every run that later loads it.
+            return replace(params, overwrite_existing_output=True)
+        return None
 
     def _on_stop(self) -> None:
         if self._worker is not None and self._worker.isRunning():
