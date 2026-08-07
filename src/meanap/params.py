@@ -112,6 +112,15 @@ class Params:
     raster_colormap: str = "parula"
     line_plot_shade_metric: str = "sem"
     custom_grp_order: list[str] = field(default_factory=list)
+    # Colours for the group-level (2B/4B) comparison plots. Ages take a
+    # sequential colormap, groups a categorical list; see
+    # meanap.pipeline.palette for the presets. An explicit list of colours
+    # (hex codes or names) overrides the preset, and cycles if it is shorter
+    # than the number of ages or groups. Defaults reproduce MATLAB's palettes.
+    age_color_scheme: str = "viridis"
+    group_color_scheme: str = "meanap"
+    age_colors: list[str] = field(default_factory=list)
+    group_colors: list[str] = field(default_factory=list)
     network_plot_edge_threshold_method: str = "percentile"
     network_plot_edge_threshold_percentile: float = 90.0
     network_plot_edge_threshold: float = 0.1

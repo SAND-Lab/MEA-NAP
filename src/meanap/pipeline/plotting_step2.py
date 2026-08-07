@@ -402,24 +402,33 @@ def _plot_violin(df: pd.DataFrame, metric: str, group_col: str, out_path: Path, 
     savefig(fig, out_path, default_dpi=300, bbox_inches="tight")
     plt.close(fig)
 
-def plot_step2_group_comparisons(
+def ephys_comparison_frames(
     recordings: list,
     all_ephys: dict,
-    out_dir: Path,
     custom_grp_order: list[str] | None = None,
-    fmt: str = "png",
-) -> None:
-    """Generate group comparison plots for step 2."""
+) -> tuple["pd.DataFrame", "pd.DataFrame"]:
+    """The recording- and node-level tables every 2B comparison plot is drawn from.
+
+    The step-2 counterpart of
+    :func:`~meanap.pipeline.plotting_step4.netmet_comparison_frames`, and split
+    out for the same reason: so one figure can be drawn on its own by the same
+    code that draws the folder. There is no ``Lag`` column here — step-2
+    activity metrics do not depend on the STTC lag.
+
+    Returns empty frames when nothing matched, rather than raising.
+    """
+    from meanap.pipeline.plotting_step4 import _apply_group_order
+
     rec_rows = []
     node_rows = []
-    
+
     for rec in recordings:
         if rec.filename not in all_ephys:
             continue
-            
+
         ephys = all_ephys[rec.filename]
         base = {"FileName": rec.filename, "Grp": rec.group, "DIV": str(rec.div)}
-        
+
         # Recording-level
         rec_row = dict(base)
         for k in EPHYS_REC_METRICS:
@@ -429,7 +438,7 @@ def plot_step2_group_comparisons(
                     val = val[0]
                 rec_row[k] = val
         rec_rows.append(rec_row)
-        
+
         # Node-level
         num_nodes = len(ephys.get("FR", []))
         if num_nodes > 0:
@@ -440,24 +449,38 @@ def plot_step2_group_comparisons(
                     if k in ephys and len(ephys[k]) > ch:
                         node_row[k] = ephys[k][ch]
                 node_rows.append(node_row)
-                
-    if not rec_rows:
-        return
-        
+
     df_rec = pd.DataFrame(rec_rows)
     df_node = pd.DataFrame(node_rows)
-    
-    if custom_grp_order:
-        df_rec["Grp"] = pd.Categorical(df_rec["Grp"], categories=custom_grp_order, ordered=True)
-        df_node["Grp"] = pd.Categorical(df_node["Grp"], categories=custom_grp_order, ordered=True)
-    
+    _apply_group_order(df_rec, df_node, custom_grp_order)
+    return df_rec, df_node
+
+
+def plot_step2_group_comparisons(
+    recordings: list,
+    all_ephys: dict,
+    out_dir: Path,
+    custom_grp_order: list[str] | None = None,
+    fmt: str = "png",
+    colors=None,
+) -> None:
+    """Generate group comparison plots for step 2.
+
+    ``colors`` is a :class:`~meanap.pipeline.palette.ColorScheme` for the age
+    and group palettes; omitting it keeps the historical ones.
+    """
+    df_rec, df_node = ephys_comparison_frames(recordings, all_ephys, custom_grp_order)
+    if df_rec.empty:
+        return
+
     # 3_RecordingsByGroup
     grp_dir = out_dir / "2B_GroupComparisons" / "3_RecordingsByGroup" / "HalfViolinPlots"
     grp_dir.mkdir(parents=True, exist_ok=True)
     
     for k, name in EPHYS_REC_METRICS.items():
         plot_half_violin_by_x(df_rec, k, name, "group",
-                              grp_dir / f"{k}_byGroup.{fmt}", group_order=custom_grp_order)
+                              grp_dir / f"{k}_byGroup.{fmt}", group_order=custom_grp_order,
+                              colors=colors)
 
     # 1_NodeByGroup
     node_grp_dir = out_dir / "2B_GroupComparisons" / "1_NodeByGroup"
@@ -465,7 +488,8 @@ def plot_step2_group_comparisons(
 
     for k, name in EPHYS_NODE_METRICS.items():
         plot_half_violin_by_x(df_node, k, name, "group",
-                              node_grp_dir / f"{k}_byGroup_node.{fmt}", group_order=custom_grp_order)
+                              node_grp_dir / f"{k}_byGroup_node.{fmt}",
+                              group_order=custom_grp_order, colors=colors)
 
     # 4_RecordingsByAge
     age_dir = out_dir / "2B_GroupComparisons" / "4_RecordingsByAge" / "HalfViolinPlots"
@@ -473,7 +497,8 @@ def plot_step2_group_comparisons(
 
     for k, name in EPHYS_REC_METRICS.items():
         plot_half_violin_by_x(df_rec, k, name, "DIV",
-                              age_dir / f"{k}_byDIV.{fmt}", group_order=custom_grp_order)
+                              age_dir / f"{k}_byDIV.{fmt}", group_order=custom_grp_order,
+                              colors=colors)
 
     # 2_NodeByAge
     node_age_dir = out_dir / "2B_GroupComparisons" / "2_NodeByAge"
@@ -481,4 +506,5 @@ def plot_step2_group_comparisons(
 
     for k, name in EPHYS_NODE_METRICS.items():
         plot_half_violin_by_x(df_node, k, name, "DIV",
-                              node_age_dir / f"{k}_byDIV_node.{fmt}", group_order=custom_grp_order)
+                              node_age_dir / f"{k}_byDIV_node.{fmt}",
+                              group_order=custom_grp_order, colors=colors)

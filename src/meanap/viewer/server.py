@@ -15,11 +15,19 @@ anyone.
 Endpoints
 ---------
 ``GET /``                     the page
-``GET /api/manifest``         recordings, lags, figures, families, controls
+``GET /api/manifest``         recordings, lags, figures, families, comparisons, controls
 ``GET /api/figure``           one network figure, restyled per the query string
 ``GET /api/activity``         one step-2 activity figure (raster, heatmap, …)
+``GET /api/comparison``       one 2B/4B comparison figure, by facet
+``GET /api/lagseries``        one across-lag figure (metric vs lag, roles per lag)
 ``GET /api/family``           a family's thumbnails (renders once, then cached)
 ``GET /api/asset``            a file from the render cache
+
+``/api/comparison`` is what makes the batch comparisons navigable. A three-lag
+run's 4B set is 274 small multiples, and ``/api/family`` can only hand over all
+of them at once; each is one metric at one lag, so it has an address —
+``family``, ``level``, ``split``, ``lag``, ``metric`` — and the page asks for
+the one it is showing.
 
 The styling controls apply to the spatial network plots only, so ``/api/family``
 ignores them and the page hides the panel for gallery views rather than
@@ -39,11 +47,16 @@ from urllib.parse import parse_qs, urlparse
 from meanap.pipeline.bundle import is_bundle, open_bundle
 from meanap.pipeline.figure_output import DEFAULT_THUMBNAIL_DPI
 from meanap.pipeline.render import (
-    available_activity_figures, available_figures, available_group_families,
-    cached_figure, gallery, load_context, render_activity_figure,
+    available_activity_figures, available_comparison_families, available_figures,
+    available_group_families, available_lag_series, cached_comparison_figure,
+    cached_figure, cached_lag_series_figure, comparison_axes, gallery, load_context,
+    render_activity_figure,
 )
 from meanap.pipeline.render_cache import RenderCache
-from meanap.viewer.controls import control_schema, parse_overrides
+from meanap.viewer.controls import (
+    comparison_control_schema, control_schema, parse_comparison_overrides,
+    parse_overrides,
+)
 from meanap.viewer.page import PAGE_HTML
 
 __all__ = ["ViewerService", "serve"]
@@ -98,9 +111,75 @@ class ViewerService:
             "recordings": recordings,
             "families": [{"key": f.key, "label": f.label}
                          for f in available_group_families(self.ctx)],
+            "comparisons": self.comparisons(),
+            "lag_series": self.lag_series(),
             "controls": control_schema(),
+            "comparison_controls": comparison_control_schema(),
             "formats": list(ALLOWED_FORMATS),
         }
+
+    def comparisons(self) -> list[dict]:
+        """The facets behind the comparison tab: one entry per family.
+
+        These families are the half-violin sets (4B network metrics, 2B
+        neuronal activity), which are one metric per figure and therefore
+        selectable. The gallery families in ``families`` above stay as they
+        are — nothing there has an address to select by.
+        """
+        out = []
+        for fam in available_comparison_families(self.ctx):
+            axes = comparison_axes(self.ctx, fam.key)
+            out.append({
+                "key": axes.family,
+                "label": axes.label,
+                "lags": list(axes.lags),
+                "levels": [
+                    {"key": level.key, "label": level.label,
+                     "metrics": [{"name": m.key, "label": m.label}
+                                 for m in level.metrics]}
+                    for level in axes.levels
+                ],
+                "splits": [{"key": s.key, "label": s.label} for s in axes.splits],
+            })
+        return out
+
+    def lag_series(self) -> list[dict]:
+        """The across-lag sets: graph metrics vs lag, and cartography per lag.
+
+        Empty on a single-lag run — a curve through one point says nothing, so
+        the tab is not offered rather than shown empty.
+        """
+        return [
+            {"key": series.key, "label": series.label, "keyed_by": series.keyed_by,
+             "options": [{"key": c.key, "label": c.label} for c in choices]}
+            for series, choices in available_lag_series(self.ctx)
+        ]
+
+    def lag_series_figure(self, series: str, key: str, *,
+                          fmt: str, thumbnail: bool, overrides: dict) -> Path:
+        """One across-lag figure, by set and key. Cached like the rest."""
+        path, _ = cached_lag_series_figure(
+            self.ctx, self.cache, series, key, fmt=fmt,
+            dpi=DEFAULT_THUMBNAIL_DPI if thumbnail else None,
+            overrides=overrides or None,
+        )
+        return path
+
+    def comparison(self, family: str, level: str, split: str, metric: str, *,
+                   lag: int | None, fmt: str, thumbnail: bool,
+                   overrides: dict) -> Path:
+        """One comparison figure, by address. Cached like the 4A figures.
+
+        The overrides here are the *comparison* controls (age and group
+        colours), not the Network Viewer ones — a violin plot reads no node
+        size or edge threshold, so those are neither accepted nor offered.
+        """
+        path, _ = cached_comparison_figure(
+            self.ctx, self.cache, family, level, split, metric, lag=lag, fmt=fmt,
+            dpi=DEFAULT_THUMBNAIL_DPI if thumbnail else None,
+            overrides=overrides or None,
+        )
+        return path
 
     def figure(self, recording: str, lag: int, name: str, *,
                fmt: str, overrides: dict, thumbnail: bool) -> Path:
@@ -174,6 +253,10 @@ class _Handler(BaseHTTPRequestHandler):
                 self._figure(query)
             elif parsed.path == "/api/activity":
                 self._activity(query)
+            elif parsed.path == "/api/comparison":
+                self._comparison(query)
+            elif parsed.path == "/api/lagseries":
+                self._lag_series(query)
             elif parsed.path == "/api/family":
                 self._json(self.service.family(
                     _one(query, "key"), fmt=_fmt(query)))
@@ -210,6 +293,27 @@ class _Handler(BaseHTTPRequestHandler):
         download = query.get("download", ["0"])[0] == "1"
         self._file(path, download_as=path.name if download else None)
 
+    def _comparison(self, query) -> None:
+        fmt = _fmt(query)
+        path = self.service.comparison(
+            _one(query, "family"), _one(query, "level"), _one(query, "split"),
+            _one(query, "metric"), lag=_optional_int(query, "lag"), fmt=fmt,
+            thumbnail=query.get("thumb", ["0"])[0] == "1",
+            overrides=parse_comparison_overrides(query),
+        )
+        download = query.get("download", ["0"])[0] == "1"
+        self._file(path, download_as=path.name if download else None)
+
+    def _lag_series(self, query) -> None:
+        fmt = _fmt(query)
+        path = self.service.lag_series_figure(
+            _one(query, "series"), _one(query, "key"), fmt=fmt,
+            thumbnail=query.get("thumb", ["0"])[0] == "1",
+            overrides=parse_comparison_overrides(query),
+        )
+        download = query.get("download", ["0"])[0] == "1"
+        self._file(path, download_as=path.name if download else None)
+
     # ── plumbing ─────────────────────────────────────────────────────────────
 
     def _send(self, status: int, content_type: str, body: bytes,
@@ -237,6 +341,21 @@ def _one(query: dict, key: str) -> str:
     if not value:
         raise ValueError(f"missing required parameter '{key}'")
     return value
+
+
+def _optional_int(query: dict, key: str) -> int | None:
+    """An optional whole-number parameter, absent or blank meaning "not given".
+
+    ``int()``'s own message ("invalid literal for int() with base 10") reaches
+    the page as the error text, so it is replaced with one naming the parameter.
+    """
+    value = query.get(key, [None])[0]
+    if value is None or value == "":
+        return None
+    try:
+        return int(value)
+    except ValueError:
+        raise ValueError(f"'{key}' must be a whole number, got {value!r}") from None
 
 
 def _fmt(query: dict) -> str:
