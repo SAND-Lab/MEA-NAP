@@ -227,6 +227,62 @@ def _express_toggle_checks(app: QApplication) -> list[Check]:
     return checks
 
 
+def _bundle_notice_checks(app: QApplication) -> list[Check]:
+    """The express bundle must be findable after the run that wrote it.
+
+    It lands *beside* the output folder, not inside it, and the runner logs it
+    before the timing lines — so without a closing notice the one file the run
+    exists to produce scrolls out of sight in the place nobody looks.
+    """
+    import tempfile
+
+    from meanap.gui.main_window import MainWindow
+    from meanap.params import Params
+    from meanap.pipeline.bundle import BUNDLE_SUFFIX
+
+    checks: list[Check] = []
+    window = MainWindow()
+
+    with tempfile.TemporaryDirectory() as tmp:
+        out_root = Path(tmp) / "OutputData01Jan2026"
+        out_root.mkdir()
+        bundle = out_root.with_suffix(BUNDLE_SUFFIX)
+        bundle.write_bytes(b"x" * 2_200_000)
+
+        window._params = Params(express_mode=True)
+        window._pipeline_panel.log.clear()
+        window._on_pipeline_finished(out_root)
+        text = window._pipeline_panel.log.toPlainText()
+        checks.append(("an express run names the bundle at the end",
+                       str(bundle) in text, text[-120:]))
+        checks.append(("…says it sits beside the output folder",
+                       "beside the output folder" in text, ""))
+        checks.append(("…gives the command that opens it",
+                       "meanap-viewer" in text, ""))
+        checks.append(("…after the 'Done.' line, so it reads last",
+                       text.index(str(bundle)) > text.index("Done."), ""))
+        checks.append(("the run remembers the bundle for later",
+                       window._last_bundle == bundle, str(window._last_bundle)))
+
+        # A non-express run must stay quiet even when a bundle from an earlier
+        # express run of the same day is still sitting next to the folder.
+        window._params = Params(express_mode=False)
+        window._pipeline_panel.log.clear()
+        window._on_pipeline_finished(out_root)
+        checks.append(("a full run says nothing about bundles",
+                       "meanap-viewer" not in window._pipeline_panel.log.toPlainText(), ""))
+
+        # Express on, but packing failed (the runner only warns) — no notice.
+        bundle.unlink()
+        window._params = Params(express_mode=True)
+        window._pipeline_panel.log.clear()
+        window._on_pipeline_finished(out_root)
+        checks.append(("no notice when no bundle was written",
+                       "meanap-viewer" not in window._pipeline_panel.log.toPlainText(), ""))
+
+    return checks
+
+
 def _helper_checks(app: QApplication) -> list[Check]:
     checks: list[Check] = []
     w = QWidget()
@@ -251,7 +307,8 @@ def main() -> int:
         ("B — formatting rules:", _format_checks),
         ("C — the real window:", _window_checks),
         ("D — the express-mode toggle:", _express_toggle_checks),
-        ("E — the set_tooltip helper:", _helper_checks),
+        ("E — the end-of-run bundle notice:", _bundle_notice_checks),
+        ("F — the set_tooltip helper:", _helper_checks),
     ]:
         p, n = _report(title, build(app))
         total_pass += p

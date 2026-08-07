@@ -12,6 +12,7 @@ from PyQt6.QtGui import QAction
 from PyQt6.QtCore import Qt, QSettings, QSignalBlocker
 
 from meanap.params import Params
+from meanap.pipeline.bundle import BUNDLE_SUFFIX
 from meanap.pipeline.example_data import download_example_data
 from meanap.pipeline.report import generate_report
 from meanap.gui import theme
@@ -22,6 +23,7 @@ from meanap.gui.modes import (
     apply_mode_to_params, mode_for_params,
 )
 from meanap.gui.pipeline_worker import PipelineWorker
+from meanap.gui.viewer_session import ViewerSessions
 from meanap.gui.panels.paths import PathsPanel
 from meanap.gui.panels.recording import RecordingPanel
 from meanap.gui.panels.spike_detection import SpikeDetectionPanel
@@ -64,9 +66,16 @@ class MainWindow(QMainWindow):
         # would snap a "--mode catnap" launch straight back to the ephys tabs.
         apply_mode_to_params(mode, self._params)
         self._last_output_root: Path | None = None
+        self._last_bundle: Path | None = None
         self._current_theme = "dark"
         self._worker: PipelineWorker | None = None
         self._tutorial: TutorialOverlay | None = None
+        self._viewers = ViewerSessions()
+
+        # A bundle is a file people email each other, so dropping one on the
+        # window is the obvious way to open it. Accepted at the window level;
+        # see dragEnterEvent for why nothing else is claimed.
+        self.setAcceptDrops(True)
 
         self._build_toolbar()
         self._build_tabs()
@@ -99,6 +108,14 @@ class MainWindow(QMainWindow):
         act_save.setToolTip("Save current parameters to a JSON file")
         act_save.triggered.connect(self._on_save)
 
+        act_bundle = QAction("Open bundle…", self)
+        act_bundle.setToolTip(
+            "Open a .meanap run bundle — from an express run of your own, or "
+            "one someone sent you — and draw any of its figures in the viewer. "
+            "You can also drag the file onto this window."
+        )
+        act_bundle.triggered.connect(self._on_open_bundle)
+
         self._act_theme = QAction("☀  Light", self)
         self._act_theme.setToolTip("Toggle light / dark theme")
         self._act_theme.triggered.connect(self._on_toggle_theme)
@@ -111,6 +128,8 @@ class MainWindow(QMainWindow):
         tb.addSeparator()
         tb.addAction(act_open)
         tb.addAction(act_save)
+        tb.addSeparator()
+        tb.addAction(act_bundle)
         tb.addSeparator()
         tb.addAction(self._act_theme)
         tb.addAction(act_tutorial)
@@ -195,6 +214,12 @@ class MainWindow(QMainWindow):
         # Mark log widget so the monospace QSS rule applies
         self._pipeline_panel.log.setObjectName("log")
         self._catnap_panel._log.setObjectName("log")
+
+        # QTextEdit accepts drops even when read-only, and a child that accepts
+        # a drag stops it reaching the window — so a bundle dropped on the
+        # status log, the largest target on the Pipeline tab, would do nothing.
+        self._pipeline_panel.log.setAcceptDrops(False)
+        self._catnap_panel._log.setAcceptDrops(False)
 
         # Secondary-style buttons in CAT-NAP panel
         self._catnap_panel._scan_btn.setObjectName("secondary")
@@ -659,7 +684,33 @@ class MainWindow(QMainWindow):
     def _on_pipeline_finished(self, output_root: Path) -> None:
         self._last_output_root = output_root
         self._pipeline_panel.append_log(f"Done. Output folder: {output_root}")
+        self._announce_bundle(output_root)
         self._reset_run_buttons()
+
+    def _announce_bundle(self, output_root: Path) -> None:
+        """Say where the express bundle went, as the last thing in the log.
+
+        The runner already logs the path, but it does so before the timing
+        lines, so on an express run the one file the user is meant to keep
+        scrolls out of sight behind everything else. It also lands *beside* the
+        output folder rather than inside it, which is exactly the place nobody
+        looks — so repeat it at the end, framed, with the command that opens it.
+        """
+        if not (self._params is not None and self._params.express_mode):
+            return
+        bundle = output_root.with_suffix(BUNDLE_SUFFIX)
+        if not bundle.is_file():
+            return
+        self._last_bundle = bundle
+        size_mb = bundle.stat().st_size / 1e6
+        rule = "─" * 68
+        self._pipeline_panel.append_log(
+            f"\n{rule}\n"
+            f"  Express bundle ({size_mb:.1f} MB) — beside the output folder, not in it:\n"
+            f"    {bundle}\n"
+            f"  Draw any figure from it:  meanap-viewer \"{bundle}\"\n"
+            f"{rule}"
+        )
 
     def _on_pipeline_cancelled(self) -> None:
         self._pipeline_panel.append_log("Pipeline stopped.")
@@ -670,18 +721,51 @@ class MainWindow(QMainWindow):
         self._reset_run_buttons()
         QMessageBox.critical(self, "Pipeline error", message)
 
+    def _candidate_output_root(self) -> Path | None:
+        """The output folder View report should act on, run or no run.
+
+        Falls back to the same folder :func:`run_pipeline` would have created
+        from the current paths — including its dated default name, which the
+        Paths tab leaves blank — so the button works in a fresh session
+        pointed at yesterday's results.
+        """
+        if self._last_output_root is not None:
+            return self._last_output_root
+        params = self._collect_params()
+        if not params.output_data_folder:
+            return None
+        from meanap.pipeline.runner import default_output_folder_name
+        name = params.output_data_folder_name or default_output_folder_name()
+        return Path(params.output_data_folder) / name
+
     def _on_view_report(self) -> None:
-        output_root = self._last_output_root
-        if output_root is None:
-            params = self._collect_params()
-            if params.output_data_folder and params.output_data_folder_name:
-                output_root = Path(params.output_data_folder) / params.output_data_folder_name
+        """Open the run's results: the viewer for an express run, else the report.
+
+        An express run leaves almost no figures on disk — that is the point of
+        it — so building the static PNG report from that folder produces a page
+        that looks like a failed run. The bundle beside it holds everything, and
+        the viewer draws any figure from it on demand, so that is what "view the
+        report" means for those runs.
+        """
+        output_root = self._candidate_output_root()
+
+        bundle = self._last_bundle
+        if bundle is None and output_root is not None:
+            candidate = output_root.with_suffix(BUNDLE_SUFFIX)
+            if candidate.is_file():
+                bundle = candidate
+        if bundle is not None and bundle.is_file():
+            self._open_in_viewer(bundle)
+            return
 
         if output_root is None or not output_root.is_dir():
             QMessageBox.warning(
                 self, "No output folder found",
                 "Run the pipeline first, or set the Output data folder / name "
-                "(Paths tab) to an existing MEA-NAP output folder.",
+                "(Paths tab) to an existing MEA-NAP output folder.\n\n"
+                "To open an express run from another machine, use "
+                "'Open bundle…' in the toolbar, or drag its .meanap file onto "
+                "this window.",
             )
             return
 
@@ -694,10 +778,88 @@ class MainWindow(QMainWindow):
         self._pipeline_panel.append_log(f"Report generated: {report_path}")
         webbrowser.open(report_path.as_uri())
 
+    # ── Bundles ───────────────────────────────────────────────────────────────
+
+    def _on_open_bundle(self) -> None:
+        start_dir = str(self._last_bundle.parent) if self._last_bundle else ""
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Open a MEA-NAP run bundle", start_dir,
+            f"MEA-NAP bundles (*{BUNDLE_SUFFIX})",
+        )
+        if path:
+            self._open_in_viewer(Path(path))
+
+    def _open_in_viewer(self, source: Path) -> bool:
+        """Serve *source* in the local viewer and open a browser on it.
+
+        Reading a bundle means extracting and parsing it, which is quick but
+        not instant, so the wait is shown rather than looking like a click that
+        did nothing. Returns whether it opened.
+        """
+        already = self._viewers.url_for(source)
+        if already is None:
+            self._pipeline_panel.append_log(f"Opening in the viewer: {source}")
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        try:
+            url = self._viewers.open(source)
+        except Exception as e:
+            QMessageBox.critical(self, "Could not open the bundle", str(e))
+            return False
+        finally:
+            QApplication.restoreOverrideCursor()
+
+        if already is None:
+            self._pipeline_panel.append_log(
+                f"Viewer serving at {url} — it stays up until MEA-NAP closes."
+            )
+        webbrowser.open(url)
+        return True
+
+    @staticmethod
+    def _dropped_bundles(event) -> list[Path]:
+        """The ``.meanap`` files in a drag event, in the order they were dragged."""
+        data = event.mimeData()
+        if not data.hasUrls():
+            return []
+        paths = []
+        for url in data.urls():
+            if not url.isLocalFile():
+                continue
+            path = Path(url.toLocalFile())
+            if path.suffix == BUNDLE_SUFFIX and path.is_file():
+                paths.append(path)
+        return paths
+
+    def dragEnterEvent(self, event) -> None:  # noqa: N802 - Qt naming
+        # Only claim the drag when we can act on it: refusing everything else
+        # leaves the path fields free to accept a dragged file as text.
+        if self._dropped_bundles(event):
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+
+    def dragMoveEvent(self, event) -> None:  # noqa: N802 - Qt naming
+        if self._dropped_bundles(event):
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+
+    def dropEvent(self, event) -> None:  # noqa: N802 - Qt naming
+        bundles = self._dropped_bundles(event)
+        if not bundles:
+            event.ignore()
+            return
+        event.acceptProposedAction()
+        for bundle in bundles:
+            self._open_in_viewer(bundle)
+
     def closeEvent(self, event) -> None:
         # A running QThread destroyed with its parent crashes Qt; ask the
         # pipeline to stop and give it a moment to reach a cancel checkpoint.
         if self._worker is not None and self._worker.isRunning():
             self._worker.request_cancel()
             self._worker.wait(5000)
+        # Each viewer holds a port and a temporary extraction directory; both
+        # live as long as the process unless handed back here.
+        self._viewers.close_all()
         super().closeEvent(event)

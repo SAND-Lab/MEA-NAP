@@ -141,8 +141,10 @@ class PipelinePanel(QWidget):
         self.view_report_btn = QPushButton("🌐  View report")
         self.view_report_btn.setFixedHeight(40)
         self.view_report_btn.setToolTip(
-            "Generate (or refresh) an HTML report of the output folder's "
-            "plots and open it in your browser"
+            "Open the last run's results in your browser. A normal run gets an "
+            "HTML report of the figures in the output folder; an express run "
+            "opens its .meanap bundle in the viewer instead, which draws any "
+            "figure on demand in PNG or editable SVG."
         )
 
         run_layout.addWidget(self.test_btn)

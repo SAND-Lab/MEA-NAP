@@ -40,6 +40,7 @@ import numpy as np
 
 from meanap.params import Params
 from meanap.pipeline.bundle import RunBundle
+from meanap.pipeline.palette import ColorScheme
 from meanap.pipeline.resume import ADJM_SUFFIX, CATNAP_SUFFIX
 from meanap.pipeline.spreadsheet import RecordingInfo
 
@@ -60,6 +61,26 @@ __all__ = [
     "gallery",
     "cached_figure",
     "style_from_overrides",
+    "COMPARISON_FAMILIES",
+    "COMPARISON_LEVELS",
+    "COMPARISON_SPLITS",
+    "Choice",
+    "ComparisonAxes",
+    "ComparisonFamily",
+    "LAG_SERIES",
+    "LagSeries",
+    "LevelAxis",
+    "available_comparison_families",
+    "available_lag_series",
+    "cached_lag_series_figure",
+    "lag_series",
+    "render_lag_series_figure",
+    "cached_comparison_figure",
+    "comparison_axes",
+    "comparison_family",
+    "comparison_lags",
+    "comparison_metrics",
+    "render_comparison_figure",
 ]
 
 #: Formats that produce editable vector output rather than pixels.
@@ -528,6 +549,7 @@ def render_group_family(
 
     params, _ = _apply_overrides(ctx.params, overrides)
     order = params.custom_grp_order or None
+    scheme = ColorScheme.from_params(params)
     out_root = Path(out_root)
     out_dir = out_root / fam.out_subdir
     recordings = list(ctx.recordings.values())
@@ -535,7 +557,8 @@ def render_group_family(
 
     with figure_dpi(dpi):
         if fam.key == "network":
-            plot_step4_group_comparisons(recordings, ctx.results, out_dir, order, fmt=fmt)
+            plot_step4_group_comparisons(recordings, ctx.results, out_dir, order,
+                                         fmt=fmt, colors=scheme)
         elif fam.key == "activity":
             gp.plot_twop_group_comparisons(
                 recordings, _all_stats(ctx), out_dir, custom_grp_order=order,
@@ -553,13 +576,479 @@ def render_group_family(
         elif fam.key == "ephys_activity":
             from meanap.pipeline.plotting_step2 import plot_step2_group_comparisons
             plot_step2_group_comparisons(
-                recordings, _ephys_stats(ctx), out_dir, order, fmt=fmt)
+                recordings, _ephys_stats(ctx), out_dir, order, fmt=fmt, colors=scheme)
         else:  # subnetwork
             summary, node = _subnetwork_rows(ctx)
             gp.plot_subnetwork_group_comparisons(summary, node, out_dir, order, fmt=fmt)
 
     return sorted(p for p in out_dir.rglob(f"*.{fmt}")
                   if p.is_file() and p not in before)
+
+
+# ── One comparison figure at a time ───────────────────────────────────────────
+#
+# The half-violin families (4B network metrics, 2B neuronal activity) are the
+# ones that hurt as galleries: on a three-lag run the network family alone is
+# 274 small multiples in a single scroll. But every one of them is one metric
+# at one lag, so each has an address — (level, split, lag, metric) — and can be
+# drawn on its own, exactly as a 4A figure can. That is what makes the viewer's
+# comparison tab selectable rather than a wall.
+#
+# The families below draw *nothing new*: same function, same arguments, same
+# filenames as the folder-at-a-time path. Only the reaching is different.
+
+
+@dataclass(frozen=True)
+class ComparisonFamily:
+    """A family whose figures are one metric each, and so individually addressable."""
+
+    key: str
+    #: Output subfolder for the whole step, relative to the run root.
+    out_subdir: str
+    #: The comparisons folder inside it, as the pipeline names it.
+    comparisons_dir: str
+    #: Whether its figures are per-STTC-lag. Step-2 activity metrics are not.
+    has_lag: bool
+
+
+COMPARISON_FAMILIES: tuple[ComparisonFamily, ...] = (
+    ComparisonFamily("network", "4_NetworkActivity", "4B_GroupComparisons", True),
+    ComparisonFamily("ephys_activity", "2_NeuronalActivity", "2B_GroupComparisons", False),
+)
+
+#: ``split`` → the ``x_kind`` passed to ``plot_half_violin_by_x`` and the
+#: filename stem the pipeline uses. ``group`` gives one panel per group with age
+#: along x; ``age`` gives one panel per age with group along x.
+COMPARISON_SPLITS: dict[str, tuple[str, str]] = {
+    "group": ("group", "byGroup"),
+    "age": ("DIV", "byDIV"),
+}
+
+COMPARISON_LEVELS = ("recording", "node")
+
+#: ``(level, split)`` → the folder the pipeline writes that combination to.
+_COMPARISON_DIRS: dict[tuple[str, str], str] = {
+    ("recording", "group"): "3_RecordingsByGroup/HalfViolinPlots",
+    ("node", "group"): "1_NodeByGroup",
+    ("recording", "age"): "4_RecordingsByAge/HalfViolinPlots",
+    ("node", "age"): "2_NodeByAge",
+}
+
+
+def comparison_family(key: str) -> ComparisonFamily:
+    """Look up a comparison family, or say which ones exist."""
+    fam = next((f for f in COMPARISON_FAMILIES if f.key == key), None)
+    if fam is None:
+        raise ValueError(
+            f"Unknown comparison family {key!r}; expected one of "
+            f"{[f.key for f in COMPARISON_FAMILIES]}")
+    return fam
+
+
+def comparison_metrics(family: str, level: str) -> dict[str, str]:
+    """Metric key → axis label, for one family and level.
+
+    These are the same maps the pipeline plots from, so the list a viewer offers
+    and the figures it can actually draw are one thing.
+    """
+    from meanap.pipeline.plotting_step2 import EPHYS_NODE_METRICS, EPHYS_REC_METRICS
+    from meanap.pipeline.plotting_step4 import NETMET_NODE_METRICS, NETMET_REC_METRICS
+
+    comparison_family(family)
+    if level not in COMPARISON_LEVELS:
+        raise ValueError(f"Unknown level {level!r}; expected one of {list(COMPARISON_LEVELS)}")
+    by_level = {
+        ("network", "recording"): NETMET_REC_METRICS,
+        ("network", "node"): NETMET_NODE_METRICS,
+        ("ephys_activity", "recording"): EPHYS_REC_METRICS,
+        ("ephys_activity", "node"): EPHYS_NODE_METRICS,
+    }
+    return dict(by_level[(family, level)])
+
+
+def _comparison_frames(ctx: RenderContext, family: str, order: list | None):
+    """``(df_rec, df_node)`` for a family, built once and cached on the context.
+
+    Rebuilding these means walking every recording's metrics again, which is
+    most of the cost of drawing a single comparison figure — and a viewer draws
+    a great many of them against the same bundle.
+    """
+    cache = getattr(ctx, "_comparison_frames_cache", None)
+    if cache is None:
+        cache = {}
+        object.__setattr__(ctx, "_comparison_frames_cache", cache)
+    key = (family, tuple(order) if order else None)
+    if key in cache:
+        return cache[key]
+
+    if family == "network":
+        from meanap.pipeline.plotting_step4 import netmet_comparison_frames
+        frames = netmet_comparison_frames(
+            list(ctx.recordings.values()), ctx.results, order)
+    else:
+        from meanap.pipeline.plotting_step2 import ephys_comparison_frames
+        frames = ephys_comparison_frames(
+            list(ctx.recordings.values()), _ephys_stats(ctx), order)
+    cache[key] = frames
+    return frames
+
+
+@dataclass(frozen=True)
+class Choice:
+    """One selectable value on a facet, and how to name it in a UI."""
+
+    key: str
+    label: str
+
+
+@dataclass(frozen=True)
+class LevelAxis(Choice):
+    """A level (recording or node) and the metrics it can plot."""
+
+    metrics: tuple[Choice, ...] = ()
+
+
+@dataclass(frozen=True)
+class ComparisonAxes:
+    """Everything selectable for one comparison family.
+
+    This is what turns a wall of small multiples into a set of controls: the
+    facets are the address :func:`render_comparison_figure` takes, enumerated
+    for the run in hand rather than assumed.
+    """
+
+    family: str
+    label: str
+    #: Empty for a family whose figures don't depend on the STTC lag.
+    lags: tuple[int, ...]
+    levels: tuple[LevelAxis, ...]
+    splits: tuple[Choice, ...]
+
+
+_LEVEL_LABELS = {"recording": "Recording level", "node": "Node level"}
+_SPLIT_LABELS = {"group": "By group", "age": "By age"}
+
+
+def available_comparison_families(ctx: RenderContext) -> list[ComparisonFamily]:
+    """Which comparison families this run has the numbers for.
+
+    The same availability test :func:`available_group_families` applies — a
+    family with no data behind it must not be offered as a tab that renders
+    nothing.
+    """
+    out = []
+    for fam in COMPARISON_FAMILIES:
+        if fam.key == "network" and ctx.results:
+            out.append(fam)
+        elif fam.key == "ephys_activity" and _ephys_stats(ctx):
+            out.append(fam)
+    return out
+
+
+def comparison_axes(ctx: RenderContext, family: str) -> ComparisonAxes:
+    """The facets a viewer should offer for *family*, for this run.
+
+    Every metric the family defines is listed, present in the data or not,
+    because the pipeline writes a figure for each either way — an absent metric
+    gets the same "no data" placeholder here that it gets in the output folder.
+    A *level* with no rows at all is dropped, since nothing there can be drawn.
+    """
+    fam = comparison_family(family)
+    label = next((f.label for f in GROUP_FAMILIES if f.key == family), family)
+    frames = dict(zip(COMPARISON_LEVELS, _comparison_frames(
+        ctx, family, ctx.params.custom_grp_order or None)))
+
+    levels = tuple(
+        LevelAxis(
+            key=level, label=_LEVEL_LABELS[level],
+            metrics=tuple(Choice(key=k, label=v)
+                          for k, v in comparison_metrics(family, level).items()),
+        )
+        for level in COMPARISON_LEVELS if not frames[level].empty
+    )
+    return ComparisonAxes(
+        family=family, label=label,
+        lags=tuple(comparison_lags(ctx, family)),
+        levels=levels,
+        splits=tuple(Choice(key=k, label=_SPLIT_LABELS[k]) for k in COMPARISON_SPLITS),
+    )
+
+
+def comparison_lags(ctx: RenderContext, family: str = "network") -> list[int]:
+    """The lags this family's figures exist at, in ms. Empty for a lagless family."""
+    from meanap.pipeline.plotting_step4 import _lag_num
+
+    fam = comparison_family(family)
+    if not fam.has_lag:
+        return []
+    df_rec, _ = _comparison_frames(ctx, family, None)
+    if df_rec.empty or "Lag" not in df_rec.columns:
+        return []
+    return sorted({_lag_num(v) for v in df_rec["Lag"].unique()})
+
+
+def render_comparison_figure(
+    ctx: RenderContext,
+    family: str,
+    level: str,
+    split: str,
+    metric: str,
+    out_dir: Path | str,
+    *,
+    lag: int | None = None,
+    fmt: str = "png",
+    dpi: int | None = None,
+    overrides: dict | None = None,
+) -> Path:
+    """Redraw one comparison figure and return the file written.
+
+    The address is ``(family, level, split, lag, metric)``: which comparison set
+    (4B network metrics or 2B neuronal activity), whether the points are
+    recordings or nodes, whether groups or ages are the panels, which STTC lag,
+    and which metric.
+
+    The file is written to the same relative path, under the same name, that
+    :func:`render_group_family` would have written it to — so the two paths are
+    directly comparable, and the pixel-parity test can hold them to it.
+
+    Raises :class:`ValueError` on any address the bundle cannot draw, naming
+    what is available instead.
+    """
+    from meanap.pipeline.figure_output import figure_dpi
+    from meanap.pipeline.plotting_step4 import _lag_num, plot_half_violin_by_x
+
+    fam = comparison_family(family)
+    if split not in COMPARISON_SPLITS:
+        raise ValueError(
+            f"Unknown split {split!r}; expected one of {list(COMPARISON_SPLITS)}")
+    metrics = comparison_metrics(family, level)  # also validates level
+    if metric not in metrics:
+        raise ValueError(
+            f"Unknown {level}-level metric {metric!r} for the {family} family. "
+            f"Use comparison_metrics() to list them.")
+
+    # Everything decidable from the address alone is settled before any data is
+    # touched, so a malformed request gets the error about the request rather
+    # than one about the bundle being empty.
+    if not fam.has_lag and lag is not None:
+        raise ValueError(
+            f"The {family} comparison figures do not depend on the STTC lag, so "
+            f"lag={lag} has no meaning here; omit it.")
+
+    params, _ = _apply_overrides(ctx.params, overrides)
+    order = params.custom_grp_order or None
+    df_rec, df_node = _comparison_frames(ctx, family, order)
+    df = df_rec if level == "recording" else df_node
+    if df.empty:
+        raise ValueError(
+            f"This bundle has no {level}-level data for the {family} comparison "
+            f"family, so there is nothing to draw.")
+
+    x_kind, stem = COMPARISON_SPLITS[split]
+    dest_dir = Path(out_dir) / fam.out_subdir / fam.comparisons_dir / _COMPARISON_DIRS[
+        (level, split)]
+
+    if fam.has_lag:
+        available = sorted({_lag_num(v) for v in df["Lag"].unique()})
+        if lag is None:
+            raise ValueError(
+                f"The {family} comparison figures are per-lag; pass one of "
+                f"{available} ms.")
+        if lag not in available:
+            raise ValueError(
+                f"No {family} results at {lag} ms lag; this run has {available} ms.")
+        df = df[df["Lag"].map(_lag_num) == lag]
+        dest_dir = dest_dir / f"Lag{lag}ms"
+
+    suffix = "_node" if level == "node" else ""
+    dest = dest_dir / f"{metric}_{stem}{suffix}.{fmt}"
+    dest_dir.mkdir(parents=True, exist_ok=True)
+
+    with figure_dpi(dpi):
+        plot_half_violin_by_x(df, metric, metrics[metric], x_kind, dest,
+                              group_order=order, colors=ColorScheme.from_params(params))
+
+    if not dest.is_file():
+        raise ValueError(
+            f"Nothing was drawn for {metric} ({level}, by {split}) — the "
+            f"selection matched no recordings.")
+    return dest
+
+
+# ── Across-lag figures ────────────────────────────────────────────────────────
+#
+# Two sets whose subject is the lag itself rather than a slice at one lag, so
+# neither belongs under the comparison facets: graph metrics *against* lag (one
+# figure per metric), and cartography role proportions per lag (one per lag).
+
+
+@dataclass(frozen=True)
+class LagSeries:
+    """An across-lag figure set: what it is keyed by, and where it lands."""
+
+    key: str
+    label: str
+    out_subdir: str
+    #: What one figure is addressed by — a metric name, or a lag in ms.
+    keyed_by: str
+
+
+LAG_SERIES: tuple[LagSeries, ...] = (
+    LagSeries("graph_metrics", "Graph metrics by lag",
+              "4_NetworkActivity/4B_GroupComparisons/5_GraphMetricsByLag", "metric"),
+    LagSeries("cartography", "Node cartography by lag",
+              "4_NetworkActivity/4B_GroupComparisons/6_NodeCartographyByLag", "lag"),
+)
+
+
+def lag_series(key: str) -> LagSeries:
+    """Look up an across-lag set, or say which ones exist."""
+    series = next((s for s in LAG_SERIES if s.key == key), None)
+    if series is None:
+        raise ValueError(
+            f"Unknown across-lag set {key!r}; expected one of "
+            f"{[s.key for s in LAG_SERIES]}")
+    return series
+
+
+def available_lag_series(ctx: RenderContext) -> list[tuple[LagSeries, tuple[Choice, ...]]]:
+    """The across-lag sets this run can draw, each with its selectable keys.
+
+    Both need more than one lag to say anything, and cartography additionally
+    needs the ``NCpn1``-``NCpn6`` role proportions, which a run without node
+    cartography does not have. Offering either without its inputs would be a
+    control that renders an empty page.
+    """
+    lags = comparison_lags(ctx, "network")
+    if len(lags) < 2:
+        return []
+    df_rec, _ = _comparison_frames(ctx, "network", ctx.params.custom_grp_order or None)
+    out = []
+    for series in LAG_SERIES:
+        if series.keyed_by == "metric":
+            present = [Choice(key=k, label=v)
+                       for k, v in comparison_metrics("network", "recording").items()
+                       if k in df_rec.columns and df_rec[k].notna().any()]
+        else:
+            has_roles = all(f"NCpn{i}" in df_rec.columns for i in range(1, 7))
+            present = ([Choice(key=str(lag), label=f"{lag} ms") for lag in lags]
+                       if has_roles else [])
+        if present:
+            out.append((series, tuple(present)))
+    return out
+
+
+def render_lag_series_figure(
+    ctx: RenderContext,
+    series: str,
+    key: str,
+    out_dir: Path | str,
+    *,
+    fmt: str = "png",
+    dpi: int | None = None,
+    overrides: dict | None = None,
+) -> Path:
+    """Redraw one across-lag figure — a metric's lag curve, or one lag's roles.
+
+    Written to the same relative path and name the pipeline uses, as
+    :func:`render_comparison_figure` is.
+    """
+    from meanap.pipeline.figure_output import figure_dpi
+    from meanap.pipeline.plotting_step4 import (
+        plot_graph_metrics_by_lag, plot_node_cartography_by_lag,
+    )
+
+    spec = lag_series(series)
+    params, _ = _apply_overrides(ctx.params, overrides)
+    order = params.custom_grp_order or None
+    scheme = ColorScheme.from_params(params)
+    df_rec, _ = _comparison_frames(ctx, "network", order)
+    if df_rec.empty:
+        raise ValueError("This bundle has no network metrics, so there is nothing "
+                         "to plot against lag.")
+
+    dest_dir = Path(out_dir) / spec.out_subdir
+    with figure_dpi(dpi):
+        if spec.keyed_by == "metric":
+            if key not in comparison_metrics("network", "recording"):
+                raise ValueError(
+                    f"Unknown recording-level metric {key!r}. Use "
+                    f"available_lag_series() to list what this run can plot.")
+            written = plot_graph_metrics_by_lag(
+                df_rec, dest_dir, group_order=order, only=key, fmt=fmt, colors=scheme)
+        else:
+            try:
+                lag = int(key)
+            except (TypeError, ValueError):
+                raise ValueError(
+                    f"The {series} set is keyed by lag in ms; {key!r} is not a "
+                    f"number.") from None
+            available = comparison_lags(ctx, "network")
+            if lag not in available:
+                raise ValueError(
+                    f"No results at {lag} ms lag; this run has {available} ms.")
+            written = plot_node_cartography_by_lag(
+                df_rec, dest_dir, group_order=order, only=lag, fmt=fmt)
+
+    if not written:
+        raise ValueError(
+            f"Nothing was drawn for {key!r} in the {series} set — this run has no "
+            f"finite values for it.")
+    return written[0]
+
+
+def cached_lag_series_figure(
+    ctx: RenderContext,
+    cache,
+    series: str,
+    key: str,
+    *,
+    fmt: str = "png",
+    dpi: int | None = None,
+    overrides: dict | None = None,
+) -> tuple[Path, bool]:
+    """One across-lag figure, rendered once per address and cached."""
+    from meanap.pipeline.render_cache import bundle_identity, cache_key
+
+    cache_id = cache_key(bundle_identity(ctx.root), f"lag:{series}:{key}",
+                         fmt=fmt, dpi=dpi, overrides=overrides)
+    files, was_cached = cache.get_or_render(
+        cache_id,
+        lambda dest: [render_lag_series_figure(
+            ctx, series, key, dest, fmt=fmt, dpi=dpi, overrides=overrides)],
+    )
+    return files[0], was_cached
+
+
+def cached_comparison_figure(
+    ctx: RenderContext,
+    cache,
+    family: str,
+    level: str,
+    split: str,
+    metric: str,
+    *,
+    lag: int | None = None,
+    fmt: str = "png",
+    dpi: int | None = None,
+    overrides: dict | None = None,
+) -> tuple[Path, bool]:
+    """One comparison figure, rendered once per address and cached.
+
+    Returns ``(path, was_cached)``, like :func:`cached_figure`.
+    """
+    from meanap.pipeline.render_cache import bundle_identity, cache_key
+
+    key = cache_key(bundle_identity(ctx.root),
+                    f"cmp:{family}:{level}:{split}:{lag}:{metric}",
+                    fmt=fmt, dpi=dpi, overrides=overrides)
+    files, was_cached = cache.get_or_render(
+        key,
+        lambda dest: [render_comparison_figure(
+            ctx, family, level, split, metric, dest,
+            lag=lag, fmt=fmt, dpi=dpi, overrides=overrides)],
+    )
+    return files[0], was_cached
 
 
 def cached_figure(

@@ -21,6 +21,37 @@ Then browse the result:
 uv run meanap-viewer path/to/OutputData….meanap
 ```
 
+In the GUI it is the **Express mode** tick box on the Pipeline tab, and it
+applies to **🧪 Test pipeline** runs too.
+
+## Where the bundle goes
+
+Beside the output folder, not inside it — the folder is named after the run and
+the bundle takes the same name:
+
+```
+OutputData07Aug2026/            the output folder
+OutputData07Aug2026.meanap      the bundle          ← one level up, alongside it
+```
+
+This is the single most common "express mode didn't produce anything" report:
+the file is there, just not where the figures used to be. An express run ends
+by naming it in the status log, in a framed block after the timing lines, with
+the command that opens it.
+
+## Opening a bundle from the GUI
+
+Three routes, all equivalent to running `meanap-viewer` yourself:
+
+- **🌐 View report** after an express run — the button notices the run was
+  express and opens the bundle in the viewer instead of building a
+  near-empty `report.html` from the handful of figures on disk;
+- **Open bundle…** in the toolbar;
+- **drag the `.meanap` file onto the window**.
+
+Each bundle gets its own viewer; they all shut down when MEA-NAP closes. See
+[Opening a bundle](gui-guide.md#opening-a-bundle).
+
 ## What it costs and what it saves
 
 Measured on the same dataset and settings as the MATLAB-vs-Python comparison
@@ -153,27 +184,110 @@ uv run meanap-viewer path/to/Run.meanap        # or an output folder
 uv run meanap-viewer Run.meanap --port 9000 --no-browser
 ```
 
-A local web app: figure list on the left, the figure in the middle, and the
-full Network Viewer control set on the right — node layout, colour map, edge
-threshold and method, maximum edges drawn, node size and scaling, edge widths.
-Changing any of them re-renders through the same Python that drew the original.
+(Or open it from the GUI — [above](#opening-a-bundle-from-the-gui).)
+
+A local web app in three tabs, one per kind of question a run answers.
+
+Every figure can be downloaded as **PNG, SVG or PDF**. SVG is real vector markup
+with editable paths, so a figure can go straight into Illustrator or Inkscape
+for a manuscript.
+
+### Recordings
+
+One spatial network plot at a time, with the full Network Viewer control set on
+the right — node layout, colour map, edge threshold and method, maximum edges
+drawn, node size and scaling, edge widths. Changing any of them re-renders
+through the same Python that drew the original.
 
 Defaults reproduce the pipeline's own figure exactly; the controls are opt-in
 changes on top of it.
 
-Each figure can be downloaded as **PNG, SVG or PDF**. SVG is real vector markup
-with editable paths, so a figure can go straight into Illustrator or Inkscape
-for a manuscript.
+### Comparisons
 
-Comparison families are shown as a gallery of thumbnails. The styling controls
-are hidden there rather than disabled — they apply to spatial network plots,
-and nothing in a violin-plot gallery reads them.
+The 2B and 4B half-violin sets — network metrics and neuronal activity by group
+and age. These are the run's bulk: on a three-lag run the 4B set alone is **274
+small multiples**. Rather than show them all, the tab selects the one you want
+by the address each figure actually has:
+
+| Facet | Choices |
+|---|---|
+| **Lag** | the run's STTC lags (hidden for 2B activity, which has none) |
+| **Level** | recording — one point per recording; node — one per node |
+| **Split** | by group (panel per group, age on x), by age (panel per age, group on x), or both stacked |
+| **Metric** | the metric list on the left, which follows the level |
+
+Each figure is drawn on demand and is **byte-identical** to the one the
+pipeline writes to `4B_GroupComparisons/…`; the folder and the viewer are two
+routes to the same picture. On the example dataset that is 0.2 s for the figure
+you asked for, against 36 s to draw all 274.
+
+"Both" shows the two splits stacked for one metric. The download buttons are
+hidden there — one button cannot mean two figures — so pick a single split to
+export.
+
+#### Colours
+
+The same panel sets the palettes, which apply to the comparison figures and the
+across-lag ones alike. The two axes are different kinds of variable and get
+different kinds of palette:
+
+| | what it is | presets |
+|---|---|---|
+| **Ages** | ordered, so a sequential colormap | `viridis` (default), `viridis_r`, `plasma`, `plasma_r`, `cividis`, `magma`, `inferno`, `grey` |
+| **Groups** | unordered, so a categorical list | `meanap` (default, MATLAB's `groupColors`), `okabe-ito`, `tab10`, `grey` |
+
+`okabe-ito` is worth knowing about: eight hues that stay distinguishable under
+all common colour-vision deficiencies. A genotype comparison printed in a paper
+will be read by someone who cannot separate the default red and green.
+
+Either can be overridden with your own colours — hex codes or names, comma
+separated, in group order or youngest age first. A short list cycles rather
+than failing, and a colour that isn't one is refused with a message naming it.
+
+```
+Custom group colours:  #e63946, #1d3557
+Custom age colours:    crimson, #abc, tab:blue
+```
+
+The defaults reproduce the pipeline's own figures exactly, so an untouched
+panel still gives you byte-identical output.
+
+The same settings exist as `Params` fields, so a full run can be given them up
+front rather than restyled afterwards:
+
+```python
+Params(
+    group_color_scheme="okabe-ito",
+    age_color_scheme="cividis",
+    group_colors=["#e63946", "#1d3557"],   # overrides the scheme
+)
+```
+
+### Across lags
+
+The two sets whose subject is the lag itself, and which therefore answer a
+different question from anything sliced at one lag:
+
+- **Graph metrics by lag** — one figure per recording-level metric, each
+  metric's mean ± SEM against STTC lag, one line per DIV;
+- **Node cartography by lag** — the six role proportions against DIV, one
+  figure per lag.
+
+This tab is absent on a single-lag run: a curve through one point says nothing.
+
+### Galleries
+
+A few CAT-NAP sets — activity by cell type, cell-type subnetworks — have no
+per-figure address, so they stay galleries of thumbnails, listed under the
+Comparisons tab and clearly separated from the faceted sets. The styling
+controls are hidden outside the Recordings tab rather than disabled: they apply
+to spatial network plots, and no violin or line plot reads them.
 
 ```{note}
-The gallery renders a whole family at once (the plotting routines emit a folder
-per call and can't be asked for a single figure), so the first view of the
-network family takes a few seconds; it is then cached and instant. Thumbnails
-render at 96 dpi; downloads use the authored resolution.
+A gallery renders its whole family at once (those plotting routines emit a
+folder per call and can't be asked for a single figure), so the first view takes
+a few seconds; it is then cached and instant. Thumbnails render at 96 dpi;
+downloads use the authored resolution.
 ```
 
 The viewer binds to `127.0.0.1` by default. A bundle is unpublished data and

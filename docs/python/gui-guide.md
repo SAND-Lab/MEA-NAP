@@ -5,7 +5,9 @@ interface: one tab per section of the pipeline. Parameters round-trip to and
 from a `Params` dataclass (`meanap.params.Params`, see the
 [API reference](api/index.rst)) via each panel's `load()`/`save()` methods, and
 can be saved/reloaded as JSON from the toolbar (**New**, **Open params…**,
-**Save params…**).
+**Save params…**). The toolbar also has **Open bundle…**, which opens a
+`.meanap` run bundle in the viewer without running anything — see
+[Opening a bundle](#opening-a-bundle).
 
 ```{admonition} In a hurry?
 :class: tip
@@ -194,12 +196,42 @@ Run controls and step selection.
 | **Optional steps** | Extra steps to run alongside the core 4, e.g. `generateCSV`. |
 | **Verbose level** | `Normal`, `Verbose`, or `Debug` logging detail in the status log. |
 | **Time each step** | Records per-step wall-clock time to `step_durations.json` in the output folder. |
+| **Fixed random seed** | Makes the stochastic steps (3 and 4) reproducible. Off — the default, matching MATLAB — gives a fresh seed per run. |
+| **Express mode** | Skips every figure that can be redrawn later and writes one small `.meanap` bundle instead. The numbers are identical either way; see [Express mode and run bundles](express-mode.md). |
 
 The four buttons under **Run**:
 
 - **🧪 Test pipeline** — downloads the bundled example dataset and runs the
-  full pipeline against it (see [Quickstart](quickstart.md)).
+  full pipeline against it (see [Quickstart](quickstart.md)). It works with
+  **Express mode** ticked, and bundles the example run like any other.
 - **▶ Run pipeline** — runs against whatever's configured in Paths/Recording/etc.
 - **■ Stop** — cancels a running pipeline at the next step boundary.
-- **🌐 View report** — (re)generates `report.html` for the current output
-  folder and opens it — see [Output report](output-report.md).
+- **🌐 View report** — opens the last run's results in your browser, picking the
+  right artifact for the run:
+  - a **normal run** → (re)generates `report.html` in the output folder — see
+    [Output report](output-report.md);
+  - an **express run** → opens its `.meanap` bundle in the viewer, which draws
+    any figure on demand in PNG or editable SVG.
+
+  With no run in this session it falls back to the output folder the Paths tab
+  describes, including the dated default name (`OutputData<ddMonyyyy>`) used
+  when **Output folder name** is blank.
+
+### Opening a bundle
+
+A `.meanap` bundle does not need a run, or even the data it came from — it is a
+file people email each other. Two ways to open one:
+
+- **Open bundle…** in the toolbar;
+- **drag the `.meanap` file onto the window**, anywhere.
+
+Either starts the viewer and opens a browser on it. Each bundle gets its own
+viewer, all of them shut down when MEA-NAP closes, and opening the same bundle
+twice reuses the page already serving it.
+
+```{note}
+The bundle is written **beside** the output folder, not inside it —
+`OutputData07Aug2026/` and `OutputData07Aug2026.meanap` sit side by side. The
+status log repeats the full path in a framed block at the end of an express
+run, after the timing lines.
+```

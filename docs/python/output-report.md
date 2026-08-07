@@ -4,6 +4,13 @@ After a pipeline run (or against any existing MEA-NAP output folder), the
 **🌐 View report** button on the Pipeline tab generates `report.html` at the
 root of that output folder and opens it in your browser.
 
+```{note}
+If the run used {doc}`express-mode`, that button opens the run's `.meanap`
+bundle in the interactive viewer instead — an express run writes almost no
+figures, so a report built from that folder would show a nearly empty page. See
+[Related: the interactive viewer](#related-the-interactive-viewer) below.
+```
+
 ```python
 # You can also generate it directly, without the GUI:
 from meanap.pipeline.report import generate_report
@@ -56,3 +63,8 @@ walking them through the tree by hand.
 instead, which redraws them on demand and can export SVG. The two are
 complementary: `report.html` needs nothing installed, the viewer needs Python
 running but can restyle and re-export.
+
+The GUI picks between them for you: **🌐 View report** opens the viewer for an
+express run and builds `report.html` for a full one. You can also open any
+bundle directly with **Open bundle…** in the toolbar, or by dragging the
+`.meanap` file onto the window.

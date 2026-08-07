@@ -95,8 +95,13 @@ def _params(out_dir: Path, **kw) -> Params:
     return p
 
 
-def _seed_prior(tmp: Path, name: str = "Prior") -> Path:
-    """A prior run holding just the step-2 state, ready to resume from."""
+def _seed_prior(tmp: Path, name: str = "Prior", lags: tuple[int, ...] = (LAG,)) -> Path:
+    """A prior run holding just the step-2 state, ready to resume from.
+
+    ``lags`` seeds one adjacency per STTC lag. More than one is what the
+    across-lag figures need — a curve through a single point says nothing, so
+    those sets aren't offered on a one-lag run.
+    """
     from meanap.pipeline.output_folders import create_output_folders
 
     from meanap.catnap.subnetwork import CellTypeGroups
@@ -110,7 +115,8 @@ def _seed_prior(tmp: Path, name: str = "Prior") -> Path:
     markers = np.eye(N_UNITS, 2)
     for i, rec in enumerate(_recordings()):
         state = RecordingState(
-            adjMs={f"adjM{LAG}mslag": _adjacency(20 + i)},
+            adjMs={f"adjM{lag}mslag": _adjacency(20 + i + 7 * j)
+                   for j, lag in enumerate(lags)},
             coords=np.random.default_rng(i).random((N_UNITS, 2)) * 8.0,
             channels=np.arange(1, N_UNITS + 1),
             spike_counts=np.full(N_UNITS, 100.0),
@@ -131,12 +137,13 @@ def _seed_prior(tmp: Path, name: str = "Prior") -> Path:
     return prior
 
 
-def _run(tmp: Path, name: str, *, express: bool) -> Path:
+def _run(tmp: Path, name: str, *, express: bool,
+         lags: tuple[int, ...] = (LAG,)) -> Path:
     """Resume a run from the seeded prior, in express or full mode."""
     from meanap.pipeline.runner import run_pipeline
     import pandas as pd
 
-    prior = _seed_prior(tmp, f"{name}Prior")
+    prior = _seed_prior(tmp, f"{name}Prior", lags)
     sheet = tmp / f"{name}.csv"
     pd.DataFrame([{"Recording filename": r.filename, "DIV": r.div, "Group": r.group}
                   for r in _recordings()]).to_csv(sheet, index=False)
@@ -144,7 +151,7 @@ def _run(tmp: Path, name: str, *, express: bool) -> Path:
     p = _params(tmp, output_data_folder_name=name, express_mode=express,
                 prior_analysis_path=str(prior),
                 spreadsheet_file_name=str(sheet), spreadsheet_range="2:100",
-                raw_data=str(tmp / "no-raw"))
+                raw_data=str(tmp / "no-raw"), func_con_lag_val=list(lags))
     return run_pipeline(p, log=lambda m: None)
 
 
@@ -683,6 +690,376 @@ def _gallery_cache_checks() -> list[Check]:
     return checks
 
 
+def _palette_checks() -> list[Check]:
+    """Age and group colours: presets, custom lists, and an unchanged default.
+
+    The default is the load-bearing one. Every pixel-parity guarantee in this
+    file rests on an unstyled render matching the pipeline's figure, so a
+    ``ColorScheme()`` that shifted any colour would quietly break all of them.
+    """
+    import matplotlib.cm as cm
+
+    from meanap.params import Params
+    from meanap.pipeline.palette import (
+        AGE_SCHEMES, GROUP_SCHEMES, ColorScheme, parse_colors,
+    )
+    from meanap.pipeline.plotting_step4 import _div_colors, _group_colors
+
+    checks: list[Check] = []
+    historical_groups = [
+        (0.996, 0.670, 0.318), (0.780, 0.114, 0.114), (0.459, 0.000, 0.376),
+        (0.027, 0.306, 0.659), (0.5, 0.5, 0.5),
+    ]
+    age_ok = all(
+        _div_colors(n) == [tuple(cm.viridis(x)[:3]) for x in np.linspace(1, 0, n)]
+        for n in (1, 2, 3, 5, 9)
+    )
+    checks.append(("the default age palette is still flipud(viridis)", age_ok, ""))
+    group_ok = all(
+        _group_colors(n) == [historical_groups[i % 5] for i in range(n)]
+        for n in (1, 3, 5, 8)
+    )
+    checks.append(("the default group palette is still MATLAB's groupColors",
+                   group_ok, ""))
+    checks.append(("…and Params defaults resolve to that same scheme",
+                   ColorScheme.from_params(Params()) == ColorScheme(), ""))
+
+    checks.append(("every age scheme yields the requested number of colours",
+                   all(len(ColorScheme(age_scheme=s).ages(4)) == 4
+                       for s in AGE_SCHEMES), ""))
+    checks.append(("every group scheme does too",
+                   all(len(ColorScheme(group_scheme=s).groups(4)) == 4
+                       for s in GROUP_SCHEMES), ""))
+    checks.append(("a preset actually changes the colours",
+                   ColorScheme(group_scheme="okabe-ito").groups(3)
+                   != ColorScheme().groups(3), ""))
+    checks.append(("age schemes are ordered, so first ≠ last",
+                   ColorScheme(age_scheme="plasma").ages(3)[0]
+                   != ColorScheme(age_scheme="plasma").ages(3)[-1], ""))
+    # Endpoints only: a 256-entry lookup table rounds an interior sample to a
+    # different index depending on which direction it is approached from, so
+    # the middle of a reversed map is a neighbouring colour, not the same one.
+    fwd = ColorScheme(age_scheme="viridis").ages(3)
+    rev = ColorScheme(age_scheme="viridis_r").ages(3)
+    checks.append(("_r swaps which end of the colormap the youngest age gets",
+                   fwd[0] == rev[-1] and fwd[-1] == rev[0] and fwd != rev,
+                   f"{fwd[0]} vs {rev[-1]}"))
+
+    checks.append(("custom colours win over the scheme",
+                   ColorScheme(group_scheme="tab10",
+                               group_colors=["#ff0000"]).groups(1)
+                   == [(1.0, 0.0, 0.0)], ""))
+    checks.append(("…and cycle when there are fewer than there are groups",
+                   ColorScheme(group_colors=["#ff0000", "#0000ff"]).groups(3)
+                   == [(1.0, 0.0, 0.0), (0.0, 0.0, 1.0), (1.0, 0.0, 0.0)], ""))
+    checks.append(("a comma-separated string is accepted, as a text box gives it",
+                   ColorScheme(age_colors="#ff0000, blue").ages(2)
+                   == [(1.0, 0.0, 0.0), (0.0, 0.0, 1.0)], ""))
+    checks.append(("names, hex-3 and hex-6 all parse",
+                   len(parse_colors(["crimson", "#abc", "#1f77b4"])) == 3, ""))
+
+    for bad, expect, name in [
+        (dict(group_scheme="rainbow"), "Unknown group colour scheme", "group scheme"),
+        (dict(age_scheme="jet"), "Unknown age colour scheme", "age scheme"),
+        (dict(group_colors=["#zzzzzz"]), "is not a colour", "colour code"),
+    ]:
+        try:
+            ColorScheme(**bad)
+            message = ""
+        except ValueError as e:
+            message = str(e)
+        checks.append((f"a bad {name} is refused at construction",
+                       expect in message, message[:60]))
+    return checks
+
+
+def _palette_render_checks() -> list[Check]:
+    """A scheme reaches the drawn figure, and the default leaves it untouched."""
+    from meanap.pipeline.palette import ColorScheme
+    from meanap.pipeline.render import load_context, render_comparison_figure
+
+    checks: list[Check] = []
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = Path(tmp)
+        express = _run(tmp, "Express", express=True)
+
+        with open_bundle(express.with_suffix(BUNDLE_SUFFIX)) as b:
+            ctx = load_context(b)
+
+            def draw(name, **overrides):
+                return render_comparison_figure(
+                    ctx, "network", "recording", "age", "Dens", tmp / name,
+                    lag=LAG, overrides=overrides or None)
+
+            plain = draw("plain")
+            same = draw("same", group_color_scheme="meanap")
+            okabe = draw("okabe", group_color_scheme="okabe-ito")
+            custom = draw("custom", group_colors=["#ff0000", "#00ff00"])
+            ages = draw("ages", age_color_scheme="plasma")
+
+            checks.append(("passing the default scheme changes nothing",
+                           _digest(plain) == _digest(same), ""))
+            checks.append(("a group preset changes the figure",
+                           _digest(plain) != _digest(okabe), ""))
+            checks.append(("custom group colours change the figure",
+                           _digest(plain) != _digest(custom), ""))
+            checks.append(("…and differ from the preset too",
+                           _digest(custom) != _digest(okabe), ""))
+            # This split colours by group, so the age scheme must not touch it —
+            # a control that redraws when it has no business to would break the
+            # render cache's promise that one address is one figure.
+            checks.append(("the age scheme leaves a by-age split alone",
+                           _digest(plain) == _digest(ages), ""))
+
+            by_group = render_comparison_figure(
+                ctx, "network", "recording", "group", "Dens", tmp / "bg", lag=LAG)
+            by_group_plasma = render_comparison_figure(
+                ctx, "network", "recording", "group", "Dens", tmp / "bgp", lag=LAG,
+                overrides={"age_color_scheme": "plasma"})
+            checks.append(("…but does change a by-group split, where ages are the x",
+                           _digest(by_group) != _digest(by_group_plasma), ""))
+
+            try:
+                draw("bad", group_colors=["#zzzzzz"])
+                message = ""
+            except ValueError as e:
+                message = str(e)
+            checks.append(("a bad colour is refused before drawing",
+                           "is not a colour" in message, message[:50]))
+
+            # The scheme must survive into the folder-at-a-time path as well,
+            # or the gallery families would disagree with the faceted ones.
+            from meanap.pipeline.render import render_group_family
+            fam_plain = render_group_family(ctx, "network", tmp / "famA")
+            fam_okabe = render_group_family(
+                ctx, "network", tmp / "famB",
+                overrides={"group_color_scheme": "okabe-ito"})
+            rel = Path("4_NetworkActivity/4B_GroupComparisons/4_RecordingsByAge"
+                       f"/HalfViolinPlots/Lag{LAG}ms/Dens_byDIV.png")
+            checks.append(("the family renderer honours the scheme too",
+                           bool(fam_plain) and bool(fam_okabe)
+                           and _digest(tmp / "famA" / rel)
+                           != _digest(tmp / "famB" / rel), ""))
+    return checks
+
+
+def _one_comparison_checks() -> list[Check]:
+    """One 4B figure at a time must equal the same figure drawn as a folder.
+
+    The viewer's comparison tab is only worth having if selecting a metric
+    shows the figure the pipeline would have written — not something close to
+    it. Both paths call ``plot_half_violin_by_x`` through the same frames, and
+    this holds them to that: every address rendered alone, byte-compared
+    against the family render of the same run.
+    """
+    from meanap.pipeline.render import (
+        comparison_lags, comparison_metrics, load_context,
+        render_comparison_figure, render_group_family,
+    )
+
+    checks: list[Check] = []
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = Path(tmp)
+        express = _run(tmp, "Express", express=True)
+
+        with open_bundle(express.with_suffix(BUNDLE_SUFFIX)) as b:
+            ctx = load_context(b)
+
+            family_out = tmp / "family"
+            written = {p.relative_to(family_out): p
+                       for p in render_group_family(ctx, "network", family_out)}
+            checks.append(("the family render produced the reference figures",
+                           len(written) > 0, f"{len(written)}"))
+
+            checks.append(("the lags are discoverable", comparison_lags(ctx) == [LAG],
+                           f"{comparison_lags(ctx)}"))
+            checks.append(("a lagless family reports no lags",
+                           comparison_lags(ctx, "ephys_activity") == [], ""))
+
+            rec_metrics = comparison_metrics("network", "recording")
+            node_metrics = comparison_metrics("network", "node")
+            checks.append(("both levels advertise metrics",
+                           len(rec_metrics) > 10 and len(node_metrics) >= 5,
+                           f"{len(rec_metrics)}/{len(node_metrics)}"))
+
+            one_out = tmp / "single"
+            compared = identical = missing = 0
+            mismatched: list[str] = []
+            for level, metrics in (("recording", rec_metrics), ("node", node_metrics)):
+                for split in ("group", "age"):
+                    for metric in metrics:
+                        path = render_comparison_figure(
+                            ctx, "network", level, split, metric, one_out, lag=LAG)
+                        rel = path.relative_to(one_out)
+                        reference = written.get(rel)
+                        if reference is None:
+                            missing += 1
+                            mismatched.append(f"no family figure at {rel}")
+                            continue
+                        compared += 1
+                        if _digest(reference) == _digest(path):
+                            identical += 1
+                        else:
+                            mismatched.append(rel.as_posix())
+
+            checks.append(("every address lands on a family figure's path",
+                           missing == 0, f"{missing} unmatched: {mismatched[:2]}"))
+            checks.append((f"single renders are pixel-identical ({identical}/{compared})",
+                           compared > 0 and identical == compared,
+                           f"differ: {mismatched[:3]}"))
+            checks.append(("…and that covered both levels and both splits",
+                           compared == 2 * (len(rec_metrics) + len(node_metrics)),
+                           f"{compared}"))
+
+            svg = render_comparison_figure(
+                ctx, "network", "recording", "group", "Dens", tmp / "svg",
+                lag=LAG, fmt="svg")
+            checks.append(("a comparison figure renders as svg",
+                           svg.suffix == ".svg" and svg.stat().st_size > 0, ""))
+
+            # Every rejection a viewer can provoke, said in a way that names the
+            # alternative — these are user-visible 400s, not internal asserts.
+            def _refused(**kw) -> str:
+                args = {"family": "network", "level": "recording", "split": "group",
+                        "metric": "Dens", "lag": LAG, **kw}
+                try:
+                    render_comparison_figure(
+                        ctx, args["family"], args["level"], args["split"],
+                        args["metric"], tmp / "bad", lag=args["lag"])
+                except ValueError as e:
+                    return str(e)
+                return ""
+
+            checks.append(("an unknown family is refused",
+                           "Unknown comparison family" in _refused(family="nope"), ""))
+            checks.append(("an unknown level is refused",
+                           "Unknown level" in _refused(level="cell"), ""))
+            checks.append(("an unknown split is refused",
+                           "Unknown split" in _refused(split="sideways"), ""))
+            checks.append(("an unknown metric is refused, naming the level",
+                           "recording-level metric" in _refused(metric="NotAMetric"), ""))
+            checks.append(("a missing lag is refused, listing the ones that exist",
+                           str(LAG) in _refused(lag=None), _refused(lag=None)[:60]))
+            checks.append(("a lag the run doesn't have is refused",
+                           "this run has" in _refused(lag=999), ""))
+            checks.append(("passing a lag to a lagless family is refused",
+                           "do not depend on the STTC lag"
+                           in _refused(family="ephys_activity", metric="FRmean"), ""))
+    return checks
+
+
+def _comparison_frames_checks() -> list[Check]:
+    """The extracted frame builders must feed both plotting paths identically.
+
+    ``plot_step2_group_comparisons`` and ``render_comparison_figure`` now share
+    ``ephys_comparison_frames``; this is the 2B half of the parity check, built
+    without a bundle because the CAT-NAP fixture has no electrophysiology
+    stats.
+    """
+    import json as _json
+
+    from meanap.params import Params
+    from meanap.pipeline.plotting_step2 import (
+        EPHYS_NODE_METRICS, EPHYS_REC_METRICS, ephys_comparison_frames,
+        plot_step2_group_comparisons,
+    )
+    from meanap.pipeline.plotting_step4 import netmet_comparison_frames
+    from meanap.pipeline.render import RenderContext, render_comparison_figure
+
+    checks: list[Check] = []
+    recs = _recordings()
+    n = 8
+    # Recording-level entries must be scalars and node-level ones per-channel
+    # arrays, as step 2 writes them — the plotter coerces a metric column with
+    # float(), so a list parked in a recording-level column is a hard error.
+    stats = {
+        rec.filename: {
+            "FR": list(np.linspace(1.0, 3.0, n) + i),
+            "FRactive": list(np.linspace(1.0, 3.0, n) + i),
+            "channelBurstRate": list(np.linspace(0.5, 2.0, n) + i),
+            "FRmean": 2.0 + i, "FRmedian": 1.9 + i, "numActiveElec": n,
+            "channelAveBurstRate": 1.2 + i,
+        }
+        for i, rec in enumerate(recs)
+    }
+
+    df_rec, df_node = ephys_comparison_frames(recs, stats)
+    checks.append(("2B frames have one row per recording", len(df_rec) == len(recs),
+                   f"{len(df_rec)}"))
+    checks.append(("…and one node row per channel per recording",
+                   len(df_node) == n * len(recs), f"{len(df_node)}"))
+    checks.append(("…carrying the grouping columns",
+                   {"FileName", "Grp", "DIV"} <= set(df_rec.columns), ""))
+    checks.append(("2B frames carry no Lag column",
+                   "Lag" not in df_rec.columns, ""))
+
+    ordered_rec, _ = ephys_comparison_frames(recs, stats, ["KO", "WT"])
+    checks.append(("a custom group order becomes an ordered categorical",
+                   list(ordered_rec["Grp"].cat.categories) == ["KO", "WT"], ""))
+
+    # The node frame is empty when no recording has per-channel data. The
+    # ordering step used to raise KeyError on that frame rather than skip it.
+    flat = {rec.filename: {"FRmean": 1.0} for rec in recs}
+    empty_rec, empty_node = ephys_comparison_frames(recs, flat, ["KO", "WT"])
+    checks.append(("an empty node frame doesn't break the group ordering",
+                   not empty_rec.empty and empty_node.empty, ""))
+
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = Path(tmp)
+        # The step-2 plotter appends "2B_GroupComparisons" to whatever it is
+        # given, and render_group_family hands it <root>/2_NeuronalActivity —
+        # so mirror that, or the two paths can't be compared.
+        folder_out = tmp / "folder"
+        plot_step2_group_comparisons(recs, stats, folder_out / "2_NeuronalActivity")
+        reference = {p.relative_to(folder_out): p for p in folder_out.rglob("*.png")}
+        checks.append(("2B folder render produced figures", len(reference) > 0,
+                       f"{len(reference)}"))
+
+        root = tmp / "root"
+        (root / "2_NeuronalActivity").mkdir(parents=True)
+        with open(root / "2_NeuronalActivity" / "ephys_results.json", "w") as fh:
+            _json.dump(stats, fh)
+        ctx = RenderContext(
+            params=Params(), recordings={r.filename: r for r in recs},
+            results={}, batch_bounds={}, root=root, mode="ephys")
+
+        one_out = tmp / "single"
+        compared = identical = 0
+        mismatched: list[str] = []
+        for level, metrics in (("recording", EPHYS_REC_METRICS),
+                               ("node", EPHYS_NODE_METRICS)):
+            for split in ("group", "age"):
+                for metric in metrics:
+                    path = render_comparison_figure(
+                        ctx, "ephys_activity", level, split, metric, one_out)
+                    ref = reference.get(path.relative_to(one_out))
+                    if ref is None:
+                        mismatched.append(f"no folder figure at {path.relative_to(one_out)}")
+                        continue
+                    compared += 1
+                    if _digest(ref) == _digest(path):
+                        identical += 1
+                    else:
+                        mismatched.append(path.name)
+
+        checks.append((f"2B single renders are pixel-identical ({identical}/{compared})",
+                       compared > 0 and identical == compared and not mismatched,
+                       f"{mismatched[:3]}"))
+
+    # 4B frames: the same shape, plus the lag column the network family needs.
+    results = {
+        rec.filename: {f"{LAG}mslag": {"Dens": 0.3 + i, "ND": list(np.arange(n) + i)}}
+        for i, rec in enumerate(recs)
+    }
+    net_rec, net_node = netmet_comparison_frames(recs, results)
+    checks.append(("4B frames carry the Lag column",
+                   list(net_rec["Lag"].unique()) == [f"{LAG}mslag"],
+                   f"{list(net_rec['Lag'].unique())}"))
+    checks.append(("…and one node row per channel per recording per lag",
+                   len(net_node) == n * len(recs), f"{len(net_node)}"))
+    return checks
+
+
 def _ephys_render_checks() -> list[Check]:
     """The renderer must read electrophysiology output too, not just CAT-NAP.
 
@@ -915,6 +1292,10 @@ def main() -> int:
         ("Section D3 — 2B / 4B batch comparisons:", _group_family_checks),
         ("Section D3b — cell types without the spreadsheet:",
          _cell_type_self_contained_checks),
+        ("Section D3c — one 4B comparison figure at a time:", _one_comparison_checks),
+        ("Section D3e — age and group palettes:", _palette_checks),
+        ("Section D3f — palettes reaching the figure:", _palette_render_checks),
+        ("Section D3d — the shared comparison frames (2B):", _comparison_frames_checks),
         ("Section D4 — thumbnail resolution and caching:", _gallery_cache_checks),
         ("Section D5 — electrophysiology output:", _ephys_render_checks),
         ("Section D6 — manifest honesty:", _manifest_honesty_checks),

@@ -1037,22 +1037,23 @@ _GROUP_COLORS = [
 ]
 
 
-def _div_colors(n: int) -> list:
-    """Per-DIV colours: ``flipud(viridis(n))`` (plotHalfViolinByX.m line 16).
+def _div_colors(n: int, colors=None) -> list:
+    """Per-DIV colours. Default ``flipud(viridis(n))`` (plotHalfViolinByX.m:16).
 
-    ``flipud`` puts the bright (yellow) end at the first DIV; sampling from 1→0
-    reproduces that for every ``n``, including the single-DIV case.
+    ``flipud`` puts the bright (yellow) end at the first DIV. *colors* is a
+    :class:`~meanap.pipeline.palette.ColorScheme`; omitting it keeps the
+    historical palette exactly.
     """
-    import matplotlib.cm as cm
-    if n <= 0:
-        return []
-    xs = np.linspace(1, 0, n)
-    return [tuple(cm.viridis(x)[:3]) for x in xs]
+    from meanap.pipeline.palette import DEFAULT_SCHEME
+
+    return (colors or DEFAULT_SCHEME).ages(n)
 
 
-def _group_colors(n: int) -> list:
-    """Per-group colours, cycling MATLAB's default groupColors palette."""
-    return [_GROUP_COLORS[i % len(_GROUP_COLORS)] for i in range(n)]
+def _group_colors(n: int, colors=None) -> list:
+    """Per-group colours, by default cycling MATLAB's ``groupColors``."""
+    from meanap.pipeline.palette import DEFAULT_SCHEME
+
+    return (colors or DEFAULT_SCHEME).groups(n)
 
 
 def _tick_label(v) -> str:
@@ -1079,8 +1080,12 @@ def plot_half_violin_by_x(
     series_col: str | None = None,
     series_order: list | None = None,
     series_colors: list | None = None,
+    colors=None,
 ) -> None:
     """Group-comparison half-violin plot, port of ``plotHalfViolinByX.m``.
+
+    ``colors`` is a :class:`~meanap.pipeline.palette.ColorScheme` choosing the
+    age and group palettes; omitting it keeps the pipeline's historical ones.
 
     ``x_kind='group'``  → one subplot per group, x-axis = DIVs (viridis-coloured),
     title = group name, xlabel "Age".
@@ -1134,13 +1139,13 @@ def plot_half_violin_by_x(
     if x_kind == "group":
         subplot_items, sub_col = groups, "Grp"
         within_items, within_col = divs, "DIV"
-        within_colors = _div_colors(len(divs))
+        within_colors = _div_colors(len(divs), colors)
         xlabel = "Age"
         titles = [str(g) for g in groups]
     elif x_kind == "DIV":
         subplot_items, sub_col = divs, "DIV"
         within_items, within_col = groups, "Grp"
-        within_colors = _group_colors(len(groups))
+        within_colors = _group_colors(len(groups), colors)
         xlabel = "Group"
         # _tick_label so the title reads "Age 14", matching the tick labels on
         # the other layout rather than the raw float DIV ("Age 14.0").
@@ -1159,7 +1164,7 @@ def plot_half_violin_by_x(
     series_mean_colors: list = []
     if n_series:
         if series_colors is None:
-            series_colors = _group_colors(n_series)
+            series_colors = _group_colors(n_series, colors)
         # Split the unit-wide x slot between the series. A violin spans
         # pos ± (width + gap), so keeping 2*(width + gap) safely under one
         # slot is what stops one series' scatter dots landing on top of the
@@ -1277,20 +1282,27 @@ def plot_node_cartography_by_lag(
     df: "pd.DataFrame",
     out_dir: Path,
     group_order: list | None = None,
-) -> None:
+    only: int | None = None,
+    fmt: str = "png",
+) -> list[Path]:
     """Node-cartography role proportions vs DIV, port of ``plotNetMetNodeCartography.m``.
 
-    One figure per STTC lag (``NodeCartography<lag>mslag.png``): a vertical stack
-    of subplots (one per group), each overlaying the six role proportions
-    (``NCpn1``-``NCpn6``) as lines vs DIV with mean ± SEM bands and a role legend.
-    Requires ``df`` with ``Grp``/``DIV``/``Lag`` columns plus ``NCpn1``-``NCpn6``.
+    One figure per STTC lag (``NodeCartography<lag>mslag.<fmt>``): a vertical
+    stack of subplots (one per group), each overlaying the six role proportions
+    (``NCpn1``-``NCpn6``) as lines vs DIV with mean ± SEM bands and a role
+    legend. Requires ``df`` with ``Grp``/``DIV``/``Lag`` columns plus
+    ``NCpn1``-``NCpn6``.
+
+    ``only`` restricts the run to a single lag (in ms), for a viewer redrawing
+    one figure. Returns the files written.
     """
     if df.empty:
-        return
+        return []
     metrics = [f"NCpn{i}" for i in range(1, 7)]
     if not all(m in df.columns for m in metrics):
-        return
+        return []
     out_dir.mkdir(parents=True, exist_ok=True)
+    written: list[Path] = []
 
     groups = list(group_order) if group_order else sorted(df["Grp"].dropna().unique())
     lags = sorted(df["Lag"].unique(), key=_lag_num)
@@ -1304,6 +1316,8 @@ def plot_node_cartography_by_lag(
     xt = np.arange(1, len(divs) + 1)
 
     for lag in lags:
+        if only is not None and _lag_num(lag) != only:
+            continue
         ldf = df[df["Lag"] == lag]
         n_grp = len(groups)
         fig, axes = plt.subplots(n_grp, 1, figsize=(8.0, max(3.0, 3.0 * n_grp)),
@@ -1345,9 +1359,11 @@ def plot_node_cartography_by_lag(
                       bbox_to_anchor=(1.01, 0.5), fontsize=8, frameon=False)
 
         fig.tight_layout()
-        savefig(fig, out_dir / f"NodeCartography{_lag_num(lag)}mslag.png",
-                default_dpi=300, bbox_inches="tight")
+        dest = out_dir / f"NodeCartography{_lag_num(lag)}mslag.{fmt}"
+        savefig(fig, dest, default_dpi=300, bbox_inches="tight")
         plt.close(fig)
+        written.append(dest)
+    return written
 
 
 def plot_density_landscape(
@@ -1395,19 +1411,26 @@ def plot_graph_metrics_by_lag(
     df: "pd.DataFrame",
     out_dir: Path,
     group_order: list | None = None,
-) -> None:
+    only: str | None = None,
+    fmt: str = "png",
+    colors=None,
+) -> list[Path]:
     """Network metric vs. STTC lag line plots, port of ``plotGraphMetricsByLag.m``.
 
     One figure per recording-level metric: a vertical stack of subplots (one per
     group), each plotting mean ± SEM across recordings as a function of STTC lag,
     with one line per DIV (viridis-coloured, DIV1 = yellow end) and a DIV legend.
     Requires ``df`` with ``Grp``/``DIV``/``Lag`` columns plus the metric columns.
-    Files are named ``<metric>.png`` so they pair with MATLAB's
+    Files are named ``<metric>.<fmt>`` so they pair with MATLAB's
     ``<n>_<label>.png`` via the report's label→code map.
+
+    ``only`` restricts the run to a single metric, for a viewer redrawing the
+    one figure it is showing rather than all 31. Returns the files written.
     """
     if df.empty:
-        return
+        return []
     out_dir.mkdir(parents=True, exist_ok=True)
+    written: list[Path] = []
 
     groups = list(group_order) if group_order else sorted(df["Grp"].dropna().unique())
     lags = sorted(df["Lag"].unique(), key=_lag_num)
@@ -1419,11 +1442,11 @@ def plot_graph_metrics_by_lag(
         except ValueError:
             return str(d)
     divs = sorted(df["DIV"].dropna().unique(), key=_divkey)
-    div_colors = _div_colors(len(divs))
+    div_colors = _div_colors(len(divs), colors)
     xt = np.arange(1, len(lags) + 1)
 
     for metric, label in NETMET_REC_METRICS.items():
-        if metric not in df.columns:
+        if metric not in df.columns or (only is not None and metric != only):
             continue
 
         n_grp = len(groups)
@@ -1478,8 +1501,11 @@ def plot_graph_metrics_by_lag(
             plt.close(fig)
             continue
         fig.tight_layout()
-        savefig(fig, out_dir / f"{metric}.png", default_dpi=300, bbox_inches="tight")
+        dest = out_dir / f"{metric}.{fmt}"
+        savefig(fig, dest, default_dpi=300, bbox_inches="tight")
         plt.close(fig)
+        written.append(dest)
+    return written
 
 
 # ── Public plot function ──────────────────────────────────────────────────────
@@ -1719,25 +1745,37 @@ def _plot_violin(df: pd.DataFrame, metric: str, group_col: str, out_path: Path, 
     savefig(fig, out_path, default_dpi=300, bbox_inches="tight")
     plt.close(fig)
 
-def plot_step4_group_comparisons(
+def netmet_comparison_frames(
     recordings: list,
     all_results: dict,
-    out_dir: Path,
     custom_grp_order: list[str] | None = None,
-    fmt: str = "png",
-) -> None:
-    """Generate group comparison plots for step 4."""
+) -> tuple["pd.DataFrame", "pd.DataFrame"]:
+    """The recording- and node-level tables every 4B comparison plot is drawn from.
+
+    One row per (recording, lag) at the recording level, and per
+    (recording, lag, channel) at the node level, carrying ``FileName``/``Grp``/
+    ``DIV``/``Lag`` plus whichever of :data:`NETMET_REC_METRICS` /
+    :data:`NETMET_NODE_METRICS` the results hold.
+
+    Separated from :func:`plot_step4_group_comparisons` so a caller can draw
+    *one* comparison figure — the viewer redraws a single metric at a single lag
+    on demand, and rebuilding these frames is the only part of that work it
+    cannot skip. Both callers share this function, so a figure drawn one at a
+    time cannot drift from the same figure drawn as part of the folder.
+
+    Returns empty frames when nothing matched, rather than raising.
+    """
     rec_rows = []
     node_rows = []
-    
+
     for rec in recordings:
         if rec.filename not in all_results:
             continue
-            
+
         rec_results = all_results[rec.filename]
         for lag, metrics in rec_results.items():
             base = {"FileName": rec.filename, "Grp": rec.group, "DIV": str(rec.div), "Lag": lag}
-            
+
             # Recording-level
             rec_row = dict(base)
             for k in NETMET_REC_METRICS:
@@ -1748,7 +1786,7 @@ def plot_step4_group_comparisons(
                     if not isinstance(val, (list, np.ndarray)):
                         rec_row[k] = val
             rec_rows.append(rec_row)
-            
+
             # Node-level
             # Determine number of nodes from one of the arrays (e.g. ND)
             node_metrics = {k: v for k, v in metrics.items() if k in NETMET_NODE_METRICS and isinstance(v, (list, np.ndarray)) and len(v) > 1}
@@ -1761,17 +1799,45 @@ def plot_step4_group_comparisons(
                         if len(v_arr) == num_nodes:
                             node_row[k] = v_arr[ch]
                     node_rows.append(node_row)
-                
-    if not rec_rows:
-        return
-        
+
     df_rec = pd.DataFrame(rec_rows)
     df_node = pd.DataFrame(node_rows)
-    
-    if custom_grp_order:
-        df_rec["Grp"] = pd.Categorical(df_rec["Grp"], categories=custom_grp_order, ordered=True)
-        df_node["Grp"] = pd.Categorical(df_node["Grp"], categories=custom_grp_order, ordered=True)
-    
+    _apply_group_order(df_rec, df_node, custom_grp_order)
+    return df_rec, df_node
+
+
+def _apply_group_order(df_rec, df_node, custom_grp_order: list[str] | None) -> None:
+    """Make ``Grp`` an ordered categorical in place, so plots honour the order.
+
+    The ``Grp in columns`` guard matters for the node frame: a batch whose
+    recordings all have a single node produces no node rows at all, and a
+    column assignment on that empty frame is a ``KeyError`` rather than a
+    no-op.
+    """
+    if not custom_grp_order:
+        return
+    for df in (df_rec, df_node):
+        if "Grp" in df.columns:
+            df["Grp"] = pd.Categorical(df["Grp"], categories=custom_grp_order, ordered=True)
+
+
+def plot_step4_group_comparisons(
+    recordings: list,
+    all_results: dict,
+    out_dir: Path,
+    custom_grp_order: list[str] | None = None,
+    fmt: str = "png",
+    colors=None,
+) -> None:
+    """Generate group comparison plots for step 4.
+
+    ``colors`` is a :class:`~meanap.pipeline.palette.ColorScheme` for the age
+    and group palettes; omitting it keeps the historical ones.
+    """
+    df_rec, df_node = netmet_comparison_frames(recordings, all_results, custom_grp_order)
+    if df_rec.empty:
+        return
+
     # 3_RecordingsByGroup and 1_NodeByGroup
     grp_dir = out_dir / "4B_GroupComparisons" / "3_RecordingsByGroup" / "HalfViolinPlots"
     node_grp_dir = out_dir / "4B_GroupComparisons" / "1_NodeByGroup"
@@ -1787,7 +1853,7 @@ def plot_step4_group_comparisons(
         for k, name in NETMET_REC_METRICS.items():
             plot_half_violin_by_x(df_rec_lag, k, name, "group",
                                   lag_grp_dir / f"{k}_byGroup.{fmt}",
-                                  group_order=custom_grp_order)
+                                  group_order=custom_grp_order, colors=colors)
 
         lag_node_grp_dir = node_grp_dir / f"Lag{lag_str}ms" if "ms" not in str(lag_str) else node_grp_dir / f"Lag{lag_str}"
         lag_node_grp_dir.mkdir(parents=True, exist_ok=True)
@@ -1796,7 +1862,7 @@ def plot_step4_group_comparisons(
         for k, name in NETMET_NODE_METRICS.items():
             plot_half_violin_by_x(df_node_lag, k, name, "group",
                                   lag_node_grp_dir / f"{k}_byGroup_node.{fmt}",
-                                  group_order=custom_grp_order)
+                                  group_order=custom_grp_order, colors=colors)
         
     # 4_RecordingsByAge and 2_NodeByAge
     age_dir = out_dir / "4B_GroupComparisons" / "4_RecordingsByAge" / "HalfViolinPlots"
@@ -1812,7 +1878,7 @@ def plot_step4_group_comparisons(
         for k, name in NETMET_REC_METRICS.items():
             plot_half_violin_by_x(df_rec_lag, k, name, "DIV",
                                   lag_age_dir / f"{k}_byDIV.{fmt}",
-                                  group_order=custom_grp_order)
+                                  group_order=custom_grp_order, colors=colors)
 
         lag_node_age_dir = node_age_dir / f"Lag{lag_str}ms" if "ms" not in str(lag_str) else node_age_dir / f"Lag{lag_str}"
         lag_node_age_dir.mkdir(parents=True, exist_ok=True)
@@ -1821,12 +1887,13 @@ def plot_step4_group_comparisons(
         for k, name in NETMET_NODE_METRICS.items():
             plot_half_violin_by_x(df_node_lag, k, name, "DIV",
                                   lag_node_age_dir / f"{k}_byDIV_node.{fmt}",
-                                  group_order=custom_grp_order)
+                                  group_order=custom_grp_order, colors=colors)
 
     # 5_GraphMetricsByLag — network metric vs. STTC lag, one figure per metric
     gmbl_dir = out_dir / "4B_GroupComparisons" / "5_GraphMetricsByLag"
-    plot_graph_metrics_by_lag(df_rec, gmbl_dir, group_order=custom_grp_order)
+    plot_graph_metrics_by_lag(df_rec, gmbl_dir, group_order=custom_grp_order,
+                              fmt=fmt, colors=colors)
 
     # 6_NodeCartographyByLag — role proportions vs DIV, one figure per lag
     ncbl_dir = out_dir / "4B_GroupComparisons" / "6_NodeCartographyByLag"
-    plot_node_cartography_by_lag(df_rec, ncbl_dir, group_order=custom_grp_order)
+    plot_node_cartography_by_lag(df_rec, ncbl_dir, group_order=custom_grp_order, fmt=fmt)

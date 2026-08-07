@@ -20,7 +20,18 @@ from meanap.network_plot import (
     EDGE_THRESHOLD_METHODS, LAYOUT_OPTIONS, NetworkStyle,
 )
 
-__all__ = ["CONTROLS", "Control", "control_schema", "parse_overrides"]
+__all__ = [
+    "COMPARISON_CONTROLS", "CONTROLS", "Control", "comparison_control_schema",
+    "control_schema", "parse_comparison_overrides", "parse_overrides",
+]
+
+#: Imported lazily-by-value so this module stays importable without matplotlib
+#: being touched at import time; the names are a closed set either way.
+_AGE_SCHEME_NAMES = (
+    "viridis", "viridis_r", "plasma", "plasma_r", "cividis", "magma",
+    "inferno", "grey",
+)
+_GROUP_SCHEME_NAMES = ("meanap", "okabe-ito", "tab10", "grey")
 
 #: Colormaps offered for the node-colour metric. Perceptually uniform ones
 #: first — they are the defensible choice for a continuous metric — with the
@@ -55,6 +66,16 @@ class Control:
                 raise ValueError(
                     f"{self.key}: {raw!r} is not one of {self.options}")
             return raw
+        if self.kind == "colors":
+            # A list of colours, however the user typed it. Validated here so a
+            # typo comes back as a 400 naming it, not a matplotlib traceback.
+            from meanap.pipeline.palette import parse_colors
+
+            try:
+                parse_colors(raw)
+            except ValueError as e:
+                raise ValueError(f"{self.key}: {e}") from None
+            return [c for c in raw.replace(",", " ").split() if c]
         value = float(raw)
         if self.minimum is not None and value < self.minimum:
             raise ValueError(f"{self.key}: {value} is below {self.minimum}")
@@ -98,16 +119,65 @@ CONTROLS: tuple[Control, ...] = (
 )
 
 
+#: Controls for the group-level (2B/4B) comparison figures. A separate set from
+#: :data:`CONTROLS` because they map onto ``Params`` fields the violin and line
+#: plots read, not onto ``NetworkStyle`` — the two panels are never shown at
+#: once, and mixing them would offer node-size knobs on a violin plot.
+COMPARISON_CONTROLS: tuple[Control, ...] = (
+    Control("age_color_scheme", "Age colours", "select", "viridis",
+            options=list(_AGE_SCHEME_NAMES),
+            help="Ages are ordered, so they take a sequential colormap. "
+                 "'_r' reverses which end is oldest."),
+    Control("age_colors", "Custom age colours", "colors", [],
+            help="Overrides the scheme. Hex codes or names, comma-separated, "
+                 "oldest last. Cycles if you give fewer than there are ages."),
+    Control("group_color_scheme", "Group colours", "select", "meanap",
+            options=list(_GROUP_SCHEME_NAMES),
+            help="Groups are unordered, so they take a categorical palette. "
+                 "'okabe-ito' stays distinguishable with colour-vision deficiency."),
+    Control("group_colors", "Custom group colours", "colors", [],
+            help="Overrides the scheme, in the group order on the Paths tab."),
+)
+
+
 def control_schema() -> list[dict]:
     """The controls as plain data, for the page to build its form from."""
+    return _schema(CONTROLS)
+
+
+def comparison_control_schema() -> list[dict]:
+    """The comparison-figure controls, as plain data."""
+    return _schema(COMPARISON_CONTROLS)
+
+
+def _schema(controls) -> list[dict]:
     return [
         {
             "key": c.key, "label": c.label, "kind": c.kind, "default": c.default,
             "options": c.options, "min": c.minimum, "max": c.maximum,
             "step": c.step, "help": c.help,
         }
-        for c in CONTROLS
+        for c in controls
     ]
+
+
+def parse_comparison_overrides(query: dict[str, list[str]]) -> dict:
+    """Extract the colour overrides for a comparison or across-lag figure.
+
+    Same contract as :func:`parse_overrides`: only non-default values come
+    back, so an unstyled request builds no override at all and stays
+    byte-identical to the pipeline's figure.
+    """
+    overrides: dict = {}
+    for control in COMPARISON_CONTROLS:
+        raw = query.get(control.key, [None])[0]
+        if raw is None or raw == "":
+            continue
+        value = control.coerce(raw)
+        if value == control.default:
+            continue
+        overrides[control.key] = value
+    return overrides
 
 
 def parse_overrides(query: dict[str, list[str]]) -> dict:
