@@ -142,7 +142,9 @@ channel count and firing rate. On a large batch they may dominate the bundle.
 ```
 
 See {doc}`catnap` for the CAT-NAP-specific resume notes, including why you
-should resume the *whole* batch rather than a subset.
+should resume the *whole* batch rather than a subset, and {doc}`remote-data` for
+running against data that never lands on your disk — the two compose: stream the
+inputs, ship a small bundle back.
 
 ## The viewer
 

@@ -88,6 +88,11 @@ class RecordingState:
     #: ``(min, max)`` used to normalise the pixel centroids onto ``coords`` —
     #: needed to map the mean projection image into the same frame.
     coord_norm: tuple[float, float] = (0.0, 1.0)
+    #: ``(image, extent)`` field-of-view backdrop, captured in phase 1 while the
+    #: suite2p data is already open and persisted separately (see
+    #: :func:`save_background`). Held here so phase 3 need not re-read the raw
+    #: folder for it — the difference between one pass over the raw data and two.
+    background: tuple | None = None
 
 
 def lag_from_adjm_key(key: str) -> int:

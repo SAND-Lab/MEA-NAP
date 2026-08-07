@@ -18,7 +18,13 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Callable
+from typing import TYPE_CHECKING, Callable
+
+if TYPE_CHECKING:
+    # Imported as a module so the fully-qualified annotation below resolves;
+    # `RecordingSource` alone is ambiguous, being re-exported from
+    # `meanap.remote` as well.
+    import meanap.remote.source
 
 import numpy as np
 import pandas as pd
@@ -32,8 +38,8 @@ from meanap.catnap.loader import load_suite2p
 from meanap.catnap.subnetwork import WHOLE_NETWORK
 from meanap.catnap.stats import calc_twop_activity_stats
 from meanap.catnap.store import (
-    BACKGROUND_SUFFIX, RecordingState, load_recording_state, quantize_background,
-    save_background, save_recording_state, sorted_adjm_items,
+    BACKGROUND_SUFFIX, RecordingState, load_background, load_recording_state,
+    quantize_background, save_background, save_recording_state, sorted_adjm_items,
 )
 from meanap.pipeline.cancellation import CancelCheck, check_cancel
 from meanap.pipeline.resume import (
@@ -101,6 +107,7 @@ def run_catnap_pipeline(
     log: Callable[[str], None] = print,
     should_cancel: CancelCheck = None,
     locator: InputLocator | None = None,
+    source: "meanap.remote.source.RecordingSource | None" = None,
 ) -> None:
     """Run the CAT-NAP path over all recordings, writing NetMet JSON + CSVs.
 
@@ -144,6 +151,8 @@ def run_catnap_pipeline(
     """
     if locator is None:
         locator = build_input_locator(params, output_root)
+    if source is None:
+        source = _build_source(params, log)
 
     min_nodes = params.min_number_of_nodes_to_cal_net_met
     net_dir = output_root / "4_NetworkActivity"
@@ -160,9 +169,25 @@ def run_catnap_pipeline(
     subnetwork_tables: dict[str, list] = {"summary": [], "node": [], "mix": []}
 
     # ── Phase 1: compute (or reload) ──────────────────────────────────────────
-    for rec in recordings:
+    # Recordings arrive with the next one already being fetched (remote sources
+    # only), and each is released once its results are on disk — so a batch's
+    # peak local storage is one or two recordings, not the whole dataset.
+    #
+    # A resumed run reads adjacency from the prior analysis and never opens the
+    # raw data, so it must not fetch it either: the whole point of resuming is
+    # that the recordings need not be present at all.
+    stream = (
+        ((rec, suite2p_plane0_dir(params.raw_data, rec.filename))
+         for rec in recordings)
+        if resuming else
+        source.stream(recordings, depth=params.prefetch_depth)
+    )
+    for rec, fetched in stream:
         check_cancel(should_cancel)
-        plane0 = suite2p_plane0_dir(params.raw_data, rec.filename)
+        if isinstance(fetched, BaseException):
+            log(f"  [{rec.filename}] SKIP: {fetched}")
+            continue
+        plane0 = fetched
 
         loaded = (
             _load_recording(locator, rec, plane0, log) if resuming else
@@ -170,6 +195,9 @@ def run_catnap_pipeline(
                                make_rng(params.random_seed, "catnap", rec.filename))
         )
         if loaded is None:
+            if not resuming:
+                source.unpin(rec.filename)
+                source.release(rec.filename)
             continue
         state, stats = loaded
 
@@ -193,6 +221,14 @@ def run_catnap_pipeline(
         except Exception as e:
             log(f"  [{rec.filename}] warning: could not save step-2 data for "
                 f"re-runs: {e}")
+
+        # Everything derived from this recording is now on disk, so its raw
+        # files are no longer needed — unless the trace figures still want them
+        # in phase 3, in which case re-fetching one recording beats holding the
+        # whole batch.
+        if not resuming:
+            source.unpin(rec.filename)
+            source.release(rec.filename)
 
         # Same label as the ephys path: this is the same work on the same
         # recording, and one generator serves every lag (as in step4.py).
@@ -233,11 +269,10 @@ def run_catnap_pipeline(
         if state is None:
             continue
         check_cancel(should_cancel)
-        # Read once here rather than inside each consumer: the mean projection
-        # and the trace figures both need the suite2p folder re-opened, and the
-        # subnetwork figures want the same backdrop as the whole-network ones.
-        data, background = _reload_for_plots(params, rec, state, log)
-        # Captured, not just drawn: figure 12 is the one plot that needs pixels
+        # The backdrop came from phase 1; this only re-opens the folder when
+        # per-cell trace figures were asked for.
+        data, background = _reload_for_plots(params, rec, state, log, source)
+        # Persisted, not just drawn: figure 12 is the one plot that needs pixels
         # rather than metrics, so a bundle has to carry the projection or it
         # could never be reconstructed.
         try:
@@ -282,8 +317,9 @@ def _compute_recording(
         log(f"  [{rec.filename}] SKIP: no suite2p output at {plane0}")
         return None
 
+    derived = params.derived_data_folder or None
     log(f"  [{rec.filename}] loading suite2p data…")
-    data = load_suite2p(plane0)
+    data = load_suite2p(plane0, derived, rec.filename)
 
     if params.twop_activity in _NEEDS_DENOISING and (
         data.F_denoised is None or params.twop_redo_denoising
@@ -295,8 +331,10 @@ def _compute_recording(
             denoising_threshold=params.twop_denoising_threshold,
             time_before_peak_s=params.twop_denoising_time_before_peak,
             time_after_peak_s=params.twop_denoising_time_after_peak,
+            derived_root=derived,
+            recording=rec.filename,
         )
-        data = load_suite2p(plane0)
+        data = load_suite2p(plane0, derived, rec.filename)
 
     log(f"  [{rec.filename}] building adjacency matrices…")
     res = suite2p_to_adjm(
@@ -313,6 +351,16 @@ def _compute_recording(
         spike_counts=_spike_counts(res, params.twop_activity),
         duration_s=duration_s, plane0=plane0, coord_norm=res.coord_norm,
     )
+    # Capture the field-of-view backdrop now, while the (large) suite2p data is
+    # already loaded. Phase 3 used to re-open the whole folder just for this;
+    # doing it here means the raw data is read once per recording, which is what
+    # lets a batch stream through bounded local storage.
+    if params.twop_network_background:
+        state.background = quantize_background(
+            _mean_image_background(data.mean_img, res.coord_norm))
+        if state.background is None:
+            log(f"  [{rec.filename}] note: no mean projection in ops — "
+                "network plots drawn without a backdrop")
     return state, _activity_stats_for(res, params, duration_s)
 
 
@@ -337,6 +385,11 @@ def _load_recording(
     except Exception as e:
         log(f"  [{rec.filename}] SKIP: could not read {path}: {e}")
         return None
+    # Phase 1 didn't run, so the backdrop it would have captured is loaded from
+    # whatever the previous run persisted (present in a bundle, absent if that
+    # run had backgrounds switched off).
+    state.background = load_background(
+        path.with_name(f"{rec.filename}{BACKGROUND_SUFFIX}"))
     log(f"  [{rec.filename}] reusing adjacency matrices from {path}")
     return state, stats
 
@@ -410,31 +463,57 @@ def _resolve_cell_types(params, rec, channels, log):
     return (groups if groups.n_groups else None), markers
 
 
-def _reload_for_plots(params, rec, state, log):
-    """Re-open the recording's suite2p folder for the plotting phase.
+def _build_source(params: Params, log):
+    """The source a run reads recordings from — local folder or remote store.
+
+    Also fills in the two folders a remote run needs but nobody should have to
+    configure: the fetch cache and the derived-data directory both default
+    under ``output_data_folder``, shared across runs so neither the download nor
+    the denoising is repeated.
+    """
+    from meanap.remote.source import RecordingSource
+    from meanap.params import default_cache_dir, default_derived_dir
+    from meanap.remote import open_store
+    from meanap.remote.cache import FileCache, resolve_budget
+
+    store = open_store(params)
+    params.derived_data_folder = default_derived_dir(params, store.copies)
+    if not store.copies:
+        return RecordingSource(store=store, cache=None, log=log)
+
+    cache_dir = default_cache_dir(params)
+    budget = resolve_budget(cache_dir, params.cache_budget_gb)
+    log(f"Remote data: {store}")
+    log(f"  cache   {cache_dir}  ({budget / 1e9:.1f} GB budget, "
+        f"prefetch depth {params.prefetch_depth})")
+    log(f"  derived {params.derived_data_folder}")
+    return RecordingSource(
+        store=store, cache=FileCache(root=cache_dir, budget_bytes=budget), log=log)
+
+
+def _reload_for_plots(params, rec, state, log, source=None):
+    """Re-open the recording's suite2p folder, only if something still needs it.
 
     Phase 1 deliberately drops the fluorescence matrices (hundreds of MB each),
-    so the trace figures and the mean-projection backdrop both need the folder
-    read again — once, here, rather than per figure family.
+    and it now also captures the mean-projection backdrop (``state.background``)
+    while that data is open. So the *only* remaining reason to re-read the raw
+    folder is the per-cell trace figures. With ``num_2p_traces = 0`` — express
+    mode's usual case — a whole batch touches each recording's raw data exactly
+    once, which is what makes streaming it through a bounded cache viable.
     """
-    if not (params.num_2p_traces or params.twop_network_background):
-        return None, None
+    if not params.num_2p_traces:
+        return None, state.background
     try:
-        data = load_suite2p(state.plane0)
+        # The folder may have been released after phase 1; ask the source for
+        # it again rather than assuming the path still resolves.
+        plane0 = (source.plane0(rec.filename) if source is not None
+                  else state.plane0)
+        data = load_suite2p(plane0, params.derived_data_folder or None,
+                            rec.filename)
     except Exception as e:
         log(f"  [{rec.filename}] warning: could not re-read suite2p data: {e}")
-        return None, None
-
-    background = None
-    if params.twop_network_background:
-        # Quantised here, before anything draws it, so the pipeline's figure and
-        # a viewer's reconstruction come from the same array (see store.py).
-        background = quantize_background(
-            _mean_image_background(data.mean_img, state.coord_norm))
-        if background is None:
-            log(f"  [{rec.filename}] note: no mean projection in ops — "
-                "network plots drawn without a backdrop")
-    return data, background
+        return None, state.background
+    return data, state.background
 
 
 def _plot_recording(params, rec, state, rec_results, batch_bounds, output_root, log,

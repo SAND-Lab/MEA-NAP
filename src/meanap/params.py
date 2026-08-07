@@ -142,6 +142,21 @@ class Params:
     # reconstructs the rest on demand — see pipeline/bundle.py.
     express_mode: bool = False
 
+    # ── Remote data ──────────────────────────────────────────────────────────
+    # ``raw_data`` may be a Dropbox folder share link instead of a path. Then
+    # recordings are fetched one at a time and dropped once analysed, so a batch
+    # can exceed local disk — see meanap/remote/. Nothing else needs setting:
+    # the cache and derived folders default under ``output_data_folder``.
+    #
+    # Where fetched recordings are held. Empty = <output_data_folder>/MEANAP-cache.
+    cache_dir: str = ""
+    # Ceiling on that cache, in GB. None = a quarter of free disk, capped at 50.
+    cache_budget_gb: float | None = None
+    # How many recordings to fetch ahead of the one being analysed. 1 hides the
+    # download behind the compute for most datasets; each extra level costs
+    # another recording's worth of local storage for diminishing return.
+    prefetch_depth: int = 1
+
     # ── Parallelism ──────────────────────────────────────────────────────────
     # None = auto-size against available cores/RAM (see pipeline/parallel.py).
     # Step 1 threads over channels on one shared ~3.8 GB array (RAM-safe);
@@ -155,6 +170,12 @@ class Params:
     # The CAT-NAP execution path (steps 2-4) is being ported — see
     # python/CATNAP_PORT_PLAN.md.
     suite2p_mode: bool = False
+    # Where CAT-NAP writes the files it derives from suite2p output (denoising
+    # results, the cached ``ops`` fields). Empty means: beside the suite2p
+    # inputs for local data — what every run did before this existed — and
+    # <output_data_folder>/MEANAP-derived when the source is remote, where
+    # writing back is impossible. See catnap/derived.py.
+    derived_data_folder: str = ""
     twop_activity: str = "peaks"
     twop_redo_denoising: bool = False
     remove_nodes_with_no_peaks: bool = False
@@ -242,6 +263,60 @@ class Params:
 
 #: Name of the parameter snapshot written into every output folder.
 PARAMS_FILENAME = "params.json"
+
+#: Path fields that may hold a remote URL rather than a local path. A share
+#: link is an unauthenticated grant of access to the whole dataset, and
+#: ``params.json`` is packed into every ``.meanap`` bundle — so without this,
+#: sending someone your results would also send them your data. Redaction is by
+#: *value*: a local path in the same field is left alone, since it reveals a
+#: directory layout rather than a way in.
+SECRET_URL_FIELDS = ("raw_data", "prior_analysis_path", "spreadsheet_file_name")
+
+REDACTED = "<remote source redacted>"
+
+
+def is_remote_url(value: str) -> bool:
+    """Whether a path field is actually a URL."""
+    return isinstance(value, str) and "://" in value
+
+
+def redact(raw: dict) -> dict:
+    """Replace remote URLs with a placeholder, for params leaving the machine.
+
+    A placeholder rather than an empty string: a reader should be able to tell
+    that something was removed, not conclude the field was never set.
+    """
+    out = dict(raw)
+    for key in SECRET_URL_FIELDS:
+        if is_remote_url(out.get(key, "")):
+            out[key] = REDACTED
+    return out
+
+
+def default_cache_dir(params: "Params") -> Path:
+    """Where fetched recordings are held, if not configured.
+
+    Under ``output_data_folder`` — the *parent* of the dated run folders — so
+    successive runs share one cache instead of re-fetching everything.
+    """
+    if params.cache_dir:
+        return Path(params.cache_dir)
+    base = Path(params.output_data_folder or ".")
+    return base / "MEANAP-cache"
+
+
+def default_derived_dir(params: "Params", remote: bool) -> str:
+    """Where CAT-NAP writes files it derives from suite2p output.
+
+    Beside the inputs for local data (unchanged behaviour); under
+    ``output_data_folder`` when remote, where writing back is impossible.
+    Shared across runs, so denoising is not repeated every time.
+    """
+    if params.derived_data_folder:
+        return params.derived_data_folder
+    if not remote:
+        return ""
+    return str(Path(params.output_data_folder or ".") / "MEANAP-derived")
 
 
 def save_params(params: Params, output_root: Path | str) -> Path:

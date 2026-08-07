@@ -8,11 +8,12 @@ import time
 from pathlib import Path
 from typing import Callable
 
-from meanap.params import PARAMS_FILENAME, Params, save_params
+from meanap.params import (
+    PARAMS_FILENAME, Params, default_cache_dir, is_remote_url, save_params,
+)
 from meanap.pipeline.cancellation import CancelCheck, check_cancel
 from meanap.pipeline.io import (
     RAW_EXTENSIONS,
-    find_raw_file,
     load_raw_recording,
     save_spike_times_npz,
 )
@@ -88,6 +89,11 @@ def run_pipeline(
         log("Random seed: not set — stochastic steps (3, 4) will differ between runs.")
     else:
         log(f"Random seed: {params.random_seed} — stochastic steps are reproducible.")
+
+    # A remote source is checked before any transfer: listing is free, and a
+    # batch that silently shrinks is the failure worth spending seconds to avoid.
+    if is_remote_url(params.raw_data):
+        _check_remote_source(params, recordings, log)
 
     # CAT-NAP (suite2p calcium imaging) path. In MATLAB, Params.suite2pMode == 1
     # replaces spike detection + connectivity (steps 1 & 3) with suite2pToAdjm,
@@ -241,6 +247,56 @@ def run_pipeline(
     return output_root
 
 
+def _build_raw_source(params: Params, log):
+    """The source step 1 reads recordings from — local folder or remote store."""
+    from meanap.params import default_cache_dir
+    from meanap.remote import open_store
+    from meanap.remote.cache import FileCache, resolve_budget
+    from meanap.remote.source import RecordingSource
+
+    store = open_store(params)
+    if not store.copies:
+        return RecordingSource(store=store, cache=None, log=log)
+
+    cache_dir = default_cache_dir(params)
+    budget = resolve_budget(cache_dir, params.cache_budget_gb)
+    log(f"Remote data: {store}")
+    log(f"  cache {cache_dir}  ({budget / 1e9:.1f} GB budget, "
+        f"prefetch depth {params.prefetch_depth})")
+    return RecordingSource(
+        store=store, cache=FileCache(root=cache_dir, budget_bytes=budget), log=log)
+
+
+def _check_remote_source(params: Params, recordings, log) -> None:
+    """Pre-flight a remote source before any transfer starts.
+
+    Listing costs nothing, so there is no reason to discover a missing
+    recording after an hour of downloading — and every reason not to: a batch
+    that quietly analyses a fraction of what was asked for still produces
+    group comparisons and cartography boundaries, computed from the fraction.
+    """
+    from meanap.remote import open_store, run_preflight
+
+    store = open_store(params)
+    names = [r.filename for r in recordings]
+    report = run_preflight(
+        store, names,
+        mode="catnap" if params.suite2p_mode else "ephys",
+        spreadsheet=params.spreadsheet_file_name or None,
+        cache_dir=default_cache_dir(params),
+        cache_budget_gb=params.cache_budget_gb,
+        prefetch_depth=params.prefetch_depth,
+    )
+    log("\n=== Pre-flight ===")
+    for line in report.render().splitlines():
+        log(line)
+    if not report.ok:
+        raise ValueError(
+            "The remote source is not ready to run (see the pre-flight report "
+            "above). Fix the problems listed, or run meanap-preflight with "
+            "--write-spreadsheet to correct recording names.")
+
+
 def _write_run_bundle(
     params: Params, recordings, output_root: Path, log, *, mode: str,
     embedded_figures: list[str] | None = None,
@@ -301,13 +357,17 @@ def _run_step1_spike_detection(
         raise ValueError("Raw data folder must be set to run step 1 (spike detection)")
 
     spike_dir = output_root / "1_SpikeDetection" / "1A_SpikeDetectedData"
-    raw_dir = Path(params.raw_data)
     cost_list = params.cost_list if isinstance(params.cost_list, list) else [params.cost_list]
 
-    for rec in recordings:
+    # Recordings arrive with the next one already being fetched when the source
+    # is remote, and each is released once its spike times are written — so a
+    # batch's peak local storage is one or two recordings, not the dataset.
+    source = _build_raw_source(params, log)
+
+    for rec, raw_path in source.stream(recordings, depth=params.prefetch_depth,
+                                       kind="ephys"):
         check_cancel(should_cancel)
-        raw_path = find_raw_file(raw_dir, rec.filename)
-        if raw_path is None:
+        if isinstance(raw_path, BaseException):
             log(f"  ! raw file not found, skipping: {rec.filename}"
                 f" (looked for {', '.join(RAW_EXTENSIONS)})")
             continue
@@ -350,3 +410,10 @@ def _run_step1_spike_detection(
         from meanap.pipeline.plotting import plot_spike_detection_checks
         log(f"  [{rec.filename}] generating spike detection check plots…")
         plot_spike_detection_checks(dat, result, params, rec.filename, check_dir)
+
+        # Spike times and the checks are on disk; the raw voltage is no longer
+        # needed. An Axion plate shared with other wells is kept until the last
+        # of them is done.
+        del dat
+        source.unpin(rec.filename)
+        source.release(rec.filename)
