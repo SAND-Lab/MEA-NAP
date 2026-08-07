@@ -221,9 +221,17 @@ class MainWindow(QMainWindow):
         self._pipeline_panel.log.setAcceptDrops(False)
         self._catnap_panel._log.setAcceptDrops(False)
 
+        # A spreadsheet built from a scan describes the recordings the run is
+        # about to read, so point the run at it rather than leaving the user to
+        # copy the path across tabs.
+        self._catnap_panel.spreadsheet_saved.connect(
+            self._paths_panel.spreadsheet.set_value)
+
         # Secondary-style buttons in CAT-NAP panel
         self._catnap_panel._scan_btn.setObjectName("secondary")
         self._catnap_panel._denoise_btn.setObjectName("secondary")
+        self._catnap_panel._make_sheet_btn.setObjectName("secondary")
+        self._paths_panel.edit_spreadsheet_btn.setObjectName("secondary")
 
     @staticmethod
     def _bind_mirrored(first: QLineEdit, second: QLineEdit) -> None:
@@ -358,7 +366,8 @@ class MainWindow(QMainWindow):
                 "its group and its age (DIV). This drives the whole batch. Name recordings "
                 "without the file extension. An Axion .raw holds a whole plate, so name "
                 "one row per well — 'Plate2_DIV75_A1' — exactly as the MATLAB converter "
-                "would have named the file it wrote.",
+                "would have named the file it wrote. No spreadsheet yet? “Edit…” "
+                "builds one here and checks it as you type.",
                 self._tab_index(TAB_PATHS), lambda: paths.spreadsheet),
             TutorialStep(
                 "Spreadsheet range", "The cell range to read from the spreadsheet, "
@@ -466,7 +475,9 @@ class MainWindow(QMainWindow):
             TutorialStep(
                 "Recordings folder", "Point this at the folder holding all your "
                 "recordings — not at a single recording's folder. Each sub-folder's "
-                "name becomes that recording's name.",
+                "name becomes that recording's name. A Dropbox folder share link "
+                "works here too: it is scanned without downloading anything, and "
+                "the run fetches one recording at a time.",
                 self._tab_index(TAB_CATNAP), lambda: cat._folder_edit,
                 diagram="my_experiment/       ← pick this\n"
                         "├── slice1_DIV14/    ← not this\n"
@@ -479,6 +490,12 @@ class MainWindow(QMainWindow):
                 "Scan for recordings", "Press this to find every suite2p recording under "
                 "that folder. Select one to preview its traces.",
                 self._tab_index(TAB_CATNAP), lambda: cat._scan_btn),
+            TutorialStep(
+                "Build the spreadsheet", "This turns the recordings found above into "
+                "the batch spreadsheet, with the names taken from the data rather "
+                "than retyped, and the DIV read out of each name. Fill in the "
+                "genotype/group column, save, and the Paths tab points at it.",
+                self._tab_index(TAB_CATNAP), lambda: cat._make_sheet_btn),
             TutorialStep(
                 "Denoising", "Optionally denoise the fluorescence traces before analysis. "
                 "The threshold multiplier and peak windows control event extraction.",

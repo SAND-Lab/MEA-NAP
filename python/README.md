@@ -171,6 +171,11 @@ uv run meanap-preflight '<share link>'          # check first; seconds, no trans
 uv run meanap-preflight '<link>' --write-spreadsheet fixed.csv
 ```
 
+In the GUI, the same link works in **Raw data folder** and in the CAT-NAP tab's
+**Scan for suite2p folders**, which lists what is behind the link without
+transferring anything. The batch spreadsheet is still a local file; build it
+from the scan (see below) or with `--write-spreadsheet` above.
+
 A remote run pre-flights automatically and refuses to start if recordings are
 missing, since a silently-shortened batch still produces results. Share links
 are redacted from bundled `params.json`. Works for both analysis paths — a
@@ -203,11 +208,12 @@ raw_data/
 
 ### Using the CAT-NAP tab
 
-1. Enter (or browse to) your raw data folder in the **Suite2p recordings** section.
+1. Enter (or browse to) your raw data folder in the **Suite2p recordings** section — or paste a **Dropbox folder share link**, which is scanned without downloading anything.
 2. Click **Scan for suite2p folders**. All discovered recordings appear in the list; a ✓ prefix means denoising outputs already exist.
-3. Click a recording to load it. The info panel shows cell count, sampling rate, and duration.
-4. (Optional) Adjust denoising settings and click **Run denoising on selected recording** to generate `Fdenoised.npy` and peak detection outputs.
-5. Use the **Trace preview** panel on the right to inspect individual cell traces, switching between activity types.
+3. Click **Make spreadsheet from these…** to turn the scan into the batch spreadsheet, with names taken from the data rather than retyped and DIV read out of each name. Fill in the genotype column (or **Fill from another sheet…** to copy DIV and genotype from an existing spreadsheet, matched by name even when the folders carry a trailing word the sheet doesn't). Saving points the Paths tab at it.
+4. Click a recording to load it. The info panel shows cell count, sampling rate, and duration. Recordings behind a share link have nothing local to preview or denoise here — the pipeline run fetches them one at a time.
+5. (Optional) Adjust denoising settings and click **Run denoising on selected recording** to generate `Fdenoised.npy` and peak detection outputs.
+6. Use the **Trace preview** panel on the right to inspect individual cell traces, switching between activity types.
 
 ### Activity types
 
