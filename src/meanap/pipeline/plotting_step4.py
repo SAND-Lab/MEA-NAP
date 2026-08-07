@@ -910,8 +910,14 @@ def plot_circular_cartography_network(
         r_points = r_inches * 72.0
         return (r_points * 2) ** 2
 
-    # Draw cartography swatches vertically
-    swatch_r = 0.045
+    # Draw cartography swatches vertically.
+    #
+    # Sized against the label text, not against the network's nodes. A node's
+    # drawn size depends on how many there are — 13pt across for 60 nodes, 39pt
+    # for 20 — so a swatch that tracked it would swing from bullet to blob for
+    # reasons that say nothing about the roles it is naming. 20pt sits a little
+    # above the 9pt label, which reads as a swatch at any node count.
+    swatch_r = 0.020            # ≈20pt across in this axes; see _r_to_s
     current_y = 0.90
     for role in range(1, 7):
         col = _CARTOGRAPHY_COLORS[role]
@@ -922,7 +928,9 @@ def plot_circular_cartography_network(
             facecolors=[col], edgecolors="white", linewidths=0.1, zorder=3,
         )
         ax_leg.text(0.2, current_y, label, va="center", fontsize=9)
-        current_y -= 0.09
+        # Row pitch follows the swatch: keeping the old 0.09 would leave the six
+        # roles strung out down the panel with the swatches no longer filling it.
+        current_y -= 0.048
 
     current_y -= 0.03
     ax_leg.text(0.05, current_y, "edge weight:", va="center", fontsize=9)
