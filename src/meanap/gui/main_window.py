@@ -31,6 +31,7 @@ from meanap.gui.panels.stim_preview import StimPreviewPanel
 from meanap.gui.panels.pipeline import PipelinePanel
 from meanap.gui.panels.catnap import CatNapPanel
 from meanap.gui.panels.network_viewer import NetworkViewerPanel
+from meanap.gui.tooltip import install_tooltip_style, wrap_tooltips
 from meanap.gui.tutorial import TutorialOverlay, TutorialStep, tabbar_target
 
 
@@ -70,6 +71,12 @@ class MainWindow(QMainWindow):
         self._build_toolbar()
         self._build_tabs()
         self._load_params(self._params)
+        # Wrap every tooltip in one pass, once the whole UI exists. Doing it
+        # here rather than at each call site means a tooltip written anywhere
+        # is formatted without its author having to remember — Qt otherwise
+        # lays a long one out on a single line, wider than the screen.
+        install_tooltip_style()
+        wrap_tooltips(self)
         self._maybe_show_tutorial_on_first_launch()
 
     # ── UI construction ───────────────────────────────────────────────────────
