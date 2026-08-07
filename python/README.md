@@ -128,6 +128,35 @@ Set the required paths (MEA-NAP folder, raw data folder, output folder), configu
 
 The pipeline mirrors MATLAB's 4 steps — spike detection, neuronal activity (firing rates/bursts), functional connectivity (STTC), and network metrics — writing the same output folder structure MATLAB's `CreateOutputFolders.m` builds. **Not every step or metric is fully ported yet**; see [`PIPELINE_PORT_STATUS.md`](PIPELINE_PORT_STATUS.md) for exactly what's done, what's approximate, and what's still missing before relying on this for real analysis.
 
+### Progress and time estimates
+
+A run shows a progress bar on the Pipeline tab with the phase, the recording
+being worked on, elapsed time and an estimate of the time left. A remote run
+gets a second, slimmer bar for the download.
+
+The bar is weighted, not a count of recordings: on the reference benchmark a
+recording costs 3.2s in step 2 and 98.7s in step 4, so equal weighting would
+park the bar at half way with the slowest step still entirely ahead. The
+estimate is *calibrated rather than predicted* — the weights only fix the
+relative size of each phase, and the rate is measured from this run on this
+machine, so it adapts within the first completed recording. Until then it says
+"estimating" rather than quoting a number from someone else's hardware. Expect
+it to be within ~10-20% and to wobble when a parallel phase finishes several
+recordings at once.
+
+Transfers are deliberately *not* counted as pipeline progress: downloads
+overlap compute (the next recording is fetched while this one is analysed), so
+adding them would double-count. A slow link instead shows up as a higher
+measured cost per unit of work, which the estimate already tracks.
+
+To consume the same data outside the GUI, pass a callback:
+
+```python
+from meanap.pipeline.runner import run_pipeline
+run_pipeline(params, progress=lambda p: print(p.describe()))
+# 37% · Step 4 · Network metrics · rec_A3 (2/4) · 6m 20s elapsed · ~10m 41s left
+```
+
 ### Output report
 
 After a run (or against any existing MEA-NAP output folder), click **🌐 View report** on the Pipeline tab to generate `report.html` in that output folder and open it in your browser. It's a self-contained page (no server, works offline) with a folder-tree sidebar and a captioned image gallery for every plot the pipeline produced — captions are adapted from MEA-NAP's own figure-legend documentation (`docs/meanap-outputs.rst`) wherever one exists. You can also generate it directly from Python:

@@ -108,6 +108,7 @@ def run_catnap_pipeline(
     should_cancel: CancelCheck = None,
     locator: InputLocator | None = None,
     source: "meanap.remote.source.RecordingSource | None" = None,
+    progress: "meanap.pipeline.progress.RunProgress | None" = None,
 ) -> None:
     """Run the CAT-NAP path over all recordings, writing NetMet JSON + CSVs.
 
@@ -149,10 +150,16 @@ def run_catnap_pipeline(
     change. With per-recording streams a seeded resume reproduces the numbers
     of the run it resumed from.
     """
+    from meanap.pipeline.progress import RunProgress
+
+    progress = progress or RunProgress()
     if locator is None:
         locator = build_input_locator(params, output_root)
     if source is None:
         source = _build_source(params, log)
+    # Set rather than passed, so a caller that supplies its own source — the
+    # remote tests do — reports transfers without having to wire them up.
+    source.progress = progress
 
     min_nodes = params.min_number_of_nodes_to_cal_net_met
     net_dir = output_root / "4_NetworkActivity"
@@ -167,6 +174,8 @@ def run_catnap_pipeline(
     all_channels: dict[str, np.ndarray] = {}
     states: dict[str, RecordingState] = {}
     subnetwork_tables: dict[str, list] = {"summary": [], "node": [], "mix": []}
+
+    progress.begin("catnap.compute", items=len(recordings))
 
     # ── Phase 1: compute (or reload) ──────────────────────────────────────────
     # Recordings arrive with the next one already being fetched (remote sources
@@ -244,6 +253,7 @@ def run_catnap_pipeline(
             )
             rec_results[f"{lag_ms}mslag"] = metrics
         all_results[rec.filename] = rec_results
+        progress.item_done(rec.filename)
 
     # ── Phase 2: reduce — data-driven node-cartography boundaries ─────────────
     # Pool PC/Z over the whole batch and re-place the six role boundaries, then
@@ -264,6 +274,8 @@ def run_catnap_pipeline(
                     for m in ("ND", "NS", "BC", "PC", "Eloc")}
 
     # ── Phase 3: plot ─────────────────────────────────────────────────────────
+    progress.phase_done()
+    progress.begin("catnap.plot", items=len(recordings))
     for rec in recordings:
         state = states.get(rec.filename)
         if state is None:
@@ -291,13 +303,17 @@ def run_catnap_pipeline(
                 make_rng(params.random_seed, "catnap_subnetwork", rec.filename),
                 background,
             )
+        progress.item_done(rec.filename)
 
+    progress.phase_done()
+    progress.begin("batch", items=1)
     _save_catnap_results(recordings, all_results, all_stats, all_channels, net_dir, log)
     _save_subnetwork_results(subnetwork_tables, net_dir, log)
     _plot_group_comparisons(
         params, recordings, all_results, all_stats, all_channels,
         subnetwork_tables, states, output_root, log,
     )
+    progress.phase_done()
     log("  CAT-NAP pipeline complete.")
 
 

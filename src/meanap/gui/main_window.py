@@ -675,8 +675,11 @@ class MainWindow(QMainWindow):
             f"Starting MEA-NAP: steps {params.start_analysis_step}-{params.stop_analysis_step}…"
         )
 
+        self._pipeline_panel.start_progress()
+
         worker = PipelineWorker(params, parent=self)
         worker.log_message.connect(self._pipeline_panel.append_log)
+        worker.progress.connect(self._pipeline_panel.show_progress)
         worker.finished_ok.connect(self._on_pipeline_finished)
         worker.cancelled.connect(self._on_pipeline_cancelled)
         worker.failed.connect(self._on_pipeline_failed)
@@ -700,6 +703,7 @@ class MainWindow(QMainWindow):
 
     def _on_pipeline_finished(self, output_root: Path) -> None:
         self._last_output_root = output_root
+        self._pipeline_panel.finish_progress("Finished.")
         self._pipeline_panel.append_log(f"Done. Output folder: {output_root}")
         self._announce_bundle(output_root)
         self._reset_run_buttons()
@@ -730,10 +734,12 @@ class MainWindow(QMainWindow):
         )
 
     def _on_pipeline_cancelled(self) -> None:
+        self._pipeline_panel.finish_progress("Stopped.")
         self._pipeline_panel.append_log("Pipeline stopped.")
         self._reset_run_buttons()
 
     def _on_pipeline_failed(self, message: str) -> None:
+        self._pipeline_panel.finish_progress("Failed.")
         self._pipeline_panel.append_log(f"ERROR: {message}")
         self._reset_run_buttons()
         QMessageBox.critical(self, "Pipeline error", message)

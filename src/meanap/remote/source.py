@@ -53,8 +53,16 @@ class RecordingSource:
     #: Applying it here means neither the spreadsheet nor the data folder has
     #: to be edited for a run to find its recordings.
     name_map: dict = field(default_factory=dict)
+    #: Optional :class:`~meanap.pipeline.progress.RunProgress`, told how many
+    #: bytes have arrived. Reported from here rather than from the cache because
+    #: only this knows the transfer is one run's worth of work.
+    progress: object | None = None
     #: cache-relative path → how many not-yet-released recordings still need it.
     _holders: dict = field(default_factory=dict, repr=False)
+    #: Bytes fetched so far this run, across every file. Not guarded: prefetch
+    #: runs on a single worker thread (``stream_ahead``'s pool is size 1), so
+    #: only one fetch is ever in flight.
+    _fetched: int = field(default=0, repr=False)
 
     @property
     def remote(self) -> bool:
@@ -69,6 +77,29 @@ class RecordingSource:
 
     def _rels_for(self, recording: str) -> list[str]:
         return [rel for rel, users in self._holders.items() if recording in users]
+
+    def _fetch(self, rel: str, detail: str = ""):
+        """``cache.get``, keeping the run's transfer counter up to date.
+
+        The cache reports bytes per file; a run wants one running total, and one
+        that doesn't lurch when a file turns out to be cached already.
+        """
+        if self.progress is None:
+            return self.cache.get(self.store, rel)
+
+        base = self._fetched
+        self.progress.transferred(base, detail=detail)
+        seen = 0
+
+        def report(done: int, total: int | None) -> None:
+            nonlocal seen
+            seen = done
+            self.progress.transferred(base + done, detail=detail)
+
+        try:
+            return self.cache.get(self.store, rel, report)
+        finally:
+            self._fetched = base + seen
 
     def plane0(self, recording: str) -> Path:
         """A local ``suite2p/plane0`` for *recording*, fetching it if remote.
@@ -98,7 +129,7 @@ class RecordingSource:
                  + (f" (skipping {skipped / 1e6:.0f} MB the pipeline never opens)"
                     if skipped else ""))
         for entry in wanted:
-            self.cache.get(self.store, entry.path)
+            self._fetch(entry.path, detail=recording)
         return self.cache.path_for(self.store, rel)
 
     def raw_file(self, recording: str):
@@ -140,7 +171,7 @@ class RecordingSource:
         cached = self.cache.path_for(self.store, rel)
         if not cached.exists():
             self.log(f"  [{recording}] fetching {(entry.size or 0) / 1e6:.0f} MB")
-        return RawSource(self.cache.get(self.store, rel), well)
+        return RawSource(self._fetch(rel, detail=recording), well)
 
     def release(self, recording: str) -> None:
         """Drop a recording's raw data now that its results are written.

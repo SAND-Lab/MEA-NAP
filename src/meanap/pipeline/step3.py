@@ -20,6 +20,7 @@ from meanap.params import Params
 from meanap.pipeline.cancellation import CancelCheck, check_cancel
 from meanap.pipeline.io import find_raw_file, load_spike_times_npz, resolve_duration_s
 from meanap.pipeline.parallel import map_recordings
+from meanap.pipeline.progress import RunProgress
 from meanap.pipeline.probabilistic_threshold import adjm_thr
 from meanap.pipeline.resume import build_input_locator
 from meanap.pipeline.rng import make_rng
@@ -114,6 +115,7 @@ def _run_step3_functional_connectivity(
     output_root: Path,
     log: Callable[[str], None],
     should_cancel: CancelCheck = None,
+    progress: "RunProgress | None" = None,
 ) -> None:
     """Run Step 3 over all recordings as a RAM/CPU-aware parallel map.
 
@@ -125,6 +127,8 @@ def _run_step3_functional_connectivity(
     """
     log("\n=== Step 3: Functional Connectivity ===")
     check_cancel(should_cancel)
+    progress = progress or RunProgress()
+    progress.begin("step3", items=len(recordings))
 
     (output_root / "ExperimentMatFiles").mkdir(parents=True, exist_ok=True)
 
@@ -133,6 +137,9 @@ def _run_step3_functional_connectivity(
     def _emit(result: tuple[str, list[str]]) -> None:
         for line in result[1]:
             log(line)
+        # Called in the parent as each recording finishes, in completion order —
+        # which is what makes a bar possible across a process pool at all.
+        progress.item_done(result[0])
 
     map_recordings(
         _step3_one_recording,
@@ -143,4 +150,5 @@ def _run_step3_functional_connectivity(
         cancel_check=(lambda: bool(should_cancel())) if should_cancel else None,
     )
 
+    progress.phase_done()
     log("  Step 3 complete.")

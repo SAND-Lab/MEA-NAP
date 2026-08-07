@@ -28,6 +28,7 @@ from meanap.pipeline.io import (
     load_spike_times_npz,
 )
 from meanap.pipeline.channel_layout import get_coords_from_layout
+from meanap.pipeline.progress import RunProgress
 from meanap.pipeline.resume import build_input_locator
 from meanap.pipeline.rng import make_rng
 from meanap.pipeline.spreadsheet import RecordingInfo
@@ -61,11 +62,15 @@ def run_stim_analysis(
     output_root: Path,
     log=print,
     should_cancel: CancelCheck = None,
+    progress: "RunProgress | None" = None,
 ) -> None:
     """Run the stim analysis over all recordings and write the aggregate CSV."""
     log("\n=== Stimulation analysis (MEA-Stim) ===")
+    progress = progress or RunProgress()
+    progress.begin("stim", items=len(recordings))
     if not params.raw_data:
         log("  ! Raw data folder not set — stim detection needs the raw voltage. Skipping.")
+        progress.phase_done()
         return
 
     raw_dir = Path(params.raw_data)
@@ -133,6 +138,9 @@ def run_stim_analysis(
         except Exception as e:   # plotting must never sink the numeric results
             log(f"  [{rec.filename}] Warning: stim plotting failed: {e}")
         n_done += 1
+        progress.item_done(rec.filename)
+
+    progress.phase_done()
 
     if all_rows:
         csv_path = output_root / "StimActivity_NodeLevel.csv"

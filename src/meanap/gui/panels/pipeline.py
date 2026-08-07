@@ -1,13 +1,14 @@
-"""Pipeline control panel — step selection, run/stop, status log."""
+"""Pipeline control panel — step selection, run/stop, progress, status log."""
 
 from PyQt6.QtWidgets import (
     QCheckBox, QComboBox, QFormLayout, QGroupBox, QHBoxLayout,
-    QLabel, QListWidget, QListWidgetItem, QPushButton, QScrollArea,
-    QSpinBox, QTextEdit, QVBoxLayout, QWidget,
+    QLabel, QListWidget, QListWidgetItem, QProgressBar, QPushButton,
+    QScrollArea, QSpinBox, QTextEdit, QVBoxLayout, QWidget,
 )
 from PyQt6.QtCore import Qt
 
 from meanap.params import Params
+from meanap.pipeline.progress import Progress, format_bytes, format_duration
 
 PIPELINE_STEPS = [
     (1, "Spike detection"),
@@ -23,6 +24,9 @@ VERBOSE_LEVELS = ["Normal", "Verbose", "Debug"]
 class PipelinePanel(QWidget):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
+        # Kept so the end-of-run line can report the total without the caller
+        # having to time the run itself.
+        self._last_elapsed = 0.0
         layout = QVBoxLayout(self)
         layout.setContentsMargins(12, 12, 12, 12)
 
@@ -152,6 +156,44 @@ class PipelinePanel(QWidget):
         run_layout.addWidget(self.stop_btn)
         run_layout.addWidget(self.view_report_btn)
 
+        # ── Progress ──────────────────────────────────────────────────────────
+        # Hidden until a run starts: an empty bar sitting at 0% before anything
+        # has been asked for reads as "stuck", not as "idle".
+        self.progress_box = QGroupBox("Progress")
+        progress_layout = QVBoxLayout(self.progress_box)
+
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setRange(0, 1000)  # per-mille, so the bar creeps
+        self.progress_bar.setValue(0)
+        self.progress_bar.setTextVisible(False)
+        self.progress_bar.setFixedHeight(18)
+
+        self.progress_label = QLabel("Waiting to start…")
+        self.progress_label.setWordWrap(True)
+
+        self.progress_eta = QLabel("")
+        self.progress_eta.setStyleSheet("font-size: 11px; color: gray;")
+
+        # Transfers get their own bar: during the first recording of a remote
+        # run it is the only thing moving, and the estimate depends on it.
+        # Deliberately slimmer than the run bar — two bars of equal weight
+        # invite the reader to compare percentages that measure different things.
+        self.transfer_bar = QProgressBar()
+        self.transfer_bar.setRange(0, 1000)
+        self.transfer_bar.setValue(0)
+        self.transfer_bar.setTextVisible(False)
+        self.transfer_bar.setFixedHeight(8)
+        self.transfer_label = QLabel("")
+        self.transfer_label.setStyleSheet("font-size: 11px; color: gray;")
+
+        progress_layout.addWidget(self.progress_bar)
+        progress_layout.addWidget(self.progress_label)
+        progress_layout.addWidget(self.progress_eta)
+        progress_layout.addWidget(self.transfer_bar)
+        progress_layout.addWidget(self.transfer_label)
+        self.progress_box.setVisible(False)
+        self._set_transfer_visible(False)
+
         # ── Status log ────────────────────────────────────────────────────────
         log_box = QGroupBox("Status log")
         log_layout = QVBoxLayout(log_box)
@@ -165,11 +207,66 @@ class PipelinePanel(QWidget):
         layout.addWidget(overview_box)
         layout.addWidget(out_box)
         layout.addWidget(run_box)
+        layout.addWidget(self.progress_box)
         layout.addWidget(log_box)
         layout.addStretch()
 
     def append_log(self, text: str) -> None:
         self.log.append(text)
+
+    # ── Progress display ──────────────────────────────────────────────────────
+
+    def _set_transfer_visible(self, visible: bool) -> None:
+        self.transfer_bar.setVisible(visible)
+        self.transfer_label.setVisible(visible)
+
+    def start_progress(self) -> None:
+        """Show an empty bar as a run begins."""
+        self.progress_box.setVisible(True)
+        self.progress_bar.setValue(0)
+        self.progress_label.setText("Starting…")
+        self.progress_eta.setText("")
+        self.transfer_bar.setValue(0)
+        self.transfer_label.setText("")
+        self._set_transfer_visible(False)
+
+    def show_progress(self, snapshot: Progress) -> None:
+        """Render one snapshot from the running pipeline."""
+        self.progress_box.setVisible(True)
+        self.progress_bar.setValue(int(round(snapshot.fraction * 1000)))
+        self._last_elapsed = snapshot.elapsed_s
+
+        headline = f"{snapshot.percent}%  ·  {snapshot.phase}"
+        if snapshot.detail:
+            headline += f"  ·  {snapshot.detail}"
+        self.progress_label.setText(headline)
+
+        elapsed = format_duration(snapshot.elapsed_s)
+        if snapshot.eta_s is None:
+            # Saying "estimating" beats showing a number derived from a
+            # benchmark machine before this one has finished anything.
+            self.progress_eta.setText(f"{elapsed} elapsed  ·  estimating time left…")
+        else:
+            self.progress_eta.setText(
+                f"{elapsed} elapsed  ·  about {format_duration(snapshot.eta_s)} left")
+
+        self._set_transfer_visible(snapshot.transferring)
+        if snapshot.transferring:
+            share = min(1.0, snapshot.bytes_done / snapshot.bytes_total)
+            self.transfer_bar.setValue(int(round(share * 1000)))
+            text = (f"Downloaded {format_bytes(snapshot.bytes_done)} of "
+                    f"{format_bytes(snapshot.bytes_total)}")
+            if snapshot.transfer_detail:
+                text += f"  ·  {snapshot.transfer_detail}"
+            self.transfer_label.setText(text)
+
+    def finish_progress(self, message: str) -> None:
+        """Leave the bar showing how the run ended rather than blanking it."""
+        self.progress_label.setText(message)
+        self.progress_eta.setText(
+            f"{format_duration(self._last_elapsed)} total"
+            if self._last_elapsed else "")
+        self._set_transfer_visible(False)
 
     def load(self, params: Params) -> None:
         self.start_step.setValue(params.start_analysis_step)

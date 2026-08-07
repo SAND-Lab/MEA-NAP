@@ -21,6 +21,9 @@ from meanap.pipeline.step2 import _run_step2_neuronal_activity
 from meanap.pipeline.step3 import _run_step3_functional_connectivity
 from meanap.pipeline.step4 import _run_step4_network_metrics
 from meanap.pipeline.output_folders import create_output_folders
+from meanap.pipeline.progress import (
+    ProgressFn, RunProgress, plan_catnap, plan_ephys,
+)
 from meanap.pipeline.resume import build_input_locator, missing_step_inputs
 from meanap.pipeline.spike_detection import SpikeDetectionParams, detect_spikes_recording
 from meanap.pipeline.spreadsheet import RecordingInfo, read_recording_csv
@@ -35,6 +38,7 @@ def run_pipeline(
     params: Params,
     log: Callable[[str], None] = print,
     should_cancel: CancelCheck = None,
+    progress: "ProgressFn | None" = None,
 ) -> Path:
     """Run the pipeline steps in ``[start_analysis_step, stop_analysis_step]``.
 
@@ -48,6 +52,11 @@ def run_pipeline(
     recording inside each step; when it returns ``True`` the run unwinds by
     raising :class:`~meanap.pipeline.cancellation.PipelineCancelled`. Callers
     that offer a Stop button should catch that and treat it as a clean stop.
+
+    ``progress``, if given, receives a :class:`~meanap.pipeline.progress.Progress`
+    snapshot as each recording finishes — a completed fraction and a calibrated
+    estimate of the time left. It is called from whichever thread the pipeline
+    runs on, so a UI must marshal it (a Qt signal already does).
 
     When ``params.start_analysis_step > 1`` the inputs the starting step needs
     are resolved through :mod:`meanap.pipeline.resume` — this run's output
@@ -63,6 +72,17 @@ def run_pipeline(
     if not recordings:
         raise ValueError("No recordings found in the given spreadsheet range")
     group_names = sorted({r.group for r in recordings})
+
+    reporter = RunProgress(progress, express=params.express_mode)
+    reporter.plan(
+        plan_catnap(n_recordings=len(recordings)) if params.suite2p_mode
+        else plan_ephys(
+            start_step=params.start_analysis_step,
+            stop_step=params.stop_analysis_step,
+            n_recordings=len(recordings),
+            stimulation=params.stimulation_mode,
+        )
+    )
 
     folder_name = params.output_data_folder_name or default_output_folder_name()
     output_root = create_output_folders(
@@ -93,7 +113,7 @@ def run_pipeline(
     # A remote source is checked before any transfer: listing is free, and a
     # batch that silently shrinks is the failure worth spending seconds to avoid.
     if is_remote_url(params.raw_data):
-        _check_remote_source(params, recordings, log)
+        _check_remote_source(params, recordings, log, reporter)
 
     # CAT-NAP (suite2p calcium imaging) path. In MATLAB, Params.suite2pMode == 1
     # replaces spike detection + connectivity (steps 1 & 3) with suite2pToAdjm,
@@ -119,10 +139,12 @@ def run_pipeline(
 
         run_catnap_pipeline(
             params, recordings, output_root, log, should_cancel, locator=locator,
+            progress=reporter,
         )
         if params.express_mode:
             _write_run_bundle(params, recordings, output_root, log, mode="catnap",
                               embedded_figures=["2p_traces"] if params.num_2p_traces else [])
+        reporter.finish()
         return output_root
 
     start = params.start_analysis_step
@@ -173,7 +195,7 @@ def run_pipeline(
     if start <= 1 <= stop:
         check_cancel(should_cancel)
         _run_timed_step(1, lambda: _run_step1_spike_detection(
-            params, recordings, output_root, log, should_cancel,
+            params, recordings, output_root, log, should_cancel, reporter,
         ))
     else:
         log("Skipping step 1 (spike detection) — outside the selected step range.")
@@ -189,13 +211,13 @@ def run_pipeline(
         check_cancel(should_cancel)
         from meanap.pipeline.stim_step import run_stim_analysis
         _run_timed_step(5, lambda: run_stim_analysis(
-            params, recordings, output_root, log, should_cancel,
+            params, recordings, output_root, log, should_cancel, reporter,
         ))
 
     if start <= 2 <= stop:
         check_cancel(should_cancel)
         _run_timed_step(2, lambda: _run_step2_neuronal_activity(
-            params, recordings, output_root, log, should_cancel,
+            params, recordings, output_root, log, should_cancel, reporter,
         ))
     else:
         log("Skipping step 2 (neuronal activity) — outside the selected step range.")
@@ -203,7 +225,7 @@ def run_pipeline(
     if start <= 3 <= stop:
         check_cancel(should_cancel)
         _run_timed_step(3, lambda: _run_step3_functional_connectivity(
-            params, recordings, output_root, log, should_cancel,
+            params, recordings, output_root, log, should_cancel, reporter,
         ))
     else:
         log("Skipping step 3 (functional connectivity) — outside the selected step range.")
@@ -211,7 +233,7 @@ def run_pipeline(
     if start <= 4 <= stop:
         check_cancel(should_cancel)
         _run_timed_step(4, lambda: _run_step4_network_metrics(
-            params, recordings, output_root, log, should_cancel,
+            params, recordings, output_root, log, should_cancel, reporter,
         ))
     else:
         log("Skipping step 4 (network activity) — outside the selected step range.")
@@ -244,6 +266,7 @@ def run_pipeline(
         except Exception as e:
             log(f"Warning: could not save step_durations.json: {e}")
 
+    reporter.finish()
     return output_root
 
 
@@ -267,7 +290,7 @@ def _build_raw_source(params: Params, log):
         store=store, cache=FileCache(root=cache_dir, budget_bytes=budget), log=log)
 
 
-def _check_remote_source(params: Params, recordings, log) -> None:
+def _check_remote_source(params: Params, recordings, log, progress=None) -> None:
     """Pre-flight a remote source before any transfer starts.
 
     Listing costs nothing, so there is no reason to discover a missing
@@ -290,6 +313,11 @@ def _check_remote_source(params: Params, recordings, log) -> None:
     log("\n=== Pre-flight ===")
     for line in report.render().splitlines():
         log(line)
+    # Listing already established exactly how much will be transferred, so the
+    # download figure is exact from the first byte rather than growing as files
+    # are discovered.
+    if progress is not None and report.fetch_bytes:
+        progress.expect_transfer(report.fetch_bytes)
     if not report.ok:
         raise ValueError(
             "The remote source is not ready to run (see the pre-flight report "
@@ -352,9 +380,13 @@ def _run_step1_spike_detection(
     output_root: Path,
     log: Callable[[str], None],
     should_cancel: CancelCheck = None,
+    progress: RunProgress | None = None,
 ) -> None:
     if not params.raw_data:
         raise ValueError("Raw data folder must be set to run step 1 (spike detection)")
+
+    progress = progress or RunProgress()
+    progress.begin("step1", items=len(recordings))
 
     spike_dir = output_root / "1_SpikeDetection" / "1A_SpikeDetectedData"
     cost_list = params.cost_list if isinstance(params.cost_list, list) else [params.cost_list]
@@ -363,6 +395,9 @@ def _run_step1_spike_detection(
     # is remote, and each is released once its spike times are written — so a
     # batch's peak local storage is one or two recordings, not the dataset.
     source = _build_raw_source(params, log)
+    # Set rather than passed, so a caller that substitutes its own source
+    # factory — the remote tests do — doesn't have to know about progress.
+    source.progress = progress
 
     for rec, raw_path in source.stream(recordings, depth=params.prefetch_depth,
                                        kind="ephys"):
@@ -417,3 +452,6 @@ def _run_step1_spike_detection(
         del dat
         source.unpin(rec.filename)
         source.release(rec.filename)
+        progress.item_done(rec.filename)
+
+    progress.phase_done()

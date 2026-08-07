@@ -7,6 +7,7 @@ import json
 
 from meanap.params import Params
 from meanap.pipeline.cancellation import CancelCheck, check_cancel
+from meanap.pipeline.progress import RunProgress
 from meanap.pipeline.resume import build_input_locator
 from meanap.pipeline.spreadsheet import RecordingInfo, ground_spike_times_dict, parse_ground_electrodes
 from meanap.pipeline.io import find_raw_file, load_spike_times_npz, resolve_duration_s
@@ -95,10 +96,13 @@ def _run_step2_neuronal_activity(
     output_root: Path,
     log: Callable[[str], None],
     should_cancel: CancelCheck = None,
+    progress: "RunProgress | None" = None,
 ) -> None:
     """Run Step 2: Neuronal Activity and Burst Detection."""
 
     log("\n=== Step 2: Neuronal Activity & Burst Detection ===")
+    progress = progress or RunProgress()
+    progress.begin("step2", items=len(recordings))
 
     locator = build_input_locator(params, output_root)
     out_dir = output_root / "2_NeuronalActivity"
@@ -172,6 +176,7 @@ def _run_step2_neuronal_activity(
             "duration_s": duration_s,
             "ephys": ephys,
         })
+        progress.item_done(rec.filename)
 
     # Batch-wide max of each per-channel metric (MATLAB's maxValStruct /
     # valsTogetMax): the shared color-scale ceiling for every recording's
@@ -235,4 +240,5 @@ def _run_step2_neuronal_activity(
     except Exception as e:
         log(f"  Warning: could not save NeuronalActivity CSVs: {e}")
 
+    progress.phase_done()
     log("  Step 2 complete.")

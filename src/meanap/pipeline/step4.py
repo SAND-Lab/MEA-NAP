@@ -24,6 +24,7 @@ from meanap.pipeline.modularity import mod_consensus_cluster_iterate
 from meanap.pipeline.nmf import cal_nmf
 from meanap.pipeline.null_models import latmio_und_v2, randmio_und_v2
 from meanap.pipeline.parallel import map_recordings
+from meanap.pipeline.progress import RunProgress
 from meanap.pipeline.plotting_step4 import (
     plot_circular_cartography_network, plot_circular_module_network,
     plot_connectivity_stats, plot_graph_metrics_by_node,
@@ -723,17 +724,24 @@ def _run_step4_network_metrics(
     output_root: Path,
     log: Callable[[str], None],
     should_cancel: CancelCheck = None,
+    progress: "RunProgress | None" = None,
 ) -> None:
     log("\n=== Step 4: Network Activity ===")
 
     out_dir = output_root / "4_NetworkActivity"
     out_dir.mkdir(parents=True, exist_ok=True)
 
+    progress = progress or RunProgress()
+    progress.begin("step4.compute", items=len(recordings))
+
     _cancel = (lambda: bool(should_cancel())) if should_cancel else None
 
     def _emit(result) -> None:
         for line in result[-1]:  # log lines are always the last element
             log(line)
+        # In the parent, in completion order — the only place a process pool
+        # gives the bar something to move on.
+        progress.item_done(result[0])
 
     # ── Phase A: parallel compute over recordings (map) ──────────────────────
     check_cancel(should_cancel)
@@ -773,6 +781,8 @@ def _run_step4_network_metrics(
 
     # ── Phase C: parallel plot over recordings (map) ─────────────────────────
     check_cancel(should_cancel)
+    progress.phase_done()
+    progress.begin("step4.plot", items=len(recordings))
     plot_tasks = [
         (params, rec, all_results[rec.filename], channels_by_rec[rec.filename],
          str(output_root), batch_bounds)
@@ -861,6 +871,9 @@ def _run_step4_network_metrics(
     except Exception as e:
         log(f"  Warning: could not save network metrics results: {e}")
 
+    progress.phase_done()
+    progress.begin("batch", items=1)
+
     if not params.express_mode:
         log("  Generating group comparison plots...")
         from meanap.pipeline.plotting_step4 import plot_step4_group_comparisons
@@ -874,4 +887,5 @@ def _run_step4_network_metrics(
         except Exception as e:
             log(f"  Warning: failed to generate group comparison plots: {e}")
 
+    progress.phase_done()
     log("  Step 4 complete.")
