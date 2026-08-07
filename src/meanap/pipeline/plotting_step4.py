@@ -722,8 +722,11 @@ def plot_circular_module_network(
     # -- Node degree legend --
     nd_fracs = [1 / 3, 2 / 3, 1.0]
     nd_vals = [max_z * f for f in nd_fracs]
+    # Plain numbers, right-aligned below. The zero padding ("05" beside "14")
+    # only existed to line the digits up under left alignment, which aligning on
+    # the right does without putting a digit there that isn't in the data.
     if int(round(nd_vals[0])) >= 1:
-        nd_labels = [f"{int(round(v)):02d}" for v in nd_vals]
+        nd_labels = [f"{int(round(v))}" for v in nd_vals]
     else:
         nd_labels = [f"{v:.4f}" for v in nd_vals]
 
@@ -744,14 +747,14 @@ def plot_circular_module_network(
         cur_y -= s / 2 + gap
 
     leg_x_circle = 0.22
-    leg_x_text = 0.40
+    leg_x_text = 0.46          # the right edge the numbers align to
     for si, yi, label in zip(sizes_norm, y_pos, nd_labels):
         ax_leg.scatter(
             [leg_x_circle], [yi],
             s=_r_to_s(si / 2),
             facecolors="white", edgecolors="black", linewidths=0.8, zorder=3,
         )
-        ax_leg.text(leg_x_text, yi, label, va="center", fontsize=8)
+        ax_leg.text(leg_x_text, yi, label, va="center", ha="right", fontsize=8)
 
     # -- Edge weight legend --
     ew_top = cur_y - 0.02
@@ -781,15 +784,28 @@ def plot_circular_module_network(
 
     swatch_y = mod_label_y - 0.10
     n_mods = len(unique_modules)
-    # Swatch radius: fit n_mods non-overlapping circles across x in [0.05, 0.95]
+
+    # The legend axes is ~2.4x taller than it is wide with both axes running
+    # 0..1, so "a radius of r" means a different distance along each. _r_to_s
+    # reads it in y; packing the swatches across the panel has to be done in x
+    # and converted. Doing the packing directly in y-units — as this used to —
+    # made every circle 2.4x wider than the spacing it was allotted, which is
+    # why the modules sat on top of each other.
+    ax_w_in = fig.get_size_inches()[0] * 0.31
     x_span = 0.90
-    max_swatch_r = x_span / max(n_mods * 2.4, 1)
-    swatch_r = min(0.07, max_swatch_r)
-    swatch_xs = (
-        np.linspace(0.05 + swatch_r, 0.95 - swatch_r, n_mods)
-        if n_mods > 1
-        else np.array([0.45])
-    )
+    pitch_x = x_span / n_mods
+    # 0.82 of the pitch leaves a visible gap between neighbours; the cap stops
+    # one or two modules ballooning into discs the size of the node-degree keys.
+    diameter_in = min(pitch_x * 0.82 * ax_w_in, 0.47)
+    swatch_r = (diameter_in / 2) / (fig_h_in * ax_frac_h)   # back to y-units
+    swatch_xs = 0.05 + pitch_x * (np.arange(n_mods) + 0.5)
+
+    # The number rides inside the circle, so it has to be sized from it rather
+    # than fixed: at 6pt it was unreadable against a 26pt disc.
+    label_fs = diameter_in * 72 * 0.42
+    if max(len(str(int(m))) for m in unique_modules) > 1:
+        label_fs *= 0.68        # two digits need the room one didn't
+    label_fs = float(np.clip(label_fs, 4.5, 11.0))
 
     for mod_val, sx in zip(unique_modules, swatch_xs):
         col = _module_color(mod_val)
@@ -800,7 +816,7 @@ def plot_circular_module_network(
         )
         ax_leg.text(
             sx, swatch_y, str(int(mod_val)),
-            ha="center", va="center", fontsize=6, color="white", zorder=4,
+            ha="center", va="center", fontsize=label_fs, color="white", zorder=4,
         )
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
