@@ -48,7 +48,7 @@ import zipfile
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from meanap.params import PARAMS_FILENAME, Params, load_params
+from meanap.params import PARAMS_FILENAME, Params, load_params, redact
 
 __all__ = [
     "BUNDLE_SUFFIX",
@@ -225,6 +225,14 @@ def write_bundle(
                 continue
             rel = path.relative_to(root)
             if _is_reconstructable_member(rel):
+                continue
+            if rel.as_posix() == PARAMS_FILENAME:
+                # The copy in the output folder keeps everything — it never
+                # leaves this machine. The copy that travels does not.
+                with open(path) as fh:
+                    zf.writestr(PARAMS_FILENAME,
+                                json.dumps(redact(json.load(fh)), indent=2,
+                                           sort_keys=True))
                 continue
             zf.write(path, rel.as_posix())
 

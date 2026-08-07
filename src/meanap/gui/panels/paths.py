@@ -73,6 +73,12 @@ class PathsPanel(QWidget):
         self.custom_grp_order = QLineEdit()
         self.custom_grp_order.setToolTip("Comma-separated list of group names (e.g. 'WT,KO')")
 
+        self.raw_data.setToolTip(
+            "Folder holding your recordings — or paste a Dropbox folder share "
+            "link to analyse them without downloading the whole dataset. "
+            "Recordings are then fetched one at a time and discarded once "
+            "analysed; the cache and denoising outputs go under the output "
+            "folder.")
         form.addRow("Raw data folder", self.raw_data)
         form.addRow("Spreadsheet file", self.spreadsheet)
         form.addRow("Spreadsheet range", self.spreadsheet_range)

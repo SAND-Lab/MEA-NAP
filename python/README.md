@@ -158,6 +158,25 @@ One figure family can't be rebuilt yet and is simply absent from an express run
 — CAT-NAP's per-recording cell-type subnetwork figures. See
 `docs/python/express-mode.md`.
 
+## Remote data
+
+`raw_data` accepts a **Dropbox folder share link** instead of a path. Recordings
+are fetched one at a time and dropped once analysed, so a batch can exceed local
+disk — a real 13-recording folder streams through **0.72 GB** of working space.
+The cache and denoising outputs default under `output_data_folder`; nothing else
+needs configuring.
+
+```bash
+uv run meanap-preflight '<share link>'          # check first; seconds, no transfer
+uv run meanap-preflight '<link>' --write-spreadsheet fixed.csv
+```
+
+A remote run pre-flights automatically and refuses to start if recordings are
+missing, since a silently-shortened batch still produces results. Share links
+are redacted from bundled `params.json`. Works for both analysis paths — a
+suite2p folder per recording for CAT-NAP, one raw file for electrophysiology.
+See `docs/python/remote-data.md`.
+
 ## CAT-NAP (2P)
 
 CAT-NAP is the calcium imaging analysis pathway, triggered by loading a folder that contains suite2p output. It is the Python equivalent of the MATLAB `suite2pToAdjm` / `denoiseSuite2pData` workflow.

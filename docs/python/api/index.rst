@@ -10,6 +10,9 @@ be scripted against directly:
   firing rates/bursts, STTC, network metrics, the HTML report generator, ...).
 - ``meanap.network_plot`` — loading a MEA-NAP output ``.mat`` file and
   rendering network plots (what powers the Network Viewer GUI tab).
+- ``meanap.remote`` — reading raw data that isn't on this machine: the store
+  protocol, the bounded fetch cache, and the pre-flight check.
+- ``meanap.viewer`` — the local web viewer that redraws figures from a bundle.
 - ``meanap.catnap`` — the calcium-imaging (CAT-NAP) scanner, loader, and
   denoising pipeline.
 
@@ -28,3 +31,5 @@ be scripted against directly:
    meanap.network_plot
    meanap.pipeline
    meanap.catnap
+   meanap.remote
+   meanap.viewer

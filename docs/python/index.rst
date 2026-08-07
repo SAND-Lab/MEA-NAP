@@ -60,6 +60,13 @@ results.
       Load a real MEA-NAP output file and drive the plotting API directly
       from Python — runnable, with real output baked in.
 
+   .. grid-item-card:: ☁️ Remote data
+      :link: remote-data
+      :link-type: doc
+
+      Analyse a dataset that doesn't fit on your disk: paste a Dropbox folder
+      share link and recordings stream through a bounded cache.
+
    .. grid-item-card:: 📦 Express mode & bundles
       :link: express-mode
       :link-type: doc
@@ -122,5 +129,6 @@ figure.
    notebooks/network-plotting-tutorial
    output-report
    express-mode
+   remote-data
    matlab-vs-python
    api/index

@@ -100,21 +100,35 @@ def process_suite2p_folder(
     time_after_peak_s: float = 2.05,
     denoising_width_sec: float = 1.13,
     denoising_wlen_sec: float = 12.0,
-) -> None:
+    derived_root: str | Path | None = None,
+    recording: str | None = None,
+) -> Path:
     """
-    Run the full denoising pipeline on one suite2p/plane0 directory and
-    save outputs as .npy files alongside the inputs.
+    Run the full denoising pipeline on one suite2p/plane0 directory.
 
     Outputs written:
       Fdenoised.npy, timePoints.npy,
       peakStartFrames.npy, peakEndFrames.npy,
       peakHeights.npy, eventAreas.npy
-    """
-    d = Path(suite2p_dir)
-    out_path = d / "Fdenoised.npy"
 
-    if out_path.exists() and not overwrite:
-        return
+    They land beside the suite2p inputs by default — the historical behaviour —
+    or under ``derived_root`` when one is given, which is what makes the raw
+    data usable read-only or remote (see :mod:`meanap.catnap.derived`).
+    Returns the directory written to.
+    """
+    from meanap.catnap.derived import resolve_read, resolve_write_dir
+
+    d = Path(suite2p_dir)
+    out_dir = resolve_write_dir(d, derived_root, recording) if recording else d
+    out_path = out_dir / "Fdenoised.npy"
+
+    # Honour outputs found anywhere we would read them from, not just where we
+    # would write them: a dataset shipped with denoising already done must not
+    # be redone just because a derived root is now configured.
+    existing = (resolve_read(d, derived_root, recording, "Fdenoised.npy")
+                if recording else (out_path if out_path.exists() else None))
+    if existing is not None and not overwrite:
+        return existing.parent
 
     F = np.load(d / "F.npy")          # (n_rois, n_frames)
     ops = np.load(d / "ops.npy", allow_pickle=True).item()
@@ -181,12 +195,13 @@ def process_suite2p_folder(
             mat[i, : len(arr)] = arr
         return mat
 
-    np.save(d / "Fdenoised.npy", F_denoised_out)
-    np.save(d / "timePoints.npy", time_points)
-    np.save(d / "peakStartFrames.npy", _to_matrix(peak_lists))
-    np.save(d / "peakEndFrames.npy", _to_matrix(end_lists))
-    np.save(d / "peakHeights.npy", _to_matrix(height_lists))
-    np.save(d / "eventAreas.npy", _to_matrix(area_lists))
+    np.save(out_dir / "Fdenoised.npy", F_denoised_out)
+    np.save(out_dir / "timePoints.npy", time_points)
+    np.save(out_dir / "peakStartFrames.npy", _to_matrix(peak_lists))
+    np.save(out_dir / "peakEndFrames.npy", _to_matrix(end_lists))
+    np.save(out_dir / "peakHeights.npy", _to_matrix(height_lists))
+    np.save(out_dir / "eventAreas.npy", _to_matrix(area_lists))
+    return out_dir
 
 
 def oasis_available() -> bool:
