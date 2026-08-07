@@ -21,6 +21,37 @@ Then browse the result:
 uv run meanap-viewer path/to/OutputData….meanap
 ```
 
+In the GUI it is the **Express mode** tick box on the Pipeline tab, and it
+applies to **🧪 Test pipeline** runs too.
+
+## Where the bundle goes
+
+Beside the output folder, not inside it — the folder is named after the run and
+the bundle takes the same name:
+
+```
+OutputData07Aug2026/            the output folder
+OutputData07Aug2026.meanap      the bundle          ← one level up, alongside it
+```
+
+This is the single most common "express mode didn't produce anything" report:
+the file is there, just not where the figures used to be. An express run ends
+by naming it in the status log, in a framed block after the timing lines, with
+the command that opens it.
+
+## Opening a bundle from the GUI
+
+Three routes, all equivalent to running `meanap-viewer` yourself:
+
+- **🌐 View report** after an express run — the button notices the run was
+  express and opens the bundle in the viewer instead of building a
+  near-empty `report.html` from the handful of figures on disk;
+- **Open bundle…** in the toolbar;
+- **drag the `.meanap` file onto the window**.
+
+Each bundle gets its own viewer; they all shut down when MEA-NAP closes. See
+[Opening a bundle](gui-guide.md#opening-a-bundle).
+
 ## What it costs and what it saves
 
 Measured on the same dataset and settings as the MATLAB-vs-Python comparison
@@ -152,6 +183,8 @@ inputs, ship a small bundle back.
 uv run meanap-viewer path/to/Run.meanap        # or an output folder
 uv run meanap-viewer Run.meanap --port 9000 --no-browser
 ```
+
+(Or open it from the GUI — [above](#opening-a-bundle-from-the-gui).)
 
 A local web app: figure list on the left, the figure in the middle, and the
 full Network Viewer control set on the right — node layout, colour map, edge
