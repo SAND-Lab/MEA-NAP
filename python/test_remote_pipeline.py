@@ -386,8 +386,17 @@ def _ephys_run_checks() -> list[Check]:
         finally:
             runner._build_raw_source = runner_open
 
-        a = pd.read_csv(local_out / "4_NetworkActivity" / "NetworkActivity_RecordingLevel.csv")
-        b = pd.read_csv(remote_out / "4_NetworkActivity" / "NetworkActivity_RecordingLevel.csv")
+        # Both runs are express, so their results live in the bundle rather
+        # than in a folder beside it.
+        from meanap.pipeline.bundle import open_bundle
+
+        def recording_level(out) -> pd.DataFrame:
+            with open_bundle(out) as bundle:
+                return pd.read_csv(bundle.root / "4_NetworkActivity"
+                                   / "NetworkActivity_RecordingLevel.csv")
+
+        a = recording_level(local_out)
+        b = recording_level(remote_out)
         checks.append(("a remote ephys run produces results", len(b) > 0, f"{len(b)}"))
         checks.append(("…identical to the local run", a.equals(b), "CSVs differ"))
         cache = Path(params.output_data_folder) / "c"

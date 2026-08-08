@@ -336,13 +336,67 @@ def _parity_checks() -> list[Check]:
                            compared > 0 and identical == compared,
                            f"differ: {mismatched}"))
 
-            # The batch-scaled variants share axes across recordings, so they
-            # are the ones that break if batch_bounds isn't recomputed right.
-            scaled = pipeline_dir / "2_scaled_MEA_NetworkPlot.png"
-            if scaled.exists():
-                redrawn = render_figure(ctx, "recA", LAG, "2_scaled_MEA_NetworkPlot", out)
-                checks.append(("batch-scaled figure matches (pooled bounds recomputed)",
-                               _digest(scaled) == _digest(redrawn), ""))
+            # The scaled and combined variants, reached through the toggle the
+            # viewer offers rather than by naming their stems. They share axes
+            # across recordings, so they are the ones that break if
+            # batch_bounds isn't recomputed right.
+            from meanap.pipeline.render import figure_variants
+
+            variant_compared = variant_identical = 0
+            variant_bad: list[str] = []
+            for spec in figs:
+                base = spec.name.format(lag=LAG)
+                for variant in figure_variants(ctx, "recA", LAG, base):
+                    if variant == "plain":
+                        continue
+                    redrawn = render_figure(ctx, "recA", LAG, base, out,
+                                            variant=variant)
+                    original = pipeline_dir / redrawn.name
+                    if not original.exists():
+                        variant_bad.append(f"{redrawn.name} (run wrote none)")
+                        continue
+                    variant_compared += 1
+                    if _digest(original) == _digest(redrawn):
+                        variant_identical += 1
+                    else:
+                        variant_bad.append(redrawn.name)
+
+            checks.append(("the toggle offers scaled/combined where they exist",
+                           variant_compared >= 10, f"{variant_compared} variants"))
+            checks.append((f"variant figures are pixel-identical "
+                           f"({variant_identical}/{variant_compared})",
+                           variant_compared > 0
+                           and variant_identical == variant_compared,
+                           f"differ: {variant_bad}"))
+            checks.append(("a figure with no variants says so rather than guessing",
+                           figure_variants(ctx, "recA", LAG,
+                                           f"7_adjM{LAG}msGraphMetricsByNode")
+                           == ["plain"], ""))
+            try:
+                render_figure(ctx, "recA", LAG, f"7_adjM{LAG}msGraphMetricsByNode",
+                              out, variant="scaled")
+                said = ""
+            except ValueError as e:
+                said = str(e)
+            checks.append(("and asking for one anyway is refused, not silently plain",
+                           "no 'scaled' version" in said, said))
+
+            # The cell-type composition figures read the "active cells" columns,
+            # which the renderer used to omit — so they were never drawn.
+            from meanap.pipeline.render import render_group_family
+
+            comp_dir = (full / "2_NeuronalActivity" / "2B_GroupComparisons"
+                        / "5_CellTypeComposition")
+            made = {q.name: q for q in render_group_family(ctx, "cell_type",
+                                                           tmp / "fam")}
+            expected = sorted(q.name for q in comp_dir.glob("*.png"))
+            checks.append(("cell-type composition figures are rebuilt at all",
+                           expected and all(n in made for n in expected),
+                           f"missing: {[n for n in expected if n not in made]}"))
+            checks.append(("and are pixel-identical",
+                           all(_digest(comp_dir / n) == _digest(made[n])
+                               for n in expected if n in made),
+                           ""))
     return checks
 
 
@@ -548,9 +602,11 @@ def _cell_type_self_contained_checks() -> list[Check]:
         full = _run(tmp, "Full", express=False)
         express = _run(tmp, "Express", express=True)
 
-        # The state carries markers and the resolved grouping.
-        state, _ = load_recording_state(
-            express / "ExperimentMatFiles" / f"recA{CATNAP_SUFFIX}", Path("."))
+        # The state carries markers and the resolved grouping. Read from inside
+        # the bundle: an express run no longer leaves a folder behind.
+        with open_bundle(express.with_suffix(BUNDLE_SUFFIX)) as _b:
+            state, _ = load_recording_state(
+                _b.root / "ExperimentMatFiles" / f"recA{CATNAP_SUFFIX}", Path("."))
         checks.append(("markers stored in the bundle state",
                        state.markers is not None
                        and state.markers[1] == ["NeuN+", "GAD+"],
@@ -561,14 +617,15 @@ def _cell_type_self_contained_checks() -> list[Check]:
 
         bundle_path = express.with_suffix(BUNDLE_SUFFIX)
 
-        # Now make the world hostile: no spreadsheet, no raw data, and the
-        # original output folder gone. Only the bundle survives.
-        import shutil
+        # Now make the world hostile: no spreadsheet, no raw data, no output
+        # folder. Only the bundle survives — which is what an express run leaves
+        # anyway, so the folder needs no removing here, only confirming gone.
         for stray in tmp.glob("*.csv"):
             stray.unlink()
-        shutil.rmtree(express)
-        checks.append(("spreadsheet and output folder removed",
-                       not list(tmp.glob("*.csv")) and not express.exists(), ""))
+        folder = bundle_path.with_suffix("")
+        checks.append(("spreadsheet gone, and express kept no output folder",
+                       not list(tmp.glob("*.csv")) and not folder.exists(),
+                       f"folder={folder.exists()}"))
 
         with open_bundle(bundle_path) as b:
             ctx = load_context(b)
@@ -1237,7 +1294,9 @@ def _manifest_honesty_checks() -> list[Check]:
     mapped = {expected[k] for k in implemented if k in expected}
     checks.append(("every implemented family is advertised",
                    mapped <= advertised, f"{sorted(mapped - advertised)}"))
-    per_recording = {"4A_individual_network", "2A_individual_activity"}
+    per_recording = {"4A_individual_network", "2A_individual_activity",
+                     "1B_spike_detection_checks", "3_edge_threshold_checks",
+                     "cell_type_subnetwork_per_rec"}
     checks.append(("nothing is advertised that isn't implemented",
                    advertised - mapped <= per_recording,
                    f"{sorted(advertised - mapped - per_recording)}"))
@@ -1254,7 +1313,11 @@ def _manifest_honesty_checks() -> list[Check]:
             checks.append(("can_reconstruct agrees with the manifest",
                            b.can_reconstruct("4B_group_comparisons")
                            and b.can_reconstruct("2A_individual_activity")
-                           and not b.can_reconstruct("3_edge_threshold_checks"), ""))
+                           and b.can_reconstruct("cell_type_subnetwork_per_rec")
+                           # Nothing is unreconstructable any more, so the
+                           # negative case has to be a family that isn't real.
+                           and not b.can_reconstruct("no_such_family"),
+                           ""))
     return checks
 
 

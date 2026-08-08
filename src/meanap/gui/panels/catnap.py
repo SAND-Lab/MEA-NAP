@@ -19,7 +19,7 @@ from meanap.catnap.scanner import Suite2pRecording, find_suite2p_recordings
 from meanap.catnap.loader import Suite2pData, load_suite2p
 from meanap.catnap.denoising import oasis_available
 from meanap.gui.panels.cell_type_groups import CellTypeGroupEditor
-from meanap.params import Params
+from meanap.params import Params, is_remote_url
 
 ACTIVITY_TYPES = ["peaks", "denoised F", "F", "spks"]
 
@@ -37,13 +37,22 @@ GROUP_MODES = [MODE_PER_MARKER, MODE_EI, MODE_CUSTOM, MODE_EXPRESSIONS]
 
 class _ScanWorker(QThread):
     finished = pyqtSignal(list)  # list[Suite2pRecording]
+    progress = pyqtSignal(int, int)
+    error = pyqtSignal(str)
 
     def __init__(self, root: str) -> None:
         super().__init__()
         self._root = root
 
     def run(self) -> None:
-        recordings = find_suite2p_recordings(self._root)
+        # A share-link scan is one HTTP request per folder, so it both takes a
+        # while and can fail — neither of which a silent "found 0" would convey.
+        try:
+            recordings = find_suite2p_recordings(
+                self._root, progress=lambda done, total: self.progress.emit(done, total))
+        except Exception as e:
+            self.error.emit(str(e))
+            return
         self.finished.emit(recordings)
 
 
@@ -163,6 +172,8 @@ class _TraceCanvas(FigureCanvasQTAgg):
 
 class CatNapPanel(QWidget):
     log_message = pyqtSignal(str)
+    #: A batch spreadsheet was written; the Paths tab points itself at it.
+    spreadsheet_saved = pyqtSignal(str)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -202,7 +213,14 @@ class CatNapPanel(QWidget):
 
         folder_row = QHBoxLayout()
         self._folder_edit = QLineEdit()
-        self._folder_edit.setPlaceholderText("Folder holding all your recordings…")
+        self._folder_edit.setPlaceholderText(
+            "Folder holding all your recordings, or a Dropbox share link…")
+        self._folder_edit.setToolTip(
+            "The folder holding every recording — or paste a Dropbox folder "
+            "share link to scan it without downloading anything. Recordings "
+            "found behind a link are fetched one at a time when the pipeline "
+            "runs; trace preview and denoising here need a local folder."
+        )
         self._browse_btn = QPushButton("Browse…")
         self._browse_btn.setFixedWidth(72)
         self._browse_btn.clicked.connect(self._on_browse)
@@ -215,10 +233,20 @@ class CatNapPanel(QWidget):
         self._recording_list = QListWidget()
         self._recording_list.currentRowChanged.connect(self._on_recording_selected)
 
+        self._make_sheet_btn = QPushButton("Make spreadsheet from these…")
+        self._make_sheet_btn.setEnabled(False)
+        self._make_sheet_btn.setToolTip(
+            "Build the batch spreadsheet from the recordings found above, so "
+            "the names match the data exactly. DIV is filled in where the name "
+            "says it; the genotype/group column is yours to fill in."
+        )
+        self._make_sheet_btn.clicked.connect(self._on_make_spreadsheet)
+
         scan_layout.addLayout(folder_row)
         scan_layout.addWidget(self._scan_btn)
         scan_layout.addWidget(QLabel("Found recordings:"))
         scan_layout.addWidget(self._recording_list)
+        scan_layout.addWidget(self._make_sheet_btn)
 
         # Recording info
         info_box = QGroupBox("Recording info")
@@ -408,15 +436,29 @@ class CatNapPanel(QWidget):
     def _on_scan(self) -> None:
         root = self._folder_edit.text().strip()
         if not root:
-            self._log_msg("Please enter or browse to a raw data folder first.")
+            self._log_msg("Please enter or browse to a raw data folder, or paste "
+                          "a Dropbox folder share link.")
             return
 
         self._scan_btn.setEnabled(False)
-        self._log_msg(f"Scanning {root}…")
+        self._log_msg("Reading share link (no data is downloaded)…" if is_remote_url(root)
+                      else f"Scanning {root}…")
 
         self._scan_worker = _ScanWorker(root)
+        self._scan_worker.progress.connect(self._on_scan_progress)
+        self._scan_worker.error.connect(self._on_scan_error)
         self._scan_worker.finished.connect(self._on_scan_done)
         self._scan_worker.start()
+
+    def _on_scan_progress(self, done: int, total: int) -> None:
+        # Only worth saying for a scan slow enough to look stuck, and only at
+        # intervals — a line per folder would bury everything else in the log.
+        if total >= 10 and done and (done % 10 == 0):
+            self._log_msg(f"  checked {done}/{total} folders…")
+
+    def _on_scan_error(self, message: str) -> None:
+        self._scan_btn.setEnabled(True)
+        self._log_msg(f"Scan failed: {message}")
 
     def _on_scan_done(self, recordings: list[Suite2pRecording]) -> None:
         self._recordings = recordings
@@ -427,6 +469,15 @@ class CatNapPanel(QWidget):
             self._recording_list.addItem(item)
 
         self._log_msg(f"Found {len(recordings)} suite2p recording(s).")
+        if not recordings:
+            self._log_msg("  Each recording should be its own sub-folder holding "
+                          "suite2p/plane0/stat.npy. Point this at the folder that "
+                          "contains those, not at one recording.")
+        elif any(rec.is_remote for rec in recordings):
+            self._log_msg("  These live behind the share link — the pipeline "
+                          "fetches them one at a time when it runs. Trace preview "
+                          "and denoising here need a local folder.")
+        self._make_sheet_btn.setEnabled(bool(recordings))
         self._scan_btn.setEnabled(True)
         # Pick up cell-type markers as soon as we know where the recordings are,
         # so the group editor is usable without a separate click.
@@ -437,6 +488,20 @@ class CatNapPanel(QWidget):
             return
 
         rec = self._recordings[row]
+        if rec.is_remote:
+            # Nothing to read without fetching hundreds of MB, which is the one
+            # thing a scan of a share link exists to avoid.
+            self._current_plane0 = ""
+            self._current_data = None
+            self._denoise_btn.setEnabled(False)
+            for label in (self._info_cells, self._info_fs,
+                          self._info_duration, self._info_denoised):
+                label.setText("—")
+            self._log_msg(f"{rec.name} is behind the share link — preview and "
+                          "denoising need the data on this machine. The pipeline "
+                          "run handles it without downloading the whole dataset.")
+            return
+
         self._current_plane0 = str(rec.suite2p_dir)
         self._log_msg(f"Loading {rec.name}…")
         self._denoise_btn.setEnabled(False)
@@ -446,6 +511,27 @@ class CatNapPanel(QWidget):
         self._load_worker.finished.connect(self._on_load_done)
         self._load_worker.error.connect(lambda e: self._log_msg(f"Load error: {e}"))
         self._load_worker.start()
+
+    def _on_make_spreadsheet(self) -> None:
+        """Turn the scan into a batch spreadsheet, opened for editing."""
+        from meanap.gui.panels.spreadsheet_editor import edit_spreadsheet
+        from meanap.pipeline.spreadsheet import new_recording_table
+
+        if not self._recordings:
+            return
+
+        root = self._folder_edit.text().strip()
+        # A share link has no folder to suggest, so fall back to wherever the
+        # results are going — the sheet has to land somewhere local either way.
+        suggested_dir = Path(root) if root and not is_remote_url(root) else Path.cwd()
+        suggested = str(suggested_dir / "recordings.csv")
+
+        path = edit_spreadsheet(
+            self, table=new_recording_table(r.name for r in self._recordings),
+            suggested_path=suggested)
+        if path:
+            self._log_msg(f"Spreadsheet saved to {path}")
+            self.spreadsheet_saved.emit(path)
 
     def _on_load_done(self, data: Suite2pData) -> None:
         self._current_data = data
@@ -541,11 +627,14 @@ class CatNapPanel(QWidget):
             path = Path(explicit)
             return path if path.exists() else None
 
+        # Remote recordings have no folder to look beside; the run reads their
+        # cell-type file from the store instead.
+        local = [r for r in self._recordings if not r.is_remote]
         row = self._recording_list.currentRow()
         folders = []
-        if 0 <= row < len(self._recordings):
+        if 0 <= row < len(self._recordings) and not self._recordings[row].is_remote:
             folders.append(Path(self._recordings[row].suite2p_dir).parent.parent)
-        folders += [Path(r.suite2p_dir).parent.parent for r in self._recordings]
+        folders += [Path(r.suite2p_dir).parent.parent for r in local]
         for folder in folders:
             found = find_cell_type_file(folder.parent, folder.name)
             if found is not None:

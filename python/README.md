@@ -128,6 +128,52 @@ Set the required paths (MEA-NAP folder, raw data folder, output folder), configu
 
 The pipeline mirrors MATLAB's 4 steps — spike detection, neuronal activity (firing rates/bursts), functional connectivity (STTC), and network metrics — writing the same output folder structure MATLAB's `CreateOutputFolders.m` builds. **Not every step or metric is fully ported yet**; see [`PIPELINE_PORT_STATUS.md`](PIPELINE_PORT_STATUS.md) for exactly what's done, what's approximate, and what's still missing before relying on this for real analysis.
 
+### Not overwriting an earlier run
+
+The output folder defaults to today's date, so two runs in a day both want
+`OutputData07Aug2026`. Rather than replacing the first one, the second writes to
+`OutputData07Aug2026_v2` and says so; the GUI asks first, offering the new name,
+**Overwrite**, or **Cancel**. Past `_v99` it falls back to a `_HHMMSS` stamp.
+
+The `.meanap` bundle counts on its own — an express run's folder is often
+deleted once the bundle is in hand, and it would otherwise be the one artefact
+left to overwrite. An empty tree from a crashed run does not count.
+
+Resuming *into* a folder (start at step > 1 with a named output folder and no
+prior-analysis path) is left alone: that run reads what it then rewrites. To
+replace a run deliberately, delete it or set
+`Params(overwrite_existing_output=True)` — which is still reported in the log,
+never silent.
+
+### Progress and time estimates
+
+A run shows a progress bar on the Pipeline tab with the phase, the recording
+being worked on, elapsed time and an estimate of the time left. A remote run
+gets a second, slimmer bar for the download.
+
+The bar is weighted, not a count of recordings: on the reference benchmark a
+recording costs 3.2s in step 2 and 98.7s in step 4, so equal weighting would
+park the bar at half way with the slowest step still entirely ahead. The
+estimate is *calibrated rather than predicted* — the weights only fix the
+relative size of each phase, and the rate is measured from this run on this
+machine, so it adapts within the first completed recording. Until then it says
+"estimating" rather than quoting a number from someone else's hardware. Expect
+it to be within ~10-20% and to wobble when a parallel phase finishes several
+recordings at once.
+
+Transfers are deliberately *not* counted as pipeline progress: downloads
+overlap compute (the next recording is fetched while this one is analysed), so
+adding them would double-count. A slow link instead shows up as a higher
+measured cost per unit of work, which the estimate already tracks.
+
+To consume the same data outside the GUI, pass a callback:
+
+```python
+from meanap.pipeline.runner import run_pipeline
+run_pipeline(params, progress=lambda p: print(p.describe()))
+# 37% · Step 4 · Network metrics · rec_A3 (2/4) · 6m 20s elapsed · ~10m 41s left
+```
+
 ### Output report
 
 After a run (or against any existing MEA-NAP output folder), click **🌐 View report** on the Pipeline tab to generate `report.html` in that output folder and open it in your browser. It's a self-contained page (no server, works offline) with a folder-tree sidebar and a captioned image gallery for every plot the pipeline produced — captions are adapted from MEA-NAP's own figure-legend documentation (`docs/meanap-outputs.rst`) wherever one exists. You can also generate it directly from Python:
@@ -142,9 +188,22 @@ The same report is deep-linkable — `report.html#4_NetworkActivity/4A_Individua
 ## Express mode & run bundles
 
 `Params(express_mode=True)` skips every figure that can be rebuilt from the
-run's own data and writes one shareable `.meanap` bundle instead — 483 figures
-and 56 MB become 6 figures and a 2.2 MB file on the example dataset, with the
-numbers byte-identical either way.
+run's own data and keeps **only** the shareable `.meanap` bundle — the output
+folder is removed once the bundle has been written *and read back*, since
+keeping both is keeping two copies of the same run. `run_pipeline` returns the
+bundle path for such a run. If the bundle cannot be written or does not reopen,
+the folder is kept and the log says why.
+
+To turn a bundle back into an ordinary folder — to send results to someone
+without MEA-NAP — open it in the viewer and press **Export output folder**, or
+call `meanap.pipeline.export.export_output_folder(bundle)`. It draws every
+figure into the layout the pipeline itself writes and adds the self-contained
+`report.html`, so the recipient needs nothing installed. On the example dataset
+that is 335 figures in about 40 seconds, and the exported figures are
+byte-identical to the ones a full run would have written.
+
+The saving is the point: a full run of the example dataset writes 483 figures
+and 56 MB; the express bundle is 2.2 MB.
 
 ```bash
 uv run meanap-viewer path/to/OutputData….meanap
@@ -158,6 +217,51 @@ One figure family can't be rebuilt yet and is simply absent from an express run
 — CAT-NAP's per-recording cell-type subnetwork figures. See
 `docs/python/express-mode.md`.
 
+The step-1 spike-detection checks (example traces, spike frequency, waveforms)
+*are* rebuildable, despite being drawn from raw voltage: almost none of that
+voltage is visible in them — the trace panels clip to a ±30 ms window, the
+waveform panel uses one channel, the frequency panel needs only spike times. So
+step 1 saves the slices they show (`<rec>_step1checks.npz`, ~100 KB) and the
+bundle carries that instead of ~1.3 MB of PNG per recording. On the two-recording
+example dataset that took the bundle from 5.1 MB to 0.69 MB. The figure a run
+writes and the figure the viewer rebuilds come out of the same drawing function,
+so they are byte-identical.
+
+The step-3 edge-thresholding checks work the same way, and were worse off
+before: their folder was already on the never-pack list *and* the family was
+declared unreconstructable, so a bundle dropped them with no way to get them
+back. Step 3 now reduces the threshold snapshots — tens of megabytes that
+vanished when the step returned — to the ~10 KB per recording the figure
+actually shows.
+
+Bundling an output folder written before either change keeps its PNGs instead,
+and says so in the manifest rather than claiming a family it cannot rebuild.
+
+The CAT-NAP per-recording cell-type subnetwork figures needed no payload at
+all: the adjacency, coordinates, resolved groups and the three subnetwork CSVs
+were already in the bundle, and only the wiring was missing. One change was
+needed to make them reproducible — the jittered points in
+`3_NodeMetricsByCellType` now come from their own RNG stream rather than from
+whatever state the metrics left the shared one in, so a viewer can land on the
+same offsets.
+
+**Every PNG a full run writes can now be produced from its bundle** — verified
+by rendering everything a bundle offers and comparing the set against a full
+run's output folder (0 unaccounted). Two routes were missing and were added:
+
+- the **batch-scaled** and **side-by-side** versions of the spatial network
+  plots. These were always reachable by naming their stems, but nothing
+  advertised them. The viewer now shows a *Scaling* toggle — individual /
+  batch-scaled / side by side — for whichever network figure is selected, and
+  hides it for figures that have only one. The naming rule lives once, in
+  `step4.variant_stem`, so the renderer cannot drift from what the pipeline
+  writes.
+- the four **cell-type composition** figures. `composition_frame` omits its
+  "active cells" columns unless given `active_by_rec`, and the render path
+  wasn't passing it — so the figures that read those columns were silently never
+  drawn. The helper that computes it moved from the CAT-NAP pipeline into
+  `group_plots`, where both callers can reach it.
+
 ## Remote data
 
 `raw_data` accepts a **Dropbox folder share link** instead of a path. Recordings
@@ -170,6 +274,11 @@ needs configuring.
 uv run meanap-preflight '<share link>'          # check first; seconds, no transfer
 uv run meanap-preflight '<link>' --write-spreadsheet fixed.csv
 ```
+
+In the GUI, the same link works in **Raw data folder** and in the CAT-NAP tab's
+**Scan for suite2p folders**, which lists what is behind the link without
+transferring anything. The batch spreadsheet is still a local file; build it
+from the scan (see below) or with `--write-spreadsheet` above.
 
 A remote run pre-flights automatically and refuses to start if recordings are
 missing, since a silently-shortened batch still produces results. Share links
@@ -203,11 +312,12 @@ raw_data/
 
 ### Using the CAT-NAP tab
 
-1. Enter (or browse to) your raw data folder in the **Suite2p recordings** section.
+1. Enter (or browse to) your raw data folder in the **Suite2p recordings** section — or paste a **Dropbox folder share link**, which is scanned without downloading anything.
 2. Click **Scan for suite2p folders**. All discovered recordings appear in the list; a ✓ prefix means denoising outputs already exist.
-3. Click a recording to load it. The info panel shows cell count, sampling rate, and duration.
-4. (Optional) Adjust denoising settings and click **Run denoising on selected recording** to generate `Fdenoised.npy` and peak detection outputs.
-5. Use the **Trace preview** panel on the right to inspect individual cell traces, switching between activity types.
+3. Click **Make spreadsheet from these…** to turn the scan into the batch spreadsheet, with names taken from the data rather than retyped and DIV read out of each name. Fill in the genotype column (or **Fill from another sheet…** to copy DIV and genotype from an existing spreadsheet, matched by name even when the folders carry a trailing word the sheet doesn't). Saving points the Paths tab at it.
+4. Click a recording to load it. The info panel shows cell count, sampling rate, and duration. Recordings behind a share link have nothing local to preview or denoise here — the pipeline run fetches them one at a time.
+5. (Optional) Adjust denoising settings and click **Run denoising on selected recording** to generate `Fdenoised.npy` and peak detection outputs.
+6. Use the **Trace preview** panel on the right to inspect individual cell traces, switching between activity types.
 
 ### Activity types
 

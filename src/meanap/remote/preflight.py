@@ -212,17 +212,16 @@ def _check_ephys(store: RemoteStore, name: str) -> RecordingCheck:
 
 def _suggest_renames(report: PreflightReport) -> None:
     """Point each missing recording at a present folder that resembles it."""
+    from meanap.pipeline.spreadsheet import match_recording_name
+
     leftovers = list(report.unreferenced)
     for rec in report.recordings:
         if rec.found:
             continue
-        for name in leftovers:
-            stripped = name.strip()
-            if stripped == rec.name or stripped.startswith(rec.name + " ") \
-                    or rec.name.startswith(stripped + " "):
-                rec.suggestion = name
-                leftovers.remove(name)
-                break
+        hit = match_recording_name(rec.name, leftovers)
+        if hit is not None:
+            rec.suggestion = hit
+            leftovers.remove(hit)
 
     renamed = [r for r in report.recordings if r.suggestion]
     if renamed:

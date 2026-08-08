@@ -48,6 +48,9 @@ from meanap.pipeline.bundle import is_bundle, open_bundle
 from meanap.pipeline.figure_output import DEFAULT_THUMBNAIL_DPI
 from meanap.pipeline.render import (
     available_activity_figures, available_comparison_families, available_figures,
+    available_spike_check_figures, render_spike_check_figure, figure_variants,
+    available_edge_check_lags, render_edge_check_figure,
+    available_subnetwork_figures, render_subnetwork_figure,
     available_group_families, available_lag_series, cached_comparison_figure,
     cached_figure, cached_lag_series_figure, comparison_axes, gallery, load_context,
     render_activity_figure,
@@ -96,17 +99,43 @@ class ViewerService:
             recordings.append({
                 "name": name, "group": rec.group, "div": rec.div, "lags": lags,
                 "figures": {
-                    str(lag): [{"name": f.name, "label": f.label}
-                               for f in available_figures(self.ctx, name, lag)]
+                    str(lag): [
+                        {"name": f.name, "label": f.label,
+                         # Which scalings this plot has here: only the spatial
+                         # network plots have any, and only when the batch
+                         # bounds their size metric needs were pooled.
+                         "variants": figure_variants(
+                             self.ctx, name, lag, f.name.format(lag=lag))}
+                        for f in available_figures(self.ctx, name, lag)]
                     for lag in lags
                 },
                 # Step-2 figures are per recording, not per lag — a separate
                 # list rather than a lag key, so the page can show them once.
                 "activity": [{"name": f.name, "label": f.label}
                              for f in available_activity_figures(self.ctx, name)],
+                # Step-1 checks are per recording too. Listed separately from
+                # the step-2 activity set because they answer a different
+                # question — did detection work — and a reader looking for that
+                # should not have to find it among the rasters.
+                "spike_checks": [{"name": f.name, "label": f.label}
+                                 for f in available_spike_check_figures(
+                                     self.ctx, name)],
+                # One per lag, and usually empty: these only exist when the run
+                # had thresholding checks switched on.
+                "edge_checks": available_edge_check_lags(self.ctx, name),
+                # Per lag, like the network figures — a cell type's role can
+                # differ between lags, so these are addressed the same way.
+                "subnetworks": {
+                    str(lag): [{"name": f.name, "label": f.label}
+                               for f in available_subnetwork_figures(
+                                   self.ctx, name, lag)]
+                    for lag in lags
+                },
             })
         return {
             "source": self.source.name,
+            # A folder cannot be exported: it already is one.
+            "can_export": self._bundle is not None,
             "mode": self.ctx.mode,
             "recordings": recordings,
             "families": [{"key": f.key, "label": f.label}
@@ -182,11 +211,12 @@ class ViewerService:
         return path
 
     def figure(self, recording: str, lag: int, name: str, *,
-               fmt: str, overrides: dict, thumbnail: bool) -> Path:
+               fmt: str, overrides: dict, thumbnail: bool,
+               variant: str = "plain") -> Path:
         path, _ = cached_figure(
             self.ctx, self.cache, recording, lag, name, fmt=fmt,
             dpi=DEFAULT_THUMBNAIL_DPI if thumbnail else None,
-            overrides=overrides or None,
+            overrides=overrides or None, variant=variant,
         )
         return path
 
@@ -204,6 +234,74 @@ class ViewerService:
                 overrides=overrides or None)],
         )
         return files[0]
+
+    def spike_check_figure(self, recording: str, name: str, *,
+                           fmt: str) -> Path:
+        """One step-1 check figure. No overrides — see render_spike_check_figure."""
+        from meanap.pipeline.render_cache import bundle_identity, cache_key
+
+        key = cache_key(bundle_identity(self.ctx.root), f"chk:{recording}:{name}",
+                        fmt=fmt, dpi=None, overrides={})
+        files, _ = self.cache.get_or_render(
+            key,
+            lambda dest: [render_spike_check_figure(
+                self.ctx, recording, name, dest, fmt=fmt)],
+        )
+        return files[0]
+
+    def edge_check_figure(self, recording: str, lag: int, *, fmt: str) -> Path:
+        """One step-3 thresholding check. No overrides, like the step-1 ones."""
+        from meanap.pipeline.render_cache import bundle_identity, cache_key
+
+        key = cache_key(bundle_identity(self.ctx.root),
+                        f"edge:{recording}:{lag}", fmt=fmt, dpi=None, overrides={})
+        files, _ = self.cache.get_or_render(
+            key,
+            lambda dest: [render_edge_check_figure(
+                self.ctx, recording, lag, dest, fmt=fmt)],
+        )
+        return files[0]
+
+    def subnetwork_figure(self, recording: str, lag: int, name: str, *,
+                          fmt: str) -> Path:
+        """One per-recording cell-type subnetwork figure."""
+        from meanap.pipeline.render_cache import bundle_identity, cache_key
+
+        key = cache_key(bundle_identity(self.ctx.root),
+                        f"subnet:{recording}:{lag}:{name}",
+                        fmt=fmt, dpi=None, overrides={})
+        files, _ = self.cache.get_or_render(
+            key,
+            lambda dest: [render_subnetwork_figure(
+                self.ctx, recording, lag, name, dest, fmt=fmt)],
+        )
+        return files[0]
+
+    def export(self) -> dict:
+        """Draw this bundle out into an ordinary output folder.
+
+        For sending results to someone with no MEA-NAP: they get the figures as
+        files and a self-contained ``report.html`` to browse them with. Only
+        meaningful when the viewer was opened on a bundle — pointed at a folder
+        there is nothing to unpack.
+        """
+        from meanap.pipeline.export import export_output_folder
+
+        if self._bundle is None:
+            raise ValueError(
+                "This viewer is showing an output folder, not a bundle, so "
+                "there is nothing to export — the folder is already the folder.")
+        from meanap.pipeline.export import default_export_dest
+
+        # Beside the bundle file the user opened, not beside its extracted copy.
+        result = export_output_folder(
+            self._bundle, default_export_dest(self.source), log=lambda m: None)
+        return {
+            "dest": str(result.dest),
+            "figures": result.figures,
+            "report": str(result.report) if result.report else None,
+            "skipped": [{"what": w, "why": why} for w, why in result.skipped],
+        }
 
     def family(self, key: str, *, fmt: str = "png") -> dict:
         """Render (or serve cached) a family, as asset references.
@@ -253,6 +351,14 @@ class _Handler(BaseHTTPRequestHandler):
                 self._figure(query)
             elif parsed.path == "/api/activity":
                 self._activity(query)
+            elif parsed.path == "/api/spikecheck":
+                self._spike_check(query)
+            elif parsed.path == "/api/edgecheck":
+                self._edge_check(query)
+            elif parsed.path == "/api/subnetwork":
+                self._subnetwork(query)
+            elif parsed.path == "/api/export":
+                self._json(self.service.export())
             elif parsed.path == "/api/comparison":
                 self._comparison(query)
             elif parsed.path == "/api/lagseries":
@@ -281,6 +387,7 @@ class _Handler(BaseHTTPRequestHandler):
             _one(query, "rec"), int(_one(query, "lag")), _one(query, "name"),
             fmt=fmt, overrides=parse_overrides(query),
             thumbnail=query.get("thumb", ["0"])[0] == "1",
+            variant=query.get("variant", ["plain"])[0],
         )
         download = query.get("download", ["0"])[0] == "1"
         self._file(path, download_as=path.name if download else None)
@@ -290,6 +397,28 @@ class _Handler(BaseHTTPRequestHandler):
         path = self.service.activity_figure(
             _one(query, "rec"), _one(query, "name"),
             fmt=fmt, overrides=parse_overrides(query))
+        download = query.get("download", ["0"])[0] == "1"
+        self._file(path, download_as=path.name if download else None)
+
+    def _spike_check(self, query) -> None:
+        fmt = _fmt(query)
+        path = self.service.spike_check_figure(
+            _one(query, "rec"), _one(query, "name"), fmt=fmt)
+        download = query.get("download", ["0"])[0] == "1"
+        self._file(path, download_as=path.name if download else None)
+
+    def _edge_check(self, query) -> None:
+        fmt = _fmt(query)
+        path = self.service.edge_check_figure(
+            _one(query, "rec"), int(_one(query, "lag")), fmt=fmt)
+        download = query.get("download", ["0"])[0] == "1"
+        self._file(path, download_as=path.name if download else None)
+
+    def _subnetwork(self, query) -> None:
+        fmt = _fmt(query)
+        path = self.service.subnetwork_figure(
+            _one(query, "rec"), int(_one(query, "lag")), _one(query, "name"),
+            fmt=fmt)
         download = query.get("download", ["0"])[0] == "1"
         self._file(path, download_as=path.name if download else None)
 

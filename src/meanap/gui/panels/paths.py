@@ -1,11 +1,13 @@
 """File path settings panel."""
 
+from pathlib import Path
+
 from PyQt6.QtWidgets import (
     QFileDialog, QFormLayout, QGroupBox, QHBoxLayout,
     QLineEdit, QPushButton, QVBoxLayout, QWidget,
 )
 
-from meanap.params import Params
+from meanap.params import Params, is_remote_url
 
 
 def _browse_dir(line_edit: QLineEdit, parent: QWidget) -> None:
@@ -79,8 +81,23 @@ class PathsPanel(QWidget):
             "Recordings are then fetched one at a time and discarded once "
             "analysed; the cache and denoising outputs go under the output "
             "folder.")
+        # The spreadsheet is the one input whose mistakes are silent — a name
+        # that matches no folder drops a recording from the batch without
+        # complaint — so it gets an editor that checks as you type.
+        self.edit_spreadsheet_btn = QPushButton("Edit…")
+        self.edit_spreadsheet_btn.setFixedWidth(64)
+        self.edit_spreadsheet_btn.setToolTip(
+            "Open the recording spreadsheet in a table editor, or start a new "
+            "one. Names, DIVs and groups are checked as you edit."
+        )
+        self.edit_spreadsheet_btn.clicked.connect(self._on_edit_spreadsheet)
+        sheet_row = QHBoxLayout()
+        sheet_row.setContentsMargins(0, 0, 0, 0)
+        sheet_row.addWidget(self.spreadsheet)
+        sheet_row.addWidget(self.edit_spreadsheet_btn)
+
         form.addRow("Raw data folder", self.raw_data)
-        form.addRow("Spreadsheet file", self.spreadsheet)
+        form.addRow("Spreadsheet file", sheet_row)
         form.addRow("Spreadsheet range", self.spreadsheet_range)
         form.addRow("Custom group order", self.custom_grp_order)
         form.addRow("Spike data folder", self.spike_detected_data)
@@ -108,6 +125,21 @@ class PathsPanel(QWidget):
         layout.addWidget(output_box)
         layout.addWidget(prior_box)
         layout.addStretch()
+
+    def _on_edit_spreadsheet(self) -> None:
+        """Edit the configured spreadsheet, or start one where it would go."""
+        from meanap.gui.panels.spreadsheet_editor import edit_spreadsheet
+
+        current = self.spreadsheet.value.strip()
+        raw = self.raw_data.value.strip()
+        # A share link is not somewhere a file can be written; offer the output
+        # folder, then the working directory, instead.
+        near = raw if raw and not is_remote_url(raw) else (
+            self.output_data_folder.value.strip() or ".")
+        suggested = current or str(Path(near) / "recordings.csv")
+        path = edit_spreadsheet(self, path=current, suggested_path=suggested)
+        if path:
+            self.spreadsheet.set_value(path)
 
     def load(self, params: Params) -> None:
         self.raw_data.set_value(params.raw_data)

@@ -53,6 +53,16 @@ __all__ = [
     "available_figures",
     "available_activity_figures",
     "ACTIVITY_FIGURES",
+    "SPIKE_CHECK_FIGURES",
+    "available_spike_check_figures",
+    "render_spike_check_figure",
+    "available_edge_check_lags",
+    "render_edge_check_figure",
+    "figure_variants",
+    "SUBNETWORK_FIGURES",
+    "available_subnetwork_figures",
+    "render_subnetwork_figure",
+    "render_subnetwork_figure_set",
     "available_group_families",
     "load_context",
     "render_figure",
@@ -139,6 +149,15 @@ ACTIVITY_FIGURES: tuple[FigureSpec, ...] = (
     FigureSpec("7_ISIoutsideBurst_heatmap", "ISI outside bursts",
                "channeISIoutsideBurst"),
     FigureSpec("8_BurstDetectionInfo", "Burst detection detail"),
+)
+
+#: The step-1 spike-detection check figures. Rebuilt from the payload step 1
+#: saves beside the spike times, so all three stand or fall together — there is
+#: no per-figure ``requires`` to test.
+SPIKE_CHECK_FIGURES: tuple[FigureSpec, ...] = (
+    FigureSpec("1_ExampleTraces", "Example traces with detected spikes"),
+    FigureSpec("2_SpikeFrequencies", "Spike frequency over time"),
+    FigureSpec("3_Waveforms", "Spike waveforms by method"),
 )
 
 #: Per-channel metrics whose heatmap colour ceiling is pooled across the batch
@@ -327,6 +346,7 @@ def render_figure(
     fmt: str = "png",
     dpi: int | None = None,
     overrides: dict | None = None,
+    variant: str = "plain",
 ) -> Path:
     """Redraw one figure and return the file written.
 
@@ -341,7 +361,7 @@ def render_figure(
     """
     from meanap.catnap.store import load_background
     from meanap.pipeline.figure_output import figure_dpi
-    from meanap.pipeline.step4 import _plot_recording_lag
+    from meanap.pipeline.step4 import _plot_recording_lag, variant_stem
 
     lag_key = f"{lag}mslag"
     metrics = ctx.results.get(recording, {}).get(lag_key)
@@ -364,20 +384,50 @@ def render_figure(
     if bg_path is not None:
         background = load_background(bg_path)
 
+    # The scaled/combined versions are drawn by the same call, under their own
+    # names — so asking for one is just asking for a different stem.
+    wanted = variant_stem(figure, variant)
+    if wanted is None:
+        raise ValueError(
+            f"'{figure}' has no '{variant}' version — only the spatial network "
+            f"plots do. Use figure_variants() to list what a figure offers.")
+
     with figure_dpi(dpi):
         written = _plot_recording_lag(
             rec, lag, metrics, channels, params, Path(out_dir), lambda m: None,
             ctx.batch_bounds, coords_all=coords, cell_types=markers,
             background=background,
             node_size_scale="auto" if params.twop_auto_node_size else 1.0,
-            fmt=fmt, only=figure, style=style,
+            fmt=fmt, only=wanted, style=style,
         )
     if not written:
         raise ValueError(
-            f"'{figure}' is not one of the figures available for {recording} at "
-            f"{lag} ms lag. Use available_figures() to list them."
+            f"'{figure}' ({variant}) is not one of the figures available for "
+            f"{recording} at {lag} ms lag. Use available_figures() to list them."
         )
     return written[0]
+
+
+def figure_variants(ctx: RenderContext, recording: str, lag: int,
+                    figure: str) -> list[str]:
+    """Which scalings of *figure* exist for this recording and lag.
+
+    Always at least ``["plain"]``. The batch-scaled and side-by-side versions
+    need a pooled bound for the figure's size metric, which a single-recording
+    bundle may not have — so this is asked per bundle rather than assumed.
+    """
+    # Imported here, not at module scope: step4 pulls in matplotlib, and this
+    # module is careful to stay cheap to import.
+    from meanap.pipeline.step4 import FIGURE_VARIANTS, SPATIAL_PLOTS
+
+    spec = next((sp for sp in SPATIAL_PLOTS
+                 if Path(sp[0]).stem == Path(figure).stem), None)
+    if spec is None:
+        return ["plain"]
+    size_key = spec[3]
+    if not ctx.batch_bounds.get(size_key):
+        return ["plain"]
+    return list(FIGURE_VARIANTS)
 
 
 #: Styling knobs the viewer exposes, forwarded to
@@ -570,7 +620,11 @@ def render_group_family(
             by_type = gp.add_cell_type_column(
                 df_node, groups_by_rec, _channels_by_rec(ctx))
             composition = gp.composition_frame(
-                recordings, groups_by_rec, _channels_by_rec(ctx))
+                recordings, groups_by_rec, _channels_by_rec(ctx),
+                # Without this the "active cells" columns are omitted, and the
+                # four 5_CellTypeComposition figures that read them are simply
+                # never drawn — which is how they went missing from bundles.
+                active_by_rec=gp.active_channels(df_node))
             gp.plot_activity_by_cell_type(
                 by_type, composition, out_dir, custom_grp_order=order, fmt=fmt)
         elif fam.key == "ephys_activity":
@@ -1061,8 +1115,9 @@ def cached_figure(
     fmt: str = "png",
     dpi: int | None = None,
     overrides: dict | None = None,
+    variant: str = "plain",
 ) -> tuple[Path, bool]:
-    """One figure, rendered once per (figure, style, format) and cached.
+    """One figure, rendered once per (figure, variant, style, format) and cached.
 
     Returns ``(path, was_cached)``. Single figures are ~0.1 s so the cache
     matters less than it does for a family, but flicking back and forth between
@@ -1070,12 +1125,16 @@ def cached_figure(
     """
     from meanap.pipeline.render_cache import bundle_identity, cache_key
 
-    key = cache_key(bundle_identity(ctx.root), f"fig:{recording}:{lag}:{figure}",
+    # The variant is part of the key, or switching the scaling toggle would
+    # serve back whichever version was rendered first.
+    key = cache_key(bundle_identity(ctx.root),
+                    f"fig:{recording}:{lag}:{figure}:{variant}",
                     fmt=fmt, dpi=dpi, overrides=overrides)
     files, was_cached = cache.get_or_render(
         key,
         lambda dest: [render_figure(ctx, recording, lag, figure, dest,
-                                    fmt=fmt, dpi=dpi, overrides=overrides)],
+                                    fmt=fmt, dpi=dpi, overrides=overrides,
+                                    variant=variant)],
     )
     return files[0], was_cached
 
@@ -1133,6 +1192,320 @@ def _spike_file(ctx: RenderContext, recording: str) -> Path | None:
 
     path = ctx.root / SPIKE_SUBDIR / f"{recording}_spikes.npz"
     return path if path.exists() else None
+
+
+def _spike_check_file(ctx: RenderContext, recording: str) -> Path | None:
+    from meanap.pipeline.plotting import CHECKS_SUFFIX
+    from meanap.pipeline.resume import SPIKE_SUBDIR
+
+    path = ctx.root / SPIKE_SUBDIR / f"{recording}{CHECKS_SUFFIX}"
+    return path if path.exists() else None
+
+
+def available_spike_check_figures(
+    ctx: RenderContext, recording: str,
+) -> list[FigureSpec]:
+    """Which step-1 check figures this recording can produce.
+
+    Empty for a run that predates the stored payload, or one whose step 1 was
+    skipped — in both cases there is nothing to draw from, and offering a button
+    that produces nothing is worse than offering none.
+    """
+    if _spike_check_file(ctx, recording) is None:
+        return []
+    return list(SPIKE_CHECK_FIGURES)
+
+
+#: The per-recording cell-type subnetwork figures, per lag. Everything they
+#: need was already in the bundle — the adjacency subgraph, the coordinates and
+#: the resolved groups in the state file, the three tables as CSVs — so unlike
+#: the step-1 and step-3 checks this needed no new payload, only wiring.
+SUBNETWORK_FIGURES: tuple[FigureSpec, ...] = (
+    FigureSpec("1_CellTypeNetwork", "Network coloured by cell type"),
+    FigureSpec("2_SubnetworkGraphs", "Each cell type's subnetwork"),
+    FigureSpec("3_NodeMetricsByCellType", "Node metrics by cell type"),
+    FigureSpec("4_SubnetworkMetrics", "Metrics of each subnetwork"),
+    FigureSpec("5_EdgeMixing", "Connectivity within and between cell types"),
+)
+
+
+def _subnetwork_tables(ctx: RenderContext) -> dict[str, "object"]:
+    """The three subnetwork CSVs as DataFrames, loaded once and cached."""
+    import pandas as pd
+
+    cached = getattr(ctx, "_subnet_tables_cache", None)
+    if cached is not None:
+        return cached
+    out = {}
+    for key, name in (("summary", "Subnetwork_RecordingLevel.csv"),
+                      ("node", "Subnetwork_NodeLevel.csv"),
+                      ("mix", "Subnetwork_EdgeMix.csv")):
+        path = ctx.root / "4_NetworkActivity" / name
+        out[key] = pd.read_csv(path) if path.exists() else pd.DataFrame()
+    object.__setattr__(ctx, "_subnet_tables_cache", out)
+    return out
+
+
+def _subnetwork_slice(ctx: RenderContext, recording: str, lag: int) -> dict:
+    """Each table cut down to one recording and lag, as the plotters expect.
+
+    The pipeline hands the plotters exactly this slice; the CSVs are the same
+    rows with ``FileName``/``Lag`` columns added, so cutting on those puts them
+    back the way they were.
+    """
+    lag_key = f"{lag}mslag"
+    out = {}
+    for key, table in _subnetwork_tables(ctx).items():
+        if table.empty:
+            out[key] = table
+            continue
+        rows = table[(table["FileName"] == recording) & (table["Lag"] == lag_key)]
+        out[key] = rows.drop(columns=[c for c in ("FileName", "Grp", "DIV", "Lag")
+                                      if c in rows.columns]).reset_index(drop=True)
+    return out
+
+
+def available_subnetwork_figures(
+    ctx: RenderContext, recording: str, lag: int,
+) -> list[FigureSpec]:
+    """Which cell-type subnetwork figures this recording/lag can produce.
+
+    Empty unless the run did the subnetwork analysis *and* the recording ended
+    up with groups — a spreadsheet that labelled none of its cells produces
+    tables with no rows for it, and there is nothing to draw.
+    """
+    metrics = ctx.results.get(recording, {}).get(f"{lag}mslag")
+    if not metrics or "adjMsub" not in metrics:
+        return []
+    # _states holds (state, stats) pairs.
+    stored = _states(ctx).get(recording)
+    if stored is None or getattr(stored[0].groups, "n_groups", 0) == 0:
+        return []
+
+    tables = _subnetwork_slice(ctx, recording, lag)
+    available = []
+    for spec in SUBNETWORK_FIGURES:
+        needs = {"3_NodeMetricsByCellType": "node",
+                 "4_SubnetworkMetrics": "summary",
+                 "5_EdgeMixing": "mix"}.get(spec.name)
+        if needs is None or not tables[needs].empty:
+            available.append(spec)
+    return available
+
+
+def render_subnetwork_figure(
+    ctx: RenderContext,
+    recording: str,
+    lag: int,
+    figure: str,
+    out_dir: Path | str,
+    *,
+    fmt: str = "png",
+    dpi: int | None = None,
+) -> Path:
+    """Redraw one per-recording cell-type subnetwork figure from the bundle."""
+    from meanap.catnap import subnetwork_plotting as snp
+    from meanap.catnap.pipeline import _SUBNET_GRAPH_METRICS, _SUBNET_NODE_METRICS
+    from meanap.pipeline.figure_output import figure_dpi
+    from meanap.pipeline.rng import make_rng
+
+    if figure not in {spec.name for spec in
+                      available_subnetwork_figures(ctx, recording, lag)}:
+        raise ValueError(
+            f"'{figure}' is not one of the cell-type subnetwork figures for "
+            f"{recording} at {lag} ms lag. These exist only for runs with the "
+            "subnetwork analysis enabled; use available_subnetwork_figures() "
+            "to list what is here.")
+
+    metrics = ctx.results[recording][f"{lag}mslag"]
+    state, _stats = _states(ctx)[recording]
+    active = np.asarray(metrics["activeChannelIndex"], dtype=int)
+    active_groups = state.groups.subset(active)
+    coords_active = np.asarray(state.coords)[active]
+    adj_sub = metrics["adjMsub"]
+    tables = _subnetwork_slice(ctx, recording, lag)
+
+    rec = ctx.recordings.get(recording) or RecordingInfo(
+        filename=recording, div=0.0, group="")
+    title = f"{recording}  {lag} ms lag"
+    out_path = Path(out_dir) / f"{figure}.{fmt}"
+
+    draw = {
+        "1_CellTypeNetwork": lambda: snp.plot_subnetwork_spatial(
+            adj_sub, coords_active, active_groups, out_path, title),
+        "2_SubnetworkGraphs": lambda: snp.plot_subnetwork_panels(
+            adj_sub, coords_active, active_groups, out_path, title),
+        "3_NodeMetricsByCellType": lambda: snp.plot_node_metrics_by_group(
+            tables["node"], _SUBNET_NODE_METRICS, out_path,
+            f"{title} — whole-network node metrics by cell type",
+            # The same dedicated stream the pipeline draws with, so the
+            # jittered points land where they landed in the run's own figure.
+            make_rng(ctx.params.random_seed, "catnap_subnetwork_plot",
+                     recording, f"{lag}mslag")),
+        "4_SubnetworkMetrics": lambda: snp.plot_subnetwork_metric_bars(
+            tables["summary"], _SUBNET_GRAPH_METRICS, out_path,
+            f"{title} — metrics of each cell-type subnetwork"),
+        "5_EdgeMixing": lambda: snp.plot_edge_mix_matrix(
+            tables["mix"], active_groups, out_path,
+            f"{title} — connectivity within/between cell types"),
+    }[figure]
+
+    with figure_dpi(dpi):
+        draw()
+    if not out_path.exists():
+        raise ValueError(
+            f"'{figure}' produced nothing for {recording} at {lag} ms lag — "
+            "its table is present but empty of anything plottable.")
+    return out_path
+
+
+def render_subnetwork_figure_set(
+    ctx: RenderContext,
+    recording: str,
+    lag: int,
+    out_root: Path | str,
+    *,
+    fmt: str = "png",
+) -> list[Path]:
+    """Redraw the whole 4A figure set once per cell-type subnetwork.
+
+    The one family here that has to *recompute* rather than reassemble: the
+    per-subnetwork metrics are not stored (only their summary rows are), so
+    :func:`~meanap.catnap.subnetwork.compute_subnetwork_metrics` is re-run from
+    the adjacency, spike counts and groups the state file carries. That is
+    stochastic, so it reproduces the run's own figures only for a seeded run —
+    with ``random_seed=None`` the numbers will be close but not identical, which
+    is true of re-running the pipeline itself.
+
+    *out_root* is the run's ``4_NetworkActivity`` folder, as the pipeline passes.
+    """
+    from meanap.catnap.pipeline import _plot_subnetwork_figure_set
+    from meanap.catnap.store import load_background
+    from meanap.catnap.subnetwork import compute_subnetwork_metrics
+    from meanap.pipeline.figure_output import figure_dpi
+    from meanap.pipeline.rng import make_rng
+
+    lag_key = f"{lag}mslag"
+    metrics = ctx.results.get(recording, {}).get(lag_key)
+    stored = _states(ctx).get(recording)
+    if not metrics or stored is None or getattr(stored[0].groups, "n_groups", 0) == 0:
+        return []
+    state = stored[0]
+
+    adj_full = state.adjMs.get(f"adjM{lag}mslag")
+    if adj_full is None:
+        return []
+
+    rec = ctx.recordings.get(recording) or RecordingInfo(
+        filename=recording, div=0.0, group="")
+    results = compute_subnetwork_metrics(
+        adj_full, state.spike_counts, state.duration_s, state.groups, ctx.params,
+        min_nodes=ctx.params.min_number_of_nodes_to_cal_net_met,
+        rng=make_rng(ctx.params.random_seed, "catnap_subnetwork", recording),
+        full_metrics=metrics,
+    )
+
+    background = None
+    bg_path = _background_path(ctx, recording)
+    if bg_path is not None:
+        background = load_background(bg_path)
+
+    out_root = Path(out_root)
+    before = set(out_root.rglob(f"*.{fmt}")) if out_root.exists() else set()
+    with figure_dpi(None):
+        _plot_subnetwork_figure_set(
+            ctx.params, rec, state, results, metrics, lag, out_root,
+            lambda m: None, background)
+    return sorted(p for p in out_root.rglob(f"*.{fmt}") if p not in before)
+
+
+def _edge_check_file(ctx: RenderContext, recording: str) -> Path | None:
+    from meanap.pipeline.plotting_step3 import EDGE_CHECK_SUFFIX
+
+    path = ctx.root / "ExperimentMatFiles" / f"{recording}{EDGE_CHECK_SUFFIX}"
+    return path if path.exists() else None
+
+
+def available_edge_check_lags(ctx: RenderContext, recording: str) -> list[int]:
+    """Lags whose edge-threshold stability check this bundle can redraw.
+
+    Empty unless the run had ``prob_thresh_plot_checks`` on — the snapshots this
+    is built from cost a full extra pass over the surrogates, so they are only
+    collected when asked for.
+    """
+    from meanap.pipeline.plotting_step3 import stored_lags
+
+    path = _edge_check_file(ctx, recording)
+    return stored_lags(path) if path is not None else []
+
+
+def render_edge_check_figure(
+    ctx: RenderContext,
+    recording: str,
+    lag: int,
+    out_dir: Path | str,
+    *,
+    fmt: str = "png",
+    dpi: int | None = None,
+) -> Path:
+    """Redraw one edge-threshold stability check from the bundle.
+
+    No style overrides: the figure is a record of how the thresholding settled,
+    and none of the network styling controls apply to it.
+    """
+    from meanap.pipeline.figure_output import figure_dpi
+    from meanap.pipeline.plotting_step3 import (
+        draw_edge_threshold_check, load_edge_threshold_check,
+    )
+
+    path = _edge_check_file(ctx, recording)
+    data = load_edge_threshold_check(path, lag) if path is not None else None
+    if data is None:
+        raise ValueError(
+            f"No edge-threshold check for {recording} at {lag}ms in this bundle. "
+            "These are only produced when the run had 'plot thresholding checks' "
+            "enabled; use available_edge_check_lags() to list what is here.")
+
+    out_path = Path(out_dir) / f"{recording}{lag}msLagProbThreshCheck.{fmt}"
+    with figure_dpi(dpi):
+        draw_edge_threshold_check(data, out_path)
+    return out_path
+
+
+def render_spike_check_figure(
+    ctx: RenderContext,
+    recording: str,
+    figure: str,
+    out_dir: Path | str,
+    *,
+    fmt: str = "png",
+    dpi: int | None = None,
+) -> Path:
+    """Redraw one step-1 check figure from the bundle.
+
+    Takes no style overrides: these are a record of what spike detection did,
+    and their axes are fixed to the recording's own noise level rather than to
+    anything a viewer should be re-scaling.
+    """
+    from meanap.pipeline.figure_output import figure_dpi
+    from meanap.pipeline.plotting import (
+        draw_spike_check_figures, load_spike_check_data,
+    )
+
+    path = _spike_check_file(ctx, recording)
+    if path is None:
+        raise ValueError(
+            f"No spike-detection check data for {recording} in this bundle — it "
+            "comes from step 1, which this run either skipped or predates.")
+
+    with figure_dpi(dpi):
+        written = draw_spike_check_figures(
+            load_spike_check_data(path), Path(out_dir), fmt=fmt, only=figure)
+    if not written:
+        raise ValueError(
+            f"'{figure}' is not one of the spike-detection check figures for "
+            f"{recording}. Use available_spike_check_figures() to list them.")
+    return written[0]
 
 
 def _activity_batch_max(ctx: RenderContext) -> dict:

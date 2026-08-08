@@ -20,6 +20,7 @@ from meanap.params import Params
 from meanap.pipeline.cancellation import CancelCheck, check_cancel
 from meanap.pipeline.io import find_raw_file, load_spike_times_npz, resolve_duration_s
 from meanap.pipeline.parallel import map_recordings
+from meanap.pipeline.progress import RunProgress
 from meanap.pipeline.probabilistic_threshold import adjm_thr
 from meanap.pipeline.resume import build_input_locator
 from meanap.pipeline.rng import make_rng
@@ -74,6 +75,11 @@ def _step3_one_recording(task: tuple[Params, RecordingInfo, str]) -> tuple[str, 
         spike_times_dict = ground_spike_times_dict(spike_times_dict, data["channels"], ground_electrodes)
 
     out_arrays: dict[str, np.ndarray] = {}
+    # Per-lag check payloads, written together once every lag is done. The
+    # snapshots they come from are tens of megabytes and vanish with this
+    # function, so reducing them here is the only chance to keep the figure
+    # rebuildable — see plotting_step3.
+    edge_checks: dict[int, object] = {}
     # Derived from the recording name, not from a shared stream, so results
     # don't depend on how many workers the pool decided to use or what order
     # recordings completed in.
@@ -88,13 +94,20 @@ def _step3_one_recording(task: tuple[Params, RecordingInfo, str]) -> tuple[str, 
                 rng=rng, collect_check_snapshots=True,
             )
             # Deferred import: plotting pulls in matplotlib, only needed when checks are on
-            from meanap.pipeline.plotting_step3 import plot_prob_thresh_check
-            check_dir.mkdir(parents=True, exist_ok=True)
-            plot_prob_thresh_check(
-                dist1, rep_val, adj_m,
-                check_dir / f"{rec.filename}{lag_ms}msLagProbThreshCheck.png",
-                rng=rng,
+            from meanap.pipeline.plotting_step3 import (
+                compute_edge_threshold_check, draw_edge_threshold_check,
             )
+            check = compute_edge_threshold_check(dist1, rep_val, adj_m, rng=rng)
+            if check is not None:
+                edge_checks[lag_ms] = check
+                # Express mode skips the picture and keeps the payload, as it
+                # does for every other rebuildable family.
+                if not params.express_mode:
+                    check_dir.mkdir(parents=True, exist_ok=True)
+                    draw_edge_threshold_check(
+                        check,
+                        check_dir / f"{rec.filename}{lag_ms}msLagProbThreshCheck.png",
+                    )
         else:
             adj_m, adj_m_ci = adjm_thr(
                 spike_times_dict, n_channels, lag_ms, tail, fs, duration_s, rep_num, rng=rng,
@@ -104,6 +117,12 @@ def _step3_one_recording(task: tuple[Params, RecordingInfo, str]) -> tuple[str, 
 
     out_path = mat_files_dir / f"{rec.filename}_adjM.npz"
     np.savez(out_path, channels=data["channels"], **out_arrays)
+    if edge_checks:
+        from meanap.pipeline.plotting_step3 import (
+            EDGE_CHECK_SUFFIX, save_edge_threshold_check,
+        )
+        save_edge_threshold_check(
+            mat_files_dir / f"{rec.filename}{EDGE_CHECK_SUFFIX}", edge_checks)
     logs.append(f"  [{rec.filename}] saved → {out_path.relative_to(output_root)}")
     return rec.filename, logs
 
@@ -114,6 +133,7 @@ def _run_step3_functional_connectivity(
     output_root: Path,
     log: Callable[[str], None],
     should_cancel: CancelCheck = None,
+    progress: "RunProgress | None" = None,
 ) -> None:
     """Run Step 3 over all recordings as a RAM/CPU-aware parallel map.
 
@@ -125,6 +145,8 @@ def _run_step3_functional_connectivity(
     """
     log("\n=== Step 3: Functional Connectivity ===")
     check_cancel(should_cancel)
+    progress = progress or RunProgress()
+    progress.begin("step3", items=len(recordings))
 
     (output_root / "ExperimentMatFiles").mkdir(parents=True, exist_ok=True)
 
@@ -133,6 +155,9 @@ def _run_step3_functional_connectivity(
     def _emit(result: tuple[str, list[str]]) -> None:
         for line in result[1]:
             log(line)
+        # Called in the parent as each recording finishes, in completion order —
+        # which is what makes a bar possible across a process pool at all.
+        progress.item_done(result[0])
 
     map_recordings(
         _step3_one_recording,
@@ -143,4 +168,5 @@ def _run_step3_functional_connectivity(
         cancel_check=(lambda: bool(should_cancel())) if should_cancel else None,
     )
 
+    progress.phase_done()
     log("  Step 3 complete.")

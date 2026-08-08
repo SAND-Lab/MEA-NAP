@@ -6,9 +6,10 @@ were drawn from are about **300 KB**. Every network figure is a pure function
 of that data, so carrying the pictures around means carrying a redundant copy
 roughly twenty times over.
 
-**Express mode** skips the figures that can be rebuilt later and writes a single
-`.meanap` bundle instead. A viewer redraws any figure on demand, in PNG or in
-editable SVG.
+**Express mode** skips the figures that can be rebuilt later and keeps a single
+`.meanap` bundle — *only* the bundle. A viewer redraws any figure on demand, in
+PNG or in editable SVG, and can draw the whole output folder back out when you
+need to hand results to someone who has no MEA-NAP.
 
 ```python
 from meanap.params import Params
@@ -26,18 +27,28 @@ applies to **🧪 Test pipeline** runs too.
 
 ## Where the bundle goes
 
-Beside the output folder, not inside it — the folder is named after the run and
-the bundle takes the same name:
+Where the output folder would have been, named after the run:
 
 ```
-OutputData07Aug2026/            the output folder
-OutputData07Aug2026.meanap      the bundle          ← one level up, alongside it
+OutputData07Aug2026.meanap      the bundle — and, for an express run, all of it
 ```
+
+The output folder is **removed** once the bundle has been written, because
+keeping both is keeping two copies of the same run and the folder is the larger
+one. `run_pipeline` returns the bundle's path for such a run.
+
+Removal happens only after the bundle has been opened and its manifest read
+back: "the file exists" is not the same as "the file is good", and this deletes
+results. A bundle that cannot be written, or will not reopen, leaves the folder
+where it is and the log says which.
 
 This is the single most common "express mode didn't produce anything" report:
 the file is there, just not where the figures used to be. An express run ends
 by naming it in the status log, in a framed block after the timing lines, with
 the command that opens it.
+
+To get a folder back, see [Exporting a full output
+folder](#exporting-a-full-output-folder).
 
 ## Opening a bundle from the GUI
 
@@ -67,12 +78,12 @@ one machine:
 | 4. Network activity | 159.0s | 113.4s |
 | **Total** | **251.1s** | **198.0s** |
 
-| | figures | output folder | bundle |
+| | figures on disk | output folder | bundle |
 |---|---|---|---|
 | Full | 483 | 56.4 MB | — |
-| Express | 6 | 3.2 MB | **2.2 MB** |
+| Express | 0 | none | **2.2 MB** |
 
-**Size is the point: 25× smaller as a single file.** Time is a secondary
+**Size is the point: 25× smaller, as one file and nothing else.** Time is a secondary
 benefit and a bounded one — steps 1 and 3 draw almost nothing, so their 84s can
 never be saved, and step 4 keeps 113s of genuine computation (null models, NMF,
 modularity) once its plotting is removed. Expect **around 20%**, and less on
@@ -111,8 +122,15 @@ ExperimentMatFiles/<rec>_background.npz    mean projection (CAT-NAP, optional)
 4_NetworkActivity/netmet_results.json      every network metric
 4_NetworkActivity/*.csv                    recording- and node-level tables
 2_NeuronalActivity/*.csv, ephys_results.json
-1_SpikeDetection/                          spike times + the checks kept as images
+1_SpikeDetection/1A_SpikeDetectedData/     spike times + the check-figure payload
 ```
+
+Two of those entries are worth a word. `<rec>_step1checks.npz` (~100 KB) holds
+what the spike-detection check figures *display* — the ±30 ms trace windows,
+one channel's waveforms, the binned frequency curve — rather than the raw
+voltage they were cut from. `<rec>_edgecheck.npz` (~10 KB) does the same for the
+thresholding-stability figure, whose input is tens of megabytes of threshold
+snapshots that vanish when step 3 returns.
 
 Cell-type information travels *inside* the bundle — marker matrix, the resolved
 grouping, and the expression each group was built from. A recipient with no
@@ -120,33 +138,80 @@ spreadsheet still gets the marker rings and the by-cell-type comparisons.
 
 ## Which figures survive, and which don't
 
-Express mode keeps only the quality-control figures that **cannot** be rebuilt,
-because they depend on raw data far too large to carry:
+**Every figure a full run writes can be drawn from a bundle.** Verified rather
+than asserted: `python/test_check_figures_bundle.py` renders everything a bundle
+offers and compares the set against a full run's output folder, by full relative
+path — 335 of 335 on the test fixture, nothing missing and nothing extra.
 
-- **spike-detection checks** (electrophysiology) — need the raw voltage;
-- **2P trace figures** (CAT-NAP) — need the full fluorescence matrices.
+The viewer rebuilds:
 
-Everything else is dropped and redrawn on demand. The viewer can currently
-rebuild:
-
-- the per-recording network figure set (4A) — all 11–12 figures, both pipelines;
+- the per-recording network figure set (4A), both pipelines — including the
+  **batch-scaled** and **side-by-side** versions, reached through the *Scaling*
+  toggle rather than as separate entries;
 - the per-recording activity figures (2A) — rasters, firing-rate and burst
   heatmaps, burst-detection detail;
-- network metrics by group and age (4B);
-- neuronal or two-photon activity by group and age (2B);
-- CAT-NAP activity split by cell type, and cell-type subnetwork group
-  comparisons.
+- the step-1 **spike-detection checks** — example traces, spike frequency,
+  waveforms;
+- the step-3 **edge-thresholding stability check**, per lag;
+- network metrics by group and age (4B), and activity by group and age (2B),
+  including the cell-type composition set;
+- CAT-NAP's per-recording cell-type subnetwork figures, and the whole 4A set
+  repeated per subnetwork.
 
-```{warning}
-One family is dropped and **cannot yet be rebuilt**, so an express run simply
-does not have it: **`cell_type_subnetwork_per_rec`**, CAT-NAP's per-recording
-cell-type subnetwork figures. This isn't fundamental — its inputs *are* in the
-bundle, the reconstruction just isn't wired up — but until it is, re-run
-without `express_mode` if you need those.
+One family still travels as pictures rather than as data: the **2P trace
+figures** (CAT-NAP), which need the full fluorescence matrices. They are packed
+into the bundle as images, and only produced at all when `num_2p_traces > 0`.
 
+```{note}
 Every bundle records what it can and cannot rebuild in `manifest.json`
-(`reconstructable` / `not_reconstructable`), so a viewer can say so rather than
-leave you guessing.
+(`reconstructable` / `not_reconstructable`). `not_reconstructable` is now empty
+for a bundle written by this version; it is kept as a field because it is part
+of the format, and because a bundle written by an *older* version may carry
+families this one would rebuild — those bundles keep their figures as images
+and say so, rather than claiming a payload they do not have.
+```
+
+The per-subnetwork 4A repeat is the one family that *recomputes* rather than
+reassembles — the subnetwork metrics are not stored, only their summary rows —
+so it reproduces the run's own figures exactly for a seeded run, and closely but
+not identically with `random_seed=None`.
+
+## Exporting a full output folder
+
+A bundle is the right artifact for the person who ran the analysis. It is the
+wrong one for the person they send it to who has no MEA-NAP: to them it is a zip
+of arrays.
+
+**Export output folder**, in the viewer's top bar, unpacks that trade. It draws
+every figure the bundle can produce into the same folder layout the pipeline
+itself writes, copies the data files across, and finishes with the
+self-contained `report.html` browser — a folder anyone can open with nothing
+installed.
+
+```bash
+uv run meanap-viewer Run.meanap      # then press "Export output folder"
+```
+
+Or from Python:
+
+```python
+from meanap.pipeline.export import export_output_folder
+
+result = export_output_folder("Run.meanap")          # → Run/ beside the bundle
+print(result.figures, result.report, result.skipped)
+```
+
+The export lands beside the bundle under its own name (`Run.meanap` → `Run/`),
+stepping to `Run_v2` only if a folder is already there. On the test fixture it
+is 335 figures in about 40 seconds; the figures are byte-identical to the ones a
+full run would have written, because the same plotting functions draw both.
+
+The button is hidden when the viewer was opened on an output folder rather than
+a bundle — there is nothing to unpack, it is already a folder.
+
+```{note}
+Each figure is guarded independently. One that cannot be drawn is recorded in
+`result.skipped` and costs its own figure, not the other several hundred.
 ```
 
 ## A bundle is also a resume artifact
@@ -194,13 +259,33 @@ for a manuscript.
 
 ### Recordings
 
-One spatial network plot at a time, with the full Network Viewer control set on
-the right — node layout, colour map, edge threshold and method, maximum edges
-drawn, node size and scaling, edge widths. Changing any of them re-renders
-through the same Python that drew the original.
+One figure at a time, with the full Network Viewer control set on the right —
+node layout, colour map, edge threshold and method, maximum edges drawn, node
+size and scaling, edge widths. Changing any of them re-renders through the same
+Python that drew the original.
 
 Defaults reproduce the pipeline's own figure exactly; the controls are opt-in
 changes on top of it.
+
+The left column lists everything a recording has, grouped by the question each
+set answers: **network figures** at the selected lag, **activity figures**,
+**spike detection** checks, **edge thresholding** checks, and CAT-NAP's
+**cell-type subnetworks**. A set the run did not produce says so rather than
+disappearing.
+
+**Scaling** appears above the styling controls for the spatial network plots,
+which the pipeline draws three ways:
+
+| | what it shows |
+|---|---|
+| **Individual** | this recording's own range — the default, and the plain filename |
+| **Batch-scaled** | one scale across every recording, so panels are directly comparable |
+| **Side by side** | both, in one figure |
+
+It is a toggle rather than three more buttons per figure because the three are
+the same plot at different scales. It hides itself for figures that have only
+one — the batch-scaled versions need a pooled bound for the figure's size
+metric, which a single-recording bundle may not have.
 
 ### Comparisons
 
@@ -304,8 +389,10 @@ is deliberate.
 | figures | whatever is on disk | rendered on demand |
 | restyling | no | yes |
 | vector export | no | yes |
-| works on an express run | only the kept checks | fully |
+| works on an express run | after an export | directly |
 
 `report.html` is the right artifact for someone who should not have to install
 anything. The viewer is the right one when you want to change a figure and get
-a publication-ready file out.
+a publication-ready file out — and it is how you *produce* the former from an
+express run: **Export output folder** writes the figures and the `report.html`
+together, which is the pair you send onward.

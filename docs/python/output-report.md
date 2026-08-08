@@ -6,9 +6,10 @@ root of that output folder and opens it in your browser.
 
 ```{note}
 If the run used {doc}`express-mode`, that button opens the run's `.meanap`
-bundle in the interactive viewer instead — an express run writes almost no
-figures, so a report built from that folder would show a nearly empty page. See
-[Related: the interactive viewer](#related-the-interactive-viewer) below.
+bundle in the interactive viewer instead — an express run keeps only the bundle,
+so there is no folder to build a report from. The viewer's **Export output
+folder** writes one, `report.html` included. See [Related: the interactive
+viewer](#related-the-interactive-viewer) below.
 ```
 
 ```python
@@ -59,10 +60,15 @@ walking them through the tree by hand.
 ## Related: the interactive viewer
 
 `report.html` shows the figures a run *wrote*. If you ran with
-{doc}`express-mode`, most figures were never written — use `meanap-viewer`
-instead, which redraws them on demand and can export SVG. The two are
-complementary: `report.html` needs nothing installed, the viewer needs Python
-running but can restyle and re-export.
+{doc}`express-mode`, none were — use `meanap-viewer` instead, which redraws them
+on demand and can export SVG. The two are complementary: `report.html` needs
+nothing installed, the viewer needs Python running but can restyle and
+re-export.
+
+To get a `report.html` out of an express run, open the bundle and press
+**Export output folder**: it draws every figure into a normal output folder and
+generates the report alongside them. That folder is what you send to someone
+without MEA-NAP.
 
 The GUI picks between them for you: **🌐 View report** opens the viewer for an
 express run and builds `report.html` for a full one. You can also open any

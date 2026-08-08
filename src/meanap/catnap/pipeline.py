@@ -108,6 +108,7 @@ def run_catnap_pipeline(
     should_cancel: CancelCheck = None,
     locator: InputLocator | None = None,
     source: "meanap.remote.source.RecordingSource | None" = None,
+    progress: "meanap.pipeline.progress.RunProgress | None" = None,
 ) -> None:
     """Run the CAT-NAP path over all recordings, writing NetMet JSON + CSVs.
 
@@ -149,10 +150,16 @@ def run_catnap_pipeline(
     change. With per-recording streams a seeded resume reproduces the numbers
     of the run it resumed from.
     """
+    from meanap.pipeline.progress import RunProgress
+
+    progress = progress or RunProgress()
     if locator is None:
         locator = build_input_locator(params, output_root)
     if source is None:
         source = _build_source(params, log)
+    # Set rather than passed, so a caller that supplies its own source — the
+    # remote tests do — reports transfers without having to wire them up.
+    source.progress = progress
 
     min_nodes = params.min_number_of_nodes_to_cal_net_met
     net_dir = output_root / "4_NetworkActivity"
@@ -167,6 +174,8 @@ def run_catnap_pipeline(
     all_channels: dict[str, np.ndarray] = {}
     states: dict[str, RecordingState] = {}
     subnetwork_tables: dict[str, list] = {"summary": [], "node": [], "mix": []}
+
+    progress.begin("catnap.compute", items=len(recordings))
 
     # ── Phase 1: compute (or reload) ──────────────────────────────────────────
     # Recordings arrive with the next one already being fetched (remote sources
@@ -244,6 +253,7 @@ def run_catnap_pipeline(
             )
             rec_results[f"{lag_ms}mslag"] = metrics
         all_results[rec.filename] = rec_results
+        progress.item_done(rec.filename)
 
     # ── Phase 2: reduce — data-driven node-cartography boundaries ─────────────
     # Pool PC/Z over the whole batch and re-place the six role boundaries, then
@@ -264,6 +274,8 @@ def run_catnap_pipeline(
                     for m in ("ND", "NS", "BC", "PC", "Eloc")}
 
     # ── Phase 3: plot ─────────────────────────────────────────────────────────
+    progress.phase_done()
+    progress.begin("catnap.plot", items=len(recordings))
     for rec in recordings:
         state = states.get(rec.filename)
         if state is None:
@@ -291,13 +303,17 @@ def run_catnap_pipeline(
                 make_rng(params.random_seed, "catnap_subnetwork", rec.filename),
                 background,
             )
+        progress.item_done(rec.filename)
 
+    progress.phase_done()
+    progress.begin("batch", items=1)
     _save_catnap_results(recordings, all_results, all_stats, all_channels, net_dir, log)
     _save_subnetwork_results(subnetwork_tables, net_dir, log)
     _plot_group_comparisons(
         params, recordings, all_results, all_stats, all_channels,
         subnetwork_tables, states, output_root, log,
     )
+    progress.phase_done()
     log("  CAT-NAP pipeline complete.")
 
 
@@ -648,7 +664,13 @@ def _run_subnetwork_analysis(
             ("3_NodeMetricsByCellType.png",
              lambda p: snp.plot_node_metrics_by_group(
                  node_df, _SUBNET_NODE_METRICS, p,
-                 f"{title} — whole-network node metrics by cell type", rng)),
+                 f"{title} — whole-network node metrics by cell type",
+                 # Its own stream, not the shared one: the jitter would
+                 # otherwise depend on how much randomness the metrics above
+                 # happened to consume first, and a viewer rebuilding this
+                 # figure could never land on the same offsets.
+                 make_rng(params.random_seed, "catnap_subnetwork_plot",
+                          rec.filename, lag_key))),
             ("4_SubnetworkMetrics.png",
              lambda p: snp.plot_subnetwork_metric_bars(
                  summary, _SUBNET_GRAPH_METRICS, p,
@@ -737,20 +759,6 @@ def _safe_dir(name: str) -> str:
     return re.sub(r"[^\w.+-]+", "_", str(name)).strip("_") or "group"
 
 
-def _active_channels(df_node: pd.DataFrame) -> dict[str, set]:
-    """Channels that cleared the activity threshold, per recording.
-
-    ``FRactive`` is NaN exactly where a cell fell below ``min_activity_level``
-    (see ``calc_twop_activity_stats``), so it is already the authoritative
-    record of which cells the network analysis kept — no need to re-derive it.
-    """
-    if df_node.empty or "FRactive" not in df_node.columns:
-        return {}
-    active = df_node[df_node["FRactive"].notna()]
-    return {name: set(sub["Channel"].astype(int))
-            for name, sub in active.groupby("FileName")}
-
-
 def _plot_group_comparisons(
     params, recordings, all_results, all_stats, all_channels, tables, states,
     output_root, log,
@@ -797,7 +805,7 @@ def _plot_group_comparisons(
         try:
             composition = gp.composition_frame(
                 recordings, groups_by_rec, all_channels,
-                active_by_rec=_active_channels(df_node),
+                active_by_rec=gp.active_channels(df_node),
             )
             if not express:
                 by_type = gp.add_cell_type_column(df_node, groups_by_rec, all_channels)

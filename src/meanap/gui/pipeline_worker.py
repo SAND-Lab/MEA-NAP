@@ -28,6 +28,10 @@ class PipelineWorker(QThread):
     """
 
     log_message = pyqtSignal(str)
+    #: A :class:`~meanap.pipeline.progress.Progress` snapshot. The pipeline
+    #: calls back on this thread; emitting it as a signal is what gets it onto
+    #: the UI thread, so the receiving slot may touch widgets freely.
+    progress = pyqtSignal(object)
     finished_ok = pyqtSignal(object)  # output_root: Path
     cancelled = pyqtSignal()
     failed = pyqtSignal(str)
@@ -50,6 +54,7 @@ class PipelineWorker(QThread):
                 self._params,
                 log=self.log_message.emit,
                 should_cancel=lambda: self._cancel_requested,
+                progress=self.progress.emit,
             )
         except PipelineCancelled:
             self.cancelled.emit()

@@ -266,6 +266,25 @@ def add_cell_type_column(
     return pd.DataFrame(rows)
 
 
+def active_channels(df_node: "pd.DataFrame") -> dict[str, set]:
+    """Channels that cleared the activity threshold, per recording.
+
+    ``FRactive`` is NaN exactly where a cell fell below ``min_activity_level``
+    (see ``calc_twop_activity_stats``), so it is already the authoritative
+    record of which cells the network analysis kept — no need to re-derive it.
+
+    Lives here rather than in the pipeline because it is a helper over the node
+    frame this module builds, and both the pipeline and the bundle renderer need
+    it: without it :func:`composition_frame` omits its "active" columns, which
+    is how four figures went missing from rebuilt bundles.
+    """
+    if df_node.empty or "FRactive" not in df_node.columns:
+        return {}
+    active = df_node[df_node["FRactive"].notna()]
+    return {name: set(sub["Channel"].astype(int))
+            for name, sub in active.groupby("FileName")}
+
+
 def composition_frame(
     recordings: list,
     groups_by_rec: dict,

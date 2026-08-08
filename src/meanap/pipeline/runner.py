@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import datetime
 import json
+import shutil
 import time
 from pathlib import Path
 from typing import Callable
@@ -20,7 +21,12 @@ from meanap.pipeline.io import (
 from meanap.pipeline.step2 import _run_step2_neuronal_activity
 from meanap.pipeline.step3 import _run_step3_functional_connectivity
 from meanap.pipeline.step4 import _run_step4_network_metrics
-from meanap.pipeline.output_folders import create_output_folders
+from meanap.pipeline.output_folders import (
+    create_output_folders, next_free_output_name, output_name_taken,
+)
+from meanap.pipeline.progress import (
+    ProgressFn, RunProgress, plan_catnap, plan_ephys,
+)
 from meanap.pipeline.resume import build_input_locator, missing_step_inputs
 from meanap.pipeline.spike_detection import SpikeDetectionParams, detect_spikes_recording
 from meanap.pipeline.spreadsheet import RecordingInfo, read_recording_csv
@@ -31,10 +37,56 @@ def default_output_folder_name() -> str:
     return "OutputData" + datetime.date.today().strftime("%d%b%Y")
 
 
+def resumes_in_place(params: Params) -> bool:
+    """Whether this run *means* to write into an existing output folder.
+
+    Starting mid-pipeline with nothing else configured to read from is the
+    "continue where I left off" case: the earlier steps' output is in that
+    folder, and the run is going to read it. Renaming there would strand the
+    inputs — so the collision check has to know the difference between
+    re-entering a run and landing on top of an unrelated one.
+    """
+    return (
+        params.start_analysis_step > 1
+        and not params.prior_analysis
+        and not params.spike_detected_data
+        and bool(params.output_data_folder_name)
+    )
+
+
+def resolve_output_folder_name(
+    params: Params, log: Callable[[str], None] = print,
+) -> str:
+    """The folder name this run writes to, avoiding an existing run's.
+
+    Both the folder and the ``.meanap`` beside it are checked — see
+    :func:`~meanap.pipeline.output_folders.output_name_taken`. Set
+    ``Params.overwrite_existing_output`` to land on it deliberately.
+    """
+    name = params.output_data_folder_name or default_output_folder_name()
+    parent = Path(params.output_data_folder or ".")
+
+    if resumes_in_place(params) or params.overwrite_existing_output:
+        if params.overwrite_existing_output and output_name_taken(parent, name):
+            log(f"Overwriting the existing run in {parent / name} (as configured).")
+        return name
+
+    if not output_name_taken(parent, name):
+        return name
+
+    fresh = next_free_output_name(parent, name)
+    log(f"'{name}' already holds a run — writing to '{fresh}' instead so it is "
+        f"not overwritten.")
+    log(f"  To replace the earlier run instead, delete it or set "
+        f"Params.overwrite_existing_output = True.")
+    return fresh
+
+
 def run_pipeline(
     params: Params,
     log: Callable[[str], None] = print,
     should_cancel: CancelCheck = None,
+    progress: "ProgressFn | None" = None,
 ) -> Path:
     """Run the pipeline steps in ``[start_analysis_step, stop_analysis_step]``.
 
@@ -48,6 +100,11 @@ def run_pipeline(
     recording inside each step; when it returns ``True`` the run unwinds by
     raising :class:`~meanap.pipeline.cancellation.PipelineCancelled`. Callers
     that offer a Stop button should catch that and treat it as a clean stop.
+
+    ``progress``, if given, receives a :class:`~meanap.pipeline.progress.Progress`
+    snapshot as each recording finishes — a completed fraction and a calibrated
+    estimate of the time left. It is called from whichever thread the pipeline
+    runs on, so a UI must marshal it (a Qt signal already does).
 
     When ``params.start_analysis_step > 1`` the inputs the starting step needs
     are resolved through :mod:`meanap.pipeline.resume` — this run's output
@@ -64,7 +121,18 @@ def run_pipeline(
         raise ValueError("No recordings found in the given spreadsheet range")
     group_names = sorted({r.group for r in recordings})
 
-    folder_name = params.output_data_folder_name or default_output_folder_name()
+    reporter = RunProgress(progress, express=params.express_mode)
+    reporter.plan(
+        plan_catnap(n_recordings=len(recordings)) if params.suite2p_mode
+        else plan_ephys(
+            start_step=params.start_analysis_step,
+            stop_step=params.stop_analysis_step,
+            n_recordings=len(recordings),
+            stimulation=params.stimulation_mode,
+        )
+    )
+
+    folder_name = resolve_output_folder_name(params, log)
     output_root = create_output_folders(
         Path(params.output_data_folder), folder_name, group_names,
         include_not_box_plots=params.include_not_box_plots,
@@ -93,7 +161,7 @@ def run_pipeline(
     # A remote source is checked before any transfer: listing is free, and a
     # batch that silently shrinks is the failure worth spending seconds to avoid.
     if is_remote_url(params.raw_data):
-        _check_remote_source(params, recordings, log)
+        _check_remote_source(params, recordings, log, reporter)
 
     # CAT-NAP (suite2p calcium imaging) path. In MATLAB, Params.suite2pMode == 1
     # replaces spike detection + connectivity (steps 1 & 3) with suite2pToAdjm,
@@ -119,10 +187,14 @@ def run_pipeline(
 
         run_catnap_pipeline(
             params, recordings, output_root, log, should_cancel, locator=locator,
+            progress=reporter,
         )
         if params.express_mode:
-            _write_run_bundle(params, recordings, output_root, log, mode="catnap",
-                              embedded_figures=["2p_traces"] if params.num_2p_traces else [])
+            bundle = _write_run_bundle(
+                params, recordings, output_root, log, mode="catnap",
+                embedded_figures=["2p_traces"] if params.num_2p_traces else [])
+            output_root = _discard_folder_for_bundle(output_root, bundle, log)
+        reporter.finish()
         return output_root
 
     start = params.start_analysis_step
@@ -173,7 +245,7 @@ def run_pipeline(
     if start <= 1 <= stop:
         check_cancel(should_cancel)
         _run_timed_step(1, lambda: _run_step1_spike_detection(
-            params, recordings, output_root, log, should_cancel,
+            params, recordings, output_root, log, should_cancel, reporter,
         ))
     else:
         log("Skipping step 1 (spike detection) — outside the selected step range.")
@@ -189,13 +261,13 @@ def run_pipeline(
         check_cancel(should_cancel)
         from meanap.pipeline.stim_step import run_stim_analysis
         _run_timed_step(5, lambda: run_stim_analysis(
-            params, recordings, output_root, log, should_cancel,
+            params, recordings, output_root, log, should_cancel, reporter,
         ))
 
     if start <= 2 <= stop:
         check_cancel(should_cancel)
         _run_timed_step(2, lambda: _run_step2_neuronal_activity(
-            params, recordings, output_root, log, should_cancel,
+            params, recordings, output_root, log, should_cancel, reporter,
         ))
     else:
         log("Skipping step 2 (neuronal activity) — outside the selected step range.")
@@ -203,7 +275,7 @@ def run_pipeline(
     if start <= 3 <= stop:
         check_cancel(should_cancel)
         _run_timed_step(3, lambda: _run_step3_functional_connectivity(
-            params, recordings, output_root, log, should_cancel,
+            params, recordings, output_root, log, should_cancel, reporter,
         ))
     else:
         log("Skipping step 3 (functional connectivity) — outside the selected step range.")
@@ -211,19 +283,18 @@ def run_pipeline(
     if start <= 4 <= stop:
         check_cancel(should_cancel)
         _run_timed_step(4, lambda: _run_step4_network_metrics(
-            params, recordings, output_root, log, should_cancel,
+            params, recordings, output_root, log, should_cancel, reporter,
         ))
     else:
         log("Skipping step 4 (network activity) — outside the selected step range.")
 
+    written_bundle = None
     if params.express_mode:
-        # Spike-detection checks are the one family here that can't be rebuilt
-        # from the bundle — they need the raw voltage — so they are kept as
-        # images and named in the manifest.
-        _write_run_bundle(
-            params, recordings, output_root, log, mode="ephys",
-            embedded_figures=["spike_detection_checks"] if start <= 1 <= stop else [],
-        )
+        # Nothing here needs embedding any more: the spike-detection checks
+        # used to travel as images because they are drawn from raw voltage, but
+        # they now travel as the slices they actually show (plotting.py).
+        written_bundle = _write_run_bundle(
+            params, recordings, output_root, log, mode="ephys")
 
     if params.time_processes:
         total_duration = time.perf_counter() - pipeline_start
@@ -244,6 +315,11 @@ def run_pipeline(
         except Exception as e:
             log(f"Warning: could not save step_durations.json: {e}")
 
+    if params.express_mode:
+        # Last, so the timing block above still has a folder to write into.
+        output_root = _discard_folder_for_bundle(output_root, written_bundle, log)
+
+    reporter.finish()
     return output_root
 
 
@@ -267,7 +343,7 @@ def _build_raw_source(params: Params, log):
         store=store, cache=FileCache(root=cache_dir, budget_bytes=budget), log=log)
 
 
-def _check_remote_source(params: Params, recordings, log) -> None:
+def _check_remote_source(params: Params, recordings, log, progress=None) -> None:
     """Pre-flight a remote source before any transfer starts.
 
     Listing costs nothing, so there is no reason to discover a missing
@@ -290,11 +366,56 @@ def _check_remote_source(params: Params, recordings, log) -> None:
     log("\n=== Pre-flight ===")
     for line in report.render().splitlines():
         log(line)
+    # Listing already established exactly how much will be transferred, so the
+    # download figure is exact from the first byte rather than growing as files
+    # are discovered.
+    if progress is not None and report.fetch_bytes:
+        progress.expect_transfer(report.fetch_bytes)
     if not report.ok:
         raise ValueError(
             "The remote source is not ready to run (see the pre-flight report "
             "above). Fix the problems listed, or run meanap-preflight with "
             "--write-spreadsheet to correct recording names.")
+
+
+def _discard_folder_for_bundle(output_root: Path, bundle: Path | None, log) -> Path:
+    """Drop the run folder now the bundle holds everything it did.
+
+    Express mode's whole claim is that the ``.meanap`` is sufficient — every
+    figure in the folder is redrawable from it, and every data file is inside
+    it. Keeping both is keeping two copies of the same run, the larger of which
+    is the one the user was trying not to produce.
+
+    The folder is removed only after the bundle has been *opened and read back*.
+    "The file exists" is not the same as "the file is good", and this deletes
+    results: a truncated zip must cost the export, not the run.
+
+    Returns what the run should report as its output — the bundle when the
+    folder went, the folder when it stayed.
+    """
+    from meanap.pipeline.bundle import open_bundle
+
+    if bundle is None or not bundle.is_file():
+        log("Keeping the output folder: no bundle was written.")
+        return output_root
+    try:
+        with open_bundle(bundle) as opened:
+            if not opened.manifest.get("recordings"):
+                raise ValueError("it names no recordings")
+    except Exception as e:                            # noqa: BLE001
+        log(f"Keeping the output folder: the bundle did not read back ({e}).")
+        return output_root
+
+    try:
+        shutil.rmtree(output_root)
+    except OSError as e:
+        log(f"Keeping the output folder: it could not be removed ({e}).")
+        return output_root
+
+    log(f"Removed {output_root.name}/ — the bundle holds all of it.")
+    log("  Need the folder back (to share with someone without MEA-NAP)? "
+        "Open the bundle in the viewer and press 'Export output folder'.")
+    return bundle
 
 
 def _write_run_bundle(
@@ -352,9 +473,13 @@ def _run_step1_spike_detection(
     output_root: Path,
     log: Callable[[str], None],
     should_cancel: CancelCheck = None,
+    progress: RunProgress | None = None,
 ) -> None:
     if not params.raw_data:
         raise ValueError("Raw data folder must be set to run step 1 (spike detection)")
+
+    progress = progress or RunProgress()
+    progress.begin("step1", items=len(recordings))
 
     spike_dir = output_root / "1_SpikeDetection" / "1A_SpikeDetectedData"
     cost_list = params.cost_list if isinstance(params.cost_list, list) else [params.cost_list]
@@ -363,6 +488,9 @@ def _run_step1_spike_detection(
     # is remote, and each is released once its spike times are written — so a
     # batch's peak local storage is one or two recordings, not the dataset.
     source = _build_raw_source(params, log)
+    # Set rather than passed, so a caller that substitutes its own source
+    # factory — the remote tests do — doesn't have to know about progress.
+    source.progress = progress
 
     for rec, raw_path in source.stream(recordings, depth=params.prefetch_depth,
                                        kind="ephys"):
@@ -402,14 +530,24 @@ def _run_step1_spike_detection(
         )
         log(f"  [{rec.filename}] saved → {out_path.relative_to(output_root)}")
 
-        # Mirrors MEApipeline.m creating a per-recording checks folder here;
-        # the check plots themselves aren't ported yet.
+        # Mirrors MEApipeline.m creating a per-recording checks folder here.
         check_dir = output_root / "1_SpikeDetection" / "1B_SpikeDetectionChecks" / rec.group / rec.filename
         check_dir.mkdir(parents=True, exist_ok=True)
-        
-        from meanap.pipeline.plotting import plot_spike_detection_checks
-        log(f"  [{rec.filename}] generating spike detection check plots…")
-        plot_spike_detection_checks(dat, result, params, rec.filename, check_dir)
+
+        from meanap.pipeline.plotting import (
+            CHECKS_SUFFIX, compute_spike_check_data, draw_spike_check_figures,
+            save_spike_check_data,
+        )
+        # The payload is written whatever the mode: it is what lets a bundle
+        # carry these figures at all, and at ~40 KB against ~840 KB of PNG it
+        # is cheaper than the pictures it replaces. Drawing is what express
+        # mode skips, exactly as it skips every other rebuildable figure.
+        log(f"  [{rec.filename}] summarising spike detection checks…")
+        checks = compute_spike_check_data(dat, result, params, rec.filename)
+        save_spike_check_data(spike_dir / f"{rec.filename}{CHECKS_SUFFIX}", checks)
+        if not params.express_mode:
+            log(f"  [{rec.filename}] generating spike detection check plots…")
+            draw_spike_check_figures(checks, check_dir)
 
         # Spike times and the checks are on disk; the raw voltage is no longer
         # needed. An Axion plate shared with other wells is kept until the last
@@ -417,3 +555,6 @@ def _run_step1_spike_detection(
         del dat
         source.unpin(rec.filename)
         source.release(rec.filename)
+        progress.item_done(rec.filename)
+
+    progress.phase_done()

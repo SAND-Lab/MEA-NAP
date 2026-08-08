@@ -15,6 +15,12 @@ class Params:
     spreadsheet_range: str = "A2:A100000"
     spike_detected_data: str = ""
     prior_analysis_path: str = ""
+    # What to do when the run would land on an existing one — two runs in a day
+    # both default to ``OutputData<date>``, and the second used to overwrite the
+    # first without a word. Off: write to ``…_v2`` instead and say so. On:
+    # overwrite, for the caller who means it. Resuming *into* a folder is not
+    # affected; that reads what it then rewrites. See pipeline/output_folders.py.
+    overwrite_existing_output: bool = False
 
     # ── Recording ────────────────────────────────────────────────────────────
     fs: float = 25000.0

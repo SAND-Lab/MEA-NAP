@@ -2,6 +2,7 @@
 
 import json
 import webbrowser
+from dataclasses import replace
 from pathlib import Path
 
 from PyQt6.QtWidgets import (
@@ -221,9 +222,17 @@ class MainWindow(QMainWindow):
         self._pipeline_panel.log.setAcceptDrops(False)
         self._catnap_panel._log.setAcceptDrops(False)
 
+        # A spreadsheet built from a scan describes the recordings the run is
+        # about to read, so point the run at it rather than leaving the user to
+        # copy the path across tabs.
+        self._catnap_panel.spreadsheet_saved.connect(
+            self._paths_panel.spreadsheet.set_value)
+
         # Secondary-style buttons in CAT-NAP panel
         self._catnap_panel._scan_btn.setObjectName("secondary")
         self._catnap_panel._denoise_btn.setObjectName("secondary")
+        self._catnap_panel._make_sheet_btn.setObjectName("secondary")
+        self._paths_panel.edit_spreadsheet_btn.setObjectName("secondary")
 
     @staticmethod
     def _bind_mirrored(first: QLineEdit, second: QLineEdit) -> None:
@@ -358,7 +367,8 @@ class MainWindow(QMainWindow):
                 "its group and its age (DIV). This drives the whole batch. Name recordings "
                 "without the file extension. An Axion .raw holds a whole plate, so name "
                 "one row per well — 'Plate2_DIV75_A1' — exactly as the MATLAB converter "
-                "would have named the file it wrote.",
+                "would have named the file it wrote. No spreadsheet yet? “Edit…” "
+                "builds one here and checks it as you type.",
                 self._tab_index(TAB_PATHS), lambda: paths.spreadsheet),
             TutorialStep(
                 "Spreadsheet range", "The cell range to read from the spreadsheet, "
@@ -466,7 +476,9 @@ class MainWindow(QMainWindow):
             TutorialStep(
                 "Recordings folder", "Point this at the folder holding all your "
                 "recordings — not at a single recording's folder. Each sub-folder's "
-                "name becomes that recording's name.",
+                "name becomes that recording's name. A Dropbox folder share link "
+                "works here too: it is scanned without downloading anything, and "
+                "the run fetches one recording at a time.",
                 self._tab_index(TAB_CATNAP), lambda: cat._folder_edit,
                 diagram="my_experiment/       ← pick this\n"
                         "├── slice1_DIV14/    ← not this\n"
@@ -479,6 +491,12 @@ class MainWindow(QMainWindow):
                 "Scan for recordings", "Press this to find every suite2p recording under "
                 "that folder. Select one to preview its traces.",
                 self._tab_index(TAB_CATNAP), lambda: cat._scan_btn),
+            TutorialStep(
+                "Build the spreadsheet", "This turns the recordings found above into "
+                "the batch spreadsheet, with the names taken from the data rather "
+                "than retyped, and the DIV read out of each name. Fill in the "
+                "genotype/group column, save, and the Paths tab points at it.",
+                self._tab_index(TAB_CATNAP), lambda: cat._make_sheet_btn),
             TutorialStep(
                 "Denoising", "Optionally denoise the fluorescence traces before analysis. "
                 "The threshold multiplier and peak windows control event extraction.",
@@ -658,13 +676,78 @@ class MainWindow(QMainWindow):
             f"Starting MEA-NAP: steps {params.start_analysis_step}-{params.stop_analysis_step}…"
         )
 
+        params = self._confirm_output_folder(params)
+        if params is None:
+            return
+
+        self._pipeline_panel.start_progress()
+
         worker = PipelineWorker(params, parent=self)
         worker.log_message.connect(self._pipeline_panel.append_log)
+        worker.progress.connect(self._pipeline_panel.show_progress)
         worker.finished_ok.connect(self._on_pipeline_finished)
         worker.cancelled.connect(self._on_pipeline_cancelled)
         worker.failed.connect(self._on_pipeline_failed)
         self._worker = worker
         worker.start()
+
+    def _confirm_output_folder(self, params: Params) -> Params | None:
+        """Ask before a run lands on an existing one. ``None`` = don't run.
+
+        The default folder name is today's date, so the second run of a day
+        collides with the first without the user having done anything wrong —
+        which is exactly when a silent overwrite is least expected and most
+        expensive. ``run_pipeline`` would move aside on its own; asking here
+        lets the choice be an informed one, and puts the name that will actually
+        be used on the Paths tab where it can be seen.
+        """
+        from meanap.pipeline.output_folders import (
+            next_free_output_name, output_name_taken,
+        )
+        from meanap.pipeline.runner import (
+            default_output_folder_name, resumes_in_place,
+        )
+
+        if resumes_in_place(params):
+            return params   # the run is going to read what is in there
+
+        name = params.output_data_folder_name or default_output_folder_name()
+        parent = Path(params.output_data_folder or ".")
+        if not output_name_taken(parent, name):
+            return params
+
+        fresh = next_free_output_name(parent, name)
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.Warning)
+        box.setWindowTitle("That run already exists")
+        # Qt auto-detects rich text on the main label but not the informative
+        # one, so say which it is rather than leaving markup showing.
+        box.setTextFormat(Qt.TextFormat.RichText)
+        box.setText(f"<b>{name}</b> already holds a run's results.")
+        box.setInformativeText(
+            "Running now would overwrite it — its figures, its CSVs and its "
+            f"bundle.<br><br>Save this run as <b>{fresh}</b> instead?"
+        )
+        use_new = box.addButton(f"Use {fresh}", QMessageBox.ButtonRole.AcceptRole)
+        overwrite = box.addButton("Overwrite", QMessageBox.ButtonRole.DestructiveRole)
+        box.addButton(QMessageBox.StandardButton.Cancel)
+        box.setDefaultButton(use_new)
+        box.exec()
+
+        clicked = box.clickedButton()
+        if clicked is use_new:
+            # Onto the Paths tab too: the name a run wrote to should be visible
+            # afterwards, not something the user has to reconstruct from a log.
+            self._paths_panel.output_data_folder_name.setText(fresh)
+            params.output_data_folder_name = fresh
+            self._pipeline_panel.append_log(f"Saving this run as {fresh}.")
+            return params
+        if clicked is overwrite:
+            self._pipeline_panel.append_log(f"Overwriting the existing run in {name}.")
+            # A copy, so "overwrite this once" cannot be saved into a parameter
+            # file and quietly overwrite every run that later loads it.
+            return replace(params, overwrite_existing_output=True)
+        return None
 
     def _on_stop(self) -> None:
         if self._worker is not None and self._worker.isRunning():
@@ -683,6 +766,7 @@ class MainWindow(QMainWindow):
 
     def _on_pipeline_finished(self, output_root: Path) -> None:
         self._last_output_root = output_root
+        self._pipeline_panel.finish_progress("Finished.")
         self._pipeline_panel.append_log(f"Done. Output folder: {output_root}")
         self._announce_bundle(output_root)
         self._reset_run_buttons()
@@ -713,10 +797,12 @@ class MainWindow(QMainWindow):
         )
 
     def _on_pipeline_cancelled(self) -> None:
+        self._pipeline_panel.finish_progress("Stopped.")
         self._pipeline_panel.append_log("Pipeline stopped.")
         self._reset_run_buttons()
 
     def _on_pipeline_failed(self, message: str) -> None:
+        self._pipeline_panel.finish_progress("Failed.")
         self._pipeline_panel.append_log(f"ERROR: {message}")
         self._reset_run_buttons()
         QMessageBox.critical(self, "Pipeline error", message)

@@ -127,6 +127,9 @@ PAGE_HTML = r"""<!doctype html>
   <button id="tab-comparisons" data-tab="comparisons" aria-selected="false">Comparisons</button>
   <button id="tab-lags" data-tab="lags" aria-selected="false">Across lags</button>
   <span class="spacer"></span>
+  <button id="export" class="hidden" title="Draw every figure out into an ordinary
+folder, with a report.html to browse them — for sending results to someone who
+does not have MEA-NAP installed.">Export output folder</button>
   <span class="src" id="source">loading…</span>
 </nav>
 
@@ -142,6 +145,15 @@ PAGE_HTML = r"""<!doctype html>
 
     <h2>Activity figures</h2>
     <div class="list" id="activity"></div>
+
+    <h2>Spike detection</h2>
+    <div class="list" id="spikechecks"></div>
+
+    <h2>Edge thresholding</h2>
+    <div class="list" id="edgechecks"></div>
+
+    <h2>Cell-type subnetworks</h2>
+    <div class="list" id="subnetworks"></div>
   </div>
 
   <div id="side-comparisons" class="hidden">
@@ -177,6 +189,14 @@ PAGE_HTML = r"""<!doctype html>
 </main>
 
 <aside class="right" id="controls-panel">
+  <div id="variant-panel">
+    <h2>Scaling</h2>
+    <div class="list" id="variants"></div>
+    <p class="sub" style="margin-bottom:12px">
+      Individual uses this recording's own range; batch shares one scale across
+      every recording, so panels can be compared directly.
+    </p>
+  </div>
   <h2>Network styling</h2>
   <div id="controls"></div>
   <button id="reset">Reset to pipeline defaults</button>
@@ -208,6 +228,11 @@ PAGE_HTML = r"""<!doctype html>
 const $ = (id) => document.getElementById(id);
 let MANIFEST = null;
 let TAB = "recordings";
+// Which scaling of a network plot is showing. Reset to "plain" whenever the
+// selected figure changes, since not every figure has the other two.
+let VARIANT = "plain";
+const VARIANT_LABELS = {plain: "Individual", scaled: "Batch-scaled",
+                        combined: "Side by side"};
 // One selection per tab, never a shared field: the tabs are filled before any
 // of them is shown, so a name that means "network figure" on one tab and
 // "metric" on another gets overwritten during startup and the first render
@@ -222,6 +247,12 @@ let VIEW = {
 // "figure"     — a network plot, per recording + lag, restylable
 // "activity"   — a step-2 plot, per recording only; the network controls don't
 //                apply to a raster or a heatmap, so they are hidden for it
+// "spikecheck" — a step-1 detection check, per recording; like "activity" but
+//                with no styling at all, since its axes are fixed to the
+//                recording's own noise level
+// "edgecheck"  — a step-3 thresholding check, per recording + lag; also
+//                unstyled, and usually absent (the run has to ask for it)
+// "subnetwork" — a CAT-NAP cell-type figure, per recording + lag, unstyled
 // "comparison" — one 2B/4B half-violin, addressed by lag/level/split/metric
 // "both"       — the same metric drawn by group and by age, stacked
 // "lagseries"  — one across-lag figure
@@ -247,10 +278,22 @@ function overrideParams() {
 }
 
 function figureURL(extra = {}) {
-  if (VIEW.kind === "activity") {
+  if (VIEW.kind === "activity" || VIEW.kind === "spikecheck") {
     const p = new URLSearchParams({rec: VIEW.rec, name: VIEW.name});
     for (const [k, v] of Object.entries(extra)) p.set(k, v);
-    return "/api/activity?" + p.toString();
+    const route = VIEW.kind === "activity" ? "/api/activity" : "/api/spikecheck";
+    return route + "?" + p.toString();
+  }
+  if (VIEW.kind === "edgecheck") {
+    const p = new URLSearchParams({rec: VIEW.rec, lag: VIEW.name});
+    for (const [k, v] of Object.entries(extra)) p.set(k, v);
+    return "/api/edgecheck?" + p.toString();
+  }
+  if (VIEW.kind === "subnetwork") {
+    const p = new URLSearchParams({rec: VIEW.rec, lag: $("lag").value,
+                                   name: VIEW.name});
+    for (const [k, v] of Object.entries(extra)) p.set(k, v);
+    return "/api/subnetwork?" + p.toString();
   }
   if (VIEW.kind === "lagseries") {
     const p = colorParams();
@@ -263,6 +306,7 @@ function figureURL(extra = {}) {
   }
   const p = overrideParams();
   p.set("rec", VIEW.rec); p.set("lag", VIEW.lag); p.set("name", VIEW.name);
+  if (VARIANT !== "plain") p.set("variant", VARIANT);
   for (const [k, v] of Object.entries(extra)) p.set(k, v);
   return "/api/figure?" + p.toString();
 }
@@ -388,6 +432,8 @@ function fillRecordings() {
 
 function fillLags() {
   fillActivity();
+  fillSpikeChecks();
+  fillEdgeChecks();
   const rec = currentRecording();
   const sel = $("lag");
   sel.innerHTML = "";
@@ -396,7 +442,10 @@ function fillLags() {
     o.value = lag; o.textContent = lag + " ms";
     sel.appendChild(o);
   }
+  // After the select is repopulated: both of these read $("lag").value, which
+  // until now still held the previous recording's lag.
   fillFigures();
+  fillSubnetworks();
 }
 
 function fillActivity() {
@@ -420,6 +469,99 @@ function fillActivity() {
   }
 }
 
+function fillSpikeChecks() {
+  const rec = currentRecording();
+  const box = $("spikechecks");
+  box.innerHTML = "";
+  const figs = (rec && rec.spike_checks) || [];
+  if (!figs.length) {
+    // Either step 1 did not run, or the run predates the stored payload.
+    box.innerHTML = '<div class="sub">None in this bundle.</div>';
+    return;
+  }
+  for (const f of figs) {
+    const b = document.createElement("button");
+    b.textContent = f.label;
+    b.dataset.spikecheck = f.name;
+    b.addEventListener("click", () => {
+      VIEW.kind = "spikecheck"; VIEW.rec = rec.name; VIEW.name = f.name;
+      showFigure();
+    });
+    box.appendChild(b);
+  }
+}
+
+function fillEdgeChecks() {
+  const rec = currentRecording();
+  const box = $("edgechecks");
+  box.innerHTML = "";
+  const lags = (rec && rec.edge_checks) || [];
+  if (!lags.length) {
+    box.innerHTML = '<div class="sub">Not produced by this run.</div>';
+    return;
+  }
+  for (const lag of lags) {
+    const b = document.createElement("button");
+    b.textContent = lag + " ms lag";
+    b.dataset.edgecheck = String(lag);
+    b.addEventListener("click", () => {
+      VIEW.kind = "edgecheck"; VIEW.rec = rec.name; VIEW.name = String(lag);
+      showFigure();
+    });
+    box.appendChild(b);
+  }
+}
+
+function fillSubnetworks() {
+  const rec = currentRecording();
+  const lag = $("lag").value;
+  const box = $("subnetworks");
+  box.innerHTML = "";
+  const figs = (rec && rec.subnetworks && rec.subnetworks[lag]) || [];
+  if (!figs.length) {
+    box.innerHTML = '<div class="sub">Not produced by this run.</div>';
+    return;
+  }
+  for (const f of figs) {
+    const b = document.createElement("button");
+    b.textContent = f.label;
+    b.dataset.subnetwork = f.name;
+    b.addEventListener("click", () => {
+      VIEW.kind = "subnetwork"; VIEW.rec = rec.name; VIEW.name = f.name;
+      showFigure();
+    });
+    box.appendChild(b);
+  }
+}
+
+function currentFigureSpec() {
+  const rec = currentRecording();
+  const figs = (rec && rec.figures[$("lag").value]) || [];
+  return figs.find((f) => f.name === VIEW.name) || null;
+}
+
+function fillVariants() {
+  const box = $("variants");
+  const spec = VIEW.kind === "figure" ? currentFigureSpec() : null;
+  const variants = (spec && spec.variants) || ["plain"];
+  // Hidden when there is nothing to choose: a one-option toggle is furniture
+  // that implies the other options exist somewhere.
+  $("variant-panel").classList.toggle("hidden", variants.length < 2);
+  box.innerHTML = "";
+  for (const v of variants) {
+    const b = document.createElement("button");
+    b.textContent = VARIANT_LABELS[v] || v;
+    b.dataset.variant = v;
+    b.setAttribute("aria-current", String(v === VARIANT));
+    b.addEventListener("click", () => {
+      VARIANT = v;
+      fillVariants();
+      showFigure();
+    });
+    box.appendChild(b);
+  }
+}
+
 function fillFigures() {
   const rec = currentRecording();
   const lag = $("lag").value;
@@ -436,6 +578,9 @@ function fillFigures() {
     b.dataset.name = f.name;
     b.addEventListener("click", () => {
       VIEW.kind = "figure"; VIEW.rec = rec.name; VIEW.lag = lag; VIEW.name = f.name;
+      // A new figure may not have the scaling the last one was showing.
+      VARIANT = "plain";
+      fillVariants();
       showFigure();
     });
     box.appendChild(b);
@@ -448,6 +593,11 @@ function fillFigures() {
   } else {
     VIEW.rec = rec.name; VIEW.lag = lag;
   }
+  // The chosen figure may have changed, or its variants may differ at this lag.
+  if (!((currentFigureSpec() || {}).variants || []).includes(VARIANT)) {
+    VARIANT = "plain";
+  }
+  fillVariants();
   if (TAB === "recordings") showFigure();
 }
 
@@ -714,11 +864,41 @@ async function showFamily(fam) {
 
 /* ── Shared chrome ──────────────────────────────────────────────────────── */
 
+async function onExport() {
+  const btn = $("export");
+  const label = btn.textContent;
+  // Hundreds of figures at ~0.1 s each, so this is tens of seconds. Disable
+  // rather than let a second click start a second export beside the first.
+  btn.disabled = true;
+  btn.textContent = "Exporting…";
+  try {
+    const r = await getJSON("/api/export");
+    const where = r.dest.split("/").slice(-1)[0];
+    btn.textContent = `Exported ${r.figures} figures → ${where}`;
+    $("error").textContent = r.skipped.length
+      ? `${r.skipped.length} figure(s) could not be drawn; the rest are there.`
+      : "";
+    // The path in full, where it can be copied out of.
+    $("status").textContent = r.dest;
+  } catch (e) {
+    btn.textContent = label;
+    $("error").textContent = "Export failed: " + e.message;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
 function markCurrent() {
   for (const b of document.querySelectorAll("#figures button"))
     b.setAttribute("aria-current", String(VIEW.kind === "figure" && b.dataset.name === VIEW.name));
   for (const b of document.querySelectorAll("#activity button"))
     b.setAttribute("aria-current", String(VIEW.kind === "activity" && b.dataset.activity === VIEW.name));
+  for (const b of document.querySelectorAll("#spikechecks button"))
+    b.setAttribute("aria-current", String(VIEW.kind === "spikecheck" && b.dataset.spikecheck === VIEW.name));
+  for (const b of document.querySelectorAll("#edgechecks button"))
+    b.setAttribute("aria-current", String(VIEW.kind === "edgecheck" && b.dataset.edgecheck === VIEW.name));
+  for (const b of document.querySelectorAll("#subnetworks button"))
+    b.setAttribute("aria-current", String(VIEW.kind === "subnetwork" && b.dataset.subnetwork === VIEW.name));
   for (const b of document.querySelectorAll("#families button"))
     b.setAttribute("aria-current", String(VIEW.kind === "family" && b.dataset.family === VIEW.gallery));
   const cmp = VIEW.kind === "comparison" || VIEW.kind === "both";
@@ -731,7 +911,9 @@ function markCurrent() {
 }
 
 function setMode(kind) {
-  const one = kind === "figure" || kind === "activity" || kind === "lagseries";
+  const one = kind === "figure" || kind === "activity" || kind === "lagseries"
+              || kind === "spikecheck" || kind === "edgecheck"
+              || kind === "subnetwork";
   // Hidden, not disabled: the styling controls describe spatial network plots.
   // A raster, a violin and a line plot read none of them, so offering the
   // knobs there would imply they do something.
@@ -757,7 +939,8 @@ function setMode(kind) {
 }
 
 function showFigure() {
-  if (VIEW.kind !== "activity") VIEW.kind = "figure";
+  if (!["activity", "spikecheck", "edgecheck", "subnetwork"].includes(VIEW.kind))
+    VIEW.kind = "figure";
   setMode(VIEW.kind); markCurrent();
   $("error").textContent = "";
   $("status").textContent = "rendering…";
@@ -798,6 +981,8 @@ function download(fmt) {
     return;
   }
   $("source").textContent = `${MANIFEST.source} · ${MANIFEST.mode}`;
+  // A viewer opened on a folder has nothing to export: it is already one.
+  $("export").classList.toggle("hidden", !MANIFEST.can_export);
   buildControls();
   buildComparisonControls();
   fillRecordings();
@@ -812,7 +997,8 @@ function download(fmt) {
     $("tab-lags").classList.add("hidden");
 
   $("recording").addEventListener("change", fillLags);
-  $("lag").addEventListener("change", fillFigures);
+  $("lag").addEventListener("change", () => { fillFigures(); fillSubnetworks(); });
+  $("export").addEventListener("click", onExport);
   $("cmp-family").addEventListener("change", fillComparisonFacets);
   $("cmp-level").addEventListener("change", fillComparisonMetrics);
   $("cmp-split").addEventListener("change", showComparison);

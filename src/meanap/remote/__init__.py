@@ -20,10 +20,25 @@ __all__ = [
     "FileCache", "CacheFull", "resolve_budget",
     "LocalStore",
     "DropboxLinkStore", "DropboxInterfaceChanged", "parse_share_url",
-    "open_store",
+    "open_store", "store_for",
     "PreflightReport", "run_preflight", "find_spreadsheet",
     "RecordingSource",
 ]
+
+
+def store_for(source: str) -> "RemoteStore":
+    """The store that reads *source*.
+
+    A Dropbox folder share link when it looks like a URL, a local directory
+    otherwise. Anything that takes a folder from the user — a run, the GUI's
+    scanner — goes through here, so a share link works everywhere a path does
+    rather than in the one place that remembered to check.
+    """
+    from meanap.params import is_remote_url
+
+    if is_remote_url(source):
+        return DropboxLinkStore(source)
+    return LocalStore(source)
 
 
 def open_store(params) -> "RemoteStore":
@@ -34,8 +49,4 @@ def open_store(params) -> "RemoteStore":
     means there is no way to set them inconsistently, and nothing else in the
     pipeline has to branch on where the data lives.
     """
-    from meanap.params import is_remote_url
-
-    if is_remote_url(params.raw_data):
-        return DropboxLinkStore(params.raw_data)
-    return LocalStore(params.raw_data)
+    return store_for(params.raw_data)
