@@ -204,6 +204,19 @@ One figure family can't be rebuilt yet and is simply absent from an express run
 — CAT-NAP's per-recording cell-type subnetwork figures. See
 `docs/python/express-mode.md`.
 
+The step-1 spike-detection checks (example traces, spike frequency, waveforms)
+*are* rebuildable, despite being drawn from raw voltage: almost none of that
+voltage is visible in them — the trace panels clip to a ±30 ms window, the
+waveform panel uses one channel, the frequency panel needs only spike times. So
+step 1 saves the slices they show (`<rec>_step1checks.npz`, ~100 KB) and the
+bundle carries that instead of ~1.3 MB of PNG per recording. On the two-recording
+example dataset that took the bundle from 5.1 MB to 0.69 MB. The figure a run
+writes and the figure the viewer rebuilds come out of the same drawing function,
+so they are byte-identical.
+
+Bundling an output folder written before this change keeps its PNGs instead, and
+says so in the manifest rather than claiming a family it cannot rebuild.
+
 ## Remote data
 
 `raw_data` accepts a **Dropbox folder share link** instead of a path. Recordings

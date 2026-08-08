@@ -53,6 +53,9 @@ __all__ = [
     "available_figures",
     "available_activity_figures",
     "ACTIVITY_FIGURES",
+    "SPIKE_CHECK_FIGURES",
+    "available_spike_check_figures",
+    "render_spike_check_figure",
     "available_group_families",
     "load_context",
     "render_figure",
@@ -139,6 +142,15 @@ ACTIVITY_FIGURES: tuple[FigureSpec, ...] = (
     FigureSpec("7_ISIoutsideBurst_heatmap", "ISI outside bursts",
                "channeISIoutsideBurst"),
     FigureSpec("8_BurstDetectionInfo", "Burst detection detail"),
+)
+
+#: The step-1 spike-detection check figures. Rebuilt from the payload step 1
+#: saves beside the spike times, so all three stand or fall together — there is
+#: no per-figure ``requires`` to test.
+SPIKE_CHECK_FIGURES: tuple[FigureSpec, ...] = (
+    FigureSpec("1_ExampleTraces", "Example traces with detected spikes"),
+    FigureSpec("2_SpikeFrequencies", "Spike frequency over time"),
+    FigureSpec("3_Waveforms", "Spike waveforms by method"),
 )
 
 #: Per-channel metrics whose heatmap colour ceiling is pooled across the batch
@@ -1133,6 +1145,64 @@ def _spike_file(ctx: RenderContext, recording: str) -> Path | None:
 
     path = ctx.root / SPIKE_SUBDIR / f"{recording}_spikes.npz"
     return path if path.exists() else None
+
+
+def _spike_check_file(ctx: RenderContext, recording: str) -> Path | None:
+    from meanap.pipeline.plotting import CHECKS_SUFFIX
+    from meanap.pipeline.resume import SPIKE_SUBDIR
+
+    path = ctx.root / SPIKE_SUBDIR / f"{recording}{CHECKS_SUFFIX}"
+    return path if path.exists() else None
+
+
+def available_spike_check_figures(
+    ctx: RenderContext, recording: str,
+) -> list[FigureSpec]:
+    """Which step-1 check figures this recording can produce.
+
+    Empty for a run that predates the stored payload, or one whose step 1 was
+    skipped — in both cases there is nothing to draw from, and offering a button
+    that produces nothing is worse than offering none.
+    """
+    if _spike_check_file(ctx, recording) is None:
+        return []
+    return list(SPIKE_CHECK_FIGURES)
+
+
+def render_spike_check_figure(
+    ctx: RenderContext,
+    recording: str,
+    figure: str,
+    out_dir: Path | str,
+    *,
+    fmt: str = "png",
+    dpi: int | None = None,
+) -> Path:
+    """Redraw one step-1 check figure from the bundle.
+
+    Takes no style overrides: these are a record of what spike detection did,
+    and their axes are fixed to the recording's own noise level rather than to
+    anything a viewer should be re-scaling.
+    """
+    from meanap.pipeline.figure_output import figure_dpi
+    from meanap.pipeline.plotting import (
+        draw_spike_check_figures, load_spike_check_data,
+    )
+
+    path = _spike_check_file(ctx, recording)
+    if path is None:
+        raise ValueError(
+            f"No spike-detection check data for {recording} in this bundle — it "
+            "comes from step 1, which this run either skipped or predates.")
+
+    with figure_dpi(dpi):
+        written = draw_spike_check_figures(
+            load_spike_check_data(path), Path(out_dir), fmt=fmt, only=figure)
+    if not written:
+        raise ValueError(
+            f"'{figure}' is not one of the spike-detection check figures for "
+            f"{recording}. Use available_spike_check_figures() to list them.")
+    return written[0]
 
 
 def _activity_batch_max(ctx: RenderContext) -> dict:

@@ -142,6 +142,9 @@ PAGE_HTML = r"""<!doctype html>
 
     <h2>Activity figures</h2>
     <div class="list" id="activity"></div>
+
+    <h2>Spike detection</h2>
+    <div class="list" id="spikechecks"></div>
   </div>
 
   <div id="side-comparisons" class="hidden">
@@ -222,6 +225,9 @@ let VIEW = {
 // "figure"     — a network plot, per recording + lag, restylable
 // "activity"   — a step-2 plot, per recording only; the network controls don't
 //                apply to a raster or a heatmap, so they are hidden for it
+// "spikecheck" — a step-1 detection check, per recording; like "activity" but
+//                with no styling at all, since its axes are fixed to the
+//                recording's own noise level
 // "comparison" — one 2B/4B half-violin, addressed by lag/level/split/metric
 // "both"       — the same metric drawn by group and by age, stacked
 // "lagseries"  — one across-lag figure
@@ -247,10 +253,11 @@ function overrideParams() {
 }
 
 function figureURL(extra = {}) {
-  if (VIEW.kind === "activity") {
+  if (VIEW.kind === "activity" || VIEW.kind === "spikecheck") {
     const p = new URLSearchParams({rec: VIEW.rec, name: VIEW.name});
     for (const [k, v] of Object.entries(extra)) p.set(k, v);
-    return "/api/activity?" + p.toString();
+    const route = VIEW.kind === "activity" ? "/api/activity" : "/api/spikecheck";
+    return route + "?" + p.toString();
   }
   if (VIEW.kind === "lagseries") {
     const p = colorParams();
@@ -388,6 +395,7 @@ function fillRecordings() {
 
 function fillLags() {
   fillActivity();
+  fillSpikeChecks();
   const rec = currentRecording();
   const sel = $("lag");
   sel.innerHTML = "";
@@ -414,6 +422,28 @@ function fillActivity() {
     b.dataset.activity = f.name;
     b.addEventListener("click", () => {
       VIEW.kind = "activity"; VIEW.rec = rec.name; VIEW.name = f.name;
+      showFigure();
+    });
+    box.appendChild(b);
+  }
+}
+
+function fillSpikeChecks() {
+  const rec = currentRecording();
+  const box = $("spikechecks");
+  box.innerHTML = "";
+  const figs = (rec && rec.spike_checks) || [];
+  if (!figs.length) {
+    // Either step 1 did not run, or the run predates the stored payload.
+    box.innerHTML = '<div class="sub">None in this bundle.</div>';
+    return;
+  }
+  for (const f of figs) {
+    const b = document.createElement("button");
+    b.textContent = f.label;
+    b.dataset.spikecheck = f.name;
+    b.addEventListener("click", () => {
+      VIEW.kind = "spikecheck"; VIEW.rec = rec.name; VIEW.name = f.name;
       showFigure();
     });
     box.appendChild(b);
@@ -719,6 +749,8 @@ function markCurrent() {
     b.setAttribute("aria-current", String(VIEW.kind === "figure" && b.dataset.name === VIEW.name));
   for (const b of document.querySelectorAll("#activity button"))
     b.setAttribute("aria-current", String(VIEW.kind === "activity" && b.dataset.activity === VIEW.name));
+  for (const b of document.querySelectorAll("#spikechecks button"))
+    b.setAttribute("aria-current", String(VIEW.kind === "spikecheck" && b.dataset.spikecheck === VIEW.name));
   for (const b of document.querySelectorAll("#families button"))
     b.setAttribute("aria-current", String(VIEW.kind === "family" && b.dataset.family === VIEW.gallery));
   const cmp = VIEW.kind === "comparison" || VIEW.kind === "both";
@@ -731,7 +763,8 @@ function markCurrent() {
 }
 
 function setMode(kind) {
-  const one = kind === "figure" || kind === "activity" || kind === "lagseries";
+  const one = kind === "figure" || kind === "activity" || kind === "lagseries"
+              || kind === "spikecheck";
   // Hidden, not disabled: the styling controls describe spatial network plots.
   // A raster, a violin and a line plot read none of them, so offering the
   // knobs there would imply they do something.
@@ -757,7 +790,7 @@ function setMode(kind) {
 }
 
 function showFigure() {
-  if (VIEW.kind !== "activity") VIEW.kind = "figure";
+  if (VIEW.kind !== "activity" && VIEW.kind !== "spikecheck") VIEW.kind = "figure";
   setMode(VIEW.kind); markCurrent();
   $("error").textContent = "";
   $("status").textContent = "rendering…";

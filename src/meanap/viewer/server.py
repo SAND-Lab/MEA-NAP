@@ -48,6 +48,7 @@ from meanap.pipeline.bundle import is_bundle, open_bundle
 from meanap.pipeline.figure_output import DEFAULT_THUMBNAIL_DPI
 from meanap.pipeline.render import (
     available_activity_figures, available_comparison_families, available_figures,
+    available_spike_check_figures, render_spike_check_figure,
     available_group_families, available_lag_series, cached_comparison_figure,
     cached_figure, cached_lag_series_figure, comparison_axes, gallery, load_context,
     render_activity_figure,
@@ -104,6 +105,13 @@ class ViewerService:
                 # list rather than a lag key, so the page can show them once.
                 "activity": [{"name": f.name, "label": f.label}
                              for f in available_activity_figures(self.ctx, name)],
+                # Step-1 checks are per recording too. Listed separately from
+                # the step-2 activity set because they answer a different
+                # question — did detection work — and a reader looking for that
+                # should not have to find it among the rasters.
+                "spike_checks": [{"name": f.name, "label": f.label}
+                                 for f in available_spike_check_figures(
+                                     self.ctx, name)],
             })
         return {
             "source": self.source.name,
@@ -205,6 +213,20 @@ class ViewerService:
         )
         return files[0]
 
+    def spike_check_figure(self, recording: str, name: str, *,
+                           fmt: str) -> Path:
+        """One step-1 check figure. No overrides — see render_spike_check_figure."""
+        from meanap.pipeline.render_cache import bundle_identity, cache_key
+
+        key = cache_key(bundle_identity(self.ctx.root), f"chk:{recording}:{name}",
+                        fmt=fmt, dpi=None, overrides={})
+        files, _ = self.cache.get_or_render(
+            key,
+            lambda dest: [render_spike_check_figure(
+                self.ctx, recording, name, dest, fmt=fmt)],
+        )
+        return files[0]
+
     def family(self, key: str, *, fmt: str = "png") -> dict:
         """Render (or serve cached) a family, as asset references.
 
@@ -253,6 +275,8 @@ class _Handler(BaseHTTPRequestHandler):
                 self._figure(query)
             elif parsed.path == "/api/activity":
                 self._activity(query)
+            elif parsed.path == "/api/spikecheck":
+                self._spike_check(query)
             elif parsed.path == "/api/comparison":
                 self._comparison(query)
             elif parsed.path == "/api/lagseries":
@@ -290,6 +314,13 @@ class _Handler(BaseHTTPRequestHandler):
         path = self.service.activity_figure(
             _one(query, "rec"), _one(query, "name"),
             fmt=fmt, overrides=parse_overrides(query))
+        download = query.get("download", ["0"])[0] == "1"
+        self._file(path, download_as=path.name if download else None)
+
+    def _spike_check(self, query) -> None:
+        fmt = _fmt(query)
+        path = self.service.spike_check_figure(
+            _one(query, "rec"), _one(query, "name"), fmt=fmt)
         download = query.get("download", ["0"])[0] == "1"
         self._file(path, download_as=path.name if download else None)
 

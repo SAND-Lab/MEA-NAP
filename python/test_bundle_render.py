@@ -1237,7 +1237,8 @@ def _manifest_honesty_checks() -> list[Check]:
     mapped = {expected[k] for k in implemented if k in expected}
     checks.append(("every implemented family is advertised",
                    mapped <= advertised, f"{sorted(mapped - advertised)}"))
-    per_recording = {"4A_individual_network", "2A_individual_activity"}
+    per_recording = {"4A_individual_network", "2A_individual_activity",
+                     "1B_spike_detection_checks"}
     checks.append(("nothing is advertised that isn't implemented",
                    advertised - mapped <= per_recording,
                    f"{sorted(advertised - mapped - per_recording)}"))

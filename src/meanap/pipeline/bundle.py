@@ -8,11 +8,18 @@ data, so carrying the pictures around is carrying a ~90× redundant copy.
 Express mode (``Params.express_mode``) therefore skips every figure that can be
 rebuilt and writes only the data, plus the handful of quality-control figures
 that *cannot* be rebuilt because they depend on raw recordings far too large to
-carry — the 2P traces, and on the electrophysiology side the spike-detection
-checks. :func:`write_bundle` then packs the folder into a single file that can
-be emailed, attached to a paper, or dropped in a shared drive, and
-:func:`open_bundle` turns it back into something the pipeline and the viewer
-can both read.
+carry — the 2P traces.
+
+The spike-detection checks look like they belong in that category, and were
+treated as if they did. But almost none of the voltage they are drawn from is
+actually *visible* in them: the example-trace panels clip to a ±30 ms window,
+the waveform panel uses one channel, and the frequency panel needs only spike
+times. They now travel as the slices they display — tens of kilobytes against
+roughly twenty times that in pictures. See :mod:`meanap.pipeline.plotting`.
+
+:func:`write_bundle` packs the folder into a single file that can be emailed,
+attached to a paper, or dropped in a shared drive, and :func:`open_bundle`
+turns it back into something the pipeline and the viewer can both read.
 
 **Layout.** A bundle is a zip whose entries mirror an output folder:
 
@@ -24,7 +31,7 @@ can both read.
 ``ExperimentMatFiles/<rec>_background.npz``  mean projection (optional)
 ``4_NetworkActivity/…``              metrics JSON + the CSVs
 ``2_NeuronalActivity/…``             activity CSVs + kept trace figures
-``1_SpikeDetection/1B_…``            kept spike-detection checks (ephys)
+``1_SpikeDetection/1A_…``            spike times + the check-figure payload
 ===================================  =========================================
 
 Mirroring the folder rather than inventing a schema buys three things: the
@@ -74,6 +81,9 @@ _RECONSTRUCTABLE_DIRS = (
     "4_NetworkActivity/4B_GroupComparisons",
     "2_NeuronalActivity/2B_GroupComparisons",
     "3_EdgeThresholdingCheck",
+    # Rebuilt from <rec>_step1checks.npz in 1A, which travels instead. The
+    # pictures were over half of a bundle's bytes; the payload is ~20x smaller.
+    "1_SpikeDetection/1B_SpikeDetectionChecks",
 )
 
 #: Figure families a viewer can rebuild from a bundle. Must correspond to what
@@ -90,6 +100,7 @@ RECONSTRUCTABLE_FAMILIES = (
     "cell_type_activity",           # CAT-NAP: activity split by cell type
     "cell_type_subnetwork_groups",  # CAT-NAP: subnetwork *group* comparisons
     "2A_individual_activity",       # ephys: rasters, heatmaps, burst detail
+    "1B_spike_detection_checks",    # ephys: example traces, frequencies, waveforms
 )
 
 #: Figure families express mode drops that the viewer cannot currently rebuild,
@@ -103,7 +114,6 @@ RECONSTRUCTABLE_FAMILIES = (
 UNRECONSTRUCTABLE_FAMILIES = (
     "cell_type_subnetwork_per_rec",   # CAT-NAP: per-recording subnetwork figures
     "3_edge_threshold_checks",        # needs the surrogate distributions
-    "1B_spike_detection_checks",      # needs the raw voltage (kept as images)
 )
 
 
@@ -190,9 +200,50 @@ def build_manifest(
     }
 
 
-def _is_reconstructable_member(rel: Path) -> bool:
+#: The spike-check figures are reconstructable only when step 1 left its payload
+#: behind. An output folder written before that existed has the pictures and no
+#: payload, so this pair moves together: either drop the folder and claim the
+#: family, or keep the folder and don't.
+_SPIKE_CHECK_DIR = "1_SpikeDetection/1B_SpikeDetectionChecks"
+_SPIKE_CHECK_FAMILY = "1B_spike_detection_checks"
+
+
+def _has_spike_check_payload(root: Path) -> bool:
+    from meanap.pipeline.plotting import CHECKS_SUFFIX
+    from meanap.pipeline.resume import SPIKE_SUBDIR
+
+    return any((root / SPIKE_SUBDIR).glob(f"*{CHECKS_SUFFIX}"))
+
+
+def _is_reconstructable_member(rel: Path, *, skip_spike_checks: bool = True) -> bool:
     posix = rel.as_posix()
-    return any(posix.startswith(d) for d in _RECONSTRUCTABLE_DIRS)
+    dirs = _RECONSTRUCTABLE_DIRS
+    if not skip_spike_checks:
+        dirs = tuple(d for d in dirs if d != _SPIKE_CHECK_DIR)
+    return any(posix.startswith(d) for d in dirs)
+
+
+def _adjust_for_spike_checks(manifest: dict, root: Path, has_payload: bool) -> dict:
+    """Amend the manifest for a folder that carries these figures as images.
+
+    Only for that one case. ``reconstructable`` otherwise describes what this
+    *version* can rebuild rather than what a given bundle happens to contain —
+    a CAT-NAP run has no step 1 and no opinion about it, and per-recording
+    availability is already answered by ``available_spike_check_figures``.
+    """
+    if has_payload or not any((root / _SPIKE_CHECK_DIR).rglob("*.png")):
+        return manifest
+
+    out = dict(manifest)
+    out["reconstructable"] = [f for f in out.get("reconstructable", [])
+                              if f != _SPIKE_CHECK_FAMILY]
+    out["not_reconstructable"] = list(out.get("not_reconstructable", [])) + [
+        _SPIKE_CHECK_FAMILY]
+    embedded = list(out.get("embedded_figures", []))
+    if "spike_detection_checks" not in embedded:
+        embedded.append("spike_detection_checks")
+    out["embedded_figures"] = embedded
+    return out
 
 
 def write_bundle(
@@ -207,6 +258,10 @@ def write_bundle(
     a full (non-express) run still produces a small file rather than a zipped
     copy of every PNG.
 
+    The one exception is folders written before step 1 saved its check payload:
+    there the spike-detection figures are packed as images after all, and the
+    manifest is amended to match, because dropping them would lose them.
+
     Returns the path written.
     """
     root = Path(output_root)
@@ -216,6 +271,9 @@ def write_bundle(
     dest = Path(dest) if dest is not None else root.with_suffix(BUNDLE_SUFFIX)
     dest.parent.mkdir(parents=True, exist_ok=True)
 
+    has_payload = _has_spike_check_payload(root)
+    manifest = _adjust_for_spike_checks(manifest, root, has_payload)
+
     with open(root / MANIFEST_NAME, "w") as fh:
         json.dump(manifest, fh, indent=2, sort_keys=True)
 
@@ -224,7 +282,7 @@ def write_bundle(
             if not path.is_file():
                 continue
             rel = path.relative_to(root)
-            if _is_reconstructable_member(rel):
+            if _is_reconstructable_member(rel, skip_spike_checks=has_payload):
                 continue
             if rel.as_posix() == PARAMS_FILENAME:
                 # The copy in the output folder keeps everything — it never

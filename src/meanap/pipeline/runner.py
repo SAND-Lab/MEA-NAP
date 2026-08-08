@@ -286,13 +286,10 @@ def run_pipeline(
         log("Skipping step 4 (network activity) — outside the selected step range.")
 
     if params.express_mode:
-        # Spike-detection checks are the one family here that can't be rebuilt
-        # from the bundle — they need the raw voltage — so they are kept as
-        # images and named in the manifest.
-        _write_run_bundle(
-            params, recordings, output_root, log, mode="ephys",
-            embedded_figures=["spike_detection_checks"] if start <= 1 <= stop else [],
-        )
+        # Nothing here needs embedding any more: the spike-detection checks
+        # used to travel as images because they are drawn from raw voltage, but
+        # they now travel as the slices they actually show (plotting.py).
+        _write_run_bundle(params, recordings, output_root, log, mode="ephys")
 
     if params.time_processes:
         total_duration = time.perf_counter() - pipeline_start
@@ -484,14 +481,24 @@ def _run_step1_spike_detection(
         )
         log(f"  [{rec.filename}] saved → {out_path.relative_to(output_root)}")
 
-        # Mirrors MEApipeline.m creating a per-recording checks folder here;
-        # the check plots themselves aren't ported yet.
+        # Mirrors MEApipeline.m creating a per-recording checks folder here.
         check_dir = output_root / "1_SpikeDetection" / "1B_SpikeDetectionChecks" / rec.group / rec.filename
         check_dir.mkdir(parents=True, exist_ok=True)
-        
-        from meanap.pipeline.plotting import plot_spike_detection_checks
-        log(f"  [{rec.filename}] generating spike detection check plots…")
-        plot_spike_detection_checks(dat, result, params, rec.filename, check_dir)
+
+        from meanap.pipeline.plotting import (
+            CHECKS_SUFFIX, compute_spike_check_data, draw_spike_check_figures,
+            save_spike_check_data,
+        )
+        # The payload is written whatever the mode: it is what lets a bundle
+        # carry these figures at all, and at ~40 KB against ~840 KB of PNG it
+        # is cheaper than the pictures it replaces. Drawing is what express
+        # mode skips, exactly as it skips every other rebuildable figure.
+        log(f"  [{rec.filename}] summarising spike detection checks…")
+        checks = compute_spike_check_data(dat, result, params, rec.filename)
+        save_spike_check_data(spike_dir / f"{rec.filename}{CHECKS_SUFFIX}", checks)
+        if not params.express_mode:
+            log(f"  [{rec.filename}] generating spike detection check plots…")
+            draw_spike_check_figures(checks, check_dir)
 
         # Spike times and the checks are on disk; the raw voltage is no longer
         # needed. An Axion plate shared with other wells is kept until the last
