@@ -1,8 +1,8 @@
-"""Test that spike-detection checks travel in a bundle as data, not pictures.
+"""Test that step-1 and step-3 check figures travel as data, not pictures.
 
 Run from the repo root::
 
-    uv run python python/test_spike_check_bundle.py
+    uv run python python/test_check_figures_bundle.py
 
 These three figures used to be the exception the bundle could not rebuild —
 they are drawn from raw voltage — and so travelled as PNGs, which made them
@@ -16,6 +16,16 @@ What matters, and is checked here:
   - a folder written before the payload existed keeps its PNGs, and its
     manifest stops claiming a family the bundle cannot produce — overclaiming
     would promise the viewer a figure and then fail.
+
+The step-3 edge-threshold checks get the same treatment, and were worse off
+before it: their folder was already on the never-pack list *and* the family was
+declared unreconstructable, so a bundle dropped them and could not rebuild them.
+
+The CAT-NAP per-recording subnetwork figures needed no payload at all — the
+adjacency, coordinates, groups and three tables were already in the bundle, and
+only the wiring was missing. The parity section below runs the real dataset
+when it is present, because "the same function draws both" is a claim about
+pixels, not about intent.
 """
 
 from __future__ import annotations
@@ -357,9 +367,269 @@ def _viewer_checks() -> list[Check]:
     return checks
 
 
+# ── Step-3 edge-threshold checks ──────────────────────────────────────────────
+
+def _edge_check_data(n_nodes=10, n_check=8, seed=5):
+    """Threshold snapshots of the shape ``adjm_thr`` hands to the plot."""
+    rng = np.random.default_rng(seed)
+    adj = np.abs(rng.normal(0, 0.1, (n_nodes, n_nodes)))
+    adj = (adj + adj.T) / 2
+    np.fill_diagonal(adj, 0)
+    # Thresholds settle as repeats grow, which is what the figure is about.
+    dist1 = [adj * (1.5 - 0.4 * i / n_check)
+             + rng.normal(0, 0.01 / (i + 1), (n_nodes, n_nodes))
+             for i in range(n_check)]
+    dist1 = [(d + d.T) / 2 for d in dist1]
+    rep_val = np.arange(1, n_check + 1) * 25
+    return dist1, rep_val, adj
+
+
+def _edge_check_checks() -> list[Check]:
+    from meanap.pipeline.plotting_step3 import (
+        EDGE_CHECK_SUFFIX, compute_edge_threshold_check,
+        draw_edge_threshold_check, load_edge_threshold_check,
+        save_edge_threshold_check, stored_lags,
+    )
+
+    checks: list[Check] = []
+    dist1, rep_val, adj = _edge_check_data()
+    rng = np.random.default_rng(11)
+    data = compute_edge_threshold_check(dist1, rep_val, adj, rng=rng)
+
+    checks.append(("the payload keeps one summary point per checkpoint",
+                   data.n_checkpoints == len(dist1)
+                   and len(data.mean_thr) == len(dist1)
+                   and len(data.std_thr) == len(dist1),
+                   f"{data.n_checkpoints} vs {len(dist1)}"))
+    # 10 nodes is 45 unique edges, so the sampler takes its full twelve.
+    checks.append(("and the sampled trajectories the second row draws",
+                   data.trajectories.shape == (12, len(dist1)),
+                   str(data.trajectories.shape)))
+    checks.append(("and five discarded-edge maps, not every snapshot",
+                   data.maps.shape == (5, 10, 10), str(data.maps.shape)))
+
+    nominal = sum(d.nbytes for d in dist1)
+    with tempfile.TemporaryDirectory() as tmp:
+        path = save_edge_threshold_check(
+            Path(tmp) / f"REC{EDGE_CHECK_SUFFIX}", {25: data})
+        checks.append(("the payload is a fraction of the snapshots it replaces",
+                       path.stat().st_size < nominal / 2,
+                       f"{path.stat().st_size/1e3:.1f} KB vs {nominal/1e3:.0f} KB"))
+        checks.append(("the file records which lags it holds",
+                       stored_lags(path) == [25], str(stored_lags(path))))
+
+        back = load_edge_threshold_check(path, 25)
+        checks.append(("it round-trips",
+                       np.allclose(back.mean_thr, data.mean_thr)
+                       and np.allclose(back.trajectories, data.trajectories)
+                       and np.array_equal(back.maps, data.maps), ""))
+        checks.append(("and a lag it does not hold reads as absent",
+                       load_edge_threshold_check(path, 999) is None, ""))
+
+        run = draw_edge_threshold_check(data, Path(tmp) / "run.png")
+        view = draw_edge_threshold_check(back, Path(tmp) / "view.png")
+        checks.append(("a rebuilt figure is byte-identical to the run's own",
+                       run.read_bytes() == view.read_bytes(), ""))
+
+    # Several lags in one file, which is how step 3 writes it.
+    with tempfile.TemporaryDirectory() as tmp:
+        per_lag = {lag: compute_edge_threshold_check(
+            dist1, rep_val, adj, rng=np.random.default_rng(lag))
+            for lag in (10, 25, 50)}
+        path = save_edge_threshold_check(
+            Path(tmp) / f"REC{EDGE_CHECK_SUFFIX}", per_lag)
+        checks.append(("one file carries every lag the run computed",
+                       stored_lags(path) == [10, 25, 50], str(stored_lags(path))))
+
+    checks.append(("no checkpoints yields no payload rather than an empty figure",
+                   compute_edge_threshold_check([], np.array([]), adj) is None, ""))
+
+    # The family was declared unreconstructable *and* its folder was on the
+    # never-pack list, so bundles silently lost these figures.
+    checks.append(("the family is now declared reconstructable",
+                   "3_edge_threshold_checks" in RECONSTRUCTABLE_FAMILIES
+                   and "3_edge_threshold_checks" not in UNRECONSTRUCTABLE_FAMILIES,
+                   str(UNRECONSTRUCTABLE_FAMILIES)))
+    return checks
+
+
+def _edge_render_checks() -> list[Check]:
+    from meanap.pipeline.plotting_step3 import (
+        EDGE_CHECK_SUFFIX, compute_edge_threshold_check, save_edge_threshold_check,
+    )
+    from meanap.pipeline.render import (
+        RenderContext, available_edge_check_lags, render_edge_check_figure,
+    )
+
+    checks: list[Check] = []
+    dist1, rep_val, adj = _edge_check_data()
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp) / "run"
+        (root / "ExperimentMatFiles").mkdir(parents=True)
+        save_edge_threshold_check(
+            root / "ExperimentMatFiles" / f"REC{EDGE_CHECK_SUFFIX}",
+            {lag: compute_edge_threshold_check(dist1, rep_val, adj,
+                                               rng=np.random.default_rng(lag))
+             for lag in (10, 25)})
+        ctx = RenderContext(params=_params(), recordings={}, results={},
+                            batch_bounds={}, root=root, mode="ephys")
+
+        checks.append(("the renderer lists the lags that are there",
+                       available_edge_check_lags(ctx, "REC") == [10, 25],
+                       str(available_edge_check_lags(ctx, "REC"))))
+        checks.append(("and none for a recording with no checks",
+                       available_edge_check_lags(ctx, "OTHER") == [], ""))
+
+        out = render_edge_check_figure(ctx, "REC", 25, Path(tmp) / "out")
+        checks.append(("it renders, named as the pipeline names it",
+                       out.name == "REC25msLagProbThreshCheck.png"
+                       and out.stat().st_size > 0, out.name))
+        svg = render_edge_check_figure(ctx, "REC", 10, Path(tmp) / "out", fmt="svg")
+        checks.append(("and can emit vector output",
+                       svg.suffix == ".svg" and svg.stat().st_size > 0, svg.name))
+
+        try:
+            render_edge_check_figure(ctx, "REC", 999, Path(tmp) / "out")
+            said = ""
+        except ValueError as e:
+            said = str(e)
+        checks.append(("a lag with no data explains why it might be missing",
+                       "plot thresholding checks" in said, said))
+    return checks
+
+
+def _edge_viewer_checks() -> list[Check]:
+    from meanap.viewer import page, server
+
+    checks: list[Check] = []
+    src = Path(server.__file__).read_text()
+    checks.append(("the server lists edge-check lags in its manifest",
+                   '"edge_checks"' in src, ""))
+    checks.append(("and serves them on their own route",
+                   "/api/edgecheck" in src, ""))
+    html = page.PAGE_HTML
+    checks.append(("the page has a section for them",
+                   'id="edgechecks"' in html, ""))
+    checks.append(("wired to the edgecheck route",
+                   "/api/edgecheck" in html, ""))
+    checks.append(("and downloadable like any other single figure",
+                   'kind === "edgecheck"' in html, ""))
+    return checks
+
+
+# ── CAT-NAP per-recording subnetwork figures ──────────────────────────────────
+
+DATASET = REPO_ROOT / "local" / "example2pdataWCellTypes"
+CATNAP_REC = "OPME230825_1_20230915_P1_pup4A_Het_MOI50000_DIV21"
+
+
+def _subnetwork_declaration_checks() -> list[Check]:
+    """No payload was needed here — only the claim and the wiring."""
+    from meanap.pipeline.render import SUBNETWORK_FIGURES
+
+    checks: list[Check] = []
+    checks.append(("the family is declared reconstructable",
+                   "cell_type_subnetwork_per_rec" in RECONSTRUCTABLE_FAMILIES,
+                   str(RECONSTRUCTABLE_FAMILIES)))
+    checks.append(("nothing is left that a bundle cannot rebuild",
+                   UNRECONSTRUCTABLE_FAMILIES == (),
+                   str(UNRECONSTRUCTABLE_FAMILIES)))
+    checks.append(("all five per-recording figures are named",
+                   [f.name for f in SUBNETWORK_FIGURES] == [
+                       "1_CellTypeNetwork", "2_SubnetworkGraphs",
+                       "3_NodeMetricsByCellType", "4_SubnetworkMetrics",
+                       "5_EdgeMixing"],
+                   str([f.name for f in SUBNETWORK_FIGURES])))
+
+    # The jitter in 3_NodeMetricsByCellType has to come from a stream a viewer
+    # can derive, not from whatever state the metrics left the shared one in.
+    src = (REPO_ROOT / "src" / "meanap" / "catnap" / "pipeline.py").read_text()
+    checks.append(("the pipeline draws that figure from its own rng stream",
+                   'make_rng(params.random_seed, "catnap_subnetwork_plot"' in src,
+                   ""))
+    rsrc = (REPO_ROOT / "src" / "meanap" / "pipeline" / "render.py").read_text()
+    checks.append(("and the renderer derives the identical one",
+                   '"catnap_subnetwork_plot"' in rsrc, ""))
+    return checks
+
+
+def _subnetwork_viewer_checks() -> list[Check]:
+    from meanap.viewer import page, server
+
+    checks: list[Check] = []
+    src = Path(server.__file__).read_text()
+    checks.append(("the server lists subnetwork figures per lag",
+                   '"subnetworks"' in src, ""))
+    checks.append(("and serves them on their own route",
+                   "/api/subnetwork" in src, ""))
+    html = page.PAGE_HTML
+    checks.append(("the page has a section for them",
+                   'id="subnetworks"' in html, ""))
+    checks.append(("changing the lag refreshes it, since they are per-lag",
+                   "fillFigures(); fillSubnetworks();" in html, ""))
+    checks.append(("and they are downloadable like any other single figure",
+                   'kind === "subnetwork"' in html, ""))
+    return checks
+
+
+def _subnetwork_parity_checks() -> list[Check]:
+    """A full run's figures against the ones rebuilt from its bundle."""
+    import tempfile as tf
+
+    from meanap.pipeline.bundle import build_manifest, open_bundle, write_bundle
+    from meanap.pipeline.render import (
+        available_subnetwork_figures, load_context, render_subnetwork_figure,
+    )
+    from meanap.pipeline.runner import run_pipeline
+    from meanap.pipeline.spreadsheet import read_recording_csv
+
+    checks: list[Check] = []
+    with tf.TemporaryDirectory() as tmp:
+        tmp = Path(tmp)
+        sheet = tmp / "recs.csv"
+        sheet.write_text(
+            f"Recording Filename,DIV group,Genotype\n{CATNAP_REC},21,HET\n")
+        params = Params(
+            raw_data=str(DATASET), spreadsheet_file_name=str(sheet),
+            spreadsheet_range="A2:A2", output_data_folder=str(tmp),
+            output_data_folder_name="Full", random_seed=1, express_mode=False,
+            suite2p_mode=True, twop_subnetwork_analysis=True,
+            twop_subnetwork_network_plots=False, prob_thresh_rep_num=20,
+            func_con_lag_val=[25], num_2p_traces=0)
+        root = run_pipeline(params, log=lambda m: None)
+
+        recs = read_recording_csv(sheet, "A2:A2")
+        bundle = write_bundle(root, build_manifest(params, recs, mode="catnap"),
+                              tmp / "b.meanap")
+        on_disk = (root / "4_NetworkActivity" / "4A_IndividualNetworkAnalysis"
+                   / "HET" / CATNAP_REC / "25mslag" / "cellTypeSubnetworks")
+
+        import zipfile
+        packed = [n for n in zipfile.ZipFile(bundle).namelist()
+                  if "cellTypeSubnetworks" in n]
+        checks.append(("the bundle carries no subnetwork pictures",
+                       not packed, str(packed[:3])))
+
+        dest = tmp / "rebuilt"
+        with open_bundle(bundle) as b:
+            ctx = load_context(b)
+            figs = available_subnetwork_figures(ctx, CATNAP_REC, 25)
+            checks.append(("all five are offered for the real recording",
+                           len(figs) == 5, str([f.name for f in figs])))
+            for spec in figs:
+                rebuilt = render_subnetwork_figure(ctx, CATNAP_REC, 25,
+                                                   spec.name, dest)
+                original = on_disk / f"{spec.name}.png"
+                checks.append((f"{spec.name} is byte-identical to the run's own",
+                               original.exists()
+                               and original.read_bytes() == rebuilt.read_bytes(),
+                               "missing" if not original.exists() else "differs"))
+    return checks
+
+
 def main() -> int:
     print("=" * 70)
-    print("Spike-detection checks in a bundle")
+    print("Check figures in a bundle")
     print("=" * 70)
 
     total_pass = total = 0
@@ -367,10 +637,25 @@ def main() -> int:
                          ("Drawing:", _draw_checks),
                          ("Bundle:", _bundle_checks),
                          ("Renderer:", _render_checks),
-                         ("Viewer:", _viewer_checks)]:
+                         ("Viewer:", _viewer_checks),
+                         ("Edge-threshold payload:", _edge_check_checks),
+                         ("Edge-threshold renderer:", _edge_render_checks),
+                         ("Edge-threshold viewer:", _edge_viewer_checks),
+                         ("Subnetwork wiring:", _subnetwork_declaration_checks),
+                         ("Subnetwork viewer:", _subnetwork_viewer_checks)]:
         p, n = _report(title, build())
         total_pass += p
         total += n
+
+    # Needs the real 2P dataset: these figures are drawn from cell-type
+    # spreadsheets, and a synthetic stand-in would prove nothing about pixels.
+    if (DATASET / CATNAP_REC).is_dir():
+        p, n = _report("Subnetwork parity (real dataset):",
+                       _subnetwork_parity_checks())
+        total_pass += p
+        total += n
+    else:
+        print(f"\nSubnetwork parity — SKIPPED (no dataset at {DATASET})")
 
     print(f"\n{'=' * 70}")
     print(f"Total: {total_pass}/{total} checks passed")

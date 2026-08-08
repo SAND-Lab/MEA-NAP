@@ -664,7 +664,13 @@ def _run_subnetwork_analysis(
             ("3_NodeMetricsByCellType.png",
              lambda p: snp.plot_node_metrics_by_group(
                  node_df, _SUBNET_NODE_METRICS, p,
-                 f"{title} — whole-network node metrics by cell type", rng)),
+                 f"{title} — whole-network node metrics by cell type",
+                 # Its own stream, not the shared one: the jitter would
+                 # otherwise depend on how much randomness the metrics above
+                 # happened to consume first, and a viewer rebuilding this
+                 # figure could never land on the same offsets.
+                 make_rng(params.random_seed, "catnap_subnetwork_plot",
+                          rec.filename, lag_key))),
             ("4_SubnetworkMetrics.png",
              lambda p: snp.plot_subnetwork_metric_bars(
                  summary, _SUBNET_GRAPH_METRICS, p,

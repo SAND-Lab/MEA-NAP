@@ -49,6 +49,8 @@ from meanap.pipeline.figure_output import DEFAULT_THUMBNAIL_DPI
 from meanap.pipeline.render import (
     available_activity_figures, available_comparison_families, available_figures,
     available_spike_check_figures, render_spike_check_figure,
+    available_edge_check_lags, render_edge_check_figure,
+    available_subnetwork_figures, render_subnetwork_figure,
     available_group_families, available_lag_series, cached_comparison_figure,
     cached_figure, cached_lag_series_figure, comparison_axes, gallery, load_context,
     render_activity_figure,
@@ -112,6 +114,17 @@ class ViewerService:
                 "spike_checks": [{"name": f.name, "label": f.label}
                                  for f in available_spike_check_figures(
                                      self.ctx, name)],
+                # One per lag, and usually empty: these only exist when the run
+                # had thresholding checks switched on.
+                "edge_checks": available_edge_check_lags(self.ctx, name),
+                # Per lag, like the network figures — a cell type's role can
+                # differ between lags, so these are addressed the same way.
+                "subnetworks": {
+                    str(lag): [{"name": f.name, "label": f.label}
+                               for f in available_subnetwork_figures(
+                                   self.ctx, name, lag)]
+                    for lag in lags
+                },
             })
         return {
             "source": self.source.name,
@@ -227,6 +240,34 @@ class ViewerService:
         )
         return files[0]
 
+    def edge_check_figure(self, recording: str, lag: int, *, fmt: str) -> Path:
+        """One step-3 thresholding check. No overrides, like the step-1 ones."""
+        from meanap.pipeline.render_cache import bundle_identity, cache_key
+
+        key = cache_key(bundle_identity(self.ctx.root),
+                        f"edge:{recording}:{lag}", fmt=fmt, dpi=None, overrides={})
+        files, _ = self.cache.get_or_render(
+            key,
+            lambda dest: [render_edge_check_figure(
+                self.ctx, recording, lag, dest, fmt=fmt)],
+        )
+        return files[0]
+
+    def subnetwork_figure(self, recording: str, lag: int, name: str, *,
+                          fmt: str) -> Path:
+        """One per-recording cell-type subnetwork figure."""
+        from meanap.pipeline.render_cache import bundle_identity, cache_key
+
+        key = cache_key(bundle_identity(self.ctx.root),
+                        f"subnet:{recording}:{lag}:{name}",
+                        fmt=fmt, dpi=None, overrides={})
+        files, _ = self.cache.get_or_render(
+            key,
+            lambda dest: [render_subnetwork_figure(
+                self.ctx, recording, lag, name, dest, fmt=fmt)],
+        )
+        return files[0]
+
     def family(self, key: str, *, fmt: str = "png") -> dict:
         """Render (or serve cached) a family, as asset references.
 
@@ -277,6 +318,10 @@ class _Handler(BaseHTTPRequestHandler):
                 self._activity(query)
             elif parsed.path == "/api/spikecheck":
                 self._spike_check(query)
+            elif parsed.path == "/api/edgecheck":
+                self._edge_check(query)
+            elif parsed.path == "/api/subnetwork":
+                self._subnetwork(query)
             elif parsed.path == "/api/comparison":
                 self._comparison(query)
             elif parsed.path == "/api/lagseries":
@@ -321,6 +366,21 @@ class _Handler(BaseHTTPRequestHandler):
         fmt = _fmt(query)
         path = self.service.spike_check_figure(
             _one(query, "rec"), _one(query, "name"), fmt=fmt)
+        download = query.get("download", ["0"])[0] == "1"
+        self._file(path, download_as=path.name if download else None)
+
+    def _edge_check(self, query) -> None:
+        fmt = _fmt(query)
+        path = self.service.edge_check_figure(
+            _one(query, "rec"), int(_one(query, "lag")), fmt=fmt)
+        download = query.get("download", ["0"])[0] == "1"
+        self._file(path, download_as=path.name if download else None)
+
+    def _subnetwork(self, query) -> None:
+        fmt = _fmt(query)
+        path = self.service.subnetwork_figure(
+            _one(query, "rec"), int(_one(query, "lag")), _one(query, "name"),
+            fmt=fmt)
         download = query.get("download", ["0"])[0] == "1"
         self._file(path, download_as=path.name if download else None)
 

@@ -56,6 +56,11 @@ __all__ = [
     "SPIKE_CHECK_FIGURES",
     "available_spike_check_figures",
     "render_spike_check_figure",
+    "available_edge_check_lags",
+    "render_edge_check_figure",
+    "SUBNETWORK_FIGURES",
+    "available_subnetwork_figures",
+    "render_subnetwork_figure",
     "available_group_families",
     "load_context",
     "render_figure",
@@ -1167,6 +1172,202 @@ def available_spike_check_figures(
     if _spike_check_file(ctx, recording) is None:
         return []
     return list(SPIKE_CHECK_FIGURES)
+
+
+#: The per-recording cell-type subnetwork figures, per lag. Everything they
+#: need was already in the bundle — the adjacency subgraph, the coordinates and
+#: the resolved groups in the state file, the three tables as CSVs — so unlike
+#: the step-1 and step-3 checks this needed no new payload, only wiring.
+SUBNETWORK_FIGURES: tuple[FigureSpec, ...] = (
+    FigureSpec("1_CellTypeNetwork", "Network coloured by cell type"),
+    FigureSpec("2_SubnetworkGraphs", "Each cell type's subnetwork"),
+    FigureSpec("3_NodeMetricsByCellType", "Node metrics by cell type"),
+    FigureSpec("4_SubnetworkMetrics", "Metrics of each subnetwork"),
+    FigureSpec("5_EdgeMixing", "Connectivity within and between cell types"),
+)
+
+
+def _subnetwork_tables(ctx: RenderContext) -> dict[str, "object"]:
+    """The three subnetwork CSVs as DataFrames, loaded once and cached."""
+    import pandas as pd
+
+    cached = getattr(ctx, "_subnet_tables_cache", None)
+    if cached is not None:
+        return cached
+    out = {}
+    for key, name in (("summary", "Subnetwork_RecordingLevel.csv"),
+                      ("node", "Subnetwork_NodeLevel.csv"),
+                      ("mix", "Subnetwork_EdgeMix.csv")):
+        path = ctx.root / "4_NetworkActivity" / name
+        out[key] = pd.read_csv(path) if path.exists() else pd.DataFrame()
+    object.__setattr__(ctx, "_subnet_tables_cache", out)
+    return out
+
+
+def _subnetwork_slice(ctx: RenderContext, recording: str, lag: int) -> dict:
+    """Each table cut down to one recording and lag, as the plotters expect.
+
+    The pipeline hands the plotters exactly this slice; the CSVs are the same
+    rows with ``FileName``/``Lag`` columns added, so cutting on those puts them
+    back the way they were.
+    """
+    lag_key = f"{lag}mslag"
+    out = {}
+    for key, table in _subnetwork_tables(ctx).items():
+        if table.empty:
+            out[key] = table
+            continue
+        rows = table[(table["FileName"] == recording) & (table["Lag"] == lag_key)]
+        out[key] = rows.drop(columns=[c for c in ("FileName", "Grp", "DIV", "Lag")
+                                      if c in rows.columns]).reset_index(drop=True)
+    return out
+
+
+def available_subnetwork_figures(
+    ctx: RenderContext, recording: str, lag: int,
+) -> list[FigureSpec]:
+    """Which cell-type subnetwork figures this recording/lag can produce.
+
+    Empty unless the run did the subnetwork analysis *and* the recording ended
+    up with groups — a spreadsheet that labelled none of its cells produces
+    tables with no rows for it, and there is nothing to draw.
+    """
+    metrics = ctx.results.get(recording, {}).get(f"{lag}mslag")
+    if not metrics or "adjMsub" not in metrics:
+        return []
+    # _states holds (state, stats) pairs.
+    stored = _states(ctx).get(recording)
+    if stored is None or getattr(stored[0].groups, "n_groups", 0) == 0:
+        return []
+
+    tables = _subnetwork_slice(ctx, recording, lag)
+    available = []
+    for spec in SUBNETWORK_FIGURES:
+        needs = {"3_NodeMetricsByCellType": "node",
+                 "4_SubnetworkMetrics": "summary",
+                 "5_EdgeMixing": "mix"}.get(spec.name)
+        if needs is None or not tables[needs].empty:
+            available.append(spec)
+    return available
+
+
+def render_subnetwork_figure(
+    ctx: RenderContext,
+    recording: str,
+    lag: int,
+    figure: str,
+    out_dir: Path | str,
+    *,
+    fmt: str = "png",
+    dpi: int | None = None,
+) -> Path:
+    """Redraw one per-recording cell-type subnetwork figure from the bundle."""
+    from meanap.catnap import subnetwork_plotting as snp
+    from meanap.catnap.pipeline import _SUBNET_GRAPH_METRICS, _SUBNET_NODE_METRICS
+    from meanap.pipeline.figure_output import figure_dpi
+    from meanap.pipeline.rng import make_rng
+
+    if figure not in {spec.name for spec in
+                      available_subnetwork_figures(ctx, recording, lag)}:
+        raise ValueError(
+            f"'{figure}' is not one of the cell-type subnetwork figures for "
+            f"{recording} at {lag} ms lag. These exist only for runs with the "
+            "subnetwork analysis enabled; use available_subnetwork_figures() "
+            "to list what is here.")
+
+    metrics = ctx.results[recording][f"{lag}mslag"]
+    state, _stats = _states(ctx)[recording]
+    active = np.asarray(metrics["activeChannelIndex"], dtype=int)
+    active_groups = state.groups.subset(active)
+    coords_active = np.asarray(state.coords)[active]
+    adj_sub = metrics["adjMsub"]
+    tables = _subnetwork_slice(ctx, recording, lag)
+
+    rec = ctx.recordings.get(recording) or RecordingInfo(
+        filename=recording, div=0.0, group="")
+    title = f"{recording}  {lag} ms lag"
+    out_path = Path(out_dir) / f"{figure}.{fmt}"
+
+    draw = {
+        "1_CellTypeNetwork": lambda: snp.plot_subnetwork_spatial(
+            adj_sub, coords_active, active_groups, out_path, title),
+        "2_SubnetworkGraphs": lambda: snp.plot_subnetwork_panels(
+            adj_sub, coords_active, active_groups, out_path, title),
+        "3_NodeMetricsByCellType": lambda: snp.plot_node_metrics_by_group(
+            tables["node"], _SUBNET_NODE_METRICS, out_path,
+            f"{title} — whole-network node metrics by cell type",
+            # The same dedicated stream the pipeline draws with, so the
+            # jittered points land where they landed in the run's own figure.
+            make_rng(ctx.params.random_seed, "catnap_subnetwork_plot",
+                     recording, f"{lag}mslag")),
+        "4_SubnetworkMetrics": lambda: snp.plot_subnetwork_metric_bars(
+            tables["summary"], _SUBNET_GRAPH_METRICS, out_path,
+            f"{title} — metrics of each cell-type subnetwork"),
+        "5_EdgeMixing": lambda: snp.plot_edge_mix_matrix(
+            tables["mix"], active_groups, out_path,
+            f"{title} — connectivity within/between cell types"),
+    }[figure]
+
+    with figure_dpi(dpi):
+        draw()
+    if not out_path.exists():
+        raise ValueError(
+            f"'{figure}' produced nothing for {recording} at {lag} ms lag — "
+            "its table is present but empty of anything plottable.")
+    return out_path
+
+
+def _edge_check_file(ctx: RenderContext, recording: str) -> Path | None:
+    from meanap.pipeline.plotting_step3 import EDGE_CHECK_SUFFIX
+
+    path = ctx.root / "ExperimentMatFiles" / f"{recording}{EDGE_CHECK_SUFFIX}"
+    return path if path.exists() else None
+
+
+def available_edge_check_lags(ctx: RenderContext, recording: str) -> list[int]:
+    """Lags whose edge-threshold stability check this bundle can redraw.
+
+    Empty unless the run had ``prob_thresh_plot_checks`` on — the snapshots this
+    is built from cost a full extra pass over the surrogates, so they are only
+    collected when asked for.
+    """
+    from meanap.pipeline.plotting_step3 import stored_lags
+
+    path = _edge_check_file(ctx, recording)
+    return stored_lags(path) if path is not None else []
+
+
+def render_edge_check_figure(
+    ctx: RenderContext,
+    recording: str,
+    lag: int,
+    out_dir: Path | str,
+    *,
+    fmt: str = "png",
+    dpi: int | None = None,
+) -> Path:
+    """Redraw one edge-threshold stability check from the bundle.
+
+    No style overrides: the figure is a record of how the thresholding settled,
+    and none of the network styling controls apply to it.
+    """
+    from meanap.pipeline.figure_output import figure_dpi
+    from meanap.pipeline.plotting_step3 import (
+        draw_edge_threshold_check, load_edge_threshold_check,
+    )
+
+    path = _edge_check_file(ctx, recording)
+    data = load_edge_threshold_check(path, lag) if path is not None else None
+    if data is None:
+        raise ValueError(
+            f"No edge-threshold check for {recording} at {lag}ms in this bundle. "
+            "These are only produced when the run had 'plot thresholding checks' "
+            "enabled; use available_edge_check_lags() to list what is here.")
+
+    out_path = Path(out_dir) / f"{recording}{lag}msLagProbThreshCheck.{fmt}"
+    with figure_dpi(dpi):
+        draw_edge_threshold_check(data, out_path)
+    return out_path
 
 
 def render_spike_check_figure(

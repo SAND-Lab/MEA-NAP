@@ -1238,7 +1238,8 @@ def _manifest_honesty_checks() -> list[Check]:
     checks.append(("every implemented family is advertised",
                    mapped <= advertised, f"{sorted(mapped - advertised)}"))
     per_recording = {"4A_individual_network", "2A_individual_activity",
-                     "1B_spike_detection_checks"}
+                     "1B_spike_detection_checks", "3_edge_threshold_checks",
+                     "cell_type_subnetwork_per_rec"}
     checks.append(("nothing is advertised that isn't implemented",
                    advertised - mapped <= per_recording,
                    f"{sorted(advertised - mapped - per_recording)}"))
@@ -1255,7 +1256,11 @@ def _manifest_honesty_checks() -> list[Check]:
             checks.append(("can_reconstruct agrees with the manifest",
                            b.can_reconstruct("4B_group_comparisons")
                            and b.can_reconstruct("2A_individual_activity")
-                           and not b.can_reconstruct("3_edge_threshold_checks"), ""))
+                           and b.can_reconstruct("cell_type_subnetwork_per_rec")
+                           # Nothing is unreconstructable any more, so the
+                           # negative case has to be a family that isn't real.
+                           and not b.can_reconstruct("no_such_family"),
+                           ""))
     return checks
 
 

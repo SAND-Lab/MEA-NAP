@@ -145,6 +145,12 @@ PAGE_HTML = r"""<!doctype html>
 
     <h2>Spike detection</h2>
     <div class="list" id="spikechecks"></div>
+
+    <h2>Edge thresholding</h2>
+    <div class="list" id="edgechecks"></div>
+
+    <h2>Cell-type subnetworks</h2>
+    <div class="list" id="subnetworks"></div>
   </div>
 
   <div id="side-comparisons" class="hidden">
@@ -228,6 +234,9 @@ let VIEW = {
 // "spikecheck" — a step-1 detection check, per recording; like "activity" but
 //                with no styling at all, since its axes are fixed to the
 //                recording's own noise level
+// "edgecheck"  — a step-3 thresholding check, per recording + lag; also
+//                unstyled, and usually absent (the run has to ask for it)
+// "subnetwork" — a CAT-NAP cell-type figure, per recording + lag, unstyled
 // "comparison" — one 2B/4B half-violin, addressed by lag/level/split/metric
 // "both"       — the same metric drawn by group and by age, stacked
 // "lagseries"  — one across-lag figure
@@ -258,6 +267,17 @@ function figureURL(extra = {}) {
     for (const [k, v] of Object.entries(extra)) p.set(k, v);
     const route = VIEW.kind === "activity" ? "/api/activity" : "/api/spikecheck";
     return route + "?" + p.toString();
+  }
+  if (VIEW.kind === "edgecheck") {
+    const p = new URLSearchParams({rec: VIEW.rec, lag: VIEW.name});
+    for (const [k, v] of Object.entries(extra)) p.set(k, v);
+    return "/api/edgecheck?" + p.toString();
+  }
+  if (VIEW.kind === "subnetwork") {
+    const p = new URLSearchParams({rec: VIEW.rec, lag: $("lag").value,
+                                   name: VIEW.name});
+    for (const [k, v] of Object.entries(extra)) p.set(k, v);
+    return "/api/subnetwork?" + p.toString();
   }
   if (VIEW.kind === "lagseries") {
     const p = colorParams();
@@ -396,6 +416,7 @@ function fillRecordings() {
 function fillLags() {
   fillActivity();
   fillSpikeChecks();
+  fillEdgeChecks();
   const rec = currentRecording();
   const sel = $("lag");
   sel.innerHTML = "";
@@ -404,7 +425,10 @@ function fillLags() {
     o.value = lag; o.textContent = lag + " ms";
     sel.appendChild(o);
   }
+  // After the select is repopulated: both of these read $("lag").value, which
+  // until now still held the previous recording's lag.
   fillFigures();
+  fillSubnetworks();
 }
 
 function fillActivity() {
@@ -444,6 +468,49 @@ function fillSpikeChecks() {
     b.dataset.spikecheck = f.name;
     b.addEventListener("click", () => {
       VIEW.kind = "spikecheck"; VIEW.rec = rec.name; VIEW.name = f.name;
+      showFigure();
+    });
+    box.appendChild(b);
+  }
+}
+
+function fillEdgeChecks() {
+  const rec = currentRecording();
+  const box = $("edgechecks");
+  box.innerHTML = "";
+  const lags = (rec && rec.edge_checks) || [];
+  if (!lags.length) {
+    box.innerHTML = '<div class="sub">Not produced by this run.</div>';
+    return;
+  }
+  for (const lag of lags) {
+    const b = document.createElement("button");
+    b.textContent = lag + " ms lag";
+    b.dataset.edgecheck = String(lag);
+    b.addEventListener("click", () => {
+      VIEW.kind = "edgecheck"; VIEW.rec = rec.name; VIEW.name = String(lag);
+      showFigure();
+    });
+    box.appendChild(b);
+  }
+}
+
+function fillSubnetworks() {
+  const rec = currentRecording();
+  const lag = $("lag").value;
+  const box = $("subnetworks");
+  box.innerHTML = "";
+  const figs = (rec && rec.subnetworks && rec.subnetworks[lag]) || [];
+  if (!figs.length) {
+    box.innerHTML = '<div class="sub">Not produced by this run.</div>';
+    return;
+  }
+  for (const f of figs) {
+    const b = document.createElement("button");
+    b.textContent = f.label;
+    b.dataset.subnetwork = f.name;
+    b.addEventListener("click", () => {
+      VIEW.kind = "subnetwork"; VIEW.rec = rec.name; VIEW.name = f.name;
       showFigure();
     });
     box.appendChild(b);
@@ -751,6 +818,10 @@ function markCurrent() {
     b.setAttribute("aria-current", String(VIEW.kind === "activity" && b.dataset.activity === VIEW.name));
   for (const b of document.querySelectorAll("#spikechecks button"))
     b.setAttribute("aria-current", String(VIEW.kind === "spikecheck" && b.dataset.spikecheck === VIEW.name));
+  for (const b of document.querySelectorAll("#edgechecks button"))
+    b.setAttribute("aria-current", String(VIEW.kind === "edgecheck" && b.dataset.edgecheck === VIEW.name));
+  for (const b of document.querySelectorAll("#subnetworks button"))
+    b.setAttribute("aria-current", String(VIEW.kind === "subnetwork" && b.dataset.subnetwork === VIEW.name));
   for (const b of document.querySelectorAll("#families button"))
     b.setAttribute("aria-current", String(VIEW.kind === "family" && b.dataset.family === VIEW.gallery));
   const cmp = VIEW.kind === "comparison" || VIEW.kind === "both";
@@ -764,7 +835,8 @@ function markCurrent() {
 
 function setMode(kind) {
   const one = kind === "figure" || kind === "activity" || kind === "lagseries"
-              || kind === "spikecheck";
+              || kind === "spikecheck" || kind === "edgecheck"
+              || kind === "subnetwork";
   // Hidden, not disabled: the styling controls describe spatial network plots.
   // A raster, a violin and a line plot read none of them, so offering the
   // knobs there would imply they do something.
@@ -790,7 +862,8 @@ function setMode(kind) {
 }
 
 function showFigure() {
-  if (VIEW.kind !== "activity" && VIEW.kind !== "spikecheck") VIEW.kind = "figure";
+  if (!["activity", "spikecheck", "edgecheck", "subnetwork"].includes(VIEW.kind))
+    VIEW.kind = "figure";
   setMode(VIEW.kind); markCurrent();
   $("error").textContent = "";
   $("status").textContent = "rendering…";
@@ -845,7 +918,7 @@ function download(fmt) {
     $("tab-lags").classList.add("hidden");
 
   $("recording").addEventListener("change", fillLags);
-  $("lag").addEventListener("change", fillFigures);
+  $("lag").addEventListener("change", () => { fillFigures(); fillSubnetworks(); });
   $("cmp-family").addEventListener("change", fillComparisonFacets);
   $("cmp-level").addEventListener("change", fillComparisonMetrics);
   $("cmp-split").addEventListener("change", showComparison);

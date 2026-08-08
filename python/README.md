@@ -224,7 +224,15 @@ actually shows.
 Bundling an output folder written before either change keeps its PNGs instead,
 and says so in the manifest rather than claiming a family it cannot rebuild.
 
-`cell_type_subnetwork_per_rec` is now the only family a bundle cannot redraw.
+The CAT-NAP per-recording cell-type subnetwork figures needed no payload at
+all: the adjacency, coordinates, resolved groups and the three subnetwork CSVs
+were already in the bundle, and only the wiring was missing. One change was
+needed to make them reproducible — the jittered points in
+`3_NodeMetricsByCellType` now come from their own RNG stream rather than from
+whatever state the metrics left the shared one in, so a viewer can land on the
+same offsets.
+
+**Every figure family a run produces can now be redrawn from its bundle.**
 
 ## Remote data
 

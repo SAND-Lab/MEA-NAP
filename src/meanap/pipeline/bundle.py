@@ -101,20 +101,19 @@ RECONSTRUCTABLE_FAMILIES = (
     "cell_type_subnetwork_groups",  # CAT-NAP: subnetwork *group* comparisons
     "2A_individual_activity",       # ephys: rasters, heatmaps, burst detail
     "1B_spike_detection_checks",    # ephys: example traces, frequencies, waveforms
+    "3_edge_threshold_checks",      # ephys: probabilistic-thresholding stability
+    "cell_type_subnetwork_per_rec",  # CAT-NAP: per-recording subnetwork figures
 )
 
-#: Figure families express mode drops that the viewer cannot currently rebuild,
-#: so they are simply absent until the run is repeated without express mode.
-#: Stated in the manifest rather than left to be discovered: silently missing
-#: figures are the failure mode this whole feature has to avoid.
+#: Figure families express mode drops that the viewer cannot rebuild, so they
+#: are simply absent until the run is repeated without express mode. Stated in
+#: the manifest rather than left to be discovered: silently missing figures are
+#: the failure mode this whole feature has to avoid.
 #:
-#: The first is *not* fundamental — its inputs are in the bundle, the
-#: reconstruction is just not wired up yet. The last two genuinely cannot be
-#: rebuilt at any size: they depend on raw data a bundle deliberately omits.
-UNRECONSTRUCTABLE_FAMILIES = (
-    "cell_type_subnetwork_per_rec",   # CAT-NAP: per-recording subnetwork figures
-    "3_edge_threshold_checks",        # needs the surrogate distributions
-)
+#: Empty, as of the run bundle carrying the step-1, step-3 and subnetwork
+#: payloads. Kept rather than deleted because the manifest field is part of the
+#: format, and a future family that cannot be rebuilt belongs here.
+UNRECONSTRUCTABLE_FAMILIES: tuple[str, ...] = ()
 
 
 def is_bundle(path: Path | str) -> bool:
@@ -200,12 +199,13 @@ def build_manifest(
     }
 
 
-#: The spike-check figures are reconstructable only when step 1 left its payload
-#: behind. An output folder written before that existed has the pictures and no
-#: payload, so this pair moves together: either drop the folder and claim the
-#: family, or keep the folder and don't.
+#: Two families are reconstructable only when their step left a payload behind.
+#: An output folder written before those existed has the pictures and no
+#: payload, so each pair moves together: either drop the folder and claim the
+#: family, or keep the folder and don't. Entries are
+#: ``(figure dir, family name, embedded name, payload probe)``.
 _SPIKE_CHECK_DIR = "1_SpikeDetection/1B_SpikeDetectionChecks"
-_SPIKE_CHECK_FAMILY = "1B_spike_detection_checks"
+_EDGE_CHECK_DIR = "3_EdgeThresholdingCheck"
 
 
 def _has_spike_check_payload(root: Path) -> bool:
@@ -215,33 +215,65 @@ def _has_spike_check_payload(root: Path) -> bool:
     return any((root / SPIKE_SUBDIR).glob(f"*{CHECKS_SUFFIX}"))
 
 
-def _is_reconstructable_member(rel: Path, *, skip_spike_checks: bool = True) -> bool:
+def _has_edge_check_payload(root: Path) -> bool:
+    from meanap.pipeline.plotting_step3 import EDGE_CHECK_SUFFIX
+
+    return any((root / "ExperimentMatFiles").glob(f"*{EDGE_CHECK_SUFFIX}"))
+
+
+_PAYLOAD_FAMILIES = (
+    (_SPIKE_CHECK_DIR, "1B_spike_detection_checks", "spike_detection_checks",
+     _has_spike_check_payload),
+    (_EDGE_CHECK_DIR, "3_edge_threshold_checks", "edge_threshold_checks",
+     _has_edge_check_payload),
+)
+
+
+def _keep_as_images(root: Path) -> tuple[str, ...]:
+    """Figure dirs to pack verbatim because their payload isn't there.
+
+    Only when the pictures actually exist: a run that never produced them has
+    nothing to keep and nothing to say about it.
+    """
+    return tuple(
+        figure_dir for figure_dir, _fam, _emb, has_payload in _PAYLOAD_FAMILIES
+        if not has_payload(root) and any((root / figure_dir).rglob("*.png"))
+    )
+
+
+def _is_reconstructable_member(rel: Path, keep: tuple[str, ...] = ()) -> bool:
     posix = rel.as_posix()
-    dirs = _RECONSTRUCTABLE_DIRS
-    if not skip_spike_checks:
-        dirs = tuple(d for d in dirs if d != _SPIKE_CHECK_DIR)
+    dirs = tuple(d for d in _RECONSTRUCTABLE_DIRS if d not in keep)
     return any(posix.startswith(d) for d in dirs)
 
 
-def _adjust_for_spike_checks(manifest: dict, root: Path, has_payload: bool) -> dict:
-    """Amend the manifest for a folder that carries these figures as images.
+def _adjust_manifest(manifest: dict, keep: tuple[str, ...]) -> dict:
+    """Say which families this bundle carries as images rather than as data.
 
-    Only for that one case. ``reconstructable`` otherwise describes what this
-    *version* can rebuild rather than what a given bundle happens to contain —
-    a CAT-NAP run has no step 1 and no opinion about it, and per-recording
-    availability is already answered by ``available_spike_check_figures``.
+    Only for those. ``reconstructable`` otherwise describes what this *version*
+    can rebuild rather than what a given bundle happens to contain — a CAT-NAP
+    run has no step 1 and no opinion about it, and per-recording availability is
+    already answered by the ``available_*`` functions.
     """
-    if has_payload or not any((root / _SPIKE_CHECK_DIR).rglob("*.png")):
+    if not keep:
         return manifest
 
     out = dict(manifest)
-    out["reconstructable"] = [f for f in out.get("reconstructable", [])
-                              if f != _SPIKE_CHECK_FAMILY]
-    out["not_reconstructable"] = list(out.get("not_reconstructable", [])) + [
-        _SPIKE_CHECK_FAMILY]
+    reconstructable = list(out.get("reconstructable", []))
+    not_reconstructable = list(out.get("not_reconstructable", []))
     embedded = list(out.get("embedded_figures", []))
-    if "spike_detection_checks" not in embedded:
-        embedded.append("spike_detection_checks")
+
+    for figure_dir, family, embedded_name, _probe in _PAYLOAD_FAMILIES:
+        if figure_dir not in keep:
+            continue
+        reconstructable = [f for f in reconstructable if f != family]
+        if family not in not_reconstructable:
+            not_reconstructable.append(family)
+        if embedded_name not in embedded:
+            embedded.append(embedded_name)
+
+    out["reconstructable"] = reconstructable
+    out["not_reconstructable"] = not_reconstructable
     out["embedded_figures"] = embedded
     return out
 
@@ -258,9 +290,10 @@ def write_bundle(
     a full (non-express) run still produces a small file rather than a zipped
     copy of every PNG.
 
-    The one exception is folders written before step 1 saved its check payload:
-    there the spike-detection figures are packed as images after all, and the
-    manifest is amended to match, because dropping them would lose them.
+    The exception is folders written before a step saved the payload its checks
+    are rebuilt from — step 1's detection checks, step 3's thresholding checks.
+    Those are packed as images after all, and the manifest is amended to match,
+    because dropping them would simply lose them.
 
     Returns the path written.
     """
@@ -271,8 +304,8 @@ def write_bundle(
     dest = Path(dest) if dest is not None else root.with_suffix(BUNDLE_SUFFIX)
     dest.parent.mkdir(parents=True, exist_ok=True)
 
-    has_payload = _has_spike_check_payload(root)
-    manifest = _adjust_for_spike_checks(manifest, root, has_payload)
+    keep = _keep_as_images(root)
+    manifest = _adjust_manifest(manifest, keep)
 
     with open(root / MANIFEST_NAME, "w") as fh:
         json.dump(manifest, fh, indent=2, sort_keys=True)
@@ -282,7 +315,7 @@ def write_bundle(
             if not path.is_file():
                 continue
             rel = path.relative_to(root)
-            if _is_reconstructable_member(rel, skip_spike_checks=has_payload):
+            if _is_reconstructable_member(rel, keep):
                 continue
             if rel.as_posix() == PARAMS_FILENAME:
                 # The copy in the output folder keeps everything — it never
