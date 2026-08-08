@@ -232,7 +232,22 @@ needed to make them reproducible — the jittered points in
 whatever state the metrics left the shared one in, so a viewer can land on the
 same offsets.
 
-**Every figure family a run produces can now be redrawn from its bundle.**
+**Every PNG a full run writes can now be produced from its bundle** — verified
+by rendering everything a bundle offers and comparing the set against a full
+run's output folder (0 unaccounted). Two routes were missing and were added:
+
+- the **batch-scaled** and **side-by-side** versions of the spatial network
+  plots. These were always reachable by naming their stems, but nothing
+  advertised them. The viewer now shows a *Scaling* toggle — individual /
+  batch-scaled / side by side — for whichever network figure is selected, and
+  hides it for figures that have only one. The naming rule lives once, in
+  `step4.variant_stem`, so the renderer cannot drift from what the pipeline
+  writes.
+- the four **cell-type composition** figures. `composition_frame` omits its
+  "active cells" columns unless given `active_by_rec`, and the render path
+  wasn't passing it — so the figures that read those columns were silently never
+  drawn. The helper that computes it moved from the CAT-NAP pipeline into
+  `group_plots`, where both callers can reach it.
 
 ## Remote data
 

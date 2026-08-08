@@ -48,7 +48,7 @@ from meanap.pipeline.bundle import is_bundle, open_bundle
 from meanap.pipeline.figure_output import DEFAULT_THUMBNAIL_DPI
 from meanap.pipeline.render import (
     available_activity_figures, available_comparison_families, available_figures,
-    available_spike_check_figures, render_spike_check_figure,
+    available_spike_check_figures, render_spike_check_figure, figure_variants,
     available_edge_check_lags, render_edge_check_figure,
     available_subnetwork_figures, render_subnetwork_figure,
     available_group_families, available_lag_series, cached_comparison_figure,
@@ -99,8 +99,14 @@ class ViewerService:
             recordings.append({
                 "name": name, "group": rec.group, "div": rec.div, "lags": lags,
                 "figures": {
-                    str(lag): [{"name": f.name, "label": f.label}
-                               for f in available_figures(self.ctx, name, lag)]
+                    str(lag): [
+                        {"name": f.name, "label": f.label,
+                         # Which scalings this plot has here: only the spatial
+                         # network plots have any, and only when the batch
+                         # bounds their size metric needs were pooled.
+                         "variants": figure_variants(
+                             self.ctx, name, lag, f.name.format(lag=lag))}
+                        for f in available_figures(self.ctx, name, lag)]
                     for lag in lags
                 },
                 # Step-2 figures are per recording, not per lag — a separate
@@ -203,11 +209,12 @@ class ViewerService:
         return path
 
     def figure(self, recording: str, lag: int, name: str, *,
-               fmt: str, overrides: dict, thumbnail: bool) -> Path:
+               fmt: str, overrides: dict, thumbnail: bool,
+               variant: str = "plain") -> Path:
         path, _ = cached_figure(
             self.ctx, self.cache, recording, lag, name, fmt=fmt,
             dpi=DEFAULT_THUMBNAIL_DPI if thumbnail else None,
-            overrides=overrides or None,
+            overrides=overrides or None, variant=variant,
         )
         return path
 
@@ -350,6 +357,7 @@ class _Handler(BaseHTTPRequestHandler):
             _one(query, "rec"), int(_one(query, "lag")), _one(query, "name"),
             fmt=fmt, overrides=parse_overrides(query),
             thumbnail=query.get("thumb", ["0"])[0] == "1",
+            variant=query.get("variant", ["plain"])[0],
         )
         download = query.get("download", ["0"])[0] == "1"
         self._file(path, download_as=path.name if download else None)

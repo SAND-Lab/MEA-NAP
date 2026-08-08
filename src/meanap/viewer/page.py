@@ -186,6 +186,14 @@ PAGE_HTML = r"""<!doctype html>
 </main>
 
 <aside class="right" id="controls-panel">
+  <div id="variant-panel">
+    <h2>Scaling</h2>
+    <div class="list" id="variants"></div>
+    <p class="sub" style="margin-bottom:12px">
+      Individual uses this recording's own range; batch shares one scale across
+      every recording, so panels can be compared directly.
+    </p>
+  </div>
   <h2>Network styling</h2>
   <div id="controls"></div>
   <button id="reset">Reset to pipeline defaults</button>
@@ -217,6 +225,11 @@ PAGE_HTML = r"""<!doctype html>
 const $ = (id) => document.getElementById(id);
 let MANIFEST = null;
 let TAB = "recordings";
+// Which scaling of a network plot is showing. Reset to "plain" whenever the
+// selected figure changes, since not every figure has the other two.
+let VARIANT = "plain";
+const VARIANT_LABELS = {plain: "Individual", scaled: "Batch-scaled",
+                        combined: "Side by side"};
 // One selection per tab, never a shared field: the tabs are filled before any
 // of them is shown, so a name that means "network figure" on one tab and
 // "metric" on another gets overwritten during startup and the first render
@@ -290,6 +303,7 @@ function figureURL(extra = {}) {
   }
   const p = overrideParams();
   p.set("rec", VIEW.rec); p.set("lag", VIEW.lag); p.set("name", VIEW.name);
+  if (VARIANT !== "plain") p.set("variant", VARIANT);
   for (const [k, v] of Object.entries(extra)) p.set(k, v);
   return "/api/figure?" + p.toString();
 }
@@ -517,6 +531,34 @@ function fillSubnetworks() {
   }
 }
 
+function currentFigureSpec() {
+  const rec = currentRecording();
+  const figs = (rec && rec.figures[$("lag").value]) || [];
+  return figs.find((f) => f.name === VIEW.name) || null;
+}
+
+function fillVariants() {
+  const box = $("variants");
+  const spec = VIEW.kind === "figure" ? currentFigureSpec() : null;
+  const variants = (spec && spec.variants) || ["plain"];
+  // Hidden when there is nothing to choose: a one-option toggle is furniture
+  // that implies the other options exist somewhere.
+  $("variant-panel").classList.toggle("hidden", variants.length < 2);
+  box.innerHTML = "";
+  for (const v of variants) {
+    const b = document.createElement("button");
+    b.textContent = VARIANT_LABELS[v] || v;
+    b.dataset.variant = v;
+    b.setAttribute("aria-current", String(v === VARIANT));
+    b.addEventListener("click", () => {
+      VARIANT = v;
+      fillVariants();
+      showFigure();
+    });
+    box.appendChild(b);
+  }
+}
+
 function fillFigures() {
   const rec = currentRecording();
   const lag = $("lag").value;
@@ -533,6 +575,9 @@ function fillFigures() {
     b.dataset.name = f.name;
     b.addEventListener("click", () => {
       VIEW.kind = "figure"; VIEW.rec = rec.name; VIEW.lag = lag; VIEW.name = f.name;
+      // A new figure may not have the scaling the last one was showing.
+      VARIANT = "plain";
+      fillVariants();
       showFigure();
     });
     box.appendChild(b);
@@ -545,6 +590,11 @@ function fillFigures() {
   } else {
     VIEW.rec = rec.name; VIEW.lag = lag;
   }
+  // The chosen figure may have changed, or its variants may differ at this lag.
+  if (!((currentFigureSpec() || {}).variants || []).includes(VARIANT)) {
+    VARIANT = "plain";
+  }
+  fillVariants();
   if (TAB === "recordings") showFigure();
 }
 

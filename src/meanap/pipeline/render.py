@@ -58,6 +58,7 @@ __all__ = [
     "render_spike_check_figure",
     "available_edge_check_lags",
     "render_edge_check_figure",
+    "figure_variants",
     "SUBNETWORK_FIGURES",
     "available_subnetwork_figures",
     "render_subnetwork_figure",
@@ -344,6 +345,7 @@ def render_figure(
     fmt: str = "png",
     dpi: int | None = None,
     overrides: dict | None = None,
+    variant: str = "plain",
 ) -> Path:
     """Redraw one figure and return the file written.
 
@@ -358,7 +360,7 @@ def render_figure(
     """
     from meanap.catnap.store import load_background
     from meanap.pipeline.figure_output import figure_dpi
-    from meanap.pipeline.step4 import _plot_recording_lag
+    from meanap.pipeline.step4 import _plot_recording_lag, variant_stem
 
     lag_key = f"{lag}mslag"
     metrics = ctx.results.get(recording, {}).get(lag_key)
@@ -381,20 +383,50 @@ def render_figure(
     if bg_path is not None:
         background = load_background(bg_path)
 
+    # The scaled/combined versions are drawn by the same call, under their own
+    # names — so asking for one is just asking for a different stem.
+    wanted = variant_stem(figure, variant)
+    if wanted is None:
+        raise ValueError(
+            f"'{figure}' has no '{variant}' version — only the spatial network "
+            f"plots do. Use figure_variants() to list what a figure offers.")
+
     with figure_dpi(dpi):
         written = _plot_recording_lag(
             rec, lag, metrics, channels, params, Path(out_dir), lambda m: None,
             ctx.batch_bounds, coords_all=coords, cell_types=markers,
             background=background,
             node_size_scale="auto" if params.twop_auto_node_size else 1.0,
-            fmt=fmt, only=figure, style=style,
+            fmt=fmt, only=wanted, style=style,
         )
     if not written:
         raise ValueError(
-            f"'{figure}' is not one of the figures available for {recording} at "
-            f"{lag} ms lag. Use available_figures() to list them."
+            f"'{figure}' ({variant}) is not one of the figures available for "
+            f"{recording} at {lag} ms lag. Use available_figures() to list them."
         )
     return written[0]
+
+
+def figure_variants(ctx: RenderContext, recording: str, lag: int,
+                    figure: str) -> list[str]:
+    """Which scalings of *figure* exist for this recording and lag.
+
+    Always at least ``["plain"]``. The batch-scaled and side-by-side versions
+    need a pooled bound for the figure's size metric, which a single-recording
+    bundle may not have — so this is asked per bundle rather than assumed.
+    """
+    # Imported here, not at module scope: step4 pulls in matplotlib, and this
+    # module is careful to stay cheap to import.
+    from meanap.pipeline.step4 import FIGURE_VARIANTS, SPATIAL_PLOTS
+
+    spec = next((sp for sp in SPATIAL_PLOTS
+                 if Path(sp[0]).stem == Path(figure).stem), None)
+    if spec is None:
+        return ["plain"]
+    size_key = spec[3]
+    if not ctx.batch_bounds.get(size_key):
+        return ["plain"]
+    return list(FIGURE_VARIANTS)
 
 
 #: Styling knobs the viewer exposes, forwarded to
@@ -587,7 +619,11 @@ def render_group_family(
             by_type = gp.add_cell_type_column(
                 df_node, groups_by_rec, _channels_by_rec(ctx))
             composition = gp.composition_frame(
-                recordings, groups_by_rec, _channels_by_rec(ctx))
+                recordings, groups_by_rec, _channels_by_rec(ctx),
+                # Without this the "active cells" columns are omitted, and the
+                # four 5_CellTypeComposition figures that read them are simply
+                # never drawn — which is how they went missing from bundles.
+                active_by_rec=gp.active_channels(df_node))
             gp.plot_activity_by_cell_type(
                 by_type, composition, out_dir, custom_grp_order=order, fmt=fmt)
         elif fam.key == "ephys_activity":
@@ -1078,8 +1114,9 @@ def cached_figure(
     fmt: str = "png",
     dpi: int | None = None,
     overrides: dict | None = None,
+    variant: str = "plain",
 ) -> tuple[Path, bool]:
-    """One figure, rendered once per (figure, style, format) and cached.
+    """One figure, rendered once per (figure, variant, style, format) and cached.
 
     Returns ``(path, was_cached)``. Single figures are ~0.1 s so the cache
     matters less than it does for a family, but flicking back and forth between
@@ -1087,12 +1124,16 @@ def cached_figure(
     """
     from meanap.pipeline.render_cache import bundle_identity, cache_key
 
-    key = cache_key(bundle_identity(ctx.root), f"fig:{recording}:{lag}:{figure}",
+    # The variant is part of the key, or switching the scaling toggle would
+    # serve back whichever version was rendered first.
+    key = cache_key(bundle_identity(ctx.root),
+                    f"fig:{recording}:{lag}:{figure}:{variant}",
                     fmt=fmt, dpi=dpi, overrides=overrides)
     files, was_cached = cache.get_or_render(
         key,
         lambda dest: [render_figure(ctx, recording, lag, figure, dest,
-                                    fmt=fmt, dpi=dpi, overrides=overrides)],
+                                    fmt=fmt, dpi=dpi, overrides=overrides,
+                                    variant=variant)],
     )
     return files[0], was_cached
 

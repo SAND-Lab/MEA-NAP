@@ -759,20 +759,6 @@ def _safe_dir(name: str) -> str:
     return re.sub(r"[^\w.+-]+", "_", str(name)).strip("_") or "group"
 
 
-def _active_channels(df_node: pd.DataFrame) -> dict[str, set]:
-    """Channels that cleared the activity threshold, per recording.
-
-    ``FRactive`` is NaN exactly where a cell fell below ``min_activity_level``
-    (see ``calc_twop_activity_stats``), so it is already the authoritative
-    record of which cells the network analysis kept — no need to re-derive it.
-    """
-    if df_node.empty or "FRactive" not in df_node.columns:
-        return {}
-    active = df_node[df_node["FRactive"].notna()]
-    return {name: set(sub["Channel"].astype(int))
-            for name, sub in active.groupby("FileName")}
-
-
 def _plot_group_comparisons(
     params, recordings, all_results, all_stats, all_channels, tables, states,
     output_root, log,
@@ -819,7 +805,7 @@ def _plot_group_comparisons(
         try:
             composition = gp.composition_frame(
                 recordings, groups_by_rec, all_channels,
-                active_by_rec=_active_channels(df_node),
+                active_by_rec=gp.active_channels(df_node),
             )
             if not express:
                 by_type = gp.add_cell_type_column(df_node, groups_by_rec, all_channels)

@@ -627,6 +627,67 @@ def _subnetwork_parity_checks() -> list[Check]:
     return checks
 
 
+# ── The scaling toggle ────────────────────────────────────────────────────────
+
+def _variant_checks() -> list[Check]:
+    """The naming rules the renderer shares with step 4, and the toggle's UI."""
+    from meanap.pipeline.step4 import FIGURE_VARIANTS, SPATIAL_PLOTS, variant_stem
+
+    checks: list[Check] = []
+    checks.append(("three scalings are named",
+                   FIGURE_VARIANTS == ("plain", "scaled", "combined"),
+                   str(FIGURE_VARIANTS)))
+
+    # These are the exact filenames a full run writes; the renderer has to name
+    # them without a second copy of the rule.
+    cases = [
+        ("2_MEA_NetworkPlot", "scaled", "2_scaled_MEA_NetworkPlot"),
+        ("2_MEA_NetworkPlot", "combined", "2_combined_MEA_NetworkPlot"),
+        ("3_MEA_NetworkPlotNodedegreeBetweennesscentrality", "combined",
+         "3_combined_MEA_NetworkPlot_Betweenness centrality"),
+        ("10_MEA_NetworkPlotNodedegreeAveragecontrollability", "combined",
+         "10_combined_MEA_NetworkPlot_Average controllability"),
+    ]
+    for base, variant, expect in cases:
+        got = variant_stem(base, variant)
+        checks.append((f"{variant} of {base.split('_')[0]} is named as the run names it",
+                       got == expect, f"{got!r} != {expect!r}"))
+
+    checks.append(("plain is the base itself",
+                   variant_stem("2_MEA_NetworkPlot", "plain") == "2_MEA_NetworkPlot",
+                   ""))
+    checks.append(("a non-spatial figure has no scaled version",
+                   variant_stem("7_adjM25msGraphMetricsByNode", "scaled") is None,
+                   ""))
+    checks.append(("every spatial plot can name all three",
+                   all(variant_stem(Path(sp[0]).stem, v) for sp in SPATIAL_PLOTS
+                       for v in FIGURE_VARIANTS),
+                   ""))
+
+    from meanap.viewer import page, server
+    src = Path(server.__file__).read_text()
+    checks.append(("the manifest tells the page which scalings each figure has",
+                   '"variants": figure_variants(' in src, ""))
+    checks.append(("and the route takes a variant",
+                   'variant=query.get("variant"' in src, ""))
+    html = page.PAGE_HTML
+    checks.append(("the page has the toggle",
+                   'id="variants"' in html and 'id="variant-panel"' in html, ""))
+    checks.append(("it hides itself when there is nothing to choose",
+                   'variants.length < 2' in html, ""))
+    checks.append(("choosing a different figure resets it",
+                   'VARIANT = "plain";' in html, ""))
+    checks.append(("and the variant reaches the server",
+                   'p.set("variant", VARIANT)' in html, ""))
+
+    # A cache key that ignored the variant would serve whichever was asked for
+    # first, for every subsequent toggle.
+    rsrc = (REPO_ROOT / "src" / "meanap" / "pipeline" / "render.py").read_text()
+    checks.append(("the render cache keys on the variant",
+                   '{figure}:{variant}' in rsrc, ""))
+    return checks
+
+
 def main() -> int:
     print("=" * 70)
     print("Check figures in a bundle")
@@ -642,7 +703,8 @@ def main() -> int:
                          ("Edge-threshold renderer:", _edge_render_checks),
                          ("Edge-threshold viewer:", _edge_viewer_checks),
                          ("Subnetwork wiring:", _subnetwork_declaration_checks),
-                         ("Subnetwork viewer:", _subnetwork_viewer_checks)]:
+                         ("Subnetwork viewer:", _subnetwork_viewer_checks),
+                         ("Scaling toggle:", _variant_checks)]:
         p, n = _report(title, build())
         total_pass += p
         total += n

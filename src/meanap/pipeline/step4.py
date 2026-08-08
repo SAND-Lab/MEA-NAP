@@ -252,6 +252,60 @@ def _batch_metric_bounds(all_results: dict, metric: str) -> tuple[float, float] 
     return float(pooled.min()), float(pooled.max())
 
 
+#: The spatial network plots: ``(filename, colour metric, colour legend name,
+#: size metric, size legend name)``. At module level because the bundle renderer
+#: has to be able to *name* a variant without re-deriving the rule — see
+#: :func:`variant_stem`. The batch maximum each scaled variant needs is just
+#: ``batch_bounds[size metric][1]`` and is looked up where it is used.
+#:
+#: Controllability plots are only produced when those (optional) metrics are
+#: present; the drawing loop's ``color_key not in metrics`` guard skips them.
+#: No batch bound is pooled for those two, so their scaled variant shares only
+#: the node-size and edge scale, not the colour scale.
+SPATIAL_PLOTS = (
+    ("2_MEA_NetworkPlot.png", None, "None", "ND", "node degree"),
+    ("3_MEA_NetworkPlotNodedegreeBetweennesscentrality.png", "BC",
+     "Betweenness centrality", "ND", "node degree"),
+    ("4_MEA_NetworkPlotNodedegreeParticipationcoefficient.png", "PC",
+     "Participation coefficient", "ND", "node degree"),
+    ("5_MEA_NetworkPlotNodestrengthLocalefficiency.png", "Eloc",
+     "Local efficiency", "NS", "node strength"),
+    ("10_MEA_NetworkPlotNodedegreeAveragecontrollability.png", "aveControl",
+     "Average controllability", "ND", "node degree"),
+    ("11_MEA_NetworkPlotNodedegreeModalcontrollability.png", "modalControl",
+     "Modal controllability", "ND", "node degree"),
+)
+
+#: How each spatial network plot is drawn: to this recording's own range, to the
+#: batch's, or the two side by side.
+FIGURE_VARIANTS = ("plain", "scaled", "combined")
+
+
+def variant_stem(base: str, variant: str) -> str | None:
+    """The filename stem *variant* of the plot *base* is written under.
+
+    ``None`` when there is no such variant: only the spatial network plots come
+    in scaled and combined versions, and ``plain`` is the base itself.
+    """
+    if variant == "plain":
+        return Path(base).stem
+    spec = next((s for s in SPATIAL_PLOTS if Path(s[0]).stem == Path(base).stem),
+                None)
+    if spec is None:
+        return None
+    fname, color_key, color_name = spec[0], spec[1], spec[2]
+    if variant == "scaled":
+        return Path(fname.replace("_MEA_NetworkPlot", "_scaled_MEA_NetworkPlot",
+                                  1)).stem
+    if variant == "combined":
+        # MATLAB names this "<n>_combined_MEA_NetworkPlot" plus the colour
+        # legend name, rather than the concatenated size+colour suffix the
+        # single plots use.
+        stem = f"{fname.split('_', 1)[0]}_combined_MEA_NetworkPlot"
+        return stem + (f"_{color_name}" if color_key is not None else "")
+    return None
+
+
 def _plot_recording_lag(
     rec: RecordingInfo,
     lag_ms,
@@ -339,30 +393,6 @@ def _plot_recording_lag(
             exclude_edges_below_threshold=params.exclude_edges_below_threshold,
         )
 
-    nd_max = batch_bounds["ND"][1] if batch_bounds.get("ND") else None
-    ns_max = batch_bounds["NS"][1] if batch_bounds.get("NS") else None
-
-    # (filename, color metric key, color legend name, size metric key,
-    #  size legend name, size batch-max) for each spatial network plot; the
-    #  ``_scaled`` filename is derived by inserting "_scaled" after the number.
-    spatial_specs = [
-        ("2_MEA_NetworkPlot.png", None, "None", "ND", "node degree", nd_max),
-        ("3_MEA_NetworkPlotNodedegreeBetweennesscentrality.png", "BC",
-         "Betweenness centrality", "ND", "node degree", nd_max),
-        ("4_MEA_NetworkPlotNodedegreeParticipationcoefficient.png", "PC",
-         "Participation coefficient", "ND", "node degree", nd_max),
-        ("5_MEA_NetworkPlotNodestrengthLocalefficiency.png", "Eloc",
-         "Local efficiency", "NS", "node strength", ns_max),
-        # Controllability plots are only produced when those (optional) metrics
-        # are present; the loop's ``color_key not in metrics`` guard skips them
-        # otherwise. No batch bound is pooled for these, so their scaled
-        # variant shares only the node-size and edge scale, not the color scale.
-        ("10_MEA_NetworkPlotNodedegreeAveragecontrollability.png", "aveControl",
-         "Average controllability", "ND", "node degree", nd_max),
-        ("11_MEA_NetworkPlotNodedegreeModalcontrollability.png", "modalControl",
-         "Modal controllability", "ND", "node degree", nd_max),
-    ]
-
     try:
         channels_active = channels_arr[metrics["activeChannelIndex"]]
         coords_active = (None if coords_all is None
@@ -371,9 +401,13 @@ def _plot_recording_lag(
         if cell_types is not None:
             ct_matrix, ct_names = cell_types
             ct_active = (np.asarray(ct_matrix)[metrics["activeChannelIndex"]], ct_names)
-        for fname, color_key, color_name, size_key, size_name, size_max in spatial_specs:
+        for fname, color_key, color_name, size_key, size_name in SPATIAL_PLOTS:
             if size_key not in metrics:
                 continue
+            # The batch maximum for the size metric is the whole of what the
+            # scaled variant needs from the pooled bounds.
+            size_max = (batch_bounds[size_key][1]
+                        if batch_bounds.get(size_key) else None)
             if color_key is not None and color_key not in metrics:
                 continue
             z = metrics[size_key]
