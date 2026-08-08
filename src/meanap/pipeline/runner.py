@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import datetime
 import json
+import shutil
 import time
 from pathlib import Path
 from typing import Callable
@@ -189,8 +190,10 @@ def run_pipeline(
             progress=reporter,
         )
         if params.express_mode:
-            _write_run_bundle(params, recordings, output_root, log, mode="catnap",
-                              embedded_figures=["2p_traces"] if params.num_2p_traces else [])
+            bundle = _write_run_bundle(
+                params, recordings, output_root, log, mode="catnap",
+                embedded_figures=["2p_traces"] if params.num_2p_traces else [])
+            output_root = _discard_folder_for_bundle(output_root, bundle, log)
         reporter.finish()
         return output_root
 
@@ -285,11 +288,13 @@ def run_pipeline(
     else:
         log("Skipping step 4 (network activity) — outside the selected step range.")
 
+    written_bundle = None
     if params.express_mode:
         # Nothing here needs embedding any more: the spike-detection checks
         # used to travel as images because they are drawn from raw voltage, but
         # they now travel as the slices they actually show (plotting.py).
-        _write_run_bundle(params, recordings, output_root, log, mode="ephys")
+        written_bundle = _write_run_bundle(
+            params, recordings, output_root, log, mode="ephys")
 
     if params.time_processes:
         total_duration = time.perf_counter() - pipeline_start
@@ -309,6 +314,10 @@ def run_pipeline(
                 )
         except Exception as e:
             log(f"Warning: could not save step_durations.json: {e}")
+
+    if params.express_mode:
+        # Last, so the timing block above still has a folder to write into.
+        output_root = _discard_folder_for_bundle(output_root, written_bundle, log)
 
     reporter.finish()
     return output_root
@@ -367,6 +376,46 @@ def _check_remote_source(params: Params, recordings, log, progress=None) -> None
             "The remote source is not ready to run (see the pre-flight report "
             "above). Fix the problems listed, or run meanap-preflight with "
             "--write-spreadsheet to correct recording names.")
+
+
+def _discard_folder_for_bundle(output_root: Path, bundle: Path | None, log) -> Path:
+    """Drop the run folder now the bundle holds everything it did.
+
+    Express mode's whole claim is that the ``.meanap`` is sufficient — every
+    figure in the folder is redrawable from it, and every data file is inside
+    it. Keeping both is keeping two copies of the same run, the larger of which
+    is the one the user was trying not to produce.
+
+    The folder is removed only after the bundle has been *opened and read back*.
+    "The file exists" is not the same as "the file is good", and this deletes
+    results: a truncated zip must cost the export, not the run.
+
+    Returns what the run should report as its output — the bundle when the
+    folder went, the folder when it stayed.
+    """
+    from meanap.pipeline.bundle import open_bundle
+
+    if bundle is None or not bundle.is_file():
+        log("Keeping the output folder: no bundle was written.")
+        return output_root
+    try:
+        with open_bundle(bundle) as opened:
+            if not opened.manifest.get("recordings"):
+                raise ValueError("it names no recordings")
+    except Exception as e:                            # noqa: BLE001
+        log(f"Keeping the output folder: the bundle did not read back ({e}).")
+        return output_root
+
+    try:
+        shutil.rmtree(output_root)
+    except OSError as e:
+        log(f"Keeping the output folder: it could not be removed ({e}).")
+        return output_root
+
+    log(f"Removed {output_root.name}/ — the bundle holds all of it.")
+    log("  Need the folder back (to share with someone without MEA-NAP)? "
+        "Open the bundle in the viewer and press 'Export output folder'.")
+    return bundle
 
 
 def _write_run_bundle(

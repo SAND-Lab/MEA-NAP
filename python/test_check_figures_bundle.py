@@ -688,6 +688,122 @@ def _variant_checks() -> list[Check]:
     return checks
 
 
+# ── Express keeps only the bundle, and the bundle can become a folder again ───
+
+def _express_and_export_checks() -> list[Check]:
+    """The round trip: a run leaves one file; that file becomes a folder again."""
+    import tempfile as tf
+
+    sys.path.insert(0, str(REPO_ROOT / "python"))
+    import pandas as pd
+    import test_bundle_render as T
+
+    from meanap.pipeline.bundle import BUNDLE_SUFFIX
+    from meanap.pipeline.export import default_export_dest, export_output_folder
+    from meanap.pipeline.runner import run_pipeline
+
+    checks: list[Check] = []
+    with tf.TemporaryDirectory() as tmp:
+        tmp = Path(tmp)
+        prior = T._seed_prior(tmp, "Prior")
+        sheet = tmp / "recs.csv"
+        pd.DataFrame([{"Recording filename": r.filename, "DIV": r.div,
+                       "Group": r.group} for r in T._recordings()]).to_csv(
+            sheet, index=False)
+
+        def run(name, express):
+            p = T._params(tmp, output_data_folder_name=name,
+                          express_mode=express, prior_analysis_path=str(prior),
+                          spreadsheet_file_name=str(sheet),
+                          spreadsheet_range="2:100",
+                          raw_data=str(tmp / "no-raw"),
+                          twop_subnetwork_analysis=True)
+            return run_pipeline(p, log=lambda m: None)
+
+        full = run("Full", False)
+        checks.append(("a full run still leaves its folder",
+                       full.is_dir(), str(full)))
+
+        returned = run("Express", True)
+        bundle = tmp / f"Express{BUNDLE_SUFFIX}"
+        checks.append(("an express run leaves no output folder",
+                       not (tmp / "Express").exists(), ""))
+        checks.append(("only the bundle",
+                       bundle.is_file(), str(bundle)))
+        checks.append(("and the run reports the bundle as its output",
+                       returned == bundle, str(returned)))
+
+        # Every figure back, in the layout the pipeline itself writes.
+        result = export_output_folder(bundle, log=lambda m: None)
+        full_pngs = {str(q.relative_to(full)) for q in full.rglob("*.png")}
+        made = {str(q.relative_to(result.dest))
+                for q in result.dest.rglob("*.png")}
+        checks.append((f"the export reproduces every figure "
+                       f"({len(made)}/{len(full_pngs)})",
+                       made == full_pngs,
+                       f"missing {sorted(full_pngs - made)[:3]}, "
+                       f"extra {sorted(made - full_pngs)[:3]}"))
+        checks.append(("nothing was skipped",
+                       not result.skipped, str(result.skipped[:2])))
+        checks.append(("the data files come across too",
+                       len(list(result.dest.rglob("*.csv")))
+                       >= len(list(full.rglob("*.csv"))),
+                       f"{len(list(result.dest.rglob('*.csv')))} csvs"))
+        checks.append(("and a report.html, which is the point of exporting",
+                       result.report is not None and result.report.is_file(),
+                       str(result.report)))
+
+        # The bundle is not a collision with itself.
+        checks.append(("the export lands on the bundle's own name",
+                       result.dest.name == "Express", result.dest.name))
+        checks.append(("a second export steps aside rather than overwriting",
+                       default_export_dest(bundle).name == "Express_v2",
+                       default_export_dest(bundle).name))
+
+        # An open bundle lives in a temp dir, so it cannot guess a destination.
+        from meanap.pipeline.bundle import open_bundle
+        with open_bundle(bundle) as b:
+            try:
+                export_output_folder(b, log=lambda m: None)
+                said = ""
+            except ValueError as e:
+                said = str(e)
+        checks.append(("exporting an open bundle demands a destination",
+                       "no permanent location" in said, said))
+    return checks
+
+
+def _express_safety_checks() -> list[Check]:
+    """The folder is deleted, so the conditions for deleting it must be tight."""
+    import tempfile as tf
+
+    from meanap.pipeline.runner import _discard_folder_for_bundle
+
+    checks: list[Check] = []
+    with tf.TemporaryDirectory() as tmp:
+        tmp = Path(tmp)
+        folder = tmp / "Run"
+        (folder / "4_NetworkActivity").mkdir(parents=True)
+        (folder / "4_NetworkActivity" / "x.csv").write_text("x")
+
+        logs: list[str] = []
+        kept = _discard_folder_for_bundle(folder, None, logs.append)
+        checks.append(("no bundle means the folder stays",
+                       folder.is_dir() and kept == folder, ""))
+        checks.append(("and says why",
+                       any("no bundle" in m for m in logs), str(logs)))
+
+        logs.clear()
+        broken = tmp / "Run.meanap"
+        broken.write_bytes(b"not a zip")
+        kept = _discard_folder_for_bundle(folder, broken, logs.append)
+        checks.append(("an unreadable bundle means the folder stays",
+                       folder.is_dir() and kept == folder, ""))
+        checks.append(("and says the bundle did not read back",
+                       any("did not read back" in m for m in logs), str(logs)))
+    return checks
+
+
 def main() -> int:
     print("=" * 70)
     print("Check figures in a bundle")
@@ -704,7 +820,9 @@ def main() -> int:
                          ("Edge-threshold viewer:", _edge_viewer_checks),
                          ("Subnetwork wiring:", _subnetwork_declaration_checks),
                          ("Subnetwork viewer:", _subnetwork_viewer_checks),
-                         ("Scaling toggle:", _variant_checks)]:
+                         ("Scaling toggle:", _variant_checks),
+                         ("Express keeps only the bundle:", _express_safety_checks),
+                         ("Bundle to folder round trip:", _express_and_export_checks)]:
         p, n = _report(title, build())
         total_pass += p
         total += n

@@ -188,9 +188,22 @@ The same report is deep-linkable — `report.html#4_NetworkActivity/4A_Individua
 ## Express mode & run bundles
 
 `Params(express_mode=True)` skips every figure that can be rebuilt from the
-run's own data and writes one shareable `.meanap` bundle instead — 483 figures
-and 56 MB become 6 figures and a 2.2 MB file on the example dataset, with the
-numbers byte-identical either way.
+run's own data and keeps **only** the shareable `.meanap` bundle — the output
+folder is removed once the bundle has been written *and read back*, since
+keeping both is keeping two copies of the same run. `run_pipeline` returns the
+bundle path for such a run. If the bundle cannot be written or does not reopen,
+the folder is kept and the log says why.
+
+To turn a bundle back into an ordinary folder — to send results to someone
+without MEA-NAP — open it in the viewer and press **Export output folder**, or
+call `meanap.pipeline.export.export_output_folder(bundle)`. It draws every
+figure into the layout the pipeline itself writes and adds the self-contained
+`report.html`, so the recipient needs nothing installed. On the example dataset
+that is 335 figures in about 40 seconds, and the exported figures are
+byte-identical to the ones a full run would have written.
+
+The saving is the point: a full run of the example dataset writes 483 figures
+and 56 MB; the express bundle is 2.2 MB.
 
 ```bash
 uv run meanap-viewer path/to/OutputData….meanap

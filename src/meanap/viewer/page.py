@@ -127,6 +127,9 @@ PAGE_HTML = r"""<!doctype html>
   <button id="tab-comparisons" data-tab="comparisons" aria-selected="false">Comparisons</button>
   <button id="tab-lags" data-tab="lags" aria-selected="false">Across lags</button>
   <span class="spacer"></span>
+  <button id="export" class="hidden" title="Draw every figure out into an ordinary
+folder, with a report.html to browse them — for sending results to someone who
+does not have MEA-NAP installed.">Export output folder</button>
   <span class="src" id="source">loading…</span>
 </nav>
 
@@ -861,6 +864,30 @@ async function showFamily(fam) {
 
 /* ── Shared chrome ──────────────────────────────────────────────────────── */
 
+async function onExport() {
+  const btn = $("export");
+  const label = btn.textContent;
+  // Hundreds of figures at ~0.1 s each, so this is tens of seconds. Disable
+  // rather than let a second click start a second export beside the first.
+  btn.disabled = true;
+  btn.textContent = "Exporting…";
+  try {
+    const r = await getJSON("/api/export");
+    const where = r.dest.split("/").slice(-1)[0];
+    btn.textContent = `Exported ${r.figures} figures → ${where}`;
+    $("error").textContent = r.skipped.length
+      ? `${r.skipped.length} figure(s) could not be drawn; the rest are there.`
+      : "";
+    // The path in full, where it can be copied out of.
+    $("status").textContent = r.dest;
+  } catch (e) {
+    btn.textContent = label;
+    $("error").textContent = "Export failed: " + e.message;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
 function markCurrent() {
   for (const b of document.querySelectorAll("#figures button"))
     b.setAttribute("aria-current", String(VIEW.kind === "figure" && b.dataset.name === VIEW.name));
@@ -954,6 +981,8 @@ function download(fmt) {
     return;
   }
   $("source").textContent = `${MANIFEST.source} · ${MANIFEST.mode}`;
+  // A viewer opened on a folder has nothing to export: it is already one.
+  $("export").classList.toggle("hidden", !MANIFEST.can_export);
   buildControls();
   buildComparisonControls();
   fillRecordings();
@@ -969,6 +998,7 @@ function download(fmt) {
 
   $("recording").addEventListener("change", fillLags);
   $("lag").addEventListener("change", () => { fillFigures(); fillSubnetworks(); });
+  $("export").addEventListener("click", onExport);
   $("cmp-family").addEventListener("change", fillComparisonFacets);
   $("cmp-level").addEventListener("change", fillComparisonMetrics);
   $("cmp-split").addEventListener("change", showComparison);

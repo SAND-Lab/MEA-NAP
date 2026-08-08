@@ -602,9 +602,11 @@ def _cell_type_self_contained_checks() -> list[Check]:
         full = _run(tmp, "Full", express=False)
         express = _run(tmp, "Express", express=True)
 
-        # The state carries markers and the resolved grouping.
-        state, _ = load_recording_state(
-            express / "ExperimentMatFiles" / f"recA{CATNAP_SUFFIX}", Path("."))
+        # The state carries markers and the resolved grouping. Read from inside
+        # the bundle: an express run no longer leaves a folder behind.
+        with open_bundle(express.with_suffix(BUNDLE_SUFFIX)) as _b:
+            state, _ = load_recording_state(
+                _b.root / "ExperimentMatFiles" / f"recA{CATNAP_SUFFIX}", Path("."))
         checks.append(("markers stored in the bundle state",
                        state.markers is not None
                        and state.markers[1] == ["NeuN+", "GAD+"],
@@ -615,14 +617,15 @@ def _cell_type_self_contained_checks() -> list[Check]:
 
         bundle_path = express.with_suffix(BUNDLE_SUFFIX)
 
-        # Now make the world hostile: no spreadsheet, no raw data, and the
-        # original output folder gone. Only the bundle survives.
-        import shutil
+        # Now make the world hostile: no spreadsheet, no raw data, no output
+        # folder. Only the bundle survives — which is what an express run leaves
+        # anyway, so the folder needs no removing here, only confirming gone.
         for stray in tmp.glob("*.csv"):
             stray.unlink()
-        shutil.rmtree(express)
-        checks.append(("spreadsheet and output folder removed",
-                       not list(tmp.glob("*.csv")) and not express.exists(), ""))
+        folder = bundle_path.with_suffix("")
+        checks.append(("spreadsheet gone, and express kept no output folder",
+                       not list(tmp.glob("*.csv")) and not folder.exists(),
+                       f"folder={folder.exists()}"))
 
         with open_bundle(bundle_path) as b:
             ctx = load_context(b)

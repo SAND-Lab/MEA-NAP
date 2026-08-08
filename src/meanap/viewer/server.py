@@ -134,6 +134,8 @@ class ViewerService:
             })
         return {
             "source": self.source.name,
+            # A folder cannot be exported: it already is one.
+            "can_export": self._bundle is not None,
             "mode": self.ctx.mode,
             "recordings": recordings,
             "families": [{"key": f.key, "label": f.label}
@@ -275,6 +277,32 @@ class ViewerService:
         )
         return files[0]
 
+    def export(self) -> dict:
+        """Draw this bundle out into an ordinary output folder.
+
+        For sending results to someone with no MEA-NAP: they get the figures as
+        files and a self-contained ``report.html`` to browse them with. Only
+        meaningful when the viewer was opened on a bundle — pointed at a folder
+        there is nothing to unpack.
+        """
+        from meanap.pipeline.export import export_output_folder
+
+        if self._bundle is None:
+            raise ValueError(
+                "This viewer is showing an output folder, not a bundle, so "
+                "there is nothing to export — the folder is already the folder.")
+        from meanap.pipeline.export import default_export_dest
+
+        # Beside the bundle file the user opened, not beside its extracted copy.
+        result = export_output_folder(
+            self._bundle, default_export_dest(self.source), log=lambda m: None)
+        return {
+            "dest": str(result.dest),
+            "figures": result.figures,
+            "report": str(result.report) if result.report else None,
+            "skipped": [{"what": w, "why": why} for w, why in result.skipped],
+        }
+
     def family(self, key: str, *, fmt: str = "png") -> dict:
         """Render (or serve cached) a family, as asset references.
 
@@ -329,6 +357,8 @@ class _Handler(BaseHTTPRequestHandler):
                 self._edge_check(query)
             elif parsed.path == "/api/subnetwork":
                 self._subnetwork(query)
+            elif parsed.path == "/api/export":
+                self._json(self.service.export())
             elif parsed.path == "/api/comparison":
                 self._comparison(query)
             elif parsed.path == "/api/lagseries":

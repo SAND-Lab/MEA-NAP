@@ -62,6 +62,7 @@ __all__ = [
     "SUBNETWORK_FIGURES",
     "available_subnetwork_figures",
     "render_subnetwork_figure",
+    "render_subnetwork_figure_set",
     "available_group_families",
     "load_context",
     "render_figure",
@@ -1356,6 +1357,66 @@ def render_subnetwork_figure(
             f"'{figure}' produced nothing for {recording} at {lag} ms lag — "
             "its table is present but empty of anything plottable.")
     return out_path
+
+
+def render_subnetwork_figure_set(
+    ctx: RenderContext,
+    recording: str,
+    lag: int,
+    out_root: Path | str,
+    *,
+    fmt: str = "png",
+) -> list[Path]:
+    """Redraw the whole 4A figure set once per cell-type subnetwork.
+
+    The one family here that has to *recompute* rather than reassemble: the
+    per-subnetwork metrics are not stored (only their summary rows are), so
+    :func:`~meanap.catnap.subnetwork.compute_subnetwork_metrics` is re-run from
+    the adjacency, spike counts and groups the state file carries. That is
+    stochastic, so it reproduces the run's own figures only for a seeded run —
+    with ``random_seed=None`` the numbers will be close but not identical, which
+    is true of re-running the pipeline itself.
+
+    *out_root* is the run's ``4_NetworkActivity`` folder, as the pipeline passes.
+    """
+    from meanap.catnap.pipeline import _plot_subnetwork_figure_set
+    from meanap.catnap.store import load_background
+    from meanap.catnap.subnetwork import compute_subnetwork_metrics
+    from meanap.pipeline.figure_output import figure_dpi
+    from meanap.pipeline.rng import make_rng
+
+    lag_key = f"{lag}mslag"
+    metrics = ctx.results.get(recording, {}).get(lag_key)
+    stored = _states(ctx).get(recording)
+    if not metrics or stored is None or getattr(stored[0].groups, "n_groups", 0) == 0:
+        return []
+    state = stored[0]
+
+    adj_full = state.adjMs.get(f"adjM{lag}mslag")
+    if adj_full is None:
+        return []
+
+    rec = ctx.recordings.get(recording) or RecordingInfo(
+        filename=recording, div=0.0, group="")
+    results = compute_subnetwork_metrics(
+        adj_full, state.spike_counts, state.duration_s, state.groups, ctx.params,
+        min_nodes=ctx.params.min_number_of_nodes_to_cal_net_met,
+        rng=make_rng(ctx.params.random_seed, "catnap_subnetwork", recording),
+        full_metrics=metrics,
+    )
+
+    background = None
+    bg_path = _background_path(ctx, recording)
+    if bg_path is not None:
+        background = load_background(bg_path)
+
+    out_root = Path(out_root)
+    before = set(out_root.rglob(f"*.{fmt}")) if out_root.exists() else set()
+    with figure_dpi(None):
+        _plot_subnetwork_figure_set(
+            ctx.params, rec, state, results, metrics, lag, out_root,
+            lambda m: None, background)
+    return sorted(p for p in out_root.rglob(f"*.{fmt}") if p not in before)
 
 
 def _edge_check_file(ctx: RenderContext, recording: str) -> Path | None:

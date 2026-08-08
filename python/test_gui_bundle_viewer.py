@@ -251,11 +251,17 @@ def _drop_checks(app: QApplication, express_root: Path) -> list[Check]:
     window.dragEnterEvent(ev)
     checks.append(("a dragged bundle is claimed", ev.accepted and not ev.ignored, ""))
 
-    ev = _FakeDrag([str(express_root / "params.json")])
+    # Not the run's folder: an express run keeps only the bundle now, so make a
+    # plain one — what is being tested is "a directory is not a bundle".
+    some_dir = bundle.parent / "not-a-bundle"
+    some_dir.mkdir(exist_ok=True)
+    (some_dir / "params.json").write_text("{}")
+
+    ev = _FakeDrag([str(some_dir / "params.json")])
     window.dragEnterEvent(ev)
     checks.append(("a dragged .json is not claimed", ev.ignored and not ev.accepted, ""))
 
-    ev = _FakeDrag([str(express_root)])
+    ev = _FakeDrag([str(some_dir)])
     window.dragEnterEvent(ev)
     checks.append(("a dragged folder is not claimed", ev.ignored and not ev.accepted, ""))
 
