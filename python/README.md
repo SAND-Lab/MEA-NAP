@@ -214,8 +214,17 @@ example dataset that took the bundle from 5.1 MB to 0.69 MB. The figure a run
 writes and the figure the viewer rebuilds come out of the same drawing function,
 so they are byte-identical.
 
-Bundling an output folder written before this change keeps its PNGs instead, and
-says so in the manifest rather than claiming a family it cannot rebuild.
+The step-3 edge-thresholding checks work the same way, and were worse off
+before: their folder was already on the never-pack list *and* the family was
+declared unreconstructable, so a bundle dropped them with no way to get them
+back. Step 3 now reduces the threshold snapshots — tens of megabytes that
+vanished when the step returned — to the ~10 KB per recording the figure
+actually shows.
+
+Bundling an output folder written before either change keeps its PNGs instead,
+and says so in the manifest rather than claiming a family it cannot rebuild.
+
+`cell_type_subnetwork_per_rec` is now the only family a bundle cannot redraw.
 
 ## Remote data
 
