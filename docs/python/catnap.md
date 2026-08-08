@@ -423,8 +423,9 @@ output tree — every figure, every CSV and a browsable `report.html` — use
 ## Re-running from a previous run
 
 ```{tip}
-A run made with {doc}`express-mode` writes a single `.meanap` bundle that is
-*also* a resume artifact — point **Use prior analysis** straight at the file.
+A run made with {doc}`express-mode` keeps a single `.meanap` bundle — no output
+folder — and that file is *also* a resume artifact: point **Use prior analysis**
+straight at it.
 ```
 
 

@@ -197,7 +197,7 @@ Run controls and step selection.
 | **Verbose level** | `Normal`, `Verbose`, or `Debug` logging detail in the status log. |
 | **Time each step** | Records per-step wall-clock time to `step_durations.json` in the output folder. |
 | **Fixed random seed** | Makes the stochastic steps (3 and 4) reproducible. Off — the default, matching MATLAB — gives a fresh seed per run. |
-| **Express mode** | Skips every figure that can be redrawn later and writes one small `.meanap` bundle instead. The numbers are identical either way; see [Express mode and run bundles](express-mode.md). |
+| **Express mode** | Skips every figure that can be redrawn later and keeps **only** a small `.meanap` bundle — the output folder is removed once the bundle is written and verified. The numbers are identical either way, and the viewer can draw the folder back out again; see [Express mode and run bundles](express-mode.md). |
 
 The four buttons under **Run**:
 
@@ -211,7 +211,8 @@ The four buttons under **Run**:
   - a **normal run** → (re)generates `report.html` in the output folder — see
     [Output report](output-report.md);
   - an **express run** → opens its `.meanap` bundle in the viewer, which draws
-    any figure on demand in PNG or editable SVG.
+    any figure on demand in PNG or editable SVG, and can export the whole
+    output folder back out for sharing.
 
   With no run in this session it falls back to the output folder the Paths tab
   describes, including the dated default name (`OutputData<ddMonyyyy>`) used
