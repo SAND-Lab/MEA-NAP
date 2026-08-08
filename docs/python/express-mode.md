@@ -287,6 +287,15 @@ the same plot at different scales. It hides itself for figures that have only
 one — the batch-scaled versions need a pooled bound for the figure's size
 metric, which a single-recording bundle may not have.
 
+### Parameters
+
+Every setting the run used, grouped as `Params` groups them, opening on the ones
+that differ from the defaults. The left column filters to a section; a toggle
+expands to all ~140 fields. Remote share links are shown as a placeholder, since
+a bundle is a thing people send each other.
+
+The tab is absent for a bundle that carries no `params.json`.
+
 ### Comparisons
 
 The 2B and 4B half-violin sets — network metrics and neuronal activity by group

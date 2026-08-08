@@ -142,10 +142,26 @@ class ViewerService:
                          for f in available_group_families(self.ctx)],
             "comparisons": self.comparisons(),
             "lag_series": self.lag_series(),
+            # The settings this run used, grouped and with the non-defaults
+            # marked. From the bundle's own params.json, which is already
+            # redacted at write time; summarise_params redacts again for a
+            # folder, whose copy is not.
+            "params": self._params_summary(),
             "controls": control_schema(),
             "comparison_controls": comparison_control_schema(),
             "formats": list(ALLOWED_FORMATS),
         }
+
+    def _params_summary(self) -> dict | None:
+        """What the run was configured with, or ``None`` if it didn't record it."""
+        from meanap.params_summary import summarise_params
+
+        params = self._bundle.params if self._bundle is not None else self.ctx.params
+        if params is None:
+            return None
+        unknown = (dict.fromkeys(self._bundle.unknown_param_keys)
+                   if self._bundle is not None else {})
+        return summarise_params(params, unknown=unknown).as_dict()
 
     def comparisons(self) -> list[dict]:
         """The facets behind the comparison tab: one entry per family.

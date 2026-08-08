@@ -575,10 +575,22 @@ def generate_report(output_root: Path | str, out_path: Path | str | None = None)
     tree = _build_tree(output_root, output_root)
     tree["name"] = output_root.name
 
-    # Escape "<" so no value in the tree — a CSV cell, a filename — can close
-    # the <script> block it is embedded in. \u003c is still "<" to JSON.parse.
+    # The settings the run used, grouped and with the non-defaults marked. A
+    # report is the thing that outlives the folder in someone's downloads, so
+    # what produced it should travel with it. None when there is no params.json
+    # — an older run, or one that failed before writing it.
+    from meanap.params import PARAMS_FILENAME
+    from meanap.params_summary import summary_from_file
+
+    summary = summary_from_file(output_root / PARAMS_FILENAME)
+    params_json = json.dumps(summary.as_dict() if summary else None)
+
+    # Escape "<" so no value in the tree — a CSV cell, a filename, a parameter
+    # — can close the <script> block it is embedded in. \u003c is still "<" to
+    # JSON.parse.
     tree_json = json.dumps(tree).replace("<", "\\u003c")
     html = _HTML_TEMPLATE.replace("__TREE_JSON__", tree_json)
+    html = html.replace("__PARAMS_JSON__", params_json.replace("<", "\\u003c"))
     html = html.replace("__TITLE__", f"MEA-NAP Output Report — {output_root.name}")
     out_path.write_text(html)
     return out_path
@@ -602,6 +614,23 @@ _HTML_TEMPLATE = r"""<!DOCTYPE html>
              overflow-y: auto; padding: 12px 8px; }
   #sidebar h1 { font-size: 14px; padding: 4px 8px 12px; margin: 0; color: var(--text); word-break: break-word; }
   #main { flex: 1; overflow-y: auto; padding: 24px 32px; }
+  .params-toggle { margin: 4px 0 18px; padding: 6px 12px; font-size: 13px;
+    cursor: pointer; border: 1px solid var(--border); border-radius: 6px;
+    background: var(--card-bg); color: var(--text); }
+  .params-toggle:hover { border-color: var(--accent); color: var(--accent); }
+  h3.params-group { margin: 22px 0 8px; font-size: 14px; letter-spacing: .02em;
+    text-transform: uppercase; color: var(--muted); font-weight: 600; }
+  table.params-table { border-collapse: collapse; width: 100%;
+    max-width: 900px; font-size: 13px; }
+  table.params-table td { padding: 5px 10px; border-top: 1px solid var(--border);
+    vertical-align: top; }
+  table.params-table tr.changed .p-name,
+  table.params-table tr.changed .p-value { font-weight: 600; }
+  .p-name { width: 38%; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    color: var(--text); word-break: break-word; }
+  .p-value { width: 37%; word-break: break-word; }
+  .p-default { width: 25%; color: var(--muted); font-size: 12px; }
+  .p-redacted { color: var(--muted); font-style: italic; }
   ul.tree { list-style: none; margin: 0; padding-left: 14px; }
   ul.tree.root { padding-left: 0; }
   .tree li { margin: 1px 0; }
@@ -656,6 +685,11 @@ _HTML_TEMPLATE = r"""<!DOCTYPE html>
 <div id="layout">
   <div id="sidebar">
     <h1>__TITLE__</h1>
+    <div id="params-link" class="node-label" style="display:none;">
+      <span class="caret" style="visibility:hidden;"></span>
+      <span>&#9881;</span><span>Run parameters</span>
+      <span class="count" id="params-count"></span>
+    </div>
     <ul class="tree root" id="tree-root"></ul>
   </div>
   <div id="main">
@@ -671,6 +705,7 @@ _HTML_TEMPLATE = r"""<!DOCTYPE html>
 </div>
 <script>
 const TREE = __TREE_JSON__;
+const PARAMS = __PARAMS_JSON__;
 
 function countImages(node) {
   if (node.type !== "folder") return node.type === "image" ? 1 : 0;
@@ -754,6 +789,108 @@ function buildTreeDOM(node, container, path) {
   }
 
   return li;
+}
+
+/* ── Run parameters ──────────────────────────────────────────────────────
+   Every setting the run used, grouped as the Params dataclass groups them.
+   Defaults are folded away by default: the question a reader has is "what was
+   different about this run", and on a typical run that is a dozen fields out
+   of 137. */
+function fmtValue(v) {
+  if (v === null || v === undefined) return "\u2014";      // em dash
+  if (Array.isArray(v)) return v.length ? v.join(", ") : "[]";
+  if (typeof v === "boolean") return v ? "on" : "off";
+  if (typeof v === "object") return JSON.stringify(v);
+  if (v === "") return "\u2014";
+  return String(v);
+}
+
+let showAllParams = false;
+
+function renderParams(labelEl) {
+  if (selectedLabel) selectedLabel.classList.remove("selected");
+  labelEl.classList.add("selected");
+  selectedLabel = labelEl;
+
+  breadcrumb.textContent = "Run parameters";
+  mainTitle.textContent = "Run parameters";
+  folderDesc.textContent =
+    `${PARAMS.changed} of ${PARAMS.total} settings differ from the defaults. ` +
+    `These are the values the run actually used \u2014 the same numbers in ` +
+    `params.json, grouped for reading.`;
+  folderDesc.style.display = "block";
+
+  content.innerHTML = "";
+
+  const toggle = document.createElement("button");
+  toggle.className = "params-toggle";
+  toggle.textContent = showAllParams
+    ? "Show only what changed" : `Show all ${PARAMS.total} settings`;
+  toggle.addEventListener("click", () => {
+    showAllParams = !showAllParams;
+    renderParams(labelEl);
+  });
+  content.appendChild(toggle);
+
+  let shown = 0;
+  for (const group of PARAMS.groups) {
+    const entries = showAllParams
+      ? group.entries : group.entries.filter(e => e.changed);
+    if (!entries.length) continue;
+    shown += entries.length;
+
+    const h = document.createElement("h3");
+    h.className = "params-group";
+    h.textContent = group.name;
+    if (!showAllParams) {
+      const n = document.createElement("span");
+      n.className = "count";
+      n.textContent = entries.length;
+      h.appendChild(n);
+    }
+    content.appendChild(h);
+
+    const table = document.createElement("table");
+    table.className = "params-table";
+    for (const e of entries) {
+      const tr = document.createElement("tr");
+      if (e.changed) tr.className = "changed";
+      const name = document.createElement("td");
+      name.className = "p-name";
+      name.textContent = e.name;
+      const val = document.createElement("td");
+      val.className = "p-value";
+      val.textContent = fmtValue(e.value);
+      if (e.redacted) val.classList.add("p-redacted");
+      const def = document.createElement("td");
+      def.className = "p-default";
+      // Only worth the ink where it differs from what is shown beside it.
+      def.textContent = e.changed ? "default " + fmtValue(e.default) : "";
+      tr.appendChild(name); tr.appendChild(val); tr.appendChild(def);
+      table.appendChild(tr);
+    }
+    content.appendChild(table);
+  }
+
+  if (!shown) {
+    const p = document.createElement("p");
+    p.className = "empty";
+    p.textContent = "Every setting was left at its default.";
+    content.appendChild(p);
+  }
+
+  if (PARAMS.unknown && Object.keys(PARAMS.unknown).length) {
+    const h = document.createElement("h3");
+    h.className = "params-group";
+    h.textContent = "Not recognised by this version";
+    content.appendChild(h);
+    const p = document.createElement("p");
+    p.className = "empty";
+    p.textContent = "This run recorded settings that this build has no field "
+      + "for \u2014 it was probably produced by a newer version: "
+      + Object.keys(PARAMS.unknown).join(", ");
+    content.appendChild(p);
+  }
 }
 
 let selectedLabel = null;
@@ -940,6 +1077,16 @@ lightbox.addEventListener("click", () => lightbox.classList.remove("open"));
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") lightbox.classList.remove("open"); });
 
 buildTreeDOM(TREE, treeRoot, []);
+
+// Only offered when the run recorded its settings: an older output folder has
+// no params.json, and a dead link is worse than no link.
+if (PARAMS) {
+  const link = document.getElementById("params-link");
+  link.style.display = "flex";
+  document.getElementById("params-count").textContent =
+    PARAMS.changed ? PARAMS.changed + " changed" : "all default";
+  link.addEventListener("click", () => renderParams(link));
+}
 
 function openHashPath() {
   const target = decodeURIComponent(location.hash.replace(/^#/, ""));

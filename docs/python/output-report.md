@@ -57,6 +57,20 @@ Opening a link like this auto-expands the sidebar tree and navigates straight
 to that folder — useful for pointing a labmate at one specific plot without
 walking them through the tree by hand.
 
+## Run parameters
+
+The sidebar's **⚙ Run parameters** entry shows the settings the run used, read
+from `params.json` and grouped the way `Params` groups them — Recording, Spike
+detection, Connectivity, and so on. It opens on **only what differs from the
+defaults**, which on a typical run is a dozen fields out of ~140, with the
+default each one departed from shown beside it; a toggle expands to all of them.
+
+Remote share links are replaced with a placeholder. A report is a file people
+attach to papers and email onward, and a Dropbox link in one is a credential.
+
+The entry is absent for an output folder with no `params.json` — an older run,
+or one that failed before writing it.
+
 ## Related: the interactive viewer
 
 `report.html` shows the figures a run *wrote*. If you ran with
