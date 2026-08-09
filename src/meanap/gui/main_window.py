@@ -18,24 +18,23 @@ from meanap.pipeline.example_data import download_example_data
 from meanap.pipeline.report import generate_report
 from meanap.gui import theme
 from meanap.gui.branding import logo_icon, logo_pixmap
+from meanap.gui import advanced
 from meanap.gui.modes import (
-    DEFAULT_MODE, MODES, TAB_CATNAP, TAB_CONNECTIVITY, TAB_NETWORK, TAB_PATHS,
-    TAB_PIPELINE, TAB_QUEUE, TAB_RECORDING, TAB_SPIKE, TAB_STIM,
+    DEFAULT_MODE, MODES, TAB_CATNAP, TAB_CONNECTIVITY, TAB_DATA, TAB_RESULTS,
+    TAB_RUN, TAB_SPIKE, TAB_STIM,
     TAB_STIM_PREVIEW,
     apply_mode_to_params, mode_for_params,
 )
 from meanap.gui.pipeline_worker import PipelineWorker, QueueWorker
 from meanap.gui.viewer_session import ViewerSessions
-from meanap.gui.panels.paths import PathsPanel
-from meanap.gui.panels.recording import RecordingPanel
+from meanap.gui.panels.data import DataPanel
 from meanap.gui.panels.spike_detection import SpikeDetectionPanel
 from meanap.gui.panels.connectivity import ConnectivityPanel
 from meanap.gui.panels.stim import StimPanel
 from meanap.gui.panels.stim_preview import StimPreviewPanel
-from meanap.gui.panels.pipeline import PipelinePanel
-from meanap.gui.panels.queue import QueuePanel
+from meanap.gui.panels.run import QUEUE, RunPanel
 from meanap.gui.panels.catnap import CatNapPanel
-from meanap.gui.panels.network_viewer import NetworkViewerPanel
+from meanap.gui.panels.results import ResultsPanel
 from meanap.gui.tooltip import install_tooltip_style, wrap_tooltips
 from meanap.gui.tutorial import TutorialOverlay, TutorialStep, tabbar_target
 
@@ -83,6 +82,12 @@ class MainWindow(QMainWindow):
 
         self._build_toolbar()
         self._build_tabs()
+        # After the tabs exist, so there is something to expand. Blocked so
+        # restoring the preference does not immediately re-save it.
+        self._act_advanced.blockSignals(True)
+        self._act_advanced.setChecked(advanced.load_preference())
+        self._act_advanced.blockSignals(False)
+        advanced.set_all_expanded(self, self._act_advanced.isChecked())
         self._load_params(self._params)
         # Wrap every tooltip in one pass, once the whole UI exists. Doing it
         # here rather than at each call site means a tooltip written anywhere
@@ -112,13 +117,13 @@ class MainWindow(QMainWindow):
         act_save.setToolTip("Save current parameters to a JSON file")
         act_save.triggered.connect(self._on_save)
 
-        act_bundle = QAction("Open bundle…", self)
-        act_bundle.setToolTip(
+        self._act_bundle = QAction("📦  Open bundle…", self)
+        self._act_bundle.setToolTip(
             "Open a .meanap run bundle — from an express run of your own, or "
             "one someone sent you — and draw any of its figures in the viewer. "
             "You can also drag the file onto this window."
         )
-        act_bundle.triggered.connect(self._on_open_bundle)
+        self._act_bundle.triggered.connect(self._on_open_bundle)
 
         self._act_theme = QAction("☀  Light", self)
         self._act_theme.setToolTip("Toggle light / dark theme")
@@ -128,14 +133,26 @@ class MainWindow(QMainWindow):
         act_tutorial.setToolTip("Launch the guided tutorial")
         act_tutorial.triggered.connect(self._start_tutorial)
 
+        # One switch for every folded section in the window, for someone who
+        # would rather see all of it than open sections one at a time. It only
+        # changes what is shown: see meanap.gui.advanced.
+        self._act_advanced = QAction("⚙  Advanced settings", self)
+        self._act_advanced.setCheckable(True)
+        self._act_advanced.setToolTip(
+            "Show the less-used settings on every tab at once. They are saved "
+            "and used either way — this only changes what is on screen."
+        )
+        self._act_advanced.toggled.connect(self._on_toggle_advanced)
+
         tb.addAction(act_new)
         tb.addSeparator()
         tb.addAction(act_open)
         tb.addAction(act_save)
         tb.addSeparator()
-        tb.addAction(act_bundle)
+        tb.addAction(self._act_bundle)
         tb.addSeparator()
         tb.addAction(self._act_theme)
+        tb.addAction(self._act_advanced)
         tb.addAction(act_tutorial)
         tb.addSeparator()
 
@@ -168,78 +185,82 @@ class MainWindow(QMainWindow):
         self._tabs.setDocumentMode(True)
         self.setCentralWidget(self._tabs)
 
-        self._paths_panel = PathsPanel()
-        self._recording_panel = RecordingPanel()
+        self._data_panel = DataPanel()
         self._spike_panel = SpikeDetectionPanel()
         self._connectivity_panel = ConnectivityPanel()
         self._stim_panel = StimPanel()
         self._stim_preview_panel = StimPreviewPanel()
         self._catnap_panel = CatNapPanel()
-        self._pipeline_panel = PipelinePanel()
-        self._queue_panel = QueuePanel()
-        self._network_viewer_panel = NetworkViewerPanel()
+        self._run_panel = RunPanel()
+        # The Run tab holds both pages; these name them for the code that only
+        # cares about one — loading parameters, or the queue's list.
+        self._pipeline_panel = self._run_panel.settings
+        self._queue_panel = self._run_panel.queue
+        # The Results tab reuses the toolbar's own Open bundle action rather
+        # than a second button calling the same slot.
+        self._results_panel = ResultsPanel(self._act_bundle)
+        self._results_panel.view_report_requested.connect(self._on_view_report)
+        self._network_viewer_panel = self._results_panel.viewer
 
         # Every tab is built once and kept alive here; the current mode decides
         # which of them are actually in the QTabWidget (see _apply_mode). Order
         # is the order they appear in, whichever subset is showing.
         self._tab_specs: list[tuple[str, QWidget, str]] = [
-            (TAB_PATHS, _scrollable(self._paths_panel), "  Paths  "),
-            (TAB_RECORDING, _scrollable(self._recording_panel), "  Recording  "),
+            (TAB_DATA, _scrollable(self._data_panel), "  Data  "),
             (TAB_SPIKE, _scrollable(self._spike_panel), "  Spike detection  "),
             (TAB_CONNECTIVITY, _scrollable(self._connectivity_panel), "  Connectivity  "),
             (TAB_STIM, _scrollable(self._stim_panel), "  Stimulation  "),
             (TAB_STIM_PREVIEW, self._stim_preview_panel, "  Stim Preview  "),
             (TAB_CATNAP, self._catnap_panel, "  CAT-NAP (2P)  "),
-            (TAB_NETWORK, self._network_viewer_panel, "  Network Viewer  "),
-            (TAB_PIPELINE, _scrollable(self._pipeline_panel), "  Pipeline  "),
-            (TAB_QUEUE, self._queue_panel, "  Queue  "),
+            (TAB_RUN, self._run_panel, "  Run  "),
+            (TAB_RESULTS, self._results_panel, "  Results  "),
         ]
         self._apply_mode(self._mode, sync_params=False)
 
-        self._catnap_panel.log_message.connect(self._pipeline_panel.append_log)
-        self._queue_panel.run_requested.connect(self._on_run_queue)
-        self._queue_panel.stop_requested.connect(self._on_stop_queue)
+        self._catnap_panel.log_message.connect(self._run_panel.append_log)
+        # What "View report" would open depends on the output paths, which live
+        # on another tab, so it is recomputed on the way in rather than cached.
+        self._tabs.currentChanged.connect(self._on_tab_changed)
+        self._queue_panel.changed.connect(self._run_panel.refresh)
 
-        # The Paths "Raw data folder" and the CAT-NAP "Recordings folder" are
+        # The Data tab's "Raw data folder" and the CAT-NAP "Recordings folder" are
         # two views of one setting (Params.raw_data), and both panels write it
         # in _collect_params — so whichever saves last silently wins. Mirror
-        # them instead. Without this, setting the folder on Paths and pressing
+        # them instead. Without this, setting the folder on Data and pressing
         # Run reports it missing, because the empty CAT-NAP field overwrites it.
         self._bind_mirrored(
-            self._paths_panel.raw_data.line_edit, self._catnap_panel._folder_edit
+            self._data_panel.raw_data.line_edit, self._catnap_panel._folder_edit
         )
 
         # Mark Run / Stop with object names so QSS can style them distinctly
-        self._pipeline_panel.run_btn.setObjectName("primary")
-        self._pipeline_panel.stop_btn.setObjectName("danger")
-        self._pipeline_panel.test_btn.setObjectName("secondary")
-        self._pipeline_panel.view_report_btn.setObjectName("secondary")
-        self._pipeline_panel.run_btn.clicked.connect(self._on_run)
-        self._pipeline_panel.stop_btn.clicked.connect(self._on_stop)
-        self._pipeline_panel.test_btn.clicked.connect(self._on_test_pipeline)
-        self._pipeline_panel.view_report_btn.clicked.connect(self._on_view_report)
+        self._run_panel.run_btn.setObjectName("primary")
+        self._run_panel.stop_btn.setObjectName("danger")
+        self._run_panel.test_btn.setObjectName("secondary")
+        self._run_panel.run_btn.clicked.connect(self._on_run_clicked)
+        self._run_panel.stop_btn.clicked.connect(self._on_stop)
+        self._run_panel.test_btn.clicked.connect(self._on_test_pipeline)
 
         # Mark log widget so the monospace QSS rule applies
-        self._pipeline_panel.log.setObjectName("log")
+        self._run_panel.log.setObjectName("log")
         self._catnap_panel._log.setObjectName("log")
 
         # QTextEdit accepts drops even when read-only, and a child that accepts
         # a drag stops it reaching the window — so a bundle dropped on the
-        # status log, the largest target on the Pipeline tab, would do nothing.
-        self._pipeline_panel.log.setAcceptDrops(False)
+        # status log, the largest target on the Run tab, would do nothing.
+        self._run_panel.log.setAcceptDrops(False)
         self._catnap_panel._log.setAcceptDrops(False)
 
         # A spreadsheet built from a scan describes the recordings the run is
         # about to read, so point the run at it rather than leaving the user to
         # copy the path across tabs.
         self._catnap_panel.spreadsheet_saved.connect(
-            self._paths_panel.spreadsheet.set_value)
+            self._data_panel.spreadsheet.set_value)
 
         # Secondary-style buttons in CAT-NAP panel
         self._catnap_panel._scan_btn.setObjectName("secondary")
         self._catnap_panel._denoise_btn.setObjectName("secondary")
         self._catnap_panel._make_sheet_btn.setObjectName("secondary")
-        self._paths_panel.edit_spreadsheet_btn.setObjectName("secondary")
+        self._data_panel.edit_spreadsheet_btn.setObjectName("secondary")
 
     @staticmethod
     def _bind_mirrored(first: QLineEdit, second: QLineEdit) -> None:
@@ -256,6 +277,13 @@ class MainWindow(QMainWindow):
         second.textChanged.connect(sync(second, first))
         second.setText(first.text())
 
+    def _on_toggle_advanced(self, show: bool) -> None:
+        n = advanced.set_all_expanded(self, show)
+        advanced.save_preference(show)
+        self.statusBar().showMessage(
+            f"{'Showing' if show else 'Hiding'} advanced settings "
+            f"in {n} section(s).", 4000)
+
     # ── Modes ─────────────────────────────────────────────────────────────────
 
     def _apply_mode(self, mode_key: str, *, sync_params: bool = True) -> None:
@@ -268,6 +296,9 @@ class MainWindow(QMainWindow):
         """
         mode = MODES[mode_key]
         self._mode = mode_key
+        # The Data tab is shown in every mode but does not mean the same thing
+        # in each — CAT-NAP has no electrodes and no sampling rate to set.
+        self._data_panel.set_mode(mode_key)
 
         keep = self._current_tab_key()
         self._tabs.blockSignals(True)
@@ -284,7 +315,7 @@ class MainWindow(QMainWindow):
         self._tabs.blockSignals(False)
 
         # Stay on the same tab across the switch when that tab still exists,
-        # rather than dumping the user back on Paths every time.
+        # rather than dumping the user back on Data every time.
         index = self._tab_index(keep) if keep else -1
         self._tabs.setCurrentIndex(index if index >= 0 else 0)
 
@@ -309,6 +340,18 @@ class MainWindow(QMainWindow):
             if spec_key == key:
                 return self._tabs.indexOf(widget)
         return -1
+
+    def _on_tab_changed(self, _index: int) -> None:
+        if self._current_tab_key() == TAB_RESULTS:
+            self._refresh_results_target()
+
+    def _refresh_results_target(self) -> None:
+        root = self._candidate_output_root()
+        bundle = self._last_bundle
+        if bundle is None and root is not None:
+            candidate = root.with_suffix(BUNDLE_SUFFIX)
+            bundle = candidate if candidate.is_file() else None
+        self._results_panel.set_target(root, bundle)
 
     def _current_tab_key(self) -> str | None:
         current = self._tabs.currentWidget()
@@ -357,18 +400,17 @@ class MainWindow(QMainWindow):
         QSettings("SAND Lab", "MEA-NAP").setValue("tutorial/seen", True)
 
     def _build_meanap_steps(self) -> list[TutorialStep]:
-        paths = self._paths_panel
-        rec = self._recording_panel
+        data = self._data_panel
         spike = self._spike_panel
         conn = self._connectivity_panel
         pipe = self._pipeline_panel
         return [
             TutorialStep(
-                "Raw data folder", "The MEA-NAP pipeline starts on the Paths tab. "
+                "Raw data folder", "The MEA-NAP pipeline starts on the Data tab. "
                 "Choose the folder holding your recordings. No conversion needed: "
                 "Multi Channel Systems .h5 and Axion .raw are read as they come off "
                 "the recorder, alongside .mat files from the MATLAB converters.",
-                self._tab_index(TAB_PATHS), lambda: paths.raw_data),
+                self._tab_index(TAB_DATA), lambda: data.raw_data),
             TutorialStep(
                 "Recording spreadsheet", "Select the CSV/XLSX that lists each recording, "
                 "its group and its age (DIV). This drives the whole batch. Name recordings "
@@ -376,30 +418,30 @@ class MainWindow(QMainWindow):
                 "one row per well — 'Plate2_DIV75_A1' — exactly as the MATLAB converter "
                 "would have named the file it wrote. No spreadsheet yet? “Edit…” "
                 "builds one here and checks it as you type.",
-                self._tab_index(TAB_PATHS), lambda: paths.spreadsheet),
+                self._tab_index(TAB_DATA), lambda: data.spreadsheet),
             TutorialStep(
                 "Spreadsheet range", "The cell range to read from the spreadsheet, "
                 "e.g. A2:A100000 to read every row after the header.",
-                self._tab_index(TAB_PATHS), lambda: paths.spreadsheet_range),
+                self._tab_index(TAB_DATA), lambda: data.spreadsheet_range),
             TutorialStep(
                 "Where results go", "Set the output folder and give this analysis run "
                 "a name — a subfolder with that name will hold all results and plots.",
-                self._tab_index(TAB_PATHS), lambda: paths.output_data_folder),
+                self._tab_index(TAB_DATA), lambda: data.output_data_folder),
             TutorialStep(
-                "Recording settings", "On the Recording tab, set the sampling frequency "
+                "Recording settings", "Further down the Data tab, set the sampling frequency "
                 "of your acquisition (Hz) so spike detection and downsampling are correct.",
-                self._tab_index(TAB_RECORDING), lambda: rec.fs),
+                self._tab_index(TAB_DATA), lambda: data.fs),
             TutorialStep(
                 "Voltage units", "Set this to the units your recordings are in — µV for "
                 "Multi Channel Systems, V for Axion. Getting it wrong scales every "
                 "amplitude, so spike detection thresholds land in the wrong place.",
-                self._tab_index(TAB_RECORDING), lambda: rec.potential_difference_unit),
+                self._tab_index(TAB_DATA), lambda: data.potential_difference_unit),
             TutorialStep(
                 "Channel layout", "Pick the MEA layout that matches your hardware: MCS60 "
                 "for a 60-electrode MCS array, Axion64 for 6-well Axion plates, Axion16 "
                 "for 24-well plates (16 electrodes per well). This maps channels to "
                 "electrode positions.",
-                self._tab_index(TAB_RECORDING), lambda: rec.channel_layout),
+                self._tab_index(TAB_DATA), lambda: data.channel_layout),
             TutorialStep(
                 "Spike detection", "Step 1 detects spikes. Leave 'Detect spikes' ticked "
                 "for a fresh run; untick it if you already have detected spike data.",
@@ -413,37 +455,44 @@ class MainWindow(QMainWindow):
                 "time tiling coefficient. These lag values (ms) set the coincidence window.",
                 self._tab_index(TAB_CONNECTIVITY), lambda: conn.lag_vals),
             TutorialStep(
-                "Choose the steps", "On the Pipeline tab, pick which steps to run "
+                "Choose the steps", "On the Run tab, pick which steps to run "
                 "(1–4). The default runs the whole pipeline end to end.",
-                self._tab_index(TAB_PIPELINE), lambda: pipe.start_step),
+                self._tab_index(TAB_RUN), lambda: pipe.start_step),
             TutorialStep(
                 "Try it first", "Not sure your setup works? 'Test pipeline' downloads a "
                 "small example dataset and runs all four steps on it.",
-                self._tab_index(TAB_PIPELINE), lambda: pipe.test_btn),
+                self._tab_index(TAB_RUN), lambda: self._run_panel.test_btn),
             TutorialStep(
-                "Run the pipeline", "When your paths are filled in, press Run. Progress "
-                "appears in the status log, and 'View report' opens the results in your browser.",
-                self._tab_index(TAB_PIPELINE), lambda: pipe.run_btn),
+                "Run the pipeline", "When your paths are filled in, press Run. Progress, "
+                "a time estimate and the status log all appear below it.",
+                self._tab_index(TAB_RUN), lambda: self._run_panel.run_btn),
+            TutorialStep(
+                "Look at what came out", "The Results tab is the last stop. 'View report' "
+                "opens the run in your browser — an HTML gallery of every figure, or the "
+                "viewer if it was an express run — and the network viewer below explores "
+                "any recording's connectivity interactively.",
+                self._tab_index(TAB_RESULTS),
+                lambda: self._results_panel.view_report_btn),
         ]
 
     def _build_meastim_steps(self) -> list[TutorialStep]:
-        paths = self._paths_panel
+        data = self._data_panel
         stim = self._stim_panel
         pipe = self._pipeline_panel
         return [
             TutorialStep(
-                "Raw data folder", "MEA-Stim reuses the same Paths tab. Choose the folder "
+                "Raw data folder", "MEA-Stim reuses the same Data tab. Choose the folder "
                 "with your stimulation recordings — .mat, Multi Channel Systems .h5 or "
                 "Axion .raw, no conversion needed.",
-                self._tab_index(TAB_PATHS), lambda: paths.raw_data),
+                self._tab_index(TAB_DATA), lambda: data.raw_data),
             TutorialStep(
                 "Recording spreadsheet", "Select the CSV/XLSX listing each recording, "
                 "its group and DIV.",
-                self._tab_index(TAB_PATHS), lambda: paths.spreadsheet),
+                self._tab_index(TAB_DATA), lambda: data.spreadsheet),
             TutorialStep(
                 "Where results go", "Set the output folder and a name for this run's "
                 "results subfolder.",
-                self._tab_index(TAB_PATHS), lambda: paths.output_data_folder),
+                self._tab_index(TAB_DATA), lambda: data.output_data_folder),
             TutorialStep(
                 "Turn on MEA-Stim", "On the Stimulation tab, tick this to run the "
                 "stimulation analysis after spike detection.",
@@ -467,9 +516,9 @@ class MainWindow(QMainWindow):
                 self._tab_index(TAB_STIM_PREVIEW),
                 tabbar_target(self._tabs, self._tab_index(TAB_STIM_PREVIEW))),
             TutorialStep(
-                "Run the pipeline", "On the Pipeline tab, press Run. Spike detection runs "
+                "Run the pipeline", "On the Run tab, press Run. Spike detection runs "
                 "first, then the stimulation analysis and its plots.",
-                self._tab_index(TAB_PIPELINE), lambda: pipe.run_btn),
+                self._tab_index(TAB_RUN), lambda: self._run_panel.run_btn),
         ]
 
     def _build_catnap_steps(self) -> list[TutorialStep]:
@@ -502,7 +551,7 @@ class MainWindow(QMainWindow):
                 "Build the spreadsheet", "This turns the recordings found above into "
                 "the batch spreadsheet, with the names taken from the data rather "
                 "than retyped, and the DIV read out of each name. Fill in the "
-                "genotype/group column, save, and the Paths tab points at it.",
+                "genotype/group column, save, and the Data tab points at it.",
                 self._tab_index(TAB_CATNAP), lambda: cat._make_sheet_btn),
             TutorialStep(
                 "Denoising", "Optionally denoise the fluorescence traces before analysis. "
@@ -510,8 +559,8 @@ class MainWindow(QMainWindow):
                 self._tab_index(TAB_CATNAP), lambda: cat._denoise_btn),
             TutorialStep(
                 "Run the pipeline", "With CAT-NAP mode on and a folder selected, go to "
-                "the Pipeline tab and press Run to analyse the imaging data.",
-                self._tab_index(TAB_PIPELINE), lambda: pipe.run_btn),
+                "the Run tab and press Run to analyse the imaging data.",
+                self._tab_index(TAB_RUN), lambda: self._run_panel.run_btn),
         ]
 
     # ── Param sync ────────────────────────────────────────────────────────────
@@ -524,8 +573,7 @@ class MainWindow(QMainWindow):
         if wanted != self._mode:
             self._apply_mode(wanted, sync_params=False)
 
-        self._paths_panel.load(params)
-        self._recording_panel.load(params)
+        self._data_panel.load(params)
         self._spike_panel.load(params)
         self._connectivity_panel.load(params)
         self._stim_panel.load(params)
@@ -535,8 +583,7 @@ class MainWindow(QMainWindow):
 
     def _collect_params(self) -> Params:
         params = Params()
-        self._paths_panel.save(params)
-        self._recording_panel.save(params)
+        self._data_panel.save(params)
         self._spike_panel.save(params)
         self._connectivity_panel.save(params)
         self._stim_panel.save(params)
@@ -572,7 +619,7 @@ class MainWindow(QMainWindow):
             params = Params(**{k: v for k, v in data.items() if hasattr(Params, k)})
             self._params = params
             self._load_params(self._params)
-            self._pipeline_panel.append_log(f"Loaded parameters from {path}")
+            self._run_panel.append_log(f"Loaded parameters from {path}")
         except Exception as e:
             QMessageBox.critical(self, "Error loading parameters", str(e))
 
@@ -587,7 +634,7 @@ class MainWindow(QMainWindow):
             params = self._collect_params()
             with open(path, "w") as f:
                 json.dump(dataclasses.asdict(params), f, indent=2)
-            self._pipeline_panel.append_log(f"Saved parameters to {path}")
+            self._run_panel.append_log(f"Saved parameters to {path}")
         except Exception as e:
             QMessageBox.critical(self, "Error saving parameters", str(e))
 
@@ -596,17 +643,17 @@ class MainWindow(QMainWindow):
     def _on_test_pipeline(self) -> None:
         # The test run needs somewhere to put the example data and its output.
         # Default the output folder to ~/MEA-NAP when it hasn't been set.
-        out_folder = self._paths_panel.output_data_folder.value
+        out_folder = self._data_panel.output_data_folder.value
         if not out_folder:
             out_folder = str(Path.home() / "MEA-NAP")
-            self._paths_panel.output_data_folder.set_value(out_folder)
+            self._data_panel.output_data_folder.set_value(out_folder)
 
-        self._tabs.setCurrentIndex(self._tab_index(TAB_PIPELINE))
-        self._pipeline_panel.append_log("Downloading example data for pipeline test…")
+        self._tabs.setCurrentIndex(self._tab_index(TAB_RUN))
+        self._run_panel.append_log("Downloading example data for pipeline test…")
         QApplication.processEvents()
 
         def log(message: str) -> None:
-            self._pipeline_panel.append_log(message)
+            self._run_panel.append_log(message)
             QApplication.processEvents()
 
         try:
@@ -617,15 +664,15 @@ class MainWindow(QMainWindow):
 
         # Point the paths panel at the example dataset, mirroring the MATLAB
         # TestPipelineButton behaviour (downloadExampleData + settings override).
-        self._paths_panel.raw_data.set_value(str(example_dir))
-        self._paths_panel.spreadsheet.set_value(str(example_dir / "exampleData.csv"))
-        self._paths_panel.spreadsheet_range.setText("A2:A3")
+        self._data_panel.raw_data.set_value(str(example_dir))
+        self._data_panel.spreadsheet.set_value(str(example_dir / "exampleData.csv"))
+        self._data_panel.spreadsheet_range.setText("A2:A3")
         try:
             from meanap.pipeline.spreadsheet import read_recording_csv
             recordings = read_recording_csv(example_dir / "exampleData.csv", "A2:A3")
             # Preserve order of first appearance
             unique_grps = list(dict.fromkeys(r.group for r in recordings))
-            self._paths_panel.custom_grp_order.setText(",".join(unique_grps))
+            self._data_panel.custom_grp_order.setText(",".join(unique_grps))
         except Exception as e:
             log(f"Warning: could not parse custom group order from exampleData.csv: {e}")
 
@@ -633,17 +680,29 @@ class MainWindow(QMainWindow):
         self._pipeline_panel.start_step.setValue(1)
         self._pipeline_panel.stop_step.setValue(4)
 
-        self._pipeline_panel.append_log("Example data ready — running full pipeline (steps 1-4).")
+        self._run_panel.append_log("Example data ready — running full pipeline (steps 1-4).")
         self._on_run()
 
+    def _on_run_clicked(self) -> None:
+        """One button, so what it starts is whatever the Run tab's switch says.
+
+        Nothing here has to refuse an overlapping run: the button is disabled
+        while anything is going, so there is no second run to refuse.
+        """
+        if self._busy():
+            return
+        if self._run_panel.mode() == QUEUE:
+            self._on_run_queue()
+        else:
+            self._on_run()
+
+    def _busy(self) -> bool:
+        return ((self._worker is not None and self._worker.isRunning())
+                or (self._queue_worker is not None
+                    and self._queue_worker.isRunning()))
+
     def _on_run(self) -> None:
-        if self._worker is not None and self._worker.isRunning():
-            return  # a run is already in progress
-        if self._queue_worker is not None and self._queue_worker.isRunning():
-            QMessageBox.information(
-                self, "The queue is running",
-                "Wait for the queue on the Queue tab to finish, or stop it, "
-                "before starting a single run.")
+        if self._busy():
             return
 
         params = self._collect_params()
@@ -662,7 +721,7 @@ class MainWindow(QMainWindow):
             missing.append("Previous analysis folder (required by 'Use prior analysis')")
         # Starting mid-pipeline needs the earlier steps' output from somewhere:
         # a prior analysis folder, an explicit spike-data folder, or an existing
-        # output folder named on the Paths tab (continuing a run in place).
+        # output folder named on the Data tab (continuing a run in place).
         if (
             params.start_analysis_step > 1
             and not params.prior_analysis
@@ -683,21 +742,24 @@ class MainWindow(QMainWindow):
             self._tabs.setCurrentIndex(0)
             return
 
-        self._pipeline_panel.run_btn.setEnabled(False)
-        self._pipeline_panel.stop_btn.setEnabled(True)
-        self._pipeline_panel.append_log(
+        self._run_panel.append_log(
             f"Starting MEA-NAP: steps {params.start_analysis_step}-{params.stop_analysis_step}…"
         )
 
         params = self._confirm_output_folder(params)
         if params is None:
+            # Called off at the overwrite prompt. Buttons are set *after* this
+            # rather than before, so the tab cannot be left with Run greyed out
+            # and nothing running.
+            self._run_panel.append_log("Run cancelled.")
             return
 
-        self._pipeline_panel.start_progress()
+        self._run_panel.set_running(True)
+        self._run_panel.start_progress()
 
         worker = PipelineWorker(params, parent=self)
-        worker.log_message.connect(self._pipeline_panel.append_log)
-        worker.progress.connect(self._pipeline_panel.show_progress)
+        worker.log_message.connect(self._run_panel.append_log)
+        worker.progress.connect(self._run_panel.show_progress)
         worker.finished_ok.connect(self._on_pipeline_finished)
         worker.cancelled.connect(self._on_pipeline_cancelled)
         worker.failed.connect(self._on_pipeline_failed)
@@ -712,7 +774,7 @@ class MainWindow(QMainWindow):
         which is exactly when a silent overwrite is least expected and most
         expensive. ``run_pipeline`` would move aside on its own; asking here
         lets the choice be an informed one, and puts the name that will actually
-        be used on the Paths tab where it can be seen.
+        be used on the Data tab where it can be seen.
         """
         from meanap.pipeline.output_folders import (
             next_free_output_name, output_name_taken,
@@ -754,91 +816,93 @@ class MainWindow(QMainWindow):
 
         clicked = box.clickedButton()
         if clicked is use_new:
-            # Onto the Paths tab too: the name a run wrote to should be visible
+            # Onto the Data tab too: the name a run wrote to should be visible
             # afterwards, not something the user has to reconstruct from a log.
-            self._paths_panel.output_data_folder_name.setText(fresh)
+            self._data_panel.output_data_folder_name.setText(fresh)
             params.output_data_folder_name = fresh
-            self._pipeline_panel.append_log(f"Saving this run as {fresh}.")
+            self._run_panel.append_log(f"Saving this run as {fresh}.")
             return params
         if clicked is continue_it:
-            self._pipeline_panel.append_log(
+            self._run_panel.append_log(
                 f"Continuing {name} — recordings already finished are skipped.")
             # A copy, for the same reason as below: continuing is a decision
             # about this run, not a setting to carry into every future one.
             return replace(params, continue_interrupted=True)
         if clicked is overwrite:
-            self._pipeline_panel.append_log(f"Overwriting the existing run in {name}.")
+            self._run_panel.append_log(f"Overwriting the existing run in {name}.")
             # A copy, so "overwrite this once" cannot be saved into a parameter
             # file and quietly overwrite every run that later loads it.
             return replace(params, overwrite_existing_output=True)
         return None
 
     def _on_run_queue(self) -> None:
-        """Start the queued runs. Refuses to overlap with a single run."""
-        if self._worker is not None and self._worker.isRunning():
-            QMessageBox.information(
-                self, "A run is already going",
-                "Wait for the run on the Pipeline tab to finish, or stop it, "
-                "before starting the queue.")
+        """Start the queued runs."""
+        if self._busy():
             return
-        if self._queue_worker is not None and self._queue_worker.isRunning():
-            return
-
         paths = self._queue_panel.paths()
         if not paths:
             return
 
         self._queue_panel.start()
-        self._queue_panel.append_log(f"Starting {len(paths)} queued run(s)…")
+        self._run_panel.set_running(True)
+        self._run_panel.start_progress()
+        self._run_panel.append_log(f"Starting {len(paths)} queued run(s)…")
 
         worker = QueueWorker(paths, parent=self)
-        worker.log_message.connect(self._queue_panel.append_log)
-        worker.progress.connect(self._queue_panel.show_progress)
+        worker.log_message.connect(self._run_panel.append_log)
+        worker.progress.connect(
+            lambda i, label, snap, n=len(paths):
+                self._run_panel.show_queue_progress(i, n, label, snap))
         worker.run_finished.connect(self._queue_panel.mark)
         worker.finished_all.connect(self._on_queue_finished)
         worker.failed.connect(self._on_queue_failed)
         self._queue_worker = worker
         worker.start()
 
-    def _on_stop_queue(self) -> None:
-        if self._queue_worker is not None and self._queue_worker.isRunning():
-            self._queue_panel.append_log(
-                "Stop requested — finishing the current run, then halting. "
-                "Runs after it will not be started.")
-            self._queue_panel.stop_btn.setEnabled(False)
-            self._queue_worker.request_cancel()
-
     def _on_queue_finished(self, summary: str) -> None:
-        self._queue_panel.finish(summary)
         self._queue_worker = None
+        self._run_panel.set_running(False)
+        self._run_panel.finish_progress(summary)
 
     def _on_queue_failed(self, message: str) -> None:
-        self._queue_panel.finish("The queue could not start.")
-        self._queue_panel.append_log(f"ERROR: {message}")
         self._queue_worker = None
+        self._run_panel.set_running(False)
+        self._run_panel.finish_progress("The queue could not start.")
+        self._run_panel.append_log(f"ERROR: {message}")
         QMessageBox.critical(self, "Queue error", message)
 
     def _on_stop(self) -> None:
-        if self._worker is not None and self._worker.isRunning():
-            self._pipeline_panel.append_log(
+        """Stop whichever of the two is running — again, one button for both."""
+        if self._queue_worker is not None and self._queue_worker.isRunning():
+            self._run_panel.append_log(
+                "Stop requested — finishing the current run, then halting. "
+                "Runs after it will not be started.")
+            self._run_panel.stop_btn.setEnabled(False)
+            self._queue_worker.request_cancel()
+        elif self._worker is not None and self._worker.isRunning():
+            self._run_panel.append_log(
                 "Stop requested — finishing the current recording, then halting…"
             )
-            self._pipeline_panel.stop_btn.setEnabled(False)
+            self._run_panel.stop_btn.setEnabled(False)
             self._worker.request_cancel()
         else:
-            self._pipeline_panel.stop_btn.setEnabled(False)
+            self._run_panel.stop_btn.setEnabled(False)
 
     def _reset_run_buttons(self) -> None:
-        self._pipeline_panel.run_btn.setEnabled(True)
-        self._pipeline_panel.stop_btn.setEnabled(False)
         self._worker = None
+        self._run_panel.set_running(False)
 
     def _on_pipeline_finished(self, output_root: Path) -> None:
         self._last_output_root = output_root
-        self._pipeline_panel.finish_progress("Finished.")
-        self._pipeline_panel.append_log(f"Done. Output folder: {output_root}")
+        self._run_panel.finish_progress("Finished.")
+        self._run_panel.append_log(f"Done. Output folder: {output_root}")
         self._announce_bundle(output_root)
         self._reset_run_buttons()
+        # The log is what someone is looking at when a run ends, and the thing
+        # to do next is now on a different tab.
+        self._run_panel.append_log(
+            "Open the results on the Results tab, or explore the networks there.")
+        self._refresh_results_target()
 
     def _announce_bundle(self, output_root: Path) -> None:
         """Say where the express bundle went, as the last thing in the log.
@@ -857,7 +921,7 @@ class MainWindow(QMainWindow):
         self._last_bundle = bundle
         size_mb = bundle.stat().st_size / 1e6
         rule = "─" * 68
-        self._pipeline_panel.append_log(
+        self._run_panel.append_log(
             f"\n{rule}\n"
             f"  Express bundle ({size_mb:.1f} MB) — beside the output folder, not in it:\n"
             f"    {bundle}\n"
@@ -866,13 +930,13 @@ class MainWindow(QMainWindow):
         )
 
     def _on_pipeline_cancelled(self) -> None:
-        self._pipeline_panel.finish_progress("Stopped.")
-        self._pipeline_panel.append_log("Pipeline stopped.")
+        self._run_panel.finish_progress("Stopped.")
+        self._run_panel.append_log("Pipeline stopped.")
         self._reset_run_buttons()
 
     def _on_pipeline_failed(self, message: str) -> None:
-        self._pipeline_panel.finish_progress("Failed.")
-        self._pipeline_panel.append_log(f"ERROR: {message}")
+        self._run_panel.finish_progress("Failed.")
+        self._run_panel.append_log(f"ERROR: {message}")
         self._reset_run_buttons()
         QMessageBox.critical(self, "Pipeline error", message)
 
@@ -881,7 +945,7 @@ class MainWindow(QMainWindow):
 
         Falls back to the same folder :func:`run_pipeline` would have created
         from the current paths — including its dated default name, which the
-        Paths tab leaves blank — so the button works in a fresh session
+        Data tab leaves blank — so the button works in a fresh session
         pointed at yesterday's results.
         """
         if self._last_output_root is not None:
@@ -917,9 +981,9 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(
                 self, "No output folder found",
                 "Run the pipeline first, or set the Output data folder / name "
-                "(Paths tab) to an existing MEA-NAP output folder.\n\n"
+                "(Data tab) to an existing MEA-NAP output folder.\n\n"
                 "To open an express run from another machine, use "
-                "'Open bundle…' in the toolbar, or drag its .meanap file onto "
+                "'Open bundle…' here or in the toolbar, or drag its .meanap file onto "
                 "this window.",
             )
             return
@@ -930,7 +994,7 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, "Report generation failed", str(e))
             return
 
-        self._pipeline_panel.append_log(f"Report generated: {report_path}")
+        self._run_panel.append_log(f"Report generated: {report_path}")
         webbrowser.open(report_path.as_uri())
 
     # ── Bundles ───────────────────────────────────────────────────────────────
@@ -953,7 +1017,7 @@ class MainWindow(QMainWindow):
         """
         already = self._viewers.url_for(source)
         if already is None:
-            self._pipeline_panel.append_log(f"Opening in the viewer: {source}")
+            self._run_panel.append_log(f"Opening in the viewer: {source}")
         QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
         try:
             url = self._viewers.open(source)
@@ -964,7 +1028,7 @@ class MainWindow(QMainWindow):
             QApplication.restoreOverrideCursor()
 
         if already is None:
-            self._pipeline_panel.append_log(
+            self._run_panel.append_log(
                 f"Viewer serving at {url} — it stays up until MEA-NAP closes."
             )
         webbrowser.open(url)

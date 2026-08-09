@@ -1,7 +1,7 @@
 # Output report
 
 After a pipeline run (or against any existing MEA-NAP output folder), the
-**🌐 View report** button on the Pipeline tab generates `report.html` at the
+**🌐 View report** button on the Results tab generates `report.html` at the
 root of that output folder and opens it in your browser.
 
 ```{note}
@@ -86,5 +86,5 @@ without MEA-NAP.
 
 The GUI picks between them for you: **🌐 View report** opens the viewer for an
 express run and builds `report.html` for a full one. You can also open any
-bundle directly with **Open bundle…** in the toolbar, or by dragging the
+bundle directly with **📦 Open bundle…** (Results tab or toolbar), or by dragging the
 `.meanap` file onto the window.

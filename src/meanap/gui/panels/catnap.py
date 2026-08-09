@@ -19,6 +19,7 @@ from meanap.catnap.scanner import Suite2pRecording, find_suite2p_recordings
 from meanap.catnap.loader import Suite2pData, load_suite2p
 from meanap.catnap.denoising import oasis_available
 from meanap.gui.panels.cell_type_groups import CellTypeGroupEditor
+from meanap.gui.advanced import AdvancedSection
 from meanap.params import Params, is_remote_url
 
 ACTIVITY_TYPES = ["peaks", "denoised F", "F", "spks"]
@@ -172,7 +173,7 @@ class _TraceCanvas(FigureCanvasQTAgg):
 
 class CatNapPanel(QWidget):
     log_message = pyqtSignal(str)
-    #: A batch spreadsheet was written; the Paths tab points itself at it.
+    #: A batch spreadsheet was written; the Data tab points itself at it.
     spreadsheet_saved = pyqtSignal(str)
 
     def __init__(self, parent: QWidget | None = None) -> None:
@@ -300,9 +301,14 @@ class CatNapPanel(QWidget):
         self._redo_denoising = QCheckBox()
 
         denoise_form.addRow("Threshold multiplier", self._denoise_threshold)
-        denoise_form.addRow("Time before peak", self._time_before)
-        denoise_form.addRow("Time after peak", self._time_after)
-        denoise_form.addRow("Redo if already exists", self._redo_denoising)
+
+        # The window either side of a peak is a property of the indicator, not
+        # of the experiment, and redoing is a one-off.
+        denoise_advanced = AdvancedSection()
+        denoise_advanced.form().addRow("Time before peak", self._time_before)
+        denoise_advanced.form().addRow("Time after peak", self._time_after)
+        denoise_advanced.form().addRow("Redo if already exists", self._redo_denoising)
+        denoise_form.addRow(denoise_advanced)
 
         self._denoise_btn = QPushButton("Run denoising on selected recording")
         self._denoise_btn.setEnabled(False)

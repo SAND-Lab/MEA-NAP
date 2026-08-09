@@ -22,7 +22,7 @@ Then browse the result:
 uv run meanap-viewer path/to/OutputData….meanap
 ```
 
-In the GUI it is the **Express mode** tick box on the Pipeline tab, and it
+In the GUI it is the **Express mode** tick box on the Run tab, and it
 applies to **🧪 Test pipeline** runs too.
 
 ## Where the bundle goes
@@ -57,7 +57,7 @@ Three routes, all equivalent to running `meanap-viewer` yourself:
 - **🌐 View report** after an express run — the button notices the run was
   express and opens the bundle in the viewer instead of building a
   near-empty `report.html` from the handful of figures on disk;
-- **Open bundle…** in the toolbar;
+- **📦 Open bundle…**, on the Results tab or in the toolbar;
 - **drag the `.meanap` file onto the window**.
 
 Each bundle gets its own viewer; they all shut down when MEA-NAP closes. See

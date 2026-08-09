@@ -28,11 +28,11 @@ This single button:
 
 1. Downloads the bundled example dataset (two short recordings) if it isn't
    already cached locally.
-2. Points the **Paths** tab at it automatically.
+2. Points the **Data** tab at it automatically.
 3. Runs all four pipeline steps — spike detection, neuronal activity,
    functional connectivity, and network metrics — end to end.
 
-Progress streams into the **Status log** at the bottom of the Pipeline tab.
+Progress streams into the **Status log** at the bottom of the Run tab.
 On a typical laptop this takes a few minutes; functional connectivity
 thresholding (step 3) and the network-metrics null models (step 4) are the
 slowest parts, by design — see [MATLAB vs. Python](matlab-vs-python.md) if
@@ -40,14 +40,14 @@ you're curious why.
 
 ```{admonition} Just want to see it work as fast as possible?
 :class: note
-Set **Start at step** / **Stop at step** to `1`–`2` on the Pipeline tab before
+Set **Start at step** / **Stop at step** to `1`–`2` on the Run tab before
 clicking **Test pipeline** — spike detection and firing-rate analysis alone
 finish in well under a minute, and already produce plots worth looking at.
 ```
 
 ## 3. Browse the results
 
-Once the run finishes, click **🌐 View report**. This generates `report.html`
+Once the run finishes, go to the **Results** tab and click **🌐 View report**. This generates `report.html`
 inside the output folder and opens it in your default browser — no server, no
 extra install, works entirely offline.
 
@@ -69,8 +69,8 @@ including deep links you can share to a specific plot.
 :::{grid-item-card} Explore every GUI tab
 :link: gui-guide
 :link-type: doc
-Field-by-field reference for Paths, Recording, Spike detection, Connectivity,
-CAT-NAP, Network Viewer, and Pipeline.
+Field-by-field reference for Data, Spike detection, Connectivity, CAT-NAP,
+Run, and Results.
 :::
 
 :::{grid-item-card} Script against the Python API directly

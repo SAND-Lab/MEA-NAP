@@ -481,7 +481,6 @@ def _gui_checks() -> list[Check]:
 def _gui_controls_checks() -> list[Check]:
     """The three things that make this reachable without editing Python."""
     from PyQt6.QtWidgets import QApplication
-    from meanap.gui.panels.paths import PathsPanel
     from meanap.gui.panels.pipeline import PipelinePanel
     from meanap.gui.panels.spreadsheet_editor import SpreadsheetEditor
     from meanap.pipeline.spreadsheet import (
@@ -491,9 +490,9 @@ def _gui_controls_checks() -> list[Check]:
     QApplication.instance() or QApplication([])
     checks: list[Check] = []
 
-    # ── Pipeline tab ─────────────────────────────────────────────────────────
+    # ── Run tab ──────────────────────────────────────────────────────────────
     panel = PipelinePanel()
-    checks.append(("the Pipeline tab offers continuing a run",
+    checks.append(("the Run tab offers continuing a run",
                    hasattr(panel, "continue_interrupted"), ""))
     checks.append(("pruning is offered but disabled until it applies",
                    hasattr(panel, "prune_removed")
@@ -519,15 +518,20 @@ def _gui_controls_checks() -> list[Check]:
                    panel.continue_interrupted.isChecked()
                    and panel.prune_removed.isChecked(), ""))
 
-    # ── Paths tab ────────────────────────────────────────────────────────────
-    paths = PathsPanel()
+    # ── Prior analysis, which now sits with the switch that enables it ───────
+    paths = panel.prior
+    checks.append(("the folders stay out of the way until 'Use prior analysis' is on",
+                   not paths.isVisibleTo(panel), ""))
+    panel.prior_analysis.setChecked(True)
+    checks.append(("and appear once it is",
+                   paths.isVisibleTo(panel), ""))
     paths.load(Params(prior_analysis_path="/a/RunA",
                       prior_analysis_paths=["/a/RunB", "/a/RunC"]))
     checks.append(("several previous analyses can be listed",
                    paths.extra_prior_paths() == ["/a/RunB", "/a/RunC"],
                    str(paths.extra_prior_paths())))
     merged = Params()
-    paths.save(merged)
+    panel.save(merged)
     checks.append(("the first stays prior_analysis_path, the rest the list",
                    merged.prior_analysis_path == "/a/RunA"
                    and merged.prior_analysis_paths == ["/a/RunB", "/a/RunC"],

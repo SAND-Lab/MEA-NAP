@@ -432,7 +432,7 @@ straight at it.
 Every run writes one `ExperimentMatFiles/<recording>_catnap.npz` per recording,
 holding the adjacency matrices and activity statistics — the products of what
 MATLAB calls step 2. To re-run the network analysis without rebuilding them,
-set **Start at step** to 4 on the Pipeline tab, tick **Use prior analysis**,
+set **Start at step** to 4 on the Run tab, tick **Use prior analysis**,
 and point it at the earlier `OutputData…` folder. As in MATLAB, results still
 go to a fresh output folder; the previous run is only ever read.
 

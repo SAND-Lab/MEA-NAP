@@ -13,6 +13,7 @@ from PyQt6.QtWidgets import (
     QSpinBox, QVBoxLayout, QWidget,
 )
 
+from meanap.gui.advanced import AdvancedSection
 from meanap.params import Params
 
 _DETECTION_METHODS = [
@@ -38,7 +39,10 @@ class StimPanel(QWidget):
         self.processing.addItems(_PROCESSING)
         mform.addRow("Enable", self.stim_mode)
         mform.addRow("Detection method", self.method)
-        mform.addRow("Raw data processing", self.processing)
+
+        processing = AdvancedSection()
+        processing.form().addRow("Raw data processing", self.processing)
+        mform.addRow(processing)
 
         # ── Detection ─────────────────────────────────────────────────────────
         det_box = QGroupBox("Detection")
@@ -50,12 +54,18 @@ class StimPanel(QWidget):
         self.pattern_thresh = _dspin(0.0, 10.0, 5, 0.005, " s")
         self.axion_csv = QLineEdit()
         self.axion_csv.setPlaceholderText("CSV for the axionStimEvents method (rawName, well, electrode)")
+        # The detection value is the one that changes per experiment; the
+        # durations below it describe the stimulator, and the CSV only applies
+        # to one of the six methods.
         dform.addRow("Detection value", self.detection_val)
         dform.addRow("Refractory period", self.refractory)
-        dform.addRow("Min blanking duration", self.min_blank)
-        dform.addRow("Stim duration", self.stim_duration)
-        dform.addRow("Pattern time-diff threshold", self.pattern_thresh)
-        dform.addRow("Axion stim CSV", self.axion_csv)
+
+        det_advanced = AdvancedSection()
+        det_advanced.form().addRow("Min blanking duration", self.min_blank)
+        det_advanced.form().addRow("Stim duration", self.stim_duration)
+        det_advanced.form().addRow("Pattern time-diff threshold", self.pattern_thresh)
+        det_advanced.form().addRow("Axion stim CSV", self.axion_csv)
+        dform.addRow(det_advanced)
 
         # ── Analysis ──────────────────────────────────────────────────────────
         an_box = QGroupBox("Response analysis")
@@ -67,13 +77,18 @@ class StimPanel(QWidget):
         self.stim_dur_plot = _dspin(0.0, 10.0, 4, 0.1, " s")
         aform.addRow("Analysis window start", self.win_start)
         aform.addRow("Analysis window end", self.win_end)
-        aform.addRow("Post-stim ignore duration", self.post_ignore)
-        aform.addRow("Raster bin width", self.raster_bin)
-        aform.addRow("Stim duration (plotting)", self.stim_dur_plot)
+
+        an_advanced = AdvancedSection()
+        an_advanced.form().addRow("Post-stim ignore duration", self.post_ignore)
+        an_advanced.form().addRow("Raster bin width", self.raster_bin)
+        an_advanced.form().addRow("Stim duration (plotting)", self.stim_dur_plot)
+        aform.addRow(an_advanced)
 
         # ── Significance ──────────────────────────────────────────────────────
-        sig_box = QGroupBox("Shuffle significance test")
-        sform = QFormLayout(sig_box)
+        # Both of these are the conventional values; the group folds whole
+        # rather than becoming a box holding one collapsed header.
+        sig_box = AdvancedSection("Shuffle significance test")
+        sform = sig_box.form()
         self.n_shuffles = QSpinBox()
         self.n_shuffles.setRange(1, 100000)
         self.n_shuffles.setValue(500)

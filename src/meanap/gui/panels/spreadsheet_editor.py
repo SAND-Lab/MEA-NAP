@@ -394,7 +394,7 @@ class SpreadsheetEditor(QDialog):
         if removed:
             parts.append(f"{len(removed)} removed")
         return (f"{' and '.join(parts)}. Tick “Continue previous run” on the "
-                f"Pipeline tab and only the new recording(s) are analysed — "
+                f"Run tab and only the new recording(s) are analysed — "
                 f"everything pooled across the batch is redone either way."
                 + (" Removed recordings' figures stay in the output folder "
                    "unless you also tick the option below it."

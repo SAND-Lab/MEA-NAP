@@ -1,14 +1,18 @@
-"""Pipeline control panel — step selection, run/stop, progress, status log."""
+"""What one run of the pipeline does: which steps, and what it writes.
+
+Only the settings. The Run button, the progress bar and the log live one level
+up in :mod:`meanap.gui.panels.run`, which shares them with the queue — see that
+module for why.
+"""
 
 from PyQt6.QtWidgets import (
     QCheckBox, QComboBox, QFormLayout, QGroupBox, QHBoxLayout,
-    QLabel, QListWidget, QListWidgetItem, QProgressBar, QPushButton,
-    QScrollArea, QSpinBox, QTextEdit, QVBoxLayout, QWidget,
+    QLabel, QListWidget, QListWidgetItem, QSpinBox, QVBoxLayout, QWidget,
 )
-from PyQt6.QtCore import Qt
 
+from meanap.gui.advanced import AdvancedSection
+from meanap.gui.panels.prior import PriorAnalysisPanel
 from meanap.params import Params
-from meanap.pipeline.progress import Progress, format_bytes, format_duration
 
 PIPELINE_STEPS = [
     (1, "Spike detection"),
@@ -24,11 +28,8 @@ VERBOSE_LEVELS = ["Normal", "Verbose", "Debug"]
 class PipelinePanel(QWidget):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        # Kept so the end-of-run line can report the total without the caller
-        # having to time the run itself.
-        self._last_elapsed = 0.0
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setContentsMargins(0, 0, 0, 0)
 
         # ── Step selection ────────────────────────────────────────────────────
         step_box = QGroupBox("Pipeline steps")
@@ -82,10 +83,17 @@ class PipelinePanel(QWidget):
         self.prior_analysis = QCheckBox()
         self.prior_analysis.setToolTip(
             "Resume from an earlier run: steps before 'Start at step' are read from the "
-            "previous analysis folder (set on the Paths tab) instead of being recomputed. "
-            "Results are written to this run's own output folder — the previous run is "
-            "only ever read."
+            "previous analysis folder instead of being recomputed. Results are written "
+            "to this run's own output folder — the previous run is only ever read."
         )
+
+        # The folders sit with the switch that turns them on, and appear only
+        # when it is on: they cannot then be filled in and quietly do nothing,
+        # and the tab is not carrying 150px of greyed-out fields for the runs —
+        # most of them — that never resume from anything.
+        self.prior = PriorAnalysisPanel()
+        self.prior.setVisible(False)
+        self.prior_analysis.toggled.connect(self.prior.setVisible)
 
         self.optional_steps = QListWidget()
         self.optional_steps.setSelectionMode(QListWidget.SelectionMode.MultiSelection)
@@ -96,9 +104,13 @@ class PipelinePanel(QWidget):
         form.addRow("Start at step", self.start_step)
         form.addRow("Stop at step", self.stop_step)
         form.addRow("Use prior analysis", self.prior_analysis)
+        form.addRow(self.prior)
         form.addRow("Continue previous run", self.continue_interrupted)
         form.addRow("   …and drop removed recordings' figures", self.prune_removed)
-        form.addRow("Optional steps", self.optional_steps)
+
+        optional = AdvancedSection()
+        optional.form().addRow("Optional steps", self.optional_steps)
+        form.addRow(optional)
 
         # ── Step overview ─────────────────────────────────────────────────────
         overview_box = QGroupBox("Step overview")
@@ -149,159 +161,27 @@ class PipelinePanel(QWidget):
             "in PNG or editable SVG."
         )
 
-        form2.addRow("Verbose level", self.verbose_level)
-        form2.addRow("Time each step", self.time_processes)
-        form2.addRow("Fixed random seed", seed_row)
+        # Express mode changes what a run produces; the other three change how
+        # it is logged, timed and seeded.
         form2.addRow("Express mode", self.express_mode)
 
-        # ── Run controls ──────────────────────────────────────────────────────
-        run_box = QGroupBox("Run")
-        run_layout = QHBoxLayout(run_box)
-
-        self.test_btn = QPushButton("🧪  Test pipeline")
-        self.test_btn.setFixedHeight(40)
-        self.test_btn.setToolTip(
-            "Download the example dataset and run the pipeline on it, "
-            "to check your setup is working"
-        )
-
-        self.run_btn = QPushButton("▶  Run pipeline")
-        self.run_btn.setFixedHeight(40)
-
-        self.stop_btn = QPushButton("■  Stop")
-        self.stop_btn.setFixedHeight(40)
-        self.stop_btn.setEnabled(False)
-
-        self.view_report_btn = QPushButton("🌐  View report")
-        self.view_report_btn.setFixedHeight(40)
-        self.view_report_btn.setToolTip(
-            "Open the last run's results in your browser. A normal run gets an "
-            "HTML report of the figures in the output folder; an express run "
-            "opens its .meanap bundle in the viewer instead, which draws any "
-            "figure on demand in PNG or editable SVG."
-        )
-
-        run_layout.addWidget(self.test_btn)
-        run_layout.addWidget(self.run_btn)
-        run_layout.addWidget(self.stop_btn)
-        run_layout.addWidget(self.view_report_btn)
-
-        # ── Progress ──────────────────────────────────────────────────────────
-        # Hidden until a run starts: an empty bar sitting at 0% before anything
-        # has been asked for reads as "stuck", not as "idle".
-        self.progress_box = QGroupBox("Progress")
-        progress_layout = QVBoxLayout(self.progress_box)
-
-        self.progress_bar = QProgressBar()
-        self.progress_bar.setRange(0, 1000)  # per-mille, so the bar creeps
-        self.progress_bar.setValue(0)
-        self.progress_bar.setTextVisible(False)
-        self.progress_bar.setFixedHeight(18)
-
-        self.progress_label = QLabel("Waiting to start…")
-        self.progress_label.setWordWrap(True)
-
-        self.progress_eta = QLabel("")
-        self.progress_eta.setStyleSheet("font-size: 11px; color: gray;")
-
-        # Transfers get their own bar: during the first recording of a remote
-        # run it is the only thing moving, and the estimate depends on it.
-        # Deliberately slimmer than the run bar — two bars of equal weight
-        # invite the reader to compare percentages that measure different things.
-        self.transfer_bar = QProgressBar()
-        self.transfer_bar.setRange(0, 1000)
-        self.transfer_bar.setValue(0)
-        self.transfer_bar.setTextVisible(False)
-        self.transfer_bar.setFixedHeight(8)
-        self.transfer_label = QLabel("")
-        self.transfer_label.setStyleSheet("font-size: 11px; color: gray;")
-
-        progress_layout.addWidget(self.progress_bar)
-        progress_layout.addWidget(self.progress_label)
-        progress_layout.addWidget(self.progress_eta)
-        progress_layout.addWidget(self.transfer_bar)
-        progress_layout.addWidget(self.transfer_label)
-        self.progress_box.setVisible(False)
-        self._set_transfer_visible(False)
-
-        # ── Status log ────────────────────────────────────────────────────────
-        log_box = QGroupBox("Status log")
-        log_layout = QVBoxLayout(log_box)
-
-        self.log = QTextEdit()
-        self.log.setReadOnly(True)
-        self.log.setMinimumHeight(150)
-        log_layout.addWidget(self.log)
+        out_advanced = AdvancedSection()
+        out_advanced.form().addRow("Verbose level", self.verbose_level)
+        out_advanced.form().addRow("Time each step", self.time_processes)
+        out_advanced.form().addRow("Fixed random seed", seed_row)
+        form2.addRow(out_advanced)
 
         layout.addWidget(step_box)
         layout.addWidget(overview_box)
         layout.addWidget(out_box)
-        layout.addWidget(run_box)
-        layout.addWidget(self.progress_box)
-        layout.addWidget(log_box)
         layout.addStretch()
-
-    def append_log(self, text: str) -> None:
-        self.log.append(text)
-
-    # ── Progress display ──────────────────────────────────────────────────────
-
-    def _set_transfer_visible(self, visible: bool) -> None:
-        self.transfer_bar.setVisible(visible)
-        self.transfer_label.setVisible(visible)
-
-    def start_progress(self) -> None:
-        """Show an empty bar as a run begins."""
-        self.progress_box.setVisible(True)
-        self.progress_bar.setValue(0)
-        self.progress_label.setText("Starting…")
-        self.progress_eta.setText("")
-        self.transfer_bar.setValue(0)
-        self.transfer_label.setText("")
-        self._set_transfer_visible(False)
-
-    def show_progress(self, snapshot: Progress) -> None:
-        """Render one snapshot from the running pipeline."""
-        self.progress_box.setVisible(True)
-        self.progress_bar.setValue(int(round(snapshot.fraction * 1000)))
-        self._last_elapsed = snapshot.elapsed_s
-
-        headline = f"{snapshot.percent}%  ·  {snapshot.phase}"
-        if snapshot.detail:
-            headline += f"  ·  {snapshot.detail}"
-        self.progress_label.setText(headline)
-
-        elapsed = format_duration(snapshot.elapsed_s)
-        if snapshot.eta_s is None:
-            # Saying "estimating" beats showing a number derived from a
-            # benchmark machine before this one has finished anything.
-            self.progress_eta.setText(f"{elapsed} elapsed  ·  estimating time left…")
-        else:
-            self.progress_eta.setText(
-                f"{elapsed} elapsed  ·  about {format_duration(snapshot.eta_s)} left")
-
-        self._set_transfer_visible(snapshot.transferring)
-        if snapshot.transferring:
-            share = min(1.0, snapshot.bytes_done / snapshot.bytes_total)
-            self.transfer_bar.setValue(int(round(share * 1000)))
-            text = (f"Downloaded {format_bytes(snapshot.bytes_done)} of "
-                    f"{format_bytes(snapshot.bytes_total)}")
-            if snapshot.transfer_detail:
-                text += f"  ·  {snapshot.transfer_detail}"
-            self.transfer_label.setText(text)
-
-    def finish_progress(self, message: str) -> None:
-        """Leave the bar showing how the run ended rather than blanking it."""
-        self.progress_label.setText(message)
-        self.progress_eta.setText(
-            f"{format_duration(self._last_elapsed)} total"
-            if self._last_elapsed else "")
-        self._set_transfer_visible(False)
 
     def load(self, params: Params) -> None:
         self.start_step.setValue(params.start_analysis_step)
         self.stop_step.setValue(params.stop_analysis_step)
         self.prior_analysis.setChecked(params.prior_analysis)
+        self.prior.setVisible(params.prior_analysis)
+        self.prior.load(params)
         self.continue_interrupted.setChecked(params.continue_interrupted)
         self.prune_removed.setChecked(params.prune_removed_recordings)
         self.prune_removed.setEnabled(params.continue_interrupted)
@@ -321,6 +201,7 @@ class PipelinePanel(QWidget):
         params.start_analysis_step = self.start_step.value()
         params.stop_analysis_step = self.stop_step.value()
         params.prior_analysis = self.prior_analysis.isChecked()
+        self.prior.save(params)
         params.continue_interrupted = self.continue_interrupted.isChecked()
         # Only meaningful while continuing, and a stored True that silently
         # applied to a fresh run would delete figures nobody asked about.

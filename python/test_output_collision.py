@@ -292,7 +292,7 @@ def _gui_checks(app) -> list[Check]:
             QTimer.singleShot(0, click)
 
         # A fresh one per interaction: accepting the suggestion rewrites the
-        # name on the params it is handed (deliberately — the Paths tab is
+        # name on the params it is handed (deliberately — the Data tab is
         # updated to match), so reusing one would leave the next case with a
         # name that no longer collides.
         def base() -> Params:
@@ -310,9 +310,9 @@ def _gui_checks(app) -> list[Check]:
                        chosen is not None
                        and chosen.output_data_folder_name == f"{NAME}_v2",
                        str(chosen and chosen.output_data_folder_name)))
-        checks.append(("and shows the new name on the Paths tab",
-                       w._paths_panel.output_data_folder_name.text() == f"{NAME}_v2",
-                       w._paths_panel.output_data_folder_name.text()))
+        checks.append(("and shows the new name on the Data tab",
+                       w._data_panel.output_data_folder_name.text() == f"{NAME}_v2",
+                       w._data_panel.output_data_folder_name.text()))
 
         answer(QMessageBox.ButtonRole.DestructiveRole)
         session = base()

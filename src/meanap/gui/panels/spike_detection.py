@@ -1,12 +1,18 @@
-"""Spike detection settings panel."""
+"""Spike detection settings.
+
+Thirteen settings, of which two decide what a run does: which thresholds, and
+which method's spikes feed steps 2-4. The bandpass corners, the refractory
+period and the template clustering are the defaults MEA-NAP has always shipped —
+real settings, occasionally changed, but not part of setting a run up. Those are
+folded away; see :mod:`meanap.gui.advanced`.
+"""
 
 from PyQt6.QtWidgets import (
     QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QGroupBox,
-    QLabel, QLineEdit, QListWidget, QListWidgetItem, QSpinBox,
-    QVBoxLayout, QWidget,
+    QLineEdit, QListWidget, QListWidgetItem, QSpinBox, QVBoxLayout, QWidget,
 )
-from PyQt6.QtCore import Qt
 
+from meanap.gui.advanced import AdvancedSection
 from meanap.params import Params
 
 WAVELET_METHODS = ["bior1.5", "bior1.3", "db2", "mea"]
@@ -29,7 +35,11 @@ class SpikeDetectionPanel(QWidget):
         self.run_spike_check = QCheckBox()
 
         form0.addRow("Detect spikes", self.detect_spikes)
-        form0.addRow("Re-check previous spike data", self.run_spike_check)
+
+        rechecking = AdvancedSection()
+        rechecking.form().addRow("Re-check previous spike data",
+                                 self.run_spike_check)
+        form0.addRow(rechecking)
 
         # ── Thresholds ────────────────────────────────────────────────────────
         thr_box = QGroupBox("Thresholds")
@@ -41,7 +51,12 @@ class SpikeDetectionPanel(QWidget):
         self.abs_thresholds.setPlaceholderText("Leave blank to use relative thresholds")
 
         form.addRow("Relative thresholds (MAD multiplier below median)", self.thresholds)
-        form.addRow("Absolute thresholds (µV)", self.abs_thresholds)
+
+        # Absolute thresholds override the relative ones, so showing both side
+        # by side reads as "fill in either", which is not what it means.
+        absolute = AdvancedSection()
+        absolute.form().addRow("Absolute thresholds (µV)", self.abs_thresholds)
+        form.addRow(absolute)
 
         # ── Wavelet settings ──────────────────────────────────────────────────
         wav_box = QGroupBox("Wavelet")
@@ -66,12 +81,18 @@ class SpikeDetectionPanel(QWidget):
         self.spikes_method.addItems(SPIKE_METHODS)
 
         form2.addRow("Wavelet methods", self.wname_list)
-        form2.addRow("Wavelet cost", self.cost_list)
         form2.addRow("Spike method for analysis", self.spikes_method)
 
+        cost = AdvancedSection()
+        cost.form().addRow("Wavelet cost", self.cost_list)
+        form2.addRow(cost)
+
         # ── Filtering ─────────────────────────────────────────────────────────
-        filt_box = QGroupBox("Bandpass filter")
-        form3 = QFormLayout(filt_box)
+        # Nothing in this group or the next is part of configuring a run, so
+        # they fold whole rather than becoming a box holding one collapsed
+        # header. Named for what they hold, so a closed one still says so.
+        filt_box = AdvancedSection("Bandpass filter")
+        form3 = filt_box.form()
 
         self.filter_low_pass = QDoubleSpinBox()
         self.filter_low_pass.setRange(0, 20000)
@@ -89,8 +110,8 @@ class SpikeDetectionPanel(QWidget):
         form3.addRow("High-pass cutoff", self.filter_high_pass)
 
         # ── Template & refractory ─────────────────────────────────────────────
-        tmpl_box = QGroupBox("Template & refractory period")
-        form4 = QFormLayout(tmpl_box)
+        tmpl_box = AdvancedSection("Spike templates and refractory period")
+        form4 = tmpl_box.form()
 
         self.ref_period = QDoubleSpinBox()
         self.ref_period.setRange(0, 100)

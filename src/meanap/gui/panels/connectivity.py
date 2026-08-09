@@ -5,6 +5,7 @@ from PyQt6.QtWidgets import (
     QHBoxLayout, QLineEdit, QRadioButton, QSpinBox, QVBoxLayout, QWidget,
 )
 
+from meanap.gui.advanced import AdvancedSection
 from meanap.params import Params
 
 
@@ -29,8 +30,14 @@ class ConnectivityPanel(QWidget):
         self.trunc_length.setValue(120)
 
         form.addRow("Lag values (ms)", self.lag_vals)
-        form.addRow("Truncate recording", self.trunc_rec)
-        form.addRow("Truncation length", self.trunc_length)
+
+        # Truncating is something a particular experiment needs, not something
+        # a run is configured with; the lags are the setting people come here
+        # to change.
+        self.sttc_advanced = AdvancedSection()
+        self.sttc_advanced.form().addRow("Truncate recording", self.trunc_rec)
+        self.sttc_advanced.form().addRow("Truncation length", self.trunc_length)
+        form.addRow(self.sttc_advanced)
 
         # ── Adjacency matrix ──────────────────────────────────────────────────
         adj_box = QGroupBox("Adjacency matrix")
@@ -66,10 +73,16 @@ class ConnectivityPanel(QWidget):
         self.prob_thresh_plot_checks_n.setRange(1, 100)
         self.prob_thresh_plot_checks_n.setValue(5)
 
+        # Iterations stays in the open: it is the one here that visibly costs
+        # time, so it is worth seeing before starting a run.
         form2.addRow("Iterations", self.prob_thresh_rep_num)
-        form2.addRow("Tail percentile", self.prob_thresh_tail)
-        form2.addRow("Plot random checks", self.prob_thresh_plot_checks)
-        form2.addRow("Number of checks to plot", self.prob_thresh_plot_checks_n)
+
+        self.threshold_advanced = AdvancedSection()
+        adv = self.threshold_advanced.form()
+        adv.addRow("Tail percentile", self.prob_thresh_tail)
+        adv.addRow("Plot random checks", self.prob_thresh_plot_checks)
+        adv.addRow("Number of checks to plot", self.prob_thresh_plot_checks_n)
+        form2.addRow(self.threshold_advanced)
 
         layout.addWidget(sttc_box)
         layout.addWidget(adj_box)

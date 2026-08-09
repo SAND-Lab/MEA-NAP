@@ -2,7 +2,7 @@
 
 The tutorial dims the whole window and highlights one real tab/field at a
 time, walking the user through every required setting for the pipeline they
-pick (MEA-NAP, MEA-Stim or CAT-NAP) and landing them on the Pipeline tab
+pick (MEA-NAP, MEA-Stim or CAT-NAP) and landing them on the Run tab
 ready to run. The dimming scrim is purely visual: the highlighted field stays
 fully interactive so users fill in real values as they go.
 
@@ -288,9 +288,27 @@ class TutorialOverlay(QWidget):
     # ── Geometry helpers ──────────────────────────────────────────────────────
 
     def _reveal(self, w: QWidget) -> None:
+        self._unfold(w)
         area = self._tabs.currentWidget()
         if isinstance(area, QScrollArea):
             area.ensureWidgetVisible(w, 60, 60)
+
+    @staticmethod
+    def _unfold(w: QWidget) -> None:
+        """Open any collapsed advanced section this target is inside.
+
+        A step pointing at a folded-away setting would cut its hole around
+        nothing. Opening the section is also the honest thing to show: the
+        tutorial is where someone finds out these settings exist, and where
+        they live.
+        """
+        from meanap.gui.advanced import AdvancedSection
+
+        parent = w
+        while parent is not None:
+            if isinstance(parent, AdvancedSection):
+                parent.set_expanded(True)
+            parent = parent.parentWidget()
 
     def _resolve_highlight(self, step: TutorialStep) -> QRect:
         if step.target is None:

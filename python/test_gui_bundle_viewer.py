@@ -155,8 +155,8 @@ def _routing_checks(app: QApplication, express_root: Path, full_root: Path) -> l
     window3 = MainWindow()
     opened3: list[str] = []
     _opened_urls(window3, opened3)
-    window3._paths_panel.output_data_folder.set_value(str(express_root.parent))
-    window3._paths_panel.output_data_folder_name.setText(express_root.name)
+    window3._data_panel.output_data_folder.set_value(str(express_root.parent))
+    window3._data_panel.output_data_folder_name.setText(express_root.name)
     window3._on_view_report()
     checks.append(("a bundle is found from the paths alone, with no run",
                    len(opened3) == 1 and opened3[0].startswith("http://"), str(opened3)))
@@ -183,7 +183,7 @@ def _open_checks(app: QApplication, express_root: Path) -> list[Check]:
     url = window._viewers.url_for(bundle)
     checks.append(("the session is addressable by path", url == opened[-1], str(url)))
     checks.append(("the log says where the viewer is",
-                   url in window._pipeline_panel.log.toPlainText(), ""))
+                   url in window._run_panel.log.toPlainText(), ""))
 
     checks.append(("the same bundle by a different path is one session",
                    window._viewers.open(Path(str(bundle))) == url
@@ -245,7 +245,7 @@ def _drop_checks(app: QApplication, express_root: Path) -> list[Check]:
 
     checks.append(("the window accepts drops at all", window.acceptDrops(), ""))
     checks.append(("the status log does not swallow them",
-                   not window._pipeline_panel.log.acceptDrops(), ""))
+                   not window._run_panel.log.acceptDrops(), ""))
 
     ev = _FakeDrag([str(bundle)])
     window.dragEnterEvent(ev)
@@ -298,12 +298,19 @@ def _drop_checks(app: QApplication, express_root: Path) -> list[Check]:
 
     # The toolbar route exists and is discoverable.
     actions = {a.text(): a for a in window.findChildren(QAction)}
-    bundle_action = actions.get("Open bundle…")
+    bundle_action = next(
+        (a for text, a in actions.items() if "Open bundle" in text), None)
     checks.append(("the toolbar offers 'Open bundle…'", bundle_action is not None,
                    str(sorted(actions))))
     checks.append(("…and says drag-and-drop works too",
                    bundle_action is not None and "drag" in bundle_action.toolTip().lower(),
                    bundle_action.toolTip() if bundle_action else ""))
+
+    # The Results tab offers it too — as the *same* action, so the two cannot
+    # drift apart in wording, tooltip or behaviour.
+    checks.append(("the Results tab offers the same action, not a copy of it",
+                   window._results_panel.bundle_btn.defaultAction() is bundle_action,
+                   str(window._results_panel.bundle_btn.defaultAction())))
     return checks
 
 

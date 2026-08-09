@@ -54,8 +54,8 @@ MEA-NAP/
 │               ├── spike_detection.py
 │               ├── connectivity.py   # STTC and thresholding tab
 │               ├── catnap.py         # CAT-NAP (2P) tab
-│               ├── network_viewer.py # Network Viewer tab
-│               └── pipeline.py       # Run controls, status log, View report button
+│               ├── network_viewer.py # the network plot, inside the Results tab
+│               └── run.py            # Run tab: this run or a queue, progress, log
 └── python/               # Scripts, notebooks, and pipeline docs (this directory)
     ├── README.md
     ├── PIPELINE_PORT_STATUS.md   # Living status doc for the pipeline port — read first
@@ -101,16 +101,24 @@ The GUI is a tabbed desktop application (PyQt6) that mirrors the MATLAB App Desi
 
 Each tab corresponds to a section of the pipeline:
 
+The tabs run left to right in the order you use them:
+
 | Tab | Description |
 |---|---|
-| **Paths** | Set all input/output folder and file paths, with Browse buttons |
-| **Recording** | Sampling frequency, downsample rate, channel layout, potential unit |
-| **Raw formats** | No conversion needed — point the raw data folder at MCS `.h5`, Axion `.raw`, or `.mat` files; see [Raw data formats](../docs/python/gui-guide.md#raw-data-formats) |
+| **Data** | What to analyse, what that data is, and where results go: input folder and spreadsheet, sampling frequency and channel layout, output folder. No conversion needed — point the raw data folder at MCS `.h5`, Axion `.raw`, or `.mat` files; see [Raw data formats](../docs/python/gui-guide.md#raw-data-formats) |
 | **Spike detection** | Thresholds, wavelet methods, bandpass filter, template settings |
 | **Connectivity** | STTC lag values, adjacency matrix type, probabilistic thresholding |
+| **Stimulation** / **Stim Preview** | MEA-Stim mode only — stimulation detection and response analysis |
 | **CAT-NAP (2P)** | Suite2p pipeline — see below |
-| **Network Viewer** | Interactive network plot from a MEA-NAP output `.mat` file — see below |
-| **Pipeline** | Step selection (1-4), run/test/stop controls, status log, and a "🌐 View report" button that generates and opens an HTML output browser — see "Output report" below |
+| **Run** | This run or a queue of saved runs: step selection (1-4), run/test/stop controls, progress and status log |
+| **Results** | "🌐 View report", "📦 Open bundle…", and an interactive network plot from a MEA-NAP output `.mat` file — see below |
+
+Each tab keeps its everyday settings in the open and folds the rest into a
+collapsible **Advanced settings** group, labelled with how many it holds.
+**⚙ Advanced settings** in the toolbar opens every one at once and remembers
+that between sessions. Folding changes only what is on screen — a collapsed
+setting loads, holds and saves its value exactly as an open one does. See
+[Advanced settings](../docs/python/gui-guide.md#advanced-settings).
 
 ### Parameters
 
@@ -124,7 +132,7 @@ Parameters can be saved and reloaded as JSON using the toolbar:
 
 ### Running the pipeline
 
-Set the required paths (MEA-NAP folder, raw data folder, output folder), configure the desired tabs, then go to the **Pipeline** tab and click **Run pipeline**. The GUI validates that required paths are filled in before starting. Click **🧪 Test pipeline** instead to download the bundled example dataset and run against that, as a setup sanity check.
+Set the required paths (MEA-NAP folder, raw data folder, output folder), configure the desired tabs, then go to the **Run** tab and click **Run pipeline**. The GUI validates that required paths are filled in before starting. Click **🧪 Test pipeline** instead to download the bundled example dataset and run against that, as a setup sanity check.
 
 The pipeline mirrors MATLAB's 4 steps — spike detection, neuronal activity (firing rates/bursts), functional connectivity (STTC), and network metrics — writing the same output folder structure MATLAB's `CreateOutputFolders.m` builds. **Not every step or metric is fully ported yet**; see [`PIPELINE_PORT_STATUS.md`](PIPELINE_PORT_STATUS.md) for exactly what's done, what's approximate, and what's still missing before relying on this for real analysis.
 
@@ -150,12 +158,14 @@ never silent.
 ### Queueing several runs
 
 A run takes minutes to hours, and until now a second one meant waiting for the
-first. The **Queue** tab takes parameter files saved with **Save params…** and
-runs them in order, unattended:
+first. Switch the Run tab from **This run** to **Queue of saved runs** and it
+takes parameter files saved with **Save params…**, running them in order,
+unattended:
 
 1. configure a run, **Save params…**;
 2. change whatever you like, save again;
-3. on the Queue tab, **Add…** both, then **Run queue**.
+3. on the Run tab, switch to **Queue of saved runs**, **Add…** both, then
+   **Run queue**.
 
 Each entry is a complete description of a run, so they may differ in anything —
 different datasets, different lags, even different pipelines. A CAT-NAP run and
@@ -267,7 +277,7 @@ Each folder may equally be a `.meanap` bundle.
 
 ### Progress and time estimates
 
-A run shows a progress bar on the Pipeline tab with the phase, the recording
+A run shows a progress bar on the Run tab with the phase, the recording
 being worked on, elapsed time and an estimate of the time left. A remote run
 gets a second, slimmer bar for the download.
 
@@ -296,7 +306,7 @@ run_pipeline(params, progress=lambda p: print(p.describe()))
 
 ### Output report
 
-After a run (or against any existing MEA-NAP output folder), click **🌐 View report** on the Pipeline tab to generate `report.html` in that output folder and open it in your browser. It's a self-contained page (no server, works offline) with a folder-tree sidebar and a captioned image gallery for every plot the pipeline produced — captions are adapted from MEA-NAP's own figure-legend documentation (`docs/meanap-outputs.rst`) wherever one exists. You can also generate it directly from Python:
+After a run (or against any existing MEA-NAP output folder), click **🌐 View report** on the Results tab to generate `report.html` in that output folder and open it in your browser. It's a self-contained page (no server, works offline) with a folder-tree sidebar and a captioned image gallery for every plot the pipeline produced — captions are adapted from MEA-NAP's own figure-legend documentation (`docs/meanap-outputs.rst`) wherever one exists. You can also generate it directly from Python:
 
 ```python
 from meanap.pipeline.report import generate_report
@@ -434,7 +444,7 @@ raw_data/
 
 1. Enter (or browse to) your raw data folder in the **Suite2p recordings** section — or paste a **Dropbox folder share link**, which is scanned without downloading anything.
 2. Click **Scan for suite2p folders**. All discovered recordings appear in the list; a ✓ prefix means denoising outputs already exist.
-3. Click **Make spreadsheet from these…** to turn the scan into the batch spreadsheet, with names taken from the data rather than retyped and DIV read out of each name. Fill in the genotype column (or **Fill from another sheet…** to copy DIV and genotype from an existing spreadsheet, matched by name even when the folders carry a trailing word the sheet doesn't). Saving points the Paths tab at it.
+3. Click **Make spreadsheet from these…** to turn the scan into the batch spreadsheet, with names taken from the data rather than retyped and DIV read out of each name. Fill in the genotype column (or **Fill from another sheet…** to copy DIV and genotype from an existing spreadsheet, matched by name even when the folders carry a trailing word the sheet doesn't). Saving points the Data tab at it.
 4. Click a recording to load it. The info panel shows cell count, sampling rate, and duration. Recordings behind a share link have nothing local to preview or denoise here — the pipeline run fetches them one at a time.
 5. (Optional) Adjust denoising settings and click **Run denoising on selected recording** to generate `Fdenoised.npy` and peak detection outputs.
 6. Use the **Trace preview** panel on the right to inspect individual cell traces, switching between activity types.
@@ -500,9 +510,9 @@ print(data.peak_start_frames.shape)  # (n_rois, max_peaks), NaN-padded
 
 ## Network Viewer
 
-The Network Viewer tab lets you interactively explore the functional connectivity network from a completed MEA-NAP run, including optional cell-type overlays. It mirrors the functionality of the MATLAB `runMEANAPviewer.m` viewer.
+The network viewer, at the bottom of the Results tab, lets you interactively explore the functional connectivity network from a completed MEA-NAP run, including optional cell-type overlays. It mirrors the functionality of the MATLAB `runMEANAPviewer.m` viewer.
 
-### Using the Network Viewer tab
+### Using the network viewer
 
 1. Click **Browse…** and select a MEA-NAP output `.mat` file from the `ExperimentMatFiles/` subfolder of an output directory (e.g. `OutputData.../ExperimentMatFiles/<recording>_OutputData....mat`).
 2. The network renders immediately. Recording metadata (name, DIV, group, active node count) appears in the left panel.

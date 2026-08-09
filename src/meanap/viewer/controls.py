@@ -136,7 +136,7 @@ COMPARISON_CONTROLS: tuple[Control, ...] = (
             help="Groups are unordered, so they take a categorical palette. "
                  "'okabe-ito' stays distinguishable with colour-vision deficiency."),
     Control("group_colors", "Custom group colours", "colors", [],
-            help="Overrides the scheme, in the group order on the Paths tab."),
+            help="Overrides the scheme, in the group order on the Data tab."),
 )
 
 

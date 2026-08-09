@@ -1,12 +1,13 @@
 # Network Viewer
 
-The **Network Viewer** tab interactively explores the functional connectivity
-network from a completed MEA-NAP run, including optional cell-type overlays.
-It's the Python equivalent of MATLAB's `runMEANAPviewer.m`.
+The **network viewer**, at the bottom of the **Results** tab, interactively
+explores the functional connectivity network from a completed MEA-NAP run,
+including optional cell-type overlays. It's the Python equivalent of MATLAB's
+`runMEANAPviewer.m`.
 
-## Using the Network Viewer tab
+## Using the network viewer
 
-When the tab first opens it shows a **built-in example network** so every
+When the tab first opens the viewer shows a **built-in example network** so every
 control is usable immediately — no file needed. To explore your own data:
 
 1. Click **Browse…** and select a MEA-NAP output `.mat` file from the

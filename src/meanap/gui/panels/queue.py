@@ -1,10 +1,14 @@
-"""Queue tab: several saved analyses, run one after another.
+"""The queue page of the Run tab: several saved analyses, run one after another.
 
-The window configures *one* run. This tab is for the other case — a few
+The Run tab's other page configures *one* run. This is for the other case — a few
 different analyses to get through, and nobody wanting to sit up for the
 handovers. Each entry is a parameter file saved from the toolbar, so building a
 queue is: configure a run, **Save params…**, change what you like, save again,
 then add both here.
+
+The list is all that is here: the Run and Stop buttons, the progress bar and the
+log are the Run tab's, shared with single runs — see
+:mod:`meanap.gui.panels.run`.
 
 Deliberately a list of *files* rather than of in-memory settings. A queue that
 referred to the window's current state could not be reordered, saved, or read
@@ -20,10 +24,8 @@ from pathlib import Path
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import (
     QFileDialog, QGroupBox, QHBoxLayout, QLabel, QListWidget, QListWidgetItem,
-    QMessageBox, QProgressBar, QPushButton, QTextEdit, QVBoxLayout, QWidget,
+    QMessageBox, QPushButton, QVBoxLayout, QWidget,
 )
-
-from meanap.pipeline.progress import format_duration
 
 #: Shown against each entry as the queue proceeds.
 _MARKS = {"queued": "·", "running": "▶", "done": "✓",
@@ -33,11 +35,11 @@ _MARKS = {"queued": "·", "running": "▶", "done": "✓",
 class QueuePanel(QWidget):
     """Build a list of saved runs, then run the lot."""
 
+    #: Anything worth saying about the list goes to the Run tab's one log,
+    #: rather than to a second one nobody would think to read.
     log_message = pyqtSignal(str)
-    #: Asks the window to start or stop the queue — the panel owns the list,
-    #: the window owns the worker, for the same reason the Pipeline tab does.
-    run_requested = pyqtSignal()
-    stop_requested = pyqtSignal()
+    #: Emitted when the list changes, so the Run button's count can follow it.
+    changed = pyqtSignal()
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -57,8 +59,6 @@ class QueuePanel(QWidget):
         layout.addWidget(intro)
 
         layout.addWidget(self._build_list_box(), stretch=1)
-        layout.addWidget(self._build_progress_box())
-        layout.addWidget(self._build_log_box(), stretch=1)
 
     # ── Construction ──────────────────────────────────────────────────────────
 
@@ -100,46 +100,6 @@ class QueuePanel(QWidget):
         outer.addLayout(buttons)
         return box
 
-    def _build_progress_box(self) -> QWidget:
-        box = QGroupBox("Run")
-        layout = QVBoxLayout(box)
-
-        row = QHBoxLayout()
-        self.run_btn = QPushButton("▶  Run queue")
-        self.run_btn.setFixedHeight(40)
-        self.run_btn.clicked.connect(self.run_requested)
-        self.stop_btn = QPushButton("■  Stop")
-        self.stop_btn.setFixedHeight(40)
-        self.stop_btn.setEnabled(False)
-        self.stop_btn.clicked.connect(self.stop_requested)
-        row.addWidget(self.run_btn)
-        row.addWidget(self.stop_btn)
-        layout.addLayout(row)
-
-        self.overall = QProgressBar()
-        self.overall.setRange(0, 1000)
-        self.overall.setTextVisible(False)
-        self.overall.setFixedHeight(18)
-        self.status_label = QLabel("Nothing queued.")
-        self.status_label.setWordWrap(True)
-        self.eta_label = QLabel("")
-        self.eta_label.setStyleSheet("font-size: 11px; color: gray;")
-
-        layout.addWidget(self.overall)
-        layout.addWidget(self.status_label)
-        layout.addWidget(self.eta_label)
-        return box
-
-    def _build_log_box(self) -> QWidget:
-        box = QGroupBox("Queue log")
-        layout = QVBoxLayout(box)
-        self.log = QTextEdit()
-        self.log.setReadOnly(True)
-        self.log.setAcceptDrops(False)
-        self.log.setMinimumHeight(120)
-        layout.addWidget(self.log)
-        return box
-
     # ── The list ──────────────────────────────────────────────────────────────
 
     def paths(self) -> list[Path]:
@@ -153,10 +113,7 @@ class QueuePanel(QWidget):
             if status == "failed":
                 item.setForeground(Qt.GlobalColor.red)
             self.list.addItem(item)
-        n = len(self._paths)
-        if not n:
-            self.status_label.setText("Nothing queued.")
-        self.run_btn.setEnabled(bool(n))
+        self.changed.emit()
 
     def add_paths(self, paths) -> int:
         """Add parameter files, skipping any already listed. Returns how many."""
@@ -237,57 +194,29 @@ class QueuePanel(QWidget):
         added = self.add_paths(entries)
         self._log(f"Loaded {added} run(s) from {Path(path).name}")
 
-    # ── Progress ──────────────────────────────────────────────────────────────
-
-    def start(self) -> None:
-        self._status = ["queued"] * len(self._paths)
-        self._refresh()
-        self.run_btn.setEnabled(False)
-        self.stop_btn.setEnabled(True)
-        for widget in (self.add_btn, self.remove_btn, self.up_btn,
-                       self.down_btn, self.load_btn):
-            widget.setEnabled(False)
-        self.overall.setValue(0)
-        self.eta_label.setText("")
-
-    def show_progress(self, index: int, label: str, snapshot) -> None:
-        """Where the queue is, and where the run in flight is within it."""
-        total = max(len(self._paths), 1)
-        if index < len(self._status):
-            self._status[index] = "running"
-            self._refresh()
-        # One bar for the queue: whole runs behind, plus this run's fraction.
-        self.overall.setValue(
-            int(round((index + snapshot.fraction) / total * 1000)))
-        self.status_label.setText(
-            f"Run {index + 1} of {total} — {label}   ·   "
-            f"{snapshot.percent}%  {snapshot.phase}"
-            + (f"  ·  {snapshot.detail}" if snapshot.detail else ""))
-        self.eta_label.setText(
-            f"{format_duration(snapshot.elapsed_s)} into this run"
-            + ("" if snapshot.eta_s is None
-               else f"  ·  about {format_duration(snapshot.eta_s)} left in it"))
+    # ── Marks ─────────────────────────────────────────────────────────────────
 
     def mark(self, index: int, status: str) -> None:
         if 0 <= index < len(self._status):
             self._status[index] = status
             self._refresh()
 
-    def finish(self, summary: str) -> None:
-        self.run_btn.setEnabled(bool(self._paths))
-        self.stop_btn.setEnabled(False)
+    def start(self) -> None:
+        """Clear last night's marks, so the list shows *this* run's progress."""
+        self._status = ["queued"] * len(self._paths)
+        self._refresh()
+
+    def set_editable(self, editable: bool) -> None:
+        """Lock the list while the queue is being worked through.
+
+        The worker reads these paths as it goes, so a list edited mid-flight
+        would mean the summary described a queue that no longer existed.
+        """
         for widget in (self.add_btn, self.remove_btn, self.up_btn,
                        self.down_btn, self.load_btn):
-            widget.setEnabled(True)
-        self.overall.setValue(1000)
-        self.status_label.setText(summary)
-        self.eta_label.setText("")
+            widget.setEnabled(editable)
 
     # ── Helpers ───────────────────────────────────────────────────────────────
 
     def _log(self, text: str) -> None:
-        self.log.append(text)
         self.log_message.emit(text)
-
-    def append_log(self, text: str) -> None:
-        self.log.append(text)

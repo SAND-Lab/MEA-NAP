@@ -70,7 +70,7 @@ small-worldness, and NMF all draw random numbers. By default (and in MATLAB,
 always) those draws are unseeded, so running the same data twice gives slightly
 different `Q`, `nMod`, `SW`, `PC`, `Z` and node-cartography roles.
 
-Tick **Fixed random seed** on the Pipeline tab (or set `Params.random_seed` to
+Tick **Fixed random seed** on the Run tab (or set `Params.random_seed` to
 an integer) and the whole run becomes repeatable: the same input plus the same
 seed produces byte-identical `NetworkActivity_RecordingLevel.csv` and
 `NetworkActivity_NodeLevel.csv`, regardless of how many CPU cores the machine
@@ -85,7 +85,7 @@ the same reason.
 
 Steps don't have to be re-run from scratch. Set **Start at step** to where you
 want to pick up, tick **Use prior analysis**, and point **Previous analysis
-folder** (Paths tab) at an earlier `OutputData…` folder. Whatever the starting
+folder** (Data tab) at an earlier `OutputData…` folder. Whatever the starting
 step needs — spike times from step 1, adjacency matrices from step 3 — is read
 from that folder, and everything from the starting step onwards is recomputed
 into a *new* output folder. The previous run is never modified.
