@@ -38,7 +38,7 @@ def main() -> None:
     # not just the main window.
     app.setWindowIcon(logo_icon())
 
-    theme.apply(app, theme="auto")
+    theme.apply(app)
 
     window = MainWindow(mode=args.mode)
     window.show()

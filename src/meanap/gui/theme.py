@@ -107,8 +107,14 @@ QSplitter::handle {{
 """
 
 
-def apply(app: QApplication, theme: str = "auto") -> None:
-    """Apply qdarktheme + custom overrides to *app*."""
+def apply(app: QApplication, theme: str = "light") -> None:
+    """Apply qdarktheme + custom overrides to *app*.
+
+    Light, and only light. A dark variant existed behind a toolbar toggle, but
+    the figures the window is mostly showing are drawn on white, so half the
+    screen stayed light whichever way it was set. The parameter is kept so a
+    dark build is a one-line change rather than a revert.
+    """
     qdarktheme.enable_hi_dpi()
     qdarktheme.setup_theme(
         theme,
@@ -120,18 +126,3 @@ def apply(app: QApplication, theme: str = "auto") -> None:
     font = QFont("Segoe UI", 10)
     font.setStyleHint(QFont.StyleHint.SansSerif)
     app.setFont(font)
-
-
-def toggle(current: str) -> str:
-    """Return the next theme name."""
-    return "light" if current == "dark" else "dark"
-
-
-def reapply(theme: str) -> None:
-    """Re-apply qdarktheme after a toggle (call without recreating QApplication)."""
-    qdarktheme.setup_theme(
-        theme,
-        corner_shape="rounded",
-        custom_colors={"primary": ACCENT},
-        additional_qss=_EXTRA_QSS,
-    )
