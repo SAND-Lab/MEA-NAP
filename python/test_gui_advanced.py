@@ -157,33 +157,54 @@ check("a save from a collapsed window still carries advanced settings",
       saved.prob_thresh_tail == Params().prob_thresh_tail,
       str(saved.prob_thresh_tail))
 
-# A tutorial that points at a folded widget would highlight nothing, so no step
-# may target one while the sections are shut.
+# A tutorial step may well point at a folded setting — the tutorial is where
+# someone finds out these exist — so what matters is that showing the step opens
+# what it is pointing at. Walk every step of every mode and check the target is
+# on screen by the time the coach-mark is drawn.
 window._act_advanced.setChecked(False)
 app.processEvents()
-hidden_targets = []
-builders = {
-    "meanap": lambda: window._build_meanap_steps(),
-    "meastim": lambda: window._build_meastim_steps(),
-    "catnap": lambda: window._build_catnap_steps(),
-}
-for mode_key, build in builders.items():
-    window._apply_mode(mode_key, sync_params=False)
+
+invisible = []
+for mode_key in ("meanap", "meastim", "catnap"):
+    window._start_tutorial()
+    window._on_pipeline_chosen(mode_key)
     app.processEvents()
-    for step in build():
+    tutorial = window._tutorial
+    for i, step in enumerate(tutorial._steps):
         target = step.target() if callable(step.target) else step.target
         # Some targets resolve to a QRect (the tab bar) rather than a widget.
-        if not isinstance(target, QWidget):
-            continue
-        parent = target
-        while parent is not None:
-            if isinstance(parent, AdvancedSection) and not parent.is_expanded():
-                hidden_targets.append(f"{mode_key}: {step.title}")
-                break
-            parent = parent.parentWidget()
-check("no tutorial step points into a collapsed section",
-      not hidden_targets, "; ".join(hidden_targets))
+        if isinstance(target, QWidget) and not target.isVisible():
+            invisible.append(f"{mode_key}: {step.title}")
+        tutorial._next()
+        app.processEvents()
 
+check("every tutorial target is on screen when its step is shown",
+      not invisible, "; ".join(invisible))
+
+# And specifically: the ones inside advanced sections got there by being opened.
+# Collapsed directly rather than through the toolbar action, which emits nothing
+# when it is already unchecked — as it is, after the walk above opened sections.
+set_all_expanded(window, False)
+window._apply_mode("meanap", sync_params=False)
+app.processEvents()
+section = None
+for candidate in window._data_panel.findChildren(AdvancedSection):
+    if window._data_panel.spreadsheet_range in candidate.findChildren(QWidget):
+        section = candidate
+check("the spreadsheet-range setting is folded away to begin with",
+      section is not None and not section.is_expanded(), str(section))
+
+window._start_tutorial()
+window._on_pipeline_chosen("meanap")
+app.processEvents()
+for _ in window._tutorial._steps:
+    if window._tutorial._steps[window._tutorial._index].title == "Spreadsheet range":
+        break
+    window._tutorial._next()
+    app.processEvents()
+check("reaching that step opens the section rather than pointing at nothing",
+      section is not None and section.is_expanded()
+      and window._data_panel.spreadsheet_range.isVisible(), "")
 
 if _previous is None:
     _settings.remove(SETTINGS_KEY)

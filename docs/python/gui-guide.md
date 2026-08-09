@@ -16,6 +16,19 @@ button, which fills in sensible defaults and the bundled example dataset
 automatically.
 ```
 
+(advanced-settings)=
+## Advanced settings
+
+Most tabs keep their everyday settings in the open and fold the rest into a
+collapsible **Advanced settings** group, labelled with how many it holds so
+nothing is hidden silently. **⚙ Advanced settings** in the toolbar opens every
+one at once and remembers that between sessions.
+
+Advanced does not mean dangerous or inactive: a collapsed setting loads, holds
+and saves its value exactly as an open one does, and every field is documented
+in the tables below whether it is folded away or not. The distinction is only
+how often a setting is worth looking at.
+
 (modes)=
 ## Modes
 
@@ -26,9 +39,9 @@ never consult:
 
 | Mode | Pipeline | Tabs shown |
 |---|---|---|
-| **MEA-NAP · Ephys** | Spike detection → activity → connectivity → network analysis | Paths, Recording, Spike detection, Connectivity, Network Viewer, Pipeline |
+| **MEA-NAP · Ephys** | Spike detection → activity → connectivity → network analysis | Data, Spike detection, Connectivity, Network Viewer, Run |
 | **MEA-Stim · Stimulation** | The ephys pipeline plus the stimulation analysis that runs after it | the above, plus Stimulation and Stim Preview |
-| **CAT-NAP · 2P imaging** | Network analysis of suite2p calcium imaging | Paths, Connectivity, CAT-NAP (2P), Network Viewer, Pipeline |
+| **CAT-NAP · 2P imaging** | Network analysis of suite2p calcium imaging | Data, Connectivity, CAT-NAP (2P), Network Viewer, Run |
 
 Start in a mode from the command line:
 
@@ -46,13 +59,17 @@ see: picking a mode sets the pipeline's own switches (`suite2p_mode`,
 that file was saved for. Choosing a pipeline in the guided tutorial switches
 mode too — it is the same choice.
 
-CAT-NAP has no Recording or Spike detection tab because `run_catnap_pipeline`
-never reads sampling rate, electrode layout or spike-detection settings. It does
-read the connectivity settings, so that tab stays.
+CAT-NAP has no Spike detection tab, and the Data tab hides its Recording group,
+because `run_catnap_pipeline` never reads sampling rate, electrode layout or
+spike-detection settings. It does read the connectivity settings, so that tab
+stays.
 
-## Paths
+## Data
 
-Where MEA-NAP reads your data from and writes results to.
+What you are analysing, what that data is, and where the results go — read top
+to bottom.
+
+### Input
 
 | Field | Description |
 |---|---|
@@ -63,7 +80,7 @@ Where MEA-NAP reads your data from and writes results to.
 | **Custom group order** | Optional comma-separated group names (e.g. `WT,KO`) to control display/plot order instead of alphabetical. |
 | **Spike data folder** | Only needed if you're starting from step 2+ using previously-detected spike times instead of raw data. |
 | **Output data folder** / **Output folder name** | Where results are written, and the name of the run's output subfolder. |
-| **Previous analysis folder** | Only needed when re-using a prior run (**Use prior analysis** on the Run tab). |
+| **Previous analysis folder** | On the Run tab, beside **Use prior analysis** — see [Run](#run). |
 
 (raw-data-formats)=
 ### Raw data formats
@@ -114,10 +131,11 @@ for a 5-minute 24-well recording, against roughly 11 GB for MATLAB's
 whole-plate `LoadData`. Naming a `.raw` without a well suffix is an error that
 lists the wells the file actually contains.
 
-## Recording
+### Recording
 
 Sampling and hardware settings, used during spike detection and for mapping
-channels to spatial electrode coordinates.
+channels to spatial electrode coordinates. Hidden in CAT-NAP mode, where none of
+it applies.
 
 | Field | Description |
 |---|---|
@@ -185,14 +203,20 @@ Interactive exploration of a completed run's functional connectivity network,
 with optional cell-type overlays. Full walkthrough:
 [Network Viewer](network-viewer.md).
 
-## Pipeline
+## Run
 
-Run controls and step selection.
+One tab for starting work, with a switch at the top for what the **Run** button
+starts: **This run** — the analysis the other tabs describe — or **Queue of
+saved runs**, which works through several saved parameter files one after
+another (see [Queueing several runs](../../python/README.md#queueing-several-runs)).
+Either way there is one Run button, one Stop button, one progress bar and one
+log, so a run cannot be started while another is going.
 
 | Field | Description |
 |---|---|
 | **Start at step** / **Stop at step** | Which of the 4 steps to run, inclusive (1–4). Moving one past the other drags the other along, so the range always stays valid. |
-| **Use prior analysis** | Load results from **Previous analysis folder** (Paths tab) instead of recomputing. |
+| **Use prior analysis** | Read the steps before **Start at step** from an earlier run instead of recomputing them. Ticking it enables the folder fields underneath. |
+| **Previous analysis folder** / **Additional folders** | The earlier run(s) to read. Each may be an `OutputData…` folder or a `.meanap` bundle. Naming more than one combines them: a spreadsheet listing recordings from several runs is analysed as one batch. |
 | **Optional steps** | Extra steps to run alongside the core 4, e.g. `generateCSV`. |
 | **Verbose level** | `Normal`, `Verbose`, or `Debug` logging detail in the status log. |
 | **Time each step** | Records per-step wall-clock time to `step_durations.json` in the output folder. |
@@ -216,7 +240,7 @@ The four buttons under **Run**:
     any figure on demand in PNG or editable SVG, and can export the whole
     output folder back out for sharing.
 
-  With no run in this session it falls back to the output folder the Paths tab
+  With no run in this session it falls back to the output folder the Data tab
   describes, including the dated default name (`OutputData<ddMonyyyy>`) used
   when **Output folder name** is blank.
 

@@ -425,7 +425,7 @@ above.
 - `src/meanap/gui/main_window.py` — `_on_run` runs the pipeline on a background
   `QThread` (see item 1 under "Known limitations" for the cancellation
   mechanism). `_on_test_pipeline` downloads the example dataset, points the
-  Paths tab at it, sets `start_step=1, stop_step=4`, then calls `_on_run` —
+  Data tab at it, sets `start_step=1, stop_step=4`, then calls `_on_run` —
   i.e. it runs the full 4-step pipeline. This mirrors `runPipelineApp.m`'s
   `TestPipelineButton` handler, which also falls through into a full pipeline
   run using the example-data settings.
@@ -1500,7 +1500,7 @@ print(run_pipeline(p, log=print))
 
 # GUI smoke test
 uv run meanap-gui
-# Paths tab: set "MEA-NAP folder" to the repo root, then Run tab → 🧪 Test pipeline
+# Data tab: set "MEA-NAP folder" to the repo root, then Run tab → 🧪 Test pipeline
 ```
 
 Note: full spike detection on the two example recordings (64 channels each,

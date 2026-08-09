@@ -19,7 +19,7 @@ from taste:
   apply. It *does* read the connectivity settings (``func_con_lag_val`` and the
   probabilistic-thresholding fields), so that tab stays.
 
-The Paths, Network Viewer and Run tabs appear in every mode: the first two are
+The Data, Network Viewer and Run tabs appear in every mode: the first two are
 mode-independent (a viewer for results already on disk), and the third is how
 you start work — either this run, or a queue of saved parameter files. A queue
 may mix *different* pipelines, since each file carries its own mode flags and
@@ -32,8 +32,7 @@ from dataclasses import dataclass
 
 #: Tab keys, in the order tabs are laid out. ``MainWindow`` owns the widgets;
 #: this module only decides which keys a mode shows.
-TAB_PATHS = "paths"
-TAB_RECORDING = "recording"
+TAB_DATA = "data"
 TAB_SPIKE = "spike"
 TAB_CONNECTIVITY = "connectivity"
 TAB_STIM = "stim"
@@ -58,8 +57,7 @@ class Mode:
     stimulation_mode: bool = False
 
 
-_EPHYS_TABS = (TAB_PATHS, TAB_RECORDING, TAB_SPIKE, TAB_CONNECTIVITY,
-               TAB_NETWORK, TAB_RUN)
+_EPHYS_TABS = (TAB_DATA, TAB_SPIKE, TAB_CONNECTIVITY, TAB_NETWORK, TAB_RUN)
 
 MODES: dict[str, Mode] = {
     "meanap": Mode(
@@ -79,7 +77,7 @@ MODES: dict[str, Mode] = {
         key="catnap",
         label="CAT-NAP  ·  2P imaging",
         blurb="Network analysis of two-photon calcium imaging processed with suite2p.",
-        tabs=frozenset((TAB_PATHS, TAB_CONNECTIVITY, TAB_CATNAP,
+        tabs=frozenset((TAB_DATA, TAB_CONNECTIVITY, TAB_CATNAP,
                         TAB_NETWORK, TAB_RUN)),
         suite2p_mode=True,
     ),

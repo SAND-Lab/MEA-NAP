@@ -155,8 +155,8 @@ def _routing_checks(app: QApplication, express_root: Path, full_root: Path) -> l
     window3 = MainWindow()
     opened3: list[str] = []
     _opened_urls(window3, opened3)
-    window3._paths_panel.output_data_folder.set_value(str(express_root.parent))
-    window3._paths_panel.output_data_folder_name.setText(express_root.name)
+    window3._data_panel.output_data_folder.set_value(str(express_root.parent))
+    window3._data_panel.output_data_folder_name.setText(express_root.name)
     window3._on_view_report()
     checks.append(("a bundle is found from the paths alone, with no run",
                    len(opened3) == 1 and opened3[0].startswith("http://"), str(opened3)))

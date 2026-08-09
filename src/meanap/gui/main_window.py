@@ -20,15 +20,14 @@ from meanap.gui import theme
 from meanap.gui.branding import logo_icon, logo_pixmap
 from meanap.gui import advanced
 from meanap.gui.modes import (
-    DEFAULT_MODE, MODES, TAB_CATNAP, TAB_CONNECTIVITY, TAB_NETWORK, TAB_PATHS,
-    TAB_RECORDING, TAB_RUN, TAB_SPIKE, TAB_STIM,
+    DEFAULT_MODE, MODES, TAB_CATNAP, TAB_CONNECTIVITY, TAB_DATA, TAB_NETWORK,
+    TAB_RUN, TAB_SPIKE, TAB_STIM,
     TAB_STIM_PREVIEW,
     apply_mode_to_params, mode_for_params,
 )
 from meanap.gui.pipeline_worker import PipelineWorker, QueueWorker
 from meanap.gui.viewer_session import ViewerSessions
-from meanap.gui.panels.paths import PathsPanel
-from meanap.gui.panels.recording import RecordingPanel
+from meanap.gui.panels.data import DataPanel
 from meanap.gui.panels.spike_detection import SpikeDetectionPanel
 from meanap.gui.panels.connectivity import ConnectivityPanel
 from meanap.gui.panels.stim import StimPanel
@@ -186,8 +185,7 @@ class MainWindow(QMainWindow):
         self._tabs.setDocumentMode(True)
         self.setCentralWidget(self._tabs)
 
-        self._paths_panel = PathsPanel()
-        self._recording_panel = RecordingPanel()
+        self._data_panel = DataPanel()
         self._spike_panel = SpikeDetectionPanel()
         self._connectivity_panel = ConnectivityPanel()
         self._stim_panel = StimPanel()
@@ -204,8 +202,7 @@ class MainWindow(QMainWindow):
         # which of them are actually in the QTabWidget (see _apply_mode). Order
         # is the order they appear in, whichever subset is showing.
         self._tab_specs: list[tuple[str, QWidget, str]] = [
-            (TAB_PATHS, _scrollable(self._paths_panel), "  Paths  "),
-            (TAB_RECORDING, _scrollable(self._recording_panel), "  Recording  "),
+            (TAB_DATA, _scrollable(self._data_panel), "  Data  "),
             (TAB_SPIKE, _scrollable(self._spike_panel), "  Spike detection  "),
             (TAB_CONNECTIVITY, _scrollable(self._connectivity_panel), "  Connectivity  "),
             (TAB_STIM, _scrollable(self._stim_panel), "  Stimulation  "),
@@ -219,13 +216,13 @@ class MainWindow(QMainWindow):
         self._catnap_panel.log_message.connect(self._run_panel.append_log)
         self._queue_panel.changed.connect(self._run_panel.refresh)
 
-        # The Paths "Raw data folder" and the CAT-NAP "Recordings folder" are
+        # The Data tab's "Raw data folder" and the CAT-NAP "Recordings folder" are
         # two views of one setting (Params.raw_data), and both panels write it
         # in _collect_params — so whichever saves last silently wins. Mirror
-        # them instead. Without this, setting the folder on Paths and pressing
+        # them instead. Without this, setting the folder on Data and pressing
         # Run reports it missing, because the empty CAT-NAP field overwrites it.
         self._bind_mirrored(
-            self._paths_panel.raw_data.line_edit, self._catnap_panel._folder_edit
+            self._data_panel.raw_data.line_edit, self._catnap_panel._folder_edit
         )
 
         # Mark Run / Stop with object names so QSS can style them distinctly
@@ -252,13 +249,13 @@ class MainWindow(QMainWindow):
         # about to read, so point the run at it rather than leaving the user to
         # copy the path across tabs.
         self._catnap_panel.spreadsheet_saved.connect(
-            self._paths_panel.spreadsheet.set_value)
+            self._data_panel.spreadsheet.set_value)
 
         # Secondary-style buttons in CAT-NAP panel
         self._catnap_panel._scan_btn.setObjectName("secondary")
         self._catnap_panel._denoise_btn.setObjectName("secondary")
         self._catnap_panel._make_sheet_btn.setObjectName("secondary")
-        self._paths_panel.edit_spreadsheet_btn.setObjectName("secondary")
+        self._data_panel.edit_spreadsheet_btn.setObjectName("secondary")
 
     @staticmethod
     def _bind_mirrored(first: QLineEdit, second: QLineEdit) -> None:
@@ -294,6 +291,9 @@ class MainWindow(QMainWindow):
         """
         mode = MODES[mode_key]
         self._mode = mode_key
+        # The Data tab is shown in every mode but does not mean the same thing
+        # in each — CAT-NAP has no electrodes and no sampling rate to set.
+        self._data_panel.set_mode(mode_key)
 
         keep = self._current_tab_key()
         self._tabs.blockSignals(True)
@@ -310,7 +310,7 @@ class MainWindow(QMainWindow):
         self._tabs.blockSignals(False)
 
         # Stay on the same tab across the switch when that tab still exists,
-        # rather than dumping the user back on Paths every time.
+        # rather than dumping the user back on Data every time.
         index = self._tab_index(keep) if keep else -1
         self._tabs.setCurrentIndex(index if index >= 0 else 0)
 
@@ -383,18 +383,17 @@ class MainWindow(QMainWindow):
         QSettings("SAND Lab", "MEA-NAP").setValue("tutorial/seen", True)
 
     def _build_meanap_steps(self) -> list[TutorialStep]:
-        paths = self._paths_panel
-        rec = self._recording_panel
+        data = self._data_panel
         spike = self._spike_panel
         conn = self._connectivity_panel
         pipe = self._pipeline_panel
         return [
             TutorialStep(
-                "Raw data folder", "The MEA-NAP pipeline starts on the Paths tab. "
+                "Raw data folder", "The MEA-NAP pipeline starts on the Data tab. "
                 "Choose the folder holding your recordings. No conversion needed: "
                 "Multi Channel Systems .h5 and Axion .raw are read as they come off "
                 "the recorder, alongside .mat files from the MATLAB converters.",
-                self._tab_index(TAB_PATHS), lambda: paths.raw_data),
+                self._tab_index(TAB_DATA), lambda: data.raw_data),
             TutorialStep(
                 "Recording spreadsheet", "Select the CSV/XLSX that lists each recording, "
                 "its group and its age (DIV). This drives the whole batch. Name recordings "
@@ -402,30 +401,30 @@ class MainWindow(QMainWindow):
                 "one row per well — 'Plate2_DIV75_A1' — exactly as the MATLAB converter "
                 "would have named the file it wrote. No spreadsheet yet? “Edit…” "
                 "builds one here and checks it as you type.",
-                self._tab_index(TAB_PATHS), lambda: paths.spreadsheet),
+                self._tab_index(TAB_DATA), lambda: data.spreadsheet),
             TutorialStep(
                 "Spreadsheet range", "The cell range to read from the spreadsheet, "
                 "e.g. A2:A100000 to read every row after the header.",
-                self._tab_index(TAB_PATHS), lambda: paths.spreadsheet_range),
+                self._tab_index(TAB_DATA), lambda: data.spreadsheet_range),
             TutorialStep(
                 "Where results go", "Set the output folder and give this analysis run "
                 "a name — a subfolder with that name will hold all results and plots.",
-                self._tab_index(TAB_PATHS), lambda: paths.output_data_folder),
+                self._tab_index(TAB_DATA), lambda: data.output_data_folder),
             TutorialStep(
-                "Recording settings", "On the Recording tab, set the sampling frequency "
+                "Recording settings", "Further down the Data tab, set the sampling frequency "
                 "of your acquisition (Hz) so spike detection and downsampling are correct.",
-                self._tab_index(TAB_RECORDING), lambda: rec.fs),
+                self._tab_index(TAB_DATA), lambda: data.fs),
             TutorialStep(
                 "Voltage units", "Set this to the units your recordings are in — µV for "
                 "Multi Channel Systems, V for Axion. Getting it wrong scales every "
                 "amplitude, so spike detection thresholds land in the wrong place.",
-                self._tab_index(TAB_RECORDING), lambda: rec.potential_difference_unit),
+                self._tab_index(TAB_DATA), lambda: data.potential_difference_unit),
             TutorialStep(
                 "Channel layout", "Pick the MEA layout that matches your hardware: MCS60 "
                 "for a 60-electrode MCS array, Axion64 for 6-well Axion plates, Axion16 "
                 "for 24-well plates (16 electrodes per well). This maps channels to "
                 "electrode positions.",
-                self._tab_index(TAB_RECORDING), lambda: rec.channel_layout),
+                self._tab_index(TAB_DATA), lambda: data.channel_layout),
             TutorialStep(
                 "Spike detection", "Step 1 detects spikes. Leave 'Detect spikes' ticked "
                 "for a fresh run; untick it if you already have detected spike data.",
@@ -453,23 +452,23 @@ class MainWindow(QMainWindow):
         ]
 
     def _build_meastim_steps(self) -> list[TutorialStep]:
-        paths = self._paths_panel
+        data = self._data_panel
         stim = self._stim_panel
         pipe = self._pipeline_panel
         return [
             TutorialStep(
-                "Raw data folder", "MEA-Stim reuses the same Paths tab. Choose the folder "
+                "Raw data folder", "MEA-Stim reuses the same Data tab. Choose the folder "
                 "with your stimulation recordings — .mat, Multi Channel Systems .h5 or "
                 "Axion .raw, no conversion needed.",
-                self._tab_index(TAB_PATHS), lambda: paths.raw_data),
+                self._tab_index(TAB_DATA), lambda: data.raw_data),
             TutorialStep(
                 "Recording spreadsheet", "Select the CSV/XLSX listing each recording, "
                 "its group and DIV.",
-                self._tab_index(TAB_PATHS), lambda: paths.spreadsheet),
+                self._tab_index(TAB_DATA), lambda: data.spreadsheet),
             TutorialStep(
                 "Where results go", "Set the output folder and a name for this run's "
                 "results subfolder.",
-                self._tab_index(TAB_PATHS), lambda: paths.output_data_folder),
+                self._tab_index(TAB_DATA), lambda: data.output_data_folder),
             TutorialStep(
                 "Turn on MEA-Stim", "On the Stimulation tab, tick this to run the "
                 "stimulation analysis after spike detection.",
@@ -528,7 +527,7 @@ class MainWindow(QMainWindow):
                 "Build the spreadsheet", "This turns the recordings found above into "
                 "the batch spreadsheet, with the names taken from the data rather "
                 "than retyped, and the DIV read out of each name. Fill in the "
-                "genotype/group column, save, and the Paths tab points at it.",
+                "genotype/group column, save, and the Data tab points at it.",
                 self._tab_index(TAB_CATNAP), lambda: cat._make_sheet_btn),
             TutorialStep(
                 "Denoising", "Optionally denoise the fluorescence traces before analysis. "
@@ -550,8 +549,7 @@ class MainWindow(QMainWindow):
         if wanted != self._mode:
             self._apply_mode(wanted, sync_params=False)
 
-        self._paths_panel.load(params)
-        self._recording_panel.load(params)
+        self._data_panel.load(params)
         self._spike_panel.load(params)
         self._connectivity_panel.load(params)
         self._stim_panel.load(params)
@@ -561,8 +559,7 @@ class MainWindow(QMainWindow):
 
     def _collect_params(self) -> Params:
         params = Params()
-        self._paths_panel.save(params)
-        self._recording_panel.save(params)
+        self._data_panel.save(params)
         self._spike_panel.save(params)
         self._connectivity_panel.save(params)
         self._stim_panel.save(params)
@@ -622,10 +619,10 @@ class MainWindow(QMainWindow):
     def _on_test_pipeline(self) -> None:
         # The test run needs somewhere to put the example data and its output.
         # Default the output folder to ~/MEA-NAP when it hasn't been set.
-        out_folder = self._paths_panel.output_data_folder.value
+        out_folder = self._data_panel.output_data_folder.value
         if not out_folder:
             out_folder = str(Path.home() / "MEA-NAP")
-            self._paths_panel.output_data_folder.set_value(out_folder)
+            self._data_panel.output_data_folder.set_value(out_folder)
 
         self._tabs.setCurrentIndex(self._tab_index(TAB_RUN))
         self._run_panel.append_log("Downloading example data for pipeline test…")
@@ -643,15 +640,15 @@ class MainWindow(QMainWindow):
 
         # Point the paths panel at the example dataset, mirroring the MATLAB
         # TestPipelineButton behaviour (downloadExampleData + settings override).
-        self._paths_panel.raw_data.set_value(str(example_dir))
-        self._paths_panel.spreadsheet.set_value(str(example_dir / "exampleData.csv"))
-        self._paths_panel.spreadsheet_range.setText("A2:A3")
+        self._data_panel.raw_data.set_value(str(example_dir))
+        self._data_panel.spreadsheet.set_value(str(example_dir / "exampleData.csv"))
+        self._data_panel.spreadsheet_range.setText("A2:A3")
         try:
             from meanap.pipeline.spreadsheet import read_recording_csv
             recordings = read_recording_csv(example_dir / "exampleData.csv", "A2:A3")
             # Preserve order of first appearance
             unique_grps = list(dict.fromkeys(r.group for r in recordings))
-            self._paths_panel.custom_grp_order.setText(",".join(unique_grps))
+            self._data_panel.custom_grp_order.setText(",".join(unique_grps))
         except Exception as e:
             log(f"Warning: could not parse custom group order from exampleData.csv: {e}")
 
@@ -700,7 +697,7 @@ class MainWindow(QMainWindow):
             missing.append("Previous analysis folder (required by 'Use prior analysis')")
         # Starting mid-pipeline needs the earlier steps' output from somewhere:
         # a prior analysis folder, an explicit spike-data folder, or an existing
-        # output folder named on the Paths tab (continuing a run in place).
+        # output folder named on the Data tab (continuing a run in place).
         if (
             params.start_analysis_step > 1
             and not params.prior_analysis
@@ -753,7 +750,7 @@ class MainWindow(QMainWindow):
         which is exactly when a silent overwrite is least expected and most
         expensive. ``run_pipeline`` would move aside on its own; asking here
         lets the choice be an informed one, and puts the name that will actually
-        be used on the Paths tab where it can be seen.
+        be used on the Data tab where it can be seen.
         """
         from meanap.pipeline.output_folders import (
             next_free_output_name, output_name_taken,
@@ -795,9 +792,9 @@ class MainWindow(QMainWindow):
 
         clicked = box.clickedButton()
         if clicked is use_new:
-            # Onto the Paths tab too: the name a run wrote to should be visible
+            # Onto the Data tab too: the name a run wrote to should be visible
             # afterwards, not something the user has to reconstruct from a log.
-            self._paths_panel.output_data_folder_name.setText(fresh)
+            self._data_panel.output_data_folder_name.setText(fresh)
             params.output_data_folder_name = fresh
             self._run_panel.append_log(f"Saving this run as {fresh}.")
             return params
@@ -919,7 +916,7 @@ class MainWindow(QMainWindow):
 
         Falls back to the same folder :func:`run_pipeline` would have created
         from the current paths — including its dated default name, which the
-        Paths tab leaves blank — so the button works in a fresh session
+        Data tab leaves blank — so the button works in a fresh session
         pointed at yesterday's results.
         """
         if self._last_output_root is not None:
@@ -955,7 +952,7 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(
                 self, "No output folder found",
                 "Run the pipeline first, or set the Output data folder / name "
-                "(Paths tab) to an existing MEA-NAP output folder.\n\n"
+                "(Data tab) to an existing MEA-NAP output folder.\n\n"
                 "To open an express run from another machine, use "
                 "'Open bundle…' in the toolbar, or drag its .meanap file onto "
                 "this window.",

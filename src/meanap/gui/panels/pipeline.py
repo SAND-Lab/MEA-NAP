@@ -10,6 +10,7 @@ from PyQt6.QtWidgets import (
     QLabel, QListWidget, QListWidgetItem, QSpinBox, QVBoxLayout, QWidget,
 )
 
+from meanap.gui.panels.prior import PriorAnalysisPanel
 from meanap.params import Params
 
 PIPELINE_STEPS = [
@@ -81,10 +82,15 @@ class PipelinePanel(QWidget):
         self.prior_analysis = QCheckBox()
         self.prior_analysis.setToolTip(
             "Resume from an earlier run: steps before 'Start at step' are read from the "
-            "previous analysis folder (set on the Paths tab) instead of being recomputed. "
-            "Results are written to this run's own output folder — the previous run is "
-            "only ever read."
+            "previous analysis folder instead of being recomputed. Results are written "
+            "to this run's own output folder — the previous run is only ever read."
         )
+
+        # The folders sit with the switch that turns them on. Disabled until it
+        # is, so they cannot be filled in and quietly do nothing.
+        self.prior = PriorAnalysisPanel()
+        self.prior.setEnabled(False)
+        self.prior_analysis.toggled.connect(self.prior.setEnabled)
 
         self.optional_steps = QListWidget()
         self.optional_steps.setSelectionMode(QListWidget.SelectionMode.MultiSelection)
@@ -95,6 +101,7 @@ class PipelinePanel(QWidget):
         form.addRow("Start at step", self.start_step)
         form.addRow("Stop at step", self.stop_step)
         form.addRow("Use prior analysis", self.prior_analysis)
+        form.addRow(self.prior)
         form.addRow("Continue previous run", self.continue_interrupted)
         form.addRow("   …and drop removed recordings' figures", self.prune_removed)
         form.addRow("Optional steps", self.optional_steps)
@@ -162,6 +169,8 @@ class PipelinePanel(QWidget):
         self.start_step.setValue(params.start_analysis_step)
         self.stop_step.setValue(params.stop_analysis_step)
         self.prior_analysis.setChecked(params.prior_analysis)
+        self.prior.setEnabled(params.prior_analysis)
+        self.prior.load(params)
         self.continue_interrupted.setChecked(params.continue_interrupted)
         self.prune_removed.setChecked(params.prune_removed_recordings)
         self.prune_removed.setEnabled(params.continue_interrupted)
@@ -181,6 +190,7 @@ class PipelinePanel(QWidget):
         params.start_analysis_step = self.start_step.value()
         params.stop_analysis_step = self.stop_step.value()
         params.prior_analysis = self.prior_analysis.isChecked()
+        self.prior.save(params)
         params.continue_interrupted = self.continue_interrupted.isChecked()
         # Only meaningful while continuing, and a stored True that silently
         # applied to a fresh run would delete figures nobody asked about.

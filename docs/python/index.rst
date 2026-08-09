@@ -36,8 +36,8 @@ results.
       :link: gui-guide
       :link-type: doc
 
-      Every tab in the desktop app — Paths, Recording, Spike detection,
-      Connectivity, Pipeline — field by field.
+      Every tab in the desktop app — Data, Spike detection, Connectivity,
+      Network Viewer, Run — field by field.
 
    .. grid-item-card:: 🔬 CAT-NAP (calcium imaging)
       :link: catnap

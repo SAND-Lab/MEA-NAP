@@ -69,8 +69,8 @@ including deep links you can share to a specific plot.
 :::{grid-item-card} Explore every GUI tab
 :link: gui-guide
 :link-type: doc
-Field-by-field reference for Paths, Recording, Spike detection, Connectivity,
-CAT-NAP, Network Viewer, and Pipeline.
+Field-by-field reference for Data, Spike detection, Connectivity, CAT-NAP,
+Network Viewer, and Run.
 :::
 
 :::{grid-item-card} Script against the Python API directly

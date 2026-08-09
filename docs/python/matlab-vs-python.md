@@ -85,7 +85,7 @@ the same reason.
 
 Steps don't have to be re-run from scratch. Set **Start at step** to where you
 want to pick up, tick **Use prior analysis**, and point **Previous analysis
-folder** (Paths tab) at an earlier `OutputData…` folder. Whatever the starting
+folder** (Data tab) at an earlier `OutputData…` folder. Whatever the starting
 step needs — spike times from step 1, adjacency matrices from step 3 — is read
 from that folder, and everything from the starting step onwards is recomputed
 into a *new* output folder. The previous run is never modified.

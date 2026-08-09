@@ -334,7 +334,7 @@ def _editor_checks(app) -> list[Check]:
         emitted: list[str] = []
         editor.saved.connect(emitted.append)
         editor.save_to(path)
-        checks.append(("saving emits the path so the Paths tab can follow it",
+        checks.append(("saving emits the path so the Data tab can follow it",
                        emitted == [str(path)], str(emitted)))
 
         infos = read_recording_csv(path, "A2:A100")

@@ -436,7 +436,7 @@ raw_data/
 
 1. Enter (or browse to) your raw data folder in the **Suite2p recordings** section — or paste a **Dropbox folder share link**, which is scanned without downloading anything.
 2. Click **Scan for suite2p folders**. All discovered recordings appear in the list; a ✓ prefix means denoising outputs already exist.
-3. Click **Make spreadsheet from these…** to turn the scan into the batch spreadsheet, with names taken from the data rather than retyped and DIV read out of each name. Fill in the genotype column (or **Fill from another sheet…** to copy DIV and genotype from an existing spreadsheet, matched by name even when the folders carry a trailing word the sheet doesn't). Saving points the Paths tab at it.
+3. Click **Make spreadsheet from these…** to turn the scan into the batch spreadsheet, with names taken from the data rather than retyped and DIV read out of each name. Fill in the genotype column (or **Fill from another sheet…** to copy DIV and genotype from an existing spreadsheet, matched by name even when the folders carry a trailing word the sheet doesn't). Saving points the Data tab at it.
 4. Click a recording to load it. The info panel shows cell count, sampling rate, and duration. Recordings behind a share link have nothing local to preview or denoise here — the pipeline run fetches them one at a time.
 5. (Optional) Adjust denoising settings and click **Run denoising on selected recording** to generate `Fdenoised.npy` and peak detection outputs.
 6. Use the **Trace preview** panel on the right to inspect individual cell traces, switching between activity types.

@@ -172,7 +172,7 @@ class _TraceCanvas(FigureCanvasQTAgg):
 
 class CatNapPanel(QWidget):
     log_message = pyqtSignal(str)
-    #: A batch spreadsheet was written; the Paths tab points itself at it.
+    #: A batch spreadsheet was written; the Data tab points itself at it.
     spreadsheet_saved = pyqtSignal(str)
 
     def __init__(self, parent: QWidget | None = None) -> None:
