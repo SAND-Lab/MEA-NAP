@@ -31,7 +31,7 @@ from meanap.pipeline.plotting_step4 import (
     plot_network_beside_field, plot_node_cartography, plot_spatial_network,
     plot_spatial_network_combined,
 )
-from meanap.pipeline.resume import build_input_locator
+from meanap.pipeline.resume import ADJM_SUFFIX, build_input_locator
 from meanap.pipeline.rng import make_rng
 from meanap.pipeline.spreadsheet import RecordingInfo, ground_spike_times_dict, parse_ground_electrodes
 
@@ -752,6 +752,124 @@ def _apply_cartography_boundaries(
                     m[f"NCpn{i + 1}count"] = int(pop_num_nc[i])
 
 
+#: Where phase A's running results are kept. The final artefact *is* the
+#: checkpoint — no separate journal to write, clean up, or get out of step with
+#: the thing it shadows. Rewritten after each recording rather than appended to,
+#: because a JSON object cannot be appended to; the cost is one serialisation
+#: per recording, and the benefit is that an interrupted run leaves a valid,
+#: readable results file holding everything that finished.
+NETMET_FILENAME = "netmet_results.json"
+
+
+def _netmet_json(all_results: dict) -> dict:
+    """The JSON form of the metrics: everything except the adjacency subgraph.
+
+    ``adjMsub`` is dropped because it is a pure function of the stored adjacency
+    and ``activeChannelIndex`` — see :func:`_restore_adjm_sub`, which puts it
+    back — and it is the largest thing in the dict.
+    """
+    return {
+        rec_name: {
+            lag: {k: v for k, v in metrics.items() if k != "adjMsub"}
+            for lag, metrics in rec_results.items()
+        }
+        for rec_name, rec_results in all_results.items()
+    }
+
+
+def _write_netmet(out_dir: Path, all_results: dict) -> None:
+    """Checkpoint phase A's results so far. Atomic; safe to call repeatedly."""
+    from meanap.pipeline.atomic import atomic_write_json
+
+    atomic_write_json(out_dir / NETMET_FILENAME,
+                      _convert_numpy(_netmet_json(all_results)), indent=2)
+
+
+def _restore_adjm_sub(output_root: Path, recording: str, rec_results: dict) -> bool:
+    """Put ``adjMsub`` back for a recording loaded from the checkpoint.
+
+    Phase C draws from it and the JSON does not carry it. Rebuilt from the
+    adjacency this run already wrote plus ``activeChannelIndex``, exactly as
+    ``compute_network_metrics`` derived it in the first place. ``False`` when the
+    adjacency is missing, which makes the recording recompute rather than plot
+    from a half-restored state.
+    """
+    path = output_root / "ExperimentMatFiles" / f"{recording}{ADJM_SUFFIX}"
+    if not path.is_file():
+        return False
+    try:
+        with np.load(path) as data:
+            for lag_key, metrics in rec_results.items():
+                lag = lag_key.replace("mslag", "")
+                key = next((k for k in (f"adjM{lag}mslag_raw", f"adjM{lag}mslag")
+                            if k in data.files), None)
+                active = metrics.get("activeChannelIndex")
+                if key is None or active is None:
+                    return False
+                adj = np.asarray(data[key], dtype=float).copy()
+                adj[adj < 0] = 0.0
+                adj = np.nan_to_num(adj, nan=0.0)
+                idx = np.asarray(active, dtype=int)
+                metrics["adjMsub"] = adj[np.ix_(idx, idx)]
+    except Exception:                                    # noqa: BLE001
+        return False
+    return True
+
+
+def _load_netmet_checkpoint(
+    params: Params, output_root: Path, recordings, log,
+) -> tuple[dict, dict]:
+    """Recordings already finished by an interrupted run: metrics and channels.
+
+    Returns ``({name: results}, {name: channels})``, both empty unless the run
+    was asked to continue. A recording is only accepted when its adjacency is
+    also present, so what is skipped is genuinely complete.
+    """
+    if not params.continue_interrupted:
+        return {}, {}
+
+    path = output_root / "4_NetworkActivity" / NETMET_FILENAME
+    if not path.is_file():
+        return {}, {}
+    try:
+        with open(path) as fh:
+            stored = json.load(fh)
+    except (OSError, ValueError) as e:
+        log(f"  Ignoring an unreadable {NETMET_FILENAME} ({e}) — recomputing.")
+        return {}, {}
+
+    wanted = {rec.filename for rec in recordings}
+    results: dict = {}
+    channels: dict = {}
+    for name, rec_results in stored.items():
+        if name not in wanted or not rec_results:
+            continue
+        restored = _to_arrays(rec_results)
+        if not _restore_adjm_sub(output_root, name, restored):
+            continue
+        adjm = output_root / "ExperimentMatFiles" / f"{name}{ADJM_SUFFIX}"
+        try:
+            with np.load(adjm) as data:
+                channels[name] = np.asarray(data["channels"])
+        except Exception:                                # noqa: BLE001
+            continue
+        results[name] = restored
+    if results:
+        log(f"  Continuing: {len(results)} recording(s) already have network "
+            f"metrics — skipping them.")
+    return results, channels
+
+
+def _to_arrays(obj):
+    """Undo the array-to-list flattening ``_convert_numpy`` applies for JSON."""
+    if isinstance(obj, dict):
+        return {k: _to_arrays(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        arr = np.asarray(obj)
+        return arr if arr.dtype != object else [_to_arrays(v) for v in obj]
+    return obj
+
+
 def _run_step4_network_metrics(
     params: Params,
     recordings: list[RecordingInfo],
@@ -770,29 +888,54 @@ def _run_step4_network_metrics(
 
     _cancel = (lambda: bool(should_cancel())) if should_cancel else None
 
+    # What an interrupted run already finished. Seeding from it — rather than
+    # only skipping — matters for phase B: the cartography boundaries are pooled
+    # across the whole batch, so a continued run that saw half of it would place
+    # them somewhere the original never would.
+    all_results, channels_by_rec = _load_netmet_checkpoint(
+        params, output_root, recordings, log)
+    todo = [rec for rec in recordings if rec.filename not in all_results]
+    for rec in recordings:
+        if rec.filename in all_results:
+            progress.item_done(rec.filename)
+
     def _emit(result) -> None:
+        """Phase C's callback: log lines, and one step of the bar.
+
+        Deliberately shape-agnostic — the two phases return different tuples,
+        and this only needs the ends of them.
+        """
         for line in result[-1]:  # log lines are always the last element
             log(line)
-        # In the parent, in completion order — the only place a process pool
-        # gives the bar something to move on.
         progress.item_done(result[0])
 
-    # ── Phase A: parallel compute over recordings (map) ──────────────────────
-    check_cancel(should_cancel)
-    compute_out = map_recordings(
-        _step4_compute_one,
-        [(params, rec, str(output_root)) for rec in recordings],
-        mem_per_task_gb=_STEP4_MEM_PER_TASK_GB,
-        max_workers=params.recording_workers,
-        on_result=_emit,
-        cancel_check=_cancel,
-    )
-    all_results: dict[str, dict] = {}
-    channels_by_rec: dict[str, np.ndarray] = {}
-    for filename, rec_results, channels_arr, _logs in compute_out:
+    def _emit_computed(result) -> None:
+        """Phase A's callback. Runs in the parent, in completion order, which is
+        the only place it is safe to touch the shared dicts or the checkpoint."""
+        filename, rec_results, channels_arr, logs = result
+        for line in logs:
+            log(line)
         if rec_results:
             all_results[filename] = rec_results
             channels_by_rec[filename] = channels_arr
+            # Written after every recording so an interrupt costs the one in
+            # flight, not the batch. Atomic, so a reader never sees it partial.
+            try:
+                _write_netmet(out_dir, all_results)
+            except OSError as e:
+                log(f"  Warning: could not checkpoint {NETMET_FILENAME}: {e}")
+        progress.item_done(filename)
+
+    # ── Phase A: parallel compute over recordings (map) ──────────────────────
+    check_cancel(should_cancel)
+    map_recordings(
+        _step4_compute_one,
+        [(params, rec, str(output_root)) for rec in todo],
+        mem_per_task_gb=_STEP4_MEM_PER_TASK_GB,
+        max_workers=params.recording_workers,
+        on_result=_emit_computed,
+        cancel_check=_cancel,
+    )
 
     # ── Phase B: reduce (serial) ─────────────────────────────────────────────
     # Data-driven node-cartography boundaries: pool PC/Z across every recording
@@ -833,15 +976,9 @@ def _run_step4_network_metrics(
     )
 
     try:
-        json_results = {
-            rec_name: {
-                lag: {k: v for k, v in metrics.items() if k != "adjMsub"}
-                for lag, metrics in rec_results.items()
-            }
-            for rec_name, rec_results in all_results.items()
-        }
-        with open(out_dir / "netmet_results.json", "w") as fh:
-            json.dump(_convert_numpy(json_results), fh, indent=2)
+        # Already checkpointed after each recording; written once more so a run
+        # that skipped every recording still leaves the file in a known state.
+        _write_netmet(out_dir, all_results)
 
         # Export CSVs like MATLAB's saveNetMet.m
         rec_rows = []

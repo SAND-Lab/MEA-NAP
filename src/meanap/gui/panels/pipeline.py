@@ -51,6 +51,34 @@ class PipelinePanel(QWidget):
             lambda v: self.start_step.setValue(min(self.start_step.value(), v))
         )
 
+        # Continuing is about *recordings*, where prior analysis is about
+        # *steps* — two different questions that both mean "don't redo work",
+        # so they sit together and each says what it skips.
+        self.continue_interrupted = QCheckBox()
+        self.continue_interrupted.setToolTip(
+            "Pick up a run that stopped partway. Writes into the same output "
+            "folder and skips any recording already finished, so a batch cut "
+            "off at recording 5 of 10 carries on at 6.\n\n"
+            "This is also how you add or remove recordings: edit the "
+            "spreadsheet, tick this, and only the new ones are computed. "
+            "Everything pooled across the batch — group comparisons, "
+            "batch-scaled axes, cartography boundaries — is redone over "
+            "whatever the spreadsheet now lists."
+        )
+
+        self.prune_removed = QCheckBox()
+        self.prune_removed.setEnabled(False)
+        self.prune_removed.setToolTip(
+            "When continuing, delete the figures of recordings the spreadsheet "
+            "no longer lists. They are left out of every CSV and pooled "
+            "statistic either way, but their plots stay in the output folder "
+            "and the report unless removed, looking like part of the "
+            "analysis.\n\n"
+            "Their data files are kept regardless, so putting a recording back "
+            "stays cheap."
+        )
+        self.continue_interrupted.toggled.connect(self.prune_removed.setEnabled)
+
         self.prior_analysis = QCheckBox()
         self.prior_analysis.setToolTip(
             "Resume from an earlier run: steps before 'Start at step' are read from the "
@@ -68,6 +96,8 @@ class PipelinePanel(QWidget):
         form.addRow("Start at step", self.start_step)
         form.addRow("Stop at step", self.stop_step)
         form.addRow("Use prior analysis", self.prior_analysis)
+        form.addRow("Continue previous run", self.continue_interrupted)
+        form.addRow("   …and drop removed recordings' figures", self.prune_removed)
         form.addRow("Optional steps", self.optional_steps)
 
         # ── Step overview ─────────────────────────────────────────────────────
@@ -272,6 +302,9 @@ class PipelinePanel(QWidget):
         self.start_step.setValue(params.start_analysis_step)
         self.stop_step.setValue(params.stop_analysis_step)
         self.prior_analysis.setChecked(params.prior_analysis)
+        self.continue_interrupted.setChecked(params.continue_interrupted)
+        self.prune_removed.setChecked(params.prune_removed_recordings)
+        self.prune_removed.setEnabled(params.continue_interrupted)
         idx = self.verbose_level.findText(params.verbose_level)
         if idx >= 0:
             self.verbose_level.setCurrentIndex(idx)
@@ -288,6 +321,11 @@ class PipelinePanel(QWidget):
         params.start_analysis_step = self.start_step.value()
         params.stop_analysis_step = self.stop_step.value()
         params.prior_analysis = self.prior_analysis.isChecked()
+        params.continue_interrupted = self.continue_interrupted.isChecked()
+        # Only meaningful while continuing, and a stored True that silently
+        # applied to a fresh run would delete figures nobody asked about.
+        params.prune_removed_recordings = (
+            self.prune_removed.isChecked() and self.continue_interrupted.isChecked())
         params.verbose_level = self.verbose_level.currentText()
         params.time_processes = self.time_processes.isChecked()
         params.express_mode = self.express_mode.isChecked()

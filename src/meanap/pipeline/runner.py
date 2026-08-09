@@ -27,7 +27,9 @@ from meanap.pipeline.output_folders import (
 from meanap.pipeline.progress import (
     ProgressFn, RunProgress, plan_catnap, plan_ephys,
 )
-from meanap.pipeline.resume import build_input_locator, missing_step_inputs
+from meanap.pipeline.resume import (
+    already_done, build_input_locator, missing_step_inputs,
+)
 from meanap.pipeline.spike_detection import SpikeDetectionParams, detect_spikes_recording
 from meanap.pipeline.spreadsheet import RecordingInfo, read_recording_csv
 
@@ -35,6 +37,11 @@ from meanap.pipeline.spreadsheet import RecordingInfo, read_recording_csv
 def default_output_folder_name() -> str:
     """Default output folder name, matching MATLAB's ``'OutputData' + ddmmmyyyy``."""
     return "OutputData" + datetime.date.today().strftime("%d%b%Y")
+
+
+def continues_in_place(params: Params) -> bool:
+    """Whether this run is picking up an interrupted one in the same folder."""
+    return bool(params.continue_interrupted)
 
 
 def resumes_in_place(params: Params) -> bool:
@@ -65,6 +72,16 @@ def resolve_output_folder_name(
     """
     name = params.output_data_folder_name or default_output_folder_name()
     parent = Path(params.output_data_folder or ".")
+
+    if params.continue_interrupted:
+        # The folder is the point: continuing means filling the gaps in the run
+        # that stopped, not starting a neighbour to it.
+        if output_name_taken(parent, name):
+            log(f"Continuing the interrupted run in {parent / name} — "
+                f"recordings already finished will be skipped.")
+        else:
+            log(f"Nothing to continue in {parent / name}; running from the start.")
+        return name
 
     if resumes_in_place(params) or params.overwrite_existing_output:
         if params.overwrite_existing_output and output_name_taken(parent, name):
@@ -146,6 +163,12 @@ def run_pipeline(
         save_params(params, output_root)
     except Exception as e:
         log(f"Warning: could not write {PARAMS_FILENAME}: {e}")
+
+    # A continued run may be continuing a *different* spreadsheet — a recording
+    # added, or one taken out. The numbers follow the spreadsheet on their own;
+    # the per-recording figures do not, so they are reconciled here.
+    if params.continue_interrupted:
+        _reconcile_roster(params, output_root, recordings, log)
 
     # Raises on a misconfigured prior-analysis/spike-data path, before any work.
     locator = build_input_locator(params, output_root)
@@ -378,6 +401,21 @@ def _check_remote_source(params: Params, recordings, log, progress=None) -> None
             "--write-spreadsheet to correct recording names.")
 
 
+def _reconcile_roster(params: Params, output_root: Path, recordings, log) -> None:
+    """Report — and optionally remove — work for recordings no longer listed."""
+    from meanap.pipeline.roster import (
+        find_stale_recordings, prune_recordings, report_stale,
+    )
+
+    stale = find_stale_recordings(output_root, {r.filename for r in recordings})
+    if not stale:
+        return
+    pruned = False
+    if params.prune_removed_recordings:
+        pruned = prune_recordings(stale, log=log) > 0
+    report_stale(stale, pruned=pruned, log=log)
+
+
 def _discard_folder_for_bundle(output_root: Path, bundle: Path | None, log) -> Path:
     """Drop the run folder now the bundle holds everything it did.
 
@@ -495,6 +533,17 @@ def _run_step1_spike_detection(
     for rec, raw_path in source.stream(recordings, depth=params.prefetch_depth,
                                        kind="ephys"):
         check_cancel(should_cancel)
+        # Continuing an interrupted run: this recording's spike times are
+        # already on disk, so the expensive part is done. Checked here rather
+        # than before the stream so the source still releases whatever it
+        # fetched for it.
+        done_path = spike_dir / f"{rec.filename}_spikes.npz"
+        if already_done(params, output_root, done_path, log):
+            log(f"  [{rec.filename}] already detected — skipping")
+            source.unpin(rec.filename)
+            source.release(rec.filename)
+            progress.item_done(rec.filename)
+            continue
         if isinstance(raw_path, BaseException):
             log(f"  ! raw file not found, skipping: {rec.filename}"
                 f" (looked for {', '.join(RAW_EXTENSIONS)})")

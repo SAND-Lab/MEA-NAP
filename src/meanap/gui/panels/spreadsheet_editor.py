@@ -63,6 +63,11 @@ class SpreadsheetEditor(QDialog):
         self._path = str(path or "")
         self._suggested_path = str(suggested_path or "")
         self._updating = False
+        #: Recording names as this sheet was opened, or None for a new one.
+        #: Editing an existing list is how a batch is added to or trimmed, and
+        #: the run has a cheaper way of handling that than starting again — but
+        #: only if the person editing knows it exists.
+        self._opened_with: set[str] | None = None
 
         layout = QVBoxLayout(self)
 
@@ -94,6 +99,8 @@ class SpreadsheetEditor(QDialog):
                                     "Starting from an empty sheet instead.")
                 table = None
         self.set_table(table if table is not None else new_recording_table([]))
+        if self._path:
+            self._opened_with = self._recording_names()
 
     # ── Construction ──────────────────────────────────────────────────────────
 
@@ -363,17 +370,53 @@ class SpreadsheetEditor(QDialog):
 
     # ── Validation display ────────────────────────────────────────────────────
 
+    def _recording_names(self) -> set[str]:
+        return {str(n).strip() for n in self.table().iloc[:, 0]
+                if str(n).strip()} if self._table.rowCount() else set()
+
+    def _describe_edits(self) -> str:
+        """What changed since this sheet was opened, and what it means for a run.
+
+        Only for a sheet that was opened from disk: a new one has nothing to
+        have changed from.
+        """
+        if self._opened_with is None:
+            return ""
+        now = self._recording_names()
+        added = now - self._opened_with
+        removed = self._opened_with - now
+        if not added and not removed:
+            return ""
+
+        parts = []
+        if added:
+            parts.append(f"{len(added)} added")
+        if removed:
+            parts.append(f"{len(removed)} removed")
+        return (f"{' and '.join(parts)}. Tick “Continue previous run” on the "
+                f"Pipeline tab and only the new recording(s) are analysed — "
+                f"everything pooled across the batch is redone either way."
+                + (" Removed recordings' figures stay in the output folder "
+                   "unless you also tick the option below it."
+                   if removed else ""))
+
     def _refresh(self) -> None:
         self._file_label.setText(
             f"Editing {self._path}" if self._path
             else "Unsaved spreadsheet — use “Save as…” to choose where it goes."
         )
         problems = validate_recording_table(self.table())
+        # Shown alongside any problems rather than instead of them: what needs
+        # fixing and what the edit means for the next run are different
+        # questions, and the second is the one nobody would think to ask.
+        edits = self._describe_edits()
         if problems:
-            self._set_status(" ".join(problems), warn=True)
+            self._set_status(" ".join(problems) + (f"  —  {edits}" if edits else ""),
+                             warn=True)
         else:
             n = self._table.rowCount()
-            self._set_status(f"{n} recording(s), ready to use.")
+            base = f"{n} recording(s), ready to use."
+            self._set_status(f"{base}  {edits}" if edits else base)
 
     def _set_status(self, text: str, warn: bool = False) -> None:
         self._status.setText(("⚠ " if warn else "") + text)

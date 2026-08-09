@@ -29,6 +29,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from meanap.pipeline.figure_output import savefig
+from meanap.pipeline.atomic import atomic_savez
 
 __all__ = [
     "EdgeThresholdCheckData",
@@ -154,7 +155,7 @@ def save_edge_threshold_check(
         for field in ("rep_val", "mean_thr", "std_thr", "trajectories",
                       "map_reps", "maps"):
             arrays[f"{lag}ms_{field}"] = getattr(data, field)
-    np.savez_compressed(path, **arrays)
+    atomic_savez(path, compressed=True, **arrays)
     return path
 
 

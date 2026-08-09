@@ -68,6 +68,20 @@ PAGE_HTML = r"""<!doctype html>
   #tabs button[aria-selected="true"] {
     color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
   #tabs .spacer { flex: 1; }
+  #params { padding: 4px 2px 24px; overflow-y: auto; }
+  #params h3 { margin: 20px 0 6px; font-size: 12px; letter-spacing: .04em;
+    text-transform: uppercase; color: var(--muted); font-weight: 600; }
+  #params table { border-collapse: collapse; width: 100%; max-width: 860px;
+    font-size: 13px; }
+  #params td { padding: 5px 10px; border-top: 1px solid var(--border);
+    vertical-align: top; }
+  #params tr.changed td.k, #params tr.changed td.v { font-weight: 600; }
+  #params td.k { width: 38%; font-family: ui-monospace, SFMono-Regular, Menlo,
+    monospace; word-break: break-word; }
+  #params td.v { width: 37%; word-break: break-word; }
+  #params td.d { width: 25%; color: var(--muted); font-size: 12px; }
+  #params .redacted { color: var(--muted); font-style: italic; }
+  #params .lead { color: var(--muted); font-size: 13px; margin: 4px 0 14px; }
   #tabs .src { color: var(--muted); font-size: 12px; padding-right: 4px;
     overflow-wrap: anywhere; max-width: 40ch; text-align: right; }
 
@@ -126,6 +140,7 @@ PAGE_HTML = r"""<!doctype html>
   <button id="tab-recordings" data-tab="recordings" aria-selected="true">Recordings</button>
   <button id="tab-comparisons" data-tab="comparisons" aria-selected="false">Comparisons</button>
   <button id="tab-lags" data-tab="lags" aria-selected="false">Across lags</button>
+  <button id="tab-params" data-tab="params" aria-selected="false">Parameters</button>
   <span class="spacer"></span>
   <button id="export" class="hidden" title="Draw every figure out into an ordinary
 folder, with a report.html to browse them — for sending results to someone who
@@ -166,6 +181,11 @@ does not have MEA-NAP installed.">Export output folder</button>
     <div class="list" id="families"></div>
   </div>
 
+  <div id="side-params" class="hidden">
+    <h2>Settings</h2>
+    <div class="list" id="param-groups"></div>
+  </div>
+
   <div id="side-lags" class="hidden">
     <h2>Figure set</h2>
     <div class="list" id="lag-series"></div>
@@ -186,6 +206,7 @@ does not have MEA-NAP installed.">Export output folder</button>
   <figure id="single"><img id="figure-img" alt=""></figure>
   <div id="pair" class="hidden"></div>
   <div class="gallery hidden" id="gallery"></div>
+  <div id="params" class="hidden"></div>
 </main>
 
 <aside class="right" id="controls-panel">
@@ -931,6 +952,9 @@ function setMode(kind) {
   $("single").classList.toggle("hidden", !one);
   $("pair").classList.toggle("hidden", !(kind === "comparison" || kind === "both"));
   $("gallery").classList.toggle("hidden", kind !== "family");
+  // Every kind setMode is called for is a figure, so the parameters pane is
+  // never the right thing to be showing.
+  $("params").classList.add("hidden");
   // "Both" shows two figures; a single download button cannot mean both, so
   // the buttons go away rather than silently picking one.
   const downloadable = one || kind === "comparison";
@@ -954,6 +978,128 @@ function showFigure() {
   img.alt = VIEW.name;
 }
 
+/* ── Parameters ──────────────────────────────────────────────────────────
+   The settings the run used. Defaults are folded away by default: the question
+   is "what was different about this run", and on a typical run that is a dozen
+   fields out of 137. The left column filters to one section. */
+let PARAM_SECTION = null;      // null = every section
+let PARAM_ALL = false;         // false = only what differs from the default
+
+function fmtParam(v) {
+  if (v === null || v === undefined) return "\u2014";
+  if (Array.isArray(v)) return v.length ? v.join(", ") : "[]";
+  if (typeof v === "boolean") return v ? "on" : "off";
+  if (typeof v === "object") return JSON.stringify(v);
+  if (v === "") return "\u2014";
+  return String(v);
+}
+
+function fillParamGroups() {
+  const box = $("param-groups");
+  box.innerHTML = "";
+  const mk = (label, section, count) => {
+    const b = document.createElement("button");
+    b.textContent = count === null ? label : `${label}  (${count})`;
+    b.dataset.section = section === null ? "" : section;
+    b.addEventListener("click", () => {
+      PARAM_SECTION = section;
+      showParams();
+    });
+    box.appendChild(b);
+  };
+  mk("All sections", null, null);
+  for (const g of MANIFEST.params.groups) {
+    // The count follows the filter, so it says how many rows the click gives.
+    mk(g.name, g.name, PARAM_ALL ? g.entries.length : g.changed);
+  }
+}
+
+function showParams() {
+  const P = MANIFEST.params;
+  for (const el of ["single", "pair", "gallery"])
+    $(el).classList.add("hidden");
+  $("params").classList.remove("hidden");
+  $("controls-panel").classList.add("hidden");
+  $("facets-panel").classList.add("hidden");
+  for (const id of ["dl-png", "dl-svg", "dl-pdf"])
+    $(id).classList.add("hidden");
+  $("error").textContent = "";
+  $("status").textContent = `${P.changed} of ${P.total} settings changed`;
+
+  for (const b of document.querySelectorAll("#param-groups button"))
+    b.setAttribute("aria-current",
+      String((b.dataset.section || null) === PARAM_SECTION));
+
+  const box = $("params");
+  box.innerHTML = "";
+
+  const lead = document.createElement("p");
+  lead.className = "lead";
+  lead.textContent = "The values this run actually used — the same numbers as "
+    + "params.json, grouped for reading. Bold rows differ from the default.";
+  box.appendChild(lead);
+
+  const toggle = document.createElement("button");
+  toggle.textContent = PARAM_ALL
+    ? "Show only what changed" : `Show all ${P.total} settings`;
+  toggle.addEventListener("click", () => {
+    PARAM_ALL = !PARAM_ALL;
+    fillParamGroups();
+    showParams();
+  });
+  box.appendChild(toggle);
+
+  let shown = 0;
+  for (const g of P.groups) {
+    if (PARAM_SECTION !== null && g.name !== PARAM_SECTION) continue;
+    const rows = PARAM_ALL ? g.entries : g.entries.filter(e => e.changed);
+    if (!rows.length) continue;
+    shown += rows.length;
+
+    const h = document.createElement("h3");
+    h.textContent = g.name;
+    box.appendChild(h);
+
+    const table = document.createElement("table");
+    for (const e of rows) {
+      const tr = document.createElement("tr");
+      if (e.changed) tr.className = "changed";
+      const k = document.createElement("td");
+      k.className = "k"; k.textContent = e.name;
+      const v = document.createElement("td");
+      v.className = "v" + (e.redacted ? " redacted" : "");
+      v.textContent = fmtParam(e.value);
+      const d = document.createElement("td");
+      d.className = "d";
+      d.textContent = e.changed ? "default " + fmtParam(e.default) : "";
+      tr.appendChild(k); tr.appendChild(v); tr.appendChild(d);
+      table.appendChild(tr);
+    }
+    box.appendChild(table);
+  }
+
+  if (!shown) {
+    const p = document.createElement("p");
+    p.className = "sub";
+    p.textContent = PARAM_ALL
+      ? "Nothing in this section."
+      : "Every setting here was left at its default.";
+    box.appendChild(p);
+  }
+
+  if (P.unknown && Object.keys(P.unknown).length) {
+    const h = document.createElement("h3");
+    h.textContent = "Not recognised by this version";
+    box.appendChild(h);
+    const p = document.createElement("p");
+    p.className = "sub";
+    p.textContent = "This bundle records settings this build has no field for, "
+      + "so it was probably written by a newer version: "
+      + Object.keys(P.unknown).join(", ");
+    box.appendChild(p);
+  }
+}
+
 function selectTab(tab) {
   TAB = tab;
   for (const b of document.querySelectorAll("#tabs button"))
@@ -961,8 +1107,10 @@ function selectTab(tab) {
   $("side-recordings").classList.toggle("hidden", tab !== "recordings");
   $("side-comparisons").classList.toggle("hidden", tab !== "comparisons");
   $("side-lags").classList.toggle("hidden", tab !== "lags");
+  $("side-params").classList.toggle("hidden", tab !== "params");
   if (tab === "recordings") showFigure();
   else if (tab === "comparisons") showComparison();
+  else if (tab === "params") showParams();
   else showLagSeries();
 }
 
@@ -995,6 +1143,9 @@ function download(fmt) {
     $("tab-comparisons").classList.add("hidden");
   if (!(MANIFEST.lag_series || []).length)
     $("tab-lags").classList.add("hidden");
+  // An older bundle may carry no params.json at all.
+  if (!MANIFEST.params) $("tab-params").classList.add("hidden");
+  else fillParamGroups();
 
   $("recording").addEventListener("change", fillLags);
   $("lag").addEventListener("change", () => { fillFigures(); fillSubnetworks(); });

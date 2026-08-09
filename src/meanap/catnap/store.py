@@ -33,6 +33,8 @@ from pathlib import Path
 
 import numpy as np
 
+from meanap.pipeline.atomic import atomic_savez
+
 __all__ = [
     "RecordingState",
     "save_recording_state",
@@ -167,7 +169,7 @@ def save_recording_state(path: Path, state: RecordingState, stats: dict) -> None
     arrays["stat_none"] = np.asarray(none_keys, dtype=str)
 
     path.parent.mkdir(parents=True, exist_ok=True)
-    np.savez(path, **arrays)
+    atomic_savez(path, **arrays)
 
 
 def load_recording_state(path: Path, plane0: Path) -> tuple[RecordingState, dict]:
@@ -307,8 +309,9 @@ def save_background(path: Path, background: tuple | None) -> None:
               else np.zeros(img.shape, dtype=np.uint8))
 
     path.parent.mkdir(parents=True, exist_ok=True)
-    np.savez_compressed(
-        path, levels=levels, value_range=np.array([lo, hi], dtype=float),
+    atomic_savez(
+        path, compressed=True,
+        levels=levels, value_range=np.array([lo, hi], dtype=float),
         extent=np.asarray(extent, dtype=float),
     )
 

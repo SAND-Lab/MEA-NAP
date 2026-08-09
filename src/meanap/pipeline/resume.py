@@ -70,8 +70,17 @@ class InputLocator:
     """Where each step should look for the outputs of the steps before it."""
 
     output_root: Path
-    prior_root: Path | None = None
+    #: Previous runs to read from, in order. More than one lets a spreadsheet
+    #: name recordings analysed in *different* runs and have them come out as
+    #: one batch — see ``Params.prior_analysis_paths``. A tuple because this is
+    #: frozen and gets pickled into spawned workers.
+    prior_roots: tuple[Path, ...] = ()
     spike_dir: Path | None = None
+
+    @property
+    def prior_root(self) -> Path | None:
+        """The first prior run, for callers that only ever expected one."""
+        return self.prior_roots[0] if self.prior_roots else None
 
     # ── lookups ──────────────────────────────────────────────────────────────
 
@@ -81,16 +90,14 @@ class InputLocator:
         candidates = [self.output_root / SPIKE_SUBDIR / name]
         if self.spike_dir is not None:
             candidates.append(self.spike_dir / name)
-        if self.prior_root is not None:
-            candidates.append(self.prior_root / SPIKE_SUBDIR / name)
+        candidates += [root / SPIKE_SUBDIR / name for root in self.prior_roots]
         return _first_existing(candidates)
 
     def adjm_file(self, recording_name: str) -> Path | None:
         """Path to a recording's Step-3 adjacency file, or ``None`` if absent."""
         name = f"{recording_name}{ADJM_SUFFIX}"
         candidates = [self.output_root / ADJM_SUBDIR / name]
-        if self.prior_root is not None:
-            candidates.append(self.prior_root / ADJM_SUBDIR / name)
+        candidates += [root / ADJM_SUBDIR / name for root in self.prior_roots]
         return _first_existing(candidates)
 
     def catnap_file(self, recording_name: str) -> Path | None:
@@ -101,23 +108,26 @@ class InputLocator:
         """
         name = f"{recording_name}{CATNAP_SUFFIX}"
         candidates = [self.output_root / ADJM_SUBDIR / name]
-        if self.prior_root is not None:
-            candidates.append(self.prior_root / ADJM_SUBDIR / name)
+        candidates += [root / ADJM_SUBDIR / name for root in self.prior_roots]
         return _first_existing(candidates)
 
     # ── reporting ────────────────────────────────────────────────────────────
 
     @property
     def is_resuming(self) -> bool:
-        return self.prior_root is not None or self.spike_dir is not None
+        return bool(self.prior_roots) or self.spike_dir is not None
 
     def describe(self) -> list[str]:
         """Human-readable lines describing the search path, for the run log."""
         lines = [f"Reading step inputs from: {self.output_root}"]
         if self.spike_dir is not None:
             lines.append(f"  … then spike data from: {self.spike_dir}")
-        if self.prior_root is not None:
-            lines.append(f"  … then prior analysis:  {self.prior_root}")
+        # Numbered only when there is more than one to distinguish — the
+        # ordinary single-folder case reads better without an index on it.
+        multiple = len(self.prior_roots) > 1
+        for i, root in enumerate(self.prior_roots, start=1):
+            label = f"prior analysis {i}:" if multiple else "prior analysis: "
+            lines.append(f"  … then {label} {root}")
         return lines
 
 
@@ -155,6 +165,26 @@ def _unpack_prior_bundle(path: Path) -> Path:
     return bundle.root
 
 
+def _resolve_prior(entry: str) -> Path:
+    """One previous-analysis path, validated and unpacked if it is a bundle."""
+    root = Path(entry).expanduser()
+    # A ``.meanap`` bundle is an output folder in a zip, so resuming from one is
+    # just resuming from where it unpacks to — no lookup needs to know the
+    # difference. This is what lets the file you share double as the file you
+    # re-run from.
+    if root.is_file():
+        root = _unpack_prior_bundle(root)
+    if not root.is_dir():
+        raise ValueError(f"Previous analysis folder does not exist: {root}")
+    if not (root / SPIKE_SUBDIR).is_dir() and not (root / ADJM_SUBDIR).is_dir():
+        raise ValueError(
+            f"{root} does not look like a MEA-NAP output folder — expected it to "
+            f"contain '{SPIKE_SUBDIR}' and/or '{ADJM_SUBDIR}'. Point this at the "
+            "OutputData… folder itself, not at its parent."
+        )
+    return root
+
+
 def build_input_locator(params: Params, output_root: Path) -> InputLocator:
     """Build the locator for a run, validating the configured paths up front.
 
@@ -162,29 +192,18 @@ def build_input_locator(params: Params, output_root: Path) -> InputLocator:
     typo'd path degrade into "every recording skipped", which is how a missing
     input used to present.
     """
-    prior_root: Path | None = None
+    prior_roots: list[Path] = []
     if params.prior_analysis:
-        if not params.prior_analysis_path:
+        configured = [params.prior_analysis_path, *params.prior_analysis_paths]
+        configured = [c for c in configured if c]
+        if not configured:
             raise ValueError(
                 "'Use prior analysis' is enabled but no previous analysis folder is set. "
                 "Set Params.prior_analysis_path to a previous OutputData… folder, or "
                 "disable prior analysis."
             )
-        prior_root = Path(params.prior_analysis_path).expanduser()
-        # A ``.meanap`` bundle is an output folder in a zip, so resuming from
-        # one is just resuming from where it unpacks to — no lookup below needs
-        # to know the difference. This is what lets the file you share double as
-        # the file you re-run from.
-        if prior_root.is_file():
-            prior_root = _unpack_prior_bundle(prior_root)
-        if not prior_root.is_dir():
-            raise ValueError(f"Previous analysis folder does not exist: {prior_root}")
-        if not (prior_root / SPIKE_SUBDIR).is_dir() and not (prior_root / ADJM_SUBDIR).is_dir():
-            raise ValueError(
-                f"{prior_root} does not look like a MEA-NAP output folder — expected it to "
-                f"contain '{SPIKE_SUBDIR}' and/or '{ADJM_SUBDIR}'. Point this at the "
-                "OutputData… folder itself, not at its parent."
-            )
+        for entry in configured:
+            prior_roots.append(_resolve_prior(entry))
 
     spike_dir: Path | None = None
     if params.spike_detected_data:
@@ -193,8 +212,35 @@ def build_input_locator(params: Params, output_root: Path) -> InputLocator:
             raise ValueError(f"Spike-detected data folder does not exist: {spike_dir}")
 
     return InputLocator(
-        output_root=Path(output_root), prior_root=prior_root, spike_dir=spike_dir
+        output_root=Path(output_root), prior_roots=tuple(prior_roots),
+        spike_dir=spike_dir,
     )
+
+
+def already_done(
+    params: Params, output_root: Path, artefact: Path, log=None,
+) -> bool:
+    """Whether this recording's result for the current step is already there.
+
+    Only true when the run was asked to continue an interrupted one. The file
+    must be in *this* output folder, not in a prior run's — continuing means
+    filling the gaps in one folder, while a prior-analysis resume deliberately
+    reads an older run and writes somewhere new.
+
+    An artefact that will not open is deleted and reported rather than trusted:
+    writes are atomic (:mod:`meanap.pipeline.atomic`), so an unreadable file
+    means it predates that or came from somewhere else, and either way redoing
+    it is cheaper than discovering the problem two steps later.
+    """
+    from meanap.pipeline.atomic import guard_readable
+
+    if not params.continue_interrupted:
+        return False
+    artefact = Path(artefact)
+    if not artefact.is_file():
+        return False
+    # Guard against a half-written file from before atomic writes existed.
+    return guard_readable(artefact, log)
 
 
 def missing_step_inputs(

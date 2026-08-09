@@ -21,6 +21,19 @@ class Params:
     # overwrite, for the caller who means it. Resuming *into* a folder is not
     # affected; that reads what it then rewrites. See pipeline/output_folders.py.
     overwrite_existing_output: bool = False
+    # Pick up an interrupted run where it stopped. Writes into the *same* output
+    # folder and skips any recording whose result for that step is already there
+    # — so a batch cut off at recording 5 of 10 resumes at 6 rather than from
+    # the start. Only artefacts that are complete count: writes are atomic, and
+    # anything unreadable is redone. See pipeline/atomic.py and pipeline/resume.py.
+    continue_interrupted: bool = False
+    # When continuing, delete the figures of recordings the spreadsheet no
+    # longer names. They are excluded from every CSV and pooled statistic
+    # either way; left on disk they still show up in the output folder and the
+    # report, looking like part of the analysis. Off by default because this
+    # deletes results. Their data files are kept regardless — that is what
+    # makes adding a recording back cheap. See pipeline/roster.py.
+    prune_removed_recordings: bool = False
 
     # ── Recording ────────────────────────────────────────────────────────────
     fs: float = 25000.0
@@ -143,6 +156,11 @@ class Params:
     # recomputing them. Results still go to this run's own output folder — the
     # prior run is only ever read. See pipeline/resume.py.
     prior_analysis: bool = False
+    # Further previous runs to read from, searched after ``prior_analysis_path``.
+    # This is what combines runs: a spreadsheet naming recordings analysed in
+    # different batches produces one pooled analysis over all of them, with
+    # nothing recomputed. See pipeline/resume.py.
+    prior_analysis_paths: list[str] = field(default_factory=list)
     # Seed for every stochastic stage (step-3 thresholding, modularity, null
     # models, NMF, example-trace picking). None = fresh OS entropy each run,
     # matching MATLAB, which seeds nothing. See pipeline/rng.py.

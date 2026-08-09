@@ -133,7 +133,9 @@ The pipeline mirrors MATLAB's 4 steps — spike detection, neuronal activity (fi
 The output folder defaults to today's date, so two runs in a day both want
 `OutputData07Aug2026`. Rather than replacing the first one, the second writes to
 `OutputData07Aug2026_v2` and says so; the GUI asks first, offering the new name,
-**Overwrite**, or **Cancel**. Past `_v99` it falls back to a `_HHMMSS` stamp.
+**Continue it**, **Overwrite**, or **Cancel**. Past `_v99` it falls back to a
+`_HHMMSS` stamp. **Continue it** is the one an interrupted run wants — see
+[Continuing an interrupted run](#continuing-an-interrupted-run).
 
 The `.meanap` bundle counts on its own — an express run's folder is often
 deleted once the bundle is in hand, and it would otherwise be the one artefact
@@ -144,6 +146,124 @@ prior-analysis path) is left alone: that run reads what it then rewrites. To
 replace a run deliberately, delete it or set
 `Params(overwrite_existing_output=True)` — which is still reported in the log,
 never silent.
+
+### Queueing several runs
+
+A run takes minutes to hours, and until now a second one meant waiting for the
+first. The **Queue** tab takes parameter files saved with **Save params…** and
+runs them in order, unattended:
+
+1. configure a run, **Save params…**;
+2. change whatever you like, save again;
+3. on the Queue tab, **Add…** both, then **Run queue**.
+
+Each entry is a complete description of a run, so they may differ in anything —
+different datasets, different lags, even different pipelines. A CAT-NAP run and
+an electrophysiology run sit in the same queue, because `run_pipeline` decides
+which path to take from the parameters it is handed.
+
+**A run that fails does not stop the ones after it.** The point of leaving
+something going overnight is to come back to results, so each run is caught
+individually and the queue moves on; the summary at the end names every run,
+says where the outputs went, and gives the reason for anything that failed.
+Stopping finishes the current run and starts no more — the ones that never ran
+are listed as such rather than quietly missing.
+
+The list itself can be saved and reloaded (**Save queue…**), which stores the
+paths of the parameter files rather than a copy of the settings.
+
+From Python:
+
+```python
+from meanap.pipeline.queue import load_queue, run_queue
+
+result = run_queue(load_queue(["runA.json", "runB.json", "runC.json"]))
+print(result.done, "of", len(result.outcomes), "completed")
+```
+
+### Continuing an interrupted run
+
+A batch cut off at recording 5 of 10 — Ctrl-C, a cluster wall clock, a closed
+laptop — can pick up at 6 rather than starting again:
+
+```python
+Params(..., output_data_folder_name="OutputData09Aug2026", continue_interrupted=True)
+```
+
+In the GUI it is the **Continue it** button on the dialog that appears when a
+run would land on an existing folder. A continued run writes into that same
+folder and skips any recording whose result for the step is already there:
+
+| Step | Skipped when present | Cost avoided |
+|---|---|---|
+| 1 — spike detection | `<rec>_spikes.npz` | ~52s/recording |
+| 3 — connectivity | `<rec>_adjM.npz` | ~21s/recording |
+| 4 — network metrics | that recording's entry in `netmet_results.json` | ~99s/recording |
+| CAT-NAP phase 1 | `<rec>_catnap.npz` | the STTC + thresholding half |
+
+Step 4 has no per-recording file, so `netmet_results.json` is itself the
+checkpoint: it is rewritten atomically after each recording finishes, from the
+parent process. An interrupted run therefore leaves a valid results file holding
+everything that completed, rather than nothing at all.
+
+Two things make this safe rather than merely convenient. **Writes are atomic** —
+every artefact goes to a temporary name and is `os.replace`d into position — so
+a file existing means it is whole; anything unreadable is deleted and redone.
+And **step 4 loads the finished recordings back in** rather than only skipping
+them, because its cartography boundaries are pooled across the whole batch: a
+continued run that saw only what it recomputed would place them somewhere the
+original never would. `python/test_continue_interrupted.py` checks the result is
+identical to a run that was never interrupted, figures included.
+
+### Changing which recordings a run covers
+
+In the GUI this is three controls. **Paths → Edit…** is where the recording list
+is changed; when you add or remove one it says so and points at the next step.
+**Pipeline → Continue previous run** is that next step, with a sub-option for
+deleting the figures of recordings you took out. **Paths → Previous analysis
+folder → Additional folders** takes further previous analyses, which is all
+merging runs needs.
+
+The same mechanism handles a batch that changes after the fact. In each case the
+result is what you would have got by analysing that set from the start — the
+pooled statistics, the batch-scaled axes and the cartography boundaries are all
+redone over whatever the spreadsheet now names.
+
+**Adding a recording.** Put it in the spreadsheet and continue: only the new one
+is computed.
+
+```python
+Params(..., output_data_folder_name="OutputData09Aug2026", continue_interrupted=True)
+```
+
+**Removing one.** Take it out of the spreadsheet and continue. It drops out of
+every CSV and pooled statistic on its own, but its *figures* do not delete
+themselves — they would keep appearing in the output folder and the report as
+though they were part of the analysis. So a continued run names them:
+
+```
+1 recording(s) in this folder are no longer in the spreadsheet: rec2
+  Their 23 figure(s) are still on disk and will appear in the output folder and
+  report, though they are excluded from every CSV and pooled statistic.
+  Set Params.prune_removed_recordings = True to delete them.
+```
+
+With `prune_removed_recordings=True` the figures go. The recording's *data* is
+kept either way — that is what makes putting it back cheap.
+
+**Combining separate runs.** Name more than one previous analysis and give a
+spreadsheet listing recordings from all of them; nothing is recomputed.
+
+```python
+Params(
+    prior_analysis=True,
+    prior_analysis_path="path/to/RunA",
+    prior_analysis_paths=["path/to/RunB"],   # searched after the first
+    start_analysis_step=4,
+)
+```
+
+Each folder may equally be a `.meanap` bundle.
 
 ### Progress and time estimates
 

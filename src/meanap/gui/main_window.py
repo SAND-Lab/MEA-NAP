@@ -20,10 +20,11 @@ from meanap.gui import theme
 from meanap.gui.branding import logo_icon, logo_pixmap
 from meanap.gui.modes import (
     DEFAULT_MODE, MODES, TAB_CATNAP, TAB_CONNECTIVITY, TAB_NETWORK, TAB_PATHS,
-    TAB_PIPELINE, TAB_RECORDING, TAB_SPIKE, TAB_STIM, TAB_STIM_PREVIEW,
+    TAB_PIPELINE, TAB_QUEUE, TAB_RECORDING, TAB_SPIKE, TAB_STIM,
+    TAB_STIM_PREVIEW,
     apply_mode_to_params, mode_for_params,
 )
-from meanap.gui.pipeline_worker import PipelineWorker
+from meanap.gui.pipeline_worker import PipelineWorker, QueueWorker
 from meanap.gui.viewer_session import ViewerSessions
 from meanap.gui.panels.paths import PathsPanel
 from meanap.gui.panels.recording import RecordingPanel
@@ -32,6 +33,7 @@ from meanap.gui.panels.connectivity import ConnectivityPanel
 from meanap.gui.panels.stim import StimPanel
 from meanap.gui.panels.stim_preview import StimPreviewPanel
 from meanap.gui.panels.pipeline import PipelinePanel
+from meanap.gui.panels.queue import QueuePanel
 from meanap.gui.panels.catnap import CatNapPanel
 from meanap.gui.panels.network_viewer import NetworkViewerPanel
 from meanap.gui.tooltip import install_tooltip_style, wrap_tooltips
@@ -70,6 +72,7 @@ class MainWindow(QMainWindow):
         self._last_bundle: Path | None = None
         self._current_theme = "dark"
         self._worker: PipelineWorker | None = None
+        self._queue_worker: QueueWorker | None = None
         self._tutorial: TutorialOverlay | None = None
         self._viewers = ViewerSessions()
 
@@ -173,6 +176,7 @@ class MainWindow(QMainWindow):
         self._stim_preview_panel = StimPreviewPanel()
         self._catnap_panel = CatNapPanel()
         self._pipeline_panel = PipelinePanel()
+        self._queue_panel = QueuePanel()
         self._network_viewer_panel = NetworkViewerPanel()
 
         # Every tab is built once and kept alive here; the current mode decides
@@ -188,10 +192,13 @@ class MainWindow(QMainWindow):
             (TAB_CATNAP, self._catnap_panel, "  CAT-NAP (2P)  "),
             (TAB_NETWORK, self._network_viewer_panel, "  Network Viewer  "),
             (TAB_PIPELINE, _scrollable(self._pipeline_panel), "  Pipeline  "),
+            (TAB_QUEUE, self._queue_panel, "  Queue  "),
         ]
         self._apply_mode(self._mode, sync_params=False)
 
         self._catnap_panel.log_message.connect(self._pipeline_panel.append_log)
+        self._queue_panel.run_requested.connect(self._on_run_queue)
+        self._queue_panel.stop_requested.connect(self._on_stop_queue)
 
         # The Paths "Raw data folder" and the CAT-NAP "Recordings folder" are
         # two views of one setting (Params.raw_data), and both panels write it
@@ -632,6 +639,12 @@ class MainWindow(QMainWindow):
     def _on_run(self) -> None:
         if self._worker is not None and self._worker.isRunning():
             return  # a run is already in progress
+        if self._queue_worker is not None and self._queue_worker.isRunning():
+            QMessageBox.information(
+                self, "The queue is running",
+                "Wait for the queue on the Queue tab to finish, or stop it, "
+                "before starting a single run.")
+            return
 
         params = self._collect_params()
         self._params = params
@@ -708,7 +721,7 @@ class MainWindow(QMainWindow):
             default_output_folder_name, resumes_in_place,
         )
 
-        if resumes_in_place(params):
+        if resumes_in_place(params) or params.continue_interrupted:
             return params   # the run is going to read what is in there
 
         name = params.output_data_folder_name or default_output_folder_name()
@@ -726,9 +739,14 @@ class MainWindow(QMainWindow):
         box.setText(f"<b>{name}</b> already holds a run's results.")
         box.setInformativeText(
             "Running now would overwrite it — its figures, its CSVs and its "
-            f"bundle.<br><br>Save this run as <b>{fresh}</b> instead?"
+            f"bundle.<br><br>Save this run as <b>{fresh}</b> instead, or "
+            "continue the existing one where it stopped?"
         )
         use_new = box.addButton(f"Use {fresh}", QMessageBox.ButtonRole.AcceptRole)
+        # The third option is the one a stopped run actually wants: fill in the
+        # recordings that never finished rather than redo the ones that did.
+        continue_it = box.addButton("Continue it",
+                                    QMessageBox.ButtonRole.ActionRole)
         overwrite = box.addButton("Overwrite", QMessageBox.ButtonRole.DestructiveRole)
         box.addButton(QMessageBox.StandardButton.Cancel)
         box.setDefaultButton(use_new)
@@ -742,12 +760,63 @@ class MainWindow(QMainWindow):
             params.output_data_folder_name = fresh
             self._pipeline_panel.append_log(f"Saving this run as {fresh}.")
             return params
+        if clicked is continue_it:
+            self._pipeline_panel.append_log(
+                f"Continuing {name} — recordings already finished are skipped.")
+            # A copy, for the same reason as below: continuing is a decision
+            # about this run, not a setting to carry into every future one.
+            return replace(params, continue_interrupted=True)
         if clicked is overwrite:
             self._pipeline_panel.append_log(f"Overwriting the existing run in {name}.")
             # A copy, so "overwrite this once" cannot be saved into a parameter
             # file and quietly overwrite every run that later loads it.
             return replace(params, overwrite_existing_output=True)
         return None
+
+    def _on_run_queue(self) -> None:
+        """Start the queued runs. Refuses to overlap with a single run."""
+        if self._worker is not None and self._worker.isRunning():
+            QMessageBox.information(
+                self, "A run is already going",
+                "Wait for the run on the Pipeline tab to finish, or stop it, "
+                "before starting the queue.")
+            return
+        if self._queue_worker is not None and self._queue_worker.isRunning():
+            return
+
+        paths = self._queue_panel.paths()
+        if not paths:
+            return
+
+        self._queue_panel.start()
+        self._queue_panel.append_log(f"Starting {len(paths)} queued run(s)…")
+
+        worker = QueueWorker(paths, parent=self)
+        worker.log_message.connect(self._queue_panel.append_log)
+        worker.progress.connect(self._queue_panel.show_progress)
+        worker.run_finished.connect(self._queue_panel.mark)
+        worker.finished_all.connect(self._on_queue_finished)
+        worker.failed.connect(self._on_queue_failed)
+        self._queue_worker = worker
+        worker.start()
+
+    def _on_stop_queue(self) -> None:
+        if self._queue_worker is not None and self._queue_worker.isRunning():
+            self._queue_panel.append_log(
+                "Stop requested — finishing the current run, then halting. "
+                "Runs after it will not be started.")
+            self._queue_panel.stop_btn.setEnabled(False)
+            self._queue_worker.request_cancel()
+
+    def _on_queue_finished(self, summary: str) -> None:
+        self._queue_panel.finish(summary)
+        self._queue_worker = None
+
+    def _on_queue_failed(self, message: str) -> None:
+        self._queue_panel.finish("The queue could not start.")
+        self._queue_panel.append_log(f"ERROR: {message}")
+        self._queue_worker = None
+        QMessageBox.critical(self, "Queue error", message)
 
     def _on_stop(self) -> None:
         if self._worker is not None and self._worker.isRunning():

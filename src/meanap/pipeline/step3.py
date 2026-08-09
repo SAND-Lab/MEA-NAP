@@ -22,9 +22,10 @@ from meanap.pipeline.io import find_raw_file, load_spike_times_npz, resolve_dura
 from meanap.pipeline.parallel import map_recordings
 from meanap.pipeline.progress import RunProgress
 from meanap.pipeline.probabilistic_threshold import adjm_thr
-from meanap.pipeline.resume import build_input_locator
+from meanap.pipeline.resume import already_done, build_input_locator
 from meanap.pipeline.rng import make_rng
 from meanap.pipeline.spreadsheet import RecordingInfo, ground_spike_times_dict, parse_ground_electrodes
+from meanap.pipeline.atomic import atomic_savez
 
 # Peak per-worker RAM for Step 3: spike times (sparse) + a few 64x64xrep_num
 # surrogate stacks (~6 MB at rep_num=200). Tiny — worker count is CPU-limited.
@@ -48,6 +49,13 @@ def _step3_one_recording(task: tuple[Params, RecordingInfo, str]) -> tuple[str, 
     plot_checks = bool(getattr(params, "prob_thresh_plot_checks", False))
 
     logs: list[str] = []
+    # Continuing an interrupted run: adjacency for this recording is already
+    # written, and it is the expensive part of this step.
+    done_path = mat_files_dir / f"{rec.filename}_adjM.npz"
+    if already_done(params, output_root, done_path, logs.append):
+        logs.append(f"  [{rec.filename}] adjacency already computed — skipping")
+        return rec.filename, logs
+
     npz_file = locator.spike_file(rec.filename)
     if npz_file is None:
         logs.append(f"  [{rec.filename}] SKIP: spike data not found ({rec.filename}_spikes.npz)")
@@ -116,7 +124,7 @@ def _step3_one_recording(task: tuple[Params, RecordingInfo, str]) -> tuple[str, 
         out_arrays[f"adjM{lag_ms}mslag_raw"] = adj_m
 
     out_path = mat_files_dir / f"{rec.filename}_adjM.npz"
-    np.savez(out_path, channels=data["channels"], **out_arrays)
+    atomic_savez(out_path, channels=data["channels"], **out_arrays)
     if edge_checks:
         from meanap.pipeline.plotting_step3 import (
             EDGE_CHECK_SUFFIX, save_edge_threshold_check,

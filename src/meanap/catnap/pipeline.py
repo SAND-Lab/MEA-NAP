@@ -43,7 +43,8 @@ from meanap.catnap.store import (
 )
 from meanap.pipeline.cancellation import CancelCheck, check_cancel
 from meanap.pipeline.resume import (
-    ADJM_SUBDIR, CATNAP_SUFFIX, InputLocator, build_input_locator,
+    ADJM_SUBDIR, CATNAP_SUFFIX, InputLocator, already_done,
+    build_input_locator,
 )
 from meanap.pipeline.rng import make_rng
 from meanap.pipeline.spreadsheet import RecordingInfo
@@ -198,10 +199,21 @@ def run_catnap_pipeline(
             continue
         plane0 = fetched
 
+        # Continuing an interrupted run: this recording's adjacency and
+        # activity stats are already in *this* folder, so load them rather than
+        # redoing the STTC and the circular-shift thresholding, which is the
+        # expensive half of the CAT-NAP path.
+        continued = already_done(
+            params, output_root,
+            state_dir / f"{rec.filename}{CATNAP_SUFFIX}", log)
+        if continued:
+            log(f"  [{rec.filename}] already computed — loading")
+
         loaded = (
-            _load_recording(locator, rec, plane0, log) if resuming else
-            _compute_recording(params, rec, plane0, log,
-                               make_rng(params.random_seed, "catnap", rec.filename))
+            _load_recording(locator, rec, plane0, log) if (resuming or continued)
+            else _compute_recording(params, rec, plane0, log,
+                                    make_rng(params.random_seed, "catnap",
+                                             rec.filename))
         )
         if loaded is None:
             if not resuming:

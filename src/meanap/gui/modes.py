@@ -19,9 +19,11 @@ from taste:
   apply. It *does* read the connectivity settings (``func_con_lag_val`` and the
   probabilistic-thresholding fields), so that tab stays.
 
-The Paths, Network Viewer and Pipeline tabs appear in every mode: the first two
-are mode-independent (a viewer for results already on disk), and the last is how
-you start a run.
+The Paths, Network Viewer, Pipeline and Queue tabs appear in every mode: the
+first two are mode-independent (a viewer for results already on disk), the third
+is how you start a run, and the fourth runs saved parameter files back to back —
+which may describe *different* pipelines, since each file carries its own mode
+flags and ``run_pipeline`` decides from those.
 """
 
 from __future__ import annotations
@@ -39,6 +41,7 @@ TAB_STIM_PREVIEW = "stim_preview"
 TAB_CATNAP = "catnap"
 TAB_NETWORK = "network"
 TAB_PIPELINE = "pipeline"
+TAB_QUEUE = "queue"
 
 
 @dataclass(frozen=True)
@@ -57,7 +60,7 @@ class Mode:
 
 
 _EPHYS_TABS = (TAB_PATHS, TAB_RECORDING, TAB_SPIKE, TAB_CONNECTIVITY,
-               TAB_NETWORK, TAB_PIPELINE)
+               TAB_NETWORK, TAB_PIPELINE, TAB_QUEUE)
 
 MODES: dict[str, Mode] = {
     "meanap": Mode(
@@ -78,7 +81,7 @@ MODES: dict[str, Mode] = {
         label="CAT-NAP  ·  2P imaging",
         blurb="Network analysis of two-photon calcium imaging processed with suite2p.",
         tabs=frozenset((TAB_PATHS, TAB_CONNECTIVITY, TAB_CATNAP,
-                        TAB_NETWORK, TAB_PIPELINE)),
+                        TAB_NETWORK, TAB_PIPELINE, TAB_QUEUE)),
         suite2p_mode=True,
     ),
 }
