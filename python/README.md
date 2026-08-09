@@ -133,7 +133,9 @@ The pipeline mirrors MATLAB's 4 steps — spike detection, neuronal activity (fi
 The output folder defaults to today's date, so two runs in a day both want
 `OutputData07Aug2026`. Rather than replacing the first one, the second writes to
 `OutputData07Aug2026_v2` and says so; the GUI asks first, offering the new name,
-**Overwrite**, or **Cancel**. Past `_v99` it falls back to a `_HHMMSS` stamp.
+**Continue it**, **Overwrite**, or **Cancel**. Past `_v99` it falls back to a
+`_HHMMSS` stamp. **Continue it** is the one an interrupted run wants — see
+[Continuing an interrupted run](#continuing-an-interrupted-run).
 
 The `.meanap` bundle counts on its own — an express run's folder is often
 deleted once the bundle is in hand, and it would otherwise be the one artefact
