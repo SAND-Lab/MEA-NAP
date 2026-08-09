@@ -20,7 +20,7 @@ from meanap.gui import theme
 from meanap.gui.branding import logo_icon, logo_pixmap
 from meanap.gui import advanced
 from meanap.gui.modes import (
-    DEFAULT_MODE, MODES, TAB_CATNAP, TAB_CONNECTIVITY, TAB_DATA, TAB_NETWORK,
+    DEFAULT_MODE, MODES, TAB_CATNAP, TAB_CONNECTIVITY, TAB_DATA, TAB_RESULTS,
     TAB_RUN, TAB_SPIKE, TAB_STIM,
     TAB_STIM_PREVIEW,
     apply_mode_to_params, mode_for_params,
@@ -34,7 +34,7 @@ from meanap.gui.panels.stim import StimPanel
 from meanap.gui.panels.stim_preview import StimPreviewPanel
 from meanap.gui.panels.run import QUEUE, RunPanel
 from meanap.gui.panels.catnap import CatNapPanel
-from meanap.gui.panels.network_viewer import NetworkViewerPanel
+from meanap.gui.panels.results import ResultsPanel
 from meanap.gui.tooltip import install_tooltip_style, wrap_tooltips
 from meanap.gui.tutorial import TutorialOverlay, TutorialStep, tabbar_target
 
@@ -117,13 +117,13 @@ class MainWindow(QMainWindow):
         act_save.setToolTip("Save current parameters to a JSON file")
         act_save.triggered.connect(self._on_save)
 
-        act_bundle = QAction("Open bundle…", self)
-        act_bundle.setToolTip(
+        self._act_bundle = QAction("📦  Open bundle…", self)
+        self._act_bundle.setToolTip(
             "Open a .meanap run bundle — from an express run of your own, or "
             "one someone sent you — and draw any of its figures in the viewer. "
             "You can also drag the file onto this window."
         )
-        act_bundle.triggered.connect(self._on_open_bundle)
+        self._act_bundle.triggered.connect(self._on_open_bundle)
 
         self._act_theme = QAction("☀  Light", self)
         self._act_theme.setToolTip("Toggle light / dark theme")
@@ -149,7 +149,7 @@ class MainWindow(QMainWindow):
         tb.addAction(act_open)
         tb.addAction(act_save)
         tb.addSeparator()
-        tb.addAction(act_bundle)
+        tb.addAction(self._act_bundle)
         tb.addSeparator()
         tb.addAction(self._act_theme)
         tb.addAction(self._act_advanced)
@@ -196,7 +196,11 @@ class MainWindow(QMainWindow):
         # cares about one — loading parameters, or the queue's list.
         self._pipeline_panel = self._run_panel.settings
         self._queue_panel = self._run_panel.queue
-        self._network_viewer_panel = NetworkViewerPanel()
+        # The Results tab reuses the toolbar's own Open bundle action rather
+        # than a second button calling the same slot.
+        self._results_panel = ResultsPanel(self._act_bundle)
+        self._results_panel.view_report_requested.connect(self._on_view_report)
+        self._network_viewer_panel = self._results_panel.viewer
 
         # Every tab is built once and kept alive here; the current mode decides
         # which of them are actually in the QTabWidget (see _apply_mode). Order
@@ -208,12 +212,15 @@ class MainWindow(QMainWindow):
             (TAB_STIM, _scrollable(self._stim_panel), "  Stimulation  "),
             (TAB_STIM_PREVIEW, self._stim_preview_panel, "  Stim Preview  "),
             (TAB_CATNAP, self._catnap_panel, "  CAT-NAP (2P)  "),
-            (TAB_NETWORK, self._network_viewer_panel, "  Network Viewer  "),
             (TAB_RUN, self._run_panel, "  Run  "),
+            (TAB_RESULTS, self._results_panel, "  Results  "),
         ]
         self._apply_mode(self._mode, sync_params=False)
 
         self._catnap_panel.log_message.connect(self._run_panel.append_log)
+        # What "View report" would open depends on the output paths, which live
+        # on another tab, so it is recomputed on the way in rather than cached.
+        self._tabs.currentChanged.connect(self._on_tab_changed)
         self._queue_panel.changed.connect(self._run_panel.refresh)
 
         # The Data tab's "Raw data folder" and the CAT-NAP "Recordings folder" are
@@ -229,11 +236,9 @@ class MainWindow(QMainWindow):
         self._run_panel.run_btn.setObjectName("primary")
         self._run_panel.stop_btn.setObjectName("danger")
         self._run_panel.test_btn.setObjectName("secondary")
-        self._run_panel.view_report_btn.setObjectName("secondary")
         self._run_panel.run_btn.clicked.connect(self._on_run_clicked)
         self._run_panel.stop_btn.clicked.connect(self._on_stop)
         self._run_panel.test_btn.clicked.connect(self._on_test_pipeline)
-        self._run_panel.view_report_btn.clicked.connect(self._on_view_report)
 
         # Mark log widget so the monospace QSS rule applies
         self._run_panel.log.setObjectName("log")
@@ -335,6 +340,18 @@ class MainWindow(QMainWindow):
             if spec_key == key:
                 return self._tabs.indexOf(widget)
         return -1
+
+    def _on_tab_changed(self, _index: int) -> None:
+        if self._current_tab_key() == TAB_RESULTS:
+            self._refresh_results_target()
+
+    def _refresh_results_target(self) -> None:
+        root = self._candidate_output_root()
+        bundle = self._last_bundle
+        if bundle is None and root is not None:
+            candidate = root.with_suffix(BUNDLE_SUFFIX)
+            bundle = candidate if candidate.is_file() else None
+        self._results_panel.set_target(root, bundle)
 
     def _current_tab_key(self) -> str | None:
         current = self._tabs.currentWidget()
@@ -446,9 +463,16 @@ class MainWindow(QMainWindow):
                 "small example dataset and runs all four steps on it.",
                 self._tab_index(TAB_RUN), lambda: self._run_panel.test_btn),
             TutorialStep(
-                "Run the pipeline", "When your paths are filled in, press Run. Progress "
-                "appears in the status log, and 'View report' opens the results in your browser.",
+                "Run the pipeline", "When your paths are filled in, press Run. Progress, "
+                "a time estimate and the status log all appear below it.",
                 self._tab_index(TAB_RUN), lambda: self._run_panel.run_btn),
+            TutorialStep(
+                "Look at what came out", "The Results tab is the last stop. 'View report' "
+                "opens the run in your browser — an HTML gallery of every figure, or the "
+                "viewer if it was an express run — and the network viewer below explores "
+                "any recording's connectivity interactively.",
+                self._tab_index(TAB_RESULTS),
+                lambda: self._results_panel.view_report_btn),
         ]
 
     def _build_meastim_steps(self) -> list[TutorialStep]:
@@ -874,6 +898,11 @@ class MainWindow(QMainWindow):
         self._run_panel.append_log(f"Done. Output folder: {output_root}")
         self._announce_bundle(output_root)
         self._reset_run_buttons()
+        # The log is what someone is looking at when a run ends, and the thing
+        # to do next is now on a different tab.
+        self._run_panel.append_log(
+            "Open the results on the Results tab, or explore the networks there.")
+        self._refresh_results_target()
 
     def _announce_bundle(self, output_root: Path) -> None:
         """Say where the express bundle went, as the last thing in the log.
@@ -954,7 +983,7 @@ class MainWindow(QMainWindow):
                 "Run the pipeline first, or set the Output data folder / name "
                 "(Data tab) to an existing MEA-NAP output folder.\n\n"
                 "To open an express run from another machine, use "
-                "'Open bundle…' in the toolbar, or drag its .meanap file onto "
+                "'Open bundle…' here or in the toolbar, or drag its .meanap file onto "
                 "this window.",
             )
             return

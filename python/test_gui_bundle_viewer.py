@@ -298,12 +298,19 @@ def _drop_checks(app: QApplication, express_root: Path) -> list[Check]:
 
     # The toolbar route exists and is discoverable.
     actions = {a.text(): a for a in window.findChildren(QAction)}
-    bundle_action = actions.get("Open bundle…")
+    bundle_action = next(
+        (a for text, a in actions.items() if "Open bundle" in text), None)
     checks.append(("the toolbar offers 'Open bundle…'", bundle_action is not None,
                    str(sorted(actions))))
     checks.append(("…and says drag-and-drop works too",
                    bundle_action is not None and "drag" in bundle_action.toolTip().lower(),
                    bundle_action.toolTip() if bundle_action else ""))
+
+    # The Results tab offers it too — as the *same* action, so the two cannot
+    # drift apart in wording, tooltip or behaviour.
+    checks.append(("the Results tab offers the same action, not a copy of it",
+                   window._results_panel.bundle_btn.defaultAction() is bundle_action,
+                   str(window._results_panel.bundle_btn.defaultAction())))
     return checks
 
 

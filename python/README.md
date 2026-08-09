@@ -54,8 +54,8 @@ MEA-NAP/
 │               ├── spike_detection.py
 │               ├── connectivity.py   # STTC and thresholding tab
 │               ├── catnap.py         # CAT-NAP (2P) tab
-│               ├── network_viewer.py # Network Viewer tab
-│               └── pipeline.py       # Run controls, status log, View report button
+│               ├── network_viewer.py # the network plot, inside the Results tab
+│               └── run.py            # Run tab: this run or a queue, progress, log
 └── python/               # Scripts, notebooks, and pipeline docs (this directory)
     ├── README.md
     ├── PIPELINE_PORT_STATUS.md   # Living status doc for the pipeline port — read first
@@ -109,8 +109,8 @@ Each tab corresponds to a section of the pipeline:
 | **Spike detection** | Thresholds, wavelet methods, bandpass filter, template settings |
 | **Connectivity** | STTC lag values, adjacency matrix type, probabilistic thresholding |
 | **CAT-NAP (2P)** | Suite2p pipeline — see below |
-| **Network Viewer** | Interactive network plot from a MEA-NAP output `.mat` file — see below |
-| **Pipeline** | Step selection (1-4), run/test/stop controls, status log, and a "🌐 View report" button that generates and opens an HTML output browser — see "Output report" below |
+| **Results** | "🌐 View report", "📦 Open bundle…", and an interactive network plot from a MEA-NAP output `.mat` file — see below |
+| **Run** | This run or a queue of saved runs: step selection (1-4), run/test/stop controls, progress and status log |
 
 ### Parameters
 
@@ -298,7 +298,7 @@ run_pipeline(params, progress=lambda p: print(p.describe()))
 
 ### Output report
 
-After a run (or against any existing MEA-NAP output folder), click **🌐 View report** on the Run tab to generate `report.html` in that output folder and open it in your browser. It's a self-contained page (no server, works offline) with a folder-tree sidebar and a captioned image gallery for every plot the pipeline produced — captions are adapted from MEA-NAP's own figure-legend documentation (`docs/meanap-outputs.rst`) wherever one exists. You can also generate it directly from Python:
+After a run (or against any existing MEA-NAP output folder), click **🌐 View report** on the Results tab to generate `report.html` in that output folder and open it in your browser. It's a self-contained page (no server, works offline) with a folder-tree sidebar and a captioned image gallery for every plot the pipeline produced — captions are adapted from MEA-NAP's own figure-legend documentation (`docs/meanap-outputs.rst`) wherever one exists. You can also generate it directly from Python:
 
 ```python
 from meanap.pipeline.report import generate_report
@@ -502,9 +502,9 @@ print(data.peak_start_frames.shape)  # (n_rois, max_peaks), NaN-padded
 
 ## Network Viewer
 
-The Network Viewer tab lets you interactively explore the functional connectivity network from a completed MEA-NAP run, including optional cell-type overlays. It mirrors the functionality of the MATLAB `runMEANAPviewer.m` viewer.
+The network viewer, at the bottom of the Results tab, lets you interactively explore the functional connectivity network from a completed MEA-NAP run, including optional cell-type overlays. It mirrors the functionality of the MATLAB `runMEANAPviewer.m` viewer.
 
-### Using the Network Viewer tab
+### Using the network viewer
 
 1. Click **Browse…** and select a MEA-NAP output `.mat` file from the `ExperimentMatFiles/` subfolder of an output directory (e.g. `OutputData.../ExperimentMatFiles/<recording>_OutputData....mat`).
 2. The network renders immediately. Recording metadata (name, DIV, group, active node count) appears in the left panel.

@@ -39,9 +39,9 @@ never consult:
 
 | Mode | Pipeline | Tabs shown |
 |---|---|---|
-| **MEA-NAP · Ephys** | Spike detection → activity → connectivity → network analysis | Data, Spike detection, Connectivity, Network Viewer, Run |
+| **MEA-NAP · Ephys** | Spike detection → activity → connectivity → network analysis | Data, Spike detection, Connectivity, Run, Results |
 | **MEA-Stim · Stimulation** | The ephys pipeline plus the stimulation analysis that runs after it | the above, plus Stimulation and Stim Preview |
-| **CAT-NAP · 2P imaging** | Network analysis of suite2p calcium imaging | Data, Connectivity, CAT-NAP (2P), Network Viewer, Run |
+| **CAT-NAP · 2P imaging** | Network analysis of suite2p calcium imaging | Data, Connectivity, CAT-NAP (2P), Run, Results |
 
 Start in a mode from the command line:
 
@@ -197,12 +197,6 @@ Calcium-imaging analysis, triggered by pointing the pipeline at a folder of
 suite2p output rather than raw MEA `.mat` files. Full walkthrough:
 [CAT-NAP](catnap.md).
 
-## Network Viewer
-
-Interactive exploration of a completed run's functional connectivity network,
-with optional cell-type overlays. Full walkthrough:
-[Network Viewer](network-viewer.md).
-
 ## Run
 
 One tab for starting work, with a switch at the top for what the **Run** button
@@ -225,31 +219,49 @@ log, so a run cannot be started while another is going.
 | **…and drop removed recordings' figures** | Only while continuing. Deletes the plots of recordings the spreadsheet no longer names; they are excluded from every CSV either way, but their figures otherwise stay in the output folder and the report. Their data is kept, so putting a recording back stays cheap. |
 | **Express mode** | Skips every figure that can be redrawn later and keeps **only** a small `.meanap` bundle — the output folder is removed once the bundle is written and verified. The numbers are identical either way, and the viewer can draw the folder back out again; see [Express mode and run bundles](express-mode.md). |
 
-The four buttons under **Run**:
+The buttons under **Start**:
 
 - **🧪 Test pipeline** — downloads the bundled example dataset and runs the
   full pipeline against it (see [Quickstart](quickstart.md)). It works with
   **Express mode** ticked, and bundles the example run like any other.
-- **▶ Run pipeline** — runs against whatever's configured in Paths/Recording/etc.
-- **■ Stop** — cancels a running pipeline at the next step boundary.
-- **🌐 View report** — opens the last run's results in your browser, picking the
-  right artifact for the run:
+- **▶ Run pipeline** — runs against whatever the other tabs describe. In queue
+  mode this reads **▶ Run queue (n)** and starts the list instead.
+- **■ Stop** — cancels what is running at the next step boundary. For a queue,
+  it finishes the run in flight and does not start the next.
+
+Progress, a time estimate and the status log sit below them, shared by both
+kinds of run.
+
+## Results
+
+The last tab: what to do once something has finished.
+
+- **🌐 View report** — opens the run in your browser, picking the right artifact
+  for it:
   - a **normal run** → (re)generates `report.html` in the output folder — see
     [Output report](output-report.md);
   - an **express run** → opens its `.meanap` bundle in the viewer, which draws
     any figure on demand in PNG or editable SVG, and can export the whole
     output folder back out for sharing.
+- **📦 Open bundle…** — the same action as the toolbar's, for a bundle from
+  anywhere. See [Opening a bundle](#opening-a-bundle).
+- **Network viewer** — interactive exploration of a completed run's functional
+  connectivity network, with optional cell-type overlays. Full walkthrough:
+  [Network Viewer](network-viewer.md).
 
-  With no run in this session it falls back to the output folder the Data tab
-  describes, including the dated default name (`OutputData<ddMonyyyy>`) used
-  when **Output folder name** is blank.
+A line under the buttons names what **View report** would open and in which
+form. With no run in this session it falls back to the output folder the Data
+tab describes, including the dated default name (`OutputData<ddMonyyyy>`) used
+when **Output folder name** is blank — so that line is worth reading before
+pressing it.
 
 ### Opening a bundle
 
 A `.meanap` bundle does not need a run, or even the data it came from — it is a
 file people email each other. Two ways to open one:
 
-- **Open bundle…** in the toolbar;
+- **📦 Open bundle…**, on the Results tab or in the toolbar (one action, in two
+  places);
 - **drag the `.meanap` file onto the window**, anywhere.
 
 Either starts the viewer and opens a browser on it. Each bundle gets its own

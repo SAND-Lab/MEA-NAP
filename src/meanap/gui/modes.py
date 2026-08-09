@@ -19,11 +19,11 @@ from taste:
   apply. It *does* read the connectivity settings (``func_con_lag_val`` and the
   probabilistic-thresholding fields), so that tab stays.
 
-The Data, Network Viewer and Run tabs appear in every mode: the first two are
-mode-independent (a viewer for results already on disk), and the third is how
-you start work — either this run, or a queue of saved parameter files. A queue
-may mix *different* pipelines, since each file carries its own mode flags and
-``run_pipeline`` decides from those.
+The Data, Run and Results tabs appear in every mode: the first says what to
+analyse, the second is how you start work — either this run, or a queue of saved
+parameter files — and the third is mode-independent, being about results already
+on disk. A queue may mix *different* pipelines, since each file carries its own
+mode flags and ``run_pipeline`` decides from those.
 """
 
 from __future__ import annotations
@@ -38,7 +38,7 @@ TAB_CONNECTIVITY = "connectivity"
 TAB_STIM = "stim"
 TAB_STIM_PREVIEW = "stim_preview"
 TAB_CATNAP = "catnap"
-TAB_NETWORK = "network"
+TAB_RESULTS = "results"
 TAB_RUN = "run"
 
 
@@ -57,7 +57,7 @@ class Mode:
     stimulation_mode: bool = False
 
 
-_EPHYS_TABS = (TAB_DATA, TAB_SPIKE, TAB_CONNECTIVITY, TAB_NETWORK, TAB_RUN)
+_EPHYS_TABS = (TAB_DATA, TAB_SPIKE, TAB_CONNECTIVITY, TAB_RUN, TAB_RESULTS)
 
 MODES: dict[str, Mode] = {
     "meanap": Mode(
@@ -78,7 +78,7 @@ MODES: dict[str, Mode] = {
         label="CAT-NAP  ·  2P imaging",
         blurb="Network analysis of two-photon calcium imaging processed with suite2p.",
         tabs=frozenset((TAB_DATA, TAB_CONNECTIVITY, TAB_CATNAP,
-                        TAB_NETWORK, TAB_RUN)),
+                        TAB_RUN, TAB_RESULTS)),
         suite2p_mode=True,
     ),
 }

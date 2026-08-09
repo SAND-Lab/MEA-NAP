@@ -124,17 +124,7 @@ class RunPanel(QWidget):
         self.stop_btn.setFixedHeight(40)
         self.stop_btn.setEnabled(False)
 
-        self.view_report_btn = QPushButton("🌐  View report")
-        self.view_report_btn.setFixedHeight(40)
-        self.view_report_btn.setToolTip(
-            "Open the last run's results in your browser. A normal run gets an "
-            "HTML report of the figures in the output folder; an express run "
-            "opens its .meanap bundle in the viewer instead, which draws any "
-            "figure on demand in PNG or editable SVG."
-        )
-
-        for widget in (self.test_btn, self.run_btn, self.stop_btn,
-                       self.view_report_btn):
+        for widget in (self.test_btn, self.run_btn, self.stop_btn):
             row.addWidget(widget)
         return box
 
@@ -196,10 +186,9 @@ class RunPanel(QWidget):
     def _on_switch(self, *_args) -> None:
         queued = self.mode() == QUEUE
         self._stack.setCurrentIndex(1 if queued else 0)
-        # Testing the setup and viewing a report are about *a* run, so they say
-        # nothing useful about a list of them.
+        # Testing the setup is about *a* run, so it says nothing useful about
+        # a list of them.
         self.test_btn.setVisible(not queued)
-        self.view_report_btn.setVisible(not queued)
         self._relabel_run()
 
     def _relabel_run(self) -> None:

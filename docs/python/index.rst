@@ -37,7 +37,7 @@ results.
       :link-type: doc
 
       Every tab in the desktop app — Data, Spike detection, Connectivity,
-      Network Viewer, Run — field by field.
+      Run, Results — field by field.
 
    .. grid-item-card:: 🔬 CAT-NAP (calcium imaging)
       :link: catnap

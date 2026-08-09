@@ -47,7 +47,7 @@ finish in well under a minute, and already produce plots worth looking at.
 
 ## 3. Browse the results
 
-Once the run finishes, click **🌐 View report**. This generates `report.html`
+Once the run finishes, go to the **Results** tab and click **🌐 View report**. This generates `report.html`
 inside the output folder and opens it in your default browser — no server, no
 extra install, works entirely offline.
 
@@ -70,7 +70,7 @@ including deep links you can share to a specific plot.
 :link: gui-guide
 :link-type: doc
 Field-by-field reference for Data, Spike detection, Connectivity, CAT-NAP,
-Network Viewer, and Run.
+Run, and Results.
 :::
 
 :::{grid-item-card} Script against the Python API directly
