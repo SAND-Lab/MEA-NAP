@@ -5,6 +5,8 @@ from pathlib import Path
 
 import numpy as np
 
+from meanap.pipeline.atomic import atomic_savez
+
 
 @dataclass
 class Suite2pData:
@@ -112,7 +114,7 @@ def _load_ops_fields(
             arrays = {"fs": np.array(fs)}
             if mean_img is not None:
                 arrays["mean_img"] = np.asarray(mean_img, dtype=np.float32)
-            np.savez_compressed(out, **arrays)
+            atomic_savez(out, compressed=True, **arrays)
         except OSError:
             # A read-only suite2p folder with no derived root configured: the
             # cache is an optimisation, never a requirement.

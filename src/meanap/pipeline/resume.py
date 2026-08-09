@@ -197,6 +197,32 @@ def build_input_locator(params: Params, output_root: Path) -> InputLocator:
     )
 
 
+def already_done(
+    params: Params, output_root: Path, artefact: Path, log=None,
+) -> bool:
+    """Whether this recording's result for the current step is already there.
+
+    Only true when the run was asked to continue an interrupted one. The file
+    must be in *this* output folder, not in a prior run's — continuing means
+    filling the gaps in one folder, while a prior-analysis resume deliberately
+    reads an older run and writes somewhere new.
+
+    An artefact that will not open is deleted and reported rather than trusted:
+    writes are atomic (:mod:`meanap.pipeline.atomic`), so an unreadable file
+    means it predates that or came from somewhere else, and either way redoing
+    it is cheaper than discovering the problem two steps later.
+    """
+    from meanap.pipeline.atomic import guard_readable
+
+    if not params.continue_interrupted:
+        return False
+    artefact = Path(artefact)
+    if not artefact.is_file():
+        return False
+    # Guard against a half-written file from before atomic writes existed.
+    return guard_readable(artefact, log)
+
+
 def missing_step_inputs(
     locator: InputLocator,
     recordings: list[RecordingInfo],

@@ -708,7 +708,7 @@ class MainWindow(QMainWindow):
             default_output_folder_name, resumes_in_place,
         )
 
-        if resumes_in_place(params):
+        if resumes_in_place(params) or params.continue_interrupted:
             return params   # the run is going to read what is in there
 
         name = params.output_data_folder_name or default_output_folder_name()
@@ -726,9 +726,14 @@ class MainWindow(QMainWindow):
         box.setText(f"<b>{name}</b> already holds a run's results.")
         box.setInformativeText(
             "Running now would overwrite it — its figures, its CSVs and its "
-            f"bundle.<br><br>Save this run as <b>{fresh}</b> instead?"
+            f"bundle.<br><br>Save this run as <b>{fresh}</b> instead, or "
+            "continue the existing one where it stopped?"
         )
         use_new = box.addButton(f"Use {fresh}", QMessageBox.ButtonRole.AcceptRole)
+        # The third option is the one a stopped run actually wants: fill in the
+        # recordings that never finished rather than redo the ones that did.
+        continue_it = box.addButton("Continue it",
+                                    QMessageBox.ButtonRole.ActionRole)
         overwrite = box.addButton("Overwrite", QMessageBox.ButtonRole.DestructiveRole)
         box.addButton(QMessageBox.StandardButton.Cancel)
         box.setDefaultButton(use_new)
@@ -742,6 +747,12 @@ class MainWindow(QMainWindow):
             params.output_data_folder_name = fresh
             self._pipeline_panel.append_log(f"Saving this run as {fresh}.")
             return params
+        if clicked is continue_it:
+            self._pipeline_panel.append_log(
+                f"Continuing {name} — recordings already finished are skipped.")
+            # A copy, for the same reason as below: continuing is a decision
+            # about this run, not a setting to carry into every future one.
+            return replace(params, continue_interrupted=True)
         if clicked is overwrite:
             self._pipeline_panel.append_log(f"Overwriting the existing run in {name}.")
             # A copy, so "overwrite this once" cannot be saved into a parameter

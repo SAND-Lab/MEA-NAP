@@ -29,6 +29,7 @@ from meanap.params import Params
 from meanap.pipeline.figure_output import savefig
 from meanap.pipeline.rng import make_rng
 from meanap.pipeline.spike_detection import SpikeDetectionResult, bandpass_filter
+from meanap.pipeline.atomic import atomic_savez
 
 __all__ = [
     "SpikeCheckData",
@@ -295,7 +296,7 @@ def save_spike_check_data(path: Path | str, data: SpikeCheckData) -> Path:
     for method, waves in data.waveforms.items():
         arrays[f"waveforms_{method}"] = waves
 
-    np.savez_compressed(path, **arrays)
+    atomic_savez(path, compressed=True, **arrays)
     return path
 
 

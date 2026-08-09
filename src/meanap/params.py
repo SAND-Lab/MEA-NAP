@@ -21,6 +21,12 @@ class Params:
     # overwrite, for the caller who means it. Resuming *into* a folder is not
     # affected; that reads what it then rewrites. See pipeline/output_folders.py.
     overwrite_existing_output: bool = False
+    # Pick up an interrupted run where it stopped. Writes into the *same* output
+    # folder and skips any recording whose result for that step is already there
+    # — so a batch cut off at recording 5 of 10 resumes at 6 rather than from
+    # the start. Only artefacts that are complete count: writes are atomic, and
+    # anything unreadable is redone. See pipeline/atomic.py and pipeline/resume.py.
+    continue_interrupted: bool = False
 
     # ── Recording ────────────────────────────────────────────────────────────
     fs: float = 25000.0

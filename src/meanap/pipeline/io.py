@@ -21,6 +21,7 @@ import h5py
 import numpy as np
 import scipy.io as sio
 
+from meanap.pipeline.atomic import atomic_savez
 from meanap.pipeline.axion_raw import (
     is_axion_raw,
     load_axion_well,
@@ -363,7 +364,7 @@ def save_spike_times_npz(
         for method, times in methods.items():
             arrays[f"spike_times_{ch_idx}_{method}"] = times
 
-    np.savez(path, **arrays)
+    atomic_savez(path, **arrays)
 
     if params is not None:
         params_path = path.with_name(path.stem + "_params.txt")

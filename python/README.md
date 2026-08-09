@@ -145,6 +145,40 @@ replace a run deliberately, delete it or set
 `Params(overwrite_existing_output=True)` — which is still reported in the log,
 never silent.
 
+### Continuing an interrupted run
+
+A batch cut off at recording 5 of 10 — Ctrl-C, a cluster wall clock, a closed
+laptop — can pick up at 6 rather than starting again:
+
+```python
+Params(..., output_data_folder_name="OutputData09Aug2026", continue_interrupted=True)
+```
+
+In the GUI it is the **Continue it** button on the dialog that appears when a
+run would land on an existing folder. A continued run writes into that same
+folder and skips any recording whose result for the step is already there:
+
+| Step | Skipped when present | Cost avoided |
+|---|---|---|
+| 1 — spike detection | `<rec>_spikes.npz` | ~52s/recording |
+| 3 — connectivity | `<rec>_adjM.npz` | ~21s/recording |
+| 4 — network metrics | that recording's entry in `netmet_results.json` | ~99s/recording |
+| CAT-NAP phase 1 | `<rec>_catnap.npz` | the STTC + thresholding half |
+
+Step 4 has no per-recording file, so `netmet_results.json` is itself the
+checkpoint: it is rewritten atomically after each recording finishes, from the
+parent process. An interrupted run therefore leaves a valid results file holding
+everything that completed, rather than nothing at all.
+
+Two things make this safe rather than merely convenient. **Writes are atomic** —
+every artefact goes to a temporary name and is `os.replace`d into position — so
+a file existing means it is whole; anything unreadable is deleted and redone.
+And **step 4 loads the finished recordings back in** rather than only skipping
+them, because its cartography boundaries are pooled across the whole batch: a
+continued run that saw only what it recomputed would place them somewhere the
+original never would. `python/test_continue_interrupted.py` checks the result is
+identical to a run that was never interrupted, figures included.
+
 ### Progress and time estimates
 
 A run shows a progress bar on the Pipeline tab with the phase, the recording

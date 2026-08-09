@@ -27,7 +27,9 @@ from meanap.pipeline.output_folders import (
 from meanap.pipeline.progress import (
     ProgressFn, RunProgress, plan_catnap, plan_ephys,
 )
-from meanap.pipeline.resume import build_input_locator, missing_step_inputs
+from meanap.pipeline.resume import (
+    already_done, build_input_locator, missing_step_inputs,
+)
 from meanap.pipeline.spike_detection import SpikeDetectionParams, detect_spikes_recording
 from meanap.pipeline.spreadsheet import RecordingInfo, read_recording_csv
 
@@ -35,6 +37,11 @@ from meanap.pipeline.spreadsheet import RecordingInfo, read_recording_csv
 def default_output_folder_name() -> str:
     """Default output folder name, matching MATLAB's ``'OutputData' + ddmmmyyyy``."""
     return "OutputData" + datetime.date.today().strftime("%d%b%Y")
+
+
+def continues_in_place(params: Params) -> bool:
+    """Whether this run is picking up an interrupted one in the same folder."""
+    return bool(params.continue_interrupted)
 
 
 def resumes_in_place(params: Params) -> bool:
@@ -65,6 +72,16 @@ def resolve_output_folder_name(
     """
     name = params.output_data_folder_name or default_output_folder_name()
     parent = Path(params.output_data_folder or ".")
+
+    if params.continue_interrupted:
+        # The folder is the point: continuing means filling the gaps in the run
+        # that stopped, not starting a neighbour to it.
+        if output_name_taken(parent, name):
+            log(f"Continuing the interrupted run in {parent / name} — "
+                f"recordings already finished will be skipped.")
+        else:
+            log(f"Nothing to continue in {parent / name}; running from the start.")
+        return name
 
     if resumes_in_place(params) or params.overwrite_existing_output:
         if params.overwrite_existing_output and output_name_taken(parent, name):
@@ -495,6 +512,17 @@ def _run_step1_spike_detection(
     for rec, raw_path in source.stream(recordings, depth=params.prefetch_depth,
                                        kind="ephys"):
         check_cancel(should_cancel)
+        # Continuing an interrupted run: this recording's spike times are
+        # already on disk, so the expensive part is done. Checked here rather
+        # than before the stream so the source still releases whatever it
+        # fetched for it.
+        done_path = spike_dir / f"{rec.filename}_spikes.npz"
+        if already_done(params, output_root, done_path, log):
+            log(f"  [{rec.filename}] already detected — skipping")
+            source.unpin(rec.filename)
+            source.release(rec.filename)
+            progress.item_done(rec.filename)
+            continue
         if isinstance(raw_path, BaseException):
             log(f"  ! raw file not found, skipping: {rec.filename}"
                 f" (looked for {', '.join(RAW_EXTENSIONS)})")
