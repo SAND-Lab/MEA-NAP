@@ -21,8 +21,8 @@ automatically.
 
 Most tabs keep their everyday settings in the open and fold the rest into a
 collapsible **Advanced settings** group, labelled with how many it holds so
-nothing is hidden silently. **⚙ Advanced settings** in the toolbar opens every
-one at once and remembers that between sessions.
+nothing is hidden silently. **⚙ Advanced** in the toolbar opens every one at
+once and remembers that between sessions.
 
 Advanced does not mean dangerous or inactive: a collapsed setting loads, holds
 and saves its value exactly as an open one does, and every field is documented

@@ -7,7 +7,7 @@ from pathlib import Path
 
 from PyQt6.QtWidgets import (
     QApplication, QComboBox, QFileDialog, QLabel, QMainWindow, QMessageBox,
-    QLineEdit, QScrollArea, QSizePolicy, QTabWidget, QToolBar, QWidget,
+    QLineEdit, QScrollArea, QTabWidget, QToolBar, QWidget,
 )
 from PyQt6.QtGui import QAction
 from PyQt6.QtCore import Qt, QSettings, QSignalBlocker
@@ -16,7 +16,6 @@ from meanap.params import Params
 from meanap.pipeline.bundle import BUNDLE_SUFFIX
 from meanap.pipeline.example_data import download_example_data
 from meanap.pipeline.report import generate_report
-from meanap.gui import theme
 from meanap.gui.branding import logo_icon, logo_pixmap
 from meanap.gui import advanced
 from meanap.gui.modes import (
@@ -60,7 +59,11 @@ class MainWindow(QMainWindow):
         # Also set in app.main() so dialogs inherit it; repeated here so the
         # window is branded however it was constructed (tests, embedding, …).
         self.setWindowIcon(logo_icon())
-        self.resize(980, 780)
+        # Wide enough for the toolbar to lay out in full. Below this Qt
+        # folds its trailing actions into an overflow chevron, which is a
+        # reasonable thing for Tutorial but was not for the Mode selector —
+        # hence Mode leading the toolbar rather than ending it.
+        self.resize(1120, 800)
 
         self._params = Params()
         # Stamp the launch mode onto the defaults before anything reads them:
@@ -69,7 +72,6 @@ class MainWindow(QMainWindow):
         apply_mode_to_params(mode, self._params)
         self._last_output_root: Path | None = None
         self._last_bundle: Path | None = None
-        self._current_theme = "dark"
         self._worker: PipelineWorker | None = None
         self._queue_worker: QueueWorker | None = None
         self._tutorial: TutorialOverlay | None = None
@@ -125,10 +127,6 @@ class MainWindow(QMainWindow):
         )
         self._act_bundle.triggered.connect(self._on_open_bundle)
 
-        self._act_theme = QAction("☀  Light", self)
-        self._act_theme.setToolTip("Toggle light / dark theme")
-        self._act_theme.triggered.connect(self._on_toggle_theme)
-
         act_tutorial = QAction("?  Tutorial", self)
         act_tutorial.setToolTip("Launch the guided tutorial")
         act_tutorial.triggered.connect(self._start_tutorial)
@@ -136,7 +134,7 @@ class MainWindow(QMainWindow):
         # One switch for every folded section in the window, for someone who
         # would rather see all of it than open sections one at a time. It only
         # changes what is shown: see meanap.gui.advanced.
-        self._act_advanced = QAction("⚙  Advanced settings", self)
+        self._act_advanced = QAction("⚙  Advanced", self)
         self._act_advanced.setCheckable(True)
         self._act_advanced.setToolTip(
             "Show the less-used settings on every tab at once. They are saved "
@@ -144,19 +142,11 @@ class MainWindow(QMainWindow):
         )
         self._act_advanced.toggled.connect(self._on_toggle_advanced)
 
-        tb.addAction(act_new)
-        tb.addSeparator()
-        tb.addAction(act_open)
-        tb.addAction(act_save)
-        tb.addSeparator()
-        tb.addAction(self._act_bundle)
-        tb.addSeparator()
-        tb.addAction(self._act_theme)
-        tb.addAction(self._act_advanced)
-        tb.addAction(act_tutorial)
-        tb.addSeparator()
-
-        # Mode selector: switching it re-tabs the window for that pipeline.
+        # Mode selector first, and deliberately so. It decides which pipeline
+        # the window is for, which is a bigger choice than anything after it —
+        # and a toolbar that overflows drops its *trailing* items, so the last
+        # thing to go should not be the first thing you set. (It used to sit at
+        # the far end, and a narrow window hid it behind the overflow chevron.)
         tb.addWidget(QLabel("  Mode "))
         self._mode_combo = QComboBox()
         for key, mode in MODES.items():
@@ -165,25 +155,43 @@ class MainWindow(QMainWindow):
         self._mode_combo.setToolTip(MODES[self._mode].blurb)
         self._mode_combo.currentIndexChanged.connect(self._on_mode_changed)
         tb.addWidget(self._mode_combo)
+        tb.addSeparator()
 
-        # Logo sits at the far right, past a stretch, so it reads as branding
-        # rather than competing with the actions for the eye.
-        spacer = QWidget()
-        spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
-        tb.addWidget(spacer)
+        tb.addAction(act_new)
+        tb.addSeparator()
+        tb.addAction(act_open)
+        tb.addAction(act_save)
+        tb.addSeparator()
+        tb.addAction(self._act_bundle)
+        tb.addSeparator()
+        tb.addAction(self._act_advanced)
+        tb.addAction(act_tutorial)
+        tb.addSeparator()
 
-        pixmap = logo_pixmap(32, self.devicePixelRatioF())
-        if pixmap is not None:
-            logo = QLabel()
-            logo.setPixmap(pixmap)
-            logo.setContentsMargins(0, 0, 10, 0)
-            logo.setToolTip("MEA-NAP — MEA Network Analysis Pipeline")
-            tb.addWidget(logo)
+
+    def _add_logo(self) -> None:
+        """Branding in the tab strip's right-hand corner, not on the toolbar.
+
+        It used to sit at the far end of the toolbar past an expanding spacer,
+        which meant it competed for width with the actions: at the default
+        window size the spacer took what was left and pushed Tutorial — and
+        before that the Mode selector — into the overflow chevron. There is
+        always room beside five tabs, and nothing there to be pushed out.
+        """
+        pixmap = logo_pixmap(28, self.devicePixelRatioF())
+        if pixmap is None:
+            return
+        logo = QLabel()
+        logo.setPixmap(pixmap)
+        logo.setContentsMargins(0, 0, 10, 0)
+        logo.setToolTip("MEA-NAP — MEA Network Analysis Pipeline")
+        self._tabs.setCornerWidget(logo, Qt.Corner.TopRightCorner)
 
     def _build_tabs(self) -> None:
         self._tabs = QTabWidget()
         self._tabs.setDocumentMode(True)
         self.setCentralWidget(self._tabs)
+        self._add_logo()
 
         self._data_panel = DataPanel()
         self._spike_panel = SpikeDetectionPanel()
@@ -592,11 +600,6 @@ class MainWindow(QMainWindow):
         return params
 
     # ── Toolbar actions ───────────────────────────────────────────────────────
-
-    def _on_toggle_theme(self) -> None:
-        self._current_theme = theme.toggle(self._current_theme)
-        theme.reapply(self._current_theme)
-        self._act_theme.setText("☀  Light" if self._current_theme == "dark" else "🌙  Dark")
 
     def _on_new(self) -> None:
         if QMessageBox.question(

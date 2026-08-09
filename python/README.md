@@ -115,7 +115,7 @@ The tabs run left to right in the order you use them:
 
 Each tab keeps its everyday settings in the open and folds the rest into a
 collapsible **Advanced settings** group, labelled with how many it holds.
-**⚙ Advanced settings** in the toolbar opens every one at once and remembers
+**⚙ Advanced** in the toolbar opens every one at once and remembers
 that between sessions. Folding changes only what is on screen — a collapsed
 setting loads, holds and saves its value exactly as an open one does. See
 [Advanced settings](../docs/python/gui-guide.md#advanced-settings).
