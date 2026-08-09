@@ -164,6 +164,12 @@ def run_pipeline(
     except Exception as e:
         log(f"Warning: could not write {PARAMS_FILENAME}: {e}")
 
+    # A continued run may be continuing a *different* spreadsheet — a recording
+    # added, or one taken out. The numbers follow the spreadsheet on their own;
+    # the per-recording figures do not, so they are reconciled here.
+    if params.continue_interrupted:
+        _reconcile_roster(params, output_root, recordings, log)
+
     # Raises on a misconfigured prior-analysis/spike-data path, before any work.
     locator = build_input_locator(params, output_root)
     if locator.is_resuming:
@@ -393,6 +399,21 @@ def _check_remote_source(params: Params, recordings, log, progress=None) -> None
             "The remote source is not ready to run (see the pre-flight report "
             "above). Fix the problems listed, or run meanap-preflight with "
             "--write-spreadsheet to correct recording names.")
+
+
+def _reconcile_roster(params: Params, output_root: Path, recordings, log) -> None:
+    """Report — and optionally remove — work for recordings no longer listed."""
+    from meanap.pipeline.roster import (
+        find_stale_recordings, prune_recordings, report_stale,
+    )
+
+    stale = find_stale_recordings(output_root, {r.filename for r in recordings})
+    if not stale:
+        return
+    pruned = False
+    if params.prune_removed_recordings:
+        pruned = prune_recordings(stale, log=log) > 0
+    report_stale(stale, pruned=pruned, log=log)
 
 
 def _discard_folder_for_bundle(output_root: Path, bundle: Path | None, log) -> Path:

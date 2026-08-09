@@ -181,6 +181,49 @@ continued run that saw only what it recomputed would place them somewhere the
 original never would. `python/test_continue_interrupted.py` checks the result is
 identical to a run that was never interrupted, figures included.
 
+### Changing which recordings a run covers
+
+The same mechanism handles a batch that changes after the fact. In each case the
+result is what you would have got by analysing that set from the start — the
+pooled statistics, the batch-scaled axes and the cartography boundaries are all
+redone over whatever the spreadsheet now names.
+
+**Adding a recording.** Put it in the spreadsheet and continue: only the new one
+is computed.
+
+```python
+Params(..., output_data_folder_name="OutputData09Aug2026", continue_interrupted=True)
+```
+
+**Removing one.** Take it out of the spreadsheet and continue. It drops out of
+every CSV and pooled statistic on its own, but its *figures* do not delete
+themselves — they would keep appearing in the output folder and the report as
+though they were part of the analysis. So a continued run names them:
+
+```
+1 recording(s) in this folder are no longer in the spreadsheet: rec2
+  Their 23 figure(s) are still on disk and will appear in the output folder and
+  report, though they are excluded from every CSV and pooled statistic.
+  Set Params.prune_removed_recordings = True to delete them.
+```
+
+With `prune_removed_recordings=True` the figures go. The recording's *data* is
+kept either way — that is what makes putting it back cheap.
+
+**Combining separate runs.** Name more than one previous analysis and give a
+spreadsheet listing recordings from all of them; nothing is recomputed.
+
+```python
+Params(
+    prior_analysis=True,
+    prior_analysis_path="path/to/RunA",
+    prior_analysis_paths=["path/to/RunB"],   # searched after the first
+    start_analysis_step=4,
+)
+```
+
+Each folder may equally be a `.meanap` bundle.
+
 ### Progress and time estimates
 
 A run shows a progress bar on the Pipeline tab with the phase, the recording

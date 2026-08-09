@@ -1,4 +1,4 @@
-"""Test continuing a run that was interrupted partway through its recordings.
+"""Test continuing an interrupted run, and changing which recordings it covers.
 
 Run from the repo root::
 
@@ -19,8 +19,18 @@ what an uninterrupted one would**. Two things have to hold for that:
     recomputed would put those boundaries somewhere the original never would, so
     the finished ones are loaded back in rather than merely skipped.
 
-The last section checks that end to end: interrupt, continue, and compare the
+The last sections check that end to end: interrupt, continue, and compare the
 recording-level CSV against a run that was never interrupted.
+
+The same machinery covers changing the batch. **Adding** a recording is just
+continuing with a longer spreadsheet — the new one is computed, the rest are
+loaded back, and every pooled statistic is redone over all of them.
+**Removing** one is a shorter spreadsheet; the numbers follow it on their own,
+but its *figures* do not, so those are reported and optionally pruned.
+**Combining** separate runs is several prior-analysis folders and one
+spreadsheet naming recordings from all of them. Each is checked against the
+run you would have got by analysing that set together from the start, because
+"cheaper" is only worth anything if the answer is the same.
 """
 
 from __future__ import annotations
@@ -277,6 +287,145 @@ def _step4_checks() -> list[Check]:
 
 # ── The GUI offers it ─────────────────────────────────────────────────────────
 
+# ── Changing which recordings a run covers ────────────────────────────────────
+
+def _batch_change_checks() -> list[Check]:
+    """Add one, remove one, and combine two runs — each against a fresh run."""
+    checks: list[Check] = []
+
+    def sheet(tmp: Path, recs, name: str) -> Path:
+        path = tmp / name
+        pd.DataFrame([{"Recording Filename": r, "DIV group": 21,
+                       "Genotype": "WT" if int(r[3:]) % 2 else "KO"}
+                      for r in recs]).to_csv(path, index=False)
+        return path
+
+    def table(root: Path) -> pd.DataFrame:
+        df = pd.read_csv(root / "4_NetworkActivity"
+                         / "NetworkActivity_RecordingLevel.csv")
+        return df.sort_values(df.columns[0]).reset_index(drop=True)
+
+    six = [f"rec{i}" for i in range(6)]
+
+    # ── Adding ───────────────────────────────────────────────────────────────
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = Path(tmp)
+        root = create_output_folders(tmp, "Run", ["WT", "KO"])
+        _seed_step4_inputs_for(root, six)
+        run_pipeline(_batch_params(tmp, "Run", sheet(tmp, six[:5], "five.csv")),
+                     log=lambda m: None)
+        run_pipeline(_batch_params(tmp, "Run", sheet(tmp, six, "six.csv"),
+                                   continue_interrupted=True), log=lambda m: None)
+
+        ref = create_output_folders(tmp, "Ref", ["WT", "KO"])
+        _seed_step4_inputs_for(ref, six)
+        ref = run_pipeline(_batch_params(tmp, "Ref", sheet(tmp, six, "six.csv")),
+                           log=lambda m: None)
+        checks.append(("adding a recording gives what a fresh run would",
+                       table(root).equals(table(ref)), "CSVs differ"))
+        checks.append(("including the pooled statistics over all of them",
+                       len(table(root)) == 6, str(len(table(root)))))
+
+    # ── Removing ─────────────────────────────────────────────────────────────
+    for prune in (False, True):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = Path(tmp)
+            root = create_output_folders(tmp, "Run", ["WT", "KO"])
+            _seed_step4_inputs_for(root, six)
+            run_pipeline(_batch_params(tmp, "Run", sheet(tmp, six, "six.csv")),
+                         log=lambda m: None)
+            kept = [r for r in six if r != "rec2"]
+            logs: list[str] = []
+            run_pipeline(_batch_params(tmp, "Run", sheet(tmp, kept, "five.csv"),
+                                       continue_interrupted=True,
+                                       prune_removed_recordings=prune),
+                         log=logs.append)
+
+            def rec2_figs() -> int:
+                base = root / "4_NetworkActivity" / "4A_IndividualNetworkAnalysis"
+                return len(list(base.rglob("*/rec2/**/*.png")))
+
+            if not prune:
+                checks.append(("removing a recording drops it from the results",
+                               "rec2" not in table(root).iloc[:, 0].values, ""))
+                checks.append(("it is named in the log as no longer listed",
+                               any("no longer in the spreadsheet" in m and "rec2" in m
+                                   for m in logs), ""))
+                checks.append(("its figures are reported rather than left silent",
+                               any("still on disk" in m for m in logs), ""))
+                checks.append(("and kept, since deleting results is opt-in",
+                               rec2_figs() > 0, str(rec2_figs())))
+            else:
+                checks.append(("pruning removes its figures",
+                               rec2_figs() == 0, str(rec2_figs())))
+                checks.append(("but keeps its data, so adding it back is cheap",
+                               (root / "ExperimentMatFiles" / "rec2_adjM.npz").exists(),
+                               ""))
+                ref = create_output_folders(tmp, "Ref", ["WT", "KO"])
+                _seed_step4_inputs_for(ref, kept)
+                ref = run_pipeline(
+                    _batch_params(tmp, "Ref", sheet(tmp, kept, "five.csv")),
+                    log=lambda m: None)
+                checks.append(("and the result matches a fresh run of what is left",
+                               table(root).equals(table(ref)), "CSVs differ"))
+
+    # ── Combining ────────────────────────────────────────────────────────────
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = Path(tmp)
+        for name, recs in [("RunA", six[:3]), ("RunB", six[3:])]:
+            root = create_output_folders(tmp, name, ["WT", "KO"])
+            _seed_step4_inputs_for(root, recs)
+            run_pipeline(_batch_params(tmp, name, sheet(tmp, recs, f"{name}.csv")),
+                         log=lambda m: None)
+
+        logs = []
+        combined = run_pipeline(
+            _batch_params(tmp, "Combined", sheet(tmp, six, "both.csv"),
+                          prior_analysis=True,
+                          prior_analysis_path=str(tmp / "RunA"),
+                          prior_analysis_paths=[str(tmp / "RunB")]),
+            log=logs.append)
+        checks.append(("combining two runs covers every recording",
+                       len(table(combined)) == 6, str(len(table(combined)))))
+        checks.append(("both prior folders are named in the log",
+                       sum("RunA" in m or "RunB" in m for m in logs) >= 2,
+                       str([m for m in logs if "Run" in m][:3])))
+
+        ref = create_output_folders(tmp, "Ref", ["WT", "KO"])
+        _seed_step4_inputs_for(ref, six)
+        ref = run_pipeline(_batch_params(tmp, "Ref", sheet(tmp, six, "both.csv")),
+                           log=lambda m: None)
+        checks.append(("and gives what one analysis of all six would",
+                       table(combined).equals(table(ref)), "CSVs differ"))
+    return checks
+
+
+def _seed_step4_inputs_for(root: Path, recs) -> None:
+    """As _seed_step4_inputs, for an explicit recording list."""
+    for rec in recs:
+        i = int(rec[3:])
+        rng = np.random.default_rng(i)
+        save_spike_times_npz(
+            root / "1_SpikeDetection" / "1A_SpikeDetectedData" / f"{rec}_spikes.npz",
+            {ch: {"bior1p5": np.sort(rng.uniform(0, 60, 80 + ch))}
+             for ch in range(N_CH)},
+            np.arange(1, N_CH + 1), FS, duration_s=60.0)
+        adj = np.abs(rng.normal(0, 0.3, (N_CH, N_CH)))
+        adj = (adj + adj.T) / 2
+        np.fill_diagonal(adj, 0)
+        atomic_savez(root / "ExperimentMatFiles" / f"{rec}_adjM.npz",
+                     channels=np.arange(1, N_CH + 1),
+                     **{f"adjM{LAG}mslag": adj, f"adjM{LAG}mslag_raw": adj})
+
+
+def _batch_params(tmp: Path, name: str, sheet_path: Path, **kw) -> Params:
+    p = _step4_params(tmp, name)
+    p.spreadsheet_file_name = str(sheet_path)
+    for k, v in kw.items():
+        setattr(p, k, v)
+    return p
+
+
 def _gui_checks() -> list[Check]:
     from PyQt6.QtCore import QTimer
     from PyQt6.QtWidgets import QApplication, QMessageBox
@@ -337,7 +486,8 @@ def main() -> int:
     for title, build in [("Atomic writes:", _atomic_checks),
                          ("Deciding what is done:", _already_done_checks),
                          ("Where it writes:", _destination_checks),
-                         ("Step 4, end to end:", _step4_checks)]:
+                         ("Step 4, end to end:", _step4_checks),
+                         ("Adding, removing, combining:", _batch_change_checks)]:
         p, n = _report(title, build())
         total_pass += p
         total += n
