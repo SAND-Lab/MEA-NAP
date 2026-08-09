@@ -83,6 +83,11 @@ check("and it comes before every action, which is what makes that true",
       toolbar.actions()[0].text() == ""  # the Mode label is a widget action
       and first_named == "New", f"{first_named!r} / {texts[:4]}")
 
+# Opening a bundle lives with the other things you do to a finished run.
+check("the toolbar is parameters, advanced and help — nothing about results",
+      not any("bundle" in t.lower() or "report" in t.lower() for t in texts),
+      ", ".join(t for t in texts if t))
+
 
 # ── Switching it still works ──────────────────────────────────────────────────
 

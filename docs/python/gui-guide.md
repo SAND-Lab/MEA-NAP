@@ -5,8 +5,8 @@ interface: one tab per section of the pipeline. Parameters round-trip to and
 from a `Params` dataclass (`meanap.params.Params`, see the
 [API reference](api/index.rst)) via each panel's `load()`/`save()` methods, and
 can be saved/reloaded as JSON from the toolbar (**New**, **Open params…**,
-**Save params…**). The toolbar also has **Open bundle…**, which opens a
-`.meanap` run bundle in the viewer without running anything — see
+**Save params…**). To open a `.meanap` run bundle in the viewer without
+running anything, use **📦 Open bundle…** on the [Results](#results) tab — see
 [Opening a bundle](#opening-a-bundle).
 
 ```{admonition} In a hurry?
@@ -250,8 +250,8 @@ The last tab: what to do once something has finished.
   - an **express run** → opens its `.meanap` bundle in the viewer, which draws
     any figure on demand in PNG or editable SVG, and can export the whole
     output folder back out for sharing.
-- **📦 Open bundle…** — the same action as the toolbar's, for a bundle from
-  anywhere. See [Opening a bundle](#opening-a-bundle).
+- **📦 Open bundle…** — for a bundle from anywhere, with no run of your own
+  needed. See [Opening a bundle](#opening-a-bundle).
 - **Network viewer** — interactive exploration of a completed run's functional
   connectivity network, with optional cell-type overlays. Full walkthrough:
   [Network Viewer](network-viewer.md).
@@ -267,8 +267,7 @@ pressing it.
 A `.meanap` bundle does not need a run, or even the data it came from — it is a
 file people email each other. Two ways to open one:
 
-- **📦 Open bundle…**, on the Results tab or in the toolbar (one action, in two
-  places);
+- **📦 Open bundle…** on the Results tab;
 - **drag the `.meanap` file onto the window**, anywhere.
 
 Either starts the viewer and opens a browser on it. Each bundle gets its own

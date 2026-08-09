@@ -57,7 +57,7 @@ Three routes, all equivalent to running `meanap-viewer` yourself:
 - **🌐 View report** after an express run — the button notices the run was
   express and opens the bundle in the viewer instead of building a
   near-empty `report.html` from the handful of figures on disk;
-- **📦 Open bundle…**, on the Results tab or in the toolbar;
+- **📦 Open bundle…** on the Results tab;
 - **drag the `.meanap` file onto the window**.
 
 Each bundle gets its own viewer; they all shut down when MEA-NAP closes. See
