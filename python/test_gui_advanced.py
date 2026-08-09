@@ -157,6 +157,75 @@ check("a save from a collapsed window still carries advanced settings",
       saved.prob_thresh_tail == Params().prob_thresh_tail,
       str(saved.prob_thresh_tail))
 
+# ── Nothing is lost by folding, anywhere in the window ────────────────────────
+
+print("\nEvery section, every mode")
+
+import dataclasses  # noqa: E402
+
+# Values that all live inside advanced sections, spread across every tab that
+# has one. Picked to be visibly different from the defaults so a widget that
+# silently reset itself would show up.
+FOLDED = dict(
+    # Data
+    spreadsheet_range="A5:A99", custom_grp_order=["KO", "WT"],
+    spike_detected_data="/tmp/spikes", d_samp_f=500.0,
+    potential_difference_unit="mV",
+    # Connectivity
+    trunc_rec=True, trunc_length=45.0, prob_thresh_tail=0.02,
+    prob_thresh_plot_checks=True, prob_thresh_plot_checks_n=9,
+    # Spike detection
+    run_spike_check_on_prev_spike_data=True, abs_thresholds=[12.0, 18.0],
+    cost_list=-0.3, filter_low_pass=300.0, filter_high_pass=6000.0,
+    ref_period=1.5, n_spikes=250, multiple_templates=True,
+    multi_template_method="PCA",
+    # Run
+    optional_steps_to_run=["generateCSV"], verbose_level="Debug",
+    time_processes=True, random_seed=99,
+    # Stimulation
+    min_blanking_duration=0.009, stim_n_shuffles=750, stim_shuffle_alpha=0.01,
+    # CAT-NAP
+    twop_denoising_time_before_peak=0.9, twop_denoising_time_after_peak=2.5,
+    twop_redo_denoising=True,
+)
+
+for mode_key in ("meanap", "meastim", "catnap"):
+    window._apply_mode(mode_key, sync_params=False)
+    set_all_expanded(window, False)
+    app.processEvents()
+
+    window._load_params(Params(**FOLDED))
+    collapsed = window._collect_params()
+
+    set_all_expanded(window, True)
+    app.processEvents()
+    expanded = window._collect_params()
+
+    # The strong form: not "these fields survived" but "folding changes nothing
+    # about what a run would do", over every field Params has.
+    differing = [f.name for f in dataclasses.fields(Params)
+                 if getattr(collapsed, f.name) != getattr(expanded, f.name)]
+    check(f"{mode_key}: an open window and a folded one save the same run",
+          not differing, ", ".join(differing))
+
+    wrong = [name for name, value in FOLDED.items()
+             if name in {f.name for f in dataclasses.fields(Params)}
+             and getattr(collapsed, name) != value]
+    check(f"{mode_key}: every folded setting round-trips through the window",
+          not wrong, ", ".join(f"{n}={getattr(collapsed, n)!r}" for n in wrong))
+
+    set_all_expanded(window, False)
+
+# Sixteen sections is the point of the exercise: the count is asserted loosely
+# so adding one is not a test failure, but losing them all would be.
+sections = window.findChildren(AdvancedSection)
+check("every tab that has settings has folded some of them",
+      len(sections) >= 14, str(len(sections)))
+check("and every header says how many it holds",
+      all("(" in s.header.text() for s in sections),
+      str([s.header.text() for s in sections if "(" not in s.header.text()]))
+
+
 # A tutorial step may well point at a folded setting — the tutorial is where
 # someone finds out these exist — so what matters is that showing the step opens
 # what it is pointing at. Walk every step of every mode and check the target is

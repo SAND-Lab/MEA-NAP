@@ -28,7 +28,7 @@ This single button:
 
 1. Downloads the bundled example dataset (two short recordings) if it isn't
    already cached locally.
-2. Points the **Paths** tab at it automatically.
+2. Points the **Data** tab at it automatically.
 3. Runs all four pipeline steps — spike detection, neuronal activity,
    functional connectivity, and network metrics — end to end.
 

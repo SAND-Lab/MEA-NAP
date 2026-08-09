@@ -10,6 +10,7 @@ from PyQt6.QtWidgets import (
     QLabel, QListWidget, QListWidgetItem, QSpinBox, QVBoxLayout, QWidget,
 )
 
+from meanap.gui.advanced import AdvancedSection
 from meanap.gui.panels.prior import PriorAnalysisPanel
 from meanap.params import Params
 
@@ -86,11 +87,13 @@ class PipelinePanel(QWidget):
             "to this run's own output folder — the previous run is only ever read."
         )
 
-        # The folders sit with the switch that turns them on. Disabled until it
-        # is, so they cannot be filled in and quietly do nothing.
+        # The folders sit with the switch that turns them on, and appear only
+        # when it is on: they cannot then be filled in and quietly do nothing,
+        # and the tab is not carrying 150px of greyed-out fields for the runs —
+        # most of them — that never resume from anything.
         self.prior = PriorAnalysisPanel()
-        self.prior.setEnabled(False)
-        self.prior_analysis.toggled.connect(self.prior.setEnabled)
+        self.prior.setVisible(False)
+        self.prior_analysis.toggled.connect(self.prior.setVisible)
 
         self.optional_steps = QListWidget()
         self.optional_steps.setSelectionMode(QListWidget.SelectionMode.MultiSelection)
@@ -104,7 +107,10 @@ class PipelinePanel(QWidget):
         form.addRow(self.prior)
         form.addRow("Continue previous run", self.continue_interrupted)
         form.addRow("   …and drop removed recordings' figures", self.prune_removed)
-        form.addRow("Optional steps", self.optional_steps)
+
+        optional = AdvancedSection()
+        optional.form().addRow("Optional steps", self.optional_steps)
+        form.addRow(optional)
 
         # ── Step overview ─────────────────────────────────────────────────────
         overview_box = QGroupBox("Step overview")
@@ -155,10 +161,15 @@ class PipelinePanel(QWidget):
             "in PNG or editable SVG."
         )
 
-        form2.addRow("Verbose level", self.verbose_level)
-        form2.addRow("Time each step", self.time_processes)
-        form2.addRow("Fixed random seed", seed_row)
+        # Express mode changes what a run produces; the other three change how
+        # it is logged, timed and seeded.
         form2.addRow("Express mode", self.express_mode)
+
+        out_advanced = AdvancedSection()
+        out_advanced.form().addRow("Verbose level", self.verbose_level)
+        out_advanced.form().addRow("Time each step", self.time_processes)
+        out_advanced.form().addRow("Fixed random seed", seed_row)
+        form2.addRow(out_advanced)
 
         layout.addWidget(step_box)
         layout.addWidget(overview_box)
@@ -169,7 +180,7 @@ class PipelinePanel(QWidget):
         self.start_step.setValue(params.start_analysis_step)
         self.stop_step.setValue(params.stop_analysis_step)
         self.prior_analysis.setChecked(params.prior_analysis)
-        self.prior.setEnabled(params.prior_analysis)
+        self.prior.setVisible(params.prior_analysis)
         self.prior.load(params)
         self.continue_interrupted.setChecked(params.continue_interrupted)
         self.prune_removed.setChecked(params.prune_removed_recordings)

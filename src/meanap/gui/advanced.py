@@ -23,7 +23,7 @@ wiring.
 
 from __future__ import annotations
 
-from PyQt6.QtCore import Qt, QSettings, pyqtSignal
+from PyQt6.QtCore import Qt, QSettings, QTimer, pyqtSignal
 from PyQt6.QtWidgets import (
     QFormLayout, QToolButton, QVBoxLayout, QWidget,
 )
@@ -81,6 +81,16 @@ class AdvancedSection(QWidget):
 
         layout.addWidget(self.header)
         layout.addWidget(self._body)
+        # The header carries a count of what it holds, but rows are added after
+        # construction, so counting now would always say zero. Once round the
+        # event loop is after the panel is fully built and does not wait for the
+        # tab to be shown — a hidden tab's headers are still correct the moment
+        # it appears. Parented to self so it dies with the widget rather than
+        # firing into a deleted one.
+        self._label_timer = QTimer(self)
+        self._label_timer.setSingleShot(True)
+        self._label_timer.timeout.connect(self._relabel)
+        self._label_timer.start(0)
         self._relabel()
 
     # ── Contents ──────────────────────────────────────────────────────────────
@@ -102,12 +112,7 @@ class AdvancedSection(QWidget):
             self.header.setChecked(expanded)
 
     def showEvent(self, event) -> None:
-        """Relabel on first display.
-
-        The header carries a count of what it holds, but rows are added after
-        construction, so counting in __init__ would always say zero. By the
-        time the tab is shown the panel is fully built.
-        """
+        """Relabel on display, for rows added after the timer above ran."""
         super().showEvent(event)
         self._relabel()
 

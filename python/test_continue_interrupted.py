@@ -520,11 +520,11 @@ def _gui_controls_checks() -> list[Check]:
 
     # ── Prior analysis, which now sits with the switch that enables it ───────
     paths = panel.prior
-    checks.append(("the folders are disabled until 'Use prior analysis' is on",
-                   not paths.isEnabled(), ""))
+    checks.append(("the folders stay out of the way until 'Use prior analysis' is on",
+                   not paths.isVisibleTo(panel), ""))
     panel.prior_analysis.setChecked(True)
-    checks.append(("and enabled once it is",
-                   paths.isEnabled(), ""))
+    checks.append(("and appear once it is",
+                   paths.isVisibleTo(panel), ""))
     paths.load(Params(prior_analysis_path="/a/RunA",
                       prior_analysis_paths=["/a/RunB", "/a/RunC"]))
     checks.append(("several previous analyses can be listed",

@@ -101,16 +101,24 @@ The GUI is a tabbed desktop application (PyQt6) that mirrors the MATLAB App Desi
 
 Each tab corresponds to a section of the pipeline:
 
+The tabs run left to right in the order you use them:
+
 | Tab | Description |
 |---|---|
-| **Paths** | Set all input/output folder and file paths, with Browse buttons |
-| **Recording** | Sampling frequency, downsample rate, channel layout, potential unit |
-| **Raw formats** | No conversion needed — point the raw data folder at MCS `.h5`, Axion `.raw`, or `.mat` files; see [Raw data formats](../docs/python/gui-guide.md#raw-data-formats) |
+| **Data** | What to analyse, what that data is, and where results go: input folder and spreadsheet, sampling frequency and channel layout, output folder. No conversion needed — point the raw data folder at MCS `.h5`, Axion `.raw`, or `.mat` files; see [Raw data formats](../docs/python/gui-guide.md#raw-data-formats) |
 | **Spike detection** | Thresholds, wavelet methods, bandpass filter, template settings |
 | **Connectivity** | STTC lag values, adjacency matrix type, probabilistic thresholding |
+| **Stimulation** / **Stim Preview** | MEA-Stim mode only — stimulation detection and response analysis |
 | **CAT-NAP (2P)** | Suite2p pipeline — see below |
-| **Results** | "🌐 View report", "📦 Open bundle…", and an interactive network plot from a MEA-NAP output `.mat` file — see below |
 | **Run** | This run or a queue of saved runs: step selection (1-4), run/test/stop controls, progress and status log |
+| **Results** | "🌐 View report", "📦 Open bundle…", and an interactive network plot from a MEA-NAP output `.mat` file — see below |
+
+Each tab keeps its everyday settings in the open and folds the rest into a
+collapsible **Advanced settings** group, labelled with how many it holds.
+**⚙ Advanced settings** in the toolbar opens every one at once and remembers
+that between sessions. Folding changes only what is on screen — a collapsed
+setting loads, holds and saves its value exactly as an open one does. See
+[Advanced settings](../docs/python/gui-guide.md#advanced-settings).
 
 ### Parameters
 
@@ -124,7 +132,7 @@ Parameters can be saved and reloaded as JSON using the toolbar:
 
 ### Running the pipeline
 
-Set the required paths (MEA-NAP folder, raw data folder, output folder), configure the desired tabs, then go to the **Pipeline** tab and click **Run pipeline**. The GUI validates that required paths are filled in before starting. Click **🧪 Test pipeline** instead to download the bundled example dataset and run against that, as a setup sanity check.
+Set the required paths (MEA-NAP folder, raw data folder, output folder), configure the desired tabs, then go to the **Run** tab and click **Run pipeline**. The GUI validates that required paths are filled in before starting. Click **🧪 Test pipeline** instead to download the bundled example dataset and run against that, as a setup sanity check.
 
 The pipeline mirrors MATLAB's 4 steps — spike detection, neuronal activity (firing rates/bursts), functional connectivity (STTC), and network metrics — writing the same output folder structure MATLAB's `CreateOutputFolders.m` builds. **Not every step or metric is fully ported yet**; see [`PIPELINE_PORT_STATUS.md`](PIPELINE_PORT_STATUS.md) for exactly what's done, what's approximate, and what's still missing before relying on this for real analysis.
 

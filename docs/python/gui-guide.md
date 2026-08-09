@@ -29,6 +29,13 @@ and saves its value exactly as an open one does, and every field is documented
 in the tables below whether it is folded away or not. The distinction is only
 how often a setting is worth looking at.
 
+Fields marked **⚙** in the tables below are the folded ones. Two groups fold
+whole — **Bandpass filter** and **Spike templates and refractory period** on the
+Spike detection tab — because nothing in either is part of configuring a run.
+
+The guided tutorial opens whatever it is about to point at, so following it
+never leaves you looking at a closed header.
+
 (modes)=
 ## Modes
 
@@ -76,9 +83,9 @@ to bottom.
 | **MEA-NAP folder** | Location of your MEA-NAP clone. |
 | **Raw data folder** | Folder containing your recordings, either as `.mat` (v7 or v7.3, holding `dat`/`channels`/`fs`) or as Multi Channel Systems `.h5` straight off the recorder — see [Raw data formats](#raw-data-formats). All recordings for one batch analysis should live in the same folder. |
 | **Spreadsheet file** | `.csv` or `.xlsx` listing each recording's filename, group, and age/DIV — see [Setting up MEA-NAP](../setting-up-meanap.rst) for the required columns (that guide applies equally to the Python port). |
-| **Spreadsheet range** | Which rows of the spreadsheet to read, e.g. `A2:A100000` (1-indexed file lines, header = line 1). |
-| **Custom group order** | Optional comma-separated group names (e.g. `WT,KO`) to control display/plot order instead of alphabetical. |
-| **Spike data folder** | Only needed if you're starting from step 2+ using previously-detected spike times instead of raw data. |
+| **Spreadsheet range** ⚙ | Which rows of the spreadsheet to read, e.g. `A2:A100000` (1-indexed file lines, header = line 1). |
+| **Custom group order** ⚙ | Optional comma-separated group names (e.g. `WT,KO`) to control display/plot order instead of alphabetical. |
+| **Spike data folder** ⚙ | Only needed if you're starting from step 2+ using previously-detected spike times instead of raw data. |
 | **Output data folder** / **Output folder name** | Where results are written, and the name of the run's output subfolder. |
 | **Previous analysis folder** | On the Run tab, beside **Use prior analysis** — see [Run](#run). |
 
@@ -140,8 +147,8 @@ it applies.
 | Field | Description |
 |---|---|
 | **Sampling frequency** | The recording's native sampling rate in Hz (e.g. `25000`). |
-| **Downsample frequency** | Rate used for some plots/metrics that don't need full resolution (e.g. `1000`). |
-| **Potential difference unit** | `uV`, `mV`, or `V` — must match your raw data's units. |
+| **Downsample frequency** ⚙ | Rate used for some plots/metrics that don't need full resolution (e.g. `1000`). |
+| **Potential difference unit** ⚙ | `uV`, `mV`, or `V` — must match your raw data's units. |
 | **Channel layout** | Electrode grid layout: `MCS60`, `Axion64`, `Mea256`, or `Custom`. See [MATLAB vs. Python](matlab-vs-python.md) for which layouts have confirmed coordinate parity. |
 
 ## Spike detection
@@ -149,16 +156,16 @@ it applies.
 | Field | Description |
 |---|---|
 | **Detect spikes** | Whether to run spike detection at all (uncheck if step 1 was already run and you only want steps 2+). |
-| **Re-check previous spike data** | Re-run detection checks against existing spike-time output without redetecting. |
+| **Re-check previous spike data** ⚙ | Re-run detection checks against existing spike-time output without redetecting. |
 | **Relative thresholds** | MAD-multiplier thresholds below the median, comma-separated (e.g. `3, 4, 5`). |
-| **Absolute thresholds (µV)** | Fixed voltage thresholds instead of relative ones — leave blank to use relative thresholds. |
+| **Absolute thresholds (µV)** ⚙ | Fixed voltage thresholds instead of relative ones — leave blank to use relative thresholds. |
 | **Wavelet methods** | One or more of `bior1.5`, `bior1.3`, `db2`, `mea` (multi-select list). |
-| **Wavelet cost** | Cost parameter for the continuous wavelet transform (default `-0.12`). |
+| **Wavelet cost** ⚙ | Cost parameter for the continuous wavelet transform (default `-0.12`). |
 | **Spike method for analysis** | Which detection method's output feeds steps 2–4: `bior1p5`, `bior1p3`, `mergedAll`, `mergedWavelet`, `thr4p5`, `thr5p0`, `thr3p5`. |
-| **Low-pass / high-pass cutoff** | Bandpass filter applied before detection (default 600–8000 Hz). |
-| **Refractory period** | Minimum inter-spike interval (ms) enforced during detection. |
-| **Max spikes for template** | Cap on spikes used to build the spike-shape template. |
-| **Multiple templates** / **Template method** | Whether to cluster spikes into multiple templates, and by which method (`PCA`, `spikeWidthAndAmplitude`, `amplitudeAndWidthAndSymmetry`). |
+| **Low-pass / high-pass cutoff** ⚙ | Bandpass filter applied before detection (default 600–8000 Hz). |
+| **Refractory period** ⚙ | Minimum inter-spike interval (ms) enforced during detection. |
+| **Max spikes for template** ⚙ | Cap on spikes used to build the spike-shape template. |
+| **Multiple templates** / **Template method** ⚙ | Whether to cluster spikes into multiple templates, and by which method (`PCA`, `spikeWidthAndAmplitude`, `amplitudeAndWidthAndSymmetry`). |
 
 :::{dropdown} Which spike detection method should I use?
 `bior1.5` (a biorthogonal wavelet CWT) is MEA-NAP's flagship method and the
@@ -177,11 +184,11 @@ significance thresholding.
 | Field | Description |
 |---|---|
 | **Lag values (ms)** | One or more STTC synchronicity windows to compute, comma-separated (e.g. `10, 15, 25`). Each lag produces its own adjacency matrix and downstream network metrics. |
-| **Truncate recording** / **Truncation length** | Optionally analyze only the first *N* seconds of each recording (useful for very long recordings). |
+| **Truncate recording** / **Truncation length** ⚙ | Optionally analyze only the first *N* seconds of each recording (useful for very long recordings). |
 | **Weighted / Binary** | Whether the adjacency matrix keeps STTC values as edge weights or collapses to a 0/1 connection. |
 | **Iterations** | Number of circular-shift surrogates used for significance thresholding (default `200`). |
-| **Tail percentile** | Upper-tail cutoff for significance (default `0.05`). |
-| **Plot random checks** / **Number of checks to plot** | Optionally save diagnostic plots for a few random thresholding surrogates. |
+| **Tail percentile** ⚙ | Upper-tail cutoff for significance (default `0.05`). |
+| **Plot random checks** / **Number of checks to plot** ⚙ | Optionally save diagnostic plots for a few random thresholding surrogates. |
 
 :::{dropdown} Why does step 3 take so long?
 Probabilistic thresholding runs `Iterations` circular-shift surrogates *per
@@ -211,10 +218,10 @@ log, so a run cannot be started while another is going.
 | **Start at step** / **Stop at step** | Which of the 4 steps to run, inclusive (1–4). Moving one past the other drags the other along, so the range always stays valid. |
 | **Use prior analysis** | Read the steps before **Start at step** from an earlier run instead of recomputing them. Ticking it enables the folder fields underneath. |
 | **Previous analysis folder** / **Additional folders** | The earlier run(s) to read. Each may be an `OutputData…` folder or a `.meanap` bundle. Naming more than one combines them: a spreadsheet listing recordings from several runs is analysed as one batch. |
-| **Optional steps** | Extra steps to run alongside the core 4, e.g. `generateCSV`. |
-| **Verbose level** | `Normal`, `Verbose`, or `Debug` logging detail in the status log. |
-| **Time each step** | Records per-step wall-clock time to `step_durations.json` in the output folder. |
-| **Fixed random seed** | Makes the stochastic steps (3 and 4) reproducible. Off — the default, matching MATLAB — gives a fresh seed per run. |
+| **Optional steps** ⚙ | Extra steps to run alongside the core 4, e.g. `generateCSV`. |
+| **Verbose level** ⚙ | `Normal`, `Verbose`, or `Debug` logging detail in the status log. |
+| **Time each step** ⚙ | Records per-step wall-clock time to `step_durations.json` in the output folder. |
+| **Fixed random seed** ⚙ | Makes the stochastic steps (3 and 4) reproducible. Off — the default, matching MATLAB — gives a fresh seed per run. |
 | **Continue previous run** | Picks up a run that stopped partway: writes into the same output folder and skips any recording already finished. Also how you add or remove recordings — edit the spreadsheet, tick this, and only the new ones are analysed. Everything pooled across the batch is redone over whatever the spreadsheet now lists. |
 | **…and drop removed recordings' figures** | Only while continuing. Deletes the plots of recordings the spreadsheet no longer names; they are excluded from every CSV either way, but their figures otherwise stay in the output folder and the report. Their data is kept, so putting a recording back stays cheap. |
 | **Express mode** | Skips every figure that can be redrawn later and keeps **only** a small `.meanap` bundle — the output folder is removed once the bundle is written and verified. The numbers are identical either way, and the viewer can draw the folder back out again; see [Express mode and run bundles](express-mode.md). |
