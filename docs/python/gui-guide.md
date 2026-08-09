@@ -197,6 +197,8 @@ Run controls and step selection.
 | **Verbose level** | `Normal`, `Verbose`, or `Debug` logging detail in the status log. |
 | **Time each step** | Records per-step wall-clock time to `step_durations.json` in the output folder. |
 | **Fixed random seed** | Makes the stochastic steps (3 and 4) reproducible. Off — the default, matching MATLAB — gives a fresh seed per run. |
+| **Continue previous run** | Picks up a run that stopped partway: writes into the same output folder and skips any recording already finished. Also how you add or remove recordings — edit the spreadsheet, tick this, and only the new ones are analysed. Everything pooled across the batch is redone over whatever the spreadsheet now lists. |
+| **…and drop removed recordings' figures** | Only while continuing. Deletes the plots of recordings the spreadsheet no longer names; they are excluded from every CSV either way, but their figures otherwise stay in the output folder and the report. Their data is kept, so putting a recording back stays cheap. |
 | **Express mode** | Skips every figure that can be redrawn later and keeps **only** a small `.meanap` bundle — the output folder is removed once the bundle is written and verified. The numbers are identical either way, and the viewer can draw the folder back out again; see [Express mode and run bundles](express-mode.md). |
 
 The four buttons under **Run**:

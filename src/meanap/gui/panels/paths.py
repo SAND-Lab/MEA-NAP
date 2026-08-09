@@ -3,8 +3,8 @@
 from pathlib import Path
 
 from PyQt6.QtWidgets import (
-    QFileDialog, QFormLayout, QGroupBox, QHBoxLayout,
-    QLineEdit, QPushButton, QVBoxLayout, QWidget,
+    QFileDialog, QFormLayout, QGroupBox, QHBoxLayout, QLabel,
+    QLineEdit, QListWidget, QPushButton, QVBoxLayout, QWidget,
 )
 
 from meanap.params import Params, is_remote_url
@@ -118,8 +118,45 @@ class PathsPanel(QWidget):
         form3 = QFormLayout(prior_box)
         form3.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
 
+        # One row, plus a list for any further folders. Merging runs is just
+        # naming more than one previous analysis, and a spreadsheet listing
+        # recordings from all of them — so the field that already means "read
+        # from an earlier run" grows rather than a second concept appearing.
         self.prior_analysis_path = PathRow(self)
         form3.addRow("Previous analysis folder", self.prior_analysis_path)
+
+        self.extra_priors = QListWidget()
+        self.extra_priors.setMaximumHeight(74)
+        self.extra_priors.setToolTip(
+            "Further previous analyses, searched after the one above. A run "
+            "whose spreadsheet lists recordings from several of these produces "
+            "one pooled analysis over all of them, recomputing none.\n\n"
+            "Each may be an OutputData… folder or a .meanap bundle."
+        )
+        self.add_prior_btn = QPushButton("Add…")
+        self.add_prior_btn.setFixedWidth(80)
+        self.add_prior_btn.clicked.connect(self._on_add_prior)
+        self.remove_prior_btn = QPushButton("Remove")
+        self.remove_prior_btn.setFixedWidth(80)
+        self.remove_prior_btn.clicked.connect(self._on_remove_prior)
+
+        prior_buttons = QVBoxLayout()
+        prior_buttons.setContentsMargins(0, 0, 0, 0)
+        prior_buttons.addWidget(self.add_prior_btn)
+        prior_buttons.addWidget(self.remove_prior_btn)
+        prior_buttons.addStretch()
+
+        extra_row = QHBoxLayout()
+        extra_row.setContentsMargins(0, 0, 0, 0)
+        extra_row.addWidget(self.extra_priors)
+        extra_row.addLayout(prior_buttons)
+        form3.addRow("…and also", extra_row)
+
+        hint = QLabel("Naming more than one combines them: a spreadsheet listing "
+                      "recordings from several runs is analysed as one batch.")
+        hint.setWordWrap(True)
+        hint.setStyleSheet("color: gray; font-size: 10px;")
+        form3.addRow("", hint)
 
         layout.addWidget(input_box)
         layout.addWidget(output_box)
@@ -141,6 +178,37 @@ class PathsPanel(QWidget):
         if path:
             self.spreadsheet.set_value(path)
 
+    def _on_add_prior(self) -> None:
+        start = (self.prior_analysis_path.value.strip()
+                 or self.output_data_folder.value.strip())
+        # Either kind: a run folder, or the bundle an express run left instead.
+        path = QFileDialog.getExistingDirectory(
+            self, "Select another previous analysis folder", start)
+        if not path:
+            path, _ = QFileDialog.getOpenFileName(
+                self, "…or a .meanap bundle", start, "Run bundles (*.meanap)")
+        if path and not self._prior_listed(path):
+            self.extra_priors.addItem(path)
+
+    def _on_remove_prior(self) -> None:
+        for item in self.extra_priors.selectedItems():
+            self.extra_priors.takeItem(self.extra_priors.row(item))
+
+    def _prior_listed(self, path: str) -> bool:
+        """Whether this folder is already named, here or as the first one.
+
+        Listing one twice is harmless — the lookup takes the first hit — but it
+        reads as though it were contributing twice, which it is not.
+        """
+        listed = {self.prior_analysis_path.value.strip()}
+        listed |= {self.extra_priors.item(i).text()
+                   for i in range(self.extra_priors.count())}
+        return path in listed
+
+    def extra_prior_paths(self) -> list[str]:
+        return [self.extra_priors.item(i).text()
+                for i in range(self.extra_priors.count())]
+
     def load(self, params: Params) -> None:
         self.raw_data.set_value(params.raw_data)
         self.spreadsheet.set_value(params.spreadsheet_file_name)
@@ -150,6 +218,9 @@ class PathsPanel(QWidget):
         self.output_data_folder.set_value(params.output_data_folder)
         self.output_data_folder_name.setText(params.output_data_folder_name)
         self.prior_analysis_path.set_value(params.prior_analysis_path)
+        self.extra_priors.clear()
+        for extra in params.prior_analysis_paths:
+            self.extra_priors.addItem(extra)
 
     def save(self, params: Params) -> None:
         params.raw_data = self.raw_data.value
@@ -160,3 +231,4 @@ class PathsPanel(QWidget):
         params.output_data_folder = self.output_data_folder.value
         params.output_data_folder_name = self.output_data_folder_name.text()
         params.prior_analysis_path = self.prior_analysis_path.value
+        params.prior_analysis_paths = self.extra_prior_paths()

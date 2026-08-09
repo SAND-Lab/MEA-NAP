@@ -183,6 +183,12 @@ identical to a run that was never interrupted, figures included.
 
 ### Changing which recordings a run covers
 
+In the GUI this is three controls. **Paths → Edit…** is where the recording list
+is changed; when you add or remove one it says so and points at the next step.
+**Pipeline → Continue previous run** is that next step, with a sub-option for
+deleting the figures of recordings you took out. **Paths → Previous analysis
+folder → …and also** takes further folders, which is all merging runs needs.
+
 The same mechanism handles a batch that changes after the fact. In each case the
 result is what you would have got by analysing that set from the start — the
 pooled statistics, the batch-scaled axes and the cartography boundaries are all

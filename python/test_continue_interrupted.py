@@ -478,6 +478,100 @@ def _gui_checks() -> list[Check]:
     return checks
 
 
+def _gui_controls_checks() -> list[Check]:
+    """The three things that make this reachable without editing Python."""
+    from PyQt6.QtWidgets import QApplication
+    from meanap.gui.panels.paths import PathsPanel
+    from meanap.gui.panels.pipeline import PipelinePanel
+    from meanap.gui.panels.spreadsheet_editor import SpreadsheetEditor
+    from meanap.pipeline.spreadsheet import (
+        new_recording_table, write_recording_table,
+    )
+
+    QApplication.instance() or QApplication([])
+    checks: list[Check] = []
+
+    # ── Pipeline tab ─────────────────────────────────────────────────────────
+    panel = PipelinePanel()
+    checks.append(("the Pipeline tab offers continuing a run",
+                   hasattr(panel, "continue_interrupted"), ""))
+    checks.append(("pruning is offered but disabled until it applies",
+                   hasattr(panel, "prune_removed")
+                   and not panel.prune_removed.isEnabled(), ""))
+    panel.continue_interrupted.setChecked(True)
+    checks.append(("and enabled once continuing is on",
+                   panel.prune_removed.isEnabled(), ""))
+
+    panel.prune_removed.setChecked(True)
+    out = Params()
+    panel.save(out)
+    checks.append(("both reach Params",
+                   out.continue_interrupted and out.prune_removed_recordings, ""))
+
+    panel.continue_interrupted.setChecked(False)
+    out2 = Params()
+    panel.save(out2)
+    checks.append(("pruning cannot leak into a run that is not continuing",
+                   not out2.prune_removed_recordings, ""))
+
+    panel.load(Params(continue_interrupted=True, prune_removed_recordings=True))
+    checks.append(("and they round-trip back into the panel",
+                   panel.continue_interrupted.isChecked()
+                   and panel.prune_removed.isChecked(), ""))
+
+    # ── Paths tab ────────────────────────────────────────────────────────────
+    paths = PathsPanel()
+    paths.load(Params(prior_analysis_path="/a/RunA",
+                      prior_analysis_paths=["/a/RunB", "/a/RunC"]))
+    checks.append(("several previous analyses can be listed",
+                   paths.extra_prior_paths() == ["/a/RunB", "/a/RunC"],
+                   str(paths.extra_prior_paths())))
+    merged = Params()
+    paths.save(merged)
+    checks.append(("the first stays prior_analysis_path, the rest the list",
+                   merged.prior_analysis_path == "/a/RunA"
+                   and merged.prior_analysis_paths == ["/a/RunB", "/a/RunC"],
+                   str(merged.prior_analysis_paths)))
+    checks.append(("a folder already named is not added twice",
+                   paths._prior_listed("/a/RunB") and paths._prior_listed("/a/RunA")
+                   and not paths._prior_listed("/a/New"), ""))
+
+    # ── Spreadsheet editor ───────────────────────────────────────────────────
+    with tempfile.TemporaryDirectory() as tmp:
+        sheet = Path(tmp) / "r.csv"
+        table = new_recording_table(["a_DIV21", "b_DIV21", "c_DIV21"])
+        table.iloc[:, 2] = "WT"
+        write_recording_table(sheet, table)
+
+        editor = SpreadsheetEditor(path=str(sheet))
+        checks.append(("an unedited sheet says nothing about continuing",
+                       "Continue previous run" not in editor._status.text(),
+                       editor._status.text()))
+
+        editor._on_add_row()
+        for col, value in ((0, "d_DIV21"), (1, "21"), (2, "WT")):
+            editor._table.item(3, col).setText(value)
+        checks.append(("adding a recording points at the Continue option",
+                       "1 added" in editor._status.text()
+                       and "Continue previous run" in editor._status.text(),
+                       editor._status.text()))
+
+        editor._table.setCurrentCell(0, 0)
+        editor._on_remove_rows()
+        text = editor._status.text()
+        checks.append(("removing one is reported too",
+                       "1 added and 1 removed" in text, text))
+        checks.append(("with the figures caveat, which only applies to removals",
+                       "figures stay in the output folder" in text, text))
+
+        fresh = SpreadsheetEditor()
+        fresh.set_recordings(["x_DIV21"])
+        checks.append(("a brand-new sheet has nothing to have changed from",
+                       "Continue previous run" not in fresh._status.text(),
+                       fresh._status.text()))
+    return checks
+
+
 def main() -> int:
     print("=" * 70)
     print("Continuing an interrupted run")
@@ -497,9 +591,11 @@ def main() -> int:
     except ImportError as e:
         print(f"\nGUI checks SKIPPED — PyQt6 not available ({e})")
     else:
-        p, n = _report("In the GUI:", _gui_checks())
-        total_pass += p
-        total += n
+        for title, build in [("In the GUI:", _gui_checks),
+                             ("GUI controls:", _gui_controls_checks)]:
+            p, n = _report(title, build())
+            total_pass += p
+            total += n
 
     print(f"\n{'=' * 70}")
     print(f"Total: {total_pass}/{total} checks passed")
