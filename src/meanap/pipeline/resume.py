@@ -122,9 +122,12 @@ class InputLocator:
         lines = [f"Reading step inputs from: {self.output_root}"]
         if self.spike_dir is not None:
             lines.append(f"  … then spike data from: {self.spike_dir}")
-        for i, root in enumerate(self.prior_roots):
-            lead = "  … then prior analysis:  " if i == 0 else "  … and also:            "
-            lines.append(f"{lead}{root}")
+        # Numbered only when there is more than one to distinguish — the
+        # ordinary single-folder case reads better without an index on it.
+        multiple = len(self.prior_roots) > 1
+        for i, root in enumerate(self.prior_roots, start=1):
+            label = f"prior analysis {i}:" if multiple else "prior analysis: "
+            lines.append(f"  … then {label} {root}")
         return lines
 
 

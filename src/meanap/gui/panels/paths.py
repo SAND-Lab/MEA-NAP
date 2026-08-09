@@ -150,7 +150,7 @@ class PathsPanel(QWidget):
         extra_row.setContentsMargins(0, 0, 0, 0)
         extra_row.addWidget(self.extra_priors)
         extra_row.addLayout(prior_buttons)
-        form3.addRow("…and also", extra_row)
+        form3.addRow("Additional folders", extra_row)
 
         hint = QLabel("Naming more than one combines them: a spreadsheet listing "
                       "recordings from several runs is analysed as one batch.")
