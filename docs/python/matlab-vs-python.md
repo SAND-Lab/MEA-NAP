@@ -70,7 +70,7 @@ small-worldness, and NMF all draw random numbers. By default (and in MATLAB,
 always) those draws are unseeded, so running the same data twice gives slightly
 different `Q`, `nMod`, `SW`, `PC`, `Z` and node-cartography roles.
 
-Tick **Fixed random seed** on the Pipeline tab (or set `Params.random_seed` to
+Tick **Fixed random seed** on the Run tab (or set `Params.random_seed` to
 an integer) and the whole run becomes repeatable: the same input plus the same
 seed produces byte-identical `NetworkActivity_RecordingLevel.csv` and
 `NetworkActivity_NodeLevel.csv`, regardless of how many CPU cores the machine

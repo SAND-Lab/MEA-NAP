@@ -32,7 +32,7 @@ This single button:
 3. Runs all four pipeline steps — spike detection, neuronal activity,
    functional connectivity, and network metrics — end to end.
 
-Progress streams into the **Status log** at the bottom of the Pipeline tab.
+Progress streams into the **Status log** at the bottom of the Run tab.
 On a typical laptop this takes a few minutes; functional connectivity
 thresholding (step 3) and the network-metrics null models (step 4) are the
 slowest parts, by design — see [MATLAB vs. Python](matlab-vs-python.md) if
@@ -40,7 +40,7 @@ you're curious why.
 
 ```{admonition} Just want to see it work as fast as possible?
 :class: note
-Set **Start at step** / **Stop at step** to `1`–`2` on the Pipeline tab before
+Set **Start at step** / **Stop at step** to `1`–`2` on the Run tab before
 clicking **Test pipeline** — spike detection and firing-rate analysis alone
 finish in well under a minute, and already produce plots worth looking at.
 ```

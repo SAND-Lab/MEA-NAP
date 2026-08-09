@@ -22,7 +22,7 @@ Then browse the result:
 uv run meanap-viewer path/to/OutputData….meanap
 ```
 
-In the GUI it is the **Express mode** tick box on the Pipeline tab, and it
+In the GUI it is the **Express mode** tick box on the Run tab, and it
 applies to **🧪 Test pipeline** runs too.
 
 ## Where the bundle goes

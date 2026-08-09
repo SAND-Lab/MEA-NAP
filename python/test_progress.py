@@ -343,10 +343,10 @@ def _format_checks() -> list[Check]:
 # ── The panel ─────────────────────────────────────────────────────────────────
 
 def _panel_checks(app) -> list[Check]:
-    from meanap.gui.panels.pipeline import PipelinePanel
+    from meanap.gui.panels.run import RunPanel
 
     checks: list[Check] = []
-    panel = PipelinePanel()
+    panel = RunPanel()
     checks.append(("the progress box is hidden until a run starts",
                    not panel.progress_box.isVisibleTo(panel), ""))
 

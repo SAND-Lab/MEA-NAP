@@ -275,21 +275,22 @@ def _empty_checks() -> list[Check]:
     ]
 
 
-# ── The Queue tab ─────────────────────────────────────────────────────────────
+# ── The Run tab ─────────────────────────────────────────────────────────────
 
 def _gui_checks() -> list[Check]:
     from PyQt6.QtCore import QEventLoop, QTimer
     from PyQt6.QtWidgets import QApplication
 
     from meanap.gui.main_window import MainWindow
-    from meanap.gui.modes import MODES, TAB_QUEUE
+    from meanap.gui.modes import MODES, TAB_RUN
+    from meanap.gui.panels.run import QUEUE
 
     app = QApplication.instance() or QApplication([])
     checks: list[Check] = []
 
-    checks.append(("the Queue tab is available in every mode",
-                   all(TAB_QUEUE in m.tabs for m in MODES.values()),
-                   str([k for k, m in MODES.items() if TAB_QUEUE not in m.tabs])))
+    checks.append(("the Run tab, which the queue lives on, is in every mode",
+                   all(TAB_RUN in m.tabs for m in MODES.values()),
+                   str([k for k, m in MODES.items() if TAB_RUN not in m.tabs])))
 
     with tempfile.TemporaryDirectory() as tmp:
         tmp = Path(tmp)
@@ -325,15 +326,17 @@ def _gui_checks() -> list[Check]:
         # Run it for real, on the UI thread's event loop.
         summaries: list[str] = []
         loop = QEventLoop()
-        window._on_run_queue()
+        window._run_panel.set_mode(QUEUE)
+        window._on_run_clicked()
         window._queue_worker.finished_all.connect(
             lambda text: (summaries.append(text), loop.quit()))
         window._queue_worker.failed.connect(
             lambda m: (summaries.append("FAILED " + m), loop.quit()))
+        run = window._run_panel
         checks.append(("starting disables editing while it runs",
                        not panel.add_btn.isEnabled()
-                       and not panel.run_btn.isEnabled()
-                       and panel.stop_btn.isEnabled(), ""))
+                       and not run.run_btn.isEnabled()
+                       and run.stop_btn.isEnabled(), ""))
         QTimer.singleShot(900_000, loop.quit)
         loop.exec()
 
@@ -344,14 +347,15 @@ def _gui_checks() -> list[Check]:
                  for i in range(panel.list.count())]
         checks.append(("each run is marked with how it ended",
                        marks == ["✓", "✓", "✗"], str(marks)))
-        checks.append(("the bar finishes full",
-                       panel.overall.value() == 1000, str(panel.overall.value())))
         checks.append(("and editing is possible again",
-                       panel.add_btn.isEnabled() and panel.run_btn.isEnabled()
-                       and not panel.stop_btn.isEnabled(), ""))
+                       panel.add_btn.isEnabled() and run.run_btn.isEnabled()
+                       and not run.stop_btn.isEnabled(), ""))
+        checks.append(("the Run button counts what is queued",
+                       "(3)" in run.run_btn.text(), run.run_btn.text()))
 
-        text = panel.log.toPlainText()
-        checks.append(("the summary is in the tab's own log",
+        # One log for both kinds of run, so the night reads as one transcript.
+        text = run.log.toPlainText()
+        checks.append(("the summary is in the Run tab's log",
                        "2 of 3 completed" in text and "Bad" in text, ""))
 
         # Saving and reloading the queue itself.
@@ -367,13 +371,31 @@ def _gui_checks() -> list[Check]:
                        == [Path(p).name for p in
                            _json.loads(queue_file.read_text())["runs"]], ""))
 
-        # The two run buttons must not overlap.
+        # A single run and the queue used to be two buttons on two tabs, and
+        # the window had to refuse the overlap. Now there is one button, so
+        # check the overlap is unreachable rather than merely declined.
+        class _Busy:
+            def isRunning(self):
+                return True
+
+        window._queue_worker = _Busy()
+        window._run_panel.set_running(True)
+        checks.append(("while the queue runs, Run cannot be pressed at all",
+                       not window._run_panel.run_btn.isEnabled(), ""))
+
+        window._run_panel.set_mode("this_run")
+        checks.append(("nor after switching the tab back to a single run",
+                       not window._run_panel.run_btn.isEnabled(), ""))
+
+        before = window._worker
+        window._on_run_clicked()
+        checks.append(("and asking for one anyway starts nothing",
+                       window._worker is before, ""))
+
         window._queue_worker = None
-        checks.append(("a single run is refused while the queue is going",
-                       hasattr(window, "_on_run_queue")
-                       and "_queue_worker" in Path(
-                           __import__("meanap.gui.main_window",
-                                      fromlist=["x"]).__file__).read_text(), ""))
+        window._run_panel.set_running(False)
+        checks.append(("once it is over, a single run is available again",
+                       window._run_panel.run_btn.isEnabled(), ""))
     return checks
 
 
@@ -396,7 +418,7 @@ def main() -> int:
     except ImportError as e:
         print(f"\nGUI checks SKIPPED — PyQt6 not available ({e})")
     else:
-        p, n = _report("The Queue tab:", _gui_checks())
+        p, n = _report("The Run tab:", _gui_checks())
         total_pass += p
         total += n
     print(f"\n{'=' * 70}")

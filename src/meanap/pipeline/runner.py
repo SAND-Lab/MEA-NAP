@@ -197,7 +197,7 @@ def run_pipeline(
 
         # CAT-NAP has no step 1 or 3 — adjacency is built in step 2, as in
         # MATLAB — so step 4 is the only boundary the step range can act on.
-        # Say so rather than silently ignoring a setting the Pipeline tab
+        # Say so rather than silently ignoring a setting the Run tab
         # happily lets the user change.
         if 1 < params.start_analysis_step < RESUME_STEP:
             log(f"  Note: starting at step {params.start_analysis_step} is the same as "

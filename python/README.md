@@ -150,12 +150,14 @@ never silent.
 ### Queueing several runs
 
 A run takes minutes to hours, and until now a second one meant waiting for the
-first. The **Queue** tab takes parameter files saved with **Save params…** and
-runs them in order, unattended:
+first. Switch the Run tab from **This run** to **Queue of saved runs** and it
+takes parameter files saved with **Save params…**, running them in order,
+unattended:
 
 1. configure a run, **Save params…**;
 2. change whatever you like, save again;
-3. on the Queue tab, **Add…** both, then **Run queue**.
+3. on the Run tab, switch to **Queue of saved runs**, **Add…** both, then
+   **Run queue**.
 
 Each entry is a complete description of a run, so they may differ in anything —
 different datasets, different lags, even different pipelines. A CAT-NAP run and
@@ -267,7 +269,7 @@ Each folder may equally be a `.meanap` bundle.
 
 ### Progress and time estimates
 
-A run shows a progress bar on the Pipeline tab with the phase, the recording
+A run shows a progress bar on the Run tab with the phase, the recording
 being worked on, elapsed time and an estimate of the time left. A remote run
 gets a second, slimmer bar for the download.
 
@@ -296,7 +298,7 @@ run_pipeline(params, progress=lambda p: print(p.describe()))
 
 ### Output report
 
-After a run (or against any existing MEA-NAP output folder), click **🌐 View report** on the Pipeline tab to generate `report.html` in that output folder and open it in your browser. It's a self-contained page (no server, works offline) with a folder-tree sidebar and a captioned image gallery for every plot the pipeline produced — captions are adapted from MEA-NAP's own figure-legend documentation (`docs/meanap-outputs.rst`) wherever one exists. You can also generate it directly from Python:
+After a run (or against any existing MEA-NAP output folder), click **🌐 View report** on the Run tab to generate `report.html` in that output folder and open it in your browser. It's a self-contained page (no server, works offline) with a folder-tree sidebar and a captioned image gallery for every plot the pipeline produced — captions are adapted from MEA-NAP's own figure-legend documentation (`docs/meanap-outputs.rst`) wherever one exists. You can also generate it directly from Python:
 
 ```python
 from meanap.pipeline.report import generate_report

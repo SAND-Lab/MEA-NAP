@@ -21,7 +21,7 @@ from meanap.gui.branding import logo_icon, logo_pixmap
 from meanap.gui import advanced
 from meanap.gui.modes import (
     DEFAULT_MODE, MODES, TAB_CATNAP, TAB_CONNECTIVITY, TAB_NETWORK, TAB_PATHS,
-    TAB_PIPELINE, TAB_QUEUE, TAB_RECORDING, TAB_SPIKE, TAB_STIM,
+    TAB_RECORDING, TAB_RUN, TAB_SPIKE, TAB_STIM,
     TAB_STIM_PREVIEW,
     apply_mode_to_params, mode_for_params,
 )
@@ -33,8 +33,7 @@ from meanap.gui.panels.spike_detection import SpikeDetectionPanel
 from meanap.gui.panels.connectivity import ConnectivityPanel
 from meanap.gui.panels.stim import StimPanel
 from meanap.gui.panels.stim_preview import StimPreviewPanel
-from meanap.gui.panels.pipeline import PipelinePanel
-from meanap.gui.panels.queue import QueuePanel
+from meanap.gui.panels.run import QUEUE, RunPanel
 from meanap.gui.panels.catnap import CatNapPanel
 from meanap.gui.panels.network_viewer import NetworkViewerPanel
 from meanap.gui.tooltip import install_tooltip_style, wrap_tooltips
@@ -194,8 +193,11 @@ class MainWindow(QMainWindow):
         self._stim_panel = StimPanel()
         self._stim_preview_panel = StimPreviewPanel()
         self._catnap_panel = CatNapPanel()
-        self._pipeline_panel = PipelinePanel()
-        self._queue_panel = QueuePanel()
+        self._run_panel = RunPanel()
+        # The Run tab holds both pages; these name them for the code that only
+        # cares about one — loading parameters, or the queue's list.
+        self._pipeline_panel = self._run_panel.settings
+        self._queue_panel = self._run_panel.queue
         self._network_viewer_panel = NetworkViewerPanel()
 
         # Every tab is built once and kept alive here; the current mode decides
@@ -210,14 +212,12 @@ class MainWindow(QMainWindow):
             (TAB_STIM_PREVIEW, self._stim_preview_panel, "  Stim Preview  "),
             (TAB_CATNAP, self._catnap_panel, "  CAT-NAP (2P)  "),
             (TAB_NETWORK, self._network_viewer_panel, "  Network Viewer  "),
-            (TAB_PIPELINE, _scrollable(self._pipeline_panel), "  Pipeline  "),
-            (TAB_QUEUE, self._queue_panel, "  Queue  "),
+            (TAB_RUN, self._run_panel, "  Run  "),
         ]
         self._apply_mode(self._mode, sync_params=False)
 
-        self._catnap_panel.log_message.connect(self._pipeline_panel.append_log)
-        self._queue_panel.run_requested.connect(self._on_run_queue)
-        self._queue_panel.stop_requested.connect(self._on_stop_queue)
+        self._catnap_panel.log_message.connect(self._run_panel.append_log)
+        self._queue_panel.changed.connect(self._run_panel.refresh)
 
         # The Paths "Raw data folder" and the CAT-NAP "Recordings folder" are
         # two views of one setting (Params.raw_data), and both panels write it
@@ -229,23 +229,23 @@ class MainWindow(QMainWindow):
         )
 
         # Mark Run / Stop with object names so QSS can style them distinctly
-        self._pipeline_panel.run_btn.setObjectName("primary")
-        self._pipeline_panel.stop_btn.setObjectName("danger")
-        self._pipeline_panel.test_btn.setObjectName("secondary")
-        self._pipeline_panel.view_report_btn.setObjectName("secondary")
-        self._pipeline_panel.run_btn.clicked.connect(self._on_run)
-        self._pipeline_panel.stop_btn.clicked.connect(self._on_stop)
-        self._pipeline_panel.test_btn.clicked.connect(self._on_test_pipeline)
-        self._pipeline_panel.view_report_btn.clicked.connect(self._on_view_report)
+        self._run_panel.run_btn.setObjectName("primary")
+        self._run_panel.stop_btn.setObjectName("danger")
+        self._run_panel.test_btn.setObjectName("secondary")
+        self._run_panel.view_report_btn.setObjectName("secondary")
+        self._run_panel.run_btn.clicked.connect(self._on_run_clicked)
+        self._run_panel.stop_btn.clicked.connect(self._on_stop)
+        self._run_panel.test_btn.clicked.connect(self._on_test_pipeline)
+        self._run_panel.view_report_btn.clicked.connect(self._on_view_report)
 
         # Mark log widget so the monospace QSS rule applies
-        self._pipeline_panel.log.setObjectName("log")
+        self._run_panel.log.setObjectName("log")
         self._catnap_panel._log.setObjectName("log")
 
         # QTextEdit accepts drops even when read-only, and a child that accepts
         # a drag stops it reaching the window — so a bundle dropped on the
-        # status log, the largest target on the Pipeline tab, would do nothing.
-        self._pipeline_panel.log.setAcceptDrops(False)
+        # status log, the largest target on the Run tab, would do nothing.
+        self._run_panel.log.setAcceptDrops(False)
         self._catnap_panel._log.setAcceptDrops(False)
 
         # A spreadsheet built from a scan describes the recordings the run is
@@ -439,17 +439,17 @@ class MainWindow(QMainWindow):
                 "time tiling coefficient. These lag values (ms) set the coincidence window.",
                 self._tab_index(TAB_CONNECTIVITY), lambda: conn.lag_vals),
             TutorialStep(
-                "Choose the steps", "On the Pipeline tab, pick which steps to run "
+                "Choose the steps", "On the Run tab, pick which steps to run "
                 "(1–4). The default runs the whole pipeline end to end.",
-                self._tab_index(TAB_PIPELINE), lambda: pipe.start_step),
+                self._tab_index(TAB_RUN), lambda: pipe.start_step),
             TutorialStep(
                 "Try it first", "Not sure your setup works? 'Test pipeline' downloads a "
                 "small example dataset and runs all four steps on it.",
-                self._tab_index(TAB_PIPELINE), lambda: pipe.test_btn),
+                self._tab_index(TAB_RUN), lambda: self._run_panel.test_btn),
             TutorialStep(
                 "Run the pipeline", "When your paths are filled in, press Run. Progress "
                 "appears in the status log, and 'View report' opens the results in your browser.",
-                self._tab_index(TAB_PIPELINE), lambda: pipe.run_btn),
+                self._tab_index(TAB_RUN), lambda: self._run_panel.run_btn),
         ]
 
     def _build_meastim_steps(self) -> list[TutorialStep]:
@@ -493,9 +493,9 @@ class MainWindow(QMainWindow):
                 self._tab_index(TAB_STIM_PREVIEW),
                 tabbar_target(self._tabs, self._tab_index(TAB_STIM_PREVIEW))),
             TutorialStep(
-                "Run the pipeline", "On the Pipeline tab, press Run. Spike detection runs "
+                "Run the pipeline", "On the Run tab, press Run. Spike detection runs "
                 "first, then the stimulation analysis and its plots.",
-                self._tab_index(TAB_PIPELINE), lambda: pipe.run_btn),
+                self._tab_index(TAB_RUN), lambda: self._run_panel.run_btn),
         ]
 
     def _build_catnap_steps(self) -> list[TutorialStep]:
@@ -536,8 +536,8 @@ class MainWindow(QMainWindow):
                 self._tab_index(TAB_CATNAP), lambda: cat._denoise_btn),
             TutorialStep(
                 "Run the pipeline", "With CAT-NAP mode on and a folder selected, go to "
-                "the Pipeline tab and press Run to analyse the imaging data.",
-                self._tab_index(TAB_PIPELINE), lambda: pipe.run_btn),
+                "the Run tab and press Run to analyse the imaging data.",
+                self._tab_index(TAB_RUN), lambda: self._run_panel.run_btn),
         ]
 
     # ── Param sync ────────────────────────────────────────────────────────────
@@ -598,7 +598,7 @@ class MainWindow(QMainWindow):
             params = Params(**{k: v for k, v in data.items() if hasattr(Params, k)})
             self._params = params
             self._load_params(self._params)
-            self._pipeline_panel.append_log(f"Loaded parameters from {path}")
+            self._run_panel.append_log(f"Loaded parameters from {path}")
         except Exception as e:
             QMessageBox.critical(self, "Error loading parameters", str(e))
 
@@ -613,7 +613,7 @@ class MainWindow(QMainWindow):
             params = self._collect_params()
             with open(path, "w") as f:
                 json.dump(dataclasses.asdict(params), f, indent=2)
-            self._pipeline_panel.append_log(f"Saved parameters to {path}")
+            self._run_panel.append_log(f"Saved parameters to {path}")
         except Exception as e:
             QMessageBox.critical(self, "Error saving parameters", str(e))
 
@@ -627,12 +627,12 @@ class MainWindow(QMainWindow):
             out_folder = str(Path.home() / "MEA-NAP")
             self._paths_panel.output_data_folder.set_value(out_folder)
 
-        self._tabs.setCurrentIndex(self._tab_index(TAB_PIPELINE))
-        self._pipeline_panel.append_log("Downloading example data for pipeline test…")
+        self._tabs.setCurrentIndex(self._tab_index(TAB_RUN))
+        self._run_panel.append_log("Downloading example data for pipeline test…")
         QApplication.processEvents()
 
         def log(message: str) -> None:
-            self._pipeline_panel.append_log(message)
+            self._run_panel.append_log(message)
             QApplication.processEvents()
 
         try:
@@ -659,17 +659,29 @@ class MainWindow(QMainWindow):
         self._pipeline_panel.start_step.setValue(1)
         self._pipeline_panel.stop_step.setValue(4)
 
-        self._pipeline_panel.append_log("Example data ready — running full pipeline (steps 1-4).")
+        self._run_panel.append_log("Example data ready — running full pipeline (steps 1-4).")
         self._on_run()
 
+    def _on_run_clicked(self) -> None:
+        """One button, so what it starts is whatever the Run tab's switch says.
+
+        Nothing here has to refuse an overlapping run: the button is disabled
+        while anything is going, so there is no second run to refuse.
+        """
+        if self._busy():
+            return
+        if self._run_panel.mode() == QUEUE:
+            self._on_run_queue()
+        else:
+            self._on_run()
+
+    def _busy(self) -> bool:
+        return ((self._worker is not None and self._worker.isRunning())
+                or (self._queue_worker is not None
+                    and self._queue_worker.isRunning()))
+
     def _on_run(self) -> None:
-        if self._worker is not None and self._worker.isRunning():
-            return  # a run is already in progress
-        if self._queue_worker is not None and self._queue_worker.isRunning():
-            QMessageBox.information(
-                self, "The queue is running",
-                "Wait for the queue on the Queue tab to finish, or stop it, "
-                "before starting a single run.")
+        if self._busy():
             return
 
         params = self._collect_params()
@@ -709,21 +721,24 @@ class MainWindow(QMainWindow):
             self._tabs.setCurrentIndex(0)
             return
 
-        self._pipeline_panel.run_btn.setEnabled(False)
-        self._pipeline_panel.stop_btn.setEnabled(True)
-        self._pipeline_panel.append_log(
+        self._run_panel.append_log(
             f"Starting MEA-NAP: steps {params.start_analysis_step}-{params.stop_analysis_step}…"
         )
 
         params = self._confirm_output_folder(params)
         if params is None:
+            # Called off at the overwrite prompt. Buttons are set *after* this
+            # rather than before, so the tab cannot be left with Run greyed out
+            # and nothing running.
+            self._run_panel.append_log("Run cancelled.")
             return
 
-        self._pipeline_panel.start_progress()
+        self._run_panel.set_running(True)
+        self._run_panel.start_progress()
 
         worker = PipelineWorker(params, parent=self)
-        worker.log_message.connect(self._pipeline_panel.append_log)
-        worker.progress.connect(self._pipeline_panel.show_progress)
+        worker.log_message.connect(self._run_panel.append_log)
+        worker.progress.connect(self._run_panel.show_progress)
         worker.finished_ok.connect(self._on_pipeline_finished)
         worker.cancelled.connect(self._on_pipeline_cancelled)
         worker.failed.connect(self._on_pipeline_failed)
@@ -784,85 +799,82 @@ class MainWindow(QMainWindow):
             # afterwards, not something the user has to reconstruct from a log.
             self._paths_panel.output_data_folder_name.setText(fresh)
             params.output_data_folder_name = fresh
-            self._pipeline_panel.append_log(f"Saving this run as {fresh}.")
+            self._run_panel.append_log(f"Saving this run as {fresh}.")
             return params
         if clicked is continue_it:
-            self._pipeline_panel.append_log(
+            self._run_panel.append_log(
                 f"Continuing {name} — recordings already finished are skipped.")
             # A copy, for the same reason as below: continuing is a decision
             # about this run, not a setting to carry into every future one.
             return replace(params, continue_interrupted=True)
         if clicked is overwrite:
-            self._pipeline_panel.append_log(f"Overwriting the existing run in {name}.")
+            self._run_panel.append_log(f"Overwriting the existing run in {name}.")
             # A copy, so "overwrite this once" cannot be saved into a parameter
             # file and quietly overwrite every run that later loads it.
             return replace(params, overwrite_existing_output=True)
         return None
 
     def _on_run_queue(self) -> None:
-        """Start the queued runs. Refuses to overlap with a single run."""
-        if self._worker is not None and self._worker.isRunning():
-            QMessageBox.information(
-                self, "A run is already going",
-                "Wait for the run on the Pipeline tab to finish, or stop it, "
-                "before starting the queue.")
+        """Start the queued runs."""
+        if self._busy():
             return
-        if self._queue_worker is not None and self._queue_worker.isRunning():
-            return
-
         paths = self._queue_panel.paths()
         if not paths:
             return
 
         self._queue_panel.start()
-        self._queue_panel.append_log(f"Starting {len(paths)} queued run(s)…")
+        self._run_panel.set_running(True)
+        self._run_panel.start_progress()
+        self._run_panel.append_log(f"Starting {len(paths)} queued run(s)…")
 
         worker = QueueWorker(paths, parent=self)
-        worker.log_message.connect(self._queue_panel.append_log)
-        worker.progress.connect(self._queue_panel.show_progress)
+        worker.log_message.connect(self._run_panel.append_log)
+        worker.progress.connect(
+            lambda i, label, snap, n=len(paths):
+                self._run_panel.show_queue_progress(i, n, label, snap))
         worker.run_finished.connect(self._queue_panel.mark)
         worker.finished_all.connect(self._on_queue_finished)
         worker.failed.connect(self._on_queue_failed)
         self._queue_worker = worker
         worker.start()
 
-    def _on_stop_queue(self) -> None:
-        if self._queue_worker is not None and self._queue_worker.isRunning():
-            self._queue_panel.append_log(
-                "Stop requested — finishing the current run, then halting. "
-                "Runs after it will not be started.")
-            self._queue_panel.stop_btn.setEnabled(False)
-            self._queue_worker.request_cancel()
-
     def _on_queue_finished(self, summary: str) -> None:
-        self._queue_panel.finish(summary)
         self._queue_worker = None
+        self._run_panel.set_running(False)
+        self._run_panel.finish_progress(summary)
 
     def _on_queue_failed(self, message: str) -> None:
-        self._queue_panel.finish("The queue could not start.")
-        self._queue_panel.append_log(f"ERROR: {message}")
         self._queue_worker = None
+        self._run_panel.set_running(False)
+        self._run_panel.finish_progress("The queue could not start.")
+        self._run_panel.append_log(f"ERROR: {message}")
         QMessageBox.critical(self, "Queue error", message)
 
     def _on_stop(self) -> None:
-        if self._worker is not None and self._worker.isRunning():
-            self._pipeline_panel.append_log(
+        """Stop whichever of the two is running — again, one button for both."""
+        if self._queue_worker is not None and self._queue_worker.isRunning():
+            self._run_panel.append_log(
+                "Stop requested — finishing the current run, then halting. "
+                "Runs after it will not be started.")
+            self._run_panel.stop_btn.setEnabled(False)
+            self._queue_worker.request_cancel()
+        elif self._worker is not None and self._worker.isRunning():
+            self._run_panel.append_log(
                 "Stop requested — finishing the current recording, then halting…"
             )
-            self._pipeline_panel.stop_btn.setEnabled(False)
+            self._run_panel.stop_btn.setEnabled(False)
             self._worker.request_cancel()
         else:
-            self._pipeline_panel.stop_btn.setEnabled(False)
+            self._run_panel.stop_btn.setEnabled(False)
 
     def _reset_run_buttons(self) -> None:
-        self._pipeline_panel.run_btn.setEnabled(True)
-        self._pipeline_panel.stop_btn.setEnabled(False)
         self._worker = None
+        self._run_panel.set_running(False)
 
     def _on_pipeline_finished(self, output_root: Path) -> None:
         self._last_output_root = output_root
-        self._pipeline_panel.finish_progress("Finished.")
-        self._pipeline_panel.append_log(f"Done. Output folder: {output_root}")
+        self._run_panel.finish_progress("Finished.")
+        self._run_panel.append_log(f"Done. Output folder: {output_root}")
         self._announce_bundle(output_root)
         self._reset_run_buttons()
 
@@ -883,7 +895,7 @@ class MainWindow(QMainWindow):
         self._last_bundle = bundle
         size_mb = bundle.stat().st_size / 1e6
         rule = "─" * 68
-        self._pipeline_panel.append_log(
+        self._run_panel.append_log(
             f"\n{rule}\n"
             f"  Express bundle ({size_mb:.1f} MB) — beside the output folder, not in it:\n"
             f"    {bundle}\n"
@@ -892,13 +904,13 @@ class MainWindow(QMainWindow):
         )
 
     def _on_pipeline_cancelled(self) -> None:
-        self._pipeline_panel.finish_progress("Stopped.")
-        self._pipeline_panel.append_log("Pipeline stopped.")
+        self._run_panel.finish_progress("Stopped.")
+        self._run_panel.append_log("Pipeline stopped.")
         self._reset_run_buttons()
 
     def _on_pipeline_failed(self, message: str) -> None:
-        self._pipeline_panel.finish_progress("Failed.")
-        self._pipeline_panel.append_log(f"ERROR: {message}")
+        self._run_panel.finish_progress("Failed.")
+        self._run_panel.append_log(f"ERROR: {message}")
         self._reset_run_buttons()
         QMessageBox.critical(self, "Pipeline error", message)
 
@@ -956,7 +968,7 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, "Report generation failed", str(e))
             return
 
-        self._pipeline_panel.append_log(f"Report generated: {report_path}")
+        self._run_panel.append_log(f"Report generated: {report_path}")
         webbrowser.open(report_path.as_uri())
 
     # ── Bundles ───────────────────────────────────────────────────────────────
@@ -979,7 +991,7 @@ class MainWindow(QMainWindow):
         """
         already = self._viewers.url_for(source)
         if already is None:
-            self._pipeline_panel.append_log(f"Opening in the viewer: {source}")
+            self._run_panel.append_log(f"Opening in the viewer: {source}")
         QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
         try:
             url = self._viewers.open(source)
@@ -990,7 +1002,7 @@ class MainWindow(QMainWindow):
             QApplication.restoreOverrideCursor()
 
         if already is None:
-            self._pipeline_panel.append_log(
+            self._run_panel.append_log(
                 f"Viewer serving at {url} — it stays up until MEA-NAP closes."
             )
         webbrowser.open(url)

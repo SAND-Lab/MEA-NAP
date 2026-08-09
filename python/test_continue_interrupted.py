@@ -491,9 +491,9 @@ def _gui_controls_checks() -> list[Check]:
     QApplication.instance() or QApplication([])
     checks: list[Check] = []
 
-    # ── Pipeline tab ─────────────────────────────────────────────────────────
+    # ── Run tab ──────────────────────────────────────────────────────────────
     panel = PipelinePanel()
-    checks.append(("the Pipeline tab offers continuing a run",
+    checks.append(("the Run tab offers continuing a run",
                    hasattr(panel, "continue_interrupted"), ""))
     checks.append(("pruning is offered but disabled until it applies",
                    hasattr(panel, "prune_removed")

@@ -512,7 +512,7 @@ completed (or partial) MEA-NAP output folder and writes a single
 self-contained `report.html` at its root — a folder tree on the left, an
 image gallery with captions on the right. No server, no external JS/CSS, no
 new dependencies; opens directly over `file://`. Wired into the GUI as a
-"🌐 View report" button next to Run/Stop on the Pipeline tab
+"🌐 View report" button next to Run/Stop on the Run tab
 (`main_window.py`'s `_on_view_report`) — regenerates the report from
 whatever's on disk and opens it via `webbrowser.open()`.
 
@@ -1217,7 +1217,7 @@ of this list did._
 10. ~~No electrode coordinate lookup table~~ **Done** — `channel_layout.py`
     ports `getCoordsFromLayout.m` (exact parity, all 5 layouts).
 11. ~~No HTML/output browser~~ **Done** — `report.py`, wired into the GUI as
-    "🌐 View report" on the Pipeline tab. See its own section above.
+    "🌐 View report" on the Run tab. See its own section above.
 
 ## Auditing for silently-missing metrics
 
@@ -1500,7 +1500,7 @@ print(run_pipeline(p, log=print))
 
 # GUI smoke test
 uv run meanap-gui
-# Paths tab: set "MEA-NAP folder" to the repo root, then Pipeline tab → 🧪 Test pipeline
+# Paths tab: set "MEA-NAP folder" to the repo root, then Run tab → 🧪 Test pipeline
 ```
 
 Note: full spike detection on the two example recordings (64 channels each,

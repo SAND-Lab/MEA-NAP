@@ -63,7 +63,7 @@ Where MEA-NAP reads your data from and writes results to.
 | **Custom group order** | Optional comma-separated group names (e.g. `WT,KO`) to control display/plot order instead of alphabetical. |
 | **Spike data folder** | Only needed if you're starting from step 2+ using previously-detected spike times instead of raw data. |
 | **Output data folder** / **Output folder name** | Where results are written, and the name of the run's output subfolder. |
-| **Previous analysis folder** | Only needed when re-using a prior run (**Use prior analysis** on the Pipeline tab). |
+| **Previous analysis folder** | Only needed when re-using a prior run (**Use prior analysis** on the Run tab). |
 
 (raw-data-formats)=
 ### Raw data formats

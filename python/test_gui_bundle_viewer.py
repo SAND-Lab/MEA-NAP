@@ -183,7 +183,7 @@ def _open_checks(app: QApplication, express_root: Path) -> list[Check]:
     url = window._viewers.url_for(bundle)
     checks.append(("the session is addressable by path", url == opened[-1], str(url)))
     checks.append(("the log says where the viewer is",
-                   url in window._pipeline_panel.log.toPlainText(), ""))
+                   url in window._run_panel.log.toPlainText(), ""))
 
     checks.append(("the same bundle by a different path is one session",
                    window._viewers.open(Path(str(bundle))) == url
@@ -245,7 +245,7 @@ def _drop_checks(app: QApplication, express_root: Path) -> list[Check]:
 
     checks.append(("the window accepts drops at all", window.acceptDrops(), ""))
     checks.append(("the status log does not swallow them",
-                   not window._pipeline_panel.log.acceptDrops(), ""))
+                   not window._run_panel.log.acceptDrops(), ""))
 
     ev = _FakeDrag([str(bundle)])
     window.dragEnterEvent(ev)

@@ -1,7 +1,7 @@
 # Output report
 
 After a pipeline run (or against any existing MEA-NAP output folder), the
-**🌐 View report** button on the Pipeline tab generates `report.html` at the
+**🌐 View report** button on the Run tab generates `report.html` at the
 root of that output folder and opens it in your browser.
 
 ```{note}

@@ -186,7 +186,7 @@ def _express_toggle_checks(app: QApplication) -> list[Check]:
     window = MainWindow()
     pipe = window._pipeline_panel
 
-    checks.append(("the Pipeline tab has an express-mode toggle",
+    checks.append(("the Run tab has an express-mode toggle",
                    hasattr(pipe, "express_mode"), ""))
     checks.append(("it is off by default, matching Params",
                    pipe.express_mode.isChecked() is False
@@ -250,9 +250,9 @@ def _bundle_notice_checks(app: QApplication) -> list[Check]:
         bundle.write_bytes(b"x" * 2_200_000)
 
         window._params = Params(express_mode=True)
-        window._pipeline_panel.log.clear()
+        window._run_panel.log.clear()
         window._on_pipeline_finished(out_root)
-        text = window._pipeline_panel.log.toPlainText()
+        text = window._run_panel.log.toPlainText()
         checks.append(("an express run names the bundle at the end",
                        str(bundle) in text, text[-120:]))
         checks.append(("…says it sits beside the output folder",
@@ -267,18 +267,18 @@ def _bundle_notice_checks(app: QApplication) -> list[Check]:
         # A non-express run must stay quiet even when a bundle from an earlier
         # express run of the same day is still sitting next to the folder.
         window._params = Params(express_mode=False)
-        window._pipeline_panel.log.clear()
+        window._run_panel.log.clear()
         window._on_pipeline_finished(out_root)
         checks.append(("a full run says nothing about bundles",
-                       "meanap-viewer" not in window._pipeline_panel.log.toPlainText(), ""))
+                       "meanap-viewer" not in window._run_panel.log.toPlainText(), ""))
 
         # Express on, but packing failed (the runner only warns) — no notice.
         bundle.unlink()
         window._params = Params(express_mode=True)
-        window._pipeline_panel.log.clear()
+        window._run_panel.log.clear()
         window._on_pipeline_finished(out_root)
         checks.append(("no notice when no bundle was written",
-                       "meanap-viewer" not in window._pipeline_panel.log.toPlainText(), ""))
+                       "meanap-viewer" not in window._run_panel.log.toPlainText(), ""))
 
     return checks
 
