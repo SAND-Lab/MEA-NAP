@@ -147,6 +147,40 @@ replace a run deliberately, delete it or set
 `Params(overwrite_existing_output=True)` — which is still reported in the log,
 never silent.
 
+### Queueing several runs
+
+A run takes minutes to hours, and until now a second one meant waiting for the
+first. The **Queue** tab takes parameter files saved with **Save params…** and
+runs them in order, unattended:
+
+1. configure a run, **Save params…**;
+2. change whatever you like, save again;
+3. on the Queue tab, **Add…** both, then **Run queue**.
+
+Each entry is a complete description of a run, so they may differ in anything —
+different datasets, different lags, even different pipelines. A CAT-NAP run and
+an electrophysiology run sit in the same queue, because `run_pipeline` decides
+which path to take from the parameters it is handed.
+
+**A run that fails does not stop the ones after it.** The point of leaving
+something going overnight is to come back to results, so each run is caught
+individually and the queue moves on; the summary at the end names every run,
+says where the outputs went, and gives the reason for anything that failed.
+Stopping finishes the current run and starts no more — the ones that never ran
+are listed as such rather than quietly missing.
+
+The list itself can be saved and reloaded (**Save queue…**), which stores the
+paths of the parameter files rather than a copy of the settings.
+
+From Python:
+
+```python
+from meanap.pipeline.queue import load_queue, run_queue
+
+result = run_queue(load_queue(["runA.json", "runB.json", "runC.json"]))
+print(result.done, "of", len(result.outcomes), "completed")
+```
+
 ### Continuing an interrupted run
 
 A batch cut off at recording 5 of 10 — Ctrl-C, a cluster wall clock, a closed

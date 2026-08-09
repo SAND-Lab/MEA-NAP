@@ -62,3 +62,69 @@ class PipelineWorker(QThread):
             self.failed.emit(str(exc))
         else:
             self.finished_ok.emit(output_root)
+
+
+class QueueWorker(QThread):
+    """Runs a queue of saved analyses in the background.
+
+    Separate from :class:`PipelineWorker` rather than a mode of it: this owns a
+    *list* of runs and has to report which one is in flight, and folding both
+    into one class would mean every signal carrying an index the single-run case
+    never uses.
+    """
+
+    log_message = pyqtSignal(str)
+    #: ``(index, label, Progress)`` for the run currently going.
+    progress = pyqtSignal(int, str, object)
+    #: ``(index, status)`` as each run ends — see meanap.pipeline.queue.
+    run_finished = pyqtSignal(int, str)
+    #: The whole queue is done; carries a one-line summary.
+    finished_all = pyqtSignal(str)
+    failed = pyqtSignal(str)
+
+    def __init__(self, paths, parent=None) -> None:
+        super().__init__(parent)
+        self._paths = list(paths)
+        self._cancel_requested = False
+
+    def request_cancel(self) -> None:
+        """Stop after the current run reaches its next checkpoint."""
+        self._cancel_requested = True
+
+    def run(self) -> None:  # noqa: D401 - QThread entry point
+        from meanap.pipeline.queue import load_queue, run_queue
+
+        try:
+            runs = load_queue(self._paths)
+        except ValueError as e:
+            # Bad input is worth refusing before anything starts, so the person
+            # who set this up at 6pm hears about it at 6pm.
+            self.failed.emit(str(e))
+            return
+
+        index = {"of": 0}
+
+        def finished(outcome) -> None:
+            self.run_finished.emit(index["of"], outcome.status)
+            index["of"] += 1
+
+        try:
+            result = run_queue(
+                runs,
+                log=self.log_message.emit,
+                should_cancel=lambda: self._cancel_requested,
+                progress=lambda i, run, snap: self.progress.emit(
+                    i, run.label, snap),
+                on_finished=finished,
+            )
+        except Exception as exc:                          # noqa: BLE001
+            self.failed.emit(str(exc))
+            return
+
+        total = len(result.outcomes)
+        summary = f"{result.done} of {total} completed"
+        if result.failed:
+            summary += f", {result.failed} failed"
+        if result.cancelled or any(o.status == "skipped" for o in result.outcomes):
+            summary += ", stopped early"
+        self.finished_all.emit(summary)
