@@ -18,6 +18,7 @@ from meanap.pipeline.example_data import download_example_data
 from meanap.pipeline.report import generate_report
 from meanap.gui import theme
 from meanap.gui.branding import logo_icon, logo_pixmap
+from meanap.gui import advanced
 from meanap.gui.modes import (
     DEFAULT_MODE, MODES, TAB_CATNAP, TAB_CONNECTIVITY, TAB_NETWORK, TAB_PATHS,
     TAB_PIPELINE, TAB_QUEUE, TAB_RECORDING, TAB_SPIKE, TAB_STIM,
@@ -83,6 +84,12 @@ class MainWindow(QMainWindow):
 
         self._build_toolbar()
         self._build_tabs()
+        # After the tabs exist, so there is something to expand. Blocked so
+        # restoring the preference does not immediately re-save it.
+        self._act_advanced.blockSignals(True)
+        self._act_advanced.setChecked(advanced.load_preference())
+        self._act_advanced.blockSignals(False)
+        advanced.set_all_expanded(self, self._act_advanced.isChecked())
         self._load_params(self._params)
         # Wrap every tooltip in one pass, once the whole UI exists. Doing it
         # here rather than at each call site means a tooltip written anywhere
@@ -128,6 +135,17 @@ class MainWindow(QMainWindow):
         act_tutorial.setToolTip("Launch the guided tutorial")
         act_tutorial.triggered.connect(self._start_tutorial)
 
+        # One switch for every folded section in the window, for someone who
+        # would rather see all of it than open sections one at a time. It only
+        # changes what is shown: see meanap.gui.advanced.
+        self._act_advanced = QAction("⚙  Advanced settings", self)
+        self._act_advanced.setCheckable(True)
+        self._act_advanced.setToolTip(
+            "Show the less-used settings on every tab at once. They are saved "
+            "and used either way — this only changes what is on screen."
+        )
+        self._act_advanced.toggled.connect(self._on_toggle_advanced)
+
         tb.addAction(act_new)
         tb.addSeparator()
         tb.addAction(act_open)
@@ -136,6 +154,7 @@ class MainWindow(QMainWindow):
         tb.addAction(act_bundle)
         tb.addSeparator()
         tb.addAction(self._act_theme)
+        tb.addAction(self._act_advanced)
         tb.addAction(act_tutorial)
         tb.addSeparator()
 
@@ -255,6 +274,13 @@ class MainWindow(QMainWindow):
         first.textChanged.connect(sync(first, second))
         second.textChanged.connect(sync(second, first))
         second.setText(first.text())
+
+    def _on_toggle_advanced(self, show: bool) -> None:
+        n = advanced.set_all_expanded(self, show)
+        advanced.save_preference(show)
+        self.statusBar().showMessage(
+            f"{'Showing' if show else 'Hiding'} advanced settings "
+            f"in {n} section(s).", 4000)
 
     # ── Modes ─────────────────────────────────────────────────────────────────
 
