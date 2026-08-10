@@ -296,21 +296,33 @@ def _drop_checks(app: QApplication, express_root: Path) -> list[Check]:
                        len(window._viewers) == 2 and len(urls) == 2, str(sorted(urls))))
         window._viewers.close_all()
 
-    # The toolbar route exists and is discoverable.
-    actions = {a.text(): a for a in window.findChildren(QAction)}
-    bundle_action = next(
-        (a for text, a in actions.items() if "Open bundle" in text), None)
-    checks.append(("the toolbar offers 'Open bundle…'", bundle_action is not None,
-                   str(sorted(actions))))
+    # Opening a bundle belongs with the other things you do to a finished run,
+    # not in the toolbar beside New and Save params.
+    button = window._results_panel.bundle_btn
+    checks.append(("the Results tab offers 'Open bundle…'",
+                   "Open bundle" in button.text(), button.text()))
     checks.append(("…and says drag-and-drop works too",
-                   bundle_action is not None and "drag" in bundle_action.toolTip().lower(),
-                   bundle_action.toolTip() if bundle_action else ""))
+                   "drag" in button.toolTip().lower(), button.toolTip()))
+    checks.append(("it is not also in the toolbar",
+                   not any("Open bundle" in a.text()
+                           for a in window.findChildren(QAction)),
+                   str(sorted(a.text() for a in window.findChildren(QAction) if a.text()))))
 
-    # The Results tab offers it too — as the *same* action, so the two cannot
-    # drift apart in wording, tooltip or behaviour.
-    checks.append(("the Results tab offers the same action, not a copy of it",
-                   window._results_panel.bundle_btn.defaultAction() is bundle_action,
-                   str(window._results_panel.bundle_btn.defaultAction())))
+    # Pressing it reaches the window's handler — the same one drag-and-drop
+    # uses. The file chooser is stubbed out, or this would sit on a modal
+    # dialog forever.
+    from PyQt6.QtWidgets import QFileDialog
+
+    asked: list[str] = []
+    original = QFileDialog.getOpenFileName
+    QFileDialog.getOpenFileName = staticmethod(
+        lambda *a, **k: (asked.append("chooser opened"), ("", ""))[1])
+    try:
+        button.click()
+    finally:
+        QFileDialog.getOpenFileName = original
+    checks.append(("pressing it asks the window for a bundle to open",
+                   asked == ["chooser opened"], str(asked)))
     return checks
 
 

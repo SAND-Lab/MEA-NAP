@@ -119,14 +119,6 @@ class MainWindow(QMainWindow):
         act_save.setToolTip("Save current parameters to a JSON file")
         act_save.triggered.connect(self._on_save)
 
-        self._act_bundle = QAction("📦  Open bundle…", self)
-        self._act_bundle.setToolTip(
-            "Open a .meanap run bundle — from an express run of your own, or "
-            "one someone sent you — and draw any of its figures in the viewer. "
-            "You can also drag the file onto this window."
-        )
-        self._act_bundle.triggered.connect(self._on_open_bundle)
-
         act_tutorial = QAction("?  Tutorial", self)
         act_tutorial.setToolTip("Launch the guided tutorial")
         act_tutorial.triggered.connect(self._start_tutorial)
@@ -161,8 +153,6 @@ class MainWindow(QMainWindow):
         tb.addSeparator()
         tb.addAction(act_open)
         tb.addAction(act_save)
-        tb.addSeparator()
-        tb.addAction(self._act_bundle)
         tb.addSeparator()
         tb.addAction(self._act_advanced)
         tb.addAction(act_tutorial)
@@ -204,10 +194,9 @@ class MainWindow(QMainWindow):
         # cares about one — loading parameters, or the queue's list.
         self._pipeline_panel = self._run_panel.settings
         self._queue_panel = self._run_panel.queue
-        # The Results tab reuses the toolbar's own Open bundle action rather
-        # than a second button calling the same slot.
-        self._results_panel = ResultsPanel(self._act_bundle)
+        self._results_panel = ResultsPanel()
         self._results_panel.view_report_requested.connect(self._on_view_report)
+        self._results_panel.open_bundle_requested.connect(self._on_open_bundle)
         self._network_viewer_panel = self._results_panel.viewer
 
         # Every tab is built once and kept alive here; the current mode decides
@@ -986,7 +975,7 @@ class MainWindow(QMainWindow):
                 "Run the pipeline first, or set the Output data folder / name "
                 "(Data tab) to an existing MEA-NAP output folder.\n\n"
                 "To open an express run from another machine, use "
-                "'Open bundle…' here or in the toolbar, or drag its .meanap file onto "
+                "'Open bundle…' above, or drag its .meanap file onto "
                 "this window.",
             )
             return

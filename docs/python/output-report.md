@@ -86,5 +86,5 @@ without MEA-NAP.
 
 The GUI picks between them for you: **🌐 View report** opens the viewer for an
 express run and builds `report.html` for a full one. You can also open any
-bundle directly with **📦 Open bundle…** (Results tab or toolbar), or by dragging the
+bundle directly with **📦 Open bundle…** on the Results tab, or by dragging the
 `.meanap` file onto the window.

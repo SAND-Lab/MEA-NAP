@@ -2,9 +2,10 @@
 
 Looking at results was spread across the window. **View report** was a fourth
 button in the Run tab's row, beside Run and Stop, which is the row you look at
-while something is *running*. **Open bundle…** was in the toolbar, next to New
-and Save params. The Network Viewer was a tab of its own, sitting before Run in
-the strip — so the workflow ran left to right until the very end, then jumped
+while something is *running*. **Open bundle…** was in the toolbar, next to New and
+Save params, which is where you look for a file you are about to open — not for
+a run you are about to read. The Network Viewer was a tab of its own, sitting
+before Run in the strip — so the workflow ran left to right until the very end, then jumped
 backwards.
 
 They are one tab now, and it is the last one: configure on the left, run, then
@@ -22,10 +23,8 @@ from __future__ import annotations
 from pathlib import Path
 
 from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QAction
 from PyQt6.QtWidgets import (
-    QGroupBox, QHBoxLayout, QLabel, QPushButton, QToolButton, QVBoxLayout,
-    QWidget,
+    QGroupBox, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget,
 )
 
 from meanap.gui.panels.network_viewer import NetworkViewerPanel
@@ -37,11 +36,10 @@ class ResultsPanel(QWidget):
     """Open a finished run, and explore its networks."""
 
     view_report_requested = pyqtSignal()
+    open_bundle_requested = pyqtSignal()
 
-    def __init__(self, bundle_action: QAction | None = None,
-                 parent: QWidget | None = None) -> None:
+    def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self._bundle_action = bundle_action
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(12, 12, 12, 12)
@@ -70,18 +68,16 @@ class ResultsPanel(QWidget):
         self.view_report_btn.clicked.connect(self.view_report_requested)
         row.addWidget(self.view_report_btn)
 
-        # The same QAction the toolbar holds, rather than a second button that
-        # calls the same slot — one tooltip, one shortcut, no chance of the two
-        # drifting apart.
-        if self._bundle_action is not None:
-            self.bundle_btn = QToolButton()
-            self.bundle_btn.setDefaultAction(self._bundle_action)
-            self.bundle_btn.setToolButtonStyle(
-                Qt.ToolButtonStyle.ToolButtonTextOnly)
-            self.bundle_btn.setFixedHeight(40)
-            self.bundle_btn.setObjectName("secondary")
-            self.bundle_btn.setSizePolicy(self.view_report_btn.sizePolicy())
-            row.addWidget(self.bundle_btn)
+        self.bundle_btn = QPushButton("📦  Open bundle…")
+        self.bundle_btn.setFixedHeight(40)
+        self.bundle_btn.setObjectName("secondary")
+        self.bundle_btn.setToolTip(
+            "Open a .meanap run bundle — from an express run of your own, or "
+            "one someone sent you — and draw any of its figures in the viewer. "
+            "You can also drag the file onto this window."
+        )
+        self.bundle_btn.clicked.connect(self.open_bundle_requested)
+        row.addWidget(self.bundle_btn)
         outer.addLayout(row)
 
         # What the buttons above would act on. Written out because "View report"
