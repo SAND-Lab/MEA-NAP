@@ -73,6 +73,17 @@ MEA-NAP/
 
 ## Setup
 
+**On macOS**, install a build toolchain first — some dependencies compile from
+source and macOS doesn't ship one:
+
+```bash
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"  # Homebrew
+brew install cmake llvm
+```
+
+See [the installation docs](../docs/python/installation.md#macos-prerequisites)
+for the `PATH`/`CC` exports `brew info llvm` asks you to add.
+
 Install [uv](https://docs.astral.sh/uv/getting-started/installation/) if you don't have it:
 
 ```bash

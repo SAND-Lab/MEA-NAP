@@ -9,6 +9,54 @@ git clone https://github.com/SAND-Lab/MEA-NAP.git
 cd MEA-NAP
 ```
 
+## macOS prerequisites
+
+On macOS some dependencies have no pre-built wheel for your Python version or
+chip and are compiled from source during the install, which needs a C/C++
+toolchain that macOS doesn't ship by default. Install these **before** running
+`uv sync` / `pip install -e .`:
+
+1. **Homebrew** — the package manager used to get the other two
+   ([brew.sh](https://brew.sh)):
+
+   ```bash
+   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+   ```
+
+   Follow the "Next steps" it prints at the end — on Apple Silicon it asks you
+   to add `/opt/homebrew/bin` to your `PATH` before `brew` is usable.
+
+2. **CMake** — the build system several source packages use:
+
+   ```bash
+   brew install cmake
+   ```
+
+3. **LLVM** — provides `clang` and the OpenMP runtime that Apple's stock
+   command line tools leave out:
+
+   ```bash
+   brew install llvm
+   ```
+
+   `brew info llvm` prints the exact `export` lines for your machine; on Apple
+   Silicon they look like this, and are worth adding to `~/.zshrc`:
+
+   ```bash
+   export PATH="/opt/homebrew/opt/llvm/bin:$PATH"
+   export CC="/opt/homebrew/opt/llvm/bin/clang"
+   export CXX="/opt/homebrew/opt/llvm/bin/clang++"
+   export LDFLAGS="-L/opt/homebrew/opt/llvm/lib"
+   export CPPFLAGS="-I/opt/homebrew/opt/llvm/include"
+   ```
+
+You may also be prompted to install Apple's Command Line Tools
+(`xcode-select --install`) — accept it if so.
+
+If a fresh install fails with `error: command 'cmake' not found`, `clang: error:
+unsupported option '-fopenmp'`, or a long `Building wheel for ... did not run
+successfully` traceback, it's almost always one of the three above missing.
+
 ::::{tab-set}
 
 :::{tab-item} uv (recommended)
@@ -66,6 +114,9 @@ To install it:
 ```bash
 uv run pip install git+https://github.com/j-friedrich/OASIS.git
 ```
+
+OASIS is built from source, so on macOS it needs the toolchain from
+[macOS prerequisites](#macos-prerequisites) above.
 
 ## Verifying your install
 
