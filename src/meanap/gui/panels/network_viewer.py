@@ -9,8 +9,8 @@ from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyQt6.QtWidgets import (
     QComboBox, QDoubleSpinBox, QFileDialog, QFormLayout, QGroupBox,
     QHBoxLayout, QLabel, QLineEdit, QListWidget, QListWidgetItem,
-    QPushButton, QSizePolicy, QSpinBox, QSplitter, QTextEdit, QVBoxLayout,
-    QWidget,
+    QPushButton, QScrollArea, QSizePolicy, QSpinBox, QSplitter, QStyle,
+    QTextEdit, QVBoxLayout, QWidget,
 )
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
@@ -137,9 +137,31 @@ class NetworkViewerPanel(QWidget):
         splitter = QSplitter(Qt.Orientation.Horizontal)
         main_layout.addWidget(splitter)
 
-        splitter.addWidget(self._build_left())
+        # The control column is taller than it looks — five stacked group
+        # boxes — and a plain widget hands its full height to the window as a
+        # minimum, which on a laptop screen leaves the window unable to be
+        # resized vertically at all. Scrolling it keeps that height off the
+        # window's minimum.
+        left_scroll = QScrollArea()
+        left_controls = self._build_left()
+        left_scroll.setWidget(left_controls)
+        left_scroll.setWidgetResizable(True)
+        left_scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        splitter.addWidget(left_scroll)
         splitter.addWidget(self._build_right())
-        splitter.setSizes([320, 700])
+        # Keep the column wide enough for the controls *and* the vertical
+        # scrollbar beside them. Measured from the widgets rather than set to a
+        # round number, so a relabelled control or a wider platform scrollbar
+        # cannot clip the column or force a horizontal scrollbar under it. Only
+        # the width is pinned — the height is what scrolls.
+        scrollbar_w = self.style().pixelMetric(
+            QStyle.PixelMetric.PM_ScrollBarExtent, None, left_scroll)
+        left_scroll.setMinimumWidth(
+            left_controls.sizeHint().width() + scrollbar_w + 4)
+        # Spare width goes to the plot, not the controls.
+        splitter.setStretchFactor(0, 0)
+        splitter.setStretchFactor(1, 1)
+        splitter.setSizes([left_scroll.minimumWidth(), 700])
 
         # Start on the example network so every control does something on launch.
         self._load_example_network()
