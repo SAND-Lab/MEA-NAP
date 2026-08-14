@@ -227,12 +227,12 @@ identical to a run that was never interrupted, figures included.
 
 ### Changing which recordings a run covers
 
-In the GUI this is three controls. **Paths → Edit…** is where the recording list
+In the GUI this is three controls. **Data → Edit…** is where the recording list
 is changed; when you add or remove one it says so and points at the next step.
-**Pipeline → Continue previous run** is that next step, with a sub-option for
-deleting the figures of recordings you took out. **Paths → Previous analysis
+**Run → Continue previous run** is that next step, with a sub-option for
+deleting the figures of recordings you took out. **Run → Previous analysis
 folder → Additional folders** takes further previous analyses, which is all
-merging runs needs.
+merging runs needs. Written up for users in `docs/python/changing-a-batch.md`.
 
 The same mechanism handles a batch that changes after the fact. In each case the
 result is what you would have got by analysing that set from the start — the
