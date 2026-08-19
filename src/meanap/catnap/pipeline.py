@@ -630,6 +630,28 @@ def _reload_for_plots(params, rec, state, log, source=None):
     return data, state.background
 
 
+def _no_trace_reason(params, data) -> str | None:
+    """Why this recording can draw no peak-detection figures, or ``None``.
+
+    Every branch here used to be a silent ``return []`` inside
+    :func:`plot_2p_traces` — the figures simply did not appear, in a run that
+    reported no error, and the express bundle that travelled afterwards was the
+    only record anyone had.
+    """
+    if data is None:
+        return "its suite2p folder could not be re-read (see the warning above)"
+    if data.F_denoised is None or data.peak_start_frames is None:
+        if params.twop_activity not in _NEEDS_DENOISING:
+            return (f"activity type {params.twop_activity!r} does not denoise, "
+                    "and these figures plot the denoised trace against the "
+                    "detected events — use 'peaks' to get them")
+        return ("no denoised traces were found for it — denoising did not run "
+                "or its output is missing from the derived-data folder")
+    if not int(data.cell_mask.sum()):
+        return "iscell.npy labels none of its ROIs as cells"
+    return None
+
+
 def _plot_recording(params, rec, state, rec_results, batch_bounds, output_root, log,
                     data=None, background=None) -> None:
     """Per-unit trace figures + the full step-4A figure set for one recording.
@@ -653,15 +675,27 @@ def _plot_recording(params, rec, state, rec_results, batch_bounds, output_root, 
     from meanap.catnap.plotting import plot_2p_traces
     from meanap.pipeline.step4 import _plot_recording_lag
 
-    if params.num_2p_traces and data is not None:
-        try:
-            trace_dir = (output_root / "2_NeuronalActivity" / "2A_IndividualNeuronalAnalysis"
-                         / rec.group / rec.filename)
-            log(f"  [{rec.filename}] plotting 2P traces…")
-            plot_2p_traces(data, trace_dir, rec.filename,
-                           num_traces=params.num_2p_traces)
-        except Exception as e:
-            log(f"  [{rec.filename}] warning: 2P trace plots failed: {e}")
+    if params.num_2p_traces:
+        # Say why when there is nothing to draw. These are the one family a
+        # bundle cannot rebuild, so a run that quietly skips them leaves the
+        # reader looking at an empty section in the viewer with nothing in the
+        # log to explain it — and no way to get them back but another run.
+        reason = _no_trace_reason(params, data)
+        if reason:
+            log(f"  [{rec.filename}] no peak-detection trace figures: {reason}")
+        else:
+            try:
+                trace_dir = (output_root / "2_NeuronalActivity"
+                             / "2A_IndividualNeuronalAnalysis"
+                             / rec.group / rec.filename)
+                log(f"  [{rec.filename}] plotting 2P traces…")
+                drawn = plot_2p_traces(data, trace_dir, rec.filename,
+                                       num_traces=params.num_2p_traces)
+                if not drawn:
+                    log(f"  [{rec.filename}] warning: 2P trace plots produced "
+                        "no figures")
+            except Exception as e:
+                log(f"  [{rec.filename}] warning: 2P trace plots failed: {e}")
 
     if params.express_mode:
         return

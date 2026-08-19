@@ -621,6 +621,18 @@ def _trace_checks() -> list[Check]:
             status, body, _ = _get(base + "/")
             checks.append(("the page has a section for them",
                            b"Peak detection traces" in body, ""))
+
+            # …and the pane the image loads into is actually shown. Everything
+            # above passed while a click on "Unit 1" displayed nothing: the PNG
+            # was fetched into #figure-img, and setMode hid the <figure> around
+            # it, because its list of one-image kinds did not name "trace".
+            from meanap.viewer.page import PAGE_HTML
+
+            one_expr = PAGE_HTML.split("const one =", 1)[1].split(";", 1)[0]
+            checks.append(("a trace counts as a single-figure view",
+                           '"trace"' in one_expr, " ".join(one_expr.split())))
+            checks.append(("…so the PNG download is offered",
+                           'const downloadable = one' in PAGE_HTML, ""))
         finally:
             httpd.shutdown()
     return checks

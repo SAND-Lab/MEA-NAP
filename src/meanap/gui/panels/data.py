@@ -15,7 +15,10 @@ nothing to do with, and its on/off switch was on another tab. It has moved to si
 with that switch — see :mod:`meanap.gui.panels.prior`.
 
 The Recording group is hidden in CAT-NAP mode, where none of it applies: suite2p
-recordings carry their own frame rate and have no electrodes.
+recordings carry their own frame rate and have no electrodes. So is the
+spike-data folder, which names spikes detected outside the pipeline for a step
+CAT-NAP does not have — and the input folder is renamed there, since "raw data"
+describes nothing a suite2p run reads. See :meth:`DataPanel.set_mode`.
 """
 
 from __future__ import annotations
@@ -23,18 +26,39 @@ from __future__ import annotations
 from pathlib import Path
 
 from PyQt6.QtWidgets import (
-    QComboBox, QDoubleSpinBox, QFormLayout, QGroupBox, QHBoxLayout, QLineEdit,
-    QPushButton, QVBoxLayout, QWidget,
+    QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QGroupBox, QHBoxLayout,
+    QLineEdit, QPushButton, QVBoxLayout, QWidget,
 )
 
 from meanap.gui.advanced import AdvancedSection
 from meanap.gui.panels.paths import PathRow
 from meanap.params import Params, is_remote_url
 
-__all__ = ["DataPanel", "CHANNEL_LAYOUTS", "POTENTIAL_UNITS"]
+__all__ = ["DataPanel", "CHANNEL_LAYOUTS", "POTENTIAL_UNITS",
+           "RAW_DATA_LABEL", "CATNAP_DATA_LABEL"]
 
 CHANNEL_LAYOUTS = ["MCS60", "Axion64", "Mea256", "Custom"]
 POTENTIAL_UNITS = ["uV", "mV", "V"]
+
+#: What the input folder is called, per pipeline. The ephys modes read raw
+#: traces off the recorder; CAT-NAP reads suite2p output, where "raw data" names
+#: nothing the user has. See :meth:`DataPanel.set_mode`.
+RAW_DATA_LABEL = "Raw data folder"
+CATNAP_DATA_LABEL = "Recordings folder (suite2p)"
+
+RAW_DATA_TOOLTIP = (
+    "Folder holding your recordings — or paste a Dropbox folder share link to "
+    "analyse them without downloading the whole dataset. Recordings are then "
+    "fetched one at a time and discarded once analysed; the cache and denoising "
+    "outputs go under the output folder."
+)
+CATNAP_DATA_TOOLTIP = (
+    "The folder holding every recording — not one recording's folder. Each "
+    "sub-folder's name becomes that recording's name, and each holds a "
+    "suite2p/plane0 directory. A Dropbox folder share link works here too: it "
+    "is scanned without downloading anything and the run fetches one recording "
+    "at a time. This is the same setting as the CAT-NAP tab's folder box."
+)
 
 
 class DataPanel(QWidget):
@@ -54,16 +78,11 @@ class DataPanel(QWidget):
 
     def _build_input(self) -> QWidget:
         box = QGroupBox("Input")
-        form = QFormLayout(box)
+        form = self._input_form = QFormLayout(box)
         form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
 
         self.raw_data = PathRow(self)
-        self.raw_data.setToolTip(
-            "Folder holding your recordings — or paste a Dropbox folder share "
-            "link to analyse them without downloading the whole dataset. "
-            "Recordings are then fetched one at a time and discarded once "
-            "analysed; the cache and denoising outputs go under the output "
-            "folder.")
+        self.raw_data.setToolTip(RAW_DATA_TOOLTIP)
 
         self.spreadsheet = PathRow(
             self, is_file=True, file_filter="Spreadsheets (*.csv *.xlsx *.xls)")
@@ -82,7 +101,7 @@ class DataPanel(QWidget):
         sheet_row.addWidget(self.spreadsheet)
         sheet_row.addWidget(self.edit_spreadsheet_btn)
 
-        form.addRow("Raw data folder", self.raw_data)
+        form.addRow(RAW_DATA_LABEL, self.raw_data)
         form.addRow("Spreadsheet file", sheet_row)
 
         self.spreadsheet_range = QLineEdit("A2:A100000")
@@ -95,14 +114,31 @@ class DataPanel(QWidget):
             "step 1. Leave empty unless you have them."
         )
 
+        # Truncation is a property of the input — "analyse only the first N
+        # seconds of each recording" — so it sits with the data it applies to.
+        # It used to live under the STTC settings on the Connectivity tab,
+        # which is where it is *used* rather than what it is about, and that
+        # tab is not shown at all until connectivity is the thing being set up.
+        self.trunc_rec = QCheckBox()
+        self.trunc_rec.setToolTip(
+            "Analyse only the first part of every recording, so recordings of "
+            "different lengths are compared over the same window.")
+        self.trunc_length = QDoubleSpinBox()
+        self.trunc_length.setRange(1, 100000)
+        self.trunc_length.setDecimals(0)
+        self.trunc_length.setSuffix(" s")
+        self.trunc_length.setValue(120)
+
         # The default range covers any spreadsheet anyone will write, the group
-        # order only changes how figures are ordered, and most people have no
-        # externally-detected spikes — none of the three is part of setting a
-        # run up.
-        advanced = AdvancedSection()
+        # order only changes how figures are ordered, most people have no
+        # externally-detected spikes, and most recordings are analysed whole —
+        # none of these is part of setting a run up.
+        advanced = self._input_advanced = AdvancedSection()
         advanced.form().addRow("Spreadsheet range", self.spreadsheet_range)
         advanced.form().addRow("Custom group order", self.custom_grp_order)
         advanced.form().addRow("Spike data folder", self.spike_detected_data)
+        advanced.form().addRow("Truncate recording", self.trunc_rec)
+        advanced.form().addRow("Truncation length", self.trunc_length)
         form.addRow(advanced)
         return box
 
@@ -196,14 +232,32 @@ class DataPanel(QWidget):
     # ── Modes ─────────────────────────────────────────────────────────────────
 
     def set_mode(self, mode_key: str) -> None:
-        """Hide what this pipeline has no use for.
+        """Hide — and rename — what this pipeline has no use for.
 
         CAT-NAP reads suite2p output, which carries its own frame rate and has
         no electrodes, so every setting in the Recording group is meaningless
-        there. Hidden rather than removed: the values stay in ``Params`` and
-        come back if the mode does.
+        there, as is a folder of spikes detected elsewhere: CAT-NAP has no
+        spike-detection step to skip. Hidden rather than removed: the values
+        stay in ``Params`` and come back if the mode does.
+
+        "Raw data" is an ephys word — there is no raw trace in a CAT-NAP run,
+        only suite2p output — so the folder is named for what it holds in each
+        mode, matching the CAT-NAP tab's own wording.
         """
-        self.recording_box.setVisible(mode_key != "catnap")
+        catnap = mode_key == "catnap"
+        self.recording_box.setVisible(not catnap)
+
+        label = self._input_form.labelForField(self.raw_data)
+        if label is not None:
+            label.setText(CATNAP_DATA_LABEL if catnap else RAW_DATA_LABEL)
+        self.raw_data.setToolTip(
+            CATNAP_DATA_TOOLTIP if catnap else RAW_DATA_TOOLTIP)
+
+        self._input_advanced.form().setRowVisible(
+            self.spike_detected_data, not catnap)
+        # The header's count is now one out; it only recomputes on show, and a
+        # mode can be switched while this tab is the one being looked at.
+        self._input_advanced.refresh_label()
 
     # ── The spreadsheet editor ────────────────────────────────────────────────
 
@@ -230,6 +284,8 @@ class DataPanel(QWidget):
         self.spreadsheet_range.setText(params.spreadsheet_range)
         self.custom_grp_order.setText(",".join(params.custom_grp_order))
         self.spike_detected_data.set_value(params.spike_detected_data)
+        self.trunc_rec.setChecked(params.trunc_rec)
+        self.trunc_length.setValue(params.trunc_length)
         self.output_data_folder.set_value(params.output_data_folder)
         self.output_data_folder_name.setText(params.output_data_folder_name)
         self.cache_dir.set_value(params.cache_dir)
@@ -257,6 +313,8 @@ class DataPanel(QWidget):
         params.custom_grp_order = [
             g.strip() for g in self.custom_grp_order.text().split(",") if g.strip()]
         params.spike_detected_data = self.spike_detected_data.value
+        params.trunc_rec = self.trunc_rec.isChecked()
+        params.trunc_length = self.trunc_length.value()
         params.output_data_folder = self.output_data_folder.value
         params.output_data_folder_name = self.output_data_folder_name.text()
         params.cache_dir = self.cache_dir.value

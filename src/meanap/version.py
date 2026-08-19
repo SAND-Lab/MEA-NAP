@@ -108,7 +108,7 @@ def pipeline_version(mode: str) -> str:
 
 
 def pipeline_label(mode: str) -> str:
-    """``"CAT-NAP 1.0.0"`` — the form shown in the GUI and written into output."""
+    """``"CAT-NAP 1.0.1"`` — the form shown in the GUI and written into output."""
     name = PIPELINE_NAMES.get(mode, mode)
     return f"{name} {pipeline_version(mode)}"
 
