@@ -74,6 +74,13 @@ results.
       Skip the figures, ship one small ``.meanap`` file, and redraw any plot
       on demand — in PNG or editable SVG — with the built-in viewer.
 
+   .. grid-item-card:: ♻️ Changing a batch
+      :link: changing-a-batch
+      :link-type: doc
+
+      Add a recording, take one out, or combine separate runs into one
+      pooled analysis — without analysing everything again.
+
    .. grid-item-card:: 📊 Output report
       :link: output-report
       :link-type: doc
@@ -128,6 +135,7 @@ figure.
    network-viewer
    notebooks/network-plotting-tutorial
    output-report
+   changing-a-batch
    express-mode
    remote-data
    matlab-vs-python

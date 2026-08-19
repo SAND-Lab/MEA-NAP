@@ -209,21 +209,20 @@ suite2p output rather than raw MEA `.mat` files. Full walkthrough:
 One tab for starting work, with a switch at the top for what the **Run** button
 starts: **This run** — the analysis the other tabs describe — or **Queue of
 saved runs**, which works through several saved parameter files one after
-another (see [Queueing several runs](../../python/README.md#queueing-several-runs)).
-Either way there is one Run button, one Stop button, one progress bar and one
+another. Either way there is one Run button, one Stop button, one progress bar and one
 log, so a run cannot be started while another is going.
 
 | Field | Description |
 |---|---|
 | **Start at step** / **Stop at step** | Which of the 4 steps to run, inclusive (1–4). Moving one past the other drags the other along, so the range always stays valid. |
 | **Use prior analysis** | Read the steps before **Start at step** from an earlier run instead of recomputing them. Ticking it enables the folder fields underneath. |
-| **Previous analysis folder** / **Additional folders** | The earlier run(s) to read. Each may be an `OutputData…` folder or a `.meanap` bundle. Naming more than one combines them: a spreadsheet listing recordings from several runs is analysed as one batch. |
+| **Previous analysis folder** / **Additional folders** | The earlier run(s) to read. Each may be an `OutputData…` folder or a `.meanap` bundle. Naming more than one combines them: a spreadsheet listing recordings from several runs is analysed as one batch — see [Combining separate runs](changing-a-batch.md#combining-separate-runs). |
 | **Optional steps** ⚙ | Extra steps to run alongside the core 4, e.g. `generateCSV`. |
 | **Verbose level** ⚙ | `Normal`, `Verbose`, or `Debug` logging detail in the status log. |
 | **Time each step** ⚙ | Records per-step wall-clock time to `step_durations.json` in the output folder. |
 | **Fixed random seed** ⚙ | Makes the stochastic steps (3 and 4) reproducible. Off — the default, matching MATLAB — gives a fresh seed per run. |
-| **Continue previous run** | Picks up a run that stopped partway: writes into the same output folder and skips any recording already finished. Also how you add or remove recordings — edit the spreadsheet, tick this, and only the new ones are analysed. Everything pooled across the batch is redone over whatever the spreadsheet now lists. |
-| **…and drop removed recordings' figures** | Only while continuing. Deletes the plots of recordings the spreadsheet no longer names; they are excluded from every CSV either way, but their figures otherwise stay in the output folder and the report. Their data is kept, so putting a recording back stays cheap. |
+| **Continue previous run** | Picks up a run that stopped partway: writes into the same output folder and skips any recording already finished. Also how you add or remove recordings — edit the spreadsheet, tick this, and only the new ones are analysed. Everything pooled across the batch is redone over whatever the spreadsheet now lists. See [Changing which recordings a run covers](changing-a-batch.md). |
+| **…and drop removed recordings' figures** | Only while continuing. Deletes the plots of recordings the spreadsheet no longer names; they are excluded from every CSV either way, but their figures otherwise stay in the output folder and the report. Their data is kept, so putting a recording back stays cheap. See [Removing a recording](changing-a-batch.md#removing-a-recording). |
 | **Express mode** | Skips every figure that can be redrawn later and keeps **only** a small `.meanap` bundle — the output folder is removed once the bundle is written and verified. The numbers are identical either way, and the viewer can draw the folder back out again; see [Express mode and run bundles](express-mode.md). |
 
 The buttons under **Start**:
