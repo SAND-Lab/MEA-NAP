@@ -64,12 +64,19 @@ files:
    `peakEndFrames.npy`, `peakHeights.npy`, `eventAreas.npy`.
 
 :::{admonition} Installing OASIS
-:class: note
-OASIS deconvolution isn't on PyPI, so it isn't installed by default:
+:class: important
+OASIS is a compiled extension, so it is optional rather than default:
 
 ```bash
-uv run pip install git+https://github.com/j-friedrich/OASIS.git
+uv sync --extra oasis
 ```
+
+Do this **before** your first run. Without it, step 2 falls back to
+Savitzky-Golay smoothing, which produces a *different peak train* — and so
+different adjacency matrices and different network metrics, not merely a
+rougher version of the same ones. Since `Fdenoised.npy` records nothing about
+how it was made, installing OASIS later will not recompute it; tick
+**Redo denoising**.
 :::
 
 ## What a run produces

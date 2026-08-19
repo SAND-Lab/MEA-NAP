@@ -315,6 +315,67 @@ def _dataset_checks(app) -> list[Check]:
     return checks
 
 
+def _advanced_settings_checks(app) -> list[Check]:
+    """The three CAT-NAP settings that had no GUI at all.
+
+    ``num_2p_traces`` decides whether a finished run can be checked for peak
+    detection afterwards — the trace figures are the only record of it, and a
+    bundle cannot rebuild them — yet it was reachable only from code. Worse,
+    the tab already had a "Cells to preview" spinbox that looks like the same
+    setting, defaults to the same 3, and drives only the on-screen preview.
+    """
+    from meanap.gui.panels.catnap import CatNapPanel
+    from meanap.params import Params
+
+    checks: list[Check] = []
+    panel = CatNapPanel()
+
+    panel.load(Params())
+    checks.append(("defaults load: 3 trace figures",
+                   panel._num_traces.value() == 3, f"{panel._num_traces.value()}"))
+    checks.append(("…NMF off", panel._nmf.isChecked() is False, ""))
+    checks.append(("…and the frame-based refractory shown as such, not as 0 s",
+                   panel._min_event_interval.text() == "50 frames (default)",
+                   panel._min_event_interval.text()))
+
+    panel._num_traces.setValue(12)
+    panel._min_event_interval.setValue(2.5)
+    panel._nmf.setChecked(True)
+    out = Params()
+    panel.save(out)
+    checks.append(("edits reach Params",
+                   (out.num_2p_traces, out.twop_min_event_interval, out.twop_nmf)
+                   == (12, 2.5, True),
+                   f"{(out.num_2p_traces, out.twop_min_event_interval, out.twop_nmf)}"))
+
+    # 0 s and "unset" are different: None keeps the 50-frame behaviour the
+    # MATLAB parity test pins, 0 would mean no refractory period at all.
+    panel._min_event_interval.setValue(0.0)
+    zero = Params()
+    panel.save(zero)
+    checks.append(("zero saves as None, not 0.0",
+                   zero.twop_min_event_interval is None,
+                   f"{zero.twop_min_event_interval!r}"))
+
+    loaded = Params(num_2p_traces=7, twop_min_event_interval=1.75, twop_nmf=True)
+    panel.load(loaded)
+    back = Params()
+    panel.save(back)
+    checks.append(("load → save is the identity",
+                   (back.num_2p_traces, back.twop_min_event_interval, back.twop_nmf)
+                   == (7, 1.75, True),
+                   f"{(back.num_2p_traces, back.twop_min_event_interval, back.twop_nmf)}"))
+
+    # The preview spinbox must stay independent, or setting one silently
+    # changes the other.
+    panel._n_cells_preview.setValue(9)
+    indep = Params()
+    panel.save(indep)
+    checks.append(("the preview spinbox does not write num_2p_traces",
+                   indep.num_2p_traces == 7, f"{indep.num_2p_traces}"))
+    return checks
+
+
 def main() -> int:
     print("=" * 70)
     print("CAT-NAP cell-type subnetwork GUI")
@@ -332,6 +393,7 @@ def main() -> int:
     for title, build in [
         ("Group grid editor:", _editor_checks),
         ("CAT-NAP panel ↔ Params:", _panel_checks),
+        ("Advanced settings (traces, refractory, NMF):", _advanced_settings_checks),
     ]:
         p, n = _report(title, build(app))
         total_pass += p

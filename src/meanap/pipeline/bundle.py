@@ -184,9 +184,15 @@ def build_manifest(
     ``embedded_figures`` names the families packed as images because they are
     *not* reconstructable — the honest counterpart to ``reconstructable``.
     """
+    from meanap.version import version_stamp
+
     return {
         "format": FORMAT_VERSION,
         "mode": mode,
+        # Which pipeline, at which version, produced this. ``format`` above is
+        # the *bundle layout*; this is the code. A reader years from now needs
+        # both, and they move independently.
+        **version_stamp(mode),
         "express": bool(params.express_mode),
         "lags": [int(v) for v in (lags if lags is not None else params.func_con_lag_val)],
         "recordings": [

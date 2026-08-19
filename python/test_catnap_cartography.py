@@ -199,7 +199,7 @@ def _ordering_checks() -> list[Check]:
     }
     seeds = {rec.filename: i for i, rec in enumerate(recordings)}
 
-    def fake_load(plane0):
+    def fake_load(plane0, derived_root=None, recording=None):
         return Suite2pData(F=np.zeros((N_NODES, 600)),
                            F_denoised=np.zeros((N_NODES, 600)))
 

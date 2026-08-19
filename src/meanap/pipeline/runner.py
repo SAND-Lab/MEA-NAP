@@ -10,7 +10,8 @@ from pathlib import Path
 from typing import Callable
 
 from meanap.params import (
-    PARAMS_FILENAME, Params, default_cache_dir, is_remote_url, save_params,
+    PARAMS_FILENAME, Params, default_cache_dir, default_derived_dir, is_remote_url, mode_for_params,
+    save_params,
 )
 from meanap.pipeline.cancellation import CancelCheck, check_cancel
 from meanap.pipeline.io import (
@@ -154,6 +155,11 @@ def run_pipeline(
         Path(params.output_data_folder), folder_name, group_names,
         include_not_box_plots=params.include_not_box_plots,
     )
+    from meanap.version import pipeline_label
+
+    # First line of every run log, so a log pasted into an issue says which
+    # pipeline and version produced it without anyone having to ask.
+    log(pipeline_label(mode_for_params(params)))
     log(f"Output folder ready: {output_root}")
 
     # Snapshot the settings alongside the results. Until this, an output folder
@@ -217,6 +223,7 @@ def run_pipeline(
                 params, recordings, output_root, log, mode="catnap",
                 embedded_figures=["2p_traces"] if params.num_2p_traces else [])
             output_root = _discard_folder_for_bundle(output_root, bundle, log)
+        _report_working_dirs(params, log)
         reporter.finish()
         return output_root
 
@@ -342,6 +349,7 @@ def run_pipeline(
         # Last, so the timing block above still has a folder to write into.
         output_root = _discard_folder_for_bundle(output_root, written_bundle, log)
 
+    _report_working_dirs(params, log)
     reporter.finish()
     return output_root
 
@@ -414,6 +422,82 @@ def _reconcile_roster(params: Params, output_root: Path, recordings, log) -> Non
     if params.prune_removed_recordings:
         pruned = prune_recordings(stale, log=log) > 0
     report_stale(stale, pruned=pruned, log=log)
+
+
+def _human_bytes(n: int) -> str:
+    for unit in ("B", "KB", "MB", "GB", "TB"):
+        if n < 1024 or unit == "TB":
+            return f"{n:.0f} {unit}" if unit == "B" else f"{n:.1f} {unit}"
+        n /= 1024.0
+    return f"{n:.1f} TB"
+
+
+def _dir_bytes(path: Path) -> int:
+    return sum(f.stat().st_size for f in path.rglob("*") if f.is_file())
+
+
+def _sweep_empty_dirs(root: Path) -> int:
+    """Remove directories under *root* that hold no files, deepest first.
+
+    The remote cache evicts each recording's files as soon as its analysis is
+    done, which is what keeps peak storage bounded — but eviction removes
+    files, not the directories that held them. Over several runs (and several
+    share links, each with its own subtree) a cache that is genuinely empty
+    still looks like megabytes of structure, which is alarming in exactly the
+    way express mode is meant to avoid. Returns how many were removed.
+    """
+    removed = 0
+    for path in sorted(root.rglob("*"), key=lambda p: len(p.parts), reverse=True):
+        if not path.is_dir():
+            continue
+        try:
+            next(path.iterdir())
+        except StopIteration:
+            try:
+                path.rmdir()
+                removed += 1
+            except OSError:
+                pass
+        except OSError:
+            pass
+    return removed
+
+
+def _report_working_dirs(params: Params, log) -> None:
+    """Say what a remote run left behind besides its result.
+
+    Express mode's claim is that the bundle is the whole run, and for the
+    *output folder* that is true. It was never true of the two directories a
+    remote run needs — the streamed-file cache and the derived denoising
+    outputs — and the second of those is routinely much larger than the bundle
+    (5.7 GB against 182 MB on a 378-recording batch). Leaving that undisclosed
+    is what makes it feel like a leak rather than a cache.
+
+    Also sweeps the cache's empty skeleton, since eviction leaves directories
+    behind and a swept cache reads as "nothing here" instead of "megabytes".
+    """
+    if not is_remote_url(params.raw_data):
+        return
+
+    cache = default_cache_dir(params)
+    if cache.is_dir():
+        size = _dir_bytes(cache)
+        swept = _sweep_empty_dirs(cache)
+        if size:
+            log(f"Cache: {_human_bytes(size)} still in {cache} "
+                "(re-fetchable; safe to delete).")
+        elif swept:
+            log(f"Cache: emptied, and {swept} leftover folder(s) removed from {cache}.")
+
+    derived = default_derived_dir(params, remote=True)
+    dpath = Path(derived) if derived else None
+    if dpath is not None and dpath.is_dir():
+        size = _dir_bytes(dpath)
+        if size:
+            n = sum(1 for c in dpath.iterdir() if c.is_dir())
+            log(f"Derived data: {_human_bytes(size)} across {n} recording(s) in {dpath}")
+            log("  Kept on purpose — it is the denoising output, so a re-run skips "
+                "denoising entirely. Deleting it only costs that work.")
 
 
 def _discard_folder_for_bundle(output_root: Path, bundle: Path | None, log) -> Path:

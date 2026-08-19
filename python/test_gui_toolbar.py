@@ -121,6 +121,59 @@ check("the logo sits in the tab strip, not the toolbar",
       corner is not None and corner.pixmap() is not None
       and corner.parent() is not toolbar, str(corner))
 
+# ── The logo follows the mode ─────────────────────────────────────────────────
+#
+# Only MEA-NAP has artwork today, so the other two modes fall back to it. That
+# makes the interesting question not "does it change" — it cannot yet — but
+# "would it": the lookup must be by mode key, and adding a file must be the
+# only step. So a stand-in is written, picked up, and removed again.
+
+print("\nPer-mode branding")
+
+from PyQt6.QtGui import QPixmap  # noqa: E402
+from meanap.gui import branding  # noqa: E402
+
+check("every mode resolves to some artwork",
+      all(branding.logo_path(m).is_file() for m in branding.LOGO_FILES),
+      str({m: branding.logo_path(m).name for m in branding.LOGO_FILES}))
+check("a mode with no artwork of its own falls back to MEA-NAP's",
+      branding.logo_path("catnap") == branding.LOGO_PATH
+      or "catnap" in branding.available_logos(), "")
+check("an unknown mode falls back too, rather than raising",
+      branding.logo_path("nonsense") == branding.LOGO_PATH, "")
+
+stand_in = branding.ASSETS / branding.LOGO_FILES["catnap"]
+made = not stand_in.exists()
+if made:
+    px = QPixmap(240, 60)
+    px.fill(Qt.GlobalColor.blue)
+    px.save(str(stand_in))
+    branding.available_logos.cache_clear()
+try:
+    check("a dropped-in logo is discovered with no code change",
+          "catnap" in branding.available_logos(),
+          str(branding.available_logos()))
+
+    seen = {}
+    for mode_key in ("meanap", "catnap", "meastim"):
+        window._apply_mode(mode_key)
+        seen[mode_key] = corner.pixmap().toImage()
+    check("switching to that mode swaps the logo",
+          seen["catnap"] != seen["meanap"], "")
+    check("…while a mode still lacking one keeps the fallback",
+          seen["meastim"] == seen["meanap"], "")
+    check("a branded mode names itself in the tooltip",
+          window._apply_mode("catnap") is None
+          and "CAT-NAP" in corner.toolTip(), corner.toolTip())
+finally:
+    if made:
+        stand_in.unlink()
+        branding.available_logos.cache_clear()
+    window._apply_mode("meanap")
+
+check("the stand-in left nothing behind",
+      made is False or not stand_in.exists(), "")
+
 
 print()
 if FAILURES:

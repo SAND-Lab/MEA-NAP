@@ -28,7 +28,7 @@ resumable, and chains of resumes shouldn't each cost a full data copy.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import numpy as np
@@ -53,10 +53,14 @@ __all__ = [
 #:     marker rings without the recipient having the spreadsheet.
 #: 3 — added the resolved cell-type groups, needed by the by-cell-type activity
 #:     comparisons (the grouping is a user choice, not derivable from markers).
-FORMAT_VERSION = 3
+#: 4 — added the lag-independent activity metrics (effRank, NMF). Recovering
+#:     them otherwise means re-reading the raw fluorescence, which a resumed
+#:     run or a bundle recipient may not have.
+FORMAT_VERSION = 4
 
 _ADJ_PREFIX = "adj__"
 _STAT_PREFIX = "stat__"
+_LAGINDEP_PREFIX = "lagindep__"
 
 #: Suffix of the optional per-recording mean-projection file (CAT-NAP only).
 BACKGROUND_SUFFIX = "_background.npz"
@@ -95,6 +99,12 @@ class RecordingState:
     #: :func:`save_background`). Held here so phase 3 need not re-read the raw
     #: folder for it — the difference between one pass over the raw data and two.
     background: tuple | None = None
+    #: Metrics read off the *activity* matrix rather than any adjacency matrix,
+    #: so they are computed once per recording and copied onto every lag —
+    #: ``effRank`` always, the NMF fields when enabled. Held on the state (and
+    #: persisted) so a step-4 resume does not have to re-read the raw
+    #: fluorescence to recover them.
+    lag_independent: dict = field(default_factory=dict)
 
 
 def lag_from_adjm_key(key: str) -> int:
@@ -157,6 +167,10 @@ def save_recording_state(path: Path, state: RecordingState, stats: dict) -> None
         arrays["group_definitions"] = np.asarray(
             [str(groups.definitions.get(n, "")) for n in groups.names], dtype=str)
 
+    for key, value in (state.lag_independent or {}).items():
+        if value is not None:
+            arrays[f"{_LAGINDEP_PREFIX}{key}"] = np.asarray(value)
+
     none_keys: list[str] = []
     for key, value in stats.items():
         if value is None:
@@ -216,6 +230,14 @@ def load_recording_state(path: Path, plane0: Path) -> tuple[RecordingState, dict
         for name in data["stat_none"]:
             stats[str(name)] = None
 
+        lag_independent: dict = {}
+        for k in data.files:
+            if not k.startswith(_LAGINDEP_PREFIX):
+                continue
+            value = data[k]
+            lag_independent[k[len(_LAGINDEP_PREFIX):]] = (
+                value.item() if value.ndim == 0 else value)
+
         markers = None
         if "marker_matrix" in keys:
             markers = (data["marker_matrix"], [str(n) for n in data["marker_names"]])
@@ -250,6 +272,7 @@ def load_recording_state(path: Path, plane0: Path) -> tuple[RecordingState, dict
             groups=groups,
             markers=markers,
             coord_norm=tuple(float(v) for v in data["coord_norm"]),
+            lag_independent=lag_independent,
         )
 
     return state, stats

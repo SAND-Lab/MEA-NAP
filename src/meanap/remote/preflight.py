@@ -62,10 +62,13 @@ class RecordingCheck:
     #: A folder that is present and looks like this recording under another
     #: name. Renamed folders are the commonest reason a batch silently shrinks.
     suggestion: str | None = None
+    #: Everything needed is present, but the files contradict each other, so
+    #: the recording will be skipped at load time.
+    unusable: str | None = None
 
     @property
     def ok(self) -> bool:
-        return self.found and not self.missing
+        return self.found and not self.missing and not self.unusable
 
 
 @dataclass
@@ -120,13 +123,20 @@ class PreflightReport:
 
         failed = [r for r in self.recordings if not r.ok]
         for rec in failed[:MAX_LISTED]:
-            why = ("not found" if not rec.found
-                   else "missing " + ", ".join(rec.missing))
+            if not rec.found:
+                why = "not found"
+            elif rec.missing:
+                why = "missing " + ", ".join(rec.missing)
+            else:
+                why = rec.unusable or "unusable"
             hint = (f"\n      ↳ the folder '{rec.suggestion}' looks like this "
                     "recording under a different name" if rec.suggestion else "")
             lines.append(f"  ✗ {rec.name} — {why}{hint}")
-        if len(failed) > MAX_LISTED:
-            lines.append(f"  ✗ …and {len(failed) - MAX_LISTED} more not found")
+        rest = failed[MAX_LISTED:]
+        if rest:
+            why = ("not found" if all(not r.found for r in rest)
+                   else "that cannot be used")
+            lines.append(f"  ✗ …and {len(rest)} more {why}")
 
         unmatched = [n for n in self.unreferenced
                      if n not in {r.suggestion for r in self.recordings}]
@@ -181,6 +191,46 @@ def find_spreadsheet(store: RemoteStore, configured: str = "") -> str | None:
     return csvs[0] if len(csvs) == 1 else None
 
 
+#: A ``.npy`` written by numpy for a plain numeric array: 10-byte magic and
+#: version, then a header dict padded so the data starts on a 64-byte boundary.
+#: Simple dtypes always land in the first such block.
+_NPY_HEADER = 128
+
+
+def _roi_mismatch(entries: dict) -> str | None:
+    """Detect an ``iscell.npy`` that cannot belong to the ``F.npy`` beside it.
+
+    From sizes alone, which is all a listing gives. ``iscell`` is always an
+    ``(n_rois, 2)`` float64 array, so its row count is exact; ``F`` is an
+    ``(n_rois, n_frames)`` float32 one, so its element count must be a multiple
+    of that row count. When it is not, no frame count can reconcile the two and
+    the folder is provably inconsistent — worth catching here, because the
+    alternative is finding out after downloading half a gigabyte and denoising
+    every ROI in it (see :func:`meanap.catnap.loader._check_roi_counts` for what
+    causes it and how to repair it).
+
+    Deliberately one-sided: a folder that passes may still be misaligned by a
+    number of rows that happens to divide, which the loader catches exactly.
+    Returns ``None`` unless the counts are *impossible*.
+    """
+    iscell, f = entries.get("iscell.npy"), entries.get("F.npy")
+    if iscell is None or f is None or not iscell.size or not f.size:
+        return None
+
+    iscell_bytes, f_bytes = iscell.size - _NPY_HEADER, f.size - _NPY_HEADER
+    if iscell_bytes <= 0 or f_bytes <= 0 or iscell_bytes % 16 or f_bytes % 4:
+        return None  # not the layout assumed above; leave it to the loader
+
+    n_rois = iscell_bytes // 16
+    # float32 is what suite2p writes, but a float64 F would halve the count, so
+    # only flag a folder that fits neither.
+    if any(f_bytes % (n_rois * width) == 0 for width in (4, 8)):
+        return None
+    return (f"iscell.npy describes {n_rois} ROIs, which does not divide "
+            "F.npy — the suite2p output is inconsistent and will not load "
+            "(re-save the recording in the suite2p GUI)")
+
+
 def _check_catnap(store: RemoteStore, name: str) -> RecordingCheck:
     plane0 = f"{name}/suite2p/plane0"
     entries = {e.name: e for e in store.list(plane0)}
@@ -196,6 +246,7 @@ def _check_catnap(store: RemoteStore, name: str) -> RecordingCheck:
         name=name, found=True, missing=missing,
         fetch_bytes=fetch, skipped_bytes=skipped,
         needs_denoising="Fdenoised.npy" not in entries,
+        unusable=_roi_mismatch(entries),
     )
 
 

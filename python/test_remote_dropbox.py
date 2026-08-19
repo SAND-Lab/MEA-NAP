@@ -51,11 +51,17 @@ def _report(title: str, checks: list[Check]) -> tuple[int, int]:
 
 # ── a fake Dropbox ────────────────────────────────────────────────────────────
 
+#: A folder with more recordings than one listing response returns. Real share
+#: links of this size exist (387 recordings in the dataset that first hit it),
+#: and a truncated listing there is indistinguishable from a small dataset.
+BIG = [(f"rec{i:03d}", True, None) for i in range(130)]
+
 TREE = {
     "": [("rec1", True, None), ("batch.csv", False, 1200)],
-    "/rec1": [("suite2p", True, None)],
+    "/rec1": [("suite2p", True, None), ("big", True, None)],
     "/rec1/suite2p": [("plane0", True, None)],
     "/rec1/suite2p/plane0": [("F.npy", False, 40), ("ops.npy", False, 100)],
+    "/rec1/big": BIG,
 }
 
 
@@ -73,10 +79,14 @@ class FakeHttp:
         self.streams: list[tuple[str, int]] = []
         self._token = "TOKEN1"
         self.token_reads = 0
+        self.fail_next = int(flags.get("fail_next", 0))
 
     # session
     def get(self, url, headers=None):
+        # Each fetch of the share page mints a new CSRF cookie, as the real one
+        # does — so "did it re-authenticate?" is observable in the posted token.
         self.token_reads += 1
+        self._token = f"TOKEN{self.token_reads}"
         return HttpResponse(200, {}, b"<html></html>")
 
     def cookie(self, name):
@@ -91,8 +101,17 @@ class FakeHttp:
             return HttpResponse(200, {}, b"<!DOCTYPE html><html>...")
         if self.flags.get("expired") and fields["t"] == "TOKEN1":
             from meanap.remote.http import HttpError
-            self._token = "TOKEN2"
             raise HttpError("POST listing: HTTP 403", 403)
+
+        # Throttling: decline the first N calls with the status Dropbox
+        # actually returns, then behave normally.
+        if self.fail_next:
+            self.fail_next -= 1
+            from meanap.remote.http import HttpError
+            raise HttpError("POST listing: HTTP 400", 400)
+        if self.flags.get("bad_request"):
+            from meanap.remote.http import HttpError
+            raise HttpError("POST listing: HTTP 418", 418)
 
         sub = fields["sub_path"]
         # The real endpoint 404s when the hash doesn't match the sub_path; the
@@ -115,11 +134,27 @@ class FakeHttp:
                 "href": (f"https://www.dropbox.com/scl/fo/LINKKEY/"
                          f"{_fake_hash(child)}{child}?rlkey=RLKEY&dl=0"),
             })
-        body = {"entries": entries, "total_num_entries": len(entries)}
+        total = len(entries)
+
+        # Dropbox pages long folders: the response carries a slice plus a
+        # voucher to hand back for the next one. The fake uses the offset as
+        # its voucher so a lost or ignored voucher shows up as a repeat.
+        page = self.flags.get("page_size")
+        if page:
+            start = int(fields.get("voucher", 0) or 0)
+            entries = entries[start:start + page]
+            body = {"entries": entries, "total_num_entries": total}
+            if start + page < total:
+                body["has_more_entries"] = True
+                body["next_request_voucher"] = str(start + page)
+        else:
+            body = {"entries": entries, "total_num_entries": total}
+
         if self.flags.get("no_entries_key"):
             body = {"unexpected": True}
-        if self.flags.get("paginated"):
+        if self.flags.get("no_voucher"):
             body["has_more_entries"] = True
+            body.pop("next_request_voucher", None)
         return HttpResponse(200, {}, json.dumps(body).encode())
 
     # download
@@ -139,7 +174,8 @@ class FakeHttp:
 
 def _store(**flags) -> tuple[DropboxLinkStore, FakeHttp]:
     http = FakeHttp(**flags)
-    return DropboxLinkStore(LINK, client=http), http
+    # Zero backoff: the retry *policy* is what's under test, not the waiting.
+    return DropboxLinkStore(LINK, client=http, listing_backoff=0.0), http
 
 
 # ── sections ──────────────────────────────────────────────────────────────────
@@ -204,6 +240,43 @@ def _walk_checks() -> list[Check]:
     return checks
 
 
+def _pagination_checks() -> list[Check]:
+    """A folder bigger than one response must still list completely.
+
+    This is the failure mode with no symptom: a short listing reads as a small
+    dataset, so a 387-recording batch would run its first 30 and report done.
+    """
+    checks: list[Check] = []
+    store, http = _store(page_size=30)
+
+    big = store.list("rec1/big")
+    checks.append(("a folder spanning several pages is listed in full",
+                   len(big) == len(BIG), f"{len(big)} of {len(BIG)}"))
+    checks.append(("…in order, with no page dropped or repeated",
+                   [e.name for e in big] == [n for n, _, _ in BIG], ""))
+
+    listing_posts = [p for p in http.posts if p["sub_path"] == "/rec1/big"]
+    checks.append(("…which took more than one request",
+                   len(listing_posts) == 5, f"{len(listing_posts)}"))
+    checks.append(("the first request carries no voucher",
+                   "voucher" not in listing_posts[0], ""))
+    checks.append(("…and each later one carries the previous response's",
+                   [p["voucher"] for p in listing_posts[1:]]
+                   == ["30", "60", "90", "120"],
+                   f"{[p.get('voucher') for p in listing_posts[1:]]}"))
+
+    checks.append(("a paged folder still resolves a file inside it",
+                   store.stat("rec1/big/rec129") is not None, ""))
+
+    # Folders that fit in one page must not pay for the loop: four levels,
+    # four requests.
+    fresh, fresh_http = _store(page_size=30)
+    fresh.list("rec1/suite2p/plane0")
+    checks.append(("folders that fit in one page cost one request each",
+                   len(fresh_http.posts) == 4, f"{len(fresh_http.posts)}"))
+    return checks
+
+
 def _session_checks() -> list[Check]:
     checks: list[Check] = []
 
@@ -227,6 +300,56 @@ def _session_checks() -> list[Check]:
     return checks
 
 
+def _throttle_checks() -> list[Check]:
+    """A transient refusal must cost a pause, not the run.
+
+    From a real failure: a 381-recording pre-flight lists three folders per
+    recording, and somewhere past request ~1000 Dropbox began answering 400.
+    The same walk from a fresh session completed all 382 folders minutes
+    later, so the request was never malformed — the server was declining. A
+    fatal 400 there loses hours of streaming to a throttle that clears by
+    itself.
+    """
+    checks: list[Check] = []
+
+    store, http = _store(fail_next=2)
+    entries = store.list()
+    checks.append(("a listing throttled twice still succeeds",
+                   len(entries) == 2, f"{len(entries)}"))
+    checks.append(("…having retried rather than given up",
+                   len(http.posts) == 3, f"{len(http.posts)} posts"))
+    tokens = [p["t"] for p in http.posts]
+    checks.append(("…re-authenticating before each retry, never reusing a token",
+                   len(set(tokens)) == len(tokens) == 3, f"{tokens}"))
+
+    # Persistent refusal must still end, and say what to do about it.
+    store, http = _store(fail_next=99)
+    try:
+        store.list()
+        msg = ""
+    except DropboxInterfaceChanged as e:
+        msg = str(e)
+    checks.append(("a listing that never recovers raises rather than hanging",
+                   bool(msg), "no exception"))
+    checks.append(("…bounded by the attempt limit",
+                   len(http.posts) == store._LISTING_ATTEMPTS,
+                   f"{len(http.posts)} posts"))
+    checks.append(("…and says the cache makes a re-run cheap",
+                   "already fetched is fetched again" in msg, msg[:80]))
+
+    # A genuine client error must not be retried into a long stall.
+    store, http = _store(bad_request=True)
+    try:
+        store.list()
+        status = None
+    except Exception as e:
+        status = getattr(e, "status", None)
+    checks.append(("a non-session 4xx is still raised immediately",
+                   status == 418 and len(http.posts) == 1,
+                   f"status={status} posts={len(http.posts)}"))
+    return checks
+
+
 def _interface_change_checks() -> list[Check]:
     """Every way this can rot must fail loudly, never as "the folder is empty"."""
     checks: list[Check] = []
@@ -234,7 +357,8 @@ def _interface_change_checks() -> list[Check]:
     for flags, label, expect in [
         (dict(html_listing=True), "HTML instead of JSON", "HTML instead of JSON"),
         (dict(no_entries_key=True), "no 'entries' key", "no 'entries' key"),
-        (dict(paginated=True), "a paginated listing", "paginated listings"),
+        (dict(no_voucher=True), "more entries but no voucher",
+         "gave no pagination voucher"),
     ]:
         store, _ = _store(**flags)
         try:
@@ -362,7 +486,9 @@ def main() -> int:
     for title, build in [
         ("A — share-link URLs:", _url_checks),
         ("B — listing and the folder walk:", _walk_checks),
+        ("B2 — folders too big for one response:", _pagination_checks),
         ("C — session and CSRF handling:", _session_checks),
+        ("C2 — throttling during a long walk:", _throttle_checks),
         ("D — every way the interface can rot:", _interface_change_checks),
         ("E — downloads, resume and truncation:", _download_checks),
     ]:

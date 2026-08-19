@@ -162,8 +162,35 @@ class DataPanel(QWidget):
             "the same name is never overwritten without asking."
         )
 
+        # Where a *remote* run does its working storage. Both default to
+        # sitting under the output folder, and both survive the run — the
+        # derived one deliberately, since it holds the denoising output and is
+        # what lets a re-run skip that work. It is also routinely far larger
+        # than the run's own result (GBs against MBs), so it needs somewhere to
+        # be steered rather than only a default.
+        self.cache_dir = PathRow(self)
+        self.cache_dir.line_edit.setPlaceholderText(
+            "<output folder>/MEANAP-cache — streamed data, cleared as it goes")
+        self.derived_data_folder = PathRow(self)
+        self.derived_data_folder.line_edit.setPlaceholderText(
+            "<output folder>/MEANAP-derived — denoising output, kept between runs")
+        self.cache_budget_gb = QDoubleSpinBox()
+        self.cache_budget_gb.setRange(0.0, 10000.0)
+        self.cache_budget_gb.setDecimals(1)
+        self.cache_budget_gb.setSuffix(" GB")
+        self.cache_budget_gb.setSpecialValueText("Automatic")
+        self.cache_budget_gb.setToolTip(
+            "Ceiling for the streamed-data cache. Automatic uses a quarter of "
+            "free disk, capped at 50 GB.")
+
         form.addRow("Output data folder", self.output_data_folder)
         form.addRow("Output folder name", self.output_data_folder_name)
+
+        remote_advanced = AdvancedSection("Remote data (streamed runs)")
+        remote_advanced.form().addRow("Cache folder", self.cache_dir)
+        remote_advanced.form().addRow("Cache size limit", self.cache_budget_gb)
+        remote_advanced.form().addRow("Derived data folder", self.derived_data_folder)
+        form.addRow(remote_advanced)
         return box
 
     # ── Modes ─────────────────────────────────────────────────────────────────
@@ -205,6 +232,12 @@ class DataPanel(QWidget):
         self.spike_detected_data.set_value(params.spike_detected_data)
         self.output_data_folder.set_value(params.output_data_folder)
         self.output_data_folder_name.setText(params.output_data_folder_name)
+        self.cache_dir.set_value(params.cache_dir)
+        self.derived_data_folder.set_value(params.derived_data_folder)
+        # None means "work it out from free disk", which the spinbox shows as
+        # Automatic at its minimum.
+        self.cache_budget_gb.setValue(
+            0.0 if params.cache_budget_gb is None else float(params.cache_budget_gb))
 
         self.fs.setValue(params.fs)
         self.d_samp_f.setValue(params.d_samp_f)
@@ -226,6 +259,10 @@ class DataPanel(QWidget):
         params.spike_detected_data = self.spike_detected_data.value
         params.output_data_folder = self.output_data_folder.value
         params.output_data_folder_name = self.output_data_folder_name.text()
+        params.cache_dir = self.cache_dir.value
+        params.derived_data_folder = self.derived_data_folder.value
+        budget = self.cache_budget_gb.value()
+        params.cache_budget_gb = None if budget <= 0 else budget
 
         params.fs = self.fs.value()
         params.d_samp_f = self.d_samp_f.value()

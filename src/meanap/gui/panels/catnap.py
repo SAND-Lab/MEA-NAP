@@ -300,6 +300,36 @@ class CatNapPanel(QWidget):
 
         self._redo_denoising = QCheckBox()
 
+        # Refractory period between detected events. 0 keeps the historical
+        # behaviour — a hard-coded 50 *frames*, which is a different duration at
+        # every frame rate (3.3 s at 15 Hz, 1.5 s at 33 Hz). Setting it in
+        # seconds is what makes the value mean the same thing across a batch.
+        self._min_event_interval = QDoubleSpinBox()
+        self._min_event_interval.setRange(0.0, 60.0)
+        self._min_event_interval.setDecimals(2)
+        self._min_event_interval.setSingleStep(0.1)
+        self._min_event_interval.setSuffix(" s")
+        self._min_event_interval.setSpecialValueText("50 frames (default)")
+        self._min_event_interval.setValue(0.0)
+
+        # How many per-cell trace figures a *run* saves — distinct from the
+        # "Cells to preview" spinbox above, which only drives the on-screen
+        # preview. These figures are the record of what peak detection did, and
+        # the one family a bundle cannot rebuild, so 0 means a finished run has
+        # no way to check the detection after the fact.
+        self._num_traces = QSpinBox()
+        self._num_traces.setRange(0, 500)
+        self._num_traces.setValue(3)
+        self._num_traces.setToolTip(
+            "Saved to 2_NeuronalActivity/2A_IndividualNeuronalAnalysis.\n"
+            "0 disables them — which also makes a streamed run cheaper, since "
+            "drawing them means re-reading each recording's raw data.")
+
+        self._nmf = QCheckBox()
+        self._nmf.setToolTip(
+            "NMF dimensionality metrics on the 2P activity matrix. "
+            "Markedly slower than the effective rank beside it.")
+
         denoise_form.addRow("Threshold multiplier", self._denoise_threshold)
 
         # The window either side of a peak is a property of the indicator, not
@@ -307,6 +337,11 @@ class CatNapPanel(QWidget):
         denoise_advanced = AdvancedSection()
         denoise_advanced.form().addRow("Time before peak", self._time_before)
         denoise_advanced.form().addRow("Time after peak", self._time_after)
+        denoise_advanced.form().addRow("Min interval between events",
+                                       self._min_event_interval)
+        denoise_advanced.form().addRow("Trace figures to save per recording",
+                                       self._num_traces)
+        denoise_advanced.form().addRow("Compute NMF components", self._nmf)
         denoise_advanced.form().addRow("Redo if already exists", self._redo_denoising)
         denoise_form.addRow(denoise_advanced)
 
@@ -785,6 +820,12 @@ class CatNapPanel(QWidget):
         self._denoise_threshold.setValue(params.twop_denoising_threshold)
         self._time_before.setValue(params.twop_denoising_time_before_peak)
         self._time_after.setValue(params.twop_denoising_time_after_peak)
+        # None -> 0.0, which the spinbox shows as "50 frames (default)".
+        self._min_event_interval.setValue(
+            0.0 if params.twop_min_event_interval is None
+            else float(params.twop_min_event_interval))
+        self._num_traces.setValue(int(params.num_2p_traces))
+        self._nmf.setChecked(params.twop_nmf)
 
         self._subnetwork_enabled.setChecked(params.twop_subnetwork_analysis)
         self._celltype_file.setText(params.twop_cell_type_file)
@@ -816,6 +857,10 @@ class CatNapPanel(QWidget):
         params.twop_denoising_threshold = self._denoise_threshold.value()
         params.twop_denoising_time_before_peak = self._time_before.value()
         params.twop_denoising_time_after_peak = self._time_after.value()
+        interval = self._min_event_interval.value()
+        params.twop_min_event_interval = None if interval <= 0 else interval
+        params.num_2p_traces = self._num_traces.value()
+        params.twop_nmf = self._nmf.isChecked()
 
         params.twop_subnetwork_analysis = self._subnetwork_enabled.isChecked()
         params.twop_cell_type_file = self._celltype_file.text().strip()

@@ -164,6 +164,9 @@ does not have MEA-NAP installed.">Export output folder</button>
     <h2>Spike detection</h2>
     <div class="list" id="spikechecks"></div>
 
+    <h2>Peak detection traces</h2>
+    <div class="list" id="traces"></div>
+
     <h2>Edge thresholding</h2>
     <div class="list" id="edgechecks"></div>
 
@@ -304,6 +307,11 @@ function figureURL(extra = {}) {
     for (const [k, v] of Object.entries(extra)) p.set(k, v);
     const route = VIEW.kind === "activity" ? "/api/activity" : "/api/spikecheck";
     return route + "?" + p.toString();
+  }
+  if (VIEW.kind === "trace") {
+    // Carried in the bundle, not rendered: no fmt, no styling overrides.
+    return "/api/trace?" + new URLSearchParams(
+      {rec: VIEW.rec, name: VIEW.name}).toString();
   }
   if (VIEW.kind === "edgecheck") {
     const p = new URLSearchParams({rec: VIEW.rec, lag: VIEW.name});
@@ -454,6 +462,7 @@ function fillRecordings() {
 function fillLags() {
   fillActivity();
   fillSpikeChecks();
+  fillTraces();
   fillEdgeChecks();
   const rec = currentRecording();
   const sel = $("lag");
@@ -506,6 +515,29 @@ function fillSpikeChecks() {
     b.dataset.spikecheck = f.name;
     b.addEventListener("click", () => {
       VIEW.kind = "spikecheck"; VIEW.rec = rec.name; VIEW.name = f.name;
+      showFigure();
+    });
+    box.appendChild(b);
+  }
+}
+
+function fillTraces() {
+  const rec = currentRecording();
+  const box = $("traces");
+  box.innerHTML = "";
+  const figs = (rec && rec.traces) || [];
+  if (!figs.length) {
+    // Either this is an ephys run, or num_2p_traces was 0 — in which case the
+    // figures were never drawn and cannot be recovered from the bundle.
+    box.innerHTML = '<div class="sub">None in this bundle.</div>';
+    return;
+  }
+  for (const f of figs) {
+    const b = document.createElement("button");
+    b.textContent = f.label;
+    b.dataset.trace = f.name;
+    b.addEventListener("click", () => {
+      VIEW.kind = "trace"; VIEW.rec = rec.name; VIEW.name = f.name;
       showFigure();
     });
     box.appendChild(b);
@@ -916,6 +948,8 @@ function markCurrent() {
     b.setAttribute("aria-current", String(VIEW.kind === "activity" && b.dataset.activity === VIEW.name));
   for (const b of document.querySelectorAll("#spikechecks button"))
     b.setAttribute("aria-current", String(VIEW.kind === "spikecheck" && b.dataset.spikecheck === VIEW.name));
+  for (const b of document.querySelectorAll("#traces button"))
+    b.setAttribute("aria-current", String(VIEW.kind === "trace" && b.dataset.trace === VIEW.name));
   for (const b of document.querySelectorAll("#edgechecks button"))
     b.setAttribute("aria-current", String(VIEW.kind === "edgecheck" && b.dataset.edgecheck === VIEW.name));
   for (const b of document.querySelectorAll("#subnetworks button"))
@@ -960,10 +994,14 @@ function setMode(kind) {
   const downloadable = one || kind === "comparison";
   for (const id of ["dl-png", "dl-svg", "dl-pdf"])
     $(id).classList.toggle("hidden", !downloadable);
+  // A trace figure is a stored PNG. Offering SVG/PDF would promise a
+  // re-render that cannot happen — the fluorescence it needs isn't here.
+  if (kind === "trace")
+    for (const id of ["dl-svg", "dl-pdf"]) $(id).classList.add("hidden");
 }
 
 function showFigure() {
-  if (!["activity", "spikecheck", "edgecheck", "subnetwork"].includes(VIEW.kind))
+  if (!["activity", "spikecheck", "edgecheck", "subnetwork", "trace"].includes(VIEW.kind))
     VIEW.kind = "figure";
   setMode(VIEW.kind); markCurrent();
   $("error").textContent = "";
@@ -1129,6 +1167,11 @@ function download(fmt) {
     return;
   }
   $("source").textContent = `${MANIFEST.source} · ${MANIFEST.mode}`;
+  // A run made before version stamping simply has none; say
+  // nothing rather than claiming "unknown".
+  const pb = MANIFEST.produced_by;
+  if (pb && pb.version)
+    $("source").textContent += `  ·  ${pb.pipeline_name} ${pb.version}`;
   // A viewer opened on a folder has nothing to export: it is already one.
   $("export").classList.toggle("hidden", !MANIFEST.can_export);
   buildControls();

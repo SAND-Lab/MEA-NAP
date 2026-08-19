@@ -34,9 +34,11 @@ from meanap.catnap.adjacency import suite2p_to_adjm
 from meanap.catnap.group_plots import (
     SUBNET_GRAPH_METRICS, SUBNET_NODE_METRICS, twop_stats_frames,
 )
-from meanap.catnap.loader import load_suite2p
+from meanap.catnap.loader import Suite2pOutputMismatch, load_suite2p
 from meanap.catnap.subnetwork import WHOLE_NETWORK
 from meanap.catnap.stats import calc_twop_activity_stats
+import meanap.pipeline.network_metrics as nm
+from meanap.pipeline.nmf import cal_nmf
 from meanap.catnap.store import (
     BACKGROUND_SUFFIX, RecordingState, load_background, load_recording_state,
     quantize_background, save_background, save_recording_state, sorted_adjm_items,
@@ -263,6 +265,10 @@ def run_catnap_pipeline(
                 exclude_edges_below_threshold=params.exclude_edges_below_threshold,
                 params=params, rng=metric_rng,
             )
+            # effRank / NMF describe the recording, not the lag, so every lag
+            # carries the same value — as ExtractNetMet.m does by computing
+            # them under `if e == 1` and saving them on the first lag field.
+            metrics.update(state.lag_independent)
             rec_results[f"{lag_ms}mslag"] = metrics
         all_results[rec.filename] = rec_results
         progress.item_done(rec.filename)
@@ -347,7 +353,14 @@ def _compute_recording(
 
     derived = params.derived_data_folder or None
     log(f"  [{rec.filename}] loading suite2p data…")
-    data = load_suite2p(plane0, derived, rec.filename)
+    try:
+        data = load_suite2p(plane0, derived, rec.filename)
+    except Suite2pOutputMismatch as e:
+        # One unusable folder costs the batch that recording, not the run —
+        # the same treatment as a folder with no suite2p output at all. The
+        # full diagnosis goes to the log so it is actionable afterwards.
+        log(f"  [{rec.filename}] SKIP: {e}")
+        return None
 
     if params.twop_activity in _NEEDS_DENOISING and (
         data.F_denoised is None or params.twop_redo_denoising
@@ -359,6 +372,7 @@ def _compute_recording(
             denoising_threshold=params.twop_denoising_threshold,
             time_before_peak_s=params.twop_denoising_time_before_peak,
             time_after_peak_s=params.twop_denoising_time_after_peak,
+            min_event_interval_s=params.twop_min_event_interval,
             derived_root=derived,
             recording=rec.filename,
         )
@@ -379,6 +393,8 @@ def _compute_recording(
         spike_counts=_spike_counts(res, params.twop_activity),
         duration_s=duration_s, plane0=plane0, coord_norm=res.coord_norm,
     )
+    state.lag_independent = _lag_independent_metrics(res, params, duration_s, log,
+                                                     rec.filename, rng)
     # Capture the field-of-view backdrop now, while the (large) suite2p data is
     # already loaded. Phase 3 used to re-open the whole folder just for this;
     # doing it here means the raw data is read once per recording, which is what
@@ -390,6 +406,76 @@ def _compute_recording(
             log(f"  [{rec.filename}] note: no mean projection in ops — "
                 "network plots drawn without a backdrop")
     return state, _activity_stats_for(res, params, duration_s)
+
+
+def _activity_matrix_for(res, twop_activity: str) -> np.ndarray | None:
+    """The ``(n_frames, n_units)`` matrix ``ExtractNetMet.m`` is handed.
+
+    In ``suite2pMode`` MEApipeline.m picks this by activity type before calling
+    ``ExtractNetMet`` — ``denoisedF``, ``spks``, or (for ``peaks``) the spike
+    matrix ``formatSpikeTimes`` builds. ``None`` for ``peaks``, where the
+    caller uses the event times directly instead of densifying them here.
+    """
+    if twop_activity == "peaks":
+        return None
+    return {"F": res.F, "spks": res.spks, "denoised F": res.denoised_F}[twop_activity]
+
+
+def _lag_independent_metrics(
+    res, params: Params, duration_s: float, log, name: str, rng,
+) -> dict:
+    """Effective rank and NMF — computed once per recording, not once per lag.
+
+    ``ExtractNetMet.m`` gates both on ``if e == 1`` and stores them on the
+    first lag field, because both read the *activity matrix* rather than any
+    adjacency matrix. Nothing about them is 2P-specific: MEApipeline.m calls
+    ``ExtractNetMet`` identically in ``suite2pMode``, so a MATLAB CAT-NAP run
+    produces them and this path did not until now.
+
+    Failures are logged and become NaN rather than losing the recording: these
+    are two summary numbers, and the network metrics beside them are unaffected.
+    """
+    out: dict = {}
+    activity = _activity_matrix_for(res, params.twop_activity)
+
+    try:
+        if activity is not None:
+            out["effRank"] = nm.effective_rank_from_activity(
+                np.asarray(activity, dtype=float), res.fs,
+                params.eff_rank_downsample_freq, params.eff_rank_cal_method)
+        else:
+            out["effRank"] = nm.effective_rank(
+                res.spike_times, res.fs, duration_s,
+                params.eff_rank_downsample_freq, params.eff_rank_cal_method)
+    except Exception as e:
+        log(f"  [{name}] WARNING: could not compute effective rank: {e}")
+        out["effRank"] = float("nan")
+
+    if params.twop_nmf:
+        try:
+            spike_times = (res.spike_times if res.spike_times is not None
+                           else _event_times_from_matrix(activity, res.fs))
+            out.update(cal_nmf(
+                spike_times, np.asarray(_spike_counts(res, params.twop_activity)),
+                duration_s, params.nmf_downsample_freq, res.fs,
+                include_nmf_components=params.include_nmf_components, rng=rng))
+        except Exception as e:
+            log(f"  [{name}] WARNING: could not compute NMF components: {e}")
+
+    return out
+
+
+def _event_times_from_matrix(activity: np.ndarray, fs: float) -> list[np.ndarray]:
+    """Per-unit event times from a continuous activity matrix.
+
+    ``cal_nmf`` takes event times and rebuilds a matrix from them, so a
+    continuous activity type has to be expressed that way. Non-zero samples
+    become events at their frame time — which for ``spks`` is what the values
+    already mean, and for the fluorescence types is the closest available
+    reading of "when this unit was active".
+    """
+    a = np.asarray(activity, dtype=float)
+    return [np.nonzero(a[:, i])[0] / fs for i in range(a.shape[1])]
 
 
 def _load_recording(

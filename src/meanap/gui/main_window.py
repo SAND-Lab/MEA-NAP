@@ -147,6 +147,15 @@ class MainWindow(QMainWindow):
         self._mode_combo.setToolTip(MODES[self._mode].blurb)
         self._mode_combo.currentIndexChanged.connect(self._on_mode_changed)
         tb.addWidget(self._mode_combo)
+
+        # Beside the selector rather than in an About box: the three pipelines
+        # are versioned separately, so "which version" is only answerable once
+        # you know which mode, and putting them together makes that obvious.
+        self._version_label = QLabel()
+        self._version_label.setContentsMargins(8, 0, 0, 0)
+        self._version_label.setStyleSheet("color: palette(mid);")
+        tb.addWidget(self._version_label)
+        self._refresh_version_label()
         tb.addSeparator()
 
         tb.addAction(act_new)
@@ -168,14 +177,33 @@ class MainWindow(QMainWindow):
         before that the Mode selector — into the overflow chevron. There is
         always room beside five tabs, and nothing there to be pushed out.
         """
-        pixmap = logo_pixmap(28, self.devicePixelRatioF())
-        if pixmap is None:
+        if logo_pixmap(28, self.devicePixelRatioF(), self._mode) is None:
             return
-        logo = QLabel()
-        logo.setPixmap(pixmap)
-        logo.setContentsMargins(0, 0, 10, 0)
-        logo.setToolTip("MEA-NAP — MEA Network Analysis Pipeline")
-        self._tabs.setCornerWidget(logo, Qt.Corner.TopRightCorner)
+        self._logo_label = QLabel()
+        self._logo_label.setContentsMargins(0, 0, 10, 0)
+        self._tabs.setCornerWidget(self._logo_label, Qt.Corner.TopRightCorner)
+        self._refresh_logo()
+
+    def _refresh_logo(self) -> None:
+        """Show the running mode's artwork, falling back to MEA-NAP's.
+
+        The window icon deliberately does *not* follow: it identifies the
+        application in the taskbar and to the window manager, where a logo that
+        changed under the user would read as a different program.
+        """
+        label = getattr(self, "_logo_label", None)
+        if label is None:
+            return
+        from meanap.gui.branding import available_logos
+
+        pixmap = logo_pixmap(28, self.devicePixelRatioF(), self._mode)
+        if pixmap is not None:
+            label.setPixmap(pixmap)
+        mode = MODES[self._mode]
+        own = self._mode in available_logos()
+        label.setToolTip(
+            f"{mode.label}\n{mode.blurb}" if own
+            else "MEA-NAP — MEA Network Analysis Pipeline")
 
     def _build_tabs(self) -> None:
         self._tabs = QTabWidget()
@@ -330,6 +358,23 @@ class MainWindow(QMainWindow):
             with QSignalBlocker(self._mode_combo):
                 self._mode_combo.setCurrentIndex(self._mode_combo.findData(mode_key))
             self._mode_combo.setToolTip(mode.blurb)
+        self._refresh_version_label()
+        self._refresh_logo()
+
+    def _refresh_version_label(self) -> None:
+        """Show the running mode's version, and all three in the tooltip."""
+        label = getattr(self, "_version_label", None)
+        if label is None:
+            return
+        from meanap.version import PIPELINE_NAMES, all_versions, pipeline_version
+
+        label.setText(f"v{pipeline_version(self._mode)}")
+        every = all_versions()
+        label.setToolTip(
+            "Versions in this install:\n"
+            + "\n".join(f"  {PIPELINE_NAMES[k]} {every[k]}" for k in PIPELINE_NAMES)
+            + "\n\nThe running pipeline's version is written into every run's "
+              "params.json and bundle manifest.")
 
     def _tab_index(self, key: str) -> int:
         """Current index of tab *key*, or -1 when this mode hides it."""

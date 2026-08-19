@@ -105,18 +105,31 @@ meanap-gui
 
 ## Optional: OASIS deconvolution (CAT-NAP)
 
-The calcium-imaging denoising pipeline ([CAT-NAP](catnap.md)) uses
-[OASIS](https://github.com/j-friedrich/OASIS) deconvolution when available. It
-isn't on PyPI, so it's not installed by default — without it, denoising falls
-back to Savitzky-Golay smoothing (noted with a warning in the CAT-NAP tab).
-To install it:
+The calcium-imaging denoising pipeline ([CAT-NAP](catnap.md)) deconvolves each
+trace with [OASIS](https://github.com/j-friedrich/OASIS). It is optional, and
+left out of the default install because it is a compiled extension:
 
 ```bash
-uv run pip install git+https://github.com/j-friedrich/OASIS.git
+uv sync --extra oasis
 ```
 
-OASIS is built from source, so on macOS it needs the toolchain from
+Prebuilt wheels cover CPython 3.9–3.13 on Linux, macOS (Apple silicon) and
+Windows, so no compiler is needed on those. Anywhere else it builds from
+source, which on macOS needs the toolchain from
 [macOS prerequisites](#macos-prerequisites) above.
+
+Install it **before** your first CAT-NAP run. Without it, denoising falls back
+to Savitzky-Golay smoothing — that is not a slower route to the same answer,
+it is a different peak train and therefore different adjacency matrices. The
+CAT-NAP tab warns when it is missing, and:
+
+```bash
+uv run python -c "from meanap.catnap.denoising import oasis_available; print(oasis_available())"
+```
+
+Note that denoising output is cached as `Fdenoised.npy` and carries no record
+of which method produced it, so installing OASIS after a run will not
+recompute anything — tick **Redo denoising** to force it.
 
 ## Verifying your install
 
@@ -131,6 +144,10 @@ uv run python -c "import meanap; print(meanap.__version__)"
 uv run pytest
 ```
 
+Note `meanap.__version__` is the *Python package* version from
+`pyproject.toml`, which is not the same thing as the pipeline versions below —
+use `meanap.version.all_versions()` for those.
+
 ## Adding dependencies (contributors)
 
 ```bash
@@ -140,3 +157,26 @@ uv add --dev <package>    # dev-only (pytest, ruff, ...)
 
 Both commands update `pyproject.toml` and `uv.lock` automatically — don't
 edit either file by hand.
+
+## Version numbers
+
+Three pipelines ship from this repository and move at different speeds, so each
+carries its own version:
+
+| pipeline | version lives in | why |
+|---|---|---|
+| MEA-NAP | `version.txt` | unchanged since the MATLAB release; MATLAB reads it and the update check compares it against GitHub |
+| CAT-NAP | `versions.json` | newer subsystem, no MATLAB release history |
+| MEA-Stim | `versions.json` | same |
+
+MEA-NAP's number is deliberately **not** duplicated into `versions.json`: it is
+the one users are told to check, and two copies could disagree.
+
+Every run records the version of the pipeline that produced it — as the first
+line of the run log, under `_meanap` in `params.json`, and in a bundle's
+`manifest.json`. The GUI shows the running mode's version beside the Mode
+selector, with all three in its tooltip.
+
+```bash
+uv run python -c "from meanap.version import all_versions; print(all_versions())"
+```

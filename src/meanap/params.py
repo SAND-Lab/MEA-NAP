@@ -216,6 +216,14 @@ class Params:
     twop_denoising_threshold: float = 1.3
     twop_denoising_time_before_peak: float = 1.0
     twop_denoising_time_after_peak: float = 2.05
+    # Refractory period between detected calcium events (``find_peaks`` distance),
+    # in **seconds** — the knob that stops one transient being counted as
+    # several. ``None`` keeps the original script's hard-coded 50 *frames*,
+    # which is what the MATLAB reference run used and what the parity test
+    # checks; because it is a frame count it means a different interval at every
+    # acquisition rate (3.3 s at 15 Hz, 1.5 s at 33 Hz). Set it in seconds to
+    # make the refractory period mean the same thing across a mixed-rate batch.
+    twop_min_event_interval: float | None = None
     python_path: str = ""
 
     # Cell-type subnetwork analysis (see catnap/subnetwork.py). When enabled,
@@ -232,6 +240,13 @@ class Params:
     # are in data units and the default was tuned for ~60 MEA electrodes, which
     # draws each node several times the inter-cell distance on a 2P field.
     twop_auto_node_size: bool = True
+    # NMF dimensionality metrics on the 2P activity matrix. MATLAB computes
+    # these in ``ExtractNetMet.m`` for suite2p runs too, but they are markedly
+    # more expensive than the effective rank beside them and the factorisation
+    # is far less established on calcium events than on spike trains — so on
+    # this path they are opt-in rather than, as in electrophysiology,
+    # unconditional. ``effRank`` is always computed.
+    twop_nmf: bool = False
     twop_subnetwork_analysis: bool = False
     # Redraw the whole step-4A figure set once per cell-type subnetwork, beside
     # the whole-network version. Multiplies the per-recording figure count by
@@ -352,6 +367,19 @@ def default_derived_dir(params: "Params", remote: bool) -> str:
     return str(Path(params.output_data_folder or ".") / "MEANAP-derived")
 
 
+def mode_for_params(params: "Params") -> str:
+    """Which pipeline these settings describe: ``meanap`` / ``catnap`` / ``meastim``.
+
+    Mirrors ``meanap.gui.modes.mode_for_params``, duplicated here so the
+    non-GUI path can stamp output without importing Qt.
+    """
+    if getattr(params, "suite2p_mode", False):
+        return "catnap"
+    if getattr(params, "stimulation_mode", False):
+        return "meastim"
+    return "meanap"
+
+
 def save_params(params: Params, output_root: Path | str) -> Path:
     """Write ``params.json`` into an output folder.
 
@@ -365,10 +393,17 @@ def save_params(params: Params, output_root: Path | str) -> Path:
     import dataclasses
     import json
 
+    from meanap.version import version_stamp
+
     path = Path(output_root) / PARAMS_FILENAME
     path.parent.mkdir(parents=True, exist_ok=True)
+    payload = dataclasses.asdict(params)
+    # Stamped under a reserved key rather than as a Params field: it describes
+    # the code, not a setting, and ``load_params`` must not try to restore it
+    # onto a dataclass that has no such attribute.
+    payload["_meanap"] = version_stamp(mode_for_params(params))
     with open(path, "w") as fh:
-        json.dump(dataclasses.asdict(params), fh, indent=2, sort_keys=True)
+        json.dump(payload, fh, indent=2, sort_keys=True)
     return path
 
 
@@ -390,5 +425,27 @@ def load_params(path: Path | str) -> tuple[Params, list[str]]:
         raise ValueError(f"{path} does not contain a parameter object")
 
     known = {f.name for f in dataclasses.fields(Params)}
-    unknown = sorted(set(raw) - known)
+    # Keys beginning with "_" are reserved metadata written beside the settings
+    # (the version stamp), not settings that failed to load — reporting them as
+    # unknown would tell users their file was written by a newer version every
+    # single time.
+    unknown = sorted(k for k in set(raw) - known if not k.startswith("_"))
     return Params(**{k: v for k, v in raw.items() if k in known}), unknown
+
+
+def params_version_stamp(path: Path | str) -> dict:
+    """The version stamp inside a ``params.json``, or ``{}`` if it has none.
+
+    Runs made before stamping existed simply have no stamp; that is a fact
+    about the run, not an error, so callers get an empty dict and can say
+    "unknown" in their own words.
+    """
+    import json
+
+    try:
+        with open(path) as fh:
+            raw = json.load(fh)
+    except (OSError, json.JSONDecodeError):
+        return {}
+    stamp = raw.get("_meanap") if isinstance(raw, dict) else None
+    return stamp if isinstance(stamp, dict) else {}

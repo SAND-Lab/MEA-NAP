@@ -480,10 +480,10 @@ The denoising runs on raw fluorescence (`F.npy`) and produces outputs saved alon
 
 #### OASIS (optional)
 
-OASIS deconvolution is not available on PyPI. If it is not installed, the pipeline falls back to Savitzky-Golay smoothing, which is noted with a warning in the CAT-NAP tab. To install OASIS:
+OASIS is a compiled extension, so it is not installed by default. If it is missing the pipeline falls back to Savitzky-Golay smoothing — a *different peak train*, not just a smoother one — which is noted with a warning in the CAT-NAP tab. Install it before your first run:
 
 ```bash
-pip install git+https://github.com/j-friedrich/OASIS.git
+uv sync --extra oasis
 ```
 
 ### Using CAT-NAP from Python
