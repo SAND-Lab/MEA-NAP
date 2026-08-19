@@ -219,9 +219,16 @@ def run_pipeline(
             progress=reporter,
         )
         if params.express_mode:
+            # Claimed from what is on disk, not from the setting that asked for
+            # it: a recording can be skipped, or have nothing to draw, and a
+            # manifest promising figures the bundle does not carry is worse
+            # than one that says nothing (see bundle.RECONSTRUCTABLE_FAMILIES).
+            from meanap.pipeline.render import TRACE_DIR
+
+            drew_traces = any((output_root / TRACE_DIR).rglob("*.png"))
             bundle = _write_run_bundle(
                 params, recordings, output_root, log, mode="catnap",
-                embedded_figures=["2p_traces"] if params.num_2p_traces else [])
+                embedded_figures=["2p_traces"] if drew_traces else [])
             output_root = _discard_folder_for_bundle(output_root, bundle, log)
         _report_working_dirs(params, log)
         reporter.finish()

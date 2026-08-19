@@ -966,9 +966,13 @@ function markCurrent() {
 }
 
 function setMode(kind) {
+  // Every kind that shows one image in #single. "trace" belongs here: it is a
+  // stored PNG rather than a render, but it still goes in the same <figure>,
+  // and leaving it out hid the pane the image had just been loaded into — the
+  // button highlighted, the PNG arrived, and the reader saw nothing.
   const one = kind === "figure" || kind === "activity" || kind === "lagseries"
               || kind === "spikecheck" || kind === "edgecheck"
-              || kind === "subnetwork";
+              || kind === "subnetwork" || kind === "trace";
   // Hidden, not disabled: the styling controls describe spatial network plots.
   // A raster, a violin and a line plot read none of them, so offering the
   // knobs there would imply they do something.
