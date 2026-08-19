@@ -753,45 +753,39 @@ def modal_controllability(adj_m: np.ndarray) -> np.ndarray:
 
 # ── Effective Rank ─────────────────────────────────────────────────────────
 
-def effective_rank(
-    spike_times: list[np.ndarray],
+def effective_rank_from_activity(
+    activity: np.ndarray,
     fs: float,
-    duration_s: float,
     eff_fs: float,
-    method: str = "covariance"
+    method: str = "covariance",
 ) -> float:
-    """Computes Effective Rank of the network activity.
-    
-    Port of ``calEffRank.m`` (Roy and Vetterli, 2007).
-    Constructs the dense binary spike matrix at `fs`, resamples it down to `eff_fs`
-    using a polyphase FIR filter, and computes the Shannon entropy of the
-    eigenvalues of the covariance/correlation matrix.
+    """Effective rank of an already-built activity matrix, shape ``(samples, units)``.
+
+    The second half of ``calEffRank.m``: resample to ``eff_fs`` with a polyphase
+    FIR filter, then take the Shannon entropy of the covariance (or correlation)
+    eigenvalues.
+
+    Split out from :func:`effective_rank` because calcium imaging reaches this
+    point with a *continuous* matrix rather than event times —
+    ``ExtractNetMet.m`` resamples whatever ``activityMatrix`` it was handed, and
+    in ``suite2pMode`` that can be ``denoisedF`` or ``spks``.
     """
     import scipy.signal as signal
-    from scipy.sparse import csc_matrix
     from fractions import Fraction
 
-    n_samples = int(np.ceil(duration_s * fs))
-    n_channels = len(spike_times)
-    
-    indices_x = []
-    indices_y = []
-    for i, st in enumerate(spike_times):
-        samples = np.round(st * fs).astype(int)
-        samples = samples[(samples >= 0) & (samples < n_samples)]
-        indices_x.extend(samples)
-        indices_y.extend([i] * len(samples))
-        
-    activity = csc_matrix(
-        (np.ones(len(indices_x)), (indices_x, indices_y)), 
-        shape=(n_samples, n_channels)
-    ).toarray()
-    
-    frac = Fraction(eff_fs).limit_denominator(1000000) / Fraction(fs).limit_denominator(1000000)
+    # MATLAB clamps rather than upsampling (ExtractNetMet.m: "if
+    # Params.effRankDownsampleFreq > Params.fs"). It matters here in a way it
+    # never did for electrophysiology: a 2P frame rate of 15 Hz is *below* the
+    # 10 Hz default's nearest neighbours, so a user raising the setting would
+    # silently interpolate imaging frames that were never sampled.
+    eff_fs = min(float(eff_fs), float(fs))
+
+    frac = (Fraction(eff_fs).limit_denominator(1000000)
+            / Fraction(float(fs)).limit_denominator(1000000))
     p, q = frac.numerator, frac.denominator
-    
+
     resampled = signal.resample_poly(activity, up=p, down=q, axis=0)
-    
+
     if method.lower() in ("covariance", "ordinary"):
         cov_m = np.cov(resampled, rowvar=False)
     elif method.lower() == "correlation":
@@ -814,3 +808,41 @@ def effective_rank(
     
     s_en = -np.sum(norm_eigen_v * np.log(norm_eigen_v))
     return float(np.exp(s_en))
+
+
+def effective_rank(
+    spike_times: list[np.ndarray],
+    fs: float,
+    duration_s: float,
+    eff_fs: float,
+    method: str = "covariance",
+) -> float:
+    """Computes Effective Rank of the network activity.
+
+    Port of ``calEffRank.m`` (Roy and Vetterli, 2007). Constructs the dense
+    binary spike matrix at ``fs``, then defers to
+    :func:`effective_rank_from_activity`.
+
+    ``spike_times`` is every unit, not the active subset:
+    ``ExtractNetMet.m`` passes the whole ``activityMatrix`` here, having
+    subset only ``adjM`` by ``inclusionIndex``.
+    """
+    from scipy.sparse import csc_matrix
+
+    n_samples = int(np.ceil(duration_s * fs))
+    n_channels = len(spike_times)
+
+    indices_x: list = []
+    indices_y: list = []
+    for i, st in enumerate(spike_times):
+        samples = np.round(np.asarray(st) * fs).astype(int)
+        samples = samples[(samples >= 0) & (samples < n_samples)]
+        indices_x.extend(samples)
+        indices_y.extend([i] * len(samples))
+
+    activity = csc_matrix(
+        (np.ones(len(indices_x)), (indices_x, indices_y)),
+        shape=(n_samples, n_channels),
+    ).toarray()
+
+    return effective_rank_from_activity(activity, fs, eff_fs, method)

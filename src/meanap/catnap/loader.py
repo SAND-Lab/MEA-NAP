@@ -8,6 +8,18 @@ import numpy as np
 from meanap.pipeline.atomic import atomic_savez
 
 
+class Suite2pOutputMismatch(ValueError):
+    """``iscell.npy`` describes a different ROI list from ``F.npy``/``stat.npy``.
+
+    Nothing downstream can proceed: ``iscell[:, 0]`` selects rows of ``F`` and
+    ``stat``, so if the row counts differ there is no way to tell which
+    classification belongs to which trace. Raised at load time, with the counts
+    named, rather than letting it surface as a bare numpy ``IndexError`` from
+    inside the adjacency step — which is both unreadable and many minutes late,
+    since every ROI is denoised first.
+    """
+
+
 @dataclass
 class Suite2pData:
     """All arrays loaded from one suite2p/plane0 directory."""
@@ -123,6 +135,66 @@ def _load_ops_fields(
     return fs, mean_img
 
 
+def _check_roi_counts(
+    plane0: Path, counts: dict[str, int], iscell: np.ndarray,
+) -> None:
+    """Refuse a suite2p folder whose files disagree about how many ROIs there are.
+
+    The commonest cause has a signature worth reporting back. suite2p's GUI
+    *prepends* hand-drawn ROIs and writes them into ``iscell.npy`` with a
+    classifier probability of exactly ``1.0`` (``drawroi.py``:
+    ``np.concatenate((np.ones((nROIs, 2)), iscell_prob))``), saving ``stat``,
+    ``F``, ``Fneu`` and ``spks`` in the same breath. When only ``iscell.npy``
+    grew, that save was incomplete — and the leading block of probability-1.0
+    rows says so, and says how far out of step the two files are.
+
+    That diagnosis is offered, not acted on. Dropping the block would line the
+    files back up, but a wrong guess silently reassigns every cell label to a
+    different neuron, so the repair belongs in suite2p where the traces exist.
+    """
+    if len(set(counts.values())) == 1:
+        return
+    n_traces = counts["F.npy"]
+
+    lines = [
+        f"The suite2p output in {plane0} is inconsistent — its files disagree "
+        "about how many ROIs the recording has:",
+        "",
+        *(f"    {name:<12} {n} ROIs" for name, n in counts.items()),
+        "",
+        "iscell.npy says which ROIs are cells by row position, so MEA-NAP "
+        "cannot tell which classification belongs to which trace.",
+    ]
+
+    # ``iscell[:, 1]`` is a probability, so an exact 1.0 is not something the
+    # classifier produces by chance.
+    drawn = np.nonzero(iscell[:, 1] == 1.0)[0]
+    extra = len(iscell) - n_traces
+    if extra > 0 and len(drawn) == extra and drawn.max() == extra - 1:
+        lines += [
+            "",
+            f"The first {extra} rows of iscell.npy have a classifier "
+            f"probability of exactly 1.0, which is what suite2p writes for ROIs "
+            "drawn by hand in its GUI — and it prepends them. So this folder "
+            f"looks like {extra} hand-drawn ROIs that reached iscell.npy while "
+            "the matching save of stat.npy / F.npy / Fneu.npy / spks.npy did "
+            "not: iscell row N describes ROI N minus "
+            f"{extra} of the other files.",
+            "",
+            "Re-open the recording in the suite2p GUI and save it again so all "
+            "five files describe the same ROI list. MEA-NAP will not realign "
+            "them itself — guessing wrong would attach every cell label to the "
+            "wrong neuron.",
+        ]
+    else:
+        lines += [
+            "",
+            "Re-run or re-save the recording in suite2p so all of its files "
+            "describe the same ROI list.",
+        ]
+    raise Suite2pOutputMismatch("\n".join(lines))
+
+
 def load_suite2p(
     plane0_dir: str | Path,
     derived_root: str | Path | None = None,
@@ -153,8 +225,15 @@ def load_suite2p(
 
     F = np.load(d / "F.npy")
     iscell = np.load(d / "iscell.npy")
-
     stat = np.load(d / "stat.npy", allow_pickle=True)
+    spks = np.load(d / "spks.npy") if (d / "spks.npy").exists() else np.zeros_like(F)
+
+    # Before anything reads a row of them: every one of these is indexed by
+    # ``iscell[:, 0]``, so they all have to be the same length.
+    _check_roi_counts(d, {"F.npy": F.shape[0], "stat.npy": len(stat),
+                          "spks.npy": spks.shape[0], "iscell.npy": len(iscell)},
+                      iscell)
+
     x_loc = np.array([s["med"][0] for s in stat])
     y_loc = np.array([s["med"][1] for s in stat])
     xy_loc = np.stack([x_loc, y_loc])
@@ -163,8 +242,6 @@ def load_suite2p(
 
     n_frames = F.shape[1]
     duration_s = n_frames / fs
-
-    spks = np.load(d / "spks.npy") if (d / "spks.npy").exists() else np.zeros_like(F)
 
     data = Suite2pData(
         F=F,

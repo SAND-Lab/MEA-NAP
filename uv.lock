@@ -569,6 +569,9 @@ dev = [
     { name = "pytest-cov" },
     { name = "ruff" },
 ]
+oasis = [
+    { name = "oasis-deconv" },
+]
 
 [package.metadata]
 requires-dist = [
@@ -578,6 +581,7 @@ requires-dist = [
     { name = "networkx", specifier = ">=3.3" },
     { name = "numba", specifier = ">=0.60" },
     { name = "numpy", specifier = ">=1.26,<2.5" },
+    { name = "oasis-deconv", marker = "extra == 'oasis'", specifier = ">=0.3.2" },
     { name = "openpyxl", specifier = ">=3.1" },
     { name = "pandas", specifier = ">=2.2" },
     { name = "pillow", specifier = ">=10.0" },
@@ -595,7 +599,7 @@ requires-dist = [
     { name = "seaborn", specifier = ">=0.13.2" },
     { name = "tqdm", specifier = ">=4.68.3" },
 ]
-provides-extras = ["dev"]
+provides-extras = ["dev", "oasis"]
 
 [[package]]
 name = "narwhals"
@@ -733,6 +737,32 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/1a/9c/c531f2293b91265d8b48e9b329f54fdd7ffae73cb4134ea10cca4237e9cc/numpy-2.4.6-pp311-pypy311_pp73-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:5dbbdb29840ca3d91ee0fece42fc29278886d908280bfec0a5846c6f901a3eb0", size = 15798374, upload-time = "2026-05-18T23:37:02.674Z" },
     { url = "https://files.pythonhosted.org/packages/1a/b0/413077f6b1153ed3cba361401c6783bbad6114804a000cc22eb71c13e190/numpy-2.4.6-pp311-pypy311_pp73-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:8ad03c0965fb3c692200e74d458ca28c1dbb4ce96f9a479a8aa041ad5fabca02", size = 16747286, upload-time = "2026-05-18T23:37:06.327Z" },
     { url = "https://files.pythonhosted.org/packages/15/ce/e5ec180bc41812edcd8daeb8639d205622c0e8c02259d8ab25a0201b3c2a/numpy-2.4.6-pp311-pypy311_pp73-win_amd64.whl", hash = "sha256:2803abfebfc990042cd494d8ce2d5f82e9d847af6d35ec486923aa19dbad5e73", size = 12504263, upload-time = "2026-05-18T23:37:09.715Z" },
+]
+
+[[package]]
+name = "oasis-deconv"
+version = "0.3.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "matplotlib" },
+    { name = "numpy" },
+    { name = "scipy", version = "1.17.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
+    { name = "scipy", version = "1.18.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/be/17/93f141e4d12c192f2b8b3ea0074c22718b419bb6deb56a7002b2469d0b0b/oasis_deconv-0.3.2.tar.gz", hash = "sha256:dca6e8cd39af31530d5aac7886269033575f096861864163fbb9ba51755deab8", size = 7363576, upload-time = "2026-07-15T20:13:04.544Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/76/f3/7def0fee7c5dfdc4497f7082de19412a416fca0320596fa27ee27b8e3e7a/oasis_deconv-0.3.2-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:454ee45a15e012435b4bce67996249ab74c6fd6c31011de50f90d9c28171440d", size = 725723, upload-time = "2026-07-15T20:12:39.272Z" },
+    { url = "https://files.pythonhosted.org/packages/c9/ed/164c065b8bf579411fd4589ef96ddbc8ee3f608f508a358c10bb1a3744b8/oasis_deconv-0.3.2-cp311-cp311-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:676004c1c95ea341c6eefa06e7315329365b438b1b6ae8fac81066c0a3c1bb26", size = 3955413, upload-time = "2026-07-15T20:12:40.768Z" },
+    { url = "https://files.pythonhosted.org/packages/b3/a6/93a3dc6959e32e862712fab0664dbf3e336e20d6109b4f2e6e45ce6b9c04/oasis_deconv-0.3.2-cp311-cp311-win32.whl", hash = "sha256:5cedefc95a1da7e2c0f6f38121aeeaac72a7470e7939640029682eef27f8106b", size = 919952, upload-time = "2026-07-15T20:12:42.267Z" },
+    { url = "https://files.pythonhosted.org/packages/1d/04/b383b7dbabd5238acfa4781746b1cc5d0c257938072fc07de590d264c1dd/oasis_deconv-0.3.2-cp311-cp311-win_amd64.whl", hash = "sha256:4b5de6f4ddbf1d827a8e40cdb70355ec12ad404d17539070791bc86edf234a44", size = 1103515, upload-time = "2026-07-15T20:12:43.78Z" },
+    { url = "https://files.pythonhosted.org/packages/4a/01/7dd7598fce3a9a4b4ac342b183e7510d4b135afee1086c730d3e43a000b7/oasis_deconv-0.3.2-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:52251b69fedab3f7fe35fb93ac60a217ed9709184fe481e5496d2a1b20f5c253", size = 944180, upload-time = "2026-07-15T20:12:46.233Z" },
+    { url = "https://files.pythonhosted.org/packages/94/d2/3a13b23b87002cf51a0ccb836ae7b67971e8833c7a77428e9320ca4e1358/oasis_deconv-0.3.2-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:68539f31139ad8fe911e5a4e32111fb3405a2d68513da26ed077768bcc6926ae", size = 5455558, upload-time = "2026-07-15T20:12:47.692Z" },
+    { url = "https://files.pythonhosted.org/packages/94/74/07f7a0af50fa2ecb74ddacc82ab96ca6d59668d5b8edee5080b9ba008875/oasis_deconv-0.3.2-cp312-cp312-win32.whl", hash = "sha256:a4c7a8c4985dea67bab678f695145126b802b5031aa4cb7c11219f67fb21b261", size = 1270295, upload-time = "2026-07-15T20:12:49.161Z" },
+    { url = "https://files.pythonhosted.org/packages/b9/f4/34a3ba797de6b9b19efb7074b00e1e6c555b69c32fa4010e618bc836db18/oasis_deconv-0.3.2-cp312-cp312-win_amd64.whl", hash = "sha256:417fe60b6d3f62d7e5094da89fef1ab20bc9be7301337707346c9cd7e5f9a42e", size = 1456015, upload-time = "2026-07-15T20:12:50.718Z" },
+    { url = "https://files.pythonhosted.org/packages/4d/dc/9a66ec5a96b3774e66fe9c187ab15ca0e2796421ab946a55072f4f0a317f/oasis_deconv-0.3.2-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:1c6e54ebbf1986aab078ab910281c58c8063040698e60ac1dbccde279944df08", size = 1162583, upload-time = "2026-07-15T20:12:52.362Z" },
+    { url = "https://files.pythonhosted.org/packages/f3/47/e4e7f10f2cea80024731a18fad6e35c40f51e3d9505cf45514955b1d3718/oasis_deconv-0.3.2-cp313-cp313-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:18078114a4670c075a9ceb51ea26e02a92b5c0b35c02bdd2b9ad062eb9ae4ce0", size = 6978041, upload-time = "2026-07-15T20:12:53.937Z" },
+    { url = "https://files.pythonhosted.org/packages/14/a9/df3ddbfa3290514173ea501c6a60995354ccbb0a754b6e1844237729c113/oasis_deconv-0.3.2-cp313-cp313-win32.whl", hash = "sha256:9756d2bf4df306e9e85a5706fbe1122f5b72d8b8b76370685f974cd9de67d609", size = 1622718, upload-time = "2026-07-15T20:12:55.589Z" },
+    { url = "https://files.pythonhosted.org/packages/39/85/06ff956c14271c9f383ebac5044512f50dbad6fb715b57616637eac45a80/oasis_deconv-0.3.2-cp313-cp313-win_amd64.whl", hash = "sha256:17060662a3ff56946196b57337bfb1d977946099a88c50077f721b1eb55023e7", size = 1808428, upload-time = "2026-07-15T20:12:57.094Z" },
 ]
 
 [[package]]

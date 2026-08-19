@@ -8,7 +8,8 @@ that need no token:
 
 ===============================  ===========================================
 list a folder                    ``POST /list_shared_link_folder_entries``
-                                 with the CSRF token from the share page
+                                 with the CSRF token from the share page;
+                                 long folders page via ``voucher``
 descend into a subfolder         the child's **own** ``secure_hash`` (from its
                                  ``href``) *plus* the full ``sub_path``
 download one file                the entry's ``href`` with ``raw=1``
@@ -32,6 +33,7 @@ from __future__ import annotations
 
 import json
 import re
+import time
 import urllib.parse
 from pathlib import Path
 
@@ -89,12 +91,16 @@ class DropboxLinkStore:
 
     copies = True
 
-    def __init__(self, url: str, client: HttpClient | None = None):
+    def __init__(self, url: str, client: HttpClient | None = None,
+                 listing_backoff: float = 5.0):
         self.link_key, self.root_hash, self.rlkey = parse_share_url(url)
         self.url = url
         self.store_id = store_id_for("dropbox", self.link_key)
         self._http = client or HttpClient()
         self._csrf: str | None = None
+        #: Seconds before the second listing attempt, doubling thereafter.
+        #: A parameter so tests can drive the retry path without sleeping.
+        self._listing_backoff = listing_backoff
         # dir path -> {"hash": str, "entries": [RemoteEntry], "hrefs": {name: url}}
         self._dirs: dict[str, dict] = {}
 
@@ -115,30 +121,58 @@ class DropboxLinkStore:
         self._csrf = token
         return token
 
-    def _listing_call(self, secure_hash: str, sub_path: str) -> dict:
+    #: Statuses this endpoint returns when it is declining a request that is in
+    #: itself well-formed — an expired session, or too much traffic in too
+    #: short a window. The request shape here is fixed and known-good, so a
+    #: 400 is *not* the usual "you sent nonsense": it is Dropbox saying not
+    #: now. Observed on a 381-recording pre-flight, which lists three folders
+    #: per recording; the same walk succeeded from a fresh session minutes
+    #: later. Treating it as fatal kills a multi-hour run at request ~1000.
+    _SESSION_STATUSES = frozenset({400, 403, 404})
+
+    #: Attempts per listing call, each preceded by a fresh token and a longer
+    #: wait. Deliberately patient rather than fast: a throttle that clears in
+    #: 30 s is worth waiting out when the alternative is restarting a run.
+    _LISTING_ATTEMPTS = 4
+
+    def _listing_call(
+        self, secure_hash: str, sub_path: str, voucher: str | None = None,
+    ) -> dict:
         fields = {
             "t": self._token(), "link_key": self.link_key,
             "secure_hash": secure_hash, "rlkey": self.rlkey,
             "sub_path": sub_path, "link_type": "s",
         }
-        try:
-            resp = self._http.post_form(
-                _LISTING_URL, fields, {"X-Requested-With": "XMLHttpRequest"})
-        except HttpError as e:
-            # An expired session presents as a 403/404 from this endpoint; one
-            # retry with a fresh token distinguishes that from a real absence.
-            if e.status in (403, 404):
+        if voucher:
+            fields["voucher"] = voucher
+
+        last: HttpError | None = None
+        for attempt in range(self._LISTING_ATTEMPTS):
+            if attempt:
+                # Back off *then* re-authenticate: a token minted during the
+                # throttle window is no more welcome than the one it replaces.
+                time.sleep(self._listing_backoff * (2 ** (attempt - 1)))
                 fields["t"] = self._token(refresh=True)
+            try:
                 resp = self._http.post_form(
                     _LISTING_URL, fields, {"X-Requested-With": "XMLHttpRequest"})
-            else:
-                raise
-        try:
-            return json.loads(resp.text())
-        except json.JSONDecodeError:
-            raise DropboxInterfaceChanged(
-                "The folder-listing endpoint returned HTML instead of JSON."
-            ) from None
+            except HttpError as e:
+                if e.status not in self._SESSION_STATUSES:
+                    raise
+                last = e
+                continue
+            try:
+                return json.loads(resp.text())
+            except json.JSONDecodeError:
+                raise DropboxInterfaceChanged(
+                    "The folder-listing endpoint returned HTML instead of JSON."
+                ) from None
+
+        raise DropboxInterfaceChanged(
+            f"Listing '{sub_path or '/'}' failed {self._LISTING_ATTEMPTS} times; "
+            f"the last was {last}. If this is throttling it will clear on its "
+            "own — wait and re-run, and the cache means nothing already "
+            "fetched is fetched again.")
 
     # ── directory walk ───────────────────────────────────────────────────────
 
@@ -171,31 +205,45 @@ class DropboxLinkStore:
         return info
 
     def _load_dir(self, secure_hash: str, sub_path: str) -> dict:
-        data = self._listing_call(secure_hash, sub_path)
-        if "entries" not in data:
-            raise DropboxInterfaceChanged(
-                f"Folder listing had no 'entries' key (got: {sorted(data)[:6]}).")
+        """Every entry in one directory, following pagination to the end.
 
+        The first response carries 30 entries; bigger folders then hand back a
+        ``next_request_voucher`` to pass as ``voucher`` on the next call, which
+        returns 75 at a time. A dataset folder holding hundreds of recordings
+        needs this, and the failure it prevents is the worst kind: a short
+        listing looks like a complete one, so a batch would quietly analyse its
+        first 30 recordings and report success.
+        """
         prefix = sub_path.strip("/")
         entries, hrefs = [], {}
-        for raw in data["entries"]:
-            name = raw.get("filename")
-            if not name:
-                continue
-            entries.append(RemoteEntry(
-                path=f"{prefix}/{name}" if prefix else name,
-                is_dir=bool(raw.get("is_dir")),
-                size=None if raw.get("is_dir") else raw.get("bytes"),
-            ))
-            hrefs[name] = raw.get("href", "")
+        voucher: str | None = None
+        while True:
+            data = self._listing_call(secure_hash, sub_path, voucher)
+            if "entries" not in data:
+                raise DropboxInterfaceChanged(
+                    f"Folder listing had no 'entries' key (got: {sorted(data)[:6]}).")
 
-        if data.get("has_more_entries"):
-            # Not yet needed — the pagination voucher is only issued for very
-            # large folders. Say so rather than silently truncating a batch.
-            raise DropboxInterfaceChanged(
-                f"Folder '{sub_path or '/'}' has more entries than one response "
-                f"returns ({data.get('total_num_entries')} total); paginated "
-                "listings are not implemented.")
+            for raw in data["entries"]:
+                name = raw.get("filename")
+                if not name:
+                    continue
+                entries.append(RemoteEntry(
+                    path=f"{prefix}/{name}" if prefix else name,
+                    is_dir=bool(raw.get("is_dir")),
+                    size=None if raw.get("is_dir") else raw.get("bytes"),
+                ))
+                hrefs[name] = raw.get("href", "")
+
+            if not data.get("has_more_entries"):
+                break
+            voucher = data.get("next_request_voucher")
+            if not voucher:
+                # More entries exist but nothing to ask for them with. Refusing
+                # beats returning a listing that is silently incomplete.
+                raise DropboxInterfaceChanged(
+                    f"Folder '{sub_path or '/'}' reports more entries than were "
+                    f"returned ({len(entries)} of {data.get('total_num_entries')}) "
+                    "but gave no pagination voucher.")
         return {"hash": secure_hash, "entries": entries, "hrefs": hrefs}
 
     # ── RemoteStore ──────────────────────────────────────────────────────────

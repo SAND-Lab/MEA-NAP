@@ -558,6 +558,74 @@ def _page_checks() -> list[Check]:
     return checks
 
 
+def _trace_checks() -> list[Check]:
+    """CAT-NAP peak-detection traces: carried in the bundle, served as stored.
+
+    These are the only record of what peak detection did, and the one figure
+    family a bundle cannot rebuild — they need the full fluorescence matrices,
+    which are deliberately not stored. ``write_bundle`` packed them all along,
+    and the manifest even declared ``embedded_figures: ["2p_traces"]``, but
+    nothing listed or served them: a run with the default ``num_2p_traces = 3``
+    produced figures the viewer showed no sign of.
+
+    Served rather than rendered, so unlike every other family there is no
+    format choice and no styling — which is exactly why the path guard matters
+    more here than elsewhere.
+    """
+    import zipfile
+    from meanap.viewer.server import serve
+
+    checks: list[Check] = []
+    payload = b"\x89PNG\r\n\x1a\n" + b"trace-bytes" * 8
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = Path(tmp)
+        express = _run(tmp, "Traces", express=True)
+        bundle = express.with_suffix(BUNDLE_SUFFIX)
+        # Append figures where a CAT-NAP run writes them. Appending rather than
+        # running the 2P path keeps this test about the viewer.
+        with zipfile.ZipFile(bundle, "a", zipfile.ZIP_DEFLATED) as z:
+            for unit in (1, 2, 10):
+                z.writestr(
+                    "2_NeuronalActivity/2A_IndividualNeuronalAnalysis/"
+                    f"WT/recA/unit_{unit}_2ptraces.png", payload)
+
+        httpd, _service = serve(bundle, port=0, background=True)
+        base = f"http://127.0.0.1:{httpd.server_address[1]}"
+        try:
+            status, body, _ = _get(base + "/api/manifest")
+            man = json.loads(body)
+            by = {r["name"]: r for r in man["recordings"]}
+            labels = [t["label"] for t in by["recA"].get("traces", [])]
+            checks.append(("the manifest lists the packed traces",
+                           labels == ["Unit 1", "Unit 2", "Unit 10"], f"{labels}"))
+            checks.append(("…in unit order, not lexical (9 before 10)",
+                           labels[-1] == "Unit 10", f"{labels}"))
+            checks.append(("a recording with no traces lists none",
+                           by["recB"].get("traces") == [], f"{by['recB'].get('traces')}"))
+
+            name = by["recA"]["traces"][1]["name"]
+            status, img, headers = _get(f"{base}/api/trace?rec=recA&name={name}")
+            checks.append(("a trace is served", status == 200, str(status)))
+            checks.append(("…byte-for-byte as it was packed", img == payload,
+                           f"{len(img)} vs {len(payload)}"))
+            checks.append(("…as an image",
+                           headers.get("Content-Type", "").startswith("image/"),
+                           headers.get("Content-Type", "")))
+
+            # The name comes from a URL and is matched against the discovered
+            # set, never joined onto a path.
+            for bad in ("../../params", "../../../../etc/passwd", "nope"):
+                status, _b, _h = _get(f"{base}/api/trace?rec=recA&name={bad}")
+                checks.append((f"refuses {bad!r}", status == 404, str(status)))
+
+            status, body, _ = _get(base + "/")
+            checks.append(("the page has a section for them",
+                           b"Peak detection traces" in body, ""))
+        finally:
+            httpd.shutdown()
+    return checks
+
+
 def main() -> int:
     print("=" * 70)
     print("MEA-NAP web viewer")
@@ -569,6 +637,7 @@ def main() -> int:
         ("Across-lag figures:", _lag_series_checks),
         ("Age and group colours:", _color_checks),
         ("The page's three tabs:", _page_checks),
+        ("CAT-NAP peak-detection traces:", _trace_checks),
     ]:
         p, n = _report(title, build())
         total_pass += p

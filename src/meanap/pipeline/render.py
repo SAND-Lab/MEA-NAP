@@ -1265,6 +1265,60 @@ def _subnetwork_slice(ctx: RenderContext, recording: str, lag: int) -> dict:
     return out
 
 
+#: Where a CAT-NAP run writes its per-unit trace figures. Unlike every other
+#: family the viewer serves, these are *carried* in the bundle rather than
+#: redrawn from it: they need the full fluorescence matrices, which are
+#: hundreds of MB per recording and deliberately not stored. So the viewer's
+#: job here is to find the packed images, not to render anything.
+TRACE_DIR = "2_NeuronalActivity/2A_IndividualNeuronalAnalysis"
+
+
+def available_trace_figures(ctx: RenderContext, recording: str) -> list[FigureSpec]:
+    """The per-unit peak-detection figures packed for this recording.
+
+    A CAT-NAP run with ``num_2p_traces > 0`` saves a three-panel figure per
+    unit — raw F, scaled F over the denoised trace, and the denoised trace with
+    detected event starts — and ``write_bundle`` packs them verbatim. Nothing
+    listed them, so a bundle could carry the only record of what peak detection
+    did and show the reader no sign of it.
+
+    Sorted by the unit number in the filename rather than lexically, so unit 9
+    precedes unit 10.
+    """
+    base = ctx.root / TRACE_DIR
+    if not base.is_dir():
+        return []
+    # group/recording/, matching what _plot_recording writes.
+    hits = sorted(base.glob(f"*/{recording}/*.png"))
+    if not hits:
+        return []
+
+    def unit_of(path: Path) -> tuple[int, str]:
+        digits = "".join(c if c.isdigit() else " " for c in path.stem).split()
+        return (int(digits[0]) if digits else 1 << 30, path.stem)
+
+    return [FigureSpec(h.stem, f"Unit {unit_of(h)[0]}" if unit_of(h)[0] < (1 << 30)
+                       else h.stem)
+            for h in sorted(hits, key=unit_of)]
+
+
+def trace_figure_path(ctx: RenderContext, recording: str, name: str) -> Path:
+    """Locate one packed trace figure, refusing anything outside the bundle.
+
+    ``name`` arrives from a URL, so it is matched against the discovered set
+    rather than joined onto a path — a traversal here would read arbitrary
+    files off the machine running the viewer.
+    """
+    base = (ctx.root / TRACE_DIR).resolve()
+    for hit in base.glob(f"*/{recording}/*.png"):
+        if hit.stem == name:
+            resolved = hit.resolve()
+            if not resolved.is_relative_to(base):
+                break
+            return resolved
+    raise FileNotFoundError(f"no trace figure {name!r} for {recording}")
+
+
 def available_subnetwork_figures(
     ctx: RenderContext, recording: str, lag: int,
 ) -> list[FigureSpec]:

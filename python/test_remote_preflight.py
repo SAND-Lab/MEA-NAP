@@ -253,6 +253,51 @@ def _empty_source_checks() -> list[Check]:
     return checks
 
 
+def _roi_count_checks() -> list[Check]:
+    """A folder whose iscell.npy cannot belong to its F.npy.
+
+    Real case: a recording where 40 hand-drawn ROIs reached ``iscell.npy`` and
+    nothing else, so the loader refuses it. Catching that from the listing
+    saves downloading ~1 GB and denoising 5000 ROIs first, so the sizes here
+    are the real ones and the arrays are written by numpy — the check reads
+    the ``.npy`` header layout off file sizes, and that assumption is exactly
+    what this pins.
+    """
+    import numpy as np
+
+    checks: list[Check] = []
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+
+        def write(name: str, n_iscell: int, n_rois: int, n_frames: int) -> None:
+            d = root / name / "suite2p" / "plane0"
+            d.mkdir(parents=True)
+            np.save(d / "iscell.npy", np.zeros((n_iscell, 2)))
+            np.save(d / "F.npy", np.zeros((n_rois, n_frames), dtype=np.float32))
+            np.save(d / "stat.npy", np.zeros(n_rois))
+            np.save(d / "ops.npy", np.zeros(1))
+
+        write("broken", 5040, 5000, 9000)     # the recording that hit this
+        write("fine", 301, 301, 20000)
+
+        rep = run_preflight(LocalStore(root), ["broken", "fine"], mode="catnap")
+        by = {r.name: r for r in rep.recordings}
+
+        checks.append(("a consistent recording is untouched",
+                       by["fine"].ok and by["fine"].unusable is None,
+                       f"{by['fine'].unusable}"))
+        checks.append(("an iscell that cannot match F is caught from sizes "
+                       "alone", not by["broken"].ok, ""))
+        checks.append(("…with the ROI count it read named",
+                       "5040 ROIs" in (by["broken"].unusable or ""),
+                       f"{by['broken'].unusable}"))
+        checks.append(("…and the repair named",
+                       "suite2p GUI" in (by["broken"].unusable or ""), ""))
+        checks.append(("…and it is reported, not silently dropped",
+                       "broken" in rep.render() and rep.warnings, ""))
+    return checks
+
+
 def main() -> int:
     print("=" * 70)
     print("Pre-flight: can this dataset actually be analysed?")
@@ -266,6 +311,7 @@ def main() -> int:
         ("E — storage budget:", _budget_checks),
         ("F — locating the spreadsheet:", _spreadsheet_checks),
         ("G — an empty or mismatched source:", _empty_source_checks),
+        ("H — suite2p folders that contradict themselves:", _roi_count_checks),
     ]:
         p, n = _report(title, build())
         total_pass += p

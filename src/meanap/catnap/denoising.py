@@ -100,6 +100,7 @@ def process_suite2p_folder(
     time_after_peak_s: float = 2.05,
     denoising_width_sec: float = 1.13,
     denoising_wlen_sec: float = 12.0,
+    min_event_interval_s: float | None = None,
     derived_root: str | Path | None = None,
     recording: str | None = None,
 ) -> Path:
@@ -141,6 +142,12 @@ def process_suite2p_folder(
     frames_after = int(time_after_peak_s * fs)
     width = int(fs * denoising_width_sec)
     wlen = int(fs * denoising_wlen_sec)
+    # 50 frames is the original script's hard-coded value. It is a *frame*
+    # count, so the refractory period it imposes depends on the acquisition
+    # rate; giving the interval in seconds makes it rate-independent. Default
+    # stays on frames so existing runs (and the MATLAB parity test) are
+    # unchanged — see Params.twop_min_event_interval.
+    distance = 50 if min_event_interval_s is None else max(1, int(fs * min_event_interval_s))
 
     F_denoised_out = np.full_like(F, np.nan)
     max_peaks = 1  # will grow
@@ -168,7 +175,7 @@ def process_suite2p_folder(
             denoised,
             height=0.0015,
             width=width,
-            distance=50,
+            distance=distance,
             prominence=0.0015,
             rel_height=0.95,
             wlen=wlen,

@@ -106,6 +106,32 @@ uv run meanap-preflight '<link>' --write-spreadsheet batch-fixed.csv
 That writes a copy with the recording names corrected and everything else
 preserved. Point `spreadsheet_file_name` at it.
 
+### When a suite2p folder contradicts itself
+
+```
+  ✗ OPME240520_17_…_DIV13 — iscell.npy describes 5040 ROIs, which does not
+    divide F.npy — the suite2p output is inconsistent and will not load
+    (re-save the recording in the suite2p GUI)
+```
+
+`iscell.npy` says which ROIs are cells *by row position*, so it has to have one
+row per trace in `F.npy`. When it doesn't, nothing downstream can tell which
+classification belongs to which neuron, and MEA-NAP skips the recording rather
+than guess.
+
+The usual cause is ROIs drawn by hand in the suite2p GUI. suite2p prepends them
+and stamps them with a classifier probability of exactly 1.0, then saves
+`stat.npy`, `F.npy`, `Fneu.npy`, `spks.npy` and `iscell.npy` together — so a
+folder where only `iscell.npy` grew is one where that save did not finish. The
+loader spells this out when it sees the signature, including how many rows the
+two files are out of step by. Re-open the recording in the suite2p GUI and save
+it again; the traces for the drawn ROIs only exist there.
+
+Pre-flight catches the arithmetically impossible cases from file sizes alone,
+before anything is downloaded. A mismatch that happens to divide slips past it
+and is caught at load time instead — after the download, but still before
+denoising.
+
 ## Storage budget
 
 By default the cache may grow to a quarter of free disk, capped at 50 GB.
@@ -157,8 +183,10 @@ the entire folder. Treat it as a credential.
 - **Bandwidth, not disk, becomes the limit.** At 6 MB/s a 14 GB dataset takes
   around 40 minutes to stream once. Derived outputs are cached, so a second run
   over the same data re-fetches nothing.
-- **Very large folders** (enough to paginate a listing) are refused rather than
-  silently truncated.
+- **Very large folders** are listed in full: Dropbox returns them a page at a
+  time, and the reader follows the pages to the end. If it ever cannot, it
+  refuses rather than returning a listing that is silently short — a truncated
+  listing is indistinguishable from a small dataset.
 
 See {doc}`express-mode` for keeping the *outputs* small too — the two compose:
 stream the inputs, ship a 2 MB bundle.

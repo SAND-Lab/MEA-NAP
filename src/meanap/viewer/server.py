@@ -54,6 +54,7 @@ from meanap.pipeline.render import (
     available_group_families, available_lag_series, cached_comparison_figure,
     cached_figure, cached_lag_series_figure, comparison_axes, gallery, load_context,
     render_activity_figure,
+    available_trace_figures, trace_figure_path,
 )
 from meanap.pipeline.render_cache import RenderCache
 from meanap.viewer.controls import (
@@ -120,6 +121,12 @@ class ViewerService:
                 "spike_checks": [{"name": f.name, "label": f.label}
                                  for f in available_spike_check_figures(
                                      self.ctx, name)],
+                # CAT-NAP peak-detection traces. Per recording like the step-1
+                # checks and answering the same question — did detection work —
+                # but *carried* in the bundle rather than redrawn, since they
+                # need fluorescence the bundle does not hold.
+                "traces": [{"name": f.name, "label": f.label}
+                           for f in available_trace_figures(self.ctx, name)],
                 # One per lag, and usually empty: these only exist when the run
                 # had thresholding checks switched on.
                 "edge_checks": available_edge_check_lags(self.ctx, name),
@@ -137,6 +144,11 @@ class ViewerService:
             # A folder cannot be exported: it already is one.
             "can_export": self._bundle is not None,
             "mode": self.ctx.mode,
+            # Which pipeline version produced this. Read from the run's own
+            # stamp, not from the code doing the viewing — a bundle is often
+            # opened by someone on a different version than the one that made
+            # it, and it is the maker's that explains the numbers.
+            "produced_by": self._produced_by(),
             "recordings": recordings,
             "families": [{"key": f.key, "label": f.label}
                          for f in available_group_families(self.ctx)],
@@ -265,6 +277,18 @@ class ViewerService:
         )
         return files[0]
 
+    def _produced_by(self) -> dict:
+        """The run's version stamp, or ``{}`` for a run made before stamping."""
+        from meanap.params import PARAMS_FILENAME, params_version_stamp
+
+        return params_version_stamp(self.ctx.root / PARAMS_FILENAME)
+
+    def trace_figure(self, recording: str, name: str) -> Path:
+        """One packed 2P trace figure. No cache and no format choice: the file
+        is served as it was saved, because there is nothing to re-render it
+        from."""
+        return trace_figure_path(self.ctx, recording, name)
+
     def edge_check_figure(self, recording: str, lag: int, *, fmt: str) -> Path:
         """One step-3 thresholding check. No overrides, like the step-1 ones."""
         from meanap.pipeline.render_cache import bundle_identity, cache_key
@@ -382,6 +406,9 @@ class _Handler(BaseHTTPRequestHandler):
             elif parsed.path == "/api/family":
                 self._json(self.service.family(
                     _one(query, "key"), fmt=_fmt(query)))
+            elif parsed.path == "/api/trace":
+                self._file(self.service.trace_figure(
+                    _one(query, "rec"), _one(query, "name")))
             elif parsed.path == "/api/asset":
                 self._file(self.service.asset(_one(query, "path")))
             else:
