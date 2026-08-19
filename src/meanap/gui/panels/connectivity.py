@@ -16,28 +16,16 @@ class ConnectivityPanel(QWidget):
         layout.setContentsMargins(12, 12, 12, 12)
 
         # ── STTC / lag ────────────────────────────────────────────────────────
+        # Just the lags. Truncation was folded away here too, but it says how
+        # much of each recording to read — a fact about the input, not about
+        # the STTC — so it sits with the input folder on the Data tab.
         sttc_box = QGroupBox("Spike time tiling coefficient (STTC)")
         form = QFormLayout(sttc_box)
 
         self.lag_vals = QLineEdit("10, 15, 25")
         self.lag_vals.setPlaceholderText("Comma-separated lag values in ms")
 
-        self.trunc_rec = QCheckBox()
-        self.trunc_length = QDoubleSpinBox()
-        self.trunc_length.setRange(1, 100000)
-        self.trunc_length.setDecimals(0)
-        self.trunc_length.setSuffix(" s")
-        self.trunc_length.setValue(120)
-
         form.addRow("Lag values (ms)", self.lag_vals)
-
-        # Truncating is something a particular experiment needs, not something
-        # a run is configured with; the lags are the setting people come here
-        # to change.
-        self.sttc_advanced = AdvancedSection()
-        self.sttc_advanced.form().addRow("Truncate recording", self.trunc_rec)
-        self.sttc_advanced.form().addRow("Truncation length", self.trunc_length)
-        form.addRow(self.sttc_advanced)
 
         # ── Adjacency matrix ──────────────────────────────────────────────────
         adj_box = QGroupBox("Adjacency matrix")
@@ -91,8 +79,6 @@ class ConnectivityPanel(QWidget):
 
     def load(self, params: Params) -> None:
         self.lag_vals.setText(", ".join(str(v) for v in params.func_con_lag_val))
-        self.trunc_rec.setChecked(params.trunc_rec)
-        self.trunc_length.setValue(params.trunc_length)
         if params.adj_m_type == "binary":
             self.binary_btn.setChecked(True)
         else:
@@ -105,8 +91,6 @@ class ConnectivityPanel(QWidget):
     def save(self, params: Params) -> None:
         raw = self.lag_vals.text().strip()
         params.func_con_lag_val = [int(x) for x in raw.split(",") if x.strip()]
-        params.trunc_rec = self.trunc_rec.isChecked()
-        params.trunc_length = self.trunc_length.value()
         params.adj_m_type = "binary" if self.binary_btn.isChecked() else "weighted"
         params.prob_thresh_rep_num = self.prob_thresh_rep_num.value()
         params.prob_thresh_tail = self.prob_thresh_tail.value()

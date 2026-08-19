@@ -20,6 +20,9 @@ from PyQt6.QtWidgets import QApplication, QLabel, QWidget  # noqa: E402
 
 from meanap.gui.advanced import AdvancedSection, set_all_expanded  # noqa: E402
 from meanap.gui.panels.connectivity import ConnectivityPanel  # noqa: E402
+from meanap.gui.panels.data import (  # noqa: E402
+    CATNAP_DATA_LABEL, DataPanel, RAW_DATA_LABEL,
+)
 from meanap.params import Params  # noqa: E402
 
 app = QApplication.instance() or QApplication([])
@@ -84,10 +87,10 @@ panel.show()
 app.processEvents()
 
 sections = panel.findChildren(AdvancedSection)
-check("connectivity has advanced sections", len(sections) == 2, str(len(sections)))
+check("connectivity has an advanced section", len(sections) == 1, str(len(sections)))
 
 # Loaded into a collapsed panel, read straight back out.
-loaded = Params(trunc_rec=True, trunc_length=45.0, prob_thresh_tail=0.02,
+loaded = Params(prob_thresh_tail=0.02,
                 prob_thresh_plot_checks=True, prob_thresh_plot_checks_n=7)
 panel.load(loaded)
 check("loading does not force sections open",
@@ -96,11 +99,10 @@ check("loading does not force sections open",
 out = Params()
 panel.save(out)
 check("collapsed values round-trip",
-      (out.trunc_rec, out.trunc_length, out.prob_thresh_tail,
-       out.prob_thresh_plot_checks, out.prob_thresh_plot_checks_n)
-      == (True, 45.0, 0.02, True, 7),
-      f"{out.trunc_rec} {out.trunc_length} {out.prob_thresh_tail} "
-      f"{out.prob_thresh_plot_checks} {out.prob_thresh_plot_checks_n}")
+      (out.prob_thresh_tail, out.prob_thresh_plot_checks,
+       out.prob_thresh_plot_checks_n) == (0.02, True, 7),
+      f"{out.prob_thresh_tail} {out.prob_thresh_plot_checks} "
+      f"{out.prob_thresh_plot_checks_n}")
 
 # And the same when they were opened, edited, and closed again.
 set_all_expanded(panel, True)
@@ -114,7 +116,63 @@ check("an edit made while open survives closing",
 # The settings that a run is normally configured with stay in the open.
 check("lag values stay visible", panel.lag_vals.isVisibleTo(panel))
 check("iterations stay visible", panel.prob_thresh_rep_num.isVisibleTo(panel))
-check("truncation is folded away", not panel.trunc_rec.isVisibleTo(panel))
+
+# Truncation says how much of each recording to read, so it lives with the
+# input folder on the Data tab rather than under the STTC settings.
+data_panel = DataPanel()
+data_panel.show()
+app.processEvents()
+check("truncation is folded away on the Data tab",
+      not data_panel.trunc_rec.isVisibleTo(data_panel))
+check("connectivity no longer owns truncation",
+      not hasattr(panel, "trunc_rec"))
+
+trunc_out = Params()
+data_panel.load(Params(trunc_rec=True, trunc_length=45.0))
+data_panel.save(trunc_out)
+check("truncation round-trips from the Data tab",
+      (trunc_out.trunc_rec, trunc_out.trunc_length) == (True, 45.0),
+      f"{trunc_out.trunc_rec} {trunc_out.trunc_length}")
+
+
+# ── What each mode shows of the Data tab ──────────────────────────────────────
+
+print("\nThe Data tab reads differently per pipeline")
+
+form = data_panel._input_form
+raw_label = form.labelForField(data_panel.raw_data)
+adv = data_panel._input_advanced
+
+data_panel.set_mode("meanap")
+app.processEvents()
+check("ephys calls the input folder raw data",
+      raw_label.text() == RAW_DATA_LABEL, raw_label.text())
+check("ephys offers a spike data folder",
+      adv.form().isRowVisible(data_panel.spike_detected_data))
+ephys_count = adv.count()
+
+data_panel.set_mode("catnap")
+app.processEvents()
+check("CAT-NAP names the folder for what it holds",
+      raw_label.text() == CATNAP_DATA_LABEL, raw_label.text())
+check("CAT-NAP hides the spike data folder — it has no spike step",
+      not adv.form().isRowVisible(data_panel.spike_detected_data))
+check("and the header stops counting the row it hid",
+      adv.count() == ephys_count - 1, f"{adv.count()} vs {ephys_count}")
+
+# Hidden, not dropped: a CAT-NAP window still saves whatever was in it.
+data_panel.load(Params(spike_detected_data="/tmp/spikes"))
+hidden_out = Params()
+data_panel.save(hidden_out)
+check("a hidden spike data folder is still saved",
+      hidden_out.spike_detected_data == "/tmp/spikes",
+      hidden_out.spike_detected_data)
+
+data_panel.set_mode("meanap")
+app.processEvents()
+check("switching back brings the row and the name with it",
+      raw_label.text() == RAW_DATA_LABEL
+      and adv.form().isRowVisible(data_panel.spike_detected_data))
 
 
 # ── The window's toggle ───────────────────────────────────────────────────────
@@ -171,8 +229,9 @@ FOLDED = dict(
     spreadsheet_range="A5:A99", custom_grp_order=["KO", "WT"],
     spike_detected_data="/tmp/spikes", d_samp_f=500.0,
     potential_difference_unit="mV",
+    trunc_rec=True, trunc_length=45.0,
     # Connectivity
-    trunc_rec=True, trunc_length=45.0, prob_thresh_tail=0.02,
+    prob_thresh_tail=0.02,
     prob_thresh_plot_checks=True, prob_thresh_plot_checks_n=9,
     # Spike detection
     run_spike_check_on_prev_spike_data=True, abs_thresholds=[12.0, 18.0],
@@ -246,6 +305,21 @@ for mode_key in ("meanap", "meastim", "catnap"):
             invisible.append(f"{mode_key}: {step.title}")
         tutorial._next()
         app.processEvents()
+
+# ── Tab order ─────────────────────────────────────────────────────────────────
+
+print("\nTab order")
+
+from meanap.gui.modes import TAB_CATNAP, TAB_CONNECTIVITY  # noqa: E402
+
+window._apply_mode("catnap", sync_params=False)
+app.processEvents()
+check("CAT-NAP comes before Connectivity",
+      0 <= window._tab_index(TAB_CATNAP) < window._tab_index(TAB_CONNECTIVITY),
+      f"catnap={window._tab_index(TAB_CATNAP)} "
+      f"connectivity={window._tab_index(TAB_CONNECTIVITY)}")
+check("the Data tab still leads", window._tab_index("data") == 0,
+      str(window._tab_index("data")))
 
 check("every tutorial target is on screen when its step is shown",
       not invisible, "; ".join(invisible))

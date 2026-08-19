@@ -100,7 +100,18 @@ class AdvancedSection(QWidget):
         return self._form
 
     def count(self) -> int:
-        return self._form.rowCount()
+        """How many settings are in here — not counting rows a mode hid.
+
+        A panel may take a row out for the running pipeline (see
+        ``DataPanel.set_mode``), and a header promising three settings that
+        opens onto two is a small lie the count exists to avoid.
+        """
+        return sum(1 for row in range(self._form.rowCount())
+                   if self._form.isRowVisible(row))
+
+    def refresh_label(self) -> None:
+        """Re-read the count, for a caller that just showed or hid a row."""
+        self._relabel()
 
     # ── Open and closed ───────────────────────────────────────────────────────
 

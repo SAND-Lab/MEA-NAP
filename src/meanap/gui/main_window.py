@@ -26,7 +26,9 @@ from meanap.gui.modes import (
 )
 from meanap.gui.pipeline_worker import PipelineWorker, QueueWorker
 from meanap.gui.viewer_session import ViewerSessions
-from meanap.gui.panels.data import DataPanel
+from meanap.gui.panels.data import (
+    CATNAP_DATA_LABEL, DataPanel, RAW_DATA_LABEL,
+)
 from meanap.gui.panels.spike_detection import SpikeDetectionPanel
 from meanap.gui.panels.connectivity import ConnectivityPanel
 from meanap.gui.panels.stim import StimPanel
@@ -233,10 +235,14 @@ class MainWindow(QMainWindow):
         self._tab_specs: list[tuple[str, QWidget, str]] = [
             (TAB_DATA, _scrollable(self._data_panel), "  Data  "),
             (TAB_SPIKE, _scrollable(self._spike_panel), "  Spike detection  "),
+            # CAT-NAP before Connectivity: in 2P mode this tab is where the
+            # recordings are found and prepared, so it comes before the
+            # settings that act on them — the same place Spike detection holds
+            # in the ephys modes.
+            (TAB_CATNAP, self._catnap_panel, "  CAT-NAP (2P)  "),
             (TAB_CONNECTIVITY, _scrollable(self._connectivity_panel), "  Connectivity  "),
             (TAB_STIM, _scrollable(self._stim_panel), "  Stimulation  "),
             (TAB_STIM_PREVIEW, self._stim_preview_panel, "  Stim Preview  "),
-            (TAB_CATNAP, self._catnap_panel, "  CAT-NAP (2P)  "),
             (TAB_RUN, self._run_panel, "  Run  "),
             (TAB_RESULTS, self._results_panel, "  Results  "),
         ]
@@ -248,7 +254,7 @@ class MainWindow(QMainWindow):
         self._tabs.currentChanged.connect(self._on_tab_changed)
         self._queue_panel.changed.connect(self._run_panel.refresh)
 
-        # The Data tab's "Raw data folder" and the CAT-NAP "Recordings folder" are
+        # The Data tab's recordings folder and the CAT-NAP tab's are
         # two views of one setting (Params.raw_data), and both panels write it
         # in _collect_params — so whichever saves last silently wins. Mirror
         # them instead. Without this, setting the folder on Data and pressing
@@ -748,8 +754,12 @@ class MainWindow(QMainWindow):
         missing = []
         # Only step 1 reads the raw recordings; later steps work from the spike
         # files, so a resumed run doesn't need the raw data mounted at all.
+        # Named as the Data tab names it in this mode — see DataPanel.set_mode.
         if not params.raw_data and params.start_analysis_step == 1:
-            missing.append("Raw data folder (needed for step 1 — spike detection)")
+            missing.append(
+                f"{CATNAP_DATA_LABEL} (needed to find the suite2p recordings)"
+                if self._mode == "catnap" else
+                f"{RAW_DATA_LABEL} (needed for step 1 — spike detection)")
         if not params.output_data_folder:
             missing.append("Output data folder")
         if not params.spreadsheet_file_name:

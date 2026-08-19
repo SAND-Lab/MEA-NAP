@@ -416,9 +416,10 @@ uv run meanap-preflight '<share link>'          # check first; seconds, no trans
 uv run meanap-preflight '<link>' --write-spreadsheet fixed.csv
 ```
 
-In the GUI, the same link works in **Raw data folder** and in the CAT-NAP tab's
-**Scan for suite2p folders**, which lists what is behind the link without
-transferring anything. The batch spreadsheet is still a local file; build it
+In the GUI, the same link works in the Data tab's input folder — **Raw data
+folder** in the ephys modes, **Recordings folder (suite2p)** in CAT-NAP — and in
+the CAT-NAP tab's **Scan for suite2p folders**, which lists what is behind the
+link without transferring anything. The batch spreadsheet is still a local file; build it
 from the scan (see below) or with `--write-spreadsheet` above.
 
 A remote run pre-flights automatically and refuses to start if recordings are
