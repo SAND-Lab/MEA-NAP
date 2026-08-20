@@ -55,6 +55,13 @@ class Mode:
     #: pipeline while the run does another.
     suite2p_mode: bool = False
     stimulation_mode: bool = False
+    #: Default STTC lags (ms). A calcium transient lasts on the order of a
+    #: second, where a spike lasts a millisecond, so the coincidence windows
+    #: that make sense for 2P are ~100× the ephys ones: carrying the ephys
+    #: lags into CAT-NAP finds almost no coincidences at all. ``MainWindow``
+    #: swaps these in on a mode switch, but only when the field is still on
+    #: the old mode's defaults — see ``ConnectivityPanel.retune_lags_for_mode``.
+    default_lags: tuple[int, ...] = (10, 15, 25)
 
 
 _EPHYS_TABS = (TAB_DATA, TAB_SPIKE, TAB_CONNECTIVITY, TAB_RUN, TAB_RESULTS)
@@ -80,6 +87,8 @@ MODES: dict[str, Mode] = {
         tabs=frozenset((TAB_DATA, TAB_CONNECTIVITY, TAB_CATNAP,
                         TAB_RUN, TAB_RESULTS)),
         suite2p_mode=True,
+        # What the MATLAB 2P runs use (see python/CATNAP_PORT_PLAN.md).
+        default_lags=(1000, 2500, 5000),
     ),
 }
 

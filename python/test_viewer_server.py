@@ -91,7 +91,7 @@ def _all_checks() -> list[Check]:
             checks.append(("manifest advertises comparison families",
                            len(man["families"]) >= 2, f"{man['families']}"))
             checks.append(("manifest carries the control schema",
-                           len(man["controls"]) == 11,
+                           len(man["controls"]) == 12,
                            f"{len(man['controls'])}"))
             checks.append(("controls declare kind, default and options",
                            all({"key", "kind", "default", "options"} <= set(c)
@@ -114,8 +114,14 @@ def _all_checks() -> list[Check]:
                            _digest(original) == _digest(served), ""))
 
             # ── styling ─────────────────────────────────────────────────────
+            # Deliberately *not* colormap: this figure has no colour metric, so
+            # a colormap legitimately does nothing to it. That this check once
+            # passed with `colormap=magma` was the bug — the override rebuilt
+            # the style from class defaults and so also reset node sizing,
+            # which this bundle's run had on "auto". See
+            # test_viewer_run_styling.py.
             _, styled, _ = _get(
-                f"{base}/api/figure?rec=recA&lag={LAG}&name={fig}&colormap=magma")
+                f"{base}/api/figure?rec=recA&lag={LAG}&name={fig}&layout=Circular")
             checks.append(("a styling parameter changes the image",
                            styled != body, ""))
             _, same, _ = _get(
@@ -526,16 +532,18 @@ def _color_checks() -> list[Check]:
 
 
 def _page_checks() -> list[Check]:
-    """The page ships the three tabs and their panels.
+    """The page ships its tabs and their panels.
 
     The page is one static string with no build step, so a missing element is
     a silent dead control rather than a failure anything else would catch.
     """
+    import re
+
     from meanap.viewer.page import PAGE_HTML
 
     ids = [
-        "tab-recordings", "tab-comparisons", "tab-lags",
-        "side-recordings", "side-comparisons", "side-lags",
+        "tab-recordings", "tab-comparisons", "tab-lags", "tab-params",
+        "side-recordings", "side-comparisons", "side-lags", "side-params",
         "cmp-family", "cmp-metrics", "cmp-lag", "cmp-level", "cmp-split",
         "lag-series", "lag-options", "facets-panel", "controls-panel",
         "cmp-controls", "cmp-reset", "facets-head",
@@ -545,9 +553,18 @@ def _page_checks() -> list[Check]:
         (f"the page has #{name}", f'id="{name}"' in PAGE_HTML, "")
         for name in ids
     ]
-    checks.append(("the tab strip drives all three panes",
-                   PAGE_HTML.count('data-tab="') == 3,
-                   f"{PAGE_HTML.count('data-tab=')}"))
+    # Derived from the page rather than counted against a number written here:
+    # this check was pinned at three long after a fourth tab (Parameters) was
+    # added, so it failed for saying the wrong thing rather than for finding
+    # anything. What actually matters is that selectTab can serve every tab it
+    # is offered — a button id to mark, and a side panel to reveal.
+    tabs = re.findall(r'data-tab="([\w-]+)"', PAGE_HTML)
+    checks.append(("the tab strip declares distinct tabs",
+                   len(tabs) >= 3 and len(tabs) == len(set(tabs)), f"{tabs}"))
+    checks.append(("every tab has the button and panel selectTab expects",
+                   all(f'id="tab-{t}"' in PAGE_HTML
+                       and f'id="side-{t}"' in PAGE_HTML for t in tabs),
+                   f"{[t for t in tabs if f'id=\"side-{t}\"' not in PAGE_HTML]}"))
     checks.append(("it asks the endpoints the server actually serves",
                    all(route in PAGE_HTML for route in
                        ("/api/manifest", "/api/figure", "/api/activity",

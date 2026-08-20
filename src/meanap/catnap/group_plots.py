@@ -391,10 +391,14 @@ def _safe_name(name: str) -> str:
     return re.sub(r"[^\w.+-]+", "_", str(name)).strip("_") or "group"
 
 
-def _lag_folder(lag) -> str:
-    """``'1000mslag'`` → ``'Lag1000ms'`` (the naming the ephys folders use)."""
-    text = str(lag).replace("lag", "")
-    return f"Lag{text}" if "ms" in text else f"Lag{text}ms"
+def _lag_folder(lag, timescale: str = "lag") -> str:
+    """``'1000mslag'`` → ``'Lag1000ms'`` (the naming the ephys folders use).
+
+    ``timescale`` is ``"bin"`` on a CAT-NAP correlation run, where the number
+    is a correlation bin and not a lag at all — see :mod:`meanap.timescale`.
+    """
+    from meanap.pipeline.plotting_step4 import _timescale_group_folder
+    return _timescale_group_folder(lag, timescale)
 
 
 def plot_subnetwork_group_comparisons(
@@ -403,6 +407,7 @@ def plot_subnetwork_group_comparisons(
     out_dir: Path,
     custom_grp_order: list[str] | None = None,
     fmt: str = "png",
+    timescale: str = "lag",
 ) -> None:
     """Compare cell-type subnetworks across experimental groups and ages.
 
@@ -444,7 +449,7 @@ def plot_subnetwork_group_comparisons(
         # with, and it is already present on every row from the runner's base.
 
         for lag, df_lag in df.groupby("Lag", sort=False):
-            lag_dir = base / _lag_folder(lag)
+            lag_dir = base / _lag_folder(lag, timescale)
             for cell_type, df_ct in df_lag.groupby("Group", sort=False):
                 safe = _safe_name(cell_type)
                 for x_kind, (sub, pattern) in (("group", by_group), ("DIV", by_age)):

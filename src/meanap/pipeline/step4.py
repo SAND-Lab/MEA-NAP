@@ -16,6 +16,7 @@ import numpy as np
 import pandas as pd
 from scipy.spatial.distance import pdist, squareform
 
+from meanap.timescale import timescale_folder, timescale_kind
 from meanap.params import Params
 from meanap.pipeline import network_metrics as nm
 from meanap.pipeline.cancellation import CancelCheck, check_cancel
@@ -366,7 +367,9 @@ def _plot_recording_lag(
         return []
 
     rec_out_dir = out_dir / "4A_IndividualNetworkAnalysis" / rec.group / rec.filename
-    lag_dir = rec_out_dir / f"{lag_ms}mslag"
+    # "1000mslag" for STTC, "1000msbin" for a CAT-NAP correlation run — the
+    # number means a different thing in each, so the folder says which.
+    lag_dir = rec_out_dir / timescale_folder(lag_ms, params)
     if sub_dir:
         lag_dir = lag_dir.joinpath(*str(sub_dir).split("/"))
 
@@ -1053,7 +1056,8 @@ def _run_step4_network_metrics(
                 recordings,
                 all_results,
                 out_dir,
-                params.custom_grp_order
+                params.custom_grp_order,
+                timescale=timescale_kind(params),
             )
         except Exception as e:
             log(f"  Warning: failed to generate group comparison plots: {e}")

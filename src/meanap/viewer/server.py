@@ -159,10 +159,25 @@ class ViewerService:
             # redacted at write time; summarise_params redacts again for a
             # folder, whose copy is not.
             "params": self._params_summary(),
-            "controls": control_schema(),
+            # Defaults read off the run's own styling, so the panel opens
+            # showing what drew these figures rather than a generic set — and
+            # so a request that changes one control leaves the rest as the run
+            # had them (see meanap.viewer.controls).
+            "controls": control_schema(self.run_style()),
             "comparison_controls": comparison_control_schema(),
             "formats": list(ALLOWED_FORMATS),
         }
+
+    def run_style(self):
+        """The :class:`NetworkStyle` this run's own figures were drawn with.
+
+        The baseline for everything the styling panel does: the schema's
+        defaults, and the values a request is read against. Public because the
+        request handler needs it too.
+        """
+        from meanap.network_plot import NetworkStyle
+
+        return NetworkStyle.for_run(self.ctx.params)
 
     def _params_summary(self) -> dict | None:
         """What the run was configured with, or ``None`` if it didn't record it."""
@@ -407,8 +422,7 @@ class _Handler(BaseHTTPRequestHandler):
                 self._json(self.service.family(
                     _one(query, "key"), fmt=_fmt(query)))
             elif parsed.path == "/api/trace":
-                self._file(self.service.trace_figure(
-                    _one(query, "rec"), _one(query, "name")))
+                self._trace(query)
             elif parsed.path == "/api/asset":
                 self._file(self.service.asset(_one(query, "path")))
             else:
@@ -428,10 +442,23 @@ class _Handler(BaseHTTPRequestHandler):
         fmt = _fmt(query)
         path = self.service.figure(
             _one(query, "rec"), int(_one(query, "lag")), _one(query, "name"),
-            fmt=fmt, overrides=parse_overrides(query),
+            fmt=fmt, overrides=parse_overrides(query, self.service.run_style()),
             thumbnail=query.get("thumb", ["0"])[0] == "1",
             variant=query.get("variant", ["plain"])[0],
         )
+        download = query.get("download", ["0"])[0] == "1"
+        self._file(path, download_as=path.name if download else None)
+
+    def _trace(self, query) -> None:
+        """One packed 2P peak-detection trace.
+
+        A handler of its own rather than a line in ``do_GET``: served inline it
+        was the only single-image route that never read ``download``, so its
+        "Download PNG" opened the picture in a tab instead of saving it. There
+        is still no ``fmt`` — a trace is a stored PNG, not a render — but the
+        download contract is the same as every other figure's.
+        """
+        path = self.service.trace_figure(_one(query, "rec"), _one(query, "name"))
         download = query.get("download", ["0"])[0] == "1"
         self._file(path, download_as=path.name if download else None)
 
@@ -439,7 +466,7 @@ class _Handler(BaseHTTPRequestHandler):
         fmt = _fmt(query)
         path = self.service.activity_figure(
             _one(query, "rec"), _one(query, "name"),
-            fmt=fmt, overrides=parse_overrides(query))
+            fmt=fmt, overrides=parse_overrides(query, self.service.run_style()))
         download = query.get("download", ["0"])[0] == "1"
         self._file(path, download_as=path.name if download else None)
 

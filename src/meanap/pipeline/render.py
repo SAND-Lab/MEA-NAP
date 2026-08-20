@@ -39,6 +39,7 @@ from pathlib import Path
 import numpy as np
 
 from meanap.params import Params
+from meanap.timescale import timescale_kind
 from meanap.pipeline.bundle import RunBundle
 from meanap.pipeline.palette import ColorScheme
 from meanap.pipeline.resume import ADJM_SUFFIX, CATNAP_SUFFIX
@@ -360,6 +361,7 @@ def render_figure(
     recording/lag, rather than silently writing nothing.
     """
     from meanap.catnap.store import load_background
+    from meanap.network_plot import NetworkStyle
     from meanap.pipeline.figure_output import figure_dpi
     from meanap.pipeline.step4 import _plot_recording_lag, variant_stem
 
@@ -397,7 +399,11 @@ def render_figure(
             rec, lag, metrics, channels, params, Path(out_dir), lambda m: None,
             ctx.batch_bounds, coords_all=coords, cell_types=markers,
             background=background,
-            node_size_scale="auto" if params.twop_auto_node_size else 1.0,
+            # NetworkStyle.for_run, not `twop_auto_node_size` read directly:
+            # that flag defaults to True and applies only to suite2p runs, so
+            # reading it here sized an *ephys* re-render "auto" when the
+            # pipeline had drawn it at 1.0.
+            node_size_scale=NetworkStyle.for_run(params).node_size_scale,
             fmt=fmt, only=wanted, style=style,
         )
     if not written:
@@ -441,8 +447,15 @@ STYLE_KEYS = frozenset({
 })
 
 
-def style_from_overrides(overrides: dict | None):
+def style_from_overrides(overrides: dict | None, params: Params | None = None):
     """Split a request's overrides into the styling half.
+
+    The overrides are applied *on top of the styling this run drew with*
+    (:meth:`NetworkStyle.for_run`), not on top of a fresh ``NetworkStyle``.
+    A request only carries the controls that were changed, so building from
+    class defaults meant changing any one of them silently reset the rest —
+    most visibly node sizing, which CAT-NAP runs leave on ``"auto"`` and a
+    fresh ``NetworkStyle`` puts at ``1.0``.
 
     Returns ``None`` when nothing styling-related was asked for, which keeps
     the pipeline's own styling — and therefore pixel parity — in force.
@@ -450,7 +463,11 @@ def style_from_overrides(overrides: dict | None):
     from meanap.network_plot import NetworkStyle
 
     picked = {k: v for k, v in (overrides or {}).items() if k in STYLE_KEYS}
-    return NetworkStyle(**picked) if picked else None
+    if not picked:
+        return None
+    base = (NetworkStyle.for_run(params) if params is not None
+            else NetworkStyle())
+    return dataclasses.replace(base, **picked)
 
 
 def _apply_overrides(params: Params, overrides: dict | None):
@@ -460,7 +477,7 @@ def _apply_overrides(params: Params, overrides: dict | None):
     An unrecognised key is an error rather than a silent no-op: a viewer
     control that quietly does nothing is worse than one that reports itself.
     """
-    style = style_from_overrides(overrides)
+    style = style_from_overrides(overrides, params)
     param_names = {f.name for f in dataclasses.fields(Params)}
     rest = {k: v for k, v in (overrides or {}).items() if k not in STYLE_KEYS}
     unknown = set(rest) - param_names
@@ -608,7 +625,8 @@ def render_group_family(
     with figure_dpi(dpi):
         if fam.key == "network":
             plot_step4_group_comparisons(recordings, ctx.results, out_dir, order,
-                                         fmt=fmt, colors=scheme)
+                                         fmt=fmt, colors=scheme,
+                                         timescale=timescale_kind(params))
         elif fam.key == "activity":
             gp.plot_twop_group_comparisons(
                 recordings, _all_stats(ctx), out_dir, custom_grp_order=order,
@@ -633,7 +651,9 @@ def render_group_family(
                 recordings, _ephys_stats(ctx), out_dir, order, fmt=fmt, colors=scheme)
         else:  # subnetwork
             summary, node = _subnetwork_rows(ctx)
-            gp.plot_subnetwork_group_comparisons(summary, node, out_dir, order, fmt=fmt)
+            gp.plot_subnetwork_group_comparisons(
+                summary, node, out_dir, order, fmt=fmt,
+                timescale=timescale_kind(params))
 
     return sorted(p for p in out_dir.rglob(f"*.{fmt}")
                   if p.is_file() and p not in before)
@@ -1029,7 +1049,8 @@ def render_lag_series_figure(
                     f"Unknown recording-level metric {key!r}. Use "
                     f"available_lag_series() to list what this run can plot.")
             written = plot_graph_metrics_by_lag(
-                df_rec, dest_dir, group_order=order, only=key, fmt=fmt, colors=scheme)
+                df_rec, dest_dir, group_order=order, only=key, fmt=fmt,
+                colors=scheme, timescale=timescale_kind(params))
         else:
             try:
                 lag = int(key)

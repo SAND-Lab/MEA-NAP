@@ -41,12 +41,67 @@ raw_data/
 
 ## Activity types
 
-| Type | Description |
-|---|---|
-| `peaks` | Detected calcium transient onset frames (from the denoising pipeline). |
-| `denoised F` | Baseline-corrected, OASIS-deconvolved fluorescence. |
-| `F` | Raw fluorescence as output by suite2p. |
-| `spks` | Inferred spike probabilities from suite2p. |
+| Type | Description | Connectivity measure |
+|---|---|---|
+| `peaks` | Detected calcium transient onset frames (from the denoising pipeline). | STTC over peak times |
+| `denoised F` | Baseline-corrected, OASIS-deconvolved fluorescence. | binned correlation |
+| `F` | Raw fluorescence as output by suite2p. | binned correlation |
+| `spks` | Inferred spike probabilities from suite2p. | binned correlation |
+
+The measure follows the activity type, and so does what the **Lag values (ms)**
+field on the Connectivity tab means:
+
+* `peaks` reads them as **STTC lags** — the coincidence window either side of a
+  detected transient, thresholded against circular-shift surrogates.
+* The other three read them as **correlation bin lengths** — traces are averaged
+  into bins that long, and the Pearson correlation is taken between the binned
+  series. There is no lag: the correlation is at zero lag by construction, and
+  no probabilistic thresholding is applied.
+
+Either way you get one adjacency matrix, and one full set of downstream metrics
+and figures, per value in the field. The GUI relabels the field (and the group
+box) to say "Bin length (ms)" when a correlation activity is selected.
+
+:::{note}
+Bins are built from whole frames, so a requested length is rounded to the
+nearest frame count and the trailing partial bin is dropped. The run log records
+what each bin became — `1000 ms bin → 33 frames (991.0 ms)`. A bin shorter than
+one frame cannot be built and collapses to a single frame, which is the
+un-binned, frame-resolution correlation; the log warns when this happens, since
+two different requested bins can then produce identical results. At the other
+end, a bin so long that fewer than two of them fit in the recording is shortened
+to half the recording — there has to be more than one bin to correlate across —
+and the log says so.
+
+Averaging and summing within a bin give the same correlations (Pearson is
+scale-invariant and every kept bin holds the same number of frames), so
+"mean the fluorescence" and "sum the spikes" are the same operation here.
+:::
+
+Before bin lengths were settable, these three paths correlated the raw traces at
+native frame resolution and filed the result under `adjM{round(1000/fs)}mslag` —
+a name that read like an STTC lag but was really just the frame period. Old
+parameter files still reproduce their old numbers, since ephys-scale lags round
+to a single frame.
+
+## Output naming: lags and bins
+
+Because the number means a different thing in each measure, the **output folders
+and figure captions say which**:
+
+| | `peaks` (STTC) | `F` / `spks` / `denoised F` (correlation) |
+|---|---|---|
+| Per-recording folder | `4A_.../{rec}/1000mslag/` | `4A_.../{rec}/1000msbin/` |
+| Group-comparison folder | `4B_.../Lag1000ms/` | `4B_.../Bin1000ms/` |
+| Figure titles / report captions | "1000 ms STTC lag" | "1000 ms correlation bin" |
+
+Identifiers that code reads back **deliberately keep their historical spelling**:
+the `adjMs` dict keys stay `adjM1000mslag`, the CSV column stays `Lag`, and
+figure filenames like `NodeCartography1000mslag.png` are unchanged. Those are
+shared with the ephys pipeline, are the field names MATLAB writes, and are
+recorded in every bundle already on disk — renaming them would buy a tidier
+spelling at the cost of every existing result. Readers accept both spellings, so
+a folder written either way still parses.
 
 ## Denoising pipeline
 

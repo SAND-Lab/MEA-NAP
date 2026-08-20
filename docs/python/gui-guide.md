@@ -69,7 +69,12 @@ mode too — it is the same choice.
 CAT-NAP has no Spike detection tab, and the Data tab hides its Recording group,
 because `run_catnap_pipeline` never reads sampling rate, electrode layout or
 spike-detection settings. It does read the connectivity settings, so that tab
-stays.
+stays — but with different defaults. A calcium transient lasts on the order of
+a second where a spike lasts a millisecond, so switching to CAT-NAP lengthens
+the STTC **Lag values** from `10, 15, 25` ms to `1000, 2500, 5000` ms (and
+switching back shortens them again). This only happens while the field is still
+on a default: lags you typed yourself are never overwritten, and neither are
+lags that came from a parameter file.
 
 ## Data
 
@@ -183,7 +188,7 @@ significance thresholding.
 
 | Field | Description |
 |---|---|
-| **Lag values (ms)** | One or more STTC synchronicity windows to compute, comma-separated (e.g. `10, 15, 25`). Each lag produces its own adjacency matrix and downstream network metrics. |
+| **Lag values (ms)** / **Bin length (ms)** | One or more connectivity timescales, comma-separated; each produces its own adjacency matrix and downstream network metrics. For STTC these are lags (the coincidence window); in CAT-NAP with a correlation activity type (`F`, `spks`, `denoised F`) the field relabels itself and they are correlation **bin** lengths instead — see [Activity types](catnap.md#activity-types). Defaults to `10, 15, 25` for ephys and `1000, 2500, 5000` in CAT-NAP mode — see [Modes](#modes). |
 | **Truncate recording** / **Truncation length** ⚙ | Optionally analyze only the first *N* seconds of each recording (useful for very long recordings). |
 | **Weighted / Binary** | Whether the adjacency matrix keeps STTC values as edge weights or collapses to a 0/1 connection. |
 | **Iterations** | Number of circular-shift surrogates used for significance thresholding (default `200`). |

@@ -103,6 +103,9 @@ PAGE_HTML = r"""<!doctype html>
   label { display: block; margin-bottom: 10px; font-size: 12px; color: var(--muted); }
   label span.l { display: block; margin-bottom: 3px; color: var(--fg); }
   label small { display: block; margin-top: 3px; color: var(--muted); font-size: 11px; }
+  /* A control the current mode does not read — see syncNodeSizeMode. */
+  label.muted { opacity: .45; }
+  label.muted input { cursor: not-allowed; }
 
   .list { display: flex; flex-direction: column; gap: 2px; }
   .list button { text-align: left; border: 1px solid transparent;
@@ -152,7 +155,7 @@ does not have MEA-NAP installed.">Export output folder</button>
   <div id="side-recordings">
     <h2>Recording</h2>
     <select id="recording"></select>
-    <h2>Lag</h2>
+    <h2 id="lag-head">Lag</h2>
     <select id="lag"></select>
 
     <h2>Network figures</h2>
@@ -231,7 +234,7 @@ does not have MEA-NAP installed.">Export output folder</button>
 
 <aside class="right hidden" id="facets-panel">
   <h2 id="facets-head">Facets</h2>
-  <label id="cmp-lag-label"><span class="l">Lag</span>
+  <label id="cmp-lag-label"><span class="l" id="cmp-lag-head">Lag</span>
     <select id="cmp-lag"></select></label>
   <label id="cmp-level-label"><span class="l">Level</span>
     <select id="cmp-level"></select>
@@ -251,6 +254,13 @@ does not have MEA-NAP installed.">Export output folder</button>
 <script>
 const $ = (id) => document.getElementById(id);
 let MANIFEST = null;
+
+// "Lag" or "Bin": a CAT-NAP correlation run's numbers are bin lengths, not
+// coincidence windows. Bundles written before the manifest carried this have
+// no field, and every one of those was an STTC run.
+function timescaleLabel() {
+  return (MANIFEST && MANIFEST.timescale === "bin") ? "Bin" : "Lag";
+}
 let TAB = "recordings";
 // Which scaling of a network plot is showing. Reset to "plain" whenever the
 // selected figure changes, since not every figure has the other two.
@@ -309,9 +319,13 @@ function figureURL(extra = {}) {
     return route + "?" + p.toString();
   }
   if (VIEW.kind === "trace") {
-    // Carried in the bundle, not rendered: no fmt, no styling overrides.
-    return "/api/trace?" + new URLSearchParams(
-      {rec: VIEW.rec, name: VIEW.name}).toString();
+    // Carried in the bundle, not rendered: no fmt, no styling overrides. But
+    // `download` is neither of those — it decides whether the browser saves
+    // the file or just displays it — so it has to be passed through, or
+    // "Download PNG" silently becomes "view PNG".
+    const p = new URLSearchParams({rec: VIEW.rec, name: VIEW.name});
+    if (extra.download) p.set("download", extra.download);
+    return "/api/trace?" + p.toString();
   }
   if (VIEW.kind === "edgecheck") {
     const p = new URLSearchParams({rec: VIEW.rec, lag: VIEW.name});
@@ -365,12 +379,26 @@ function buildControls() {
     }
     el.id = "ctl-" + c.key;
     el.value = c.default;
-    el.addEventListener("change", () => { if (VIEW.kind === "figure") showFigure(); });
+    el.addEventListener("change", () => {
+      syncNodeSizeMode();
+      if (VIEW.kind === "figure") showFigure();
+    });
     label.appendChild(el);
     if (c.help) { const s = document.createElement("small"); s.textContent = c.help;
                   label.appendChild(s); }
     box.appendChild(label);
   }
+  syncNodeSizeMode();
+}
+
+// "Auto" sizes nodes from their packing, so the scale beside it is not read.
+// Greyed rather than hidden: the value is still the one Manual would resume
+// from, and a control that vanishes reads as a control that was lost.
+function syncNodeSizeMode() {
+  const mode = $("ctl-node_size_mode"), scale = $("ctl-node_size_scale");
+  if (!mode || !scale) return;
+  scale.disabled = mode.value === "Auto";
+  scale.parentElement.classList.toggle("muted", scale.disabled);
 }
 
 function buildComparisonControls() {
@@ -435,11 +463,14 @@ function showComparisonOrLagSeries() {
   else showComparison();
 }
 
+// Back to what the run itself used — MANIFEST.controls carries the run's
+// styling as each control's default, not this viewer's idea of one.
 function resetControls() {
   for (const c of MANIFEST.controls) {
     const el = $("ctl-" + c.key);
     if (el) el.value = c.default;
   }
+  syncNodeSizeMode();
   if (VIEW.kind === "figure") showFigure();
 }
 
@@ -825,7 +856,8 @@ function fillLagOptions() {
   const box = $("lag-options");
   box.innerHTML = "";
   if (!series) return;
-  $("lag-options-head").textContent = series.keyed_by === "lag" ? "Lag" : "Metric";
+  $("lag-options-head").textContent =
+    series.keyed_by === "lag" ? timescaleLabel() : "Metric";
   for (const opt of series.options) {
     const b = document.createElement("button");
     b.textContent = opt.label;
@@ -1171,6 +1203,8 @@ function download(fmt) {
     return;
   }
   $("source").textContent = `${MANIFEST.source} · ${MANIFEST.mode}`;
+  for (const id of ["lag-head", "cmp-lag-head"])
+    if ($(id)) $(id).textContent = timescaleLabel();
   // A run made before version stamping simply has none; say
   // nothing rather than claiming "unknown".
   const pb = MANIFEST.produced_by;

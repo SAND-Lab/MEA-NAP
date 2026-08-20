@@ -28,14 +28,14 @@ FOLDER_DESCRIPTIONS: dict[str, str] = {
     "3_EdgeThresholdingCheck": "Step 3 — functional connectivity. Diagnostic plots for the STTC computation and significance thresholding (not yet populated by the Python port's step 3).",
     "4_NetworkActivity": "Step 4 — network activity. Graph-theoretic metrics (node degree, clustering, efficiency, centrality, ...) computed from step 3's thresholded adjacency matrices.",
     "4A_IndividualNetworkAnalysis": "Per-recording, per-lag network plots and connectivity statistics.",
-    "4B_GroupComparisons": "Network metrics pooled across the whole batch and compared between experimental groups and ages, one sub-folder per STTC lag.",
+    "4B_GroupComparisons": "Network metrics pooled across the whole batch and compared between experimental groups and ages, one sub-folder per connectivity timescale (STTC lag, or correlation bin on a CAT-NAP correlation run).",
     "ExperimentMatFiles": "Per-recording adjacency matrices (STTC, raw + significance-thresholded) saved as .npz, one file per recording.",
     # Comparison sub-folders (shared by the ephys and CAT-NAP paths).
     "1_NodeByGroup": "Node-level metrics compared between experimental groups — one subplot per group, x-axis = age. Every node of every recording contributes a point.",
     "2_NodeByAge": "The same node-level metrics, transposed: one subplot per age, x-axis = experimental group.",
     "3_RecordingsByGroup": "Recording-level (whole-network / whole-culture) metrics compared between experimental groups — one subplot per group, x-axis = age.",
     "4_RecordingsByAge": "The same recording-level metrics, transposed: one subplot per age, x-axis = experimental group.",
-    "5_GraphMetricsByLag": "How each network metric varies with the STTC lag used to build the adjacency matrix — a sanity check that conclusions aren't an artefact of one lag choice.",
+    "5_GraphMetricsByLag": "How each network metric varies with the timescale used to build the adjacency matrix — a sanity check that conclusions aren't an artefact of one lag (or bin) choice.",
     "6_NodeCartographyByLag": "Proportion of nodes in each cartography role, plotted against age, one figure per lag.",
     "7_DensityLandscape": "The pooled participation-coefficient / within-module-z-score landscape used to place the node-cartography role boundaries for this batch.",
     "8_CellTypeSubnetworks": "CAT-NAP only. Cell-type subnetwork metrics compared across experimental groups and ages, one file per (metric, cell type). 'Whole network' appears as one of the cell types, as the reference to read the others against.",
@@ -152,11 +152,11 @@ _PLOT_PATTERNS: list[tuple[re.Pattern, str, str]] = [
     ),
     (
         re.compile(r"^1_adjM(?P<lag>\d+)msConnectivityStats\.png$"),
-        "Connectivity Stats ({lag} ms lag)",
-        "Adjacency matrix heatmap of pairwise STTC values, plus bar "
+        "Connectivity Stats ({lag} ms {kind})",
+        "Adjacency matrix heatmap of the pairwise connectivity values, plus bar "
         "charts of the max/mean correlation and histograms of node "
         "degree, node strength, and significant edge weight — at a "
-        "{lag} ms STTC lag. The main check that functional connectivity "
+        "{lag} ms {kind}. The main check that functional connectivity "
         "was computed sensibly before deriving network metrics from it. "
         "(MEA-NAP docs, Step 4A Figure 1)",
     ),
@@ -205,7 +205,7 @@ _PLOT_PATTERNS: list[tuple[re.Pattern, str, str]] = [
     ),
     (
         re.compile(r"^9_adjM(?P<lag>\d+)msNodeCartography\.png$"),
-        "Node Cartography ({lag} ms lag)",
+        "Node Cartography ({lag} ms {kind})",
         "Each node plotted by normalized participation coefficient (x — how "
         "spread its connections are across modules) vs. within-module "
         "degree z-score (y — how connected it is within its own module), "
@@ -355,7 +355,7 @@ _PLOT_PATTERNS: list[tuple[re.Pattern, str, str]] = [
     ),
     (
         re.compile(r"^7_adjM(?P<lag>\d+)msGraphMetricsByNode\.png$"),
-        "Graph Metrics by Node ({lag} ms lag)",
+        "Graph Metrics by Node ({lag} ms {kind})",
         "Every per-node metric — degree, mean edge weight, strength, "
         "within-module z-score, local efficiency, participation coefficient, "
         "betweenness — plotted per node in one panel set, for spotting "
@@ -385,11 +385,11 @@ _PLOT_PATTERNS: list[tuple[re.Pattern, str, str]] = [
 _FOLDER_PLOT_PATTERNS: dict[str, list[tuple[re.Pattern, str, str]]] = {
     "5_GraphMetricsByLag": [(
         re.compile(r"^(?P<metric>.+)\.png$"),
-        "{metric} vs. STTC lag",
-        "This network metric plotted against the STTC lag used to build the "
+        "{metric} vs. {kind}",
+        "This network metric plotted against the {kind} used to build the "
         "adjacency matrix, one line per experimental group. A conclusion that "
-        "holds at every lag is robust; one that appears at a single lag is "
-        "probably an artefact of that choice.",
+        "holds across the whole range is robust; one that appears at a single "
+        "value is probably an artefact of that choice.",
     )],
     "5_CellTypeComposition": [(
         re.compile(r"^(?P<metric>.+)_by(?P<axis>Group|DIV)\.png$"),
@@ -401,7 +401,7 @@ _FOLDER_PLOT_PATTERNS: dict[str, list[tuple[re.Pattern, str, str]]] = {
     )],
     "6_NodeCartographyByLag": [(
         re.compile(r"^NodeCartography(?P<lag>\d+)mslag\.png$"),
-        "Cartography Role Proportions ({lag} ms lag)",
+        "Cartography Role Proportions ({lag} ms {kind})",
         "The proportion of nodes in each of the six cartography roles, "
         "plotted against age, one line per role. Shows how network "
         "organisation — peripheral nodes giving way to hubs, say — shifts as "
@@ -425,18 +425,24 @@ _DATA_FILE_DESCRIPTIONS: list[tuple[re.Pattern, str]] = [
 ]
 
 
-def describe_plot(filename: str, folder: str | None = None) -> tuple[str, str] | None:
+def describe_plot(filename: str, folder: str | None = None,
+                  kind: str = "STTC lag") -> tuple[str, str] | None:
     """Returns (title, caption) for a known plot filename, else None.
 
     ``folder`` is the name of the directory holding the file. Some figures are
     named only for their metric (``Dens.png``) and are identifiable solely by
     where they sit, so those patterns are folder-scoped and take precedence.
+
+    ``kind`` is what the run's timescale parameter *is* — ``"STTC lag"`` for a
+    spike-time-tiling run, ``"correlation bin"`` for a CAT-NAP correlation one
+    (see :mod:`meanap.timescale`). Captions read it rather than assuming, since
+    the same figure means a different thing in each.
     """
     patterns = _FOLDER_PLOT_PATTERNS.get(folder or "", []) + _PLOT_PATTERNS
     for pattern, title_tmpl, caption_tmpl in patterns:
         m = pattern.match(filename)
         if m:
-            groups = m.groupdict()
+            groups = dict(m.groupdict(), kind=kind)
             return title_tmpl.format(**groups), caption_tmpl.format(**groups)
     return None
 
@@ -521,7 +527,7 @@ def csv_preview(path: Path | str) -> dict | None:
 
 # ── Tree building ───────────────────────────────────────────────────────────
 
-def _build_tree(dir_path: Path, root: Path) -> dict:
+def _build_tree(dir_path: Path, root: Path, kind: str = "STTC lag") -> dict:
     children = []
     try:
         entries = sorted(dir_path.iterdir(), key=lambda p: (p.is_file(), p.name))
@@ -532,11 +538,11 @@ def _build_tree(dir_path: Path, root: Path) -> dict:
         if entry.name.startswith("."):
             continue
         if entry.is_dir():
-            child = _build_tree(entry, root)
+            child = _build_tree(entry, root, kind)
             if child["children"] or FOLDER_DESCRIPTIONS.get(entry.name):
                 children.append(child)
         elif entry.suffix.lower() in IMAGE_EXTENSIONS:
-            described = describe_plot(entry.name, dir_path.name)
+            described = describe_plot(entry.name, dir_path.name, kind)
             title, caption = described if described else (entry.stem, "")
             children.append({
                 "type": "image",
@@ -567,12 +573,34 @@ def _build_tree(dir_path: Path, root: Path) -> dict:
     }
 
 
+def _report_timescale(output_root: Path) -> str:
+    """What this run's lag/bin number means, read off its own ``params.json``.
+
+    A report is built from a finished folder, long after the run — so the only
+    honest source for "was this STTC or a binned correlation?" is what the run
+    recorded. Anything unreadable falls back to the STTC wording, which is what
+    every ephys run and every ``peaks`` CAT-NAP run is.
+    """
+    from meanap.params import PARAMS_FILENAME
+    from meanap.timescale import CORRELATION_ACTIVITIES
+
+    try:
+        with open(output_root / PARAMS_FILENAME) as f:
+            data = json.load(f)
+    except (OSError, ValueError):
+        return "STTC lag"
+    if (data.get("suite2p_mode")
+            and data.get("twop_activity") in CORRELATION_ACTIVITIES):
+        return "correlation bin"
+    return "STTC lag"
+
+
 def generate_report(output_root: Path | str, out_path: Path | str | None = None) -> Path:
     """Build ``report.html`` for a MEA-NAP output folder. Returns its path."""
     output_root = Path(output_root)
     out_path = Path(out_path) if out_path else output_root / "report.html"
 
-    tree = _build_tree(output_root, output_root)
+    tree = _build_tree(output_root, output_root, _report_timescale(output_root))
     tree["name"] = output_root.name
 
     # The settings the run used, grouped and with the non-defaults marked. A

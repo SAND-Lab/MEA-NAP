@@ -56,6 +56,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from meanap.params import PARAMS_FILENAME, Params, load_params, redact
+from meanap.timescale import timescale_kind
 
 __all__ = [
     "BUNDLE_SUFFIX",
@@ -195,6 +196,12 @@ def build_manifest(
         **version_stamp(mode),
         "express": bool(params.express_mode),
         "lags": [int(v) for v in (lags if lags is not None else params.func_con_lag_val)],
+        # What those numbers *are*: STTC coincidence windows ("lag"), or the
+        # bin lengths a CAT-NAP correlation run averaged traces into ("bin").
+        # The viewer labels its controls from this rather than assuming — see
+        # meanap.timescale. Absent in bundles written before this field, which
+        # readers should treat as "lag".
+        "timescale": timescale_kind(params),
         "recordings": [
             {"filename": r.filename, "group": r.group, "div": r.div}
             for r in recordings

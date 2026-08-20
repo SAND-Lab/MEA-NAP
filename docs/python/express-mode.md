@@ -257,6 +257,12 @@ Every figure can be downloaded as **PNG, SVG or PDF**. SVG is real vector markup
 with editable paths, so a figure can go straight into Illustrator or Inkscape
 for a manuscript.
 
+CAT-NAP's peak-detection traces are the one exception, and only for the format:
+they are PNGs packed into the bundle rather than redrawn on request, so the
+vector buttons are hidden for them. **Download PNG** saves the file, same as
+anywhere else. (Before v1.3.1 it opened the image in a tab instead — that route
+was the only one that never read the download flag.)
+
 ### Recordings
 
 One figure at a time, with the full Network Viewer control set on the right —
@@ -264,8 +270,23 @@ node layout, colour map, edge threshold and method, maximum edges drawn, node
 size and scaling, edge widths. Changing any of them re-renders through the same
 Python that drew the original.
 
-Defaults reproduce the pipeline's own figure exactly; the controls are opt-in
-changes on top of it.
+**Every control opens on the value the run itself used**, not on a generic
+default, so the panel doubles as a record of how these figures were drawn.
+Changes are opt-in on top of that, and **Reset** returns to it. This matters
+most for **Node size**, which CAT-NAP runs leave on `Auto` — nodes sized from
+how densely the cells are packed, which a two-photon field of a few hundred
+cells needs and an MEA's sixty electrodes do not. Switch it to `Manual` to set
+a multiplier by hand; the scale box beside it is greyed while `Auto` is on,
+because nothing reads it then.
+
+:::{note}
+Before v1.3.0 the controls opened on library defaults instead. Since a request
+carries only the controls you changed, changing *any* of them — a colour map,
+say — also silently reset node sizing to `1.0`, which redrew a CAT-NAP network
+with nodes the size of the field. Figures exported from an older viewer after
+touching a control may show that; re-render them to get the run's own sizing
+back.
+:::
 
 The left column lists everything a recording has, grouped by the question each
 set answers: **network figures** at the selected lag, **activity figures**,

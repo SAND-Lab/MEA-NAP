@@ -1276,6 +1276,15 @@ def plot_half_violin_by_x(
     plt.close(fig)
 
 
+def _timescale_group_folder(value, timescale: str = "lag") -> str:
+    """``('1000mslag', 'bin')`` → ``'Bin1000ms'``; the 4B folders' naming.
+
+    Accepts the value with or without a unit or suffix, which is what lets it
+    read a ``Lag`` column written by any version.
+    """
+    return f"{timescale.capitalize()}{_lag_num(value)}ms"
+
+
 def _lag_num(lag) -> int:
     """Extract the numeric lag (ms) from a lag key like ``'10mslag'`` or ``10``."""
     import re
@@ -1438,12 +1447,18 @@ def plot_graph_metrics_by_lag(
     only: str | None = None,
     fmt: str = "png",
     colors=None,
+    timescale: str = "lag",
 ) -> list[Path]:
-    """Network metric vs. STTC lag line plots, port of ``plotGraphMetricsByLag.m``.
+    """Network metric vs. connectivity timescale, port of ``plotGraphMetricsByLag.m``.
 
     One figure per recording-level metric: a vertical stack of subplots (one per
-    group), each plotting mean ± SEM across recordings as a function of STTC lag,
+    group), each plotting mean ± SEM across recordings as a function of the
+    timescale the adjacency was built at,
     with one line per DIV (viridis-coloured, DIV1 = yellow end) and a DIV legend.
+
+    ``timescale`` is ``"lag"`` (an STTC coincidence window) or ``"bin"`` (a
+    CAT-NAP correlation bin), and only decides how the x axis is labelled — see
+    :mod:`meanap.timescale`.
     Requires ``df`` with ``Grp``/``DIV``/``Lag`` columns plus the metric columns.
     Files are named ``<metric>.<fmt>`` so they pair with MATLAB's
     ``<n>_<label>.png`` via the report's label→code map.
@@ -1510,7 +1525,8 @@ def plot_graph_metrics_by_lag(
 
             ax.set_xticks(xt)
             ax.set_xticklabels([str(n) for n in lag_nums])
-            ax.set_xlabel("STTC lag (ms)")
+            ax.set_xlabel("STTC lag (ms)" if timescale == "lag"
+                          else "Correlation bin (ms)")
             ax.set_ylabel(label)
             ax.set_title(str(g))
             ax.set_xlim(xt.min() - 0.5, xt.max() + 0.5)
@@ -1852,11 +1868,17 @@ def plot_step4_group_comparisons(
     custom_grp_order: list[str] | None = None,
     fmt: str = "png",
     colors=None,
+    timescale: str = "lag",
 ) -> None:
     """Generate group comparison plots for step 4.
 
     ``colors`` is a :class:`~meanap.pipeline.palette.ColorScheme` for the age
     and group palettes; omitting it keeps the historical ones.
+
+    ``timescale`` names what the ``Lag`` column holds, and so what the per-lag
+    folders are called: ``"lag"`` (STTC) or ``"bin"`` (a CAT-NAP correlation
+    run — see :mod:`meanap.timescale`). It defaults to ``"lag"`` because that
+    is what every ephys run is.
     """
     df_rec, df_node = netmet_comparison_frames(recordings, all_results, custom_grp_order)
     if df_rec.empty:
@@ -1868,9 +1890,7 @@ def plot_step4_group_comparisons(
     
     # Loop over lags
     for lag in df_rec["Lag"].unique():
-        # Handle "10mslag" vs "10ms"
-        lag_str = lag.replace("lag", "") if isinstance(lag, str) else lag
-        lag_grp_dir = grp_dir / f"Lag{lag_str}ms" if "ms" not in str(lag_str) else grp_dir / f"Lag{lag_str}"
+        lag_grp_dir = grp_dir / _timescale_group_folder(lag, timescale)
         lag_grp_dir.mkdir(parents=True, exist_ok=True)
         
         df_rec_lag = df_rec[df_rec["Lag"] == lag]
@@ -1879,7 +1899,7 @@ def plot_step4_group_comparisons(
                                   lag_grp_dir / f"{k}_byGroup.{fmt}",
                                   group_order=custom_grp_order, colors=colors)
 
-        lag_node_grp_dir = node_grp_dir / f"Lag{lag_str}ms" if "ms" not in str(lag_str) else node_grp_dir / f"Lag{lag_str}"
+        lag_node_grp_dir = node_grp_dir / _timescale_group_folder(lag, timescale)
         lag_node_grp_dir.mkdir(parents=True, exist_ok=True)
 
         df_node_lag = df_node[df_node["Lag"] == lag]
@@ -1893,9 +1913,8 @@ def plot_step4_group_comparisons(
     node_age_dir = out_dir / "4B_GroupComparisons" / "2_NodeByAge"
     
     for lag in df_rec["Lag"].unique():
-        lag_str = lag.replace("lag", "") if isinstance(lag, str) else lag
         
-        lag_age_dir = age_dir / f"Lag{lag_str}ms" if "ms" not in str(lag_str) else age_dir / f"Lag{lag_str}"
+        lag_age_dir = age_dir / _timescale_group_folder(lag, timescale)
         lag_age_dir.mkdir(parents=True, exist_ok=True)
         
         df_rec_lag = df_rec[df_rec["Lag"] == lag]
@@ -1904,7 +1923,7 @@ def plot_step4_group_comparisons(
                                   lag_age_dir / f"{k}_byDIV.{fmt}",
                                   group_order=custom_grp_order, colors=colors)
 
-        lag_node_age_dir = node_age_dir / f"Lag{lag_str}ms" if "ms" not in str(lag_str) else node_age_dir / f"Lag{lag_str}"
+        lag_node_age_dir = node_age_dir / _timescale_group_folder(lag, timescale)
         lag_node_age_dir.mkdir(parents=True, exist_ok=True)
 
         df_node_lag = df_node[df_node["Lag"] == lag]
@@ -1913,10 +1932,10 @@ def plot_step4_group_comparisons(
                                   lag_node_age_dir / f"{k}_byDIV_node.{fmt}",
                                   group_order=custom_grp_order, colors=colors)
 
-    # 5_GraphMetricsByLag — network metric vs. STTC lag, one figure per metric
+    # 5_GraphMetricsByLag — network metric vs. timescale, one figure per metric
     gmbl_dir = out_dir / "4B_GroupComparisons" / "5_GraphMetricsByLag"
     plot_graph_metrics_by_lag(df_rec, gmbl_dir, group_order=custom_grp_order,
-                              fmt=fmt, colors=colors)
+                              fmt=fmt, colors=colors, timescale=timescale)
 
     # 6_NodeCartographyByLag — role proportions vs DIV, one figure per lag
     ncbl_dir = out_dir / "4B_GroupComparisons" / "6_NodeCartographyByLag"

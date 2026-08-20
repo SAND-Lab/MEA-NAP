@@ -24,6 +24,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
+from meanap.timescale import timescale_folder
+
 __all__ = ["ExportResult", "export_output_folder", "default_export_dest"]
 
 
@@ -155,7 +157,7 @@ def _draw_everything(ctx, dest: Path, result: ExportResult, *, fmt: str,
             # step folder; everything else below takes the exact directory.
             net_dir = dest / "4_NetworkActivity"
             lag_dir = (net_dir / "4A_IndividualNetworkAnalysis"
-                       / rec.group / name / f"{lag}mslag")
+                       / rec.group / name / timescale_folder(lag, ctx.params))
             for spec in R.available_figures(ctx, name, lag):
                 base = spec.name.format(lag=lag)
                 for variant in R.figure_variants(ctx, name, lag, base):

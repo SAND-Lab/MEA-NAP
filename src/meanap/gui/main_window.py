@@ -90,6 +90,10 @@ class MainWindow(QMainWindow):
         # _load_params derives the mode from these flags, so leaving them unset
         # would snap a "--mode catnap" launch straight back to the ephys tabs.
         apply_mode_to_params(mode, self._params)
+        # ...including the settings that are shared between pipelines but want
+        # a different value in each. __init__ ends by loading these into the
+        # panels, so this is what a "--mode catnap" launch actually starts on.
+        self._params.func_con_lag_val = list(MODES[mode].default_lags)
         self._last_output_root: Path | None = None
         self._last_bundle: Path | None = None
         self._worker: PipelineWorker | None = None
@@ -267,6 +271,12 @@ class MainWindow(QMainWindow):
         self._apply_mode(self._mode, sync_params=False)
 
         self._catnap_panel.log_message.connect(self._run_panel.append_log)
+        # The activity type decides whether the Connectivity tab's timescale
+        # field means STTC lags or correlation bins, and the two tabs are never
+        # visible at once — so the label has to follow the selector rather than
+        # wait for the user to notice.
+        self._catnap_panel._activity_combo.currentTextChanged.connect(
+            lambda _text: self._refresh_timescale_label())
         # What "View report" would open depends on the output paths, which live
         # on another tab, so it is recomputed on the way in rather than cached.
         self._tabs.currentChanged.connect(self._on_tab_changed)
@@ -342,8 +352,13 @@ class MainWindow(QMainWindow):
         tab strip. The pages themselves are never destroyed, so anything a user
         typed into a tab that is currently hidden is still there when the mode
         brings it back.
+
+        A few settings are shared between the pipelines but want different
+        values in each, so the outgoing mode is kept long enough to re-tune
+        them — without overwriting anything the user set themselves.
         """
         mode = MODES[mode_key]
+        previous = self._mode
         self._mode = mode_key
         # The Data tab is shown in every mode but does not mean the same thing
         # in each — CAT-NAP has no electrodes and no sampling rate to set.
@@ -368,6 +383,10 @@ class MainWindow(QMainWindow):
         index = self._tab_index(keep) if keep else -1
         self._tabs.setCurrentIndex(index if index >= 0 else 0)
 
+        # Before _collect_params(), so a run started right after a switch uses
+        # the lags the tab now shows.
+        new_lags = self._connectivity_panel.retune_lags_for_mode(previous, mode_key)
+
         if sync_params:
             # Read the panels back before touching the flags, so reloading the
             # two mode-flag panels can't overwrite edits with stale values, and
@@ -384,6 +403,22 @@ class MainWindow(QMainWindow):
             self._mode_combo.setToolTip(mode.blurb)
         self._refresh_version_label()
         self._refresh_logo()
+        self._refresh_timescale_label()
+        if new_lags is not None:
+            # Say it out loud: the lags drive every network in the run, and a
+            # field changing itself behind your back is worse than no change.
+            self.statusBar().showMessage(
+                f"Lag values set to {', '.join(str(v) for v in new_lags)} ms "
+                f"for {mode.label.split('·')[0].strip()}.", 6000)
+
+    def _refresh_timescale_label(self) -> None:
+        """Point the Connectivity tab at whichever measure this run will use."""
+        from meanap.timescale import timescale_kind
+
+        params = Params()
+        apply_mode_to_params(self._mode, params)
+        params.twop_activity = self._catnap_panel._activity_combo.currentText()
+        self._connectivity_panel.set_timescale(timescale_kind(params))
 
     def _refresh_version_label(self) -> None:
         """Show the running mode's version, and all three in the tooltip."""
@@ -646,6 +681,7 @@ class MainWindow(QMainWindow):
         self._stim_preview_panel.load_defaults(params)  # preview-only: no save/collect
         self._catnap_panel.load(params)
         self._pipeline_panel.load(params)
+        self._refresh_timescale_label()
 
     def _collect_params(self) -> Params:
         params = Params()
@@ -664,7 +700,13 @@ class MainWindow(QMainWindow):
         # platform decide which end Yes goes on, which moves it on a Mac.
         if ask_yes_no(self, "New parameters",
                       "Reset all parameters to defaults?"):
-            self._params = Params()
+            # Defaults for the pipeline on screen, not for MEA-NAP: resetting
+            # in CAT-NAP should not quietly drop you back into the ephys tabs
+            # with ephys-scaled lags.
+            params = Params()
+            apply_mode_to_params(self._mode, params)
+            params.func_con_lag_val = list(MODES[self._mode].default_lags)
+            self._params = params
             self._load_params(self._params)
 
     def _on_open(self) -> None:

@@ -321,6 +321,28 @@ class NetworkStyle:
         return cls(node_size_scale=node_size_scale)
 
     @classmethod
+    def for_run(cls, params) -> "NetworkStyle":
+        """The styling this run's own figures were actually drawn with.
+
+        The one thing the pipeline varies is node size: CAT-NAP sizes nodes
+        from how densely the cells are packed, because a two-photon field can
+        hold hundreds of them in a space an MEA fills with sixty. Everything
+        else is :meth:`pipeline_default`.
+
+        This is what a viewer must start from. Re-rendering a bundle against
+        the *class* defaults instead silently redraws a CAT-NAP network at
+        ``node_size_scale=1.0`` — nodes the size of the whole field — the
+        moment any unrelated control, a colormap say, is touched.
+
+        ``twop_auto_node_size`` is read only for a suite2p run: it defaults to
+        True, and an electrophysiology run draws at 1.0 regardless (see the
+        ``_plot_recording_lag`` calls in ``step4`` and ``catnap.pipeline``).
+        """
+        auto = (bool(getattr(params, "suite2p_mode", False))
+                and bool(getattr(params, "twop_auto_node_size", False)))
+        return cls.pipeline_default(node_size_scale="auto" if auto else 1.0)
+
+    @classmethod
     def from_params(cls, params, node_size_scale: float | str = 1.0) -> "NetworkStyle":
         """Build from a :class:`~meanap.params.Params`' network-plot fields.
 

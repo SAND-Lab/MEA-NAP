@@ -37,6 +37,9 @@ from meanap.catnap.group_plots import (
 from meanap.catnap.loader import Suite2pOutputMismatch, load_suite2p
 from meanap.catnap.subnetwork import WHOLE_NETWORK
 from meanap.catnap.stats import calc_twop_activity_stats
+from meanap.timescale import (
+    timescale_folder, timescale_kind, timescale_label,
+)
 import meanap.pipeline.network_metrics as nm
 from meanap.pipeline.nmf import cal_nmf
 from meanap.catnap.store import (
@@ -67,6 +70,38 @@ RESUME_STEP = 4
 def suite2p_plane0_dir(raw_data: str, filename: str) -> Path:
     """Location of a recording's suite2p output (mirrors MEApipeline.m)."""
     return Path(raw_data) / filename / "suite2p" / "plane0"
+
+
+def _log_bin_rounding(res, log, filename: str) -> None:
+    """Say what each requested correlation bin actually became.
+
+    Bins are built out of whole frames, so a request is always rounded — and
+    one shorter than a single frame rounds away entirely, leaving the un-binned
+    correlation under a folder named for a bin that was never applied. That is
+    the one case worth being loud about, since two different requested bins can
+    then produce byte-identical results.
+    """
+    if not res.bin_frames:
+        return
+    unbinned = [ms for ms, frames in res.bin_frames.items() if frames <= 1]
+    clamped = []
+    for bin_ms, frames in sorted(res.bin_frames.items()):
+        actual = frames / res.fs * 1000
+        log(f"  [{filename}] {bin_ms} ms bin → {frames} frame"
+            f"{'' if frames == 1 else 's'} ({actual:.1f} ms)")
+        # frames_per_bin only rounds, so a realised bin this far off the
+        # request can only be the too-long-for-the-recording clamp.
+        if frames > 1 and actual < bin_ms * 0.9:
+            clamped.append((bin_ms, actual))
+    for bin_ms, actual in clamped:
+        log(f"  [{filename}] WARNING: a {bin_ms} ms bin leaves fewer than two "
+            f"bins in this recording — shortened to {actual:.0f} ms so there is "
+            f"something to correlate across.")
+    if unbinned:
+        log(f"  [{filename}] WARNING: {', '.join(f'{ms} ms' for ms in sorted(unbinned))} "
+            f"{'is' if len(unbinned) == 1 else 'are'} shorter than one frame at "
+            f"{res.fs:.4g} Hz — no binning applied, so this is the raw "
+            f"frame-resolution correlation.")
 
 
 def _spike_counts(res, twop_activity: str) -> np.ndarray:
@@ -386,6 +421,7 @@ def _compute_recording(
         prob_thresh_rep_num=params.prob_thresh_rep_num,
         rng=rng,
     )
+    _log_bin_rounding(res, log, rec.filename)
     duration_s = res.F.shape[0] / res.fs
 
     state = RecordingState(
@@ -754,7 +790,8 @@ def _run_subnetwork_analysis(
         adj_full = state.adjMs[f"adjM{lag_ms}mslag"]
         base = {"FileName": rec.filename, "Grp": rec.group, "DIV": rec.div, "Lag": lag_key}
         out_dir = (output_root / "4_NetworkActivity" / "4A_IndividualNetworkAnalysis"
-                   / rec.group / rec.filename / f"{lag_ms}mslag" / "cellTypeSubnetworks")
+                   / rec.group / rec.filename / timescale_folder(lag_ms, params)
+                   / "cellTypeSubnetworks")
 
         try:
             log(f"  [{rec.filename}] subnetwork metrics (lag={lag_ms}ms)…")
@@ -784,7 +821,7 @@ def _run_subnetwork_analysis(
         if params.express_mode:
             continue
 
-        title = f"{rec.filename}  {lag_ms} ms lag"
+        title = f"{rec.filename}  {lag_ms} ms {timescale_label(params)}"
         coords_active = state.coords[active]
         figures = [
             ("1_CellTypeNetwork.png",
@@ -959,6 +996,7 @@ def _plot_group_comparisons(
     try:
         plot_step4_group_comparisons(
             recordings, all_results, output_root / "4_NetworkActivity", order,
+            timescale=timescale_kind(params),
         )
     except Exception as e:
         log(f"  Warning: network group comparison plots failed: {e}")
@@ -968,6 +1006,7 @@ def _plot_group_comparisons(
             gp.plot_subnetwork_group_comparisons(
                 tables["summary"], tables["node"],
                 output_root / "4_NetworkActivity", order,
+                timescale=timescale_kind(params),
             )
         except Exception as e:
             log(f"  Warning: cell-type subnetwork group comparison plots failed: {e}")

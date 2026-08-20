@@ -9,7 +9,9 @@ list, per-unit activity matrices, peak spike times, and event properties that
 the rest of the pipeline consumes.
 
 Determinism: ``coords``, ``channels``, ``activity_properties``, ``spike_times``
-and the ``corr``-based adjacency (``F`` / ``spks`` / ``denoised F``) are exact.
+and the ``corr``-based adjacency (``F`` / ``spks`` / ``denoised F``) are exact
+— though the correlation paths now bin first, which MATLAB does not do (see
+``suite2p_to_adjm``), so they match MATLAB only at a one-frame bin.
 The ``peaks`` adjacency reuses :func:`meanap.pipeline.probabilistic_threshold.adjm_thr`
 (STTC + circular-shift thresholding), whose thresholding step is RNG-driven and
 therefore only reproducible against MATLAB within tolerance — see that module
@@ -18,7 +20,8 @@ and ``python/test_pipeline_catnap.py``.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import math
+from dataclasses import dataclass, field
 
 import numpy as np
 
@@ -44,6 +47,10 @@ class Suite2pAdjmResult:
     #: them onto ``coords``. Kept so anything else in pixel space — the mean
     #: projection image, most usefully — can be mapped into the same frame.
     coord_norm: tuple[float, float] = (0.0, 1.0)
+    #: ``{requested bin ms: frames actually averaged}`` for the correlation
+    #: paths, empty on the STTC path. Lets the caller say what a requested bin
+    #: rounded to, which matters most when it rounded to 1 (no binning at all).
+    bin_frames: dict[int, int] = field(default_factory=dict)
 
 
 def _corr_columns(x: np.ndarray) -> np.ndarray:
@@ -51,6 +58,37 @@ def _corr_columns(x: np.ndarray) -> np.ndarray:
     if x.shape[1] == 0:
         return np.zeros((0, 0))
     return np.corrcoef(x, rowvar=False)
+
+
+def frames_per_bin(bin_ms: float, fs: float) -> int:
+    """How many frames make up a *bin_ms* bin at *fs* Hz, at least one.
+
+    A bin shorter than a single frame cannot be built, so it collapses to one
+    frame — which is the un-binned correlation, i.e. exactly what this path did
+    before bin lengths were settable. That continuity is deliberate: an old
+    parameter file with ephys-scale lags still reproduces its old result.
+    """
+    # floor(x + 0.5), not round(): Python rounds halves to even, so a bin that
+    # works out to exactly 166.5 frames would land on 166 — defensible, but not
+    # what anyone checking the arithmetic by hand would get.
+    return max(1, math.floor(float(bin_ms) * float(fs) / 1000.0 + 0.5))
+
+
+def _bin_columns(x: np.ndarray, n_frames: int) -> np.ndarray:
+    """Average each column of *x* over consecutive blocks of *n_frames* rows.
+
+    The trailing partial bin is dropped rather than averaged over fewer frames:
+    a short final bin is noisier than the rest, and it would be the one bin
+    whose value depended on where the recording happened to stop.
+
+    Mean and sum give the same correlation here (Pearson is scale-invariant and
+    every kept bin holds the same number of frames), so this is equally the
+    "sum the spikes in each bin" reading — no need to branch on activity type.
+    """
+    if n_frames <= 1:
+        return x
+    n_bins = x.shape[0] // n_frames
+    return x[: n_bins * n_frames].reshape(n_bins, n_frames, x.shape[1]).mean(axis=1)
 
 
 def suite2p_to_adjm(
@@ -75,8 +113,12 @@ def suite2p_to_adjm(
     twop_activity
         ``'peaks'`` | ``'F'`` | ``'spks'`` | ``'denoised F'``.
     func_con_lag_val
-        STTC lags (ms) for the ``'peaks'`` path. Ignored by the ``corr`` paths,
-        which derive a single lag ``round(1000 / fs)`` from the frame rate.
+        The timescales to build adjacency at, one matrix each. On the
+        ``'peaks'`` path these are STTC lags (the coincidence window); on the
+        correlation paths they are *bin* lengths — the traces are averaged into
+        bins that long and correlated between bins. Empty falls back to one bin
+        of ``round(1000 / fs)`` ms, i.e. a single frame, which is the un-binned
+        correlation this path used to be fixed at.
     """
     fs = float(data.fs)
     cell_mask = data.cell_mask  # iscell[:, 0] as bool, shape (n_rois,)
@@ -145,12 +187,27 @@ def suite2p_to_adjm(
     # ── Adjacency ─────────────────────────────────────────────────────────────
     adjMs: dict[str, np.ndarray] = {}
     spike_times: list[np.ndarray] | None = None
+    bin_frames: dict[int, int] = {}
 
     if twop_activity in ("F", "spks", "denoised F"):
-        lag_val = round(1000.0 / fs)  # single derived lag
-        used_lags = [lag_val]
+        # Pearson correlation between binned traces — one adjacency per bin
+        # length, mirroring one per lag on the STTC path. The number in the key
+        # is the *requested* bin, not the realised one: it has to match what
+        # the user typed for the output folders to be predictable, and the
+        # rounding to whole frames is reported through ``bin_frames`` instead.
+        used_lags = list(func_con_lag_val) or [round(1000.0 / fs)]
         src = {"F": F_isc, "spks": spks_isc, "denoised F": denoised_isc}[twop_activity]
-        adjMs[f"adjM{lag_val}mslag"] = _corr_columns(src)
+        # Correlating needs at least two bins to correlate *across*; one bin
+        # spanning the recording has zero variance and gives an all-NaN matrix,
+        # which would carry a whole run's downstream work into nothing. A bin
+        # too long for the recording is clamped to half its length instead, and
+        # ``bin_frames`` records what it became so the caller can say so.
+        max_frames = max(1, src.shape[0] // 2)
+        for bin_ms in used_lags:
+            n_frames = min(frames_per_bin(bin_ms, fs), max_frames)
+            bin_frames[int(bin_ms)] = n_frames
+            adjMs[f"adjM{int(bin_ms)}mslag"] = _corr_columns(
+                _bin_columns(src, n_frames))
 
     elif twop_activity == "peaks":
         used_lags = list(func_con_lag_val)
@@ -195,4 +252,5 @@ def suite2p_to_adjm(
         activity_properties=activity_properties,
         func_con_lag_val=used_lags,
         coord_norm=(min_xy, max_xy),
+        bin_frames=bin_frames,
     )
