@@ -19,6 +19,8 @@ from scipy import integrate, signal
 from pybaselines.polynomial import imodpoly
 from tqdm.auto import tqdm
 
+from meanap.pipeline.atomic import atomic_save
+
 try:
     from oasis.functions import deconvolve as oasis_deconvolve
     _OASIS_AVAILABLE = True
@@ -202,12 +204,17 @@ def process_suite2p_folder(
             mat[i, : len(arr)] = arr
         return mat
 
-    np.save(out_dir / "Fdenoised.npy", F_denoised_out)
-    np.save(out_dir / "timePoints.npy", time_points)
-    np.save(out_dir / "peakStartFrames.npy", _to_matrix(peak_lists))
-    np.save(out_dir / "peakEndFrames.npy", _to_matrix(end_lists))
-    np.save(out_dir / "peakHeights.npy", _to_matrix(height_lists))
-    np.save(out_dir / "eventAreas.npy", _to_matrix(area_lists))
+    # Atomic, and Fdenoised.npy last. The loader takes that file's presence as
+    # "this recording is already denoised", so it must not appear until the
+    # five files it implies are all on disk — otherwise an interrupted run
+    # leaves a folder that looks done and fails to load on every future run.
+    # (See meanap.pipeline.atomic: this is the failure that module exists for.)
+    atomic_save(out_dir / "timePoints.npy", time_points)
+    atomic_save(out_dir / "peakStartFrames.npy", _to_matrix(peak_lists))
+    atomic_save(out_dir / "peakEndFrames.npy", _to_matrix(end_lists))
+    atomic_save(out_dir / "peakHeights.npy", _to_matrix(height_lists))
+    atomic_save(out_dir / "eventAreas.npy", _to_matrix(area_lists))
+    atomic_save(out_dir / "Fdenoised.npy", F_denoised_out)
     return out_dir
 
 

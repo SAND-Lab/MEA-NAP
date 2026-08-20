@@ -197,6 +197,16 @@ def find_spreadsheet(store: RemoteStore, configured: str = "") -> str | None:
 _NPY_HEADER = 128
 
 
+def _empty_required(empty: list[str]) -> str | None:
+    """Message for required files that are present but zero bytes."""
+    if not empty:
+        return None
+    return (f"{', '.join(sorted(empty))} "
+            f"{'is' if len(empty) == 1 else 'are'} zero bytes at the source — "
+            f"the suite2p export is incomplete and will not load "
+            f"(re-export this recording)")
+
+
 def _roi_mismatch(entries: dict) -> str | None:
     """Detect an ``iscell.npy`` that cannot belong to the ``F.npy`` beside it.
 
@@ -214,6 +224,8 @@ def _roi_mismatch(entries: dict) -> str | None:
     Returns ``None`` unless the counts are *impossible*.
     """
     iscell, f = entries.get("iscell.npy"), entries.get("F.npy")
+    # Zero-size is not a *mismatch* — it is caught by _empty_required, which
+    # gives the more useful message.
     if iscell is None or f is None or not iscell.size or not f.size:
         return None
 
@@ -238,7 +250,12 @@ def _check_catnap(store: RemoteStore, name: str) -> RecordingCheck:
         return RecordingCheck(name=name, found=False,
                               missing=["suite2p/plane0"])
 
+    # A zero-byte file is present by name and unusable in fact: np.load gives
+    # "No data left in file", which names neither the file nor the recording.
+    # Listing sizes catch it here, before a byte is downloaded.
     missing = [f for f in CATNAP_REQUIRED if f not in entries]
+    empty = [f for f in CATNAP_REQUIRED
+             if f in entries and entries[f].size == 0]
     wanted = set(CATNAP_REQUIRED) | set(CATNAP_OPTIONAL)
     fetch = sum(e.size or 0 for n, e in entries.items() if n in wanted)
     skipped = sum(e.size or 0 for n, e in entries.items() if n not in wanted)
@@ -246,7 +263,7 @@ def _check_catnap(store: RemoteStore, name: str) -> RecordingCheck:
         name=name, found=True, missing=missing,
         fetch_bytes=fetch, skipped_bytes=skipped,
         needs_denoising="Fdenoised.npy" not in entries,
-        unusable=_roi_mismatch(entries),
+        unusable=_empty_required(empty) or _roi_mismatch(entries),
     )
 
 

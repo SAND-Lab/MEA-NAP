@@ -30,7 +30,8 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Callable
 
-__all__ = ["atomic_path", "atomic_write_json", "atomic_savez", "is_readable_npz"]
+__all__ = ["atomic_path", "atomic_write_json", "atomic_save", "atomic_savez",
+           "is_readable_npz"]
 
 
 @contextmanager
@@ -63,6 +64,20 @@ def atomic_write_json(path: Path | str, obj: Any, **kwargs) -> Path:
     with atomic_path(path) as tmp:
         with open(tmp, "w") as fh:
             json.dump(obj, fh, **kwargs)
+    return path
+
+
+def atomic_save(path: Path | str, array) -> Path:
+    """``numpy.save`` to *path*, atomically.
+
+    ``save`` appends ``.npy`` to a name that lacks it, so the temporary gets
+    that extension up front — the same reason :func:`atomic_savez` passes one.
+    """
+    import numpy as np
+
+    path = Path(path)
+    with atomic_path(path, suffix=".npy") as tmp:
+        np.save(tmp, array)
     return path
 
 

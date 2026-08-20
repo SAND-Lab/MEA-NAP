@@ -106,11 +106,19 @@ def _load_ops_fields(
               if recording else None)
     if cached is not None and (not ops_path.exists()
                                or cached.stat().st_mtime >= ops_path.stat().st_mtime):
-        with np.load(cached) as data:
-            img = data["mean_img"] if "mean_img" in data.files else None
-            return float(data["fs"]), (np.asarray(img) if img is not None else None)
+        # This sidecar is ours and is cheap to rebuild, so a damaged one is
+        # deleted and regenerated rather than raised over — otherwise a single
+        # interrupted write would fail this recording on every future run.
+        # ``guard_readable`` is the same treatment resume artefacts get.
+        from meanap.pipeline.atomic import guard_readable
 
-    ops = np.load(ops_path, allow_pickle=True).item()
+        if guard_readable(cached):
+            with np.load(cached) as data:
+                img = data["mean_img"] if "mean_img" in data.files else None
+                return float(data["fs"]), (np.asarray(img) if img is not None
+                                           else None)
+
+    ops = _load_npy(ops_path, allow_pickle=True).item()
     fs = float(ops["fs"])
     # meanImgE is suite2p's contrast-enhanced projection, made for exactly this
     # kind of display; meanImg is the raw average and is much flatter.
@@ -195,6 +203,38 @@ def _check_roi_counts(
     raise Suite2pOutputMismatch("\n".join(lines))
 
 
+class UnreadableSuite2pFile(RuntimeError):
+    """A ``.npy`` in a suite2p folder is empty, truncated, or not a ``.npy``.
+
+    Raised in place of numpy's own message, which names neither the file nor
+    the recording: ``EOFError: No data left in file`` is what an empty ``.npy``
+    produces, and on a batch of hundreds of recordings that alone is not enough
+    to act on.
+    """
+
+
+def _load_npy(path: Path, *, allow_pickle: bool = False):
+    """``np.load`` that says which file failed, and what to do about it.
+
+    Empty and truncated ``.npy`` files are the two ways an interrupted or
+    out-of-space write shows up later, and both surface here rather than as a
+    bare numpy error three frames down.
+    """
+    try:
+        return np.load(path, allow_pickle=allow_pickle)
+    except (EOFError, ValueError, OSError) as exc:
+        size = path.stat().st_size if path.exists() else None
+        detail = ("is empty (0 bytes)" if size == 0 else
+                  f"could not be read ({exc})" if size else "is missing")
+        raise UnreadableSuite2pFile(
+            f"{path} {detail}. A suite2p .npy in this state is usually the "
+            f"result of a run, download or copy that was interrupted part-way. "
+            f"Delete the file and let it be re-fetched or re-created; if it is "
+            f"empty at the source, the recording needs re-exporting from "
+            f"suite2p."
+        ) from exc
+
+
 def load_suite2p(
     plane0_dir: str | Path,
     derived_root: str | Path | None = None,
@@ -223,10 +263,11 @@ def load_suite2p(
         path = d / name
         return path if path.exists() else None
 
-    F = np.load(d / "F.npy")
-    iscell = np.load(d / "iscell.npy")
-    stat = np.load(d / "stat.npy", allow_pickle=True)
-    spks = np.load(d / "spks.npy") if (d / "spks.npy").exists() else np.zeros_like(F)
+    F = _load_npy(d / "F.npy")
+    iscell = _load_npy(d / "iscell.npy")
+    stat = _load_npy(d / "stat.npy", allow_pickle=True)
+    spks = (_load_npy(d / "spks.npy") if (d / "spks.npy").exists()
+            else np.zeros_like(F))
 
     # Before anything reads a row of them: every one of these is indexed by
     # ``iscell[:, 0]``, so they all have to be the same length.
@@ -258,15 +299,30 @@ def load_suite2p(
     # so they may live outside the suite2p folder — `derived` resolves both.
     denoised = derived("Fdenoised.npy")
     if denoised is not None:
-        data.F_denoised = np.load(denoised)
+        data.F_denoised = _load_npy(denoised)
         time_points = derived("timePoints.npy")
-        data.time_points = (np.load(time_points) if time_points is not None
+        data.time_points = (_load_npy(time_points) if time_points is not None
                             else np.arange(n_frames) / fs)
-        starts = derived("peakStartFrames.npy")
-        if starts is not None:
-            data.peak_start_frames = np.load(starts)
-            data.peak_end_frames = np.load(derived("peakEndFrames.npy"))
-            data.peak_heights = np.load(derived("peakHeights.npy"))
-            data.event_areas = np.load(derived("eventAreas.npy"))
+        # The four peak arrays are written together and indexed together, so
+        # they are taken together: a folder holding some of them is a folder
+        # whose denoising was interrupted, and reading the survivors would
+        # silently analyse a recording against half a peak set. Older runs
+        # wrote Fdenoised first, so this is the shape an interrupt left behind.
+        peaks = {name: derived(name) for name in
+                 ("peakStartFrames.npy", "peakEndFrames.npy",
+                  "peakHeights.npy", "eventAreas.npy")}
+        present = {n: p for n, p in peaks.items() if p is not None}
+        if len(present) == len(peaks):
+            data.peak_start_frames = _load_npy(present["peakStartFrames.npy"])
+            data.peak_end_frames = _load_npy(present["peakEndFrames.npy"])
+            data.peak_heights = _load_npy(present["peakHeights.npy"])
+            data.event_areas = _load_npy(present["eventAreas.npy"])
+        elif present:
+            raise UnreadableSuite2pFile(
+                f"{d}: denoising left only "
+                f"{', '.join(sorted(present))} — {', '.join(sorted(set(peaks) - set(present)))} "
+                f"never got written, so the previous denoising run was "
+                f"interrupted. Delete the derived files for this recording "
+                f"(including Fdenoised.npy) and let it denoise again.")
 
     return data
