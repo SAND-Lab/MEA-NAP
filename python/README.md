@@ -90,7 +90,19 @@ Install [uv](https://docs.astral.sh/uv/getting-started/installation/) if you don
 curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
-Then from the repo root:
+Then get the code and **change into the `MEA-NAP` folder** — every command
+below is run from there, not from this `python/` subfolder and not from
+wherever your terminal happens to start:
+
+```bash
+git clone https://github.com/SAND-Lab/MEA-NAP.git   # skip if you already have it
+cd MEA-NAP
+```
+
+If you downloaded a ZIP from GitHub instead of cloning, the folder may be
+called `MEA-NAP-main` — `cd MEA-NAP-main` in that case.
+
+Now install the dependencies:
 
 ```bash
 uv sync
@@ -98,9 +110,14 @@ uv sync
 
 This creates a `.venv/` and installs all dependencies. No manual environment activation needed — prefix commands with `uv run`.
 
+> **`uv sync` says "No `pyproject.toml` found"?** You are in the wrong
+> directory. Run `pwd` — it should end in `/MEA-NAP`, and `ls` should show
+> `pyproject.toml` alongside the `src/`, `python/` and `docs/` folders. If you
+> are inside `python/`, `cd ..` first.
+
 ## GUI (`meanap-gui`)
 
-Launch the graphical interface from the repo root:
+Launch the graphical interface from the `MEA-NAP` folder (the same one you ran `uv sync` in):
 
 ```bash
 uv run meanap-gui                  # MEA-NAP (ephys), the default
@@ -481,9 +498,10 @@ The denoising runs on raw fluorescence (`F.npy`) and produces outputs saved alon
 
 #### OASIS (optional)
 
-OASIS is a compiled extension, so it is not installed by default. If it is missing the pipeline falls back to Savitzky-Golay smoothing — a *different peak train*, not just a smoother one — which is noted with a warning in the CAT-NAP tab. Install it before your first run:
+OASIS is a compiled extension, so it is not installed by default. If it is missing the pipeline falls back to Savitzky-Golay smoothing — a *different peak train*, not just a smoother one — which is noted with a warning in the CAT-NAP tab. Install it before your first run, again from the `MEA-NAP` folder:
 
 ```bash
+cd /path/to/MEA-NAP
 uv sync --extra oasis
 ```
 

@@ -65,9 +65,12 @@ files:
 
 :::{admonition} Installing OASIS
 :class: important
-OASIS is a compiled extension, so it is optional rather than default:
+OASIS is a compiled extension, so it is optional rather than default. Run this
+from the `MEA-NAP` folder — the one holding `pyproject.toml`, which is where
+you ran the original install:
 
 ```bash
+cd /path/to/MEA-NAP
 uv sync --extra oasis
 ```
 

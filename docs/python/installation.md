@@ -9,6 +9,11 @@ git clone https://github.com/SAND-Lab/MEA-NAP.git
 cd MEA-NAP
 ```
 
+That `cd` matters: every install command on this page is run from inside the
+`MEA-NAP` folder, not from the folder you cloned it into and not from one of
+its subfolders. If you downloaded a ZIP from GitHub instead of cloning, the
+folder is called `MEA-NAP-main` — use `cd MEA-NAP-main`.
+
 ## macOS prerequisites
 
 On macOS some dependencies have no pre-built wheel for your Python version or
@@ -57,6 +62,9 @@ If a fresh install fails with `error: command 'cmake' not found`, `clang: error:
 unsupported option '-fopenmp'`, or a long `Building wheel for ... did not run
 successfully` traceback, it's almost always one of the three above missing.
 
+Install with either uv or pip — **from the `MEA-NAP` folder** you changed into
+above. If you have opened a new terminal since then, `cd` back into it first.
+
 ::::{tab-set}
 
 :::{tab-item} uv (recommended)
@@ -70,7 +78,7 @@ Install uv if you don't have it:
 curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
-Then, from the repository root:
+Then, from the `MEA-NAP` folder:
 
 ```bash
 uv sync
@@ -85,9 +93,11 @@ uv run meanap-gui
 :::
 
 :::{tab-item} pip / venv
-If you'd rather manage your own virtual environment:
+If you'd rather manage your own virtual environment — again from the
+`MEA-NAP` folder:
 
 ```bash
+cd /path/to/MEA-NAP
 python3 -m venv .venv
 source .venv/bin/activate   # .venv\Scripts\activate on Windows
 pip install -e .
@@ -103,13 +113,23 @@ meanap-gui
 
 ::::
 
+:::{admonition} "No `pyproject.toml` found" / "Neither 'setup.py' nor 'pyproject.toml' found"
+:class: tip
+Both errors mean the same thing: the command ran in the wrong directory. Run
+`pwd` — the path should end in `/MEA-NAP` — and `ls`, which should list
+`pyproject.toml` next to the `src/`, `python/` and `docs/` folders. If you are
+inside `python/`, run `cd ..` and try again.
+:::
+
 ## Optional: OASIS deconvolution (CAT-NAP)
 
 The calcium-imaging denoising pipeline ([CAT-NAP](catnap.md)) deconvolves each
 trace with [OASIS](https://github.com/j-friedrich/OASIS). It is optional, and
-left out of the default install because it is a compiled extension:
+left out of the default install because it is a compiled extension. Run this
+from the `MEA-NAP` folder, the same one you installed from:
 
 ```bash
+cd /path/to/MEA-NAP
 uv sync --extra oasis
 ```
 
