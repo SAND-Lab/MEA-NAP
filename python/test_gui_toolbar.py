@@ -142,6 +142,30 @@ check("a mode with no artwork of its own falls back to MEA-NAP's",
 check("an unknown mode falls back too, rather than raising",
       branding.logo_path("nonsense") == branding.LOGO_PATH, "")
 
+# ── The logo is drawn whole ───────────────────────────────────────────────────
+#
+# Qt gives a QTabWidget corner widget the height of a *tab*, so the logo's size
+# is not ours to pick alone: it is capped by the tab padding in theme's QSS,
+# and a logo taller than that is silently clipped rather than making room. The
+# two were tuned together, and nothing in either file makes the dependency
+# visible at the point of edit, so it is pinned here instead.
+
+label_h = corner.height()
+pixmap_h = round(corner.pixmap().height() / corner.pixmap().devicePixelRatio())
+check("the tabs leave room for the logo, so it is not drawn clipped",
+      label_h >= branding.CORNER_LOGO_HEIGHT,
+      f"tab strip gives {label_h}px, logo wants {branding.CORNER_LOGO_HEIGHT}px"
+      " — raise the QTabBar::tab padding in theme._EXTRA_QSS")
+check("and the artwork is rendered at that height, not some other one",
+      pixmap_h == branding.CORNER_LOGO_HEIGHT,
+      f"pixmap is {pixmap_h}px, expected {branding.CORNER_LOGO_HEIGHT}px")
+# A QLabel reports its pixmap as its minimum, and from the tab corner that
+# minimum reaches the window — a bigger logo would quietly raise the smallest
+# height the window can take, which is what test_gui_window_resize guards.
+check("and it does not become a floor under the window's height",
+      corner.minimumSizeHint().height() == 0,
+      f"logo demands {corner.minimumSizeHint().height()}px of the window")
+
 stand_in = branding.ASSETS / branding.LOGO_FILES["catnap"]
 made = not stand_in.exists()
 if made:

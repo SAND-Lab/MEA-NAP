@@ -8,9 +8,9 @@ moment someone drops a file in.
 **To add one**: save it as ``assets/catnap-logo.png`` or
 ``assets/meastim-logo.png`` (see :data:`LOGO_FILES`). Nothing else needs to
 change — the lookup is by mode key, and :func:`available_logos` will report it.
-A wide, short image works best: it is drawn at 28 px tall in the tab strip's
-corner and 96 px in the tutorial, and the corner has room for roughly 4:1
-before it starts competing with the tabs for width.
+A wide, short image works best: it is drawn at :data:`CORNER_LOGO_HEIGHT` in the
+tab strip's corner and 96 px in the tutorial, and the corner has room for
+roughly 4:1 before it starts competing with the tabs for width.
 """
 
 from __future__ import annotations
@@ -36,6 +36,17 @@ LOGO_FILES = {
 #: even when a sub-pipeline is running, so an unbranded mode borrowing it reads
 #: as intended rather than as a missing asset.
 LOGO_PATH = ASSETS / LOGO_FILES["meanap"]
+
+#: Height of the logo in the tab strip's corner.
+#:
+#: Bounded by the tabs, not chosen freely: Qt gives a ``QTabWidget`` corner
+#: widget the height of a *tab*, so anything taller is drawn clipped rather
+#: than making room for itself. (Growing the tab bar alone does not help —
+#: the corner keeps the tab's height and the extra space goes to a gap.) The
+#: tabs are padded in ``theme._EXTRA_QSS`` to make a 70 px tab, which is what
+#: this may fill; raising one without the other either clips the logo or
+#: leaves a gap beside it.
+CORNER_LOGO_HEIGHT = 69
 
 
 def logo_path(mode: str = "meanap") -> Path:

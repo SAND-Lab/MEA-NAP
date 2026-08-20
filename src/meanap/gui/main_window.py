@@ -10,13 +10,13 @@ from PyQt6.QtWidgets import (
     QLineEdit, QScrollArea, QTabWidget, QToolBar, QWidget,
 )
 from PyQt6.QtGui import QAction
-from PyQt6.QtCore import Qt, QSettings, QSignalBlocker
+from PyQt6.QtCore import Qt, QSettings, QSignalBlocker, QSize
 
 from meanap.params import Params
 from meanap.pipeline.bundle import BUNDLE_SUFFIX
 from meanap.pipeline.example_data import download_example_data
 from meanap.pipeline.report import generate_report
-from meanap.gui.branding import logo_icon, logo_pixmap
+from meanap.gui.branding import CORNER_LOGO_HEIGHT, logo_icon, logo_pixmap
 from meanap.gui import advanced
 from meanap.gui.modes import (
     DEFAULT_MODE, MODES, TAB_CATNAP, TAB_CONNECTIVITY, TAB_DATA, TAB_RESULTS,
@@ -48,6 +48,20 @@ def _scrollable(widget: QWidget) -> QScrollArea:
     return area
 
 
+class _LogoLabel(QLabel):
+    """A logo whose artwork does not become a floor for the whole window.
+
+    A QLabel reports its pixmap as its minimum size, and in the tab strip's
+    corner that minimum propagates all the way up to the window — so a taller
+    logo would raise the smallest height the window can be resized to, which
+    is the thing test_gui_window_resize exists to protect. The corner is laid
+    out from ``sizeHint``, left alone here, so the logo still draws full size.
+    """
+
+    def minimumSizeHint(self) -> QSize:  # noqa: D102
+        return QSize(0, 0)
+
+
 class MainWindow(QMainWindow):
     def __init__(self, mode: str = DEFAULT_MODE) -> None:
         super().__init__()
@@ -61,11 +75,14 @@ class MainWindow(QMainWindow):
         # Also set in app.main() so dialogs inherit it; repeated here so the
         # window is branded however it was constructed (tests, embedding, …).
         self.setWindowIcon(logo_icon())
-        # Wide enough for the toolbar to lay out in full. Below this Qt
-        # folds its trailing actions into an overflow chevron, which is a
-        # reasonable thing for Tutorial but was not for the Mode selector —
-        # hence Mode leading the toolbar rather than ending it.
-        self.resize(1120, 800)
+        # Wide enough for both header rows to lay out in full. The toolbar
+        # sets the floor — below it Qt folds trailing actions into an overflow
+        # chevron, a reasonable thing for Tutorial but not for the Mode
+        # selector, hence Mode leading the toolbar rather than ending it. The
+        # binding constraint is MEA-Stim's tab strip, which is seven tabs plus
+        # the logo beside them and needs ~1120; the margin over that is for
+        # fonts wider than the one measured here.
+        self.resize(1200, 800)
 
         self._params = Params()
         # Stamp the launch mode onto the defaults before anything reads them:
@@ -179,9 +196,9 @@ class MainWindow(QMainWindow):
         before that the Mode selector — into the overflow chevron. There is
         always room beside five tabs, and nothing there to be pushed out.
         """
-        if logo_pixmap(28, self.devicePixelRatioF(), self._mode) is None:
+        if logo_pixmap(CORNER_LOGO_HEIGHT, self.devicePixelRatioF(), self._mode) is None:
             return
-        self._logo_label = QLabel()
+        self._logo_label = _LogoLabel()
         self._logo_label.setContentsMargins(0, 0, 10, 0)
         self._tabs.setCornerWidget(self._logo_label, Qt.Corner.TopRightCorner)
         self._refresh_logo()
@@ -198,7 +215,7 @@ class MainWindow(QMainWindow):
             return
         from meanap.gui.branding import available_logos
 
-        pixmap = logo_pixmap(28, self.devicePixelRatioF(), self._mode)
+        pixmap = logo_pixmap(CORNER_LOGO_HEIGHT, self.devicePixelRatioF(), self._mode)
         if pixmap is not None:
             label.setPixmap(pixmap)
         mode = MODES[self._mode]

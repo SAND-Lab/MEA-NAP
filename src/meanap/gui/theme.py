@@ -24,11 +24,52 @@ QToolBar QToolButton {{
 }}
 
 /* ── Tabs ────────────────────────────────────────────────────────────────── */
+/* Drawn as one segmented control — a joined bar divided into sections — so the
+   tabs read as things you press rather than as words with an underline.
+   qdarktheme styles QTabBar::tab:top and QTabBar::tab:selected:enabled, so
+   these must match that specificity to win; a plain QTabBar::tab:selected is
+   silently outranked and only some of its properties land.
+
+   Height is load-bearing. padding + margin together set the tab height, which
+   is also the height Qt hands the corner widget — so it is what the logo
+   beside the tabs has to live in, and 13 + 13 is what clears
+   branding.CORNER_LOGO_HEIGHT. The margin is the part that does not get
+   painted, which is how the bar sits as a band inside a tall strip rather
+   than filling it. test_gui_toolbar fails if this stops adding up. */
 QTabBar::tab {{
-    padding: 7px 18px;
     font-weight: 500;
     font-size: 12px;
     min-width: 90px;
+}}
+QTabBar::tab:top {{
+    padding: 13px 14px;
+    margin: 13px 0 13px 0;
+    background-color: rgba(0, 0, 0, 0.035);
+    border: 1px solid rgba(0, 0, 0, 0.18);
+    border-left-width: 0;
+    border-radius: 0;
+}}
+/* Only the outer ends are rounded, so the sections read as one control. */
+QTabBar::tab:top:first {{
+    border-left-width: 1px;
+    border-top-left-radius: 8px;
+    border-bottom-left-radius: 8px;
+}}
+QTabBar::tab:top:last {{
+    border-top-right-radius: 8px;
+    border-bottom-right-radius: 8px;
+}}
+QTabBar::tab:top:only-one {{
+    border-left-width: 1px;
+    border-radius: 8px;
+}}
+QTabBar::tab:top:hover {{
+    background-color: rgba(0, 0, 0, 0.075);
+}}
+QTabBar::tab:selected:enabled {{
+    background-color: #ffffff;
+    color: {ACCENT};
+    font-weight: 600;
 }}
 
 /* ── GroupBox ────────────────────────────────────────────────────────────── */
