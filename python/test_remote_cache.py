@@ -383,7 +383,11 @@ def _redaction_checks() -> list[Check]:
 
     with tempfile.TemporaryDirectory() as tmp:
         tmp = Path(tmp)
-        root = _run(tmp, "Express", express=True)
+        # Not express: express mode's product *is* the bundle, so it returns
+        # the .meanap path and leaves no run folder behind — and this check
+        # needs a folder, to stamp a link into the params the run wrote before
+        # bundling them. Redaction happens in write_bundle either way.
+        root = _run(tmp, "Redaction", express=False)
         # Stamp a link into the run's own params, as a remote run would.
         pfile = root / PARAMS_FILENAME
         raw = json.loads(pfile.read_text())
