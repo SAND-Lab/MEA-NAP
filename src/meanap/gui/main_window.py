@@ -17,6 +17,7 @@ from meanap.pipeline.bundle import BUNDLE_SUFFIX
 from meanap.pipeline.example_data import download_example_data
 from meanap.pipeline.report import generate_report
 from meanap.gui.branding import CORNER_LOGO_HEIGHT, logo_icon, logo_pixmap
+from meanap.gui.dialogs import ask_yes_no
 from meanap.gui import advanced
 from meanap.gui.modes import (
     DEFAULT_MODE, MODES, TAB_CATNAP, TAB_CONNECTIVITY, TAB_DATA, TAB_RESULTS,
@@ -659,11 +660,10 @@ class MainWindow(QMainWindow):
     # ── Toolbar actions ───────────────────────────────────────────────────────
 
     def _on_new(self) -> None:
-        if QMessageBox.question(
-            self, "New parameters",
-            "Reset all parameters to defaults?",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-        ) == QMessageBox.StandardButton.Yes:
+        # ask_yes_no rather than QMessageBox.question: the latter lets the
+        # platform decide which end Yes goes on, which moves it on a Mac.
+        if ask_yes_no(self, "New parameters",
+                      "Reset all parameters to defaults?"):
             self._params = Params()
             self._load_params(self._params)
 
