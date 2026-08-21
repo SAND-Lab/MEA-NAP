@@ -310,6 +310,9 @@ def plot_spatial_network_combined(
     edge_thresh: float = 0.0,
     z_name: str = "node degree",
     coords_override: np.ndarray | None = None,
+    cell_types: tuple[np.ndarray, list[str]] | None = None,
+    node_size_scale: float | str = 1.0,
+    style: "NetworkStyle | None" = None,
 ) -> None:
     """Side-by-side "combined" network plot, port of the
     ``N_combined_MEA_NetworkPlot`` figure from ``PlotIndvNetMet.m``.
@@ -323,19 +326,46 @@ def plot_spatial_network_combined(
 
     ``coords_override`` behaves as in :func:`plot_spatial_network` — suite2p
     cell centroids for the CAT-NAP path instead of an electrode-grid lookup.
+
+    ``cell_types``, ``node_size_scale`` and ``style`` mean exactly what they do
+    in :func:`plot_spatial_network`, and are applied identically to both
+    panels. The point of this figure is that the two panels differ *only* in
+    what they are scaled to, so any styling that reached one and not the other
+    would make it lie; and the panels have to be drawn the way the single
+    figures beside them were, or the comparison is between a network and a
+    differently-drawn network.
     """
+    ct_matrix, ct_names = cell_types if cell_types else (None, None)
     prepared = _prepare_network_plot_data(
         adj_m_sub, channels_active, channel_layout, z, z2, coords_override,
+        ct_matrix,
     )
     if prepared is None:
         return
-    sub, coords, z_sub, z2_sub, _ = prepared
+    sub, coords, z_sub, z2_sub, ct_matrix = prepared
+
+    from meanap.network_plot import NetworkStyle
+
+    if style is None:
+        style = NetworkStyle.pipeline_default(node_size_scale)
+    else:
+        sub, coords, edge_thresh = style.prepare(sub, coords)
+
+    styling = dict(
+        cell_type_matrix=ct_matrix, cell_type_names=ct_names,
+        node_size_scale=style.node_size_scale,
+        node_scaling_method=style.node_scaling_method,
+        node_scaling_power=style.node_scaling_power,
+        min_node_size=style.min_node_size,
+        min_ew=style.min_edge_width, max_ew=style.max_edge_width,
+        colormap=style.colormap,
+    )
 
     fig, (ax_ind, ax_batch) = plt.subplots(1, 2, figsize=(16, 8))
     plot_network(
         ax_ind, sub, coords, edge_thresh, z_sub, z2_sub, z2_name,
         title=f"{recording_name}  {lag_ms} ms lag\nscaled to recording",
-        z_name=z_name,
+        z_name=z_name, **styling,
     )
     plot_network(
         ax_batch, sub, coords, edge_thresh, z_sub, z2_sub, z2_name,
@@ -344,6 +374,7 @@ def plot_spatial_network_combined(
         z_scale_override=z_scale_override,
         z2_bounds_override=z2_bounds_override,
         edge_bounds_override=edge_bounds_override,
+        **styling,
     )
     fig.tight_layout()
     out_path.parent.mkdir(parents=True, exist_ok=True)

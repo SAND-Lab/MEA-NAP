@@ -186,6 +186,89 @@ finally:
     svc.close()
 
 
+# ── Every variant, not just the one anyone looks at first ─────────────────────
+
+print("\nAll three scalings")
+
+# The side-by-side figure had neither a `style` nor a `node_size_scale`
+# parameter, so it ignored the styling panel outright *and* was drawn at 1.0
+# while the single figures beside it used the run's "auto" — a figure whose
+# whole purpose is comparing two scalings, drawn unlike either of them.
+from meanap.pipeline.render import figure_variants  # noqa: E402
+
+svc2 = ViewerService(root)
+try:
+    ctx2 = svc2.ctx
+    rec2 = next(iter(ctx2.recordings))
+    lag2 = ctx2.lags(rec2)[0]
+    net2 = next(f.name.format(lag=lag2) for f in available_figures(ctx2, rec2, lag2)
+                if "NetworkPlot" in f.name and "circular" not in f.name)
+    style2 = svc2.run_style()
+    variants = figure_variants(ctx2, rec2, lag2, net2)
+    check("the bundle offers all three scalings",
+          set(variants) == {"plain", "scaled", "combined"}, str(variants))
+
+    out2 = Path(tempfile.mkdtemp())
+    seq = [0]
+
+    def render2(variant, overrides):
+        seq[0] += 1
+        d = out2 / str(seq[0])
+        d.mkdir()
+        return render_figure(ctx2, rec2, lag2, net2, d, fmt="png",
+                             overrides=overrides or None, variant=variant)
+
+    for variant in variants:
+        base = geometry(render2(variant, {}))
+        restyled = geometry(render2(variant, parse_overrides(
+            {"layout": ["Circular"]}, style2)))
+        check(f"the styling panel reaches the {variant} figure",
+              int((base != restyled).sum()) > 1000,
+              f"{int((base != restyled).sum())} pixels moved")
+
+        # And the run's own sizing reaches it: forcing the class default must
+        # visibly differ from what the run drew, or "auto" never arrived.
+        manual = geometry(render2(variant, parse_overrides(
+            {"node_size_mode": ["Manual"], "node_size_scale": ["1"]}, style2)))
+        check(f"…and the run's auto node sizing reaches the {variant} figure",
+              int((base != manual).sum()) > 1000,
+              f"{int((base != manual).sum())} pixels differ from scale 1.0")
+finally:
+    svc2.close()
+
+# Adding those parameters must not have changed what the pipeline draws when
+# nobody asks for anything — the contract the renderer's parity rests on.
+print("\nStill the pipeline's own figure when unstyled")
+
+import numpy as _np  # noqa: E402
+
+from meanap.network_plot import NetworkStyle as _NS  # noqa: E402
+from meanap.pipeline.plotting_step4 import (  # noqa: E402
+    plot_spatial_network_combined,
+)
+
+_rng = _np.random.default_rng(11)
+_n = 30
+_adj = _rng.random((_n, _n))
+_adj = (_adj + _adj.T) / 2
+_np.fill_diagonal(_adj, 0)
+_adj[_adj < 0.6] = 0.0
+_z = _adj.astype(bool).sum(axis=0).astype(float)
+_common = dict(
+    z_scale_override=float(_z.max()), z2_bounds_override=(0.0, 1.0),
+    edge_bounds_override=(0.0, 1.0), z_name="node degree",
+    coords_override=_rng.uniform(0, 8, (_n, 2)),
+)
+_args = (_adj, _np.arange(1, _n + 1), "MCS60", _z, _rng.random(_n), "metric",
+         25, "recA")
+_d = Path(tempfile.mkdtemp())
+plot_spatial_network_combined(*_args, _d / "none.png", **_common)
+plot_spatial_network_combined(*_args, _d / "explicit.png",
+                              style=_NS.pipeline_default(1.0), **_common)
+check("no style is the same as the pipeline's own style, byte for byte",
+      (_d / "none.png").read_bytes() == (_d / "explicit.png").read_bytes(), "")
+
+
 print()
 if FAILURES:
     print(f"{len(FAILURES)} FAILED:")

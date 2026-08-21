@@ -308,6 +308,13 @@ the same plot at different scales. It hides itself for figures that have only
 one — the batch-scaled versions need a pooled bound for the figure's size
 metric, which a single-recording bundle may not have.
 
+All three take the styling controls, and all three are drawn with the run's own
+node sizing and cell-type rings. (Before v1.4.0 the side-by-side figure took
+neither: it ignored every control, and was drawn at `node_size_scale = 1.0`
+while the two single figures beside it used the run's — so on a CAT-NAP run the
+figure meant to compare two scalings matched neither of them. Re-render or
+re-run to correct an affected figure; only the side-by-side one was wrong.)
+
 ### Parameters
 
 Every setting the run used, grouped as `Params` groups them, opening on the ones

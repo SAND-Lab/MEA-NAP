@@ -1,5 +1,5 @@
 {
   "_comment": "Per-subsystem versions. MEA-NAP's own version lives in version.txt, which MATLAB reads and the update check compares against GitHub; it is not duplicated here.",
-  "catnap": "1.3.1",
+  "catnap": "1.4.0",
   "meastim": "0.4.0"
 }

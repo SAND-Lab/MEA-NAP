@@ -459,7 +459,8 @@ def _plot_recording_lag(
                         z_scale_override=size_max,
                         z2_bounds_override=color_bounds,
                         edge_bounds_override=_EDGE_BATCH_BOUNDS,
-                        coords_override=coords_active,
+                        coords_override=coords_active, cell_types=ct_active,
+                        node_size_scale=node_size_scale, style=style,
                     )
     except ValueError as e:
         log(f"  [{rec.filename}] skipped spatial network plot: {e}")
