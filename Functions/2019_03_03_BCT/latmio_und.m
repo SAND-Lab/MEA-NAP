@@ -35,6 +35,25 @@ function [Rlatt,Rrp,ind_rp,eff] = latmio_und(R,ITER,D)
 %   Feb 2012: permute node ordering on each run, to ensure lattices are
 %             shuffled across mutliple runs (Olaf Sporns)
 
+%{
+Notes by Tim on how the code works 
+
+1. define n : this is the number of electrodes (from now I call nodes
+electrodes)
+2. randomly re-order all the entries of the correlation matrix 
+3. If "D", the distance to diagonal matrix is not specified, then make one
+    the entries D(i, j) = | i - j | 
+    or another way to put it is it says how far you are from the diagonal
+    in terms of steps traveling up/down/left/right from the nearest
+    diagonal entry 
+4. extract lower triangular non-zero entries of the randomised matrix, 
+    and get their rows and columns i and j 
+    i and j will have size ??? (really depends on your matrix)
+    this size is defined as K 
+
+%}
+
+
 n=size(R,1);
 
 % randomly reorder matrix
@@ -52,7 +71,7 @@ if nargin<3 %if D is not specified by user
 end
 %end create
 
-[i,j]=find(tril(R));
+[i,j]=find(tril(R));  
 K=length(i);
 ITER=K*ITER;
 

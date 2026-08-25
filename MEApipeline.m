@@ -700,6 +700,7 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
             PlotIndvNetMet(expData, Params, expData.Info, originalCoords, originalChannels,  oneFigureHandle)
 
             if Params.showOneFig
+                oneFigureHandle = checkOneFigureHandle(Params, oneFigureHandle);
                 clf(oneFigureHandle)
             else
                 close all 

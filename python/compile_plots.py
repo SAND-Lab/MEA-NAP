@@ -9,7 +9,8 @@ from PIL import Image
 import numpy as np
 
 
-def combine_plots_across_div(recording_div_folders, plot_names=['FiringRateByElectrode.png'], fig=None, axs=None):
+def combine_plots_across_div(recording_div_folders, plot_names=['FiringRateByElectrode.png'], orientation='horizontal',
+                             fig=None, axs=None):
     """
     Parameters
     ----------
@@ -30,10 +31,18 @@ def combine_plots_across_div(recording_div_folders, plot_names=['FiringRateByEle
     num_divs = len(recording_div_folders)
 
     if (fig is None) and (axs is None):
-        fig, axs = plt.subplots(len(plot_names), num_divs, sharex=True, sharey=True)
+        if orientation == 'horizontal':
+            fig, axs = plt.subplots(len(plot_names), num_divs, sharex=False, sharey=False,
+                                    gridspec_kw={'wspace':0, 'hspace':0})
+            fig.set_size_inches(3 * num_divs, 3)
+        else:
+            fig, axs = plt.subplots(num_divs, len(plot_names), sharex=False, sharey=False,
+                                    gridspec_kw={'wspace':0, 'hspace':0})
+            fig.set_size_inches(6, 3 * num_divs)
+
         if len(plot_names) == 1:
             axs = axs.reshape(-1, 1)
-        fig.set_size_inches(3 * num_divs, 3)
+
 
     for n_plot_name in np.arange(len(plot_names)):
 
@@ -41,25 +50,33 @@ def combine_plots_across_div(recording_div_folders, plot_names=['FiringRateByEle
 
         for n_div in np.arange(num_divs):
 
+            if orientation == 'horizontal':
+                x_coord = n_plot_name
+                y_coord = n_div
+            else:
+                x_coord = n_div
+                y_coord = n_plot_name
+
             recording_folder = recording_div_folders[n_div]
             image_path = os.path.join(recording_folder, plot_name)
 
             if num_divs > 1:
                 with Image.open(image_path) as im:
-                    axs[n_plot_name, n_div].imshow(im)
+                    axs[x_coord, y_coord].imshow(im)
 
-                axs[n_plot_name, n_div].spines['left'].set_visible(False)
-                axs[n_plot_name, n_div].spines['bottom'].set_visible(False)
-                axs[n_plot_name, n_div].set_xticks([])
-                axs[n_plot_name, n_div].set_yticks([])
+                axs[x_coord, y_coord].spines['left'].set_visible(False)
+                axs[x_coord, y_coord].spines['bottom'].set_visible(False)
+                axs[x_coord, y_coord].set_xticks([])
+                axs[x_coord, y_coord].set_yticks([])
 
             else:
                 with Image.open(image_path) as im:
                     axs[n_plot_name].imshow(im)
-                axs[n_plot_name].spines['left'].set_visible(False)
-                axs[n_plot_name].spines['bottom'].set_visible(False)
-                axs[n_plot_name].set_xticks([])
-                axs[n_plot_name].set_yticks([])
+                axs[x_coord].spines['left'].set_visible(False)
+                axs[x_coord].spines['bottom'].set_visible(False)
+                axs[x_coord].set_xticks([])
+                axs[x_coord].set_yticks([])
+
 
     return fig, axs
 
@@ -72,6 +89,7 @@ def main():
     group_folders = glob.glob(os.path.join(main_folder, '*/'))
 
     plot_names = ['FiringRateByElectrode.png', 'Heatmap.png']
+    orientation = 'vertical'  # 'horizontal' or 'vertical'
 
     for group_folder in group_folders:
 
@@ -87,7 +105,8 @@ def main():
             fig_name = '%s_combined_plots.png' % unique_recording
             with plt.style.context(splstyle.get_style('nature-reviews')):
                 fig, axs = combine_plots_across_div(recording_div_folders,
-                                                    plot_names=plot_names, fig=None, axs=None)
+                                                    plot_names=plot_names, orientation=orientation,
+                                                    fig=None, axs=None)
                 fig_path = os.path.join(output_figfolder, fig_name)
                 fig.savefig(fig_path, dpi=900, bbox_inches='tight')
 

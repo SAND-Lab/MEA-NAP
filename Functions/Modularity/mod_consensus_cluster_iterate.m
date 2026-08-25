@@ -1,7 +1,6 @@
   
 function [Mout,Qout,num_repeats] = mod_consensus_cluster_iterate(adjM,threshold,repNum)
 % Written by H Smith, Cambridge, 2020
-
 % Consensus clustering method from Lancichinetti & Fortunato, 2012, to
 % produce modularity groups from methods of community detection that can
 % produce different groups for each classifiction method.
