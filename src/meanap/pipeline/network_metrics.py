@@ -57,6 +57,16 @@ from scipy.sparse.linalg import svds
 
 from meanap.pipeline.null_models import null_model_und_sign
 
+# Same optional-numba pattern as ``null_models.py`` / ``sttc.py``: numba is a
+# declared dependency, but the import is guarded so a build without it still
+# runs — just on the slower NumPy path.
+try:
+    from numba import njit
+
+    _HAVE_NUMBA = True
+except Exception:  # pragma: no cover - numba optional / version-gated
+    _HAVE_NUMBA = False
+
 
 # ── Weight conversion (weight_conversion.m) ────────────────────────────────
 
@@ -135,8 +145,75 @@ def clustering_coef_wu(w: np.ndarray) -> np.ndarray:
 
 # ── Distances (distance_wei.m) + characteristic path length (charpath.m) ──
 
+def _distance_wei_loops(length_mat):  # pragma: no cover - compiled below
+    """Scalar-loop twin of :func:`_distance_wei_numpy`, for numba.
+
+    Same algorithm, same order of operations, so the two agree bit for bit —
+    what changes is that a compiled loop pays none of the per-step array
+    allocation the vectorised form does. That matters because
+    :func:`efficiency_wei_local` runs one of these per node over that node's
+    whole neighbourhood, so a densely-connected network turns a hot O(n^2)
+    routine into an O(n^4) one. A 1000 ms calcium network is ~100% dense.
+    """
+    n = length_mat.shape[0]
+    d = np.full((n, n), np.inf)
+    for i in range(n):
+        d[i, i] = 0.0
+
+    active = np.empty(n, dtype=np.int64)
+    for u in range(n):
+        temporary = np.ones(n, dtype=np.bool_)
+        l1 = length_mat.copy()
+        active[0] = u
+        n_active = 1
+        while True:
+            for k in range(n_active):
+                v = active[k]
+                temporary[v] = False
+                for r in range(n):
+                    l1[r, v] = 0.0
+            for k in range(n_active):
+                v = active[k]
+                duv = d[u, v]
+                for w in range(n):
+                    lvw = l1[v, w]
+                    if lvw != 0.0:
+                        candidate = duv + lvw
+                        if candidate < d[u, w]:
+                            d[u, w] = candidate
+
+            min_d = np.inf
+            any_temp = False
+            for w in range(n):
+                if temporary[w]:
+                    any_temp = True
+                    if d[u, w] < min_d:
+                        min_d = d[u, w]
+            if not any_temp or np.isinf(min_d):
+                break
+
+            n_active = 0
+            for w in range(n):
+                if temporary[w] and d[u, w] == min_d:
+                    active[n_active] = w
+                    n_active += 1
+
+    return d
+
+
+_distance_wei_jit = (njit(cache=True)(_distance_wei_loops)
+                     if _HAVE_NUMBA else None)
+
+
 def distance_wei(length_mat: np.ndarray) -> np.ndarray:
     """Dijkstra shortest-path distance matrix from a connection-length matrix."""
+    if _distance_wei_jit is not None:
+        return _distance_wei_jit(np.ascontiguousarray(length_mat, dtype=np.float64))
+    return _distance_wei_numpy(length_mat)
+
+
+def _distance_wei_numpy(length_mat: np.ndarray) -> np.ndarray:
+    """Reference implementation — see :func:`_distance_wei_loops`."""
     n = length_mat.shape[0]
     d = np.full((n, n), np.inf)
     np.fill_diagonal(d, 0.0)

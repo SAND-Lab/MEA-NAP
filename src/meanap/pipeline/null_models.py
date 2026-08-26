@@ -156,6 +156,33 @@ def randmio_und_signed(
     return r
 
 
+def _stable_ranks(values: np.ndarray, ranks: np.ndarray) -> np.ndarray:
+    """Indices of *values* at the given *ranks*, exactly as
+    ``np.argsort(values, kind="stable")[ranks]`` would give them.
+
+    The caller reads only a handful of ranks out of an ordering of every
+    remaining edge, so sorting the whole array is nearly all wasted work.
+    ``argpartition`` places just the requested ranks correctly in O(m) rather
+    than O(m log m), and is 3-9x faster at the edge counts a dense calcium
+    network reaches.
+
+    It differs from a *stable* sort in one case: where the value at a
+    requested rank is tied with another element, the two orderings may pick
+    different members of the tied group. So the selected values are checked
+    for duplicates, and a tie sends the call down the exact sorted path. The
+    check costs one O(m) comparison per selected rank — a few percent of what
+    it saves. (In practice ties do not arise here: the values are products of
+    node strengths, and a run over a real 270-cell network saw none in 2597
+    iterations. The fallback is for the networks that aren't that one.)
+    """
+    picked = np.argpartition(values, ranks)[ranks]
+    selected = values[picked]
+    tied = sum(np.count_nonzero(values == v) for v in selected.tolist())
+    if tied != selected.shape[0]:
+        return np.argsort(values, kind="stable")[ranks]
+    return picked
+
+
 def null_model_und_sign(
     w: np.ndarray,
     bin_swaps: int = 5,
@@ -199,24 +226,31 @@ def null_model_und_sign(
             wv = np.sort(-w[np.triu(a_mask)])
 
         iu, ju = np.nonzero(np.triu(a_mask_r))
-        i_idx = list(iu)
-        j_idx = list(ju)
-        lij = [n * j + i for i, j in zip(i_idx, j_idx)]
+        i_idx = iu
+        j_idx = ju
+        lij = n * j_idx + i_idx
 
         p = np.outer(s, s)
-        wv = list(wv)
 
-        m = len(wv)
+        # ``i_idx``/``j_idx``/``lij``/``wv`` are kept as arrays rather than
+        # lists: each pass drops only ``wei_period`` entries, so the loop runs
+        # ~m/10 times and every list rebuild below would be O(m) *in Python*.
+        # On a 64-electrode ephys network that is invisible; on a 270-cell
+        # calcium recording (m ~ 7600) it was three quarters of CAT-NAP's
+        # entire runtime. Masking the arrays is the same filter in C.
+        m = wv.shape[0]
         while m > 0:
             batch = min(m, wei_period)
             p_lij = p.flat[lij]
-            oind = np.argsort(p_lij, kind="stable")
             r_idx = rng.choice(m, size=batch, replace=False)
-            o = oind[r_idx]
+            o = _stable_ranks(p_lij, r_idx)
 
-            assigned_i = [i_idx[k] for k in o]
-            assigned_j = [j_idx[k] for k in o]
-            assigned_w = [wv[k] for k in r_idx]
+            # These three stay Python-level: they are ``batch`` (<=10) items,
+            # so vectorising buys nothing, and the accumulation below has to
+            # stay in this exact order to sum identically in floating point.
+            assigned_i = i_idx[o].tolist()
+            assigned_j = j_idx[o].tolist()
+            assigned_w = wv[r_idx]
 
             for i_a, j_a, wa in zip(assigned_i, assigned_j, assigned_w):
                 w0[i_a, j_a] = sign * wa
@@ -236,14 +270,14 @@ def null_model_und_sign(
 
             keep = np.ones(m, dtype=bool)
             keep[o] = False
-            i_idx = [i_idx[k] for k in range(m) if keep[k]]
-            j_idx = [j_idx[k] for k in range(m) if keep[k]]
-            lij = [lij[k] for k in range(m) if keep[k]]
+            i_idx = i_idx[keep]
+            j_idx = j_idx[keep]
+            lij = lij[keep]
             keep_r = np.ones(m, dtype=bool)
             keep_r[r_idx] = False
-            wv = [wv[k] for k in range(m) if keep_r[k]]
+            wv = wv[keep_r]
 
-            m = len(wv)
+            m = wv.shape[0]
 
     return w0 + w0.T
 

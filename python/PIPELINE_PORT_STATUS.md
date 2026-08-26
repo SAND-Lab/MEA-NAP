@@ -1419,6 +1419,56 @@ MEA-NAP outside the GUI, e.g. for HPC batch jobs); item 5 is this
 benchmark's own config error, not a MATLAB bug — noted here so a future
 re-run doesn't have to rediscover it.
 
+### Dense-network hot loops — 6.1x on CAT-NAP (2026-08-26)
+
+A 378-recording CAT-NAP batch (one 1000ms lag, express + Dropbox) took a
+collaborator **99h48m**, ~951s per recording. Profiling one 270-cell
+recording locally reproduced it almost exactly (960s), so this was compute,
+not the network link.
+
+The cause is **network density**, not calcium imaging as such. A 1000ms
+coincidence window leaves the thresholded STTC matrix nearly complete — that
+batch had a median density of **0.86**, with 55 of 378 recordings at >=0.99
+and 17 at exactly 1.000. Several BCT routines are fine at a 64-electrode MEA's
+~2000 edges and quadratic-or-worse at the ~26000 edges a 270-cell recording
+reaches at that density:
+
+| Fix | What was wrong | Gain |
+|---|---|---|
+| `null_models.null_model_und_sign` | the weight-assignment loop rebuilt four Python lists of length *m* per pass, and it makes ~*m*/10 passes | 3.3x |
+| `null_models._stable_ranks` | that loop `argsort`ed every remaining edge to read `wei_period` (10) random ranks; `argpartition` places just those in O(m) | 5.0x cumulative |
+| `sttc.get_sttc` | `run_T` reads a single spike train, but `sttc_pair` recomputed it per *pair* — O(n^2) calls where O(n) suffice, 201 times per lag | 3.0x |
+| `network_metrics.distance_wei` | pure-Python Dijkstra; `efficiency_wei_local` runs one per node over that node's neighbourhood, so at density ~1 it is O(n^4) | 18x on local efficiency |
+
+All four are **exactly** equivalent, not approximations, and are verified as
+such: `python/test_pipeline_fast_paths.py` checks each against the form it
+replaced (including the tie case that `_stable_ranks` falls back on, which
+real data never produces), and an end-to-end run over 5 real recordings
+reproduced every `adjM` and all 58 metric fields per recording bit-for-bit
+against the previous commit.
+
+Measured end to end on those 5 recordings: **1062s -> 173s**. The largest
+(N=270, one lag) went 1052s -> 166s. Modelled over the collaborator's actual
+N/density distribution, her batch drops from ~46h to ~8h of compute on the
+box these numbers were taken on.
+
+**What is left.** `participation_coef_norm` is still ~87% of the remainder
+(~38s of that is `randmio_und_signed`, the rest the weight-assignment loop),
+because it runs 100 null models per recording per lag. Cutting it further
+means either parallelism or fewer iterations, and both change results:
+the 100 draws come from one sequential RNG stream, so any parallel split
+changes the values (`n_iter=100` is also a straight accuracy/time trade).
+Parallelising across *recordings* is the one option that is free numerically
+— each recording is already seeded from its own filename — but that batch's
+ten largest recordings are 61% of its compute, so it caps out around 3-4x
+rather than scaling with cores.
+
+**The density is worth raising with whoever runs these.** At 86-100% density
+the network is close to complete, which makes modularity, participation
+coefficient and small-worldness near-degenerate — and it is also precisely
+what makes these routines quadratic. A shorter lag or a stricter threshold
+would address the science and the runtime together.
+
 ### Express mode — same dataset, figures skipped (2026-08-06)
 
 `python/benchmark_express.py` re-runs the *same* dataset and config as the

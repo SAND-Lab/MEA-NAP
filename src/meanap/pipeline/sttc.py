@@ -95,21 +95,34 @@ def _run_p(t1: np.ndarray, t2: np.ndarray, dt: float) -> int:
                           float(dt)))
 
 
+def _sttc_from_tiled(t1: np.ndarray, t2: np.ndarray, dt: float,
+                     ta: float, tb: float) -> float:
+    """STTC given each train's already-normalised ``run_T`` value.
+
+    Split out of :func:`sttc_pair` so a pairwise sweep can compute ``run_T``
+    once per train instead of once per pair — see :func:`get_sttc`.
+    """
+    n1 = len(t1)
+    n2 = len(t2)
+    if n1 == 0 or n2 == 0:
+        return np.nan
+
+    pa = _run_p(t1, t2, dt) / n1
+    pb = _run_p(t2, t1, dt) / n2
+
+    return 0.5 * (pa - tb) / (1 - tb * pa) + 0.5 * (pb - ta) / (1 - ta * pb)
+
+
 def sttc_pair(spike_times_1: np.ndarray, spike_times_2: np.ndarray, dt: float,
               t_start: float, t_end: float) -> float:
     """Spike time tiling coefficient between two spike trains (in seconds)."""
-    n1 = len(spike_times_1)
-    n2 = len(spike_times_2)
-    if n1 == 0 or n2 == 0:
+    if len(spike_times_1) == 0 or len(spike_times_2) == 0:
         return np.nan
 
     t = t_end - t_start
     ta = _run_t(dt, t_start, t_end, spike_times_1) / t
     tb = _run_t(dt, t_start, t_end, spike_times_2) / t
-    pa = _run_p(spike_times_1, spike_times_2, dt) / n1
-    pb = _run_p(spike_times_2, spike_times_1, dt) / n2
-
-    return 0.5 * (pa - tb) / (1 - tb * pa) + 0.5 * (pb - ta) / (1 - ta * pb)
+    return _sttc_from_tiled(spike_times_1, spike_times_2, dt, ta, tb)
 
 
 def get_sttc(
@@ -129,9 +142,22 @@ def get_sttc(
 
     times = [np.asarray(spike_times_dict.get(ch, np.array([]))) for ch in range(n_channels)]
 
+    # ``run_T`` reads one train, so a channel's value is the same in every pair
+    # it appears in — but :func:`sttc_pair` recomputes it per pair, which is
+    # ``n_channels - 1`` times more often than needed. Hoisting it out turns
+    # O(n^2) run_T calls into O(n). The saving is worth having on a 64-channel
+    # MEA and decisive on a calcium recording with hundreds of cells, where
+    # this runs 201 times per lag (once real, 200 circular-shift surrogates).
+    t_span = duration_s
+    tiled = [(_run_t(dt, 0.0, duration_s, tr) / t_span) if tr.size else 0.0
+             for tr in times]
+
     for i in range(n_channels):
+        ti = times[i]
+        if ti.size == 0:
+            continue
         for j in range(i + 1, n_channels):
-            coef = sttc_pair(times[i], times[j], dt, 0.0, duration_s)
+            coef = _sttc_from_tiled(ti, times[j], dt, tiled[i], tiled[j])
             adj_m[i, j] = coef
             adj_m[j, i] = coef
 
