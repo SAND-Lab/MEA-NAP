@@ -29,7 +29,9 @@ from __future__ import annotations
 
 import multiprocessing as mp
 import os
+from pathlib import Path
 from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
+from concurrent.futures.process import BrokenProcessPool
 from typing import Callable, Optional, TypeVar
 
 try:
@@ -153,6 +155,236 @@ def pin_blas_threads(threads: str = "1") -> None:
     os.environ.update(worker_env(threads))
 
 
+#: Cached across the session — whether ``__main__`` is guarded cannot change.
+_SPAWN_USABLE: Optional[bool] = None
+
+
+def spawn_usable() -> bool:
+    """Whether worker processes can be started without re-running the caller.
+
+    ``spawn`` — the only start method available on all of macOS, Windows and
+    Linux — re-imports the parent's ``__main__`` in every worker. When the
+    entry point is a script that starts a run at module scope, with no
+    ``if __name__ == "__main__":`` guard, each worker therefore re-executes
+    the whole script before getting to its task. For a pipeline script that
+    means running the pipeline again, per worker, writing to the same output
+    folder: not merely wasteful but a way to corrupt a run.
+
+    Python's own recursion check does not reliably stop it — a child that
+    survives its nested pool attempt goes on to complete its task, so the
+    parent sees a perfectly healthy pool and never learns that every worker
+    re-ran its script. Probing cannot detect this; only reading the entry
+    point can. So the main module is parsed once, and a script without a
+    guard runs serially.
+
+    Anything not a readable script — the REPL, ``-c``, a frozen build, a
+    console-script wrapper (which generates its own guard) — is treated as
+    safe, which is what those all are.
+    """
+    global _SPAWN_USABLE
+    if _SPAWN_USABLE is None:
+        _SPAWN_USABLE = not _entry_point_reruns_itself()
+    return _SPAWN_USABLE
+
+
+def _entry_point_reruns_itself() -> bool:
+    """True when ``__main__`` is a script whose top level would re-run."""
+    import ast
+    import sys
+
+    if getattr(sys, "frozen", False):
+        return False  # freeze_support handles this case
+    main = sys.modules.get("__main__")
+    path = getattr(main, "__file__", None)
+    if not path:
+        return False  # interactive / -c: spawn re-imports nothing
+    try:
+        tree = ast.parse(Path(path).read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001 - unreadable/odd entry point: assume fine
+        return False
+    for node in tree.body:
+        if isinstance(node, ast.If) and "__name__" in ast.dump(node.test):
+            return False
+    return True
+
+
+_NO_WORKERS_MSG = (
+    "could not start worker processes — continuing on one core. If this run "
+    "was started from a script, putting the call behind "
+    '`if __name__ == "__main__":` restores parallelism.'
+)
+
+
+class StreamingPool:
+    """A process pool fed one task at a time, as work becomes available.
+
+    :func:`map_recordings` wants the whole task list up front. The CAT-NAP path
+    cannot give it one: its recordings arrive from a remote source that fetches,
+    computes and then *releases* each one before starting the next, so a batch's
+    peak local storage stays at one or two recordings instead of the whole
+    dataset. Collecting every task before dispatching would either defeat that
+    (holding the entire dataset on disk) or idle every core until the last
+    download landed.
+
+    So tasks are submitted as the stream yields them and results are collected
+    as they finish. ``max_pending`` bounds how far the producer may run ahead —
+    without it the parent would queue every remaining recording's adjacency
+    matrices in memory, which on a large batch is gigabytes. When the bound is
+    reached :meth:`submit` blocks until a result comes back, which is the
+    correct steady state for compute-bound work.
+
+    Results come back in completion order, so callers that need a stable
+    ordering should key them (by recording name) rather than relying on
+    position — the same contract as :func:`map_recordings`.
+    """
+
+    def __init__(
+        self,
+        n_workers: int,
+        *,
+        max_pending: Optional[int] = None,
+        blas_threads: Optional[str] = None,
+        on_result: Optional[Callable[[R], None]] = None,
+        cancel_check: Optional[Callable[[], bool]] = None,
+        on_degrade: Optional[Callable[[str], None]] = None,
+    ) -> None:
+        self._cancel_check = cancel_check
+        self._on_degrade = on_degrade
+        self._cancelled = False
+        # Tasks still in flight, so a pool that dies can be re-run serially.
+        self._task_of: dict = {}
+        self._n = max(1, n_workers)
+        # Two per worker keeps every core fed while one result is being
+        # harvested, without letting the producer run away.
+        self._max_pending = max_pending if max_pending is not None else max(2 * self._n, 4)
+        self._on_result = on_result
+        self._results: list = []
+        self._pending: set = set()
+        self._ex = None
+        if self._n > 1 and not spawn_usable():
+            if on_degrade is not None:
+                on_degrade(_NO_WORKERS_MSG)
+        elif self._n > 1:
+            if blas_threads is None:
+                blas_threads = str(max(1, physical_cores() // self._n))
+            ctx = mp.get_context("spawn")
+            self._ex = ProcessPoolExecutor(
+                max_workers=self._n, mp_context=ctx,
+                initializer=pin_blas_threads, initargs=(blas_threads,),
+            )
+
+    @property
+    def parallel(self) -> bool:
+        """False when this degraded to the serial path (one worker)."""
+        return self._ex is not None
+
+    def submit(self, worker_fn: Callable[[T], R], task: T) -> None:
+        """Queue one task, blocking while the pool is saturated.
+
+        With a single worker the task runs inline, so the same call site serves
+        the serial path — useful for debugging and for single-recording runs.
+        """
+        if self._cancelled:
+            return
+        if self._ex is None:
+            self._collect(worker_fn(task))
+            if self._cancel_check is not None and self._cancel_check():
+                self._cancelled = True
+            return
+        while len(self._pending) >= self._max_pending:
+            self._harvest()
+            if self._cancelled:
+                return
+        if self._ex is None:  # the pool died while we were harvesting
+            self._collect(worker_fn(task))
+            return
+        fut = self._ex.submit(worker_fn, task)
+        self._task_of[fut] = (worker_fn, task)
+        self._pending.add(fut)
+
+    def _harvest(self) -> None:
+        """Block until at least one in-flight task completes, and collect it.
+
+        A cancel is noticed here rather than only between submissions, so a
+        run stopped while the pool is draining drops everything not yet
+        started instead of waiting out the whole queue. Work already running
+        still finishes — the same cooperative stop :func:`map_recordings`
+        gives, bounded by one task rather than the batch.
+        """
+        if not self._pending:
+            return
+        done, self._pending = wait(self._pending, return_when=FIRST_COMPLETED)
+        for fut in done:
+            if fut.cancelled():
+                self._task_of.pop(fut, None)
+                continue
+            try:
+                result = fut.result()
+            except BrokenProcessPool:
+                self._degrade(done)
+                return
+            self._task_of.pop(fut, None)
+            self._collect(result)
+        if self._cancel_check is not None and self._cancel_check():
+            self._cancelled = True
+            for fut in self._pending:
+                fut.cancel()
+
+    def _degrade(self, done: set) -> None:
+        """The worker processes died. Finish the outstanding work in-process.
+
+        Much the commonest cause is a caller with no ``if __name__ ==
+        "__main__":`` guard: ``spawn`` re-imports the parent's ``__main__`` in
+        every worker, so a script that starts a run at module scope re-runs
+        itself in the child, and Python kills the child rather than let it
+        recurse. That is a property of the calling script, not of the work, and
+        a library has no business turning it into a failed run — an
+        out-of-memory kill deserves the same treatment. So the pool is
+        abandoned and everything it had not returned is redone here, serially.
+        """
+        outstanding = [self._task_of[f]
+                       for f in list(done) + list(self._pending)
+                       if f in self._task_of]
+        for fut in self._pending:
+            fut.cancel()
+        self._pending = set()
+        self._task_of = {}
+        if self._ex is not None:
+            self._ex.shutdown(wait=False, cancel_futures=True)
+            self._ex = None
+        if self._on_degrade is not None:
+            self._on_degrade(_NO_WORKERS_MSG)
+        for worker_fn, task in outstanding:
+            self._collect(worker_fn(task))
+
+    def _collect(self, result: R) -> None:
+        if self._on_result is not None:
+            self._on_result(result)
+        self._results.append(result)
+
+    def drain(self) -> list:
+        """Wait for everything still in flight and return all results."""
+        while self._pending:
+            self._harvest()
+        return self._results
+
+    def close(self) -> None:
+        if self._ex is not None:
+            self._ex.shutdown(wait=True)
+            self._ex = None
+
+    def __enter__(self) -> "StreamingPool":
+        return self
+
+    def __exit__(self, *exc) -> None:
+        # Cancel anything not yet started, then let in-flight tasks finish —
+        # the same cooperative stop map_recordings gives a cancelled run.
+        if exc[0] is not None:
+            for fut in self._pending:
+                fut.cancel()
+        self.close()
+
+
 def map_recordings(
     worker_fn: Callable[[T], R],
     tasks: list[T],
@@ -199,7 +431,9 @@ def map_recordings(
 
     results: list[R] = []
 
-    if n <= 1 or len(tasks) <= 1:
+    # ``spawn_usable`` keeps an unguarded caller on the serial path instead of
+    # letting every worker re-run its script and then die — see that function.
+    if n <= 1 or len(tasks) <= 1 or not spawn_usable():
         for t in tasks:
             if cancel_check is not None and cancel_check():
                 break

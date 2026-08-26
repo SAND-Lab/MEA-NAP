@@ -17,6 +17,7 @@ folders the ephys path produces.
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable
 
@@ -52,6 +53,7 @@ from meanap.pipeline.resume import (
     build_input_locator,
 )
 from meanap.pipeline.rng import make_rng
+from meanap.pipeline.parallel import StreamingPool, suggest_process_count
 from meanap.pipeline.spreadsheet import RecordingInfo
 from meanap.pipeline.step4 import (
     _apply_cartography_boundaries, _batch_metric_bounds, _convert_numpy,
@@ -59,6 +61,58 @@ from meanap.pipeline.step4 import (
 )
 
 _NEEDS_DENOISING = ("peaks", "denoised F", "spks")
+
+#: Peak RSS one metrics worker needs: the adjacency and its null-model copies
+#: are a few tens of MB even for a 600-cell recording, so this is dominated by
+#: the worker's own numpy/scipy import. Same figure ``step4.py`` uses.
+_METRICS_MEM_PER_TASK_GB = 0.6
+
+
+@dataclass
+class _MetricsTask:
+    """One recording's network-metrics work, as sent to a pool worker.
+
+    Deliberately carries the arrays rather than a path to the ``_catnap.npz``
+    the caller also writes: that write is best-effort (a failure there is a
+    warning, not an error), so reading it back would make the metrics depend on
+    a file that is allowed not to exist. What travels is small — an adjacency
+    matrix is ~3 MB even at 600 cells.
+    """
+
+    filename: str
+    adjMs: dict
+    spike_counts: np.ndarray
+    duration_s: float
+    lag_independent: dict
+    params: Params
+    min_nodes: int
+
+
+def _metrics_worker(task: _MetricsTask) -> tuple[str, dict]:
+    """Network metrics for every lag of one recording. Runs in a pool worker.
+
+    Module-level and picklable-in/out because ``spawn`` re-imports this module
+    in each worker. The RNG is rebuilt here from the seed rather than passed in,
+    so a recording's stream depends only on its own filename — which is what
+    makes running recordings concurrently produce byte-identical results to
+    running them in order.
+    """
+    rng = make_rng(task.params.random_seed, "step4", task.filename)
+    out: dict = {}
+    for lag_ms, adj in sorted_adjm_items(task.adjMs):
+        metrics = compute_network_metrics(
+            adj, task.spike_counts, task.duration_s,
+            task.params.min_activity_level, task.min_nodes,
+            exclude_edges_below_threshold=task.params.exclude_edges_below_threshold,
+            params=task.params, rng=rng,
+        )
+        # effRank / NMF describe the recording, not the lag, so every lag
+        # carries the same value — as ExtractNetMet.m does by computing them
+        # under `if e == 1` and saving them on the first lag field.
+        metrics.update(task.lag_independent)
+        out[f"{lag_ms}mslag"] = metrics
+    return task.filename, out
+
 
 #: ``Params.startAnalysisStep`` at or above which a CAT-NAP run reads the prior
 #: run's adjacency instead of rebuilding it. There is no step 1 or 3 on this
@@ -215,6 +269,24 @@ def run_catnap_pipeline(
 
     progress.begin("catnap.compute", items=len(recordings))
 
+    # Network metrics are ~90% of a CAT-NAP run's compute (the null-model
+    # randomisations behind PC dominate, and they scale with edge count, which
+    # a near-complete calcium network has a lot of). Unlike everything else in
+    # phase 1 they need only the adjacency matrix — not the suite2p folder — so
+    # they can be handed to a pool while the stream carries on fetching,
+    # computing and *releasing* recordings one at a time. That is what keeps
+    # the bounded-local-storage property intact: workers never touch raw data,
+    # so parallelism here costs no extra disk.
+    #
+    # Each recording's generator is seeded from its own filename, so results do
+    # not depend on how the work interleaves — see :func:`_metrics_worker`.
+    n_metric_workers = suggest_process_count(
+        len(recordings), _METRICS_MEM_PER_TASK_GB,
+        max_workers=params.recording_workers,
+    )
+    if n_metric_workers > 1:
+        log(f"  computing network metrics on {n_metric_workers} workers")
+
     # ── Phase 1: compute (or reload) ──────────────────────────────────────────
     # Recordings arrive with the next one already being fetched (remote sources
     # only), and each is released once its results are on disk — so a batch's
@@ -229,84 +301,109 @@ def run_catnap_pipeline(
         if resuming else
         source.stream(recordings, depth=params.prefetch_depth)
     )
-    for rec, fetched in stream:
-        check_cancel(should_cancel)
-        if isinstance(fetched, BaseException):
-            log(f"  [{rec.filename}] SKIP: {fetched}")
-            continue
-        plane0 = fetched
+    # Filled by the pool as workers finish, so in completion order — see the
+    # re-ordering into ``all_results`` after the loop.
+    metric_results: dict[str, dict] = {}
 
-        # Continuing an interrupted run: this recording's adjacency and
-        # activity stats are already in *this* folder, so load them rather than
-        # redoing the STTC and the circular-shift thresholding, which is the
-        # expensive half of the CAT-NAP path.
-        continued = already_done(
-            params, output_root,
-            state_dir / f"{rec.filename}{CATNAP_SUFFIX}", log)
-        if continued:
-            log(f"  [{rec.filename}] already computed — loading")
+    def _metrics_done(result: tuple[str, dict]) -> None:
+        name, rec_results = result
+        metric_results[name] = rec_results
+        progress.item_done(name)
 
-        loaded = (
-            _load_recording(locator, rec, plane0, log) if (resuming or continued)
-            else _compute_recording(params, rec, plane0, log,
-                                    make_rng(params.random_seed, "catnap",
-                                             rec.filename))
-        )
-        if loaded is None:
+    with StreamingPool(n_metric_workers, on_result=_metrics_done,
+                       cancel_check=should_cancel,
+                       on_degrade=lambda msg: log(f"  WARNING: {msg}")) as pool:
+        for rec, fetched in stream:
+            check_cancel(should_cancel)
+            if isinstance(fetched, BaseException):
+                log(f"  [{rec.filename}] SKIP: {fetched}")
+                continue
+            plane0 = fetched
+
+            # Continuing an interrupted run: this recording's adjacency and
+            # activity stats are already in *this* folder, so load them rather than
+            # redoing the STTC and the circular-shift thresholding, which is the
+            # expensive half of the CAT-NAP path.
+            continued = already_done(
+                params, output_root,
+                state_dir / f"{rec.filename}{CATNAP_SUFFIX}", log)
+            if continued:
+                log(f"  [{rec.filename}] already computed — loading")
+
+            loaded = (
+                _load_recording(locator, rec, plane0, log) if (resuming or continued)
+                else _compute_recording(params, rec, plane0, log,
+                                        make_rng(params.random_seed, "catnap",
+                                                 rec.filename))
+            )
+            if loaded is None:
+                if not resuming:
+                    source.unpin(rec.filename)
+                    source.release(rec.filename)
+                continue
+            state, stats = loaded
+
+            # Always re-read: cheap, and it means a resumed run picks up an edited
+            # cell-type spreadsheet instead of freezing the first run's grouping.
+            # A bundle carries a copy of the markers for recipients who have no
+            # spreadsheet at all, so the live reading only wins when it found one.
+            groups, markers = _resolve_cell_types(params, rec, state.channels, log)
+            if groups is not None or state.groups is None:
+                state.groups = groups
+            if markers is not None or state.markers is None:
+                state.markers = markers
+
+            all_stats[rec.filename] = stats
+            all_channels[rec.filename] = state.channels
+            states[rec.filename] = state
+
+            try:
+                save_recording_state(
+                    state_dir / f"{rec.filename}{CATNAP_SUFFIX}", state, stats)
+            except Exception as e:
+                log(f"  [{rec.filename}] warning: could not save step-2 data for "
+                    f"re-runs: {e}")
+
+            # Everything derived from this recording is now on disk, so its raw
+            # files are no longer needed — unless the trace figures still want them
+            # in phase 3, in which case re-fetching one recording beats holding the
+            # whole batch.
             if not resuming:
                 source.unpin(rec.filename)
                 source.release(rec.filename)
-            continue
-        state, stats = loaded
 
-        # Always re-read: cheap, and it means a resumed run picks up an edited
-        # cell-type spreadsheet instead of freezing the first run's grouping.
-        # A bundle carries a copy of the markers for recipients who have no
-        # spreadsheet at all, so the live reading only wins when it found one.
-        groups, markers = _resolve_cell_types(params, rec, state.channels, log)
-        if groups is not None or state.groups is None:
-            state.groups = groups
-        if markers is not None or state.markers is None:
-            state.markers = markers
+            # Hand the expensive half off. ``submit`` blocks once the pool is
+            # saturated, which is what stops the stream fetching further ahead
+            # than the metrics can keep up with.
+            kind = timescale_kind(params)
+            lags = [lag for lag, _ in sorted_adjm_items(state.adjMs)]
+            log(f"  [{rec.filename}] network metrics "
+                f"({kind}{'' if len(lags) == 1 else 's'} "
+                f"{', '.join(str(lag) for lag in lags)} ms)…")
+            pool.submit(_metrics_worker, _MetricsTask(
+                filename=rec.filename,
+                adjMs=state.adjMs,
+                spike_counts=state.spike_counts,
+                duration_s=state.duration_s,
+                lag_independent=state.lag_independent,
+                params=params,
+                min_nodes=min_nodes,
+            ))
 
-        all_stats[rec.filename] = stats
-        all_channels[rec.filename] = state.channels
-        states[rec.filename] = state
+        pool.drain()
 
-        try:
-            save_recording_state(
-                state_dir / f"{rec.filename}{CATNAP_SUFFIX}", state, stats)
-        except Exception as e:
-            log(f"  [{rec.filename}] warning: could not save step-2 data for "
-                f"re-runs: {e}")
+    # A stop requested while the pool was draining lands here: the pool drops
+    # what it had not started, and this turns that into the same
+    # PipelineCancelled the serial loop raised at its own checkpoint.
+    check_cancel(should_cancel)
 
-        # Everything derived from this recording is now on disk, so its raw
-        # files are no longer needed — unless the trace figures still want them
-        # in phase 3, in which case re-fetching one recording beats holding the
-        # whole batch.
-        if not resuming:
-            source.unpin(rec.filename)
-            source.release(rec.filename)
-
-        # Same label as the ephys path: this is the same work on the same
-        # recording, and one generator serves every lag (as in step4.py).
-        metric_rng = make_rng(params.random_seed, "step4", rec.filename)
-        rec_results: dict = {}
-        for lag_ms, adj in sorted_adjm_items(state.adjMs):
-            log(f"  [{rec.filename}] network metrics (lag={lag_ms}ms)…")
-            metrics = compute_network_metrics(
-                adj, state.spike_counts, state.duration_s,
-                params.min_activity_level, min_nodes,
-                exclude_edges_below_threshold=params.exclude_edges_below_threshold,
-                params=params, rng=metric_rng,
-            )
-            # effRank / NMF describe the recording, not the lag, so every lag
-            # carries the same value — as ExtractNetMet.m does by computing
-            # them under `if e == 1` and saving them on the first lag field.
-            metrics.update(state.lag_independent)
-            rec_results[f"{lag_ms}mslag"] = metrics
-        all_results[rec.filename] = rec_results
-        progress.item_done(rec.filename)
+    # Results arrived in completion order. Re-key them in the batch's own order
+    # so everything downstream — the cartography barrier that pools PC/Z across
+    # recordings, the batch metric bounds, the CSVs — sees exactly the sequence
+    # it saw when this loop was serial.
+    for rec in recordings:
+        if rec.filename in metric_results:
+            all_results[rec.filename] = metric_results[rec.filename]
 
     # ── Phase 2: reduce — data-driven node-cartography boundaries ─────────────
     # Pool PC/Z over the whole batch and re-place the six role boundaries, then

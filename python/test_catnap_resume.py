@@ -380,7 +380,7 @@ def _pipeline_resume_checks() -> list[Check]:
                        "loading suite2p data" not in text
                        and "building adjacency matrices" not in text, ""))
         checks.append(("network metrics still ran",
-                       "network metrics (lag=25ms)" in text, ""))
+                       "network metrics (lag 25 ms)" in text, text[-400:]))
 
         rec_csv = out / "4_NetworkActivity" / "NetworkActivity_RecordingLevel.csv"
         checks.append(("recording-level CSV written", rec_csv.exists(), ""))

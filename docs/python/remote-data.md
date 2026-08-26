@@ -151,9 +151,63 @@ Params.cache_budget_gb, reduce Params.prefetch_depth, or free disk space.
 ```
 
 `prefetch_depth = 1` fetches the next recording while the current one is
-analysed, which hides the download almost entirely — on CAT-NAP data, about
-95 s of transfer against 275 s of compute per recording. Deeper prefetching
-costs another recording's worth of disk for little gain once compute dominates.
+analysed, which hides the download when compute is the slower half. Deeper
+prefetching costs another recording's worth of disk.
+
+Which half is slower changed in CAT-NAP 1.6.0 — see below. If a run now
+spends its time waiting on transfers rather than on cores, raising
+`prefetch_depth` is the knob, at one extra recording of disk per step.
+
+## Parallel metrics, without holding the dataset
+
+Network metrics are most of a CAT-NAP run's compute, and they need only the
+adjacency matrix — never the suite2p folder. So they are handed to a pool of
+worker processes while the stream carries on fetching, analysing and
+*releasing* recordings one at a time. Peak local storage is unchanged:
+workers never touch raw data, so the parallelism costs no extra disk and the
+`prefetch_depth + 1` budget above still holds.
+
+```python
+params.recording_workers = 4   # default: as many as cores and free RAM allow
+```
+
+The pool is bounded, so once it is saturated the stream stops running ahead —
+that is what stops a large batch queueing every remaining adjacency matrix in
+memory. Results are keyed by recording and re-ordered into spreadsheet order
+before anything downstream sees them, and each recording's random stream is
+seeded from its own filename, so **a parallel run reproduces a serial one
+exactly**. Worker count is a speed setting, never a scientific one.
+
+```{note}
+Speedup is bounded by your largest recording: the batch cannot finish before
+its slowest single member does. On a batch whose biggest networks dominate
+the total, expect rather less than the core count.
+```
+
+### Running from your own script
+
+Worker processes re-import the script that started the run, so a script that
+calls the pipeline at the top level would run it again in every worker. That
+is guarded against — such a run just stays on one core and says so:
+
+```
+WARNING: could not start worker processes — continuing on one core. If this
+run was started from a script, putting the call behind
+`if __name__ == "__main__":` restores parallelism.
+```
+
+To get the cores back, wrap the call:
+
+```python
+def main():
+    run_pipeline(params)
+
+if __name__ == "__main__":
+    main()
+```
+
+The GUI and the `meanap-*` commands already do this; it only affects scripts
+you write yourself.
 
 ## Your share link is not sent with your results
 

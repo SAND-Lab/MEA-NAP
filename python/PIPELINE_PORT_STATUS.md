@@ -1454,14 +1454,80 @@ box these numbers were taken on.
 
 **What is left.** `participation_coef_norm` is still ~87% of the remainder
 (~38s of that is `randmio_und_signed`, the rest the weight-assignment loop),
-because it runs 100 null models per recording per lag. Cutting it further
-means either parallelism or fewer iterations, and both change results:
-the 100 draws come from one sequential RNG stream, so any parallel split
-changes the values (`n_iter=100` is also a straight accuracy/time trade).
-Parallelising across *recordings* is the one option that is free numerically
-— each recording is already seeded from its own filename — but that batch's
-ten largest recordings are 61% of its compute, so it caps out around 3-4x
-rather than scaling with cores.
+because it runs 100 null models per recording per lag. Cutting *that* further
+means either parallelising the 100 draws or taking fewer of them, and both
+change results — the draws come from one sequential RNG stream, so any
+parallel split changes the values, and `n_iter` is a straight accuracy/time
+trade. Neither has been done.
+
+### Parallel network metrics, streaming-safe (2026-08-26)
+
+Parallelising across *recordings* is free numerically, since each is already
+seeded from its own filename — so that is what landed (catnap 1.6.0).
+
+The obstacle was the remote path. `map_recordings` wants the whole task list
+up front, and the CAT-NAP stream cannot give it one: recordings arrive from a
+source that fetches, analyses and *releases* each before the next, which is
+what keeps peak local storage at one or two recordings rather than the whole
+dataset. What makes this work anyway is that **network metrics need only the
+adjacency matrix, never the suite2p folder** — so the metrics can go to a pool
+while the fetch/denoise/STTC half stays serial and keeps its storage
+guarantee. Workers never touch raw data, so the parallelism costs no disk.
+
+`pipeline/parallel.py` gained `StreamingPool` for this: submit as the stream
+yields, collect in completion order, and *block the producer* once saturated
+(without that bound the parent queues every remaining recording's adjacency
+matrices — gigabytes on a large batch). Results are re-keyed into spreadsheet
+order before the cartography barrier, batch bounds or CSVs see them, so
+nothing downstream can notice the reordering. Cancellation is checked between
+completions as well as between submissions, so a stop during the drain drops
+queued work instead of waiting out the batch.
+
+Verified in `python/test_pipeline_streaming_pool.py`: 1, 3 and 4 workers give
+identical metrics, reversed submission order gives identical metrics, and a
+real 13-recording batch produced the same `netmet_results.json` digest at 1
+and 8 workers.
+
+**The `__main__` trap, and why probing does not find it.** `spawn` re-imports
+the parent's `__main__` in every worker, so a caller with no
+`if __name__ == "__main__":` guard re-runs its whole script per worker —
+for a pipeline script, re-running the pipeline into the same output folder.
+This bit `test_viewer_run_styling.py` / `test_viewer_trace_download.py` as
+soon as CAT-NAP started spawning, and it is a trap `map_recordings` had all
+along; the ephys tests just never had enough recordings to open a pool.
+
+Python's recursion check does *not* reliably stop it. A child whose nested
+pool attempt raises, but which catches it, goes on to complete its task — so
+the parent sees a healthy pool and never learns that every worker re-ran the
+script. A probe task therefore reports success in exactly the case it is
+meant to catch (measured: four `MARKER: top-level ran` lines, `spawn_usable`
+True). Only reading the entry point works, so `spawn_usable()` parses
+`__main__` for a module-level guard and keeps unguarded callers serial with
+an explanatory warning. `map_recordings` uses it too. `StreamingPool._degrade`
+remains as the backstop for pools that die for other reasons (an OOM kill
+looks identical from the parent), finishing outstanding tasks in-process
+rather than failing the run.
+
+**The ceiling is the largest recording.** A batch cannot finish before its
+slowest single member, and on the collaborator's dataset the ten biggest
+recordings are 61% of the compute — the local 13-recording cache is worse
+still (one 137s recording and twelve trivial ones), which is why it only
+moves 178s -> 148s. Getting past that ceiling requires the *within*-recording
+parallelism above, which changes results.
+
+On a batch of equally large networks — which is what the collaborator's
+biggest recordings look like — the pool scales close to linearly. Eight
+copies of the N=270, 25964-edge recording, one lag, on a 16-physical-core
+box:
+
+| Workers | Wall | Speedup | Efficiency |
+|---|---|---|---|
+| 1 | 1101.6s | 1.00x | — |
+| 4 | 310.1s | 3.55x | 89% |
+| 8 | 166.2s | 6.63x | 83% |
+| 16 | 168.1s | 6.55x | (only 8 tasks — nothing left to parallelise) |
+
+Same digest at every worker count.
 
 **The density is worth raising with whoever runs these.** At 86-100% density
 the network is close to complete, which makes modularity, participation
