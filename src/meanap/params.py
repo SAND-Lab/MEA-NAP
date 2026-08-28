@@ -89,6 +89,23 @@ class Params:
         "aN", "Dens", "NDmean", "NDtop25", "sigEdgesMean", "NSmean",
         "ElocMean", "CC", "nMod", "Q", "PL", "Eglob", "SW", "SWw",
     ])
+    # The two dimensionality metrics, and the only step-4 fields expensive
+    # enough to be worth switching off: measured on the benchmark dataset (two
+    # 64-channel 10-minute recordings, 3 lags) they are 63s of step 4's 70s of
+    # compute, while every network metric beside them together costs 6.6s.
+    #
+    # MATLAB gates both on ``Params.netMetToCal`` (``ExtractNetMet.m``'s
+    # ``num_nnmf_components`` / ``effRank`` branches). This port declares
+    # ``net_met_to_cal`` above but has never read it, and every ``params.json``
+    # ever written carries a copy of the old default — which does not list
+    # either metric — so gating on that list would silently switch NMF off
+    # when an old run was reproduced. Separate flags, defaulting to what the
+    # pipeline has always done, cannot do that.
+    #
+    # Electrophysiology only: CAT-NAP has its own NMF switch (``twop_nmf``,
+    # default off) and always computes effective rank.
+    compute_nmf: bool = True
+    compute_eff_rank: bool = True
     recompute_metrics: bool = False
     min_number_of_nodes_to_cal_net_met: int = 3
     exclude_edges_below_threshold: bool = True

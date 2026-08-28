@@ -81,13 +81,48 @@ class ConnectivityPanel(QWidget):
         adv.addRow("Number of checks to plot", self.prob_thresh_plot_checks_n)
         form2.addRow(self.threshold_advanced)
 
+        # ── Network metrics ───────────────────────────────────────────────────
+        # Only the two dimensionality metrics live here, because they are the
+        # only step-4 fields whose cost is worth a decision: together they are
+        # roughly nine tenths of what step 4 computes, while every network
+        # metric beside them is seconds. Everything else step 4 calculates is
+        # cheap enough that choosing is not worth the risk of a missing column.
+        metrics_box = QGroupBox("Network metrics")
+        form3 = QFormLayout(metrics_box)
+
+        self.compute_nmf = QCheckBox()
+        self.compute_nmf.setChecked(True)
+        set_tooltip(self.compute_nmf,
+                    "NMF dimensionality metrics (num_nnmf_components, "
+                    "nComponentsRelNS and the variance-explained curve).\n\n"
+                    "By far the most expensive thing step 4 does — on a "
+                    "64-channel 10-minute recording it is around 30s, against "
+                    "3s for every network metric beside it — because it "
+                    "factorises the activity matrix once per rank. Switch it "
+                    "off and those columns are simply absent; nothing else "
+                    "in the run changes.")
+
+        self.compute_eff_rank = QCheckBox()
+        self.compute_eff_rank.setChecked(True)
+        set_tooltip(self.compute_eff_rank,
+                    "Effective rank of the downsampled activity matrix "
+                    "(effRank). A few seconds per recording — cheap next to "
+                    "NMF, but the same kind of measure, so it can be left out "
+                    "the same way.")
+
+        form3.addRow("NMF dimensionality", self.compute_nmf)
+        form3.addRow("Effective rank", self.compute_eff_rank)
+
         self._thr_box = thr_box
+        self._metrics_box = metrics_box
         layout.addWidget(sttc_box)
         layout.addWidget(adj_box)
         layout.addWidget(thr_box)
+        layout.addWidget(metrics_box)
         layout.addStretch()
 
         self.set_timescale("lag")
+        self.set_pipeline("meanap")
 
     def set_timescale(self, kind: str) -> None:
         """Name the timescale field for the measure that will actually run.
@@ -133,6 +168,25 @@ class ConnectivityPanel(QWidget):
                     "correlation matrix, so nothing here is read."
                     if binning else "")
 
+    def set_pipeline(self, mode_key: str) -> None:
+        """Say whether these settings belong to the pipeline about to run.
+
+        The tab is shared, but the dimensionality switches are read only by
+        the electrophysiology step 4: CAT-NAP keeps its own NMF checkbox on
+        its tab (``Params.twop_nmf``, off by default) and always computes
+        effective rank. Rather than show two controls for one metric, the box
+        goes quiet in CAT-NAP mode and says where the switch actually is.
+        """
+        catnap = mode_key == "catnap"
+        self._metrics_box.setEnabled(not catnap)
+        self._metrics_box.setTitle(
+            "Network metrics  ·  set on the CAT-NAP tab" if catnap
+            else "Network metrics")
+        set_tooltip(self._metrics_box,
+                    "A CAT-NAP run takes its NMF setting from the CAT-NAP "
+                    "tab, and always computes effective rank, so nothing here "
+                    "is read." if catnap else "")
+
     def retune_lags_for_mode(self, from_mode: str, to_mode: str) -> tuple[int, ...] | None:
         """Move the lags onto *to_mode*'s defaults, unless they were edited.
 
@@ -171,6 +225,8 @@ class ConnectivityPanel(QWidget):
         self.prob_thresh_tail.setValue(params.prob_thresh_tail)
         self.prob_thresh_plot_checks.setChecked(params.prob_thresh_plot_checks)
         self.prob_thresh_plot_checks_n.setValue(params.prob_thresh_plot_checks_n)
+        self.compute_nmf.setChecked(params.compute_nmf)
+        self.compute_eff_rank.setChecked(params.compute_eff_rank)
 
     def save(self, params: Params) -> None:
         params.func_con_lag_val = self._parse_lags()
@@ -179,3 +235,5 @@ class ConnectivityPanel(QWidget):
         params.prob_thresh_tail = self.prob_thresh_tail.value()
         params.prob_thresh_plot_checks = self.prob_thresh_plot_checks.isChecked()
         params.prob_thresh_plot_checks_n = self.prob_thresh_plot_checks_n.value()
+        params.compute_nmf = self.compute_nmf.isChecked()
+        params.compute_eff_rank = self.compute_eff_rank.isChecked()

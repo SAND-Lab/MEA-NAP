@@ -541,7 +541,12 @@ def _step4_compute_one(
     """Phase A worker: compute one recording's network metrics (effRank, NMF,
     per-lag metrics). Module-level/picklable for ``spawn``. Returns the metrics
     keyed by lag (or ``None`` if skipped), the channel array (needed by the
-    plot phase), and the log lines it produced."""
+    plot phase), and the log lines it produced.
+
+    The two dimensionality metrics are the expensive ones here — together most
+    of what this costs — and ``Params.compute_nmf`` / ``compute_eff_rank``
+    switch them off, leaving their fields out of the results the way
+    ``ExtractNetMet.m`` does for a metric absent from ``netMetToCal``."""
     params, rec, output_root_str = task
     output_root = Path(output_root_str)
     locator = build_input_locator(params, output_root)
@@ -565,6 +570,11 @@ def _step4_compute_one(
     # stochastic metrics (Ci/Q/PC-norm/SW/NMF) don't depend on how many
     # workers the pool used or what order recordings completed in.
     rng = make_rng(params.random_seed, "step4", rec.filename)
+    # NMF draws from its own stream, on the same principle as "step4-plots"
+    # below: a metric you switch off must not move the metrics you kept, and
+    # sharing one generator would make Ci/Q/PC/SW depend on whether NMF ran.
+    dimensionality_rng = make_rng(
+        params.random_seed, "step4-dimensionality", rec.filename)
 
     logs.append(f"  [{rec.filename}] loading adjacency matrices...")
     adj_data = np.load(adj_path)
@@ -593,25 +603,37 @@ def _step4_compute_one(
     spike_counts = np.array([len(spike_times_dict[ch]) for ch in range(n_channels)])
     spike_times_list = [spike_times_dict[ch] for ch in range(n_channels)]
 
-    try:
-        eff_rank = nm.effective_rank(
-            spike_times_list, fs, duration_s,
-            params.eff_rank_downsample_freq, params.eff_rank_cal_method
-        )
-    except Exception as e:
-        logs.append(f"  [{rec.filename}] WARNING: could not compute effective rank: {e}")
-        eff_rank = float('nan')
+    # ``None`` means "not asked for" and leaves the field out entirely, as
+    # ExtractNetMet.m does for a metric missing from netMetToCal — distinct
+    # from the NaN a failed computation writes, which says it was tried.
+    eff_rank = None
+    if params.compute_eff_rank:
+        try:
+            eff_rank = nm.effective_rank(
+                spike_times_list, fs, duration_s,
+                params.eff_rank_downsample_freq, params.eff_rank_cal_method
+            )
+        except Exception as e:
+            logs.append(f"  [{rec.filename}] WARNING: could not compute effective rank: {e}")
+            eff_rank = float('nan')
+    else:
+        logs.append(f"  [{rec.filename}] skipping effective rank (switched off)")
 
-    try:
-        logs.append(f"  [{rec.filename}] computing NMF components...")
-        nmf_result = cal_nmf(
-            spike_times_list, spike_counts, duration_s,
-            params.nmf_downsample_freq, fs,
-            include_nmf_components=params.include_nmf_components, rng=rng,
-        )
-    except Exception as e:
-        logs.append(f"  [{rec.filename}] WARNING: could not compute NMF components: {e}")
-        nmf_result = {}
+    nmf_result = {}
+    if params.compute_nmf:
+        try:
+            logs.append(f"  [{rec.filename}] computing NMF components...")
+            nmf_result = cal_nmf(
+                spike_times_list, spike_counts, duration_s,
+                params.nmf_downsample_freq, fs,
+                include_nmf_components=params.include_nmf_components,
+                rng=dimensionality_rng,
+            )
+        except Exception as e:
+            logs.append(f"  [{rec.filename}] WARNING: could not compute NMF components: {e}")
+            nmf_result = {}
+    else:
+        logs.append(f"  [{rec.filename}] skipping NMF components (switched off)")
 
     rec_results: dict = {}
     for lag_ms in lag_values:
@@ -625,7 +647,8 @@ def _step4_compute_one(
             exclude_edges_below_threshold=params.exclude_edges_below_threshold,
             params=params, rng=rng,
         )
-        metrics["effRank"] = eff_rank
+        if eff_rank is not None:
+            metrics["effRank"] = eff_rank
         metrics.update(nmf_result)
         rec_results[f"{lag_ms}mslag"] = metrics
 

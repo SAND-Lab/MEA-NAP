@@ -427,6 +427,9 @@ class MainWindow(QMainWindow):
         apply_mode_to_params(self._mode, params)
         params.twop_activity = self._catnap_panel._activity_combo.currentText()
         self._connectivity_panel.set_timescale(timescale_kind(params))
+        # The dimensionality switches on that tab are the ephys step 4's; say
+        # so when the run about to start is a CAT-NAP one.
+        self._connectivity_panel.set_pipeline(self._mode)
 
     def _refresh_version_label(self) -> None:
         """Show the running mode's version, and all three in the tooltip."""

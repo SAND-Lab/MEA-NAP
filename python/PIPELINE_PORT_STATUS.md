@@ -1535,6 +1535,78 @@ coefficient and small-worldness near-degenerate — and it is also precisely
 what makes these routines quadratic. A shorter lag or a stricter threshold
 would address the science and the runtime together.
 
+### Where the ephys side's time actually goes (2026-08-28)
+
+The dense-network fixes above are in shared modules (`sttc.py`,
+`null_models.py`, `network_metrics.py`) and CAT-NAP calls
+`step4.compute_network_metrics` itself, so the ephys path got all of them for
+free. Re-measuring the documented benchmark dataset (2 recordings, 3 lags,
+200 shuffles, steps 2-4 from prior spike detection):
+
+| Step | 2026-07-09 pass | 2026-08-28 |
+|---|---|---|
+| 3. Functional connectivity | 42.7s | **6.0s** |
+| 4. Network activity | 197.3s | **135.9s** |
+
+The `get_sttc` hoist is worth **4.2x** at 64 channels on real data (26ms ->
+6ms per lag, bit-identical), which is ~24s of step 3's drop; it runs 201 times
+per lag per recording.
+
+What the density fixes could *not* do much for is the metrics themselves: a
+real ephys network here is 64 nodes at **density 0.10**, the opposite end from
+the 0.86-1.00 that made those routines quadratic. Every network metric for
+both recordings and all three lags now costs **6.6s**. The remaining named
+candidates (`randmio_und_v2`/`latmio_und_v2` under numba) are 0.19s per
+recording per 3 lags — worth having at CAT-NAP scale, not here.
+
+**The ephys hotspot is the two dimensionality metrics.** Same dataset, step 4
+only, express, one worker:
+
+| Step 4 compute | Time |
+|---|---|
+| with NMF + effective rank | 69.5s |
+| without | **6.6s** |
+
+i.e. 90% of it, for two fields, one of which (`num_nnmf_components`) is not
+even algorithm-identical to MATLAB's (see `nmf.py`). Per recording: NMF 27.5s,
+effective rank 4.4s, every network metric 3.7s.
+
+### Switching the dimensionality metrics off (`compute_nmf` / `compute_eff_rank`, 2026-08-28)
+
+`ExtractNetMet.m` gates both on `Params.netMetToCal`; this port declares
+`net_met_to_cal` and has never read it. Gating on that list now would be a
+trap: every `params.json` ever written carries a copy of its old default,
+which lists neither metric, so reproducing an old run would silently switch
+NMF off. Hence two fields of their own, both defaulting to what the pipeline
+has always done. Measured effect on the benchmark dataset: step 4's compute
+**69.5s -> 6.6s**.
+
+Off means the fields are **absent**, matching MATLAB (a metric missing from
+`netMetToCal` is never assigned) and leaving NaN to mean what it always did —
+computed, and undefined. The recording-level CSV loses exactly those columns;
+`_plot_violin` already skips a metric that is not in the frame.
+
+**One behavioural change comes with this.** NMF drew from the same generator
+as the network metrics, so switching it off would have moved `Ci`/`Q`/`PC`/
+`SW` — a metric you remove must not move the metrics you keep. It now draws
+from `make_rng(seed, "step4-dimensionality", filename)`, the same separation
+`"step4-plots"` already used, and CAT-NAP has structurally (its
+lag-independent metrics run in the producer, its network metrics in a worker
+with its own stream). The consequence: **seeded ephys runs from before this
+commit reproduce different `Ci`/`Q`/`PC`/`SW` values**, because those metrics
+no longer inherit a stream that NMF had drawn from first. Nothing
+deterministic changes, and no MATLAB parity fixture is affected (they cover
+the deterministic metrics only).
+
+CAT-NAP is untouched: it keeps `twop_nmf` (default off) and always computes
+effective rank. The Connectivity tab's new "Network metrics" box says so and
+goes quiet in CAT-NAP mode, rather than offering a second switch for one
+metric.
+
+Checked by `python/test_step4_optional_metrics.py`: the call is genuinely not
+made, the fields are absent rather than NaN, and every other metric is
+bit-for-bit what the full run produced.
+
 ### Express mode — same dataset, figures skipped (2026-08-06)
 
 `python/benchmark_express.py` re-runs the *same* dataset and config as the
