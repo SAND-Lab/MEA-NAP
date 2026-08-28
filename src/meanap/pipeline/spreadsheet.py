@@ -44,16 +44,20 @@ def parse_spreadsheet_range(range_str: str) -> tuple[int, int]:
     return int(match.group(1)), int(match.group(2))
 
 
+def _range_slice(n_rows: int, spreadsheet_range: str) -> tuple[int, int]:
+    """The 0-indexed ``[start, end)`` data rows *spreadsheet_range* selects."""
+    start_line, end_line = parse_spreadsheet_range(spreadsheet_range)
+    return max(start_line - 2, 0), min(end_line - 1, n_rows)
+
+
 def read_recording_csv(path: str | Path, spreadsheet_range: str) -> list[RecordingInfo]:
     """Read the recording list CSV.
 
     Expects columns: Recording Filename, DIV group, Genotype, [Ground].
     """
-    start_line, end_line = parse_spreadsheet_range(spreadsheet_range)
     df = pd.read_csv(path, header=0)
 
-    start_idx = max(start_line - 2, 0)
-    end_idx = min(end_line - 1, len(df))
+    start_idx, end_idx = _range_slice(len(df), spreadsheet_range)
     subset = df.iloc[start_idx:end_idx]
 
     has_ground = subset.shape[1] >= 4
@@ -80,6 +84,23 @@ def infer_div(name: str) -> float | None:
     """The DIV a recording's name states, or ``None`` if it doesn't state one."""
     match = _DIV_RE.search(name)
     return float(match.group(1)) if match else None
+
+
+def read_recording_names(path: str | Path,
+                         spreadsheet_range: str = "A2:A100000") -> list[str]:
+    """The recording names *path* lists within *spreadsheet_range*.
+
+    Names only, read as text, so this still works on a sheet whose DIV and
+    genotype columns are blank — :func:`read_recording_csv` would refuse that
+    one, and a batch is usually named before it is annotated. Blank rows drop
+    out, since a blank name matches no folder.
+    """
+    table = read_recording_table(path)
+    if table.empty or table.shape[1] < 1:
+        return []
+    start, end = _range_slice(len(table), spreadsheet_range)
+    names = table.iloc[start:end, 0].astype(str).str.strip()
+    return [n for n in names if n and n.lower() != "nan"]
 
 
 def new_recording_table(names, *, ground: bool = False) -> pd.DataFrame:

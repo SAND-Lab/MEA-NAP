@@ -18,7 +18,10 @@ What it checks:
   - a spreadsheet built from a scan carries the exact folder names, DIVs read
     out of them, and blank groups (never guessed);
   - the editor round-trips a file, validates while editing, and saves what the
-    pipeline's reader then reads back.
+    pipeline's reader then reads back;
+  - the scan can list only the recordings the batch spreadsheet names over its
+    set range, and falls back to showing everything when there is no
+    spreadsheet to filter against.
 """
 
 from __future__ import annotations
@@ -352,6 +355,104 @@ def _editor_checks(app) -> list[Check]:
 
 # ── The panel end to end ──────────────────────────────────────────────────────
 
+def _filter_checks(app) -> list[Check]:
+    """The scan listing only the recordings the batch spreadsheet names."""
+    from PyQt6.QtCore import QSettings
+    from meanap.gui.panels.catnap import CatNapPanel, _FILTER_PREF_KEY
+
+    settings = QSettings("SAND Lab", "MEA-NAP")
+    saved_pref = settings.value(_FILTER_PREF_KEY, False)
+
+    checks: list[Check] = []
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        _make_local_dataset(root)
+        # A third folder the spreadsheet doesn't list, and one it lists under a
+        # shorter name than the folder carries — the real dataset's shape.
+        (root / "slice3_DIV28" / "suite2p" / "plane0").mkdir(parents=True)
+        (root / "slice3_DIV28" / "suite2p" / "plane0" / "stat.npy").touch()
+
+        sheet = root / "recordings.csv"
+        sheet.write_text("Recording Filename,DIV group,Genotype\n"
+                         "slice1_DIV14,14,WT\n"
+                         "slice3_DIV28,28,KO\n"
+                         "ghost_DIV7,7,WT\n")
+
+        panel = CatNapPanel()
+        panel.spreadsheet_source = lambda: (str(sheet), "A2:A100000")
+        panel._folder_edit.setText(str(root))
+
+        panel._sheet_filter.setChecked(False)
+        panel._on_scan()
+        panel._scan_worker.wait(10_000)
+        app.processEvents()
+        checks.append(("unfiltered, every suite2p folder is listed",
+                       panel._recording_list.count() == 3,
+                       str([r.name for r in panel._recordings])))
+
+        panel._sheet_filter.setChecked(True)
+        app.processEvents()
+        listed = [r.name for r in panel._recordings]
+        checks.append(("filtered, only the spreadsheet's recordings are listed",
+                       listed == ["slice1_DIV14", "slice3_DIV28"], str(listed)))
+        checks.append(("the list widget shows exactly those",
+                       panel._recording_list.count() == 2,
+                       str(panel._recording_list.count())))
+        checks.append(("the log says how many were hidden",
+                       "showing 2, hiding 1" in panel._log.toPlainText(),
+                       panel._log.toPlainText()[-200:]))
+        checks.append(("a spreadsheet row with no folder is called out",
+                       "ghost_DIV7" in panel._log.toPlainText(),
+                       panel._log.toPlainText()[-200:]))
+
+        # The range is the *set* range, not the whole file.
+        panel.spreadsheet_source = lambda: (str(sheet), "A2:A2")
+        panel._apply_sheet_filter()
+        checks.append(("the set range limits which rows count",
+                       [r.name for r in panel._recordings] == ["slice1_DIV14"],
+                       str([r.name for r in panel._recordings])))
+
+        # A folder that gained a trailing word still matches its row.
+        (root / "slice1_DIV14").rename(root / "slice1_DIV14 David Oluigbo")
+        panel.spreadsheet_source = lambda: (str(sheet), "A2:A100000")
+        panel._on_scan()
+        panel._scan_worker.wait(10_000)
+        app.processEvents()
+        checks.append(("a suffixed folder name still matches its row",
+                       [r.name for r in panel._recordings]
+                       == ["slice1_DIV14 David Oluigbo", "slice3_DIV28"],
+                       str([r.name for r in panel._recordings])))
+
+        # Nothing to filter against must not empty the list — that would look
+        # exactly like a scan that found nothing.
+        panel.spreadsheet_source = lambda: ("", "A2:A100000")
+        panel._apply_sheet_filter()
+        checks.append(("no spreadsheet set shows everything, and says so",
+                       panel._recording_list.count() == 3
+                       and "No spreadsheet set" in panel._log.toPlainText(),
+                       str(panel._recording_list.count())))
+
+        panel.spreadsheet_source = lambda: (str(root / "nope.csv"), "A2:A100000")
+        panel._apply_sheet_filter()
+        checks.append(("an unreadable spreadsheet shows everything, and says so",
+                       panel._recording_list.count() == 3
+                       and "Can't read the spreadsheet" in panel._log.toPlainText(),
+                       str(panel._recording_list.count())))
+
+        panel.spreadsheet_source = lambda: (str(sheet), "not-a-range")
+        panel._apply_sheet_filter()
+        checks.append(("a malformed range shows everything rather than failing",
+                       panel._recording_list.count() == 3, ""))
+
+        # The choice is a view preference, remembered across sessions.
+        checks.append(("the choice is remembered outside the run's params",
+                       bool(settings.value(_FILTER_PREF_KEY)) is True,
+                       str(settings.value(_FILTER_PREF_KEY))))
+
+    settings.setValue(_FILTER_PREF_KEY, saved_pref)
+    return checks
+
+
 def _panel_checks(app) -> list[Check]:
     from meanap.catnap.scanner import Suite2pRecording
     from meanap.gui.panels.catnap import CatNapPanel
@@ -428,7 +529,8 @@ def main() -> int:
     else:
         app = QApplication.instance() or QApplication([])
         for title, build in [("Spreadsheet editor:", _editor_checks),
-                             ("CAT-NAP panel:", _panel_checks)]:
+                             ("CAT-NAP panel:", _panel_checks),
+                             ("Spreadsheet filter:", _filter_checks)]:
             p, n = _report(title, build(app))
             total_pass += p
             total += n

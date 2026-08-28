@@ -309,6 +309,14 @@ class MainWindow(QMainWindow):
         self._run_panel.log.setAcceptDrops(False)
         self._catnap_panel._log.setAcceptDrops(False)
 
+        # The scan can hide folders the batch spreadsheet leaves out, which
+        # means reading the Data tab's spreadsheet as it stands when the scan
+        # finishes — not as it was when the panels were built.
+        self._catnap_panel.spreadsheet_source = lambda: (
+            self._data_panel.spreadsheet.value,
+            self._data_panel.spreadsheet_range.text(),
+        )
+
         # A spreadsheet built from a scan describes the recordings the run is
         # about to read, so point the run at it rather than leaving the user to
         # copy the path across tabs.

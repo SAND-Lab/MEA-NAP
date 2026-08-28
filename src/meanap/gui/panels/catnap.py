@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Callable
 
 import numpy as np
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
@@ -32,6 +33,26 @@ MODE_EI = "Excitatory vs inhibitory"
 MODE_CUSTOM = "Custom groups"
 MODE_EXPRESSIONS = "Custom groups (expressions)"
 GROUP_MODES = [MODE_PER_MARKER, MODE_EI, MODE_CUSTOM, MODE_EXPRESSIONS]
+
+
+#: Whether the scan lists only spreadsheet-listed recordings. A view preference
+#: rather than a run setting, so it lives in QSettings beside the other ones and
+#: never lands in a run's params.json.
+_FILTER_PREF_KEY = "catnap/scan_spreadsheet_only"
+
+
+def _load_filter_pref() -> bool:
+    from PyQt6.QtCore import QSettings
+    value = QSettings("SAND Lab", "MEA-NAP").value(_FILTER_PREF_KEY, False)
+    # QSettings hands back the string "false" on some platforms.
+    if isinstance(value, str):
+        return value.lower() in ("true", "1", "yes")
+    return bool(value)
+
+
+def _save_filter_pref(enabled: bool) -> None:
+    from PyQt6.QtCore import QSettings
+    QSettings("SAND Lab", "MEA-NAP").setValue(_FILTER_PREF_KEY, bool(enabled))
 
 
 # ── Background worker threads ─────────────────────────────────────────────────
@@ -179,6 +200,15 @@ class CatNapPanel(QWidget):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
 
+        #: Returns ``(spreadsheet path, range)`` as the Data tab has them right
+        #: now. Set by the main window; a panel built on its own filters
+        #: against nothing, which is what "no spreadsheet set" already means.
+        self.spreadsheet_source: Callable[[], tuple[str, str]] | None = None
+
+        # What the last scan found, and what the list is currently showing —
+        # the two differ when the spreadsheet filter is on, and keeping both
+        # means toggling it re-filters without re-walking the folders.
+        self._all_recordings: list[Suite2pRecording] = []
         self._recordings: list[Suite2pRecording] = []
         self._current_data: Suite2pData | None = None
         self._current_plane0: str = ""
@@ -231,6 +261,20 @@ class CatNapPanel(QWidget):
         self._scan_btn = QPushButton("Scan for suite2p folders")
         self._scan_btn.clicked.connect(self._on_scan)
 
+        # A data folder is often a superset of the batch — other experiments,
+        # earlier plates, recordings deliberately left out. This lists only the
+        # ones the run will actually read, so what is on screen and what the
+        # pipeline does cannot disagree.
+        self._sheet_filter = QCheckBox("Only show recordings in the spreadsheet")
+        self._sheet_filter.setToolTip(
+            "Hide any suite2p folder the Data tab's spreadsheet does not list "
+            "over its Spreadsheet range — the same rows a run reads. A folder "
+            "whose name gained a trailing word still matches its row.\n"
+            "With no spreadsheet set, every recording found is shown."
+        )
+        self._sheet_filter.setChecked(_load_filter_pref())
+        self._sheet_filter.toggled.connect(self._on_sheet_filter_toggled)
+
         self._recording_list = QListWidget()
         self._recording_list.currentRowChanged.connect(self._on_recording_selected)
 
@@ -245,6 +289,7 @@ class CatNapPanel(QWidget):
 
         scan_layout.addLayout(folder_row)
         scan_layout.addWidget(self._scan_btn)
+        scan_layout.addWidget(self._sheet_filter)
         scan_layout.addWidget(QLabel("Found recordings:"))
         scan_layout.addWidget(self._recording_list)
         scan_layout.addWidget(self._make_sheet_btn)
@@ -502,13 +547,7 @@ class CatNapPanel(QWidget):
         self._log_msg(f"Scan failed: {message}")
 
     def _on_scan_done(self, recordings: list[Suite2pRecording]) -> None:
-        self._recordings = recordings
-        self._recording_list.clear()
-        for rec in recordings:
-            icon = "✓" if rec.has_denoised else "○"
-            item = QListWidgetItem(f"{icon}  {rec.name}")
-            self._recording_list.addItem(item)
-
+        self._all_recordings = recordings
         self._log_msg(f"Found {len(recordings)} suite2p recording(s).")
         if not recordings:
             self._log_msg("  Each recording should be its own sub-folder holding "
@@ -518,11 +557,85 @@ class CatNapPanel(QWidget):
             self._log_msg("  These live behind the share link — the pipeline "
                           "fetches them one at a time when it runs. Trace preview "
                           "and denoising here need a local folder.")
-        self._make_sheet_btn.setEnabled(bool(recordings))
+
+        self._apply_sheet_filter()
         self._scan_btn.setEnabled(True)
         # Pick up cell-type markers as soon as we know where the recordings are,
         # so the group editor is usable without a separate click.
         self._load_markers()
+
+    # ── Showing only what the spreadsheet lists ───────────────────────────────
+
+    def _on_sheet_filter_toggled(self, checked: bool) -> None:
+        _save_filter_pref(checked)
+        if self._all_recordings:
+            self._apply_sheet_filter()
+
+    def _apply_sheet_filter(self) -> None:
+        """Re-list the scan, hiding recordings the spreadsheet leaves out."""
+        recordings = self._all_recordings
+        if self._sheet_filter.isChecked():
+            recordings = self._filter_to_spreadsheet(recordings)
+
+        self._recordings = recordings
+        self._recording_list.clear()
+        for rec in recordings:
+            icon = "✓" if rec.has_denoised else "○"
+            self._recording_list.addItem(QListWidgetItem(f"{icon}  {rec.name}"))
+        self._make_sheet_btn.setEnabled(bool(recordings))
+
+    def _filter_to_spreadsheet(
+        self, recordings: list[Suite2pRecording],
+    ) -> list[Suite2pRecording]:
+        """*recordings* narrowed to the rows the spreadsheet lists, if it can be
+        read. Anything that stops it being read — no spreadsheet set, a missing
+        file, a bad range — leaves the scan as it is and says so, since hiding
+        every recording would look like a scan that found nothing.
+        """
+        from meanap.pipeline.spreadsheet import (
+            match_recording_name, read_recording_names,
+        )
+
+        path, sheet_range = ("", "")
+        if self.spreadsheet_source is not None:
+            path, sheet_range = self.spreadsheet_source()
+        path = (path or "").strip()
+        sheet_range = (sheet_range or "A2:A100000").strip() or "A2:A100000"
+
+        if not path:
+            self._log_msg("  No spreadsheet set on the Data tab — showing every "
+                          "recording found.")
+            return recordings
+        if is_remote_url(path) or not Path(path).is_file():
+            self._log_msg(f"  Can't read the spreadsheet ({path}) — showing every "
+                          "recording found.")
+            return recordings
+        try:
+            names = read_recording_names(path, sheet_range)
+        except Exception as e:
+            self._log_msg(f"  Can't read the spreadsheet ({e}) — showing every "
+                          "recording found.")
+            return recordings
+
+        kept, unmatched = [], list(names)
+        for rec in recordings:
+            hit = match_recording_name(rec.name, names)
+            if hit is None:
+                continue
+            kept.append(rec)
+            if hit in unmatched:
+                unmatched.remove(hit)
+
+        hidden = len(recordings) - len(kept)
+        self._log_msg(f"  Spreadsheet ({Path(path).name}, rows {sheet_range}) lists "
+                      f"{len(names)}: showing {len(kept)}, hiding {hidden}.")
+        if unmatched:
+            # The failure this exists to surface: a row whose name matches no
+            # folder is a recording the run will silently skip.
+            shown = ", ".join(unmatched[:3]) + (" …" if len(unmatched) > 3 else "")
+            self._log_msg(f"  {len(unmatched)} spreadsheet row(s) match no folder "
+                          f"here: {shown}")
+        return kept
 
     def _on_recording_selected(self, row: int) -> None:
         if row < 0 or row >= len(self._recordings):
