@@ -20,9 +20,12 @@ button, disabled while anything is running, so "start a single run during the
 queue" stops being a state the window has to refuse and starts being a state it
 cannot reach.
 
-The two pages hold only what is genuinely different: the pipeline's settings
-(:class:`~meanap.gui.panels.pipeline.PipelinePanel`) and the queue's list of
-saved runs (:class:`~meanap.gui.panels.queue.QueuePanel`).
+The pages hold only what is genuinely different: the pipeline's settings
+(:class:`~meanap.gui.panels.pipeline.PipelinePanel`), the queue's list of
+saved runs (:class:`~meanap.gui.panels.queue.QueuePanel`), and — the third
+answer to *what does Run start?* — this run shared out across several
+computers (:class:`~meanap.gui.panels.shared.SharedRunPanel`), where Start is
+the same button again.
 """
 
 from __future__ import annotations
@@ -34,13 +37,14 @@ from PyQt6.QtWidgets import (
 
 from meanap.gui.panels.pipeline import PipelinePanel
 from meanap.gui.panels.queue import QueuePanel
+from meanap.gui.panels.shared import SharedRunPanel
 from meanap.params import Params
 from meanap.pipeline.progress import Progress, format_bytes, format_duration
 
-__all__ = ["RunPanel", "THIS_RUN", "QUEUE"]
+__all__ = ["RunPanel", "THIS_RUN", "QUEUE", "SHARED"]
 
 #: What the Run button will start.
-THIS_RUN, QUEUE = "this_run", "queue"
+THIS_RUN, QUEUE, SHARED = "this_run", "queue", "shared"
 
 
 class RunPanel(QWidget):
@@ -57,6 +61,11 @@ class RunPanel(QWidget):
         self.settings = PipelinePanel()
         self.queue = QueuePanel()
         self.queue.log_message.connect(self.append_log)
+        # The third page: this run, but with the recordings shared out across
+        # several computers through a common folder.
+        self.shared = SharedRunPanel()
+        self.shared.log_message.connect(self.append_log)
+        self.shared.changed.connect(self._relabel_run)
 
         layout.addWidget(self._build_switch())
         layout.addWidget(self._build_stack(), stretch=5)
@@ -82,14 +91,21 @@ class RunPanel(QWidget):
             "Work through several saved parameter files one after another — "
             "for a set of analyses to leave running overnight."
         )
+        self.shared_radio = QRadioButton("Shared with other computers")
+        self.shared_radio.setToolTip(
+            "Split this run's recordings across several computers that share "
+            "a folder (Dropbox, a network drive…), and pool the results here."
+        )
         self._group = QButtonGroup(self)
         self._group.addButton(self.this_run_radio)
         self._group.addButton(self.queue_radio)
+        self._group.addButton(self.shared_radio)
         self._group.buttonToggled.connect(self._on_switch)
 
         layout.addWidget(QLabel("<b>Run:</b>"))
         layout.addWidget(self.this_run_radio)
         layout.addWidget(self.queue_radio)
+        layout.addWidget(self.shared_radio)
         layout.addStretch()
         return row
 
@@ -104,6 +120,7 @@ class RunPanel(QWidget):
         self._stack = QStackedWidget()
         self._stack.addWidget(scroll)
         self._stack.addWidget(self.queue)
+        self._stack.addWidget(self.shared)
         return self._stack
 
     def _build_controls(self) -> QWidget:
@@ -177,27 +194,41 @@ class RunPanel(QWidget):
     # ── The switch ────────────────────────────────────────────────────────────
 
     def mode(self) -> str:
-        """:data:`THIS_RUN` or :data:`QUEUE` — what Run would start."""
-        return QUEUE if self.queue_radio.isChecked() else THIS_RUN
+        """:data:`THIS_RUN`, :data:`QUEUE` or :data:`SHARED` — what Run would start."""
+        if self.queue_radio.isChecked():
+            return QUEUE
+        if self.shared_radio.isChecked():
+            return SHARED
+        return THIS_RUN
 
     def set_mode(self, mode: str) -> None:
-        (self.queue_radio if mode == QUEUE else self.this_run_radio).setChecked(True)
+        {QUEUE: self.queue_radio, SHARED: self.shared_radio}.get(
+            mode, self.this_run_radio).setChecked(True)
 
     def _on_switch(self, *_args) -> None:
-        queued = self.mode() == QUEUE
-        self._stack.setCurrentIndex(1 if queued else 0)
-        # Testing the setup is about *a* run, so it says nothing useful about
-        # a list of them.
-        self.test_btn.setVisible(not queued)
+        mode = self.mode()
+        self._stack.setCurrentIndex({THIS_RUN: 0, QUEUE: 1, SHARED: 2}[mode])
+        # Testing the setup is about *a* run on *this* computer, so it says
+        # nothing useful about a list of them, or about several computers.
+        self.test_btn.setVisible(mode == THIS_RUN)
         self._relabel_run()
 
     def _relabel_run(self) -> None:
-        if self.mode() == QUEUE:
+        mode = self.mode()
+        self.run_btn.setToolTip("")
+        if mode == QUEUE:
             n = len(self.queue.paths())
             self.run_btn.setText(
                 f"▶  Run queue ({n})" if n else "▶  Run queue")
             # An empty queue has nothing to start; a pipeline run always has.
             self.run_btn.setEnabled(bool(n) and not self._running)
+        elif mode == SHARED:
+            # The shared page knows whether there is anything to start: a
+            # helper never starts, and a main computer needs company first.
+            label, enabled, tip = self.shared.run_button_state()
+            self.run_btn.setText(label)
+            self.run_btn.setEnabled(enabled and not self._running)
+            self.run_btn.setToolTip(tip)
         else:
             self.run_btn.setText("▶  Run pipeline")
             self.run_btn.setEnabled(not self._running)
@@ -219,6 +250,7 @@ class RunPanel(QWidget):
         self.test_btn.setEnabled(not running)
         # Editing the queue mid-flight would change a list that is being read.
         self.queue.set_editable(not running)
+        self.shared.set_running(running)
         self._relabel_run()
 
     # ── Progress display ──────────────────────────────────────────────────────

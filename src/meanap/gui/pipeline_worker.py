@@ -11,7 +11,6 @@ the receiver's thread automatically), and exposes a cooperative
 
 from __future__ import annotations
 
-from pathlib import Path
 
 from PyQt6.QtCore import QThread, pyqtSignal
 
@@ -128,3 +127,95 @@ class QueueWorker(QThread):
         if result.cancelled or any(o.status == "skipped" for o in result.outcomes):
             summary += ", stopped early"
         self.finished_all.emit(summary)
+
+
+class SharedMainWorker(QThread):
+    """The main computer's side of a shared run, in the background.
+
+    Its own share, the wait for the helpers, the pooling, the batch-wide run
+    — see :func:`meanap.shared.roles.run_main`. Two requests can come from
+    the UI: ``request_cancel`` (Stop) and ``request_finish_now`` (stop waiting
+    for the others; whatever they have not done is analysed here).
+    """
+
+    log_message = pyqtSignal(str)
+    progress = pyqtSignal(object)
+    finished_ok = pyqtSignal(object)  # the pooled output root: Path
+    cancelled = pyqtSignal()
+    failed = pyqtSignal(str)
+
+    def __init__(self, workspace, machine_name: str, output_folder: str,
+                 output_name: str, raw_data: str | None = None, parent=None) -> None:
+        super().__init__(parent)
+        self._ws = workspace
+        self._name = machine_name
+        self._output_folder = output_folder
+        self._output_name = output_name
+        self._raw_data = raw_data
+        self._cancel_requested = False
+        self._finish_now = False
+
+    def request_cancel(self) -> None:
+        self._cancel_requested = True
+
+    def request_finish_now(self) -> None:
+        self._finish_now = True
+
+    def run(self) -> None:  # noqa: D401 - QThread entry point
+        from meanap.shared.roles import run_main
+
+        try:
+            root = run_main(
+                self._ws, self._name,
+                output_data_folder=self._output_folder,
+                output_data_folder_name=self._output_name,
+                raw_data=self._raw_data,
+                log=self.log_message.emit,
+                should_cancel=lambda: self._cancel_requested,
+                progress=self.progress.emit,
+                finish_now=lambda: self._finish_now,
+            )
+        except PipelineCancelled:
+            self.cancelled.emit()
+        except Exception as exc:                          # noqa: BLE001
+            self.failed.emit(str(exc))
+        else:
+            self.finished_ok.emit(root)
+
+
+class SharedHelperWorker(QThread):
+    """A helper's side of a shared run: wait to be started, do the share."""
+
+    log_message = pyqtSignal(str)
+    progress = pyqtSignal(object)
+    finished_ok = pyqtSignal(str)     # the machine's final status
+    cancelled = pyqtSignal()
+    failed = pyqtSignal(str)
+
+    def __init__(self, workspace, machine_name: str, raw_data: str | None = None,
+                 parent=None) -> None:
+        super().__init__(parent)
+        self._ws = workspace
+        self._name = machine_name
+        self._raw_data = raw_data
+        self._cancel_requested = False
+
+    def request_cancel(self) -> None:
+        self._cancel_requested = True
+
+    def run(self) -> None:  # noqa: D401 - QThread entry point
+        from meanap.shared.roles import run_helper
+
+        try:
+            status = run_helper(
+                self._ws, self._name, raw_data=self._raw_data,
+                log=self.log_message.emit,
+                should_cancel=lambda: self._cancel_requested,
+                progress=self.progress.emit,
+            )
+        except PipelineCancelled:
+            self.cancelled.emit()
+        except Exception as exc:                          # noqa: BLE001
+            self.failed.emit(str(exc))
+        else:
+            self.finished_ok.emit(status)
