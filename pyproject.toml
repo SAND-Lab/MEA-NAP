@@ -33,6 +33,10 @@ dependencies = [
     "pyqtdarktheme>=2.1.0",
     "seaborn>=0.13.2",
     "scikit-learn>=1.4",
+    # Mixed-effects models for the stats step: age/genotype comparisons need
+    # random intercepts per culture, because the same culture is imaged at
+    # several DIVs and its recordings are not independent samples.
+    "statsmodels>=0.14",
 ]
 
 [project.optional-dependencies]
@@ -54,6 +58,7 @@ oasis = [
 meanap-gui = "meanap.gui.app:main"
 meanap-viewer = "meanap.viewer.server:main"
 meanap-preflight = "meanap.remote.cli:main"
+meanap-stats = "meanap.stats.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/meanap"]

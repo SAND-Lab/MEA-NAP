@@ -40,6 +40,7 @@ TAB_STIM_PREVIEW = "stim_preview"
 TAB_CATNAP = "catnap"
 TAB_RESULTS = "results"
 TAB_RUN = "run"
+TAB_STATS = "stats"
 
 
 @dataclass(frozen=True)
@@ -64,7 +65,8 @@ class Mode:
     default_lags: tuple[int, ...] = (10, 15, 25)
 
 
-_EPHYS_TABS = (TAB_DATA, TAB_SPIKE, TAB_CONNECTIVITY, TAB_RUN, TAB_RESULTS)
+_EPHYS_TABS = (TAB_DATA, TAB_SPIKE, TAB_CONNECTIVITY, TAB_RUN, TAB_RESULTS,
+               TAB_STATS)
 
 MODES: dict[str, Mode] = {
     "meanap": Mode(
@@ -85,7 +87,7 @@ MODES: dict[str, Mode] = {
         label="CAT-NAP  ·  2P imaging",
         blurb="Network analysis of two-photon calcium imaging processed with suite2p.",
         tabs=frozenset((TAB_DATA, TAB_CONNECTIVITY, TAB_CATNAP,
-                        TAB_RUN, TAB_RESULTS)),
+                        TAB_RUN, TAB_RESULTS, TAB_STATS)),
         suite2p_mode=True,
         # What the MATLAB 2P runs use (see python/CATNAP_PORT_PLAN.md).
         default_lags=(1000, 2500, 5000),

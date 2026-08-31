@@ -51,7 +51,8 @@ from meanap.pipeline.render import (
     available_spike_check_figures, render_spike_check_figure, figure_variants,
     available_edge_check_lags, render_edge_check_figure,
     available_subnetwork_figures, render_subnetwork_figure,
-    available_group_families, available_lag_series, cached_comparison_figure,
+    available_group_families, available_lag_series, available_stats_figures,
+    available_stats_lags, cached_comparison_figure, cached_stats_figure,
     cached_figure, cached_lag_series_figure, comparison_axes, gallery, load_context,
     render_activity_figure,
     available_trace_figures, trace_figure_path,
@@ -154,6 +155,7 @@ class ViewerService:
                          for f in available_group_families(self.ctx)],
             "comparisons": self.comparisons(),
             "lag_series": self.lag_series(),
+            "stats": self.stats(),
             # The settings this run used, grouped and with the non-defaults
             # marked. From the bundle's own params.json, which is already
             # redacted at write time; summarise_params redacts again for a
@@ -214,6 +216,44 @@ class ViewerService:
                 "splits": [{"key": s.key, "label": s.label} for s in axes.splits],
             })
         return out
+
+    def stats(self) -> list[dict]:
+        """The step-5 figures, grouped by analysis, one entry per lag.
+
+        Empty when the run has never been through the statistics step, and the
+        tab is then hidden rather than shown offering nothing. The figures are
+        redrawn from the tables the step wrote, which a bundle carries in full,
+        so this works on a bundle exactly as on a folder.
+        """
+        from meanap.stats.figures import FIGURE_GROUPS
+
+        labels = {key: label for key, label, _prefix in FIGURE_GROUPS}
+        out = []
+        for lag in available_stats_lags(self.ctx):
+            figures = available_stats_figures(self.ctx, lag)
+            if not figures:
+                continue
+            groups: list[dict] = []
+            for key, label, _prefix in FIGURE_GROUPS:
+                members = [f for f in figures if f.group == key]
+                if members:
+                    groups.append({
+                        "key": key, "label": labels.get(key, key),
+                        "figures": [{"key": f.key, "label": f.label,
+                                     "caption": f.caption} for f in members],
+                    })
+            out.append({"lag": lag, "groups": groups})
+        return out
+
+    def stats_figure(self, lag: str, key: str, *, fmt: str, thumbnail: bool,
+                     overrides: dict) -> Path:
+        """One statistics figure, by lag and key. Cached like the rest."""
+        path, _ = cached_stats_figure(
+            self.ctx, self.cache, lag, key, fmt=fmt,
+            dpi=DEFAULT_THUMBNAIL_DPI if thumbnail else None,
+            overrides=overrides or None,
+        )
+        return path
 
     def lag_series(self) -> list[dict]:
         """The across-lag sets: graph metrics vs lag, and cartography per lag.
@@ -418,6 +458,8 @@ class _Handler(BaseHTTPRequestHandler):
                 self._comparison(query)
             elif parsed.path == "/api/lagseries":
                 self._lag_series(query)
+            elif parsed.path == "/api/stats":
+                self._stats(query)
             elif parsed.path == "/api/family":
                 self._json(self.service.family(
                     _one(query, "key"), fmt=_fmt(query)))
@@ -497,6 +539,16 @@ class _Handler(BaseHTTPRequestHandler):
         path = self.service.comparison(
             _one(query, "family"), _one(query, "level"), _one(query, "split"),
             _one(query, "metric"), lag=_optional_int(query, "lag"), fmt=fmt,
+            thumbnail=query.get("thumb", ["0"])[0] == "1",
+            overrides=parse_comparison_overrides(query),
+        )
+        download = query.get("download", ["0"])[0] == "1"
+        self._file(path, download_as=path.name if download else None)
+
+    def _stats(self, query) -> None:
+        fmt = _fmt(query)
+        path = self.service.stats_figure(
+            _one(query, "lag"), _one(query, "key"), fmt=fmt,
             thumbnail=query.get("thumb", ["0"])[0] == "1",
             overrides=parse_comparison_overrides(query),
         )

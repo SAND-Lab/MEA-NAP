@@ -87,6 +87,19 @@ _RECONSTRUCTABLE_DIRS = (
     "1_SpikeDetection/1B_SpikeDetectionChecks",
 )
 
+#: Folders whose *data* travels but whose figures do not. Unlike
+#: :data:`_RECONSTRUCTABLE_DIRS`, which drops a folder entirely because the data
+#: behind it lives elsewhere, these hold both: the statistics step writes its
+#: results as CSVs *and* as figures into one folder, and every figure is a pure
+#: function of the CSVs beside it (see :mod:`meanap.stats.figures`). Carrying
+#: the CSVs is ~100 kB against ~4 MB of PNGs for the same information.
+_DATA_ONLY_DIRS = (
+    "5_StatsAndML",
+)
+
+#: Extensions treated as figures under :data:`_DATA_ONLY_DIRS`.
+_FIGURE_SUFFIXES = frozenset({".png", ".jpg", ".jpeg", ".svg", ".pdf", ".eps"})
+
 #: Figure families a viewer can rebuild from a bundle. Must correspond to what
 #: :mod:`meanap.pipeline.render` actually implements — ``test_bundle_render.py``
 #: asserts that, because a manifest that overclaims is worse than one that says
@@ -104,6 +117,7 @@ RECONSTRUCTABLE_FAMILIES = (
     "1B_spike_detection_checks",    # ephys: example traces, frequencies, waveforms
     "3_edge_threshold_checks",      # ephys: probabilistic-thresholding stability
     "cell_type_subnetwork_per_rec",  # CAT-NAP: per-recording subnetwork figures
+    "5_stats",                      # step 5: comparisons, structure, decoding, attribution
 )
 
 #: Figure families express mode drops that the viewer cannot rebuild, so they
@@ -257,7 +271,31 @@ def _keep_as_images(root: Path) -> tuple[str, ...]:
 def _is_reconstructable_member(rel: Path, keep: tuple[str, ...] = ()) -> bool:
     posix = rel.as_posix()
     dirs = tuple(d for d in _RECONSTRUCTABLE_DIRS if d not in keep)
-    return any(posix.startswith(d) for d in dirs)
+    if any(posix.startswith(d) for d in dirs):
+        return True
+    # Data-only folders keep everything that is not a picture.
+    return (any(posix.startswith(d) for d in _DATA_ONLY_DIRS)
+            and rel.suffix.lower() in _FIGURE_SUFFIXES)
+
+
+def _claim_stats(manifest: dict, root: Path) -> dict:
+    """Say the bundle carries step-5 figures, when the folder has step-5 data.
+
+    ``reconstructable`` is otherwise a static list of what this *version* can
+    rebuild, filled in by :func:`build_manifest`. The statistics step runs after
+    a run finishes, though, so a folder is often bundled again once it has been
+    through it — carrying a manifest built before the folder had any statistics
+    in it. Topping the list up here means that re-bundle does not under-report
+    what it contains.
+    """
+    if not any((root / "5_StatsAndML").rglob("*.csv")):
+        return manifest
+    families = list(manifest.get("reconstructable", []))
+    if "5_stats" in families:
+        return manifest
+    out = dict(manifest)
+    out["reconstructable"] = families + ["5_stats"]
+    return out
 
 
 def _adjust_manifest(manifest: dict, keep: tuple[str, ...]) -> dict:
@@ -319,6 +357,7 @@ def write_bundle(
 
     keep = _keep_as_images(root)
     manifest = _adjust_manifest(manifest, keep)
+    manifest = _claim_stats(manifest, root)
 
     with open(root / MANIFEST_NAME, "w") as fh:
         json.dump(manifest, fh, indent=2, sort_keys=True)

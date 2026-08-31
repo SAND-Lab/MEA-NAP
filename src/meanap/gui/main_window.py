@@ -21,11 +21,12 @@ from meanap.gui.dialogs import ask_yes_no
 from meanap.gui import advanced
 from meanap.gui.modes import (
     DEFAULT_MODE, MODES, TAB_CATNAP, TAB_CONNECTIVITY, TAB_DATA, TAB_RESULTS,
-    TAB_RUN, TAB_SPIKE, TAB_STIM,
+    TAB_RUN, TAB_SPIKE, TAB_STATS, TAB_STIM,
     TAB_STIM_PREVIEW,
     apply_mode_to_params, mode_for_params,
 )
 from meanap.gui.pipeline_worker import PipelineWorker, QueueWorker
+from meanap.gui.stats_worker import StatsWorker
 from meanap.gui.viewer_session import ViewerSessions
 from meanap.gui.panels.data import (
     CATNAP_DATA_LABEL, DataPanel, RAW_DATA_LABEL,
@@ -37,6 +38,7 @@ from meanap.gui.panels.stim_preview import StimPreviewPanel
 from meanap.gui.panels.run import QUEUE, RunPanel
 from meanap.gui.panels.catnap import CatNapPanel
 from meanap.gui.panels.results import ResultsPanel
+from meanap.gui.panels.stats import StatsPanel
 from meanap.gui.tooltip import install_tooltip_style, wrap_tooltips
 from meanap.gui.tutorial import TutorialOverlay, TutorialStep, tabbar_target
 
@@ -96,6 +98,10 @@ class MainWindow(QMainWindow):
         self._params.func_con_lag_val = list(MODES[mode].default_lags)
         self._last_output_root: Path | None = None
         self._last_bundle: Path | None = None
+        self._stats_worker: StatsWorker | None = None
+        #: True once the user has picked a run for the Stats tab by hand, after
+        #: which this session's own run no longer overrides their choice.
+        self._stats_source_chosen = False
         self._worker: PipelineWorker | None = None
         self._queue_worker: QueueWorker | None = None
         self._tutorial: TutorialOverlay | None = None
@@ -250,6 +256,10 @@ class MainWindow(QMainWindow):
         self._results_panel.view_report_requested.connect(self._on_view_report)
         self._results_panel.open_bundle_requested.connect(self._on_open_bundle)
         self._network_viewer_panel = self._results_panel.viewer
+        self._stats_panel = StatsPanel()
+        self._stats_panel.run_requested.connect(self._on_run_stats)
+        self._stats_panel.open_folder_requested.connect(self._on_open_stats_folder)
+        self._stats_panel.choose_source_requested.connect(self._on_choose_stats_source)
 
         # Every tab is built once and kept alive here; the current mode decides
         # which of them are actually in the QTabWidget (see _apply_mode). Order
@@ -267,6 +277,11 @@ class MainWindow(QMainWindow):
             (TAB_STIM_PREVIEW, self._stim_preview_panel, "  Stim Preview  "),
             (TAB_RUN, self._run_panel, "  Run  "),
             (TAB_RESULTS, self._results_panel, "  Results  "),
+            # Last, because it acts on a run that has already finished — it is
+            # the only tab whose input is another tab's output.
+            # "&&" because Qt reads a single "&" in a tab label as the marker
+            # for a keyboard mnemonic and swallows it.
+            (TAB_STATS, _scrollable(self._stats_panel), "  Stats && ML  "),
         ]
         self._apply_mode(self._mode, sync_params=False)
 
@@ -454,8 +469,11 @@ class MainWindow(QMainWindow):
         return -1
 
     def _on_tab_changed(self, _index: int) -> None:
-        if self._current_tab_key() == TAB_RESULTS:
+        key = self._current_tab_key()
+        if key == TAB_RESULTS:
             self._refresh_results_target()
+        elif key == TAB_STATS:
+            self._refresh_stats_target()
 
     def _refresh_results_target(self) -> None:
         root = self._candidate_output_root()
@@ -1057,6 +1075,70 @@ class MainWindow(QMainWindow):
         self._reset_run_buttons()
         QMessageBox.critical(self, "Pipeline error", message)
 
+    # ── Stats & ML ────────────────────────────────────────────────────────────
+
+    def _refresh_stats_target(self) -> None:
+        """Point the Stats tab at whatever this session's run produced.
+
+        A user-chosen source wins: having picked a run explicitly, they should
+        not find the tab silently switched back on the next visit.
+        """
+        if self._stats_source_chosen:
+            return
+        bundle = self._last_bundle
+        root = self._last_output_root or self._candidate_output_root()
+        source = bundle if bundle is not None else root
+        if source is not None and Path(source).exists():
+            self._stats_panel.set_source(Path(source))
+        else:
+            self._stats_panel.set_source(None)
+
+    def _on_choose_stats_source(self) -> None:
+        source = self._stats_panel.choose_source_dialog()
+        if source is None:
+            return
+        self._stats_source_chosen = True
+        self._stats_panel.set_source(source)
+        self._stats_panel.set_result(None)
+
+    def _on_run_stats(self) -> None:
+        source = self._stats_panel.source()
+        if source is None:
+            return
+        if self._stats_worker is not None and self._stats_worker.isRunning():
+            return
+
+        self._stats_panel.clear_log()
+        self._stats_panel.set_running(True)
+        self._stats_panel.set_result(None)
+
+        worker = StatsWorker(source, None, self._stats_panel.settings(), parent=self)
+        worker.log_message.connect(self._stats_panel.append_log)
+        worker.finished_ok.connect(self._on_stats_finished)
+        worker.failed.connect(self._on_stats_failed)
+        worker.finished.connect(lambda: self._stats_panel.set_running(False))
+        self._stats_worker = worker
+        worker.start()
+
+    def _on_stats_finished(self, result) -> None:
+        self._stats_panel.set_result(result.dest)
+        self._stats_panel.append_log(
+            f"\nDone — {len(result.tables)} table(s), {len(result.figures)} "
+            f"figure(s) in {result.dest}")
+        if result.skipped:
+            self._stats_panel.append_log("Skipped:")
+            for item in result.skipped:
+                self._stats_panel.append_log(f"  - {item}")
+
+    def _on_stats_failed(self, message: str) -> None:
+        self._stats_panel.append_log(f"ERROR: {message}")
+        QMessageBox.critical(self, "Statistics error", message)
+
+    def _on_open_stats_folder(self) -> None:
+        folder = self._stats_panel.result_folder()
+        if folder is not None and folder.exists():
+            webbrowser.open(folder.as_uri())
+
     def _candidate_output_root(self) -> Path | None:
         """The output folder View report should act on, run or no run.
 
@@ -1195,6 +1277,11 @@ class MainWindow(QMainWindow):
         if self._worker is not None and self._worker.isRunning():
             self._worker.request_cancel()
             self._worker.wait(5000)
+        # The stats step has no cancellation checkpoints — it is a sequence of
+        # model fits, none individually long — so this waits it out rather than
+        # asking it to stop.
+        if self._stats_worker is not None and self._stats_worker.isRunning():
+            self._stats_worker.wait(10000)
         # Each viewer holds a port and a temporary extraction directory; both
         # live as long as the process unless handed back here.
         self._viewers.close_all()

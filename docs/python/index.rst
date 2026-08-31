@@ -46,6 +46,13 @@ results.
       Analyze suite2p calcium-imaging recordings: denoising, peak detection,
       trace preview.
 
+   .. grid-item-card:: 📈 Statistics & ML
+      :link: stats-and-ml
+      :link-type: doc
+
+      Compare groups and ages, decode genotype from the features, and find
+      out which metrics actually carry the difference.
+
    .. grid-item-card:: 🕸️ Network Viewer
       :link: network-viewer
       :link-type: doc
@@ -137,6 +144,7 @@ figure.
    output-report
    changing-a-batch
    express-mode
+   stats-and-ml
    remote-data
    matlab-vs-python
    api/index

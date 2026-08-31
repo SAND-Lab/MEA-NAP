@@ -29,6 +29,7 @@ FOLDER_DESCRIPTIONS: dict[str, str] = {
     "4_NetworkActivity": "Step 4 — network activity. Graph-theoretic metrics (node degree, clustering, efficiency, centrality, ...) computed from step 3's thresholded adjacency matrices.",
     "4A_IndividualNetworkAnalysis": "Per-recording, per-lag network plots and connectivity statistics.",
     "4B_GroupComparisons": "Network metrics pooled across the whole batch and compared between experimental groups and ages, one sub-folder per connectivity timescale (STTC lag, or correlation bin on a CAT-NAP correlation run).",
+    "5_StatsAndML": "Step 5 — statistics and machine learning. Comparisons between experimental groups and ages, the correlation structure of the metrics, decoding of genotype or age from them, and how much of a target each metric explains. One sub-folder per connectivity timescale. Unlike steps 1-4 this is not part of a pipeline run: it is run over a finished run, from the Stats & ML tab or the meanap-stats command.",
     "ExperimentMatFiles": "Per-recording adjacency matrices (STTC, raw + significance-thresholded) saved as .npz, one file per recording.",
     # Comparison sub-folders (shared by the ephys and CAT-NAP paths).
     "1_NodeByGroup": "Node-level metrics compared between experimental groups — one subplot per group, x-axis = age. Every node of every recording contributes a point.",
@@ -422,7 +423,59 @@ _DATA_FILE_DESCRIPTIONS: list[tuple[re.Pattern, str]] = [
     (re.compile(r"^Subnetwork_NodeLevel\.csv$"), "CAT-NAP. One row per recording x lag x node x cell type: whole-network node metrics labelled by type, plus each node's within-group strength fraction. Long format — a cell positive for two markers appears once per group."),
     (re.compile(r"^Subnetwork_EdgeMix\.csv$"), "CAT-NAP. One row per recording x lag x cell-type pair: edge density and mean weight within and between types."),
     (re.compile(r"^step_durations\.json$"), "Wall-clock seconds spent in each pipeline step, for performance comparison."),
+    # Step 5. Every figure in this folder is a pure function of these tables,
+    # which is why a bundle carries them and drops the pictures.
+    (re.compile(r"^comparisons\.csv$"), "Step 5. One row per (metric, test, term): the estimate, the test statistic, the raw p-value and its Benjamini-Hochberg partner (corrected within the family named in the row), and an effect size whose name the row states. Covers the mixed models, the per-age group contrasts and the paired age contrasts."),
+    (re.compile(r"^comparisons_significant\.csv$"), "Step 5. The subset of ``comparisons.csv`` significant at FDR q < 0.05, sorted by corrected p-value."),
+    (re.compile(r"^feature_correlation\.csv$"), "Step 5. The pooled metric-by-metric correlation matrix, in the clustered order the heatmaps use."),
+    (re.compile(r"^redundant_features\.csv$"), "Step 5. Metric pairs correlating above the redundancy threshold — the columns that carry one piece of information between them."),
+    (re.compile(r"^pca_variance\.csv$"), "Step 5. Variance explained and cumulative variance per principal component of the standardised feature matrix."),
+    (re.compile(r"^pca_loadings\.csv$"), "Step 5. Loadings of each metric on the first ten principal components."),
+    (re.compile(r"^decoding_scores\.csv$"), "Step 5. One row per (classifier, repeat, fold): held-out balanced accuracy and accuracy, with cultures held out whole."),
+    (re.compile(r"^decoding_summary\.csv$"), "Step 5. Mean and SD of balanced accuracy per classifier, with chance and the permutation p-value."),
+    (re.compile(r"^decoding_predictions\.csv$"), "Step 5. Out-of-fold prediction per recording per classifier, with its true label and its culture."),
+    (re.compile(r"^decoding_feature_importance\.csv$"), "Step 5. Held-out permutation importance per (classifier, feature): mean drop in balanced accuracy when that feature is shuffled in the test fold."),
+    (re.compile(r"^decoding_permutation_null\.csv$"), "Step 5. The label-permutation null per classifier — mean, SD and 95th centile of the null distribution, and the resulting p-value. Labels are permuted between cultures, so a culture keeps one label as it does in the real data."),
+    (re.compile(r"^decoding_by_age\.csv$"), "Step 5. Decoding accuracy computed separately at each age, one row per (age, classifier)."),
+    (re.compile(r"^genotype_shapley_by_age\.csv$"), "Step 5. One row per (age, feature): that feature's Shapley share of how far the decoder gets above chance at that age. The shares at one age sum to that age's decodability, so a column is a partition of what was there to be decoded. Negative means the feature cost the decoder accuracy there — cross-validated accuracy, unlike R², is not monotone in the feature set."),
+    (re.compile(r"^genotype_shapley_totals\.csv$"), "Step 5. One row per age: the cross-validated balanced accuracy the decomposition partitions, chance, the difference the Shapley values sum to, and how many recordings and cultures it was measured on."),
+    (re.compile(r"^genotype_shapley_feature_clusters\.csv$"), "Step 5. Which representative metric stands for each of the original metrics in the per-age attribution, and how strongly it correlates with it. Redundant metrics are collapsed before the decomposition — a share split between two columns correlating at 0.99 is arbitrary — by a rule that never looks at the labels, so this adds no selection bias."),
+    (re.compile(r"^density_sweep_curves\.csv$"), "Step 5. One row per (recording, lag, imposed density): topology measured on the network thresholded to that proportion of its strongest edges, binarised. The point of the sweep is that these are comparable across recordings in a way the step-4 metrics are not, because every network is measured at the same density. ``lccFraction`` is how much of the network is still connected there — where it falls below 1, path length is averaged over connected pairs only."),
+    (re.compile(r"^density_sweep_integrated\.csv$"), "Step 5. One row per (recording, lag): each swept metric integrated over the density range (Ginestet et al.'s cost integration), divided by the range so it stays on the metric's own scale. These ``_costInt`` columns are density-controlled features — one number per recording — usable anywhere the ordinary metrics are."),
+    (re.compile(r"^density_sweep_retention\.csv$"), "Step 5. How many recordings per group survived the node-count cut when the sweep subsamples every network to a common size. Read this before believing a subsampled sweep: recordings too small to reach the common size are dropped, and if that loss falls unevenly across groups the size confound has been traded for a selection one rather than removed."),
+    (re.compile(r"^density_sweep_observed\.csv$"), "Step 5. The connection density each recording actually had at step 4, and its node count. Read the sweep against this: if groups differ here, metrics compared at those densities were confounded, which is what the sweep exists to control."),
+    (re.compile(r"^feature_family_contributions\.csv$"), "Step 5. One row per (age, feature family): the family's Shapley share of genotype decodability at that age, what it achieves on its own (``Alone``), and what is lost when it is removed from the full feature set (``Unique``). A large ``Alone`` beside a ``Unique`` near zero means the family carries nothing the other families do not already carry."),
+    (re.compile(r"^feature_family_totals\.csv$"), "Step 5. One row per age: the decodability the three feature families partition, and how many recordings and cultures it was measured on."),
+    (re.compile(r"^feature_family_membership\.csv$"), "Step 5. Which family each metric was placed in — activity (firing properties), correlation strength (density, degree, node strength, significant edges) or network topology (efficiency, clustering, path length, modularity, cartography, controllability). Metrics the taxonomy does not know are grouped as 'Unclassified' rather than silently folded into one of the three."),
+    (re.compile(r"^lda_projection\.csv$"), "Step 5. Each recording's coordinates on the discriminant axes, with its group, age and culture."),
+    (re.compile(r"^lda_loadings\.csv$"), "Step 5. Each metric's contribution to each discriminant axis."),
+    (re.compile(r"^regression_scores\.csv$"), "Step 5. One row per (model, repeat, fold): held-out R² and RMSE for predicting the target."),
+    (re.compile(r"^regression_summary\.csv$"), "Step 5. Mean and SD of held-out R² and RMSE per regression model."),
+    (re.compile(r"^regression_predictions\.csv$"), "Step 5. Out-of-fold predicted value per recording per model, beside the observed one."),
+    (re.compile(r"^regression_feature_importance\.csv$"), "Step 5. Held-out permutation importance per (model, feature): mean drop in R²."),
+    (re.compile(r"^variance_decomposition\.csv$"), "Step 5. Per feature: its marginal R² (what it explains alone), its unique R² (the drop if it is removed), and its Shapley value — the share of explained variance genuinely attributable to it. The Shapley column sums to the full model's R²."),
+    (re.compile(r"^regression_coefficients\.csv$"), "Step 5. Standardised ridge coefficients of the full model — the sign the variance shares do not carry."),
+    (re.compile(r"^stats_summary\.json$"), "Step 5. The settings the step ran with and a digest of what each analysis found, plus the list of tables and figures written."),
 ]
+
+
+def _stats_patterns() -> list[tuple[re.Pattern, str, str]]:
+    """Step-5 figure captions, compiled from the step's own catalogue.
+
+    Imported rather than restated so the caption under a figure in the report
+    is the same sentence the viewer shows beside it — see
+    :func:`meanap.stats.figures.report_patterns`. Guarded because the report is
+    useful for a run that never went through step 5, and on a build without
+    its dependencies importing it must not take the whole report down.
+    """
+    try:
+        from meanap.stats.figures import report_patterns
+    except Exception:                                    # noqa: BLE001
+        return []
+    return [(re.compile(rx), title, caption) for rx, title, caption in report_patterns()]
+
+
+_STATS_PLOT_PATTERNS: list[tuple[re.Pattern, str, str]] | None = None
 
 
 def describe_plot(filename: str, folder: str | None = None,
@@ -438,7 +491,11 @@ def describe_plot(filename: str, folder: str | None = None,
     (see :mod:`meanap.timescale`). Captions read it rather than assuming, since
     the same figure means a different thing in each.
     """
-    patterns = _FOLDER_PLOT_PATTERNS.get(folder or "", []) + _PLOT_PATTERNS
+    global _STATS_PLOT_PATTERNS
+    if _STATS_PLOT_PATTERNS is None:
+        _STATS_PLOT_PATTERNS = _stats_patterns()
+    patterns = (_FOLDER_PLOT_PATTERNS.get(folder or "", [])
+                + _PLOT_PATTERNS + _STATS_PLOT_PATTERNS)
     for pattern, title_tmpl, caption_tmpl in patterns:
         m = pattern.match(filename)
         if m:

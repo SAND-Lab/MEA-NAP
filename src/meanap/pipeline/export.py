@@ -203,6 +203,18 @@ def _draw_everything(ctx, dest: Path, result: ExportResult, *, fmt: str,
         jobs.append((f"family {fam.key}",
                      lambda k=fam.key: R.render_group_family(ctx, k, dest, fmt=fmt)))
 
+    # Step 5, when the run has been through the statistics step. Its tables
+    # travel in the bundle and its figures do not, so this is where they come
+    # back — into the same 5_StatsAndML/<lag>/ layout the step itself writes,
+    # beside the CSVs that were carried.
+    for stats_lag in R.available_stats_lags(ctx):
+        stats_dir = dest / R.STATS_DIRNAME / stats_lag
+        for figure in R.available_stats_figures(ctx, stats_lag):
+            jobs.append((
+                f"statistics {stats_lag} {figure.key}",
+                lambda sl=stats_lag, k=figure.key, d=stats_dir:
+                    R.render_stats_figure(ctx, sl, k, d, fmt=fmt)))
+
     total = len(jobs)
     for i, (what, run) in enumerate(jobs):
         if progress is not None:

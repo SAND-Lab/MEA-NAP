@@ -1691,3 +1691,148 @@ def _recording_arrays(ctx: RenderContext, recording: str):
             markers = (np.asarray(data["marker_matrix"]),
                        [str(n) for n in data["marker_names"]])
     return channels, coords, markers
+
+
+# ── Step 5: statistics and machine learning ──────────────────────────────────
+#
+# Unlike every other family here, these figures are not redrawn from the
+# pipeline's own state files. They are redrawn from the tables the statistics
+# step wrote beside them, which a bundle carries in full while dropping the
+# pictures (see meanap.pipeline.bundle's _DATA_ONLY_DIRS). Every figure is a
+# pure function of those tables, verified byte-for-byte in test_stats_report.py,
+# so a viewer can offer the whole set without re-running a decoder.
+
+STATS_DIRNAME = "5_StatsAndML"
+
+
+def _stats_root(ctx: RenderContext) -> Path:
+    return Path(ctx.root) / STATS_DIRNAME
+
+
+def available_stats_lags(ctx: RenderContext) -> list[str]:
+    """Lag folders the statistics step wrote, or ``[]`` if it was never run.
+
+    Names rather than integers: the step's folders are named after the run's
+    own lag labels (``1000mslag``, or ``all`` for a run with no lag axis), and
+    a correlation-binned CAT-NAP run has labels that are not lags at all.
+    """
+    from meanap.stats.figures import available_lags
+
+    return available_lags(_stats_root(ctx))
+
+
+def stats_results(ctx: RenderContext, lag: str):
+    """The stored statistics results for one lag, loaded once per context.
+
+    Cached on the context like :func:`_states`: a viewer answers a figure
+    request at a time, and re-reading a run's comparison table for each one
+    would dominate the cost of drawing.
+    """
+    from meanap.stats.dataset import load_dataset
+    from meanap.stats.figures import load_results
+
+    cache = getattr(ctx, "_stats_cache", None)
+    if cache is None:
+        cache = {}
+        object.__setattr__(ctx, "_stats_cache", cache)
+    if lag in cache:
+        return cache[lag]
+
+    folder = _stats_root(ctx) / lag
+    if not folder.is_dir():
+        cache[lag] = None
+        return None
+    dataset = load_dataset(ctx.root)
+    # "all" is the folder a run with no lag axis writes to; there is nothing to
+    # subset by in that case.
+    cache[lag] = load_results(
+        folder, dataset if lag == "all" else dataset.for_lag(_stats_lag_value(dataset, lag)),
+        lag=lag)
+    return cache[lag]
+
+
+def _stats_lag_value(dataset, lag: str):
+    """The run's own Lag value matching a statistics folder name.
+
+    The step names its folders after the value verbatim, so this is normally
+    the identity; it is a lookup rather than a cast because a folder name has
+    had path-unsafe characters replaced and may no longer match exactly.
+    """
+    for value in dataset.lags:
+        if str(value).replace("/", "-").replace(" ", "") == lag:
+            return value
+    return lag
+
+
+def available_stats_figures(ctx: RenderContext, lag: str) -> list:
+    """The catalogued figures this run's stored results can produce."""
+    from meanap.stats.figures import stats_figures
+
+    results = stats_results(ctx, lag)
+    return stats_figures(results) if results is not None else []
+
+
+def render_stats_figure(
+    ctx: RenderContext,
+    lag: str,
+    key: str,
+    out_dir: Path | str,
+    *,
+    fmt: str = "png",
+    dpi: int | None = None,
+    overrides: dict | None = None,
+) -> Path:
+    """Redraw one statistics figure into *out_dir*, returning the file written.
+
+    Honours the viewer's group and age colour overrides, so a genotype keeps
+    the colour the rest of the session gave it.
+    """
+    from meanap.pipeline.figure_output import figure_dpi
+    from meanap.stats.figures import draw_stats_figure, stats_figures
+
+    results = stats_results(ctx, lag)
+    if results is None:
+        raise ValueError(
+            f"This run has no statistics results for {lag!r}. Run the "
+            f"statistics step (meanap-stats, or the Stats & ML tab) over it first.")
+
+    figure = next((f for f in stats_figures(results) if f.key == key), None)
+    if figure is None:
+        raise ValueError(
+            f"Unknown statistics figure {key!r}; expected one of "
+            f"{[f.key for f in stats_figures(results)]}")
+
+    params, _ = _apply_overrides(ctx.params, overrides)
+    scheme = ColorScheme.from_params(params)
+    out_path = Path(out_dir) / f"{figure.filename}.{fmt}"
+    with figure_dpi(dpi):
+        drawn = draw_stats_figure(results, key, out_path, scheme=scheme)
+    if drawn is None:
+        raise ValueError(f"Statistics figure {key!r} has no data to draw.")
+    return drawn
+
+
+def cached_stats_figure(
+    ctx: RenderContext,
+    cache,
+    lag: str,
+    key: str,
+    *,
+    fmt: str = "png",
+    dpi: int | None = None,
+    overrides: dict | None = None,
+) -> tuple[Path, bool]:
+    """One statistics figure, rendered once per address and cached.
+
+    Returns ``(path, was_cached)``, like :func:`cached_figure`.
+    """
+    from meanap.pipeline.render_cache import bundle_identity, cache_key
+
+    identity = cache_key(bundle_identity(ctx.root), f"stats:{lag}:{key}",
+                         fmt=fmt, dpi=dpi, overrides=overrides)
+    files, was_cached = cache.get_or_render(
+        identity,
+        lambda dest: [render_stats_figure(
+            ctx, lag, key, dest, fmt=fmt, dpi=dpi, overrides=overrides)],
+    )
+    return files[0], was_cached

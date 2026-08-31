@@ -143,6 +143,7 @@ PAGE_HTML = r"""<!doctype html>
   <button id="tab-recordings" data-tab="recordings" aria-selected="true">Recordings</button>
   <button id="tab-comparisons" data-tab="comparisons" aria-selected="false">Comparisons</button>
   <button id="tab-lags" data-tab="lags" aria-selected="false">Across lags</button>
+  <button id="tab-stats" data-tab="stats" aria-selected="false">Statistics</button>
   <button id="tab-params" data-tab="params" aria-selected="false">Parameters</button>
   <span class="spacer"></span>
   <button id="export" class="hidden" title="Draw every figure out into an ordinary
@@ -192,6 +193,12 @@ does not have MEA-NAP installed.">Export output folder</button>
     <div class="list" id="param-groups"></div>
   </div>
 
+  <div id="side-stats" class="hidden">
+    <h2 id="stats-lag-head">Timescale</h2>
+    <select id="stats-lag"></select>
+    <div class="list" id="stats-figures"></div>
+  </div>
+
   <div id="side-lags" class="hidden">
     <h2>Figure set</h2>
     <div class="list" id="lag-series"></div>
@@ -209,7 +216,9 @@ does not have MEA-NAP installed.">Export output folder</button>
     <button id="dl-pdf">Download PDF</button>
   </div>
   <div class="err" id="error"></div>
-  <figure id="single"><img id="figure-img" alt=""></figure>
+  <figure id="single"><img id="figure-img" alt="">
+    <figcaption id="figure-caption" class="sub hidden"></figcaption>
+  </figure>
   <div id="pair" class="hidden"></div>
   <div class="gallery hidden" id="gallery"></div>
   <div id="params" class="hidden"></div>
@@ -276,6 +285,8 @@ let VIEW = {
   rec: null, lag: null, name: null,   // Recordings
   family: null, metric: null,         // Comparisons
   series: null, key: null,            // Across lags
+  statsLag: null, statsKey: null,     // Statistics
+  statsLabel: null, statsCaption: null,
   gallery: null,                      // a family shown as a gallery
 };
 // "figure"     — a network plot, per recording + lag, restylable
@@ -343,6 +354,14 @@ function figureURL(extra = {}) {
     p.set("series", VIEW.series); p.set("key", VIEW.key);
     for (const [k, v] of Object.entries(extra)) p.set(k, v);
     return "/api/lagseries?" + p.toString();
+  }
+  if (VIEW.kind === "stats") {
+    // Group and age colours only: these are violins, heatmaps and scatters,
+    // and none of them reads a network-plot styling control.
+    const p = colorParams();
+    p.set("lag", VIEW.statsLag); p.set("key", VIEW.statsKey);
+    for (const [k, v] of Object.entries(extra)) p.set(k, v);
+    return "/api/stats?" + p.toString();
   }
   if (VIEW.kind === "comparison" || VIEW.kind === "both") {
     return comparisonURL(extra.split || $("cmp-split").value, extra);
@@ -891,6 +910,91 @@ function showLagSeries() {
   img.alt = VIEW.key;
 }
 
+/* ── Statistics tab ─────────────────────────────────────────────────────── */
+
+function currentStatsLag() {
+  const sets = MANIFEST.stats || [];
+  return sets.find((s) => s.lag === VIEW.statsLag) || sets[0];
+}
+
+function fillStatsLags() {
+  const sets = MANIFEST.stats || [];
+  const sel = $("stats-lag");
+  sel.innerHTML = "";
+  for (const s of sets) {
+    const o = document.createElement("option");
+    o.value = s.lag; o.textContent = s.lag;
+    sel.appendChild(o);
+  }
+  // A run analysed at one timescale has nothing to choose between, so the
+  // selector goes away rather than sitting there with a single entry.
+  const one = sets.length <= 1;
+  sel.classList.toggle("hidden", one);
+  $("stats-lag-head").classList.toggle("hidden", one);
+  if (!sets.some((s) => s.lag === VIEW.statsLag))
+    VIEW.statsLag = sets.length ? sets[0].lag : null;
+  sel.value = VIEW.statsLag || "";
+  fillStatsFigures();
+}
+
+function fillStatsFigures() {
+  const box = $("stats-figures");
+  box.innerHTML = "";
+  const set = currentStatsLag();
+  if (!set) {
+    box.innerHTML = '<div class="sub">This run has not been through the ' +
+      'statistics step. Run it from the Stats &amp; ML tab, or with ' +
+      '<code>meanap-stats</code>, and the figures appear here.</div>';
+    return;
+  }
+  let first = null;
+  for (const group of set.groups) {
+    const h = document.createElement("h2");
+    h.textContent = group.label;
+    box.appendChild(h);
+    for (const fig of group.figures) {
+      const b = document.createElement("button");
+      b.textContent = fig.label;
+      b.dataset.stats = fig.key;
+      b.title = fig.caption;
+      b.addEventListener("click", () => {
+        VIEW.statsKey = fig.key; VIEW.statsCaption = fig.caption;
+        VIEW.statsLabel = fig.label; showStats();
+      });
+      box.appendChild(b);
+      if (first === null) first = fig;
+    }
+  }
+  const known = set.groups.some((g) => g.figures.some((f) => f.key === VIEW.statsKey));
+  if (!known && first) {
+    VIEW.statsKey = first.key;
+    VIEW.statsCaption = first.caption;
+    VIEW.statsLabel = first.label;
+  }
+}
+
+function showStats() {
+  if (!VIEW.statsKey) return;
+  VIEW.kind = "stats";
+  setMode("stats"); markCurrent();
+  $("error").textContent = "";
+  $("status").textContent = "rendering…";
+  const caption = $("figure-caption");
+  const img = $("figure-img");
+  img.onload = () => {
+    $("status").textContent = VIEW.statsLabel || VIEW.statsKey;
+    caption.textContent = VIEW.statsCaption || "";
+    caption.classList.toggle("hidden", !VIEW.statsCaption);
+  };
+  img.onerror = () => {
+    $("status").textContent = "";
+    caption.classList.add("hidden");
+    $("error").textContent = "Could not render this figure.";
+  };
+  img.src = figureURL();
+  img.alt = VIEW.statsLabel || VIEW.statsKey;
+}
+
 /* ── Galleries (families with no per-figure address) ────────────────────── */
 
 function fillFamilies() {
@@ -995,6 +1099,8 @@ function markCurrent() {
     b.setAttribute("aria-current", String(VIEW.kind === "lagseries" && b.dataset.series === VIEW.series));
   for (const b of document.querySelectorAll("#lag-options button"))
     b.setAttribute("aria-current", String(VIEW.kind === "lagseries" && b.dataset.key === VIEW.key));
+  for (const b of document.querySelectorAll("#stats-figures button"))
+    b.setAttribute("aria-current", String(VIEW.kind === "stats" && b.dataset.stats === VIEW.statsKey));
 }
 
 function setMode(kind) {
@@ -1004,13 +1110,16 @@ function setMode(kind) {
   // button highlighted, the PNG arrived, and the reader saw nothing.
   const one = kind === "figure" || kind === "activity" || kind === "lagseries"
               || kind === "spikecheck" || kind === "edgecheck"
-              || kind === "subnetwork" || kind === "trace";
+              || kind === "subnetwork" || kind === "trace" || kind === "stats";
   // Hidden, not disabled: the styling controls describe spatial network plots.
   // A raster, a violin and a line plot read none of them, so offering the
   // knobs there would imply they do something.
   $("controls-panel").classList.toggle("hidden", kind !== "figure");
   const faceted = kind === "comparison" || kind === "both";
-  $("facets-panel").classList.toggle("hidden", !(faceted || kind === "lagseries"));
+  // The statistics figures read the group and age colours, so the facets
+  // panel — which is where those live — stays available for them too.
+  $("facets-panel").classList.toggle(
+    "hidden", !(faceted || kind === "lagseries" || kind === "stats"));
   // The across-lag figures read the colours but have no lag/level/split of
   // their own, so those rows go away rather than sitting there inert.
   for (const id of ["facets-head", "cmp-level-label", "cmp-split-label"])
@@ -1030,6 +1139,9 @@ function setMode(kind) {
   const downloadable = one || kind === "comparison";
   for (const id of ["dl-png", "dl-svg", "dl-pdf"])
     $(id).classList.toggle("hidden", !downloadable);
+  // Only the statistics figures carry a written caption; anything else would
+  // leave the previous figure's sentence under the new one.
+  if (kind !== "stats") $("figure-caption").classList.add("hidden");
   // A trace figure is a stored PNG. Offering SVG/PDF would promise a
   // re-render that cannot happen — the fluorescence it needs isn't here.
   if (kind === "trace")
@@ -1181,9 +1293,11 @@ function selectTab(tab) {
   $("side-recordings").classList.toggle("hidden", tab !== "recordings");
   $("side-comparisons").classList.toggle("hidden", tab !== "comparisons");
   $("side-lags").classList.toggle("hidden", tab !== "lags");
+  $("side-stats").classList.toggle("hidden", tab !== "stats");
   $("side-params").classList.toggle("hidden", tab !== "params");
   if (tab === "recordings") showFigure();
   else if (tab === "comparisons") showComparison();
+  else if (tab === "stats") showStats();
   else if (tab === "params") showParams();
   else showLagSeries();
 }
@@ -1218,8 +1332,10 @@ function download(fmt) {
   fillComparisonFamilies();
   fillFamilies();
   fillLagSeries();
+  fillStatsLags();
 
   // A tab with nothing behind it is removed, not shown empty.
+  if (!(MANIFEST.stats || []).length) $("tab-stats").classList.add("hidden");
   if (!(MANIFEST.comparisons || []).length && !(MANIFEST.families || []).length)
     $("tab-comparisons").classList.add("hidden");
   if (!(MANIFEST.lag_series || []).length)
@@ -1228,6 +1344,11 @@ function download(fmt) {
   if (!MANIFEST.params) $("tab-params").classList.add("hidden");
   else fillParamGroups();
 
+  $("stats-lag").addEventListener("change", () => {
+    VIEW.statsLag = $("stats-lag").value;
+    fillStatsFigures();
+    if (TAB === "stats") showStats();
+  });
   $("recording").addEventListener("change", fillLags);
   $("lag").addEventListener("change", () => { fillFigures(); fillSubnetworks(); });
   $("export").addEventListener("click", onExport);
