@@ -81,6 +81,13 @@ results.
       Add a recording, take one out, or combine separate runs into one
       pooled analysis — without analysing everything again.
 
+   .. grid-item-card:: 🖧 Shared runs
+      :link: shared-run
+      :link-type: doc
+
+      Split one batch across the computers you have — through a Dropbox or
+      network folder — and pool the results on one of them.
+
    .. grid-item-card:: 📊 Output report
       :link: output-report
       :link-type: doc
@@ -136,6 +143,7 @@ figure.
    notebooks/network-plotting-tutorial
    output-report
    changing-a-batch
+   shared-run
    express-mode
    remote-data
    matlab-vs-python

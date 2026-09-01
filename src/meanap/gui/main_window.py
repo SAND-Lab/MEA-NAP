@@ -25,7 +25,9 @@ from meanap.gui.modes import (
     TAB_STIM_PREVIEW,
     apply_mode_to_params, mode_for_params,
 )
-from meanap.gui.pipeline_worker import PipelineWorker, QueueWorker
+from meanap.gui.pipeline_worker import (
+    PipelineWorker, QueueWorker, SharedHelperWorker, SharedMainWorker,
+)
 from meanap.gui.viewer_session import ViewerSessions
 from meanap.gui.panels.data import (
     CATNAP_DATA_LABEL, DataPanel, RAW_DATA_LABEL,
@@ -34,7 +36,7 @@ from meanap.gui.panels.spike_detection import SpikeDetectionPanel
 from meanap.gui.panels.connectivity import ConnectivityPanel
 from meanap.gui.panels.stim import StimPanel
 from meanap.gui.panels.stim_preview import StimPreviewPanel
-from meanap.gui.panels.run import QUEUE, RunPanel
+from meanap.gui.panels.run import QUEUE, SHARED, RunPanel
 from meanap.gui.panels.catnap import CatNapPanel
 from meanap.gui.panels.results import ResultsPanel
 from meanap.gui.tooltip import install_tooltip_style, wrap_tooltips
@@ -98,6 +100,7 @@ class MainWindow(QMainWindow):
         self._last_bundle: Path | None = None
         self._worker: PipelineWorker | None = None
         self._queue_worker: QueueWorker | None = None
+        self._shared_worker: SharedMainWorker | SharedHelperWorker | None = None
         self._tutorial: TutorialOverlay | None = None
         self._viewers = ViewerSessions()
 
@@ -246,6 +249,12 @@ class MainWindow(QMainWindow):
         # cares about one — loading parameters, or the queue's list.
         self._pipeline_panel = self._run_panel.settings
         self._queue_panel = self._run_panel.queue
+        self._shared_panel = self._run_panel.shared
+        # A shared run is created from the settings on the other tabs, read
+        # when the wizard opens rather than cached.
+        self._shared_panel.params_source = self._collect_params
+        self._shared_panel.helper_ready.connect(self._on_shared_helper_ready)
+        self._shared_panel.finish_now_requested.connect(self._on_shared_finish_now)
         self._results_panel = ResultsPanel()
         self._results_panel.view_report_requested.connect(self._on_view_report)
         self._results_panel.open_bundle_requested.connect(self._on_open_bundle)
@@ -804,15 +813,20 @@ class MainWindow(QMainWindow):
         """
         if self._busy():
             return
-        if self._run_panel.mode() == QUEUE:
+        mode = self._run_panel.mode()
+        if mode == QUEUE:
             self._on_run_queue()
+        elif mode == SHARED:
+            self._on_run_shared()
         else:
             self._on_run()
 
     def _busy(self) -> bool:
         return ((self._worker is not None and self._worker.isRunning())
                 or (self._queue_worker is not None
-                    and self._queue_worker.isRunning()))
+                    and self._queue_worker.isRunning())
+                or (self._shared_worker is not None
+                    and self._shared_worker.isRunning()))
 
     def _on_run(self) -> None:
         if self._busy():
@@ -988,9 +1002,138 @@ class MainWindow(QMainWindow):
         self._run_panel.append_log(f"ERROR: {message}")
         QMessageBox.critical(self, "Queue error", message)
 
+    # ── Shared runs ───────────────────────────────────────────────────────────
+
+    def _on_run_shared(self) -> None:
+        """Start (or resume) a shared run as the main computer."""
+        from meanap.shared.workspace import DONE as SHARED_DONE
+
+        if self._busy():
+            return
+        panel = self._shared_panel
+        ws = panel.workspace
+        if ws is None or panel.role != "main":
+            return
+        try:
+            run = ws.read()
+            if run.status == SHARED_DONE:
+                return
+            if not run.started:
+                assignment = panel.assignment()
+                if any(n < 0 for n in map(len, assignment.values())) or \
+                        len(assignment.get(run.main, [])) < 0:
+                    raise ValueError("The recording counts do not add up.")
+                empty = [m for m, recs in assignment.items() if not recs]
+                if empty:
+                    self._run_panel.append_log(
+                        f"Note: {', '.join(empty)} will get no recordings with this split.")
+                ws.start(assignment)
+                self._run_panel.append_log(
+                    "Shared run started: " + "; ".join(
+                        f"{m}: {len(recs)}" for m, recs in assignment.items()))
+            else:
+                self._run_panel.append_log("Resuming the shared run.")
+        except (ValueError, OSError) as e:
+            QMessageBox.warning(self, "Could not start the shared run", str(e))
+            return
+
+        self._params = panel.params
+        self._run_panel.set_running(True)
+        self._run_panel.start_progress()
+        worker = SharedMainWorker(
+            ws, panel.machine_name, panel.output_folder, panel.output_name,
+            parent=self)
+        worker.log_message.connect(self._run_panel.append_log)
+        worker.progress.connect(self._run_panel.show_progress)
+        worker.finished_ok.connect(self._on_shared_main_finished)
+        worker.cancelled.connect(self._on_shared_cancelled)
+        worker.failed.connect(self._on_shared_failed)
+        self._shared_worker = worker
+        worker.start()
+        panel.refresh()
+
+    def _on_shared_helper_ready(self, ws, name: str, raw_data) -> None:
+        """This computer joined as a helper: wait for the start, do the share."""
+        if self._busy():
+            QMessageBox.information(
+                self, "Something is already running",
+                "Stop the current run before joining a shared one.")
+            return
+        self._run_panel.set_mode(SHARED)
+        self._run_panel.set_running(True)
+        self._run_panel.start_progress()
+        self._run_panel.progress_label.setText("Waiting for the main computer to start…")
+        worker = SharedHelperWorker(ws, name, raw_data, parent=self)
+        worker.log_message.connect(self._run_panel.append_log)
+        worker.progress.connect(self._run_panel.show_progress)
+        worker.finished_ok.connect(self._on_shared_helper_finished)
+        worker.cancelled.connect(self._on_shared_cancelled)
+        worker.failed.connect(self._on_shared_failed)
+        self._shared_worker = worker
+        worker.start()
+
+    def _on_shared_finish_now(self) -> None:
+        worker = self._shared_worker
+        if isinstance(worker, SharedMainWorker) and worker.isRunning():
+            self._run_panel.append_log(
+                "Finishing now — whatever the other computers have not done "
+                "will be analysed here.")
+            worker.request_finish_now()
+
+    def _on_shared_main_finished(self, output_root: Path) -> None:
+        self._shared_worker = None
+        self._shared_panel.mark_finished(f"Finished. Pooled results: {output_root}")
+        self._on_pipeline_finished(output_root)
+
+    def _on_shared_helper_finished(self, status: str) -> None:
+        self._shared_worker = None
+        done = status == "done"
+        self._shared_panel.mark_finished(
+            "This computer's share is done — the main computer collects it."
+            if done else f"This computer's part ended: {status}.")
+        self._run_panel.finish_progress("Your share is done." if done else "Stopped.")
+        self._reset_run_buttons()
+
+    def _on_shared_cancelled(self) -> None:
+        self._shared_worker = None
+        self._run_panel.finish_progress("Stopped.")
+        self._run_panel.append_log("Shared run stopped on this computer.")
+        self._reset_run_buttons()
+        self._shared_panel.refresh()
+
+    def _on_shared_failed(self, message: str) -> None:
+        self._shared_worker = None
+        self._run_panel.finish_progress("Failed.")
+        self._run_panel.append_log(f"ERROR: {message}")
+        self._reset_run_buttons()
+        self._shared_panel.refresh()
+        QMessageBox.critical(self, "Shared run error", message)
+
     def _on_stop(self) -> None:
-        """Stop whichever of the two is running — again, one button for both."""
-        if self._queue_worker is not None and self._queue_worker.isRunning():
+        """Stop whichever of the three is running — again, one button for all."""
+        if self._shared_worker is not None and self._shared_worker.isRunning():
+            panel = self._shared_panel
+            if isinstance(self._shared_worker, SharedMainWorker):
+                # The main computer stopping ends the run for everyone: the
+                # helpers watch the shared folder and stop at their next
+                # recording. The parts they wrote stay, so a later Start
+                # resumes rather than restarts.
+                from meanap.shared.workspace import CANCELLED as SHARED_CANCELLED
+                try:
+                    if panel.workspace is not None:
+                        panel.workspace.set_status(SHARED_CANCELLED)
+                except (ValueError, OSError):
+                    pass
+                self._run_panel.append_log(
+                    "Stop requested — the helpers will stop after their current "
+                    "recording too.")
+            else:
+                self._run_panel.append_log(
+                    "Stop requested — finishing the current recording, then halting. "
+                    "The main computer will see this computer stopped.")
+            self._run_panel.stop_btn.setEnabled(False)
+            self._shared_worker.request_cancel()
+        elif self._queue_worker is not None and self._queue_worker.isRunning():
             self._run_panel.append_log(
                 "Stop requested — finishing the current run, then halting. "
                 "Runs after it will not be started.")
