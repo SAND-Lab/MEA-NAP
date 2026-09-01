@@ -13,9 +13,13 @@ alone.
 | 2. Neuronal activity (firing rates, burst detection) | `Functions/firingRatesBursts.m`, `Functions/singleChannelBurstDetection.m` | **Done**, validated against MATLAB reference output (100% parity on recording- and node-level fields), wired into `runner.py`. **CSV export now done too** (`NeuronalActivity_RecordingLevel.csv`/`NeuronalActivity_NodeLevel.csv`, port of `saveEphysStats.m`) — a 2026-07-08 audit found the `ephys` dict itself was complete but was only ever written to `ephys_results.json`, never flattened into the two CSVs MATLAB's own pipeline produces. |
 | 3. Functional connectivity (STTC) | `Functions/generateAdjMs.m`, `Functions/STTCandThresholding/*` | **Core (STTC) done**, exact parity. Probabilistic thresholding ported but inherently non-bit-reproducible (see below) |
 | 4. Network metrics | `Functions/ExtractNetMet.m`, `Functions/2019_03_03_BCT/*` | **Deterministic subset done** (ND, NS, MEW, Dens, CC_raw, PL_raw, Eglob, Eloc, BC, NE), 100% parity. **Modularity-dependent subset also done** (Ci/Q/nMod via Louvain + consensus clustering, raw + *normalized* PC, Z, node cartography 6-role classification, Hub3/Hub4, rich club RC) — 100% parity for everything downstream of a fixed Ci (and, for PC-normalization, a fixed PC_norm too); the stochastic pieces themselves (Ci, PC_norm's null-model randomization) aren't bit-reproducible, same situation as Step 3. **Controllability (`aveControl`/`modalControl`) also done.** **Small-worldness also done** — `SW`/`SWw` and the *saved*, null-model-normalized `CC`/`PL` (formula assembly has exact parity against MATLAB given the same `A`/`R`/`L`, see `test_pipeline_small_worldness.py`; the null models themselves, `randmio_und_v2`/`latmio_und_v2`, aren't bit-reproducible, same situation as everywhere else in this table) — see `network_metrics.py`. **`effRank` done** (`network_metrics.effective_rank`, port of `calEffRank.m`). **NMF (`num_nnmf_components`/`nComponentsRelNS`/`nnmf_residuals`/`nnmf_var_explained`) also done** — see `nmf.py`; not just RNG-different from MATLAB but *algorithm*-different (`sklearn` NMF solvers vs. MATLAB's `nnmf`), so treat this one as looser-than-usual parity. **Record-level summary-stat scalars now done too** (`NDmean`, `NDtop25`, `NSmean`, `sigEdgesMean`, `sigEdgesTop10`, `PCmean`, `PCmeanTop10`, `PCmeanBottom10`, `percentZscoreGreaterThanZero`, `percentZscoreLessThanZero`) — a 2026-07-08 audit against MATLAB's full default `netMetToCal` list (see "Auditing for silently-missing metrics" below) found these were in `plotting_step4.py`'s display-name dict (implying they were intended) but never actually computed anywhere in the port. |
+| 5. Statistics & machine learning | `Functions/doStats.m`, `featureCorrelation.m`, `doLDA.m`, `doClassification.m` | **Done, and deliberately not a literal port** — the MATLAB version is unfinished (its two-way ANOVA is commented out, its LME's random effect has one observation per level, its cross-validation leaks cultures across folds, and there is no regression at all). See "Step 5: statistics and machine learning" below for what was kept, what was changed, and why. |
 
 All four pipeline steps are wired into `runner.py` and reachable from the GUI
-(`start`/`stop_analysis_step` now goes up to 4). Output folder structure (the
+(`start`/`stop_analysis_step` now goes up to 4). Step 5 is deliberately *not*
+part of `run_pipeline`: it analyses a run that has already finished, so it has
+its own entry points (`meanap-stats`, the Stats & ML tab) and can be pointed at
+any output folder or bundle, including one from an earlier session. Output folder structure (the
 static tree `CreateOutputFolders.m` builds) is fully ported and used
 automatically whenever the pipeline runs — diffed directly against
 `OutputData03Mar2026/` (a real MATLAB run) and matches.
@@ -57,6 +61,471 @@ as `.npz` fixtures (see "How to verify changes" below to regenerate them).
 Don't assume this MATLAB install will be present in every future environment
 — treat the fixtures as the durable artifact, the `.m` scripts as how to
 regenerate them if the underlying algorithms ever need re-validating.
+
+## Step 5: statistics and machine learning (`src/meanap/stats/`, 2026-08-30)
+
+The MATLAB pipeline's last stage (`MEApipeline.m:1356-1378`) asks four
+questions of a finished run's metric tables. All four are ported; a fifth,
+which MATLAB does not ask, is added.
+
+| Question | MATLAB | Python |
+|---|---|---|
+| Does a metric differ by age or genotype? | `doStats.m` | `stats/comparisons.py` |
+| Which metrics measure the same thing? | `featureCorrelation.m` | `stats/correlation.py` |
+| Can genotype/age be decoded from the features? | `doClassification.m`, `doLDA.m` | `stats/decoding.py` |
+| **How much of the target does each feature explain?** | — | `stats/regression.py` |
+| **Which features carry the genotype signal at each age, and does that change?** | — | `stats/decoding.py` (`decoding_shapley`) |
+| **Is it activity, correlation strength, or genuine network topology?** | — | `stats/decoding.py` (`family_shapley`) |
+| **Does the topology difference survive at matched connection density?** | — | `stats/density_sweep.py` |
+
+Entry points: `meanap-stats <run-or-bundle>` (CLI), the **Stats & ML** tab
+(`gui/panels/stats.py` + `gui/stats_worker.py`), or `run_stats()` directly. It
+reads a *finished* run — an output folder or a `.meanap` bundle — so it works
+on runs from earlier sessions and on bundles someone sent, and it writes
+`5_StatsAndML/<lag>/` with a CSV and a figure for everything it computes.
+
+### The one substantive change: recordings are not independent samples
+
+**Read this before changing anything here.** The same culture is imaged at
+several DIVs. On the Yin timecourse that is 378 recordings from **121
+cultures**, median 4 recordings each. MATLAB treats the 378 rows as 378
+independent samples everywhere:
+
+- `doStats`'s LME uses `(1|recordingName)`, giving each *recording* its own
+  random intercept. Each recording appears once, so that random effect has one
+  observation per level and absorbs nothing — it is a no-op dressed as a
+  repeated-measures model.
+- `doClassification` calls `crossval(..., 'KFold', 2)` with no grouping, so the
+  same culture lands in train and test. The classifier recognises cultures it
+  has already met at another DIV, and the reported accuracy measures culture
+  identity as much as genotype.
+
+Here, culture identity is derived once (`dataset.derive_culture_ids` — drop the
+`DIV` token and any date token from the recording name; falls back to
+one-culture-per-recording when the names do not parse, so an unrecognised
+naming scheme makes the analysis *conservative*, never wrong) and used
+throughout: as the random-effect grouping in every mixed model, and as the
+grouping for `StratifiedGroupKFold`/`GroupKFold` in every cross-validation and
+in the permutation null (which permutes labels *between cultures*, so a
+culture keeps one genotype as it does in the real data).
+
+`test_stats.py`'s Section A5 has the tripwire for this: a synthetic feature
+that is constant within a culture and random between them, carrying no group
+signal. With culture-grouped folds it decodes genotype at chance, as it must.
+With row-wise folds it would score near-perfectly.
+
+### Other deliberate divergences from `doStats.m`
+
+- **Omnibus before pairwise.** A three-level genotype gets a joint Wald test
+  across its dummies; the age×genotype interaction gets a joint Wald test of
+  the interaction terms. (MATLAB fits the interaction model, compares it to the
+  main-effects model, then discards the comparison and uses the main-effects
+  model regardless — see the commented-out block at `doStats.m:117-125`.)
+- **Multiple comparisons.** ~50 metrics × several tests is ~2,900 p-values on
+  the Yin run. Every p-value carries a Benjamini-Hochberg partner corrected
+  within its own named family. MATLAB corrects nothing.
+- **Hedges' g**, not MATLAB's "d-prime", which divides by the *mean* of the two
+  SDs rather than their pooled value and has no small-sample correction.
+- **Mixed model instead of `RMAOV1`.** A repeated-measures ANOVA needs every
+  subject at every level and silently drops the rest; the mixed model uses the
+  unbalanced data as it is. (MATLAB works around this by intersecting recording
+  names across DIVs first, which throws away most of the data.)
+- **Kruskal-Wallis** rather than `anova1` for the per-age omnibus: several of
+  these metrics are proportions bounded at 0/1 and visibly non-normal. Pairwise
+  follow-ups are Welch t-tests.
+- **Balanced accuracy**, not the misclassification rate, and chance is
+  `1/n_classes`, not the majority-class rate MATLAB draws as "random chance".
+
+### The new part: variance attribution (`stats/regression.py`)
+
+The effective dimensionality of the ~50 recording-level metrics on the Yin run
+is **about 4.6** — 37 pairs correlate above |r| = 0.9, and `aN` and
+`numActiveElec` correlate at 0.99997 (they are the same quantity computed by
+two steps). Under that much collinearity a coefficient or a single-model
+importance is close to arbitrary. So each feature gets three numbers:
+
+- `Marginal` — R² of that feature alone (its ceiling);
+- `Unique` — drop in R² when it is removed from the full model (its floor,
+  ≈0 for anything with a near-duplicate);
+- `Shapley` — its average marginal contribution over feature orderings (the
+  LMG decomposition, Monte Carlo over `n_orderings` random permutations). This
+  is the number to quote: non-negative, and the column **sums exactly to the
+  full model's R²**, so each entry is a genuine share of explained variance.
+
+Worked example from the Yin run: `Dens` has `Marginal` = 0.40 (density alone
+explains 40% of the age variance) but `Unique` = 0.000008 and `Shapley` =
+0.043. Reading `Unique` alone would say density is irrelevant to age, which is
+wrong; the Shapley value says it holds a 4% share of a signal it splits with
+its correlates.
+
+`test_stats.py` checks this against a case with an exactly known answer: with
+orthogonal predictors the Shapley value must equal both the marginal and the
+unique R² for every feature, and it does to 1e-9.
+
+### Attributing the *decoding* across features, per age (2026-08-30)
+
+`variance_decomposition` partitions R² for a continuous target. `decoding.decoding_shapley`
+is its counterpart for a categorical one: it partitions **how far a decoder gets
+above chance**, separately within each age, so the question "which metrics carry
+the genotype difference, and does that change as the culture matures" has an
+answer with numbers on it. Two figures come out — `5C6_genotype_shapley_by_age`
+(features × ages heatmap) and `5C7_genotype_shapley_across_ages` (trajectories
+over the total they partition) — plus three CSVs.
+
+Three properties worth not breaking:
+
+- **The shares at one age sum exactly to that age's decodability**
+  (cross-validated balanced accuracy − chance). `value(∅)` is defined as 0
+  rather than fitted, which is what makes the identity hold. Asserted in
+  `test_stats.py`.
+- **Shapley values here can be negative**, unlike the regression version. Nested
+  least-squares R² can only rise as features are added; cross-validated accuracy
+  cannot make that promise, so a negative share is a real finding — the metric
+  cost the decoder accuracy at that age — not a bug.
+- **The feature set is chosen once, on the pooled data, without looking at the
+  labels.** `select_representatives` clusters on `1 - |r|` and keeps the most
+  central member of each cluster (50 metrics → 15 on the Yin run, Density
+  standing for 13 of them). Target-blind is the load-bearing part: screening
+  features by how well they separate the groups and then reporting how well
+  those features separate the groups would inflate every total here. Choosing
+  once rather than per age is what makes the trajectories comparable.
+
+**Cost.** Roughly `n_ages × n_orderings × max_features` subset evaluations, each
+a small cross-validated fit (~11 ms), with subset scores cached — the short
+prefixes every ordering shares are paid for once. The defaults
+(`shapley_max_features=15`, `shapley_orderings=100`) take a couple of minutes on
+a five-age run; `--shapley-orderings 0` skips it.
+
+**Gotcha: don't assert where a Shapley value peaks.** A share is a marginal
+contribution to accuracy, and accuracy saturates — once a feature nearly
+separates the classes on its own, its share stops growing however much stronger
+the underlying effect gets. A test that planted a linearly-growing effect and
+asserted the share peaked at the oldest age failed for exactly this reason. The
+robust claim is the *crossover* between features, which is what the test checks
+now.
+
+**Result on the Yin timecourse** (worth knowing as a sanity check on the
+method): decodability is highest at DIV 14 (0.37 above chance) and roughly
+halves by DIV 28. Density and mean node degree carry the early signal and fade;
+mean event rate is ≈0 at DIV 14 and becomes the largest single contributor by
+DIV 35-42. The genotype signature moves from network structure to activity rate
+over development.
+
+
+### Activity vs correlation strength vs topology (2026-08-30)
+
+The per-feature attribution says *which metric* carries the genotype signal. It
+cannot say whether an apparent difference in network **organisation** is real,
+or is what you would expect anyway from a culture that fires more and is more
+strongly correlated — density and global efficiency correlate at 0.98 on the
+Yin run, so no per-feature ranking separates those two readings.
+
+`decoding.family_shapley` does, by making a whole family one player:
+
+| Family | What it is | Metrics on the Yin run |
+|---|---|---|
+| `activity` | firing properties, computed before any pairwise measure exists | 11 |
+| `coupling` | how much correlation there is — density, degree, node strength, significant edges | 6 |
+| `topology` | how that correlation is arranged — efficiency, clustering, path length, modularity, cartography, controllability | 33 |
+
+The mapping is the explicit dict `FEATURE_FAMILIES`, overridable per call and
+written out as `feature_family_membership.csv` so it can be checked and argued
+with. Anything unlisted becomes an `other` family rather than being guessed at
+or silently folded in. Two placements are genuinely arguable and are commented
+in the source: `aN`/`numActiveElec` (how many cells are active is a fact about
+firing) and `effRank`/`num_nnmf_components` (computed from the activity matrix,
+not the adjacency matrix).
+
+Two figures: `5C8_feature_family_contributions` (grouped bars per age, summing
+to the total) and `5C9_feature_family_alone_vs_unique`.
+
+**Why this is more robust than the per-feature view.** Collinearity *inside* a
+family stops mattering — thirteen metrics that are all density in disguise are
+one player, so no credit is split arbitrarily between them, and this needs none
+of the redundancy reduction `decoding_shapley` requires. Collinearity *between*
+families is what the Shapley value is for: the signal density and global
+efficiency share is split in proportion to how often each is the one that adds
+it, over all orders of entry.
+
+**Exact, not sampled.** Three families means eight subsets per age, so the
+values come from enumeration (`_exact_shapley`) rather than Monte Carlo. The
+whole thing takes under a second on the Yin run, and re-running gives bitwise
+identical numbers — asserted in `test_stats.py`.
+
+**Gotcha: `alone` and `unique` do NOT bracket the Shapley value.** That bracket
+holds for a submodular game; cross-validated accuracy is not one. Families can
+be *complementary* — on the test fixture, activity's `unique` (0.65) exceeds its
+`alone` (0.48) at DIV 28, because the classifier can only use it well once the
+other families are present. A test asserting the bracket failed for exactly
+this reason, and the figure's caption was rewritten to give the `unique > alone`
+case its own reading rather than describing the gap as "shared signal" in both
+directions.
+
+**Result on the Yin timecourse.** Network topology's `alone` is 0.39 at DIV 14
+but its `unique` is 0.000, and it goes *negative* (−0.08) by DIV 35: on this
+dataset topology carries essentially nothing about genotype that activity and
+correlation strength do not already carry. Correlation strength leads the
+Shapley split at DIV 14 (0.165, 44% of the total) and fades. Activity's unique
+contribution grows monotonically with age (−0.01 at DIV 14 to +0.11 at DIV 42)
+and is the only family with independent signal by DIV 42.
+
+
+### Density sweep: topology at matched connection density (2026-08-30)
+
+`stats/density_sweep.py`. The control for the confound the section above
+documents: every graph metric depends on how many edges the network has, and
+MEA-NAP's null-model normalisation does not remove that (a degree-preserving
+null preserves density exactly, so the ratio is density-*conditioned*, and it
+saturates as the graph approaches complete).
+
+The sweep thresholds every recording to a **common proportion of edges** and
+repeats across a range — 2% to 40% in 2% steps, the grid Schroeter et al.
+(2015, J Neurosci) used on the closest design to MEA-NAP's (dissociated
+cultures on MEAs, density climbing over four weeks in vitro). Two figures split
+by group and by age, one context figure, three CSVs, and a set of
+**cost-integrated features** (Ginestet et al. 2011): each metric integrated over
+the density range, divided by the range so it stays on the metric's own scale,
+giving one density-controlled number per recording named `<metric>_costInt`.
+Those are registered in `FEATURE_FAMILIES` as topology, so they flow into the
+family decomposition unchanged.
+
+Off by default (`StatsSettings.density_sweep`, `--density-sweep`, or the
+**Density sweep** checkbox on the GUI's Stats & ML tab): it is a robustness
+analysis, and unlike the other four it reads the per-recording adjacency
+matrices rather than the metric CSVs. The GUI disables the checkbox outright
+when the chosen run has no `ExperimentMatFiles` (`panels/stats.py`'s
+`has_adjacency`, which handles both folders and bundles) — finding that out
+after twenty minutes of other analyses would be a poor way to learn it.
+
+**Binary at each density, deliberately.** Surviving edges still carry weights,
+and those weights still differ between groups, so a weighted sweep removes only
+half the confound. Discarding them is what proportional thresholding means in
+this literature and is the only version that isolates topology. It also makes
+`Dens`/`ND`/`NS`/`MEW` constant by construction, which is why they are not
+swept.
+
+**It reads the pre-thresholding matrix.** Step 3 stores both
+`adjM{lag}mslag` and `adjM{lag}mslag_raw`; the sweep takes `_raw` where it
+exists (CAT-NAP stores one matrix, `adj__`-prefixed, which is pre-threshold).
+Imposing 2% density on a significance-thresholded matrix would be thresholding
+twice, and the sparsest targets would be unreachable for exactly the recordings
+whose connectivity is weakest — the bias van den Heuvel et al. (2017) warn
+about.
+
+**Gotchas**
+
+- **`lccFraction` is not decoration.** These networks fragment badly at sparse
+  densities — on the Yin run the largest component holds only ~33% of nodes at
+  2%, reaching ~0.95 around 26%. `charpath` (like BCT's) averages over connected
+  pairs only, so a *more* fragmented network can show a *shorter* path length.
+  Below the density where `lccFraction` approaches 1, read `Eglob` (which
+  scores a disconnected pair as zero) and not `PL`. The run summary reports
+  `density_where_network_intact` for this reason.
+- **The swept range sits entirely below the observed one** (2-40% against an
+  observed median of 0.86). That is the point — proportional thresholding
+  imposes a common density regardless — but it does mean the networks being
+  compared are not the ones step 4 measured, and the context figure exists to
+  make that visible rather than implicit.
+- **Ties are all kept** at the cutoff, so a realised density can exceed its
+  target slightly. Breaking ties arbitrarily would make the result depend on
+  node ordering.
+- **Matching density does not match SIZE.** van Wijk et al.'s title is
+  "networks of different size *and* connectivity density"; thresholding
+  addresses the second half only. It matters: on the Yin run node counts differ
+  2.4x between genotypes (median 143 KO, 93 Het, 59 WT), and with density alone
+  controlled the Spearman correlation with node count at 20% density is
+  Eglob -0.01, Q -0.04, ElocMean +0.34, PL +0.42, CC +0.43, nMod +0.47,
+  BCmean -0.64 — only `Eglob` and `Q` are clean.
+  **`sweep_n_nodes` closes that half**: every network is reduced to a random
+  induced subgraph of a common size *before* thresholding (that order matters —
+  the reverse lands at an uncontrolled density), repeated over
+  `sweep_subsamples` draws and averaged. Default `"auto"`, which takes the
+  `sweep_node_percentile` (10th) percentile of the run's own counts.
+- **Subsampling trades the size confound for a SELECTION one, and the trade
+  has to be watched.** Recordings with fewer nodes than the target are dropped,
+  and smallness is not randomly distributed: on the Yin run a target of 80
+  nodes keeps 76% of KO recordings against 34% of wildtype, which would compare
+  the largest wildtype networks with typical KO ones. `retention()` reports
+  kept-fraction per group, it is written to
+  `density_sweep_retention.csv`, and the runner logs a warning when the spread
+  between groups exceeds 20 points. The default percentile is deliberately low
+  for this reason, and `_resolve_target_nodes` refuses to subsample below 15
+  nodes at all rather than compare near-empty graphs.
+- **`BCmean` is normalised by `((n-1)(n-2))`**, as step 4 and MATLAB's
+  `ExtractNetMet.m` both do. The sweep originally omitted that and the
+  unnormalised mean correlated with node count at r = +0.89 — a size measure
+  wearing a topology name. Normalised it is r = -0.64, still the most
+  size-dependent metric in the set, which is worth knowing before quoting it.
+- **Cost is dominated by the big networks and by modularity.** Consensus
+  Louvain at `rep_num=50` (what step 4 uses) is ~0.8s per density per
+  recording; the sweep defaults to `sweep_modularity_reps=20`. On the Yin run
+  (378 recordings, median 131 nodes but up to 652, 20 densities) the whole
+  sweep took roughly 15 minutes across 16 cores. Do not estimate it from a
+  small subset: wall time on a parallel subset is the slowest single recording,
+  not the mean, and dividing that by the subset size then re-multiplying
+  double-counts the parallelism (an error made and corrected during this work).
+  `betweenness_wei` is the hot spot and is pure Python — only the distance loop
+  is numba-compiled.
+
+### Topology under control, fed back into the family decomposition
+
+`run.py`'s `_controlled_families` runs the family decomposition a second time
+with the topology family represented **only** by the sweep's cost-integrated
+features, and draws `5E4_topology_controlled` comparing the two. Activity and
+correlation strength stay raw in both, deliberately: they are the confounders
+topology is being tested against, and controlling them away would defeat the
+comparison. Runs automatically whenever both `feature_families` and
+`density_sweep` are on.
+
+**Result on the Yin timecourse.** Controlling topology does *not* rescue it:
+topology's mean unique contribution is -0.009 controlled against -0.019 raw,
+and per age it is 0.000 / -0.013 / -0.036 / -0.007 / +0.012 — zero everywhere.
+`Alone` actually falls (0.221 -> 0.159). A feature-count control matters here
+and was run: matching the raw set to the same six quantities
+(`CC_rawMean`, `PL_raw`, `Eglob`, `ElocMean`, `Q`, `nMod`) moves raw unique from
+-0.019 to -0.004, so a little of the original gap was the 33-vs-7 asymmetry —
+but the controlled version is still no better than the matched raw one.
+
+This reconciles with the sweep curves rather than contradicting them: there
+**is** a real WT > KO clustering difference at matched density and size (~0.28
+SD), and it carries **no genotype information beyond what activity and
+connection density already carry**. Topology here is redundant, not absent —
+which is a stronger claim than "mismeasured", and only sayable because the
+control was run.
+
+### Choosing the subsample target: separate selection from resolution
+
+Raising `sweep_n_nodes` changes two things at once — topology is better
+resolved *and* a different (smaller, non-random) set of recordings survives — so
+comparing two targets directly confounds them. Run three conditions instead:
+
+| | what it is |
+|---|---|
+| **A** | target N over every recording that reaches it |
+| **B** | a larger target M over every recording that reaches it |
+| **C** | target N over *only B's recordings* |
+
+A vs C is then the selection effect alone, and C vs B the resolution effect
+alone. Done on the Yin run at N=22 / M=50 (WT−KO gap, in SDs of each metric's
+own spread across the sweep):
+
+| | CC | Eglob | ElocMean | Q | nMod | BCmean |
+|---|---|---|---|---|---|---|
+| A (N=22, 345 recs) | 0.284 | 0.012 | 0.232 | 0.052 | −0.199 | 0.074 |
+| C (N=22, B's 278) | 0.262 | 0.015 | 0.221 | 0.166 | −0.203 | 0.139 |
+| B (N=50, 278 recs) | 0.341 | 0.046 | 0.292 | 0.420 | −0.252 | 0.285 |
+
+Reading: `CC`, `ElocMean` and `nMod` barely move on selection (A→C ≤0.02) and
+keep sign and rough magnitude at the larger target, so those differences are
+real. **`Q` and `BCmean` move a lot on selection alone** (0.052→0.166 and
+0.074→0.139), so a Q or BC difference measured at a high target is partly the
+retention imbalance — at N=50 that was WT 63% vs KO 87%. Resolution (C→B) is
+the larger term for every metric, which means **effect sizes are not comparable
+between targets** and one target's numbers should not be quoted as absolute.
+
+**Result on the Yin timecourse, with density *and* size controlled:** a modest
+but robust WT > KO difference in clustering and local efficiency, and more
+modules in KO; nothing in `Eglob`. Far smaller than the uncontrolled comparison
+showed — the large effects were density and size — but not zero, which amends
+the family-Shapley conclusion rather than contradicting it.
+
+**Measured runtimes** (378 recordings, 20 densities, 20 draws, 16 cores):
+N=50 took 25 min, N=22 over 278 recordings took 9 min. Subsampling multiplies
+the sweep by the draw count, so it is much more expensive than the unsubsampled
+sweep (~15 min) despite the smaller graphs.
+
+**Verify:** `uv run python python/test_density_sweep.py [<extracted run folder>]`
+— 37 checks. Section A works on ring lattices and random graphs, where the
+answer is known by construction: the sweep must separate a lattice from a
+random graph *at the same density*, and must give identical results for two
+graphs that differ only in edge strength.
+
+
+### Where the figures show up (report + viewer, 2026-08-30)
+
+Step 5's figures reach the same two places every other step's do, through one
+mechanism worth understanding before changing anything here.
+
+**One catalogue, three consumers.** `stats/figures.py` owns the list of which
+figures exist, what each is called, what its caption says, and how to draw it.
+The step (`stats/run.py`), the bundle exporter (`pipeline/export.py`) and the
+viewer (`pipeline/render.py` → `viewer/server.py`) all go through it. Adding a
+figure means adding it there and nowhere else; adding one to `stats/plots.py`
+alone means the viewer will never offer it. `test_stats_report.py` asserts the
+catalogue and the files actually written are the same set, in both directions.
+
+**Bundles carry the tables, not the pictures.** `5_StatsAndML` is the first
+entry in `bundle._DATA_ONLY_DIRS`: its CSVs travel, its PNGs do not (~100 kB
+against ~4 MB on the Yin run). That is only safe because every figure is a pure
+function of the CSVs beside it, so `figures.load_results()` reads them back and
+`draw_stats_figure()` reproduces the figure **byte-for-byte** — checked in
+`test_stats_report.py`, and the check that must keep passing if a plot ever
+starts reading something the tables do not carry. Two analyses are recomputed
+rather than stored (the correlation structure and the discriminant projection):
+both are deterministic and sub-second, and storing them would mean inventing a
+file format for a stack of matrices and a set of eigenvalues.
+
+Re-bundling a folder that has since been through step 5 tops up the manifest's
+`reconstructable` list with `5_stats` (`bundle._claim_stats`), because that list
+is otherwise static and was written before the folder had any statistics in it.
+
+**The report** picks the figures up by walking the folder. Its captions come
+from `figures.report_patterns()` — the same prose the viewer shows — so the two
+cannot drift; the folder description and the ~20 CSV descriptions are in
+`report.py` alongside the other steps'. Filenames are numbered (`5A1_`, `5A2_`,
+… `5D3_`) because both the report and a file browser sort alphabetically, and
+without the digits the decoding section opens on its per-age breakdown and the
+comparisons section on DIV 14 rather than on the model over all of them.
+
+**The viewer** gets a Statistics tab, hidden when the run has no `5_StatsAndML`.
+It groups the figures by analysis, shows each one's caption underneath, and
+honours the group/age colour overrides (`/api/stats?lag=…&key=…`), so a genotype
+is the same colour there as on every other figure in the session. Figures are
+cached per address like every other render.
+
+**Gotcha: a *k*-class problem has *k*-1 discriminant axes.** A two-group study —
+the commonest design — gets one, so `plot_lda_projection` draws a one-axis strip
+rather than the scatter. It used to return `None` there, which meant the
+catalogue offered a figure that could not be drawn; the test that caught it is
+the catalogue-vs-files check above.
+
+
+### Gotchas
+
+- **`statsmodels`' default `lbfgs` optimiser fails on these mixed models.** It
+  drives the culture variance to the boundary and then raises `LinAlgError`
+  inverting a singular Hessian — on *every* metric of the Yin run.
+  `_MIXEDLM_METHODS` tries `powell` first, which converges on the same data to
+  a variance component of 0.08-0.35. Don't reorder that list without
+  re-checking on real data; the failure is silent in the sense that it looks
+  like "this metric has no effect".
+- There is a clustered-OLS fallback (`_fit_cluster_ols`) for when no optimiser
+  converges. Rows say which was used in the `Test` column (`LME` vs
+  `OLS-clustered`), and the interaction test is a joint Wald rather than a
+  likelihood ratio precisely so it stays valid under the fallback.
+- `feature_matrix(dropna="rows")` is the default and is what MATLAB does. On
+  the Yin run `dropna="columns"` leaves **2 columns** — the two-photon activity
+  metrics are missing for enough recordings that requiring complete columns
+  destroys the feature set. Don't switch the default.
+- The decoding null is the runtime. 200 permutations × 6 models ≈ 2 minutes on
+  16 cores; it is parallelised with joblib over permutations, with estimator
+  `n_jobs` forced to 1 inside the workers (a forest asking for every core from
+  inside every worker is slower than no parallelism).
+- CAT-NAP runs name their columns `Grp`/`DIV`; MATLAB's `doStats` expects
+  `eGrp`/`AgeDiv`. `dataset.META_COLUMNS` knows both.
+
+### How to verify changes
+
+```
+uv run python python/test_stats.py          # 47 checks, ~2 min — the analyses
+uv run python python/test_stats_report.py   # 28 checks, ~1 min — report + viewer
+uv run meanap-stats local/YinThesisRun.meanap --quick -o /tmp/statscheck
+```
+
+Section B of `test_stats.py` runs the real Yin bundle end to end and skips when
+`local/` is absent. `test_stats_report.py` builds its own synthetic run, so it
+needs nothing outside the repo.
+
 
 ## Plot parity (MATLAB vs Python)
 
@@ -112,6 +581,10 @@ above.
 
 ## Key files
 
+- `src/meanap/stats/` — the step-5 package: `dataset.py` (loads a run into one
+  feature table, derives culture identity), `comparisons.py`, `correlation.py`,
+  `decoding.py`, `regression.py`, `plots.py`, `run.py` (writes
+  `5_StatsAndML/`), `cli.py` (`meanap-stats`). See "Step 5" above.
 - `src/meanap/pipeline/io.py` — HDF5/v7.3 `.mat` I/O: `load_raw_recording`,
   `load_spike_times_mat`, `save_spike_times_npz`, `load_spike_times_npz`.
 - `src/meanap/pipeline/spike_detection.py` — the ported detection algorithms

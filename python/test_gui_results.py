@@ -47,8 +47,13 @@ print("\nThe tab")
 
 titles = [window._tabs.tabText(i).strip() for i in range(window._tabs.count())]
 check("Results is a tab", "Results" in titles, str(titles))
-check("and it is the last one — the workflow ends there",
-      titles[-1] == "Results", str(titles))
+# Results is where the *pipeline* workflow ends, so it comes after Run. Only
+# Stats & ML sits further right, and that tab is not part of the run at all —
+# it analyses a run that has already finished.
+check("it comes after Run — the workflow ends there",
+      titles.index("Results") > titles.index("Run"), str(titles))
+check("only Stats & ML sits after it",
+      titles[titles.index("Results") + 1:] == ["Stats && ML"], str(titles))
 check("there is no separate Network Viewer tab any more",
       "Network Viewer" not in titles, str(titles))
 check("the viewer is inside Results instead",

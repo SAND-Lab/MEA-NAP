@@ -1294,12 +1294,17 @@ def _manifest_honesty_checks() -> list[Check]:
     mapped = {expected[k] for k in implemented if k in expected}
     checks.append(("every implemented family is advertised",
                    mapped <= advertised, f"{sorted(mapped - advertised)}"))
-    per_recording = {"4A_individual_network", "2A_individual_activity",
-                     "1B_spike_detection_checks", "3_edge_threshold_checks",
-                     "cell_type_subnetwork_per_rec"}
+    # Families the renderer implements somewhere other than GROUP_FAMILIES:
+    # the per-recording sets, each with its own available_*/render_* pair, and
+    # step 5's statistics figures (available_stats_figures /
+    # render_stats_figure, drawn from the tables a bundle carries rather than
+    # from per-recording state).
+    implemented_elsewhere = {"4A_individual_network", "2A_individual_activity",
+                             "1B_spike_detection_checks", "3_edge_threshold_checks",
+                             "cell_type_subnetwork_per_rec", "5_stats"}
     checks.append(("nothing is advertised that isn't implemented",
-                   advertised - mapped <= per_recording,
-                   f"{sorted(advertised - mapped - per_recording)}"))
+                   advertised - mapped <= implemented_elsewhere,
+                   f"{sorted(advertised - mapped - implemented_elsewhere)}"))
     checks.append(("the two lists are disjoint",
                    not (advertised & set(UNRECONSTRUCTABLE_FAMILIES)),
                    f"{sorted(advertised & set(UNRECONSTRUCTABLE_FAMILIES))}"))
