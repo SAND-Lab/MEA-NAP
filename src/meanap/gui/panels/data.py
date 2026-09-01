@@ -32,6 +32,7 @@ from PyQt6.QtWidgets import (
 
 from meanap.gui.advanced import AdvancedSection
 from meanap.gui.panels.paths import PathRow
+from meanap.gui.widgets import pin_width
 from meanap.params import Params, is_remote_url
 
 __all__ = ["DataPanel", "CHANNEL_LAYOUTS", "POTENTIAL_UNITS",
@@ -90,7 +91,7 @@ class DataPanel(QWidget):
         # that matches no folder drops a recording from the batch without
         # complaint — so it gets an editor that checks as you type.
         self.edit_spreadsheet_btn = QPushButton("Edit…")
-        self.edit_spreadsheet_btn.setFixedWidth(64)
+        pin_width(self.edit_spreadsheet_btn, 64)
         self.edit_spreadsheet_btn.setToolTip(
             "Open the recording spreadsheet in a table editor, or start a new "
             "one. Names, DIVs and groups are checked as you edit."

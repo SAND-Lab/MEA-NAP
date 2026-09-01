@@ -21,6 +21,7 @@ from meanap.network_plot import (
     get_edge_threshold, limit_edges_for_plotting, load_cell_type_file,
     make_example_network, plot_network,
 )
+from meanap.gui.widgets import pin_width
 
 # Node-size scaling methods exposed in the UI — mirror MATLAB's nodeScalingMethod
 # options (see getNodeSize.m). The value is passed straight to plot_network.
@@ -182,7 +183,7 @@ class NetworkViewerPanel(QWidget):
         self._mat_path.setPlaceholderText("No file selected…")
         self._mat_path.setReadOnly(True)
         browse_btn = QPushButton("Browse…")
-        browse_btn.setFixedWidth(72)
+        pin_width(browse_btn, 72)
         browse_btn.clicked.connect(self._on_browse_mat)
         path_row.addWidget(self._mat_path)
         path_row.addWidget(browse_btn)
@@ -309,7 +310,7 @@ class NetworkViewerPanel(QWidget):
         self._load_ct_btn.setEnabled(False)
         self._load_ct_btn.clicked.connect(self._on_load_cell_types)
         self._clear_ct_btn = QPushButton("Clear")
-        self._clear_ct_btn.setFixedWidth(52)
+        pin_width(self._clear_ct_btn, 52)
         self._clear_ct_btn.setEnabled(False)
         self._clear_ct_btn.clicked.connect(self._on_clear_cell_types)
         ct_btn_row.addWidget(self._load_ct_btn)

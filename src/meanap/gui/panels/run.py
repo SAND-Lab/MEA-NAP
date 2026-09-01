@@ -32,12 +32,13 @@ from __future__ import annotations
 
 from PyQt6.QtWidgets import (
     QButtonGroup, QGroupBox, QHBoxLayout, QLabel, QProgressBar, QPushButton,
-    QRadioButton, QScrollArea, QStackedWidget, QTextEdit, QVBoxLayout, QWidget,
+    QRadioButton, QStackedWidget, QTextEdit, QVBoxLayout, QWidget,
 )
 
 from meanap.gui.panels.pipeline import PipelinePanel
 from meanap.gui.panels.queue import QueuePanel
 from meanap.gui.panels.shared import SharedRunPanel
+from meanap.gui.widgets import scrollable
 from meanap.params import Params
 from meanap.pipeline.progress import Progress, format_bytes, format_duration
 
@@ -112,13 +113,8 @@ class RunPanel(QWidget):
     def _build_stack(self) -> QWidget:
         # The settings scroll; the run controls, progress and log below them do
         # not, so the button you are waiting on never scrolls off the tab.
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
-        scroll.setWidget(self.settings)
-
         self._stack = QStackedWidget()
-        self._stack.addWidget(scroll)
+        self._stack.addWidget(scrollable(self.settings))
         self._stack.addWidget(self.queue)
         self._stack.addWidget(self.shared)
         return self._stack

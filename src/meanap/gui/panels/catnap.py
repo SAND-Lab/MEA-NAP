@@ -21,6 +21,7 @@ from meanap.catnap.loader import Suite2pData, load_suite2p
 from meanap.catnap.denoising import oasis_available
 from meanap.gui.panels.cell_type_groups import CellTypeGroupEditor
 from meanap.gui.advanced import AdvancedSection
+from meanap.gui.widgets import pin_width, scrollable
 from meanap.params import Params, is_remote_url
 
 ACTIVITY_TYPES = ["peaks", "denoised F", "F", "spks"]
@@ -227,7 +228,14 @@ class CatNapPanel(QWidget):
         splitter = QSplitter(Qt.Orientation.Horizontal)
         main_layout.addWidget(splitter)
 
-        splitter.addWidget(self._build_left_panel())
+        # The left column is a fixed stack of settings boxes with a minimum
+        # height it cannot lay out below; the right column is built to fill
+        # whatever height it is given. Left unscrolled, the left column's
+        # minimum became the whole window's floor, and on a screen too short
+        # to meet it Qt squashed the rows past their minimum — clipped
+        # buttons, a collapsed recording list, advanced rows drawn on top of
+        # each other. So it scrolls, and the right column does not.
+        splitter.addWidget(scrollable(self._build_left_panel()))
         splitter.addWidget(self._build_right_panel())
         splitter.setSizes([320, 580])
 
@@ -253,7 +261,7 @@ class CatNapPanel(QWidget):
             "runs; trace preview and denoising here need a local folder."
         )
         self._browse_btn = QPushButton("Browse…")
-        self._browse_btn.setFixedWidth(72)
+        pin_width(self._browse_btn, 72)
         self._browse_btn.clicked.connect(self._on_browse)
         folder_row.addWidget(self._folder_edit)
         folder_row.addWidget(self._browse_btn)
@@ -470,10 +478,10 @@ class CatNapPanel(QWidget):
             "Auto-detect a spreadsheet in each recording's folder"
         )
         browse = QPushButton("Browse…")
-        browse.setFixedWidth(72)
+        pin_width(browse, 72)
         browse.clicked.connect(self._on_browse_celltype)
         self._load_markers_btn = QPushButton("Load markers")
-        self._load_markers_btn.setFixedWidth(96)
+        pin_width(self._load_markers_btn, 96)
         self._load_markers_btn.clicked.connect(lambda: self._load_markers(verbose=True))
         file_row.addWidget(self._celltype_file)
         file_row.addWidget(browse)

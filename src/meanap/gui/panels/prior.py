@@ -20,6 +20,7 @@ from PyQt6.QtWidgets import (
 )
 
 from meanap.gui.panels.paths import PathRow
+from meanap.gui.widgets import pin_width
 from meanap.params import Params
 
 __all__ = ["PriorAnalysisPanel"]
@@ -48,10 +49,10 @@ class PriorAnalysisPanel(QWidget):
             "Each may be an OutputData… folder or a .meanap bundle."
         )
         self.add_prior_btn = QPushButton("Add…")
-        self.add_prior_btn.setFixedWidth(80)
+        pin_width(self.add_prior_btn, 80)
         self.add_prior_btn.clicked.connect(self._on_add_prior)
         self.remove_prior_btn = QPushButton("Remove")
-        self.remove_prior_btn.setFixedWidth(80)
+        pin_width(self.remove_prior_btn, 80)
         self.remove_prior_btn.clicked.connect(self._on_remove_prior)
 
         buttons = QVBoxLayout()

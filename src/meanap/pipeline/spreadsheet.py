@@ -206,6 +206,66 @@ def write_recording_table(path: str | Path, table: pd.DataFrame) -> Path:
     return path
 
 
+def raw_recording_names(raw_data: str | Path) -> list[str]:
+    """The recordings *raw_data* holds, by name, in the order a person expects.
+
+    One name per raw file, its extension dropped — the name a spreadsheet row
+    has to carry for the run to find the file again. Sub-folders are not walked:
+    a raw-data folder is flat, and recursing would sweep up an output folder
+    that happens to sit inside it.
+    """
+    from meanap.pipeline.io import RAW_EXTENSIONS
+
+    folder = Path(raw_data)
+    if not folder.is_dir():
+        raise ValueError(f"Raw data folder not found: {folder}")
+
+    wanted = {ext.lower() for ext in RAW_EXTENSIONS}
+    names = [f.stem for f in folder.iterdir()
+             if f.is_file() and f.suffix.lower() in wanted]
+    return sorted(names)
+
+
+def generate_spreadsheet(raw_data: str | Path, path: str | Path,
+                         log=print) -> Path:
+    """Write a spreadsheet naming every recording in *raw_data*.
+
+    MEA-NAP's optional ``generateCSV`` step. The names come from the files, so
+    they match what the run will look for; the DIV comes from each name where
+    the name states one, and the genotype is left blank because nothing in a
+    folder listing knows it.
+
+    An existing spreadsheet at *path* is **not** thrown away: its DIVs and
+    genotypes are carried across by name first. Filling a genotype column in is
+    the slowest manual step in setting up a batch, and re-running with this
+    step still ticked must not be the thing that loses it.
+    """
+    names = raw_recording_names(raw_data)
+    if not names:
+        raise ValueError(f"No recordings found in {raw_data} — nothing to write.")
+
+    table = new_recording_table(names)
+
+    path = Path(path)
+    carried = 0
+    if path.exists():
+        try:
+            table, carried = fill_from_table(table, read_recording_table(path))
+        except Exception as exc:   # unreadable/empty file: it is being replaced
+            log(f"  (could not read the existing spreadsheet, writing a fresh "
+                f"one: {exc})")
+
+    write_recording_table(path, table)
+    log(f"Generated spreadsheet from {raw_data}: {len(names)} recording(s) → {path}")
+    if carried:
+        log(f"  kept the DIV and genotype already filled in for {carried} of them")
+    blank = int((table.iloc[:, 2].astype(str).str.strip() == "").sum())
+    if blank:
+        log(f"  {blank} row(s) still need a genotype/group — the group "
+            f"comparisons are built from that column")
+    return path
+
+
 def validate_recording_table(table: pd.DataFrame) -> list[str]:
     """Everything wrong with *table*, worst first; empty when it is usable.
 

@@ -7,12 +7,12 @@ from pathlib import Path
 
 from PyQt6.QtWidgets import (
     QApplication, QComboBox, QFileDialog, QLabel, QMainWindow, QMessageBox,
-    QLineEdit, QScrollArea, QTabWidget, QToolBar, QWidget,
+    QLineEdit, QTabWidget, QToolBar, QWidget,
 )
 from PyQt6.QtGui import QAction
 from PyQt6.QtCore import Qt, QSettings, QSignalBlocker, QSize
 
-from meanap.params import Params
+from meanap.params import STATS_STEP, Params
 from meanap.pipeline.bundle import BUNDLE_SUFFIX
 from meanap.pipeline.example_data import download_example_data
 from meanap.pipeline.report import generate_report
@@ -30,6 +30,7 @@ from meanap.gui.pipeline_worker import (
 )
 from meanap.gui.stats_worker import StatsWorker
 from meanap.gui.viewer_session import ViewerSessions
+from meanap.gui.widgets import scrollable
 from meanap.gui.panels.data import (
     CATNAP_DATA_LABEL, DataPanel, RAW_DATA_LABEL,
 )
@@ -43,14 +44,7 @@ from meanap.gui.panels.results import ResultsPanel
 from meanap.gui.panels.stats import StatsPanel
 from meanap.gui.tooltip import install_tooltip_style, wrap_tooltips
 from meanap.gui.tutorial import TutorialOverlay, TutorialStep, tabbar_target
-
-
-def _scrollable(widget: QWidget) -> QScrollArea:
-    area = QScrollArea()
-    area.setWidget(widget)
-    area.setWidgetResizable(True)
-    area.setFrameShape(QScrollArea.Shape.NoFrame)
-    return area
+from meanap.gui.wheel import install_wheel_guard
 
 
 class _LogoLabel(QLabel):
@@ -130,6 +124,9 @@ class MainWindow(QMainWindow):
         # lays a long one out on a single line, wider than the screen.
         install_tooltip_style()
         wrap_tooltips(self)
+        # A scroll over a spin box or combo box belongs to the page it is on,
+        # not to the field the pointer happened to cross — see gui/wheel.py.
+        install_wheel_guard()
         self._maybe_show_tutorial_on_first_launch()
 
     # ── UI construction ───────────────────────────────────────────────────────
@@ -274,15 +271,15 @@ class MainWindow(QMainWindow):
         # which of them are actually in the QTabWidget (see _apply_mode). Order
         # is the order they appear in, whichever subset is showing.
         self._tab_specs: list[tuple[str, QWidget, str]] = [
-            (TAB_DATA, _scrollable(self._data_panel), "  Data  "),
-            (TAB_SPIKE, _scrollable(self._spike_panel), "  Spike detection  "),
+            (TAB_DATA, scrollable(self._data_panel), "  Data  "),
+            (TAB_SPIKE, scrollable(self._spike_panel), "  Spike detection  "),
             # CAT-NAP before Connectivity: in 2P mode this tab is where the
             # recordings are found and prepared, so it comes before the
             # settings that act on them — the same place Spike detection holds
             # in the ephys modes.
             (TAB_CATNAP, self._catnap_panel, "  CAT-NAP (2P)  "),
-            (TAB_CONNECTIVITY, _scrollable(self._connectivity_panel), "  Connectivity  "),
-            (TAB_STIM, _scrollable(self._stim_panel), "  Stimulation  "),
+            (TAB_CONNECTIVITY, scrollable(self._connectivity_panel), "  Connectivity  "),
+            (TAB_STIM, scrollable(self._stim_panel), "  Stimulation  "),
             (TAB_STIM_PREVIEW, self._stim_preview_panel, "  Stim Preview  "),
             (TAB_RUN, self._run_panel, "  Run  "),
             (TAB_RESULTS, self._results_panel, "  Results  "),
@@ -290,7 +287,7 @@ class MainWindow(QMainWindow):
             # the only tab whose input is another tab's output.
             # "&&" because Qt reads a single "&" in a tab label as the marker
             # for a keyboard mnemonic and swallows it.
-            (TAB_STATS, _scrollable(self._stats_panel), "  Stats && ML  "),
+            (TAB_STATS, scrollable(self._stats_panel), "  Stats && ML  "),
         ]
         self._apply_mode(self._mode, sync_params=False)
 
@@ -1176,11 +1173,69 @@ class MainWindow(QMainWindow):
         self._run_panel.append_log(f"Done. Output folder: {output_root}")
         self._announce_bundle(output_root)
         self._reset_run_buttons()
+        self._refresh_results_target()
+        if self._start_optional_stats(output_root):
+            return
         # The log is what someone is looking at when a run ends, and the thing
         # to do next is now on a different tab.
         self._run_panel.append_log(
             "Open the results on the Results tab, or explore the networks there.")
-        self._refresh_results_target()
+
+    def _start_optional_stats(self, output_root: Path) -> bool:
+        """Carry on into step 5, if the run asked for it. Did it start?
+
+        The settings are the Stats tab's own — ticking the box on the Run tab
+        means "and then do what that tab is set up to do", rather than adding
+        a second, quietly different set of statistics settings to keep in step.
+        """
+        if self._params is None or STATS_STEP not in self._params.optional_steps_to_run:
+            return False
+        if self._stats_worker is not None and self._stats_worker.isRunning():
+            self._run_panel.append_log(
+                "Statistics are already running from the Stats && ML tab — "
+                "leaving them to finish rather than starting a second pass.")
+            return False
+
+        # Point the tab at the run that just finished before reading its
+        # settings: the density sweep is only offered for a source that has
+        # the adjacency matrices, so the settings depend on the source.
+        self._stats_panel.set_source(output_root)
+        self._stats_panel.clear_log()
+        self._stats_panel.set_result(None)
+        self._stats_panel.set_running(True)
+
+        rule = "─" * 68
+        self._run_panel.append_log(
+            f"\n{rule}\n  Optional step: statistics and machine learning\n{rule}")
+
+        worker = StatsWorker(output_root, None, self._stats_panel.settings(),
+                             parent=self)
+        worker.log_message.connect(self._run_panel.append_log)
+        worker.log_message.connect(self._stats_panel.append_log)
+        worker.finished_ok.connect(self._on_optional_stats_finished)
+        worker.failed.connect(self._on_optional_stats_failed)
+        worker.finished.connect(lambda: self._stats_panel.set_running(False))
+        self._stats_worker = worker
+        worker.start()
+        return True
+
+    def _on_optional_stats_finished(self, result) -> None:
+        self._on_stats_finished(result)
+        self._run_panel.append_log(
+            f"Statistics done — {len(result.tables)} table(s), "
+            f"{len(result.figures)} figure(s) in {result.dest}")
+        self._run_panel.append_log(
+            "Open the results on the Results tab, or the statistics on the "
+            "Stats && ML tab.")
+
+    def _on_optional_stats_failed(self, message: str) -> None:
+        # Only the statistics failed; the run itself finished and its output is
+        # on disk, so this must not be reported as a failed run.
+        self._stats_panel.append_log(f"ERROR: {message}")
+        self._run_panel.append_log(
+            f"ERROR: the statistics step failed: {message}\n"
+            "The run itself finished — its output folder is complete, and the "
+            "Stats && ML tab can retry against it.")
 
     def _announce_bundle(self, output_root: Path) -> None:
         """Say where the express bundle went, as the last thing in the log.

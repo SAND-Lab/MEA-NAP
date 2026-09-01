@@ -7,12 +7,12 @@ module for why.
 
 from PyQt6.QtWidgets import (
     QCheckBox, QComboBox, QFormLayout, QGroupBox, QHBoxLayout,
-    QLabel, QListWidget, QListWidgetItem, QSpinBox, QVBoxLayout, QWidget,
+    QLabel, QSpinBox, QVBoxLayout, QWidget,
 )
 
 from meanap.gui.advanced import AdvancedSection
 from meanap.gui.panels.prior import PriorAnalysisPanel
-from meanap.params import Params
+from meanap.params import GENERATE_CSV_STEP, STATS_STEP, Params
 
 PIPELINE_STEPS = [
     (1, "Spike detection"),
@@ -21,7 +21,27 @@ PIPELINE_STEPS = [
     (4, "Network analysis"),
 ]
 
-OPTIONAL_STEPS = ["generateCSV"]
+#: The optional steps, as (key stored in ``Params.optional_steps_to_run``,
+#: label, tooltip). A checkbox each rather than a multi-select list: the list
+#: gave no hint that its rows were togglable, showed a selection that looked
+#: like a highlight, and could not say what either row does.
+OPTIONAL_STEPS = [
+    (GENERATE_CSV_STEP, "Generate the spreadsheet from the raw data",
+     "Before step 1, write the recording spreadsheet from the files in the "
+     "raw data folder, so every name matches the data exactly. DIV is filled "
+     "in wherever a name states it; the genotype/group column is yours.\n\n"
+     "Whatever the spreadsheet already had is kept: DIVs and genotypes are "
+     "carried across by name, so leaving this ticked never costs you the "
+     "column you filled in by hand.\n\n"
+     "The Data tab's Edit… button does the same thing interactively, and "
+     "shows you the table before it is written."),
+    (STATS_STEP, "Statistics and machine learning",
+     "When the run finishes, carry straight on into step 5 against its "
+     "output — the same analyses the Stats && ML tab runs, with whatever "
+     "that tab is set to, logged here as they go.\n\n"
+     "Applies to a single run started from this tab. A queued run does not "
+     "pick it up."),
+]
 VERBOSE_LEVELS = ["Normal", "Verbose", "Debug"]
 
 
@@ -95,11 +115,12 @@ class PipelinePanel(QWidget):
         self.prior.setVisible(False)
         self.prior_analysis.toggled.connect(self.prior.setVisible)
 
-        self.optional_steps = QListWidget()
-        self.optional_steps.setSelectionMode(QListWidget.SelectionMode.MultiSelection)
-        self.optional_steps.setMaximumHeight(60)
-        for s in OPTIONAL_STEPS:
-            self.optional_steps.addItem(QListWidgetItem(s))
+        #: One checkbox per optional step, keyed by what goes into the params.
+        self.optional_steps: dict[str, QCheckBox] = {}
+        for key, _label, tip in OPTIONAL_STEPS:
+            box = QCheckBox()
+            box.setToolTip(tip)
+            self.optional_steps[key] = box
 
         form.addRow("Start at step", self.start_step)
         form.addRow("Stop at step", self.stop_step)
@@ -109,7 +130,8 @@ class PipelinePanel(QWidget):
         form.addRow("   …and drop removed recordings' figures", self.prune_removed)
 
         optional = AdvancedSection()
-        optional.form().addRow("Optional steps", self.optional_steps)
+        for key, label, _tip in OPTIONAL_STEPS:
+            optional.form().addRow(label, self.optional_steps[key])
         form.addRow(optional)
 
         # ── Step overview ─────────────────────────────────────────────────────
@@ -193,9 +215,8 @@ class PipelinePanel(QWidget):
         self.use_random_seed.setChecked(params.random_seed is not None)
         if params.random_seed is not None:
             self.random_seed.setValue(int(params.random_seed))
-        for i in range(self.optional_steps.count()):
-            item = self.optional_steps.item(i)
-            item.setSelected(item.text() in params.optional_steps_to_run)
+        for key, box in self.optional_steps.items():
+            box.setChecked(key in params.optional_steps_to_run)
 
     def save(self, params: Params) -> None:
         params.start_analysis_step = self.start_step.value()
@@ -214,7 +235,5 @@ class PipelinePanel(QWidget):
             self.random_seed.value() if self.use_random_seed.isChecked() else None
         )
         params.optional_steps_to_run = [
-            self.optional_steps.item(i).text()
-            for i in range(self.optional_steps.count())
-            if self.optional_steps.item(i).isSelected()
+            key for key, box in self.optional_steps.items() if box.isChecked()
         ]

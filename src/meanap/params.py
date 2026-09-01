@@ -5,6 +5,18 @@ from pathlib import Path
 from typing import Literal
 
 
+# ── Optional steps ───────────────────────────────────────────────────────────
+#
+# Steps a run does only when asked, named in :attr:`Params.optional_steps_to_run`.
+# The strings match MATLAB's ``Params.optionalStepsToRun`` entries, so a
+# parameter file written by either pipeline means the same thing in the other.
+
+#: Build the recording spreadsheet from the raw data folder before step 1.
+GENERATE_CSV_STEP = "generateCSV"
+#: Run step 5 — statistics and machine learning — on the finished output.
+STATS_STEP = "Stats"
+
+
 @dataclass
 class Params:
     # ── Paths ────────────────────────────────────────────────────────────────

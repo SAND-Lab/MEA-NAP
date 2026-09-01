@@ -10,8 +10,8 @@ from pathlib import Path
 from typing import Callable
 
 from meanap.params import (
-    PARAMS_FILENAME, Params, default_cache_dir, default_derived_dir, is_remote_url, mode_for_params,
-    save_params,
+    GENERATE_CSV_STEP, PARAMS_FILENAME, Params, default_cache_dir,
+    default_derived_dir, is_remote_url, mode_for_params, save_params,
 )
 from meanap.pipeline.cancellation import CancelCheck, check_cancel
 from meanap.pipeline.io import (
@@ -32,7 +32,9 @@ from meanap.pipeline.resume import (
     already_done, build_input_locator, missing_step_inputs,
 )
 from meanap.pipeline.spike_detection import SpikeDetectionParams, detect_spikes_recording
-from meanap.pipeline.spreadsheet import RecordingInfo, read_recording_csv
+from meanap.pipeline.spreadsheet import (
+    RecordingInfo, generate_spreadsheet, read_recording_csv,
+)
 
 
 def default_output_folder_name() -> str:
@@ -133,6 +135,12 @@ def run_pipeline(
         raise ValueError("Spreadsheet file must be set")
     if not params.output_data_folder:
         raise ValueError("Output data folder must be set")
+
+    # Optional step, before anything reads the sheet: build it from the raw
+    # data folder. Ported from MEApipeline.m's ``generateCSV`` block, except
+    # that this one keeps whatever DIVs and genotypes the sheet already had.
+    if GENERATE_CSV_STEP in params.optional_steps_to_run:
+        generate_spreadsheet(params.raw_data, params.spreadsheet_file_name, log)
 
     recordings = read_recording_csv(params.spreadsheet_file_name, params.spreadsheet_range)
     if not recordings:

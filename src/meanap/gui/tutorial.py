@@ -289,9 +289,15 @@ class TutorialOverlay(QWidget):
 
     def _reveal(self, w: QWidget) -> None:
         self._unfold(w)
-        area = self._tabs.currentWidget()
-        if isinstance(area, QScrollArea):
-            area.ensureWidgetVisible(w, 60, 60)
+        # The scroll area is not always the tab page itself — a tab can scroll
+        # just one of its columns (the CAT-NAP settings do). Walk out from the
+        # target to whichever one actually holds it.
+        parent = w.parentWidget()
+        while parent is not None:
+            if isinstance(parent, QScrollArea):
+                parent.ensureWidgetVisible(w, 60, 60)
+                return
+            parent = parent.parentWidget()
 
     @staticmethod
     def _unfold(w: QWidget) -> None:

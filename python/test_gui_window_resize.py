@@ -12,6 +12,14 @@ outside.
 The guard here is the same one the bug broke: no mode's window may demand more
 vertical space than a modest laptop screen leaves. 800px is the height of the
 smallest display anyone runs this on, less the menu bar and the Dock.
+
+Checked with the Advanced sections open as well as closed. The same bug came
+back through the CAT-NAP tab, whose settings column was likewise unscrolled:
+folded up it stayed under the guard, so this test passed, but a collaborator
+running with the sections open and a larger UI font had the column squashed
+past its minimum — clipped buttons, a recording list collapsed to a strip, and
+advanced rows drawn on top of one another. An open section is a normal way to
+use the window, so it is a normal thing to measure.
 """
 
 from __future__ import annotations
@@ -25,6 +33,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from PyQt6.QtWidgets import QApplication  # noqa: E402
 
+from meanap.gui.advanced import AdvancedSection  # noqa: E402
 from meanap.gui.main_window import MainWindow  # noqa: E402
 from meanap.gui.modes import MODES  # noqa: E402
 
@@ -73,6 +82,20 @@ for mode in MODES:
         title = window._tabs.tabText(i).strip()
         h = window.minimumSizeHint().height()
         check(f"[{mode}] the {title} tab does not raise the floor",
+              h <= USABLE_HEIGHT, f"minimum height {h}px with {title} showing")
+
+    # Again with every advanced section unfolded — the state the CAT-NAP
+    # squashing was reported in, and the tallest a tab is ever asked to be.
+    for section in window.findChildren(AdvancedSection):
+        section.set_expanded(True)
+    app.processEvents()
+
+    for i in range(window._tabs.count()):
+        window._tabs.setCurrentIndex(i)
+        app.processEvents()
+        title = window._tabs.tabText(i).strip()
+        h = window.minimumSizeHint().height()
+        check(f"[{mode}] the {title} tab still fits with Advanced open",
               h <= USABLE_HEIGHT, f"minimum height {h}px with {title} showing")
 
     window.close()

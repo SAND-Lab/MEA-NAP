@@ -8,6 +8,8 @@ from PyQt6.QtWidgets import (
     QFileDialog, QHBoxLayout, QLineEdit, QPushButton, QWidget,
 )
 
+from meanap.gui.widgets import pin_width
+
 __all__ = ["PathRow"]
 
 
@@ -36,7 +38,7 @@ class PathRow(QWidget):
 
         self.line_edit = QLineEdit(initial)
         btn = QPushButton("Browse…")
-        btn.setFixedWidth(80)
+        pin_width(btn, 80)
         btn.clicked.connect(self._browse)
 
         layout.addWidget(self.line_edit)

@@ -27,6 +27,8 @@ from PyQt6.QtWidgets import (
     QMessageBox, QPushButton, QVBoxLayout, QWidget,
 )
 
+from meanap.gui.widgets import pin_width
+
 #: Shown against each entry as the queue proceeds.
 _MARKS = {"queued": "·", "running": "▶", "done": "✓",
           "failed": "✗", "cancelled": "■", "skipped": "·"}
@@ -90,11 +92,11 @@ class QueuePanel(QWidget):
         self.load_btn.clicked.connect(self._on_load_queue)
 
         for widget in (self.add_btn, self.remove_btn, self.up_btn, self.down_btn):
-            widget.setFixedWidth(110)
+            pin_width(widget, 110)
             buttons.addWidget(widget)
         buttons.addSpacing(12)
         for widget in (self.save_btn, self.load_btn):
-            widget.setFixedWidth(110)
+            pin_width(widget, 110)
             buttons.addWidget(widget)
         buttons.addStretch()
         outer.addLayout(buttons)
