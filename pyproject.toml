@@ -59,6 +59,7 @@ meanap-gui = "meanap.gui.app:main"
 meanap-viewer = "meanap.viewer.server:main"
 meanap-preflight = "meanap.remote.cli:main"
 meanap-stats = "meanap.stats.cli:main"
+meanap-shared = "meanap.shared.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/meanap"]

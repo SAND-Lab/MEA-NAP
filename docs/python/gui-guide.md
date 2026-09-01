@@ -212,9 +212,12 @@ suite2p output rather than raw MEA `.mat` files. Full walkthrough:
 ## Run
 
 One tab for starting work, with a switch at the top for what the **Run** button
-starts: **This run** — the analysis the other tabs describe — or **Queue of
+starts: **This run** — the analysis the other tabs describe; **Queue of
 saved runs**, which works through several saved parameter files one after
-another. Either way there is one Run button, one Stop button, one progress bar and one
+another; or **Shared with other computers**, which splits this run's
+recordings across several computers through a folder they all see and pools
+the results here (see [Sharing a run across several computers](shared-run.md)).
+Either way there is one Run button, one Stop button, one progress bar and one
 log, so a run cannot be started while another is going.
 
 | Field | Description |
@@ -236,12 +239,24 @@ The buttons under **Start**:
   full pipeline against it (see [Quickstart](quickstart.md)). It works with
   **Express mode** ticked, and bundles the example run like any other.
 - **▶ Run pipeline** — runs against whatever the other tabs describe. In queue
-  mode this reads **▶ Run queue (n)** and starts the list instead.
+  mode this reads **▶ Run queue (n)** and starts the list instead; in shared
+  mode it reads **▶ Start shared run on n computers** and is only enabled on
+  the main computer once at least one helper has joined.
 - **■ Stop** — cancels what is running at the next step boundary. For a queue,
-  it finishes the run in flight and does not start the next.
+  it finishes the run in flight and does not start the next. For a shared run
+  it stops this computer — and, from the main computer, every helper too.
 
-Progress, a time estimate and the status log sit below them, shared by both
-kinds of run.
+Progress, a time estimate and the status log sit below them, shared by all
+three kinds of run.
+
+The shared page itself has two buttons to begin with — **Set up a shared run
+on this computer…** (this becomes the main computer) and **Join a shared run
+from another computer…** (this becomes a helper) — each a short wizard. Once
+a run exists, the page shows its folder and a table of every computer that
+has joined: its benchmark **speed**, the number of **recordings** it will do
+(editable on the main computer until Start; the main computer's count is the
+remainder) and its **status**, refreshed from the shared folder every few
+seconds. **Finish now — do the rest here** stops waiting for the others.
 
 ## Results
 

@@ -303,6 +303,25 @@ Params(
 
 Each folder may equally be a `.meanap` bundle.
 
+### Sharing a run across several computers
+
+**Run** tab → **Shared with other computers**. One machine sets the run up
+(**Set up a shared run on this computer…**), the others join it (**Join a
+shared run from another computer…**), and the main one presses Start. The
+machines communicate only through a folder they all see — Dropbox, OneDrive, a
+network drive — so there is nothing else to configure. Each is benchmarked as
+it joins and the recordings are split in proportion (editable before Start);
+each does its share into its own corner of the shared folder; the main computer
+pools the parts and runs the batch-wide analysis, ending with an ordinary
+output folder. The pooling is a file-level merge followed by a *continued* run
+over the full spreadsheet (the same mechanism that adds a recording), so the
+result is what one machine analysing everything would give.
+
+`meanap-shared` does the same from a terminal (`create`, `join`, `start`,
+`main`, `status`, `benchmark`). `python/test_shared_run.py` checks main +
+helper-in-another-process against a single uninterrupted run. See
+`docs/python/shared-run.md`.
+
 ### Progress and time estimates
 
 A run shows a progress bar on the Run tab with the phase, the recording
