@@ -87,11 +87,13 @@ panel.show()
 app.processEvents()
 
 sections = panel.findChildren(AdvancedSection)
-check("connectivity has an advanced section", len(sections) == 1, str(len(sections)))
+# One under Probabilistic thresholding, one under Node and edge inclusion.
+check("connectivity has two advanced sections", len(sections) == 2, str(len(sections)))
 
 # Loaded into a collapsed panel, read straight back out.
 loaded = Params(prob_thresh_tail=0.02,
-                prob_thresh_plot_checks=True, prob_thresh_plot_checks_n=7)
+                prob_thresh_plot_checks=True, prob_thresh_plot_checks_n=7,
+                exclude_edges_below_threshold=False)
 panel.load(loaded)
 check("loading does not force sections open",
       all(not s.is_expanded() for s in sections))
@@ -100,9 +102,10 @@ out = Params()
 panel.save(out)
 check("collapsed values round-trip",
       (out.prob_thresh_tail, out.prob_thresh_plot_checks,
-       out.prob_thresh_plot_checks_n) == (0.02, True, 7),
+       out.prob_thresh_plot_checks_n, out.exclude_edges_below_threshold)
+      == (0.02, True, 7, False),
       f"{out.prob_thresh_tail} {out.prob_thresh_plot_checks} "
-      f"{out.prob_thresh_plot_checks_n}")
+      f"{out.prob_thresh_plot_checks_n} {out.exclude_edges_below_threshold}")
 
 # And the same when they were opened, edited, and closed again.
 set_all_expanded(panel, True)
@@ -116,6 +119,11 @@ check("an edit made while open survives closing",
 # The settings that a run is normally configured with stay in the open.
 check("lag values stay visible", panel.lag_vals.isVisibleTo(panel))
 check("iterations stay visible", panel.prob_thresh_rep_num.isVisibleTo(panel))
+# The threshold that silently decides which cells are in the network at all
+# was missing from the window entirely until now; it does not go back behind a
+# fold, because not finding it was the whole problem.
+check("min activity level stays visible",
+      panel.min_activity_level.isVisibleTo(panel))
 
 # Truncation says how much of each recording to read, so it lives with the
 # input folder on the Data tab rather than under the STTC settings.

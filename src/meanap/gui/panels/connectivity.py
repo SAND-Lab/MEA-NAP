@@ -81,6 +81,43 @@ class ConnectivityPanel(QWidget):
         adv.addRow("Number of checks to plot", self.prob_thresh_plot_checks_n)
         form2.addRow(self.threshold_advanced)
 
+        # ── Node and edge inclusion ───────────────────────────────────────────
+        # What counts as a node, and what counts as an edge, before any metric
+        # is computed. Its own box rather than a corner of "Network metrics"
+        # because — unlike the two dimensionality switches below — both of
+        # these are read by every pipeline and every activity type, CAT-NAP
+        # included (``catnap/pipeline.py`` passes them straight through), so
+        # the box must stay live in modes where that one goes quiet.
+        inclusion_box = QGroupBox("Node and edge inclusion")
+        form4 = QFormLayout(inclusion_box)
+
+        self.min_activity_level = QDoubleSpinBox()
+        self.min_activity_level.setRange(0.0, 1000.0)
+        self.min_activity_level.setDecimals(4)
+        self.min_activity_level.setSingleStep(0.005)
+        self.min_activity_level.setValue(0.0)
+        # Label text is set by set_pipeline(), which names the event the
+        # running pipeline actually counts.
+        self._min_activity_label = QLabel()
+
+        self.exclude_edges_below_threshold = QCheckBox()
+        self.exclude_edges_below_threshold.setChecked(True)
+        set_tooltip(self.exclude_edges_below_threshold,
+                    "Treat an edge that thresholding drove to zero as absent "
+                    "rather than as a real edge of weight zero.\n\n"
+                    "It changes the denominator of every mean taken over "
+                    "edges — density, mean node degree and mean node strength "
+                    "most visibly. On for MEA-NAP's whole history; switch it "
+                    "off only to compare against something that counted "
+                    "zero-weight edges.")
+
+        form4.addRow(self._min_activity_label, self.min_activity_level)
+
+        inclusion_advanced = AdvancedSection()
+        inclusion_advanced.form().addRow("Exclude edges below threshold",
+                                         self.exclude_edges_below_threshold)
+        form4.addRow(inclusion_advanced)
+
         # ── Network metrics ───────────────────────────────────────────────────
         # Only the two dimensionality metrics live here, because they are the
         # only step-4 fields whose cost is worth a decision: together they are
@@ -118,6 +155,7 @@ class ConnectivityPanel(QWidget):
         layout.addWidget(sttc_box)
         layout.addWidget(adj_box)
         layout.addWidget(thr_box)
+        layout.addWidget(inclusion_box)
         layout.addWidget(metrics_box)
         layout.addStretch()
 
@@ -176,8 +214,32 @@ class ConnectivityPanel(QWidget):
         its tab (``Params.twop_nmf``, off by default) and always computes
         effective rank. Rather than show two controls for one metric, the box
         goes quiet in CAT-NAP mode and says where the switch actually is.
+
+        The inclusion box beside it stays live in every mode — both of its
+        settings are read on the CAT-NAP path too — but the threshold is a
+        rate of *something*, and the something differs: spikes off an
+        electrode, calcium events out of a cell. So the field is named for
+        whichever the run will count.
         """
         catnap = mode_key == "catnap"
+        unit = "events/s" if catnap else "spikes/s"
+        self._min_activity_label.setText(f"Min activity level ({unit})")
+        set_tooltip(self.min_activity_level,
+                    f"Cells whose activity rate falls below this are left out "
+                    f"of the network entirely: they are dropped from the "
+                    f"adjacency matrix before any metric is computed, and "
+                    f"their FRactive is NaN.\n\n"
+                    f"Measured in {unit} over the whole recording. 0 keeps "
+                    f"every cell that has at least one edge, which is the "
+                    f"default; MEApipeline.m's own example runs use 0.01."
+                    if catnap else
+                    "Electrodes whose firing rate falls below this are left "
+                    "out of the network entirely: they are dropped from the "
+                    "adjacency matrix before any metric is computed, and "
+                    "their FRactive is NaN.\n\n"
+                    "Measured in spikes/s over the whole recording. 0 keeps "
+                    "every electrode that has at least one edge, which is the "
+                    "default; MEApipeline.m's own example runs use 0.01.")
         self._metrics_box.setEnabled(not catnap)
         self._metrics_box.setTitle(
             "Network metrics  ·  set on the CAT-NAP tab" if catnap
@@ -225,6 +287,9 @@ class ConnectivityPanel(QWidget):
         self.prob_thresh_tail.setValue(params.prob_thresh_tail)
         self.prob_thresh_plot_checks.setChecked(params.prob_thresh_plot_checks)
         self.prob_thresh_plot_checks_n.setValue(params.prob_thresh_plot_checks_n)
+        self.min_activity_level.setValue(params.min_activity_level)
+        self.exclude_edges_below_threshold.setChecked(
+            params.exclude_edges_below_threshold)
         self.compute_nmf.setChecked(params.compute_nmf)
         self.compute_eff_rank.setChecked(params.compute_eff_rank)
 
@@ -235,5 +300,8 @@ class ConnectivityPanel(QWidget):
         params.prob_thresh_tail = self.prob_thresh_tail.value()
         params.prob_thresh_plot_checks = self.prob_thresh_plot_checks.isChecked()
         params.prob_thresh_plot_checks_n = self.prob_thresh_plot_checks_n.value()
+        params.min_activity_level = self.min_activity_level.value()
+        params.exclude_edges_below_threshold = (
+            self.exclude_edges_below_threshold.isChecked())
         params.compute_nmf = self.compute_nmf.isChecked()
         params.compute_eff_rank = self.compute_eff_rank.isChecked()
