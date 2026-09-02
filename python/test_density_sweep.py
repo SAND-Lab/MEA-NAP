@@ -41,9 +41,11 @@ sys.path.insert(0, str(REPO_ROOT / "src"))
 warnings.simplefilter("ignore")
 
 from meanap.stats.density_sweep import (  # noqa: E402
-    DEFAULT_DENSITIES, SWEEP_METRICS, _largest_component_fraction,
-    attach_labels, binarise_at_density, cost_integrate, lag_key_to_label,
-    retention, run_density_sweep, subsample_nodes, sweep_one_matrix,
+    CONTROL_LEVELS, DEFAULT_DENSITIES, RAW_COUNTERPART, SWEEP_METRICS,
+    _largest_component_fraction, attach_labels, binarise_at_density,
+    control_effects, control_values, cost_integrate, decompose_targets,
+    group_gaps, lag_key_to_label, retention, run_density_sweep,
+    selection_sensitivity, subsample_nodes, sweep_one_matrix,
 )
 
 Check = tuple[str, bool, str]
@@ -370,6 +372,364 @@ def _retention_checks() -> list[Check]:
     return checks
 
 
+def _frame(values_by_group: dict, metric: str = "CC") -> pd.DataFrame:
+    """A cost-integrated table: ``{group: [values]}`` laid out one row each."""
+    rows = []
+    for group, values in values_by_group.items():
+        for value in values:
+            rows.append({"FileName": f"r{len(rows)}", "Grp": group,
+                         f"{metric}_costInt": float(value)})
+    return pd.DataFrame(rows)
+
+
+def _gap_checks() -> list[Check]:
+    """Pairwise group gaps - the quantity both new analyses are differences of."""
+    checks: list[Check] = []
+
+    frame = _frame({"A": [1.0] * 4, "B": [0.0] * 4})
+    table = group_gaps(frame)
+    spread = float(np.std([1, 1, 1, 1, 0, 0, 0, 0], ddof=1))
+    row = table[table.Metric == "CC"].iloc[0]
+    checks.append((
+        "a gap is the difference in means over the pooled SD",
+        abs(row.Gap - 1.0 / spread) < 1e-12, f"{row.Gap:.6f} vs {1/spread:.6f}"))
+    checks.append((
+        "and the pair is ordered by the group labels, so signs are stable",
+        row.GroupA == "A" and row.GroupB == "B", f"{row.GroupA}/{row.GroupB}"))
+    checks.append((
+        "group sizes are carried alongside",
+        row.NA == 4 and row.NB == 4, f"{row.NA}/{row.NB}"))
+
+    three = group_gaps(_frame({"A": [1.0] * 3, "B": [0.0] * 3, "C": [2.0] * 3}))
+    checks.append((
+        "three groups give all three pairs",
+        len(three) == 3, str(len(three))))
+
+    # lccFraction is a fragmentation diagnostic; comparing it between groups is
+    # a statement about connectedness, not topology, so it is not a gap metric.
+    with_lcc = _frame({"A": [1.0] * 4, "B": [0.0] * 4})
+    with_lcc["lccFraction_costInt"] = 1.0
+    checks.append((
+        "lccFraction is excluded from gap tables",
+        "lccFraction" not in set(group_gaps(with_lcc).Metric), ""))
+
+    checks.append((
+        "a group too small to compare is skipped rather than guessed at",
+        group_gaps(_frame({"A": [1.0] * 2, "B": [0.0] * 4})).empty, ""))
+    checks.append((
+        "a metric with no spread is skipped rather than dividing by zero",
+        group_gaps(_frame({"A": [1.0] * 4, "B": [1.0] * 4})).empty, ""))
+    checks.append((
+        "an empty table gives an empty result",
+        group_gaps(pd.DataFrame()).empty, ""))
+    return checks
+
+
+def _selection_checks() -> list[Check]:
+    """The free half of A/B/C: re-reading one sweep over the larger networks."""
+    checks: list[Check] = []
+
+    # Built so the answer is known: over everything the two groups are
+    # identical, and over the large networks alone they are as far apart as the
+    # data allows. Any honest check must call that out.
+    integrated = pd.DataFrame({
+        "FileName": [f"r{i}" for i in range(40)],
+        "Grp": (["WT"] * 10 + ["KO"] * 10) * 2,
+        "CC_costInt": ([1.0] * 10 + [0.0] * 10) + ([0.0] * 10 + [1.0] * 10),
+    })
+    observed = pd.DataFrame({
+        "FileName": [f"r{i}" for i in range(40)],
+        "NNodes": [100] * 20 + [30] * 20,
+    })
+
+    check = selection_sensitivity(integrated, observed, threshold=100)
+    checks.append((
+        "the check runs and reports the cohort it restricted to",
+        check.ran and check.threshold == 100 and check.n_all == 40
+        and check.n_restricted == 20,
+        f"{check.n_restricted}/{check.n_all} at {check.threshold}"))
+    row = check.table[check.table.Metric == "CC"].iloc[0]
+    checks.append((
+        "a gap that is zero overall but real in the large networks is caught",
+        abs(row.GapAll) < 1e-12 and abs(row.GapRestricted) > 0.5,
+        f"{row.GapAll:.3f} -> {row.GapRestricted:.3f}"))
+    checks.append((
+        "Delta is exactly the movement between the two cohorts",
+        abs(row.Delta - (row.GapRestricted - row.GapAll)) < 1e-12, ""))
+    checks.append((
+        "and it is flagged, since that is selection rather than topology",
+        bool(row.Flagged) and ("CC", "KO", "WT") in check.flagged,
+        str(check.flagged)))
+
+    # The opposite case: restricting changes nothing, so nothing is flagged.
+    steady = pd.DataFrame({
+        "FileName": [f"r{i}" for i in range(40)],
+        "Grp": (["WT"] * 10 + ["KO"] * 10) * 2,
+        "CC_costInt": ([1.0] * 10 + [0.0] * 10) * 2,
+    })
+    quiet = selection_sensitivity(steady, observed, threshold=100)
+    checks.append((
+        "a gap with the same group means in both cohorts is not flagged",
+        quiet.ran and not quiet.flagged
+        # Not exactly zero: each gap is standardised within its own cohort, so
+        # the pooled SD moves with the sample even when the means do not.
+        and abs(quiet.table.iloc[0].Delta) < 0.05,
+        f"delta {quiet.table.iloc[0].Delta:.4f}, flagged {quiet.flagged}"))
+
+    thin = selection_sensitivity(integrated, observed, threshold=1000)
+    checks.append((
+        "a threshold nothing clears is refused, with a reason",
+        not thin.ran and "clear" in thin.note, thin.note))
+
+    same = selection_sensitivity(integrated, observed, threshold=1)
+    checks.append((
+        "a threshold that drops almost nothing is refused too",
+        not same.ran and "drops only" in same.note, same.note))
+
+    checks.append((
+        "a sweep with no node counts is refused rather than guessed at",
+        not selection_sensitivity(
+            integrated, observed.drop(columns=["NNodes"])).ran, ""))
+    checks.append((
+        "an unlabelled table is refused rather than compared with no groups",
+        not selection_sensitivity(
+            integrated.drop(columns=["Grp"]), observed).ran, ""))
+    return checks
+
+
+def _decomposition_checks() -> list[Check]:
+    """The full A/B/C design: selection and resolution split apart."""
+    checks: list[Check] = []
+    rng = np.random.default_rng(5)
+
+    names = [f"r{i}" for i in range(40)]
+    groups = ["WT"] * 20 + ["KO"] * 20
+    low = pd.DataFrame({
+        "FileName": names, "Grp": groups,
+        "CC_costInt": np.concatenate([rng.normal(0.3, 0.3, 20),
+                                      rng.normal(0.0, 0.3, 20)]),
+    })
+    # B keeps only the first half of each group, and resolves them far better -
+    # the separation has to grow against the within-group spread, since a
+    # standardised gap carries the separation in its denominator too.
+    keep = names[:10] + names[20:30]
+    high = pd.DataFrame({
+        "FileName": keep, "Grp": ["WT"] * 10 + ["KO"] * 10,
+        "CC_costInt": np.concatenate([rng.normal(1.5, 0.3, 10),
+                                      rng.normal(0.0, 0.3, 10)]),
+    })
+
+    table = decompose_targets(low, high)
+    row = table[table.Metric == "CC"].iloc[0]
+    checks.append((
+        "the decomposition reports all three conditions",
+        {"GapA", "GapC", "GapB"} <= set(table.columns), str(table.columns.tolist())))
+    checks.append((
+        "selection and resolution sum to the whole difference between targets",
+        abs((row.Selection + row.Resolution) - row.Total) < 1e-12,
+        f"{row.Selection:.4f}+{row.Resolution:.4f} vs {row.Total:.4f}"))
+    checks.append((
+        "C is A read over B's recordings, not a separate measurement",
+        abs(row.GapC - group_gaps(low[low.FileName.isin(keep)]).iloc[0].Gap) < 1e-12,
+        ""))
+    checks.append((
+        "the cohort sizes are those of the three conditions",
+        row.NA == 40 and row.NC == 20 and row.NB == 20,
+        f"{row.NA}/{row.NC}/{row.NB}"))
+    checks.append((
+        "the dominant term is named, and here it is resolution",
+        row.Dominant == "resolution"
+        and abs(row.Resolution) > abs(row.Selection),
+        f"{row.Dominant}: sel {row.Selection:.3f} res {row.Resolution:.3f}"))
+
+    # A high target whose cohort is a *biased* subset moves the gap without any
+    # change of target - that is the selection term, and it must show up as one.
+    biased_keep = names[:4] + names[20:]
+    biased = decompose_targets(
+        low, low[low.FileName.isin(biased_keep)].copy())
+    checks.append((
+        "with B measured identically to A, the whole difference is selection",
+        abs(biased.iloc[0].Resolution) < 1e-12
+        and biased.iloc[0].Dominant == "selection",
+        f"res {biased.iloc[0].Resolution:.4f}"))
+
+    checks.append((
+        "no shared recordings gives an empty result rather than an error",
+        decompose_targets(
+            low, high.assign(FileName=lambda d: d.FileName + "_x")).empty, ""))
+    checks.append((
+        "an empty target table gives an empty result",
+        decompose_targets(low, pd.DataFrame()).empty, ""))
+    return checks
+
+
+def _control_dataset():
+    """A small run: two genotypes, three ages, six cultures each."""
+    from meanap.stats.dataset import StatsDataset, metric_labels
+
+    rng = np.random.default_rng(3)
+    rows = []
+    for group, shift in (("WT", 0.0), ("KO", 1.0)):
+        for culture in range(6):
+            for age in (14.0, 21.0, 28.0):
+                name = f"{group}{culture}_DIV{int(age)}"
+                rows.append({
+                    "FileName": name, "Culture": f"{group}{culture}",
+                    "Grp": group, "DIV": age, "Lag": "25mslag",
+                    # Raw metrics carry a strong age effect on top of genotype.
+                    "CC_rawMean": 0.3 * shift + 0.05 * age + rng.normal(0, 0.1),
+                    "Eglob": 0.2 * shift + 0.04 * age + rng.normal(0, 0.1),
+                    "Q": 0.4 * shift + rng.normal(0, 0.1),
+                    # The null-model-normalised CC, which must NOT be used.
+                    "CC": 99.0 + rng.normal(0, 0.1),
+                })
+    table = pd.DataFrame(rows)
+    ds = StatsDataset(table=table, metrics=["CC_rawMean", "Eglob", "Q", "CC"],
+                      labels=metric_labels())
+    # Controlled features: genotype kept, the age effect removed.
+    integrated = pd.DataFrame({
+        "FileName": table["FileName"], "Lag": "adjM25mslag",
+        "CC_costInt": [0.3 * (g == "KO") + rng.normal(0, 0.1)
+                       for g in table["Grp"]],
+        "Eglob_costInt": [0.2 * (g == "KO") + rng.normal(0, 0.1)
+                          for g in table["Grp"]],
+        "Q_costInt": [0.4 * (g == "KO") + rng.normal(0, 0.1)
+                      for g in table["Grp"]],
+    })
+    return ds, integrated
+
+
+def _control_effect_checks() -> list[Check]:
+    """Effects recomputed under each level of control."""
+    checks: list[Check] = []
+    ds, integrated = _control_dataset()
+
+    checks.append((
+        "the raw counterpart of CC is the unnormalised one, not NetMet.CC",
+        RAW_COUNTERPART["CC"] == "CC_rawMean" and RAW_COUNTERPART["PL"] == "PL_raw",
+        str(RAW_COUNTERPART)))
+    checks.append((
+        "betweenness has no step-4 counterpart and is not invented one",
+        "BCmean" not in RAW_COUNTERPART, ""))
+
+    two = control_effects(ds, density_and_size=integrated)
+    checks.append((
+        "a single sweep gives the uncontrolled and the controlled condition",
+        set(two["Control"]) == {"none", "density+size"},
+        str(sorted(set(two["Control"])))))
+    checks.append((
+        "columns are named by the swept metric, not by the source column",
+        set(two["Metric"]) <= {"CC", "Eglob", "Q"}, str(sorted(set(two["Metric"])))))
+    checks.append((
+        "both an age term and a genotype contrast are reported",
+        "age" in set(two["Term"])
+        and any(" vs " in str(t) for t in two["Term"]), str(sorted(set(two["Term"])))))
+
+    # The fixture removes the age effect under control and keeps genotype, so
+    # the table must show exactly that - this is the figure's whole reading.
+    age = two[two["Term"] == "age"].set_index(["Metric", "Control"])["EffectSize"]
+    shrank = all(abs(age[(m, "density+size")]) < abs(age[(m, "none")])
+                 for m in ("CC", "Eglob") if (m, "none") in age.index)
+    checks.append((
+        "an age effect the control removes shows as a smaller effect size",
+        shrank, age.round(2).to_dict()))
+
+    three = control_effects(ds, density_only=integrated,
+                            density_and_size=integrated)
+    checks.append((
+        "with both sweeps present all three levels of control appear",
+        set(three["Control"]) == set(CONTROL_LEVELS),
+        str(sorted(set(three["Control"])))))
+
+    # NetMet.CC is a different quantity from what the sweep measures, so a run
+    # carrying only it must not silently pair the two.
+    without_raw = ds.table.drop(columns=["CC_rawMean"])
+    bare = control_effects(ds._with_table(without_raw),
+                           density_and_size=integrated)
+    uncontrolled = bare[bare["Control"] == "none"]
+    checks.append((
+        "with no raw counterpart, the normalised metric is not substituted",
+        "CC" not in set(uncontrolled["Metric"]),
+        str(sorted(set(uncontrolled["Metric"])))))
+
+    checks.append((
+        "no sweep at all gives only the uncontrolled condition",
+        set(control_effects(ds)["Control"]) == {"none"}, ""))
+    checks.append((
+        "a table that joins onto nothing gives an empty result",
+        control_effects(
+            ds._with_table(ds.table.drop(columns=["CC_rawMean", "Eglob", "Q"])),
+            density_and_size=integrated.assign(
+                FileName=lambda d: d.FileName + "_x")).empty, ""))
+    return checks
+
+
+def _per_age_checks() -> list[Check]:
+    """Genotype contrasts measured at each age, and the metrics themselves."""
+    checks: list[Check] = []
+    ds, integrated = _control_dataset()
+    effects = control_effects(ds, density_and_size=integrated)
+
+    per_age = effects[effects["Scope"] == "per-age"]
+    checks.append((
+        "the table separates pooled models from per-age contrasts",
+        set(effects["Scope"]) == {"pooled", "per-age"},
+        str(sorted(set(effects["Scope"])))))
+    checks.append((
+        "every age in the run gets its own contrast",
+        set(per_age["Age"].dropna()) == {14.0, 21.0, 28.0},
+        str(sorted(set(per_age["Age"].dropna())))))
+    checks.append((
+        "the age is stripped off the term, so a pair can be followed across ages",
+        all(" at DIV " not in str(c) for c in per_age["Contrast"]),
+        str(sorted(set(per_age["Contrast"])))))
+    checks.append((
+        "per-age contrasts are Hedges' g, never the model's beta",
+        set(per_age["EffectSizeName"]) == {"Hedges g"},
+        str(set(per_age["EffectSizeName"]))))
+    checks.append((
+        "and they are reported under each level of control",
+        set(per_age["Control"]) == {"none", "density+size"},
+        str(sorted(set(per_age["Control"])))))
+
+    values = control_values(ds, density_and_size=integrated)
+    checks.append((
+        "the value table carries a row per control, metric, group and age",
+        len(values) == len(set(map(tuple, values[
+            ["Control", "Metric", "Group", "Age"]].to_numpy()))),
+        f"{len(values)} rows"))
+    checks.append((
+        "with the summary statistics an effect size cannot give",
+        {"Mean", "SD", "SEM", "N", "Median"} <= set(values.columns),
+        str(values.columns.tolist())))
+
+    # The means must be the data's own, not something rescaled on the way.
+    raw = values[(values.Control == "none") & (values.Metric == "CC")
+                 & (values.Group == "WT") & (values.Age == 14.0)]
+    expected = ds.table[(ds.table.Grp == "WT") & (ds.table.DIV == 14.0)][
+        "CC_rawMean"].mean()
+    checks.append((
+        "a mean is the mean of the metric it names",
+        abs(float(raw["Mean"].iloc[0]) - float(expected)) < 1e-12,
+        f"{float(raw['Mean'].iloc[0]):.4f} vs {float(expected):.4f}"))
+    checks.append((
+        "the standard error is the SD over root n",
+        abs(float(raw["SEM"].iloc[0])
+            - float(raw["SD"].iloc[0]) / np.sqrt(float(raw["N"].iloc[0]))) < 1e-12,
+        ""))
+    checks.append((
+        "the uncontrolled column reads the raw metric, never the normalised one",
+        abs(float(raw["Mean"].iloc[0]) - 99.0) > 1.0,
+        f"{float(raw['Mean'].iloc[0]):.3f} (NetMet.CC was set to 99)"))
+    checks.append((
+        "no sweep gives values for the uncontrolled condition only",
+        set(control_values(ds)["Control"]) == {"none"}, ""))
+    checks.append((
+        "an empty dataset gives an empty table rather than an error",
+        control_values(ds._with_table(ds.table.iloc[0:0])).empty, ""))
+    return checks
+
+
 # ── Section B ────────────────────────────────────────────────────────────────
 
 def _folder_checks() -> list[Check]:
@@ -484,6 +844,11 @@ def main() -> int:
         ("Section A5 — joining labels:", _label_checks),
         ("Section A6 — node subsampling:", _subsample_checks),
         ("Section A7 — retention:", _retention_checks),
+        ("Section A8 — group gaps:", _gap_checks),
+        ("Section A9 — selection sensitivity:", _selection_checks),
+        ("Section A10 — selection vs resolution:", _decomposition_checks),
+        ("Section A11 — effects under control:", _control_effect_checks),
+        ("Section A12 — per-age contrasts and metric values:", _per_age_checks),
         ("Section B — a whole output folder:", _folder_checks),
     ]:
         p, n = _report(title, build())

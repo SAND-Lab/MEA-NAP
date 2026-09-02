@@ -340,7 +340,7 @@ about.
   induced subgraph of a common size *before* thresholding (that order matters —
   the reverse lands at an uncontrolled density), repeated over
   `sweep_subsamples` draws and averaged. Default `"auto"`, which takes the
-  `sweep_node_percentile` (10th) percentile of the run's own counts.
+  `sweep_node_percentile` (20th) percentile of the run's own counts.
 - **Subsampling trades the size confound for a SELECTION one, and the trade
   has to be watched.** Recordings with fewer nodes than the target are dropped,
   and smallness is not randomly distributed: on the Yin run a target of 80
@@ -432,10 +432,213 @@ the family-Shapley conclusion rather than contradicting it.
 **Measured runtimes** (378 recordings, 20 densities, 20 draws, 16 cores):
 N=50 took 25 min, N=22 over 278 recordings took 9 min. Subsampling multiplies
 the sweep by the draw count, so it is much more expensive than the unsubsampled
-sweep (~15 min) despite the smaller graphs.
+sweep (~15 min) despite the smaller graphs. Per-recording cost is close to
+*linear* in the target, not cubic as the betweenness term suggests — measured
+over a five-target ladder at 10 draws on 32 cores: N=20 129s, N=30 178s, N=40
+242s, N=60 351s, N=80 452s, 23 min for all five.
+
+### Selection and resolution, in code (2026-09-02)
+
+The A/B/C design above is no longer a manual recipe. The asymmetry that makes
+it cheap is that **C is free**: a recording's swept result depends only on its
+matrix, the target and the seed, never on which cohort it sits in, so C is a
+row subset of A rather than a second sweep. Only B needs one.
+
+- **The selection half runs automatically** whenever subsampling is on.
+  `density_sweep.selection_sensitivity` re-reads the sweep just computed over
+  only the recordings clearing a higher node count (`sweep_selection_percentile`,
+  p40 by default), recomputes every pairwise group gap, and writes
+  `density_sweep_selection_check.csv`. A gap is **flagged** when it moves by at
+  least 0.1 SD *and* either changes sign or moves by half its own size — both
+  conditions, since a large relative move on a gap of 0.02 is noise and a small
+  relative move on a gap of 1.0 is not worth a warning. Flagged gaps are logged
+  and land in the run summary under `density_sweep_selection`.
+- **The full decomposition is opt-in**: `--sweep-nodes 22,50` (or
+  `sweep_n_nodes_high`) sweeps at both targets and writes
+  `density_sweep_target_decomposition.csv` with `GapA`/`GapC`/`GapB` and the two
+  terms they split into, `Selection` (C − A) and `Resolution` (B − C), plus a
+  `Dominant` column naming the larger. This doubles the sweep's cost.
+- **Two figures cover the size half** (2026-09-02), which until then had none —
+  the density half had three while size, the larger confound here, was CSV-only.
+  `5E5_size_control` is the counterpart to `5E3`: node counts per recording
+  against the target they were reduced to, with everything below it marked as
+  dropped, and retention per group beside it, titled in the warning colour when
+  the spread exceeds the same 20 points the runner warns on. `5E6_selection_check`
+  draws the check above as one dumbbell per metric per group pair — open marker
+  over every swept recording, filled over the restricted cohort — with flagged
+  comparisons in the warning colour. Both are offered by the viewer and the HTML
+  report, and both redraw from the CSVs alone: `_load_sweep` recovers the target
+  from `NNodesUsed` and `_load_selection` rebuilds the check from its table.
+  The target decomposition is still CSV-only. `5E7`-`5E9` cover the effects
+  under control; see the section below.
+- **Every gap is standardised within its own condition**, which is what an
+  analysis restricted to that cohort would actually report. So a delta mixes a
+  change in group means with a change in spread — deliberately, because both are
+  things the restriction did to the number you would quote. It also means a
+  delta is never exactly zero even when the means are untouched.
+- `group_gaps` excludes `lccFraction`: comparing it between groups is a
+  statement about connectedness, not topology.
+
+**Result on the Yin timecourse (378 recordings, 10 draws, N = 20/30/40/60/80).**
+Holding the cohort fixed at N=80's 206 recordings, so only resolution varies,
+the WT−KO gap barely moves across a 4x range in target:
+
+| | N=20 | N=30 | N=40 | N=60 | N=80 |
+|---|---|---|---|---|---|
+| CC | 0.888 | 1.005 | 1.048 | 1.029 | 0.994 |
+| ElocMean | 1.016 | 1.138 | 1.144 | 1.110 | 1.073 |
+| nMod | −0.820 | −0.824 | −0.758 | −0.716 | −0.705 |
+| BCmean | 0.264 | 0.265 | 0.295 | 0.320 | 0.311 |
+| Q | 0.371 | 0.342 | 0.482 | 0.538 | 0.609 |
+| Eglob | 0.124 | 0.127 | 0.109 | 0.183 | 0.162 |
+| PL | 0.074 | 0.085 | 0.141 | 0.145 | 0.144 |
+
+Nothing flips sign and the headline metrics move 12–19%; **`Q` is the exception**,
+nearly doubling. (Standardised per condition against the cost-integrated
+feature's own spread, so these are on a different scale from the N=22/50 table
+above — compare within a table, not between.)
+
+The **selection** term is the larger one. Natural cohort minus fixed cohort at
+N=20: CC −0.115, ElocMean −0.171, nMod +0.194, BCmean −0.164, **Q −0.235** —
+for CC that exceeds the entire N=20→80 resolution term (0.106). Its *sign* also
+runs opposite to the earlier N=22/50 pair, so it depends on which recordings the
+cut removes and has to be measured per dataset rather than assumed. This is the
+case for running the check rather than picking a target and hoping.
+
+**Subsampling does remove the size dependence** it was built for. Residual
+Spearman against the original node count, fixed cohort, flat across N:
+
+| | CC | PL | ElocMean | BCmean | nMod | Eglob | Q |
+|---|---|---|---|---|---|---|---|
+| density only | +0.43 | +0.42 | +0.34 | −0.64 | +0.47 | −0.01 | −0.04 |
+| + subsampling | −0.05 | −0.03 | −0.10 | −0.09 | +0.12 | **−0.20** | **−0.22** |
+
+`BCmean` −0.64 → −0.05 is the striking one. But subsampling *introduces* a ~−0.2
+residual in `Eglob` and `Q`, the two that were already clean under density
+control alone — worth knowing before trusting `Q` under this control.
+
+### Effects before and after the controls (2026-09-02)
+
+The sweep figures answer "do the curves separate". The question a reader of the
+5A heatmaps actually asks is "does *this* effect survive the control", and
+`density_sweep.control_effects` answers it directly: the same statistic 5A
+reports, recomputed on the controlled features. Standardised betas from the
+mixed model and its "SD change across age range" for the pooled terms; Hedges'
+g from the per-age Welch tests for the per-age genotype contrasts, kept apart by
+a `Scope` column because the two are not on one scale and must never share a
+panel. `control_values` reports the metrics themselves — mean, SD, SEM, N,
+median per (control, metric, group, age) — because an effect size in units of
+each condition's own spread cannot say what either group measured.
+
+Three levels of control, written to `control_effects.csv` and
+`control_metric_values.csv`:
+
+| | what it is |
+|---|---|
+| `none` | step 4's own metrics, each network at its own density and size |
+| `density` | cost-integrated over the density grid, size left alone |
+| `density+size` | the same, on networks first cut to a common node count |
+
+`none`→`density` is the density control alone and `density`→`density+size` is
+**the node-subsampling effect alone**. The middle condition needs the sweep run
+twice, so it is opt-in: `--sweep-density-only` / `sweep_density_only`. Without
+it the outputs carry two conditions and cannot attribute a change to
+subsampling; the figure says so in its own caption rather than letting the
+reader assume otherwise.
+
+**Raw counterparts are the unnormalised ones.** `RAW_COUNTERPART` pairs `CC`
+with `CC_rawMean` and `PL` with `PL_raw`, *not* with the null-model-normalised
+`NetMet.CC`/`NetMet.PL` saved under the same short names — the sweep measures
+raw quantities on binary graphs, and pairing against the normalised ones would
+compare two different quantities. `BCmean` has no recording-level counterpart in
+step 4 at all and so appears only in the controlled conditions; 5E9 labels that
+panel rather than leaving it blank.
+
+**Every condition is put on one cohort** (`match_cohort`, on by default). A
+subsampled sweep drops every recording too small to reach the target while the
+raw metrics and an unsubsampled sweep keep all of them, so without this the step
+between two conditions mixes the control being applied with the cohort changing
+underneath it. This is not a hypothetical: on the Yin run the unmatched tables
+read CC's pooled age effect as `none` +1.09, `density` −0.53, `density+size`
+−1.06, which looks like subsampling doubling the effect. Matched on the 306
+recordings all three conditions have, it is +1.24, −1.13, −1.06 — **the density
+control does essentially all of the work and subsampling adds nothing**. The
+unmatched reading would have attributed to node subsampling something that was
+the retention cut. The cost is that the `none` column no longer matches the 5A
+tables, which is the honest trade: those answer "what does this run show", this
+one answers "what did the control do".
+
+**Result on the Yin timecourse** (pooled age effect, SD change across the age
+range, 306 recordings, matched cohort):
+
+| | none | density | density+size |
+|---|---|---|---|
+| CC | +1.24 | −1.13 | −1.06 |
+| ElocMean | +1.16 | −1.11 | −1.08 |
+| Eglob | +1.67 | −0.14 | +0.18 |
+| PL | −1.75 | −1.02 | −0.66 |
+| Q | −0.72 | −0.84 | −0.70 |
+| nMod | −0.93 | +0.56 | +0.98 |
+| BCmean | — | −0.54 | −0.51 |
+
+`CC`, `ElocMean` and `nMod` **change sign** under control: clustering and local
+efficiency rise steeply with age at each network's own density and *fall* once
+density is matched, which is the confound stated as plainly as it can be. Almost
+all of that is the density control; subsampling moves `nMod` (+0.56 → +0.98) and
+`PL` (−1.02 → −0.66) and little else. `Eglob`'s large raw age effect (+1.67)
+essentially vanishes.
+
+**Three figures.** `5E7_control_effects` is the pooled view, one dumbbell per
+metric per term with filled markers surviving FDR. `5E8_genotype_effect_by_age`
+is the per-age view — one panel per (metric, genotype pair), age on the x axis,
+a line per control — which is where a difference that only appears late, or only
+before the control, becomes visible as a shape. `5E9_metric_values_by_control`
+is the metrics themselves, mean ± SEM against age with one line per group,
+repeated per control; its controlled columns share a y axis so the subsampling
+step reads directly, while the uncontrolled column is scaled on its own because
+it is a different measurement (raw `nMod` is ~2 against ~10-35 controlled, and a
+shared axis flattens it to a line).
+
+### How small can the target be? Draw noise vs attenuation
+
+Two different costs, and only one of them is fixed by more draws. Measured on 30
+large Yin recordings, 20 independent subgraphs each at a fixed 20% density,
+variance split into draw noise and real between-recording signal:
+
+| N | CC signal SD | reliability, 1 draw | 10 draws | 20 draws |
+|---|---|---|---|---|
+| 20 | 0.047 | 0.29 | 0.80 | 0.89 |
+| 30 | 0.050 | 0.40 | 0.87 | 0.93 |
+| 40 | 0.058 | 0.61 | 0.94 | 0.97 |
+| 60 | 0.058 | 0.73 | 0.96 | 0.98 |
+| 80 | 0.059 | 0.86 | 0.98 | 0.99 |
+
+- **A single draw at a small target is worthless** — at N=20 the draw-to-draw SD
+  *exceeds* the between-recording SD (ratio 1.5 for CC, 1.6 for `ElocMean`). The
+  `sweep_subsamples=20` default is load-bearing, not polish.
+- **Averaging fixes noise but not attenuation.** Real signal SD still rises
+  0.047 → 0.059 from N=20 to N=80 *after* draw noise is removed: a 20-node
+  subgraph genuinely makes different networks look more alike. So effect sizes
+  shrink toward zero as the target falls — a null at a small target is weak
+  evidence, a positive one is conservative.
+- **For per-recording features, N≥40.** Rank agreement with the well-resolved
+  N=80 values: at N=20 it is CC 0.83, `ElocMean` 0.76, `Q` 0.75, `PL` 0.67; by
+  N=40 everything except `PL` is ≥0.90. Group means tolerate N=20; feeding
+  `*_costInt` into decoding or regression does not. This is why
+  `sweep_node_percentile` was **raised from p10 to p20 on 2026-09-02**: p10
+  landed at 23 nodes on this run, below that line, where p20 lands at 37. The
+  extra retention loss that costs falls unevenly, which is the trade being made:
+  measured over the 370 recordings that reach the sweep at all, wildtype goes
+  88% → 74% while KO only goes 95% → 93%, widening the between-group spread from
+  7 to 19 points. That sits just under the runner's own 20-point warning, so p20
+  does not trip it on this dataset — but it is close enough that a run with more
+  small wildtype recordings would, and the selection check now reports what the
+  tighter cohort does to every gap either way.
 
 **Verify:** `uv run python python/test_density_sweep.py [<extracted run folder>]`
-— 37 checks. Section A works on ring lattices and random graphs, where the
+— 68 checks, of which sections A8–A10 cover the gap tables, the selection check
+and the decomposition (including that `Selection + Resolution == Total`, and
+that C really is A read over B's recordings rather than a second measurement). Section A works on ring lattices and random graphs, where the
 answer is known by construction: the sweep must separate a lattice from a
 random graph *at the same density*, and must give identical results for two
 graphs that differ only in edge strength.

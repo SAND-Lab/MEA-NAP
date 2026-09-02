@@ -34,8 +34,9 @@ from meanap.stats.decoding import (
     lda_projection,
 )
 from meanap.stats.density_sweep import (
-    COST_INT_SUFFIX, DEFAULT_DENSITIES, attach_labels, retention,
-    run_density_sweep,
+    COST_INT_SUFFIX, DEFAULT_DENSITIES, attach_labels, control_effects,
+    control_values, decompose_targets, retention, run_density_sweep,
+    selection_sensitivity,
 )
 from meanap.stats.figures import StatsResults, draw_stats_figure, stats_figures
 from meanap.stats.regression import regress
@@ -125,10 +126,31 @@ class StatsSettings:
     #: nodes are dropped — check the retention line in the log, because they
     #: are not a random sample.
     sweep_n_nodes: int | str | None = "auto"
-    #: Percentile of observed node counts ``"auto"`` targets. Low on purpose:
-    #: a higher target resolves topology better but drops more recordings, and
-    #: it drops them unevenly across groups.
-    sweep_node_percentile: float = 10.0
+    #: Percentile of observed node counts ``"auto"`` targets. A higher target
+    #: resolves topology better but drops more recordings, and drops them
+    #: unevenly across groups. Raised from p10 to p20 on 2026-09-02: p10 landed
+    #: at 23 nodes on the Yin run, and at that size a recording's
+    #: cost-integrated values rank only 0.75-0.83 against well-resolved ones -
+    #: fine for a group mean, too scrambled to feed decoding or regression,
+    #: which pass 0.90 agreement around 40 nodes. The retention that buys is
+    #: paid for in selection, but that cost is now visible rather than implicit:
+    #: ``_selection_check`` reports what a tighter cohort does to every gap.
+    sweep_node_percentile: float = 20.0
+    #: A second, larger target. When set, the sweep is run twice and the two
+    #: are decomposed into a selection and a resolution term (the A/B/C design
+    #: in :mod:`meanap.stats.density_sweep`). Doubles the sweep's cost, which
+    #: is why it is opt-in; the selection half alone is free and always runs.
+    sweep_n_nodes_high: int | None = None
+    #: Node count the free selection check restricts to, as a percentile of the
+    #: run's own counts. Higher than ``sweep_node_percentile`` on purpose: the
+    #: check asks what a more demanding target would have done to the cohort.
+    sweep_selection_percentile: float = 40.0
+    #: Also sweep with subsampling turned off, so the density control and the
+    #: size control can be told apart in ``control_effects.csv`` and on
+    #: ``5E7_control_effects``. Costs a second sweep; without it those outputs
+    #: carry only "no control" and "density+size" and cannot attribute a change
+    #: to subsampling specifically.
+    sweep_density_only: bool = False
     #: Random draws averaged over per recording when subsampling.
     sweep_subsamples: int = 20
 
@@ -323,6 +345,230 @@ def _run_density_sweep(ds: StatsDataset, folder: Path, settings,
         if kept["Fraction"].max() - kept["Fraction"].min() > 0.2:
             log("    ! retention differs by more than 20 points between groups — "
                 "the size confound has been traded for a selection one")
+
+    integrated = _labelled_integrated(sweep, ds, lag)
+    _selection_check(integrated, sweep, folder, settings, result, lag, log,
+                     computed)
+    _target_decomposition(integrated, ds, folder, settings, result, lag, log,
+                          computed, source_root)
+    _control_effects(sweep, ds, folder, settings, result, lag, log, computed,
+                     source_root)
+
+
+def _labelled_integrated(sweep, ds, lag) -> pd.DataFrame:
+    """``sweep.integrated`` with group labels attached and this lag selected.
+
+    The sweep stores the cost-integrated features unlabelled, since the object
+    is written to disk and read back by the figures; the group comparisons need
+    them joined, and joining once here keeps the two callers below consistent.
+    """
+    if sweep.integrated is None or sweep.integrated.empty:
+        return pd.DataFrame()
+    out = attach_labels(sweep.integrated, ds)
+    if lag is not None and "Lag" in out.columns:
+        out = out[out["Lag"] == lag]
+    return out
+
+
+def _selection_check(integrated, sweep, folder: Path, settings, result, lag,
+                     log, computed) -> None:
+    """What a more demanding node-count target would have done to the answers.
+
+    Free: the sweep already run, re-aggregated over the recordings that clear a
+    higher node count. That is condition C of the A/B/C design against the
+    condition A the run just produced, so it isolates *selection* — the cohort
+    changing — from the resolution the target would also have changed. A gap
+    that moves here is partly a statement about which recordings were big
+    enough to keep, and should not be quoted from one target alone.
+    """
+    if sweep.n_nodes is None or integrated.empty:
+        return
+    check = selection_sensitivity(
+        integrated, sweep.observed, group_col=sweep.group_col,
+        metrics=sweep.metrics, percentile=settings.sweep_selection_percentile)
+    computed.sweep_selection = check
+    if not check.ran:
+        if check.note:
+            log(f"    selection check not run: {check.note}")
+        return
+
+    _write_table(check.table, folder / "density_sweep_selection_check.csv", result)
+    result.summary.setdefault("density_sweep_selection", {})[str(lag)] = {
+        "node_threshold": check.threshold,
+        "n_all": check.n_all,
+        "n_restricted": check.n_restricted,
+        "n_flagged": len(check.flagged),
+        "flagged": [f"{m} ({a} vs {b})" for m, a, b in check.flagged],
+        "max_abs_delta": float(check.table["Delta"].abs().max()),
+    }
+    log(f"    selection check: {check.n_restricted} of {check.n_all} recordings "
+        f"clear {check.threshold} nodes")
+    if check.flagged:
+        worst = check.table.iloc[0]
+        log(f"    ! {len(check.flagged)} group difference(s) move on cohort alone, "
+            f"worst {worst.Metric} {worst.GapAll:+.2f} -> "
+            f"{worst.GapRestricted:+.2f} ({worst.GroupA} vs {worst.GroupB}) — "
+            "read these as selection, not topology")
+
+
+def _target_decomposition(integrated, ds: StatsDataset, folder: Path, settings,
+                          result, lag, log, computed, source_root: Path) -> None:
+    """The full A/B/C decomposition, when a second target was asked for.
+
+    Runs the sweep again at ``sweep_n_nodes_high`` and splits the difference
+    between the two targets into the cohort changing (selection) and the target
+    changing (resolution). The second sweep is the whole cost of this: condition
+    C is a row subset of the first one.
+    """
+    high = settings.sweep_n_nodes_high
+    if high is None or integrated.empty:
+        return
+    low_target = getattr(computed.sweep, "n_nodes", None)
+    if low_target is None:
+        log("    ! a second target needs the first one to subsample too; skipped")
+        return
+    if int(high) <= int(low_target):
+        log(f"    ! sweep_n_nodes_high ({high}) must exceed the first target "
+            f"({low_target}); skipped")
+        return
+
+    log(f"  density sweep again at {high} nodes, to separate selection from "
+        "resolution")
+    sweep_high = run_density_sweep(
+        source_root, densities=settings.sweep_densities,
+        modularity_reps=settings.sweep_modularity_reps,
+        n_nodes=int(high), n_subsamples=settings.sweep_subsamples,
+        seed=settings.seed, log=log)
+    if sweep_high.integrated is None or sweep_high.integrated.empty:
+        result.skipped.append(f"{folder.name}/target_decomposition: nothing swept")
+        return
+
+    high_integrated = _labelled_integrated(sweep_high, ds, lag)
+    table = decompose_targets(integrated, high_integrated,
+                              group_col=ds.group_col, metrics=sweep_high.metrics)
+    if table.empty:
+        result.skipped.append(
+            f"{folder.name}/target_decomposition: no metric could be decomposed")
+        return
+
+    table.insert(0, "TargetLow", int(low_target))
+    table.insert(1, "TargetHigh", int(high))
+    computed.sweep_decomposition = table
+    _write_table(table, folder / "density_sweep_target_decomposition.csv", result)
+
+    # One row per (metric, group pair), so a metric is only worth naming when
+    # every one of its pairs agrees; counting rows is the honest summary.
+    led = table["Dominant"] == "selection"
+    unanimous = sorted(
+        metric for metric, rows in table.groupby("Metric")
+        if (rows["Dominant"] == "selection").all())
+    result.summary.setdefault("density_sweep_targets", {})[str(lag)] = {
+        "target_low": int(low_target), "target_high": int(high),
+        "n_low": int(table["NA"].iloc[0]), "n_shared": int(table["NC"].iloc[0]),
+        "n_high": int(table["NB"].iloc[0]),
+        "mean_abs_selection": float(table["Selection"].abs().mean()),
+        "mean_abs_resolution": float(table["Resolution"].abs().mean()),
+        "n_comparisons": int(len(table)),
+        "n_selection_led": int(led.sum()),
+        "selection_led_throughout": unanimous,
+    }
+    log(f"    decomposed {len(table)} group differences: mean |selection| "
+        f"{table['Selection'].abs().mean():.3f} vs mean |resolution| "
+        f"{table['Resolution'].abs().mean():.3f}; "
+        f"{int(led.sum())}/{len(table)} led by selection")
+    if unanimous:
+        log("    selection-led for every group pair: " + ", ".join(unanimous)
+            + " — raising the target moved these mostly by changing the cohort")
+
+
+def _control_effects(sweep, ds: StatsDataset, folder: Path, settings, result,
+                     lag, log, computed, source_root: Path) -> None:
+    """Age and genotype effects for each metric under each level of control.
+
+    The same statistic the 5A heatmaps report, recomputed on the controlled
+    features, so "does this effect survive the control" can be read directly
+    rather than inferred from two separate figures. With
+    ``sweep_density_only`` set the sweep is run a second time with subsampling
+    off, which is what separates the density control from the size one — the
+    step between those two conditions is the subsampling effect alone.
+    """
+    if sweep.integrated is None or sweep.integrated.empty:
+        return
+
+    if sweep.n_nodes is None:
+        # The sweep controlled density only, so that is the condition it is.
+        density_only, density_and_size = sweep.integrated, None
+    else:
+        density_only, density_and_size = None, sweep.integrated
+        if settings.sweep_density_only:
+            log("  density sweep again with subsampling off, to separate the "
+                "density control from the size one")
+            plain = run_density_sweep(
+                source_root, densities=settings.sweep_densities,
+                modularity_reps=settings.sweep_modularity_reps,
+                n_nodes=None, seed=settings.seed, log=log)
+            if plain.integrated is not None and not plain.integrated.empty:
+                density_only = plain.integrated
+                _write_table(plain.integrated,
+                             folder / "density_sweep_integrated_density_only.csv",
+                             result)
+            else:
+                result.skipped.append(
+                    f"{folder.name}/control_effects: the unsubsampled sweep "
+                    "produced nothing")
+
+    try:
+        table = control_effects(ds, density_only=density_only,
+                                density_and_size=density_and_size,
+                                metrics=sweep.metrics)
+    except Exception as exc:  # a model that will not fit costs only this table
+        result.skipped.append(f"{folder.name}/control_effects: {exc}")
+        return
+    if table.empty:
+        return
+
+    computed.control_effects = table
+    _write_table(table, folder / "control_effects.csv", result)
+
+    # The metrics themselves, not just how far apart the groups are: an effect
+    # size in units of each condition's own spread cannot say what either group
+    # actually measured, and a control that moves every group together looks
+    # identical to one that moves none of them.
+    try:
+        measured = control_values(ds, density_only=density_only,
+                                  density_and_size=density_and_size,
+                                  metrics=sweep.metrics)
+    except Exception as exc:  # noqa: BLE001 - costs only this table
+        result.skipped.append(f"{folder.name}/control_values: {exc}")
+        measured = None
+    if measured is not None and not measured.empty:
+        computed.control_values = measured
+        _write_table(measured, folder / "control_metric_values.csv", result)
+
+    levels = [c for c in ("none", "density", "density+size")
+              if c in set(table["Control"])]
+    # How much of each effect the control removes, as the headline number.
+    shrunk = None
+    if "none" in levels and len(levels) > 1:
+        strongest = levels[-1]
+        wide = table.pivot_table(index=["Term", "Metric"], columns="Control",
+                                 values="EffectSize")
+        both = wide[["none", strongest]].dropna()
+        if not both.empty:
+            shrunk = float((both[strongest].abs() < both["none"].abs()).mean())
+
+    result.summary.setdefault("control_effects", {})[str(lag)] = {
+        "levels": levels,
+        "n_rows": int(len(table)),
+        "subsampling_isolated": bool(
+            "density" in levels and "density+size" in levels),
+        "fraction_shrunk_under_control": shrunk,
+    }
+    log("    effects under control: " + ", ".join(levels)
+        + (f"; {shrunk:.0%} of effects shrink" if shrunk is not None else ""))
+    if "density" not in levels and sweep.n_nodes is not None:
+        log("    (set sweep_density_only / --sweep-density-only to separate "
+            "the density control from the size one)")
 
 
 def _controlled_families(ds: StatsDataset, sweep, folder: Path, settings,
