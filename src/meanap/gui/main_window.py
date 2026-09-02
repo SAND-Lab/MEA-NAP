@@ -14,7 +14,7 @@ from PyQt6.QtCore import Qt, QSettings, QSignalBlocker, QSize
 
 from meanap.params import STATS_STEP, Params
 from meanap.pipeline.bundle import BUNDLE_SUFFIX
-from meanap.pipeline.pack import default_bundle_dest
+from meanap.pipeline.pack import default_bundle_dest, unbundlable_reason
 from meanap.pipeline.example_data import download_example_data
 from meanap.pipeline.report import generate_report
 from meanap.gui.branding import CORNER_LOGO_HEIGHT, logo_icon, logo_pixmap
@@ -1414,19 +1414,29 @@ class MainWindow(QMainWindow):
         route to the file was to run the analysis again. This is that route
         without the run.
         """
+        if self._bundle_worker is not None and self._bundle_worker.isRunning():
+            return
+
         output_root = self._candidate_output_root()
         if output_root is None or not output_root.is_dir():
-            QMessageBox.warning(
-                self, "No output folder to pack",
-                "A bundle is packed from a run's output folder. Run the "
-                "pipeline first, or set the Output data folder / name (Data "
-                "tab) to an existing MEA-NAP output folder.\n\n"
-                "An express run has no folder to pack — its bundle was written "
-                "instead of one, and sits beside where the folder would have "
-                "been.",
+            # The reason this button exists is a run finished weeks ago that
+            # now needs sending, and the session that wants to send it has no
+            # run in it and no reason to have set the Data tab. So ask, the
+            # way Open bundle… asks — a dead button here would refuse exactly
+            # the case it was added for.
+            chosen = QFileDialog.getExistingDirectory(
+                self, "Which output folder should be packed?",
+                str(output_root.parent) if output_root is not None else "",
             )
-            return
-        if self._bundle_worker is not None and self._bundle_worker.isRunning():
+            if not chosen:
+                return
+            output_root = Path(chosen)
+
+        # Checked before asking where to save: finding out afterwards that
+        # there was never going to be a bundle spends a dialog for nothing.
+        reason = unbundlable_reason(output_root)
+        if reason is not None:
+            QMessageBox.warning(self, "Nothing to pack in that folder", reason)
             return
 
         # A save dialog rather than a silent write: it offers the default name,

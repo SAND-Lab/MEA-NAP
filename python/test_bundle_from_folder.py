@@ -32,7 +32,7 @@ import numpy as np  # noqa: E402
 from meanap.params import Params, save_params  # noqa: E402
 from meanap.pipeline.bundle import MANIFEST_NAME, open_bundle  # noqa: E402
 from meanap.pipeline.pack import (  # noqa: E402
-    bundle_output_folder, default_bundle_dest,
+    bundle_output_folder, default_bundle_dest, unbundlable_reason,
 )
 
 FAILURES: list[str] = []
@@ -203,10 +203,19 @@ with tempfile.TemporaryDirectory() as tmp:
         check("a missing folder is refused", "Not an output folder" in str(e),
               str(e))
 
+    # The GUI asks this before it asks where to save, so it has to give the
+    # same answers as the pack itself rather than a second opinion.
+    check("the reason is available without attempting the pack",
+          unbundlable_reason(empty) is not None
+          and unbundlable_reason(matlab) is not None
+          and unbundlable_reason(tmp / "NoSuchFolder") is not None, "")
+
     # Stopping before step 4 is not a reason to refuse: the bundle is still a
     # valid thing to resume from, it just has nothing to look at.
     partial = make_output_folder(tmp / "StoppedEarly", step4=False)
     result = bundle_output_folder(partial, log=lambda _m: None)
+    check("...and a packable folder gives no reason at all",
+          unbundlable_reason(partial) is None, str(unbundlable_reason(partial)))
     check("a run that never reached step 4 still packs",
           result.dest.is_file(), str(result.dest))
     check("...and says why the viewer will not open it",
@@ -258,33 +267,34 @@ check("pressing it reaches the window",
 with tempfile.TemporaryDirectory() as tmp:
     tmp = Path(tmp)
 
+    # The reason the button exists is a run that finished weeks ago and now
+    # needs sending. That session has no run in it and no reason to have set
+    # the Data tab — so the button has to stay live and ask, the way Open
+    # bundle… does. Disabling it here refuses exactly the case it was for.
     window._last_output_root = None
     window._last_bundle = None
     window._data_panel.output_data_folder.set_value("")
     window._refresh_results_target()
-    check("with no run to pack, the button is off",
-          not panel.make_bundle_btn.isEnabled(), "")
+    check("with no run in the session the button is still live — it asks",
+          panel.make_bundle_btn.isEnabled(), "")
+    check("...and the label says so, since View report beside it is dead",
+          "Make bundle" in panel.target_label.text(), panel.target_label.text())
 
     run = make_output_folder(tmp / "OutputData02Jan2026")
     window._last_output_root = run
     window._refresh_results_target()
-    check("an existing output folder turns it on",
+    check("an existing output folder leaves it live",
           panel.make_bundle_btn.isEnabled(), "")
 
-    # An express run's folder is removed once its bundle reads back: there is a
-    # run to open and nothing left to pack, so the two buttons disagree.
-    bundle = run.with_suffix(".meanap")
-    bundle.write_bytes(b"stand-in")
+    # An express run's folder is removed once its bundle reads back, so
+    # _last_output_root is the bundle itself. There is nothing to pack, but the
+    # button still asks rather than going dead.
+    window._last_output_root = tmp / "GoneExpressRun.meanap"
     window._refresh_results_target()
-    check("a bundle beside a live folder still leaves something to pack",
+    check("a run whose folder is gone still leaves the button live",
           panel.make_bundle_btn.isEnabled(), "")
 
-    window._last_output_root = tmp / "GoneExpressRun"
-    window._refresh_results_target()
-    check("a run whose folder is gone has nothing to pack",
-          not panel.make_bundle_btn.isEnabled(), "")
-
-    # Packing must not leave the button dead if it was live before.
+    # Packing is the one thing that turns it off, and only while it runs.
     window._last_output_root = run
     window._refresh_results_target()
     panel.set_bundling(True)

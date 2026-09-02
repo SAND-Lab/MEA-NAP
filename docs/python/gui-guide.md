@@ -281,9 +281,10 @@ The last tab: what to do once something has finished.
   connectivity network, with optional cell-type overlays. Full walkthrough:
   [Network Viewer](network-viewer.md).
 
-**Make bundle…** is off when there is no folder to pack — including after an
-express run, whose folder is removed once its bundle reads back, so there is a
-run to *open* and nothing left to pack.
+**Make bundle…** stays live even with no run in the session — the reason to
+want it is usually a run that finished weeks ago. It packs the folder named
+below when there is one, and otherwise asks which folder to pack, the way
+**Open bundle…** asks for a file.
 
 A line under the buttons names what **View report** would open and in which
 form. With no run in this session it falls back to the output folder the Data

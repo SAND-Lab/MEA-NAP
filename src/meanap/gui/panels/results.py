@@ -22,6 +22,10 @@ to be something you had to ask for *before* the run, by ticking Express mode,
 and a full run that turned out to be worth sending had no way to become one
 short of running it again. Packing a finished folder needs nothing the folder
 does not already hold, so it belongs beside the buttons that open one.
+
+It stays live when there is no run to point at, unlike **View report**. Wanting
+to send a run you finished last month is the reason the button exists, and that
+session has no output folder in it — so, like **Open bundle…**, it asks.
 """
 
 from __future__ import annotations
@@ -50,11 +54,6 @@ class ResultsPanel(QWidget):
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(12, 12, 12, 12)
-
-        #: Whether there is a folder to pack — read back by :meth:`set_bundling`
-        #: so finishing a pack restores the button to the right state rather
-        #: than to "enabled".
-        self._can_bundle = False
 
         layout.addWidget(self._build_open_box())
         layout.addWidget(self._build_viewer_box(), stretch=1)
@@ -88,10 +87,11 @@ class ResultsPanel(QWidget):
         self.make_bundle_btn.setFixedHeight(40)
         self.make_bundle_btn.setObjectName("secondary")
         self.make_bundle_btn.setToolTip(
-            "Pack this run's output folder into a single .meanap file you can "
-            "email or attach to a paper — typically around 25× smaller, because "
-            "every figure the viewer can redraw is left out. Nothing is "
-            "recomputed and the output folder is left exactly as it is."
+            "Pack an output folder into a single .meanap file you can email or "
+            "attach to a paper — typically around 25× smaller, because every "
+            "figure the viewer can redraw is left out. Uses the run named "
+            "below, or asks which folder to pack when there is none. Nothing "
+            "is recomputed and the output folder is left exactly as it is."
         )
         self.make_bundle_btn.clicked.connect(self.make_bundle_requested)
         row.addWidget(self.make_bundle_btn)
@@ -135,12 +135,6 @@ class ResultsPanel(QWidget):
         Called whenever the answer could have changed — a run finishing, or the
         tab being shown after the output paths were edited.
         """
-        # **Make bundle…** needs the folder itself, which is a different
-        # question from the one below: an express run's folder is removed once
-        # its bundle reads back, so there is a run to *open* and nothing left to
-        # pack. The label already explains the no-folder case.
-        self._can_bundle = output_root is not None and output_root.is_dir()
-        self.make_bundle_btn.setEnabled(self._can_bundle)
         if bundle is not None and bundle.is_file():
             self.target_label.setText(
                 f"Opens the bundle <b>{bundle.name}</b> in the viewer, which "
@@ -163,7 +157,8 @@ class ResultsPanel(QWidget):
             self.target_label.setText(
                 "Nothing to open yet. Run the pipeline, or set the output "
                 "folder on the Data tab to an existing MEA-NAP run — or open a "
-                ".meanap bundle from anywhere.")
+                ".meanap bundle from anywhere. <b>Make bundle…</b> will ask "
+                "which folder to pack.")
             self.view_report_btn.setEnabled(False)
 
     def set_bundling(self, running: bool) -> None:
@@ -173,6 +168,6 @@ class ResultsPanel(QWidget):
         as a click that did nothing, and short enough that it does not want a
         progress bar of its own — the status log carries the detail.
         """
-        self.make_bundle_btn.setEnabled(not running and self._can_bundle)
+        self.make_bundle_btn.setEnabled(not running)
         self.make_bundle_btn.setText(
             "\U0001f4e6  Packing…" if running else "\U0001f4e6  Make bundle…")

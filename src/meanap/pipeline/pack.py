@@ -44,7 +44,8 @@ from meanap.pipeline.bundle import (
 )
 from meanap.pipeline.spreadsheet import RecordingInfo
 
-__all__ = ["BundleResult", "bundle_output_folder", "default_bundle_dest"]
+__all__ = ["BundleResult", "bundle_output_folder", "default_bundle_dest",
+           "unbundlable_reason"]
 
 #: The recording-level table, which every run that reached step 4 writes. It is
 #: the folder's own record of which recordings the analysis covered — better
@@ -131,14 +132,13 @@ def bundle_output_folder(
     or if the bundle will not read back.
     """
     root = Path(output_root)
-    if not root.is_dir():
-        raise ValueError(f"Not an output folder: {root}")
+    reason = unbundlable_reason(root)
+    if reason is not None:
+        raise ValueError(reason)
 
     warnings: list[str] = []
     stored = _stored_manifest(root)
     params = _read_params(root)
-    if params is None and not stored:
-        raise ValueError(_not_an_output_folder(root))
     if params is None:
         # A folder exported from a bundle written by a version that redacted
         # more than it does now, or one whose params were removed by hand. The
@@ -181,6 +181,22 @@ def bundle_output_folder(
     log(f"  The output folder is untouched. Open the bundle with: "
         f'meanap-viewer "{written}"')
     return result
+
+
+def unbundlable_reason(output_root: Path | str) -> str | None:
+    """Why *output_root* cannot be packed, or ``None`` if it can.
+
+    Asked separately from the pack itself so a caller can find out before it
+    commits the user to anything. The GUI asks where to save the bundle first,
+    and discovering only afterwards that there was never going to be one is a
+    dialog spent for nothing.
+    """
+    root = Path(output_root)
+    if not root.is_dir():
+        return f"Not an output folder: {root}"
+    if _read_params(root) is None and not _stored_manifest(root):
+        return _not_an_output_folder(root)
+    return None
 
 
 # ── Reading a folder's own account of itself ─────────────────────────────────

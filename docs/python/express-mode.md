@@ -253,6 +253,11 @@ The bundle lands beside the folder under the folder's name, stepping to
 the default name may be an express run whose folder is long gone. The GUI offers
 that name in a save dialog, so it can go anywhere else instead.
 
+The button does not need a run in the session. With nothing on the Results tab
+to point at — the usual case, since the run worth sending is often one from
+weeks ago — it asks which folder to pack before asking where to put the
+bundle.
+
 Like an express run, the file is opened again before the call returns. A bundle
 that will not read back is deleted rather than left with the right name and size
 to be emailed. That the folder survives the pack intact, and that the packed
