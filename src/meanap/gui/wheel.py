@@ -20,6 +20,16 @@ to the enclosing scroll area instead.
 edits it, which would make this guard hold only until it was needed. They are
 put on ``StrongFocus``: click and Tab still focus them, the wheel does not.
 
+That second part has to happen *before* the field is ever scrolled over, not on
+the way past. For a real wheel turn Qt hands out focus in ``QApplication::notify``,
+which runs before the application's event filters — so a guard that downgrades
+the policy when it sees a wheel event has already been overtaken: the field took
+focus a moment ago, and this filter, finding it focused, stands politely aside.
+That is a first turn on every field doing exactly what the guard exists to
+prevent, and it hides itself, because the same turn fixes the policy and the
+second turn behaves. So every field is defused up front, and again on
+``Polish`` for fields built later.
+
 Installed on the application, so it covers every field on every tab, including
 ones built later — a per-widget opt-in would be one ``setFocusPolicy`` call
 away from a silent hole, in a bug whose whole nature is that nobody notices it.
@@ -75,22 +85,37 @@ def _scrolling_ancestor(widget: QWidget) -> QAbstractScrollArea | None:
     return None
 
 
+def _defuse(widget: QObject) -> None:
+    """Take the wheel out of *widget*'s focus policy, if it is a field."""
+    if (isinstance(widget, GUARDED)
+            and widget.focusPolicy() == Qt.FocusPolicy.WheelFocus):
+        widget.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+
+
 class _WheelGuard(QObject):
     """Application event filter implementing the rule in the module docstring."""
 
     def eventFilter(self, obj: QObject, event: QEvent) -> bool:  # noqa: D102
-        if event.type() != QEvent.Type.Wheel:
+        event_type = event.type()
+
+        # Every widget is polished before it is first shown, so this catches
+        # dialogs and the rows panels add as you use them — anything built
+        # after the sweep at install time.
+        if event_type == QEvent.Type.Polish:
+            _defuse(obj)
+            return False
+
+        if event_type != QEvent.Type.Wheel:
             return False
 
         field = _guarded_widget(obj)
         if field is None:
             return False
 
-        # Done here rather than at construction so it also covers fields built
-        # after the guard was installed, which is all of them in a tab that is
-        # rebuilt on a mode switch.
-        if field.focusPolicy() == Qt.FocusPolicy.WheelFocus:
-            field.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        # A backstop only. By the time a wheel event arrives Qt has already
+        # decided about focus, so this cannot be what makes the rule hold —
+        # see the module docstring.
+        _defuse(field)
 
         if field.hasFocus():
             return False        # clicked into: the wheel is theirs
@@ -116,6 +141,11 @@ def install_wheel_guard(app: QApplication | None = None) -> None:
         return
     _GUARD = _WheelGuard()
     app.installEventFilter(_GUARD)
+    # Everything already built. The filter only sees a widget from its next
+    # event onwards, and for a field that has been polished already that is one
+    # event too late.
+    for widget in app.allWidgets():
+        _defuse(widget)
     # Taken off again before the interpreter tears the module down. Left
     # installed while the QApplication is destroyed, this filter segfaults the
     # process during shutdown — after everything has already run and passed, so

@@ -21,6 +21,14 @@ What is checked, on the real window rather than a mock-up:
     written so broadly that it stops the scrolling it exists to protect;
   - an *open* combo box's list scrolls, which is the one case where the wheel
     really does belong to the combo box.
+
+The focus-policy checks are the ones that matter most, and are not decoration
+around the behavioural ones. A synthesised wheel event is not spontaneous, so
+Qt never runs the focus-granting path a real mouse takes — the first version of
+this test passed against a guard that let the first turn on every field through,
+because the field was handed focus in ``QApplication::notify`` before the
+filter ever saw the event. What can be checked here is the precondition that
+path depends on: no field is reachable by the wheel in the first place.
 """
 
 from __future__ import annotations
@@ -43,6 +51,7 @@ from PyQt6.QtWidgets import (  # noqa: E402
 
 from meanap.gui.advanced import AdvancedSection  # noqa: E402
 from meanap.gui.main_window import MainWindow  # noqa: E402
+from meanap.gui.modes import MODES  # noqa: E402
 from meanap.gui.wheel import GUARDED, _guarded_widget  # noqa: E402
 
 app = QApplication.instance() or QApplication([])
@@ -78,6 +87,42 @@ def scroll_area_of(widget: QWidget) -> QAbstractScrollArea | None:
     return None
 
 
+print("\nSection A — no field can be focused by the wheel at all")
+
+# The precondition the whole guard rests on, and the one a synthesised wheel
+# event cannot exercise: a real turn would have Qt hand the field focus before
+# this filter is consulted, and a focused field is one the wheel may change.
+for mode in MODES:
+    probe_window = MainWindow(mode=mode)
+    probe_window.show()
+    app.processEvents()
+    fields = probe_window.findChildren(GUARDED)
+    wheelable = [f for f in fields
+                 if f.focusPolicy() == Qt.FocusPolicy.WheelFocus]
+    check(f"[{mode}] every field is out of the wheel's reach",
+          not wheelable and bool(fields),
+          f"{len(wheelable)} of {len(fields)} still on WheelFocus")
+    focused = QApplication.focusWidget()
+    check(f"[{mode}] the window does not open with a field focused",
+          not isinstance(focused, GUARDED),
+          f"{type(focused).__name__} has focus and nobody clicked it")
+    probe_window.close()
+
+# A field built after the guard was installed — a dialog, or a row a panel adds
+# as you use it — is caught when it is polished, not when it is first scrolled.
+late = QSpinBox()
+check("a newly built spin box starts out wheel-focusable",
+      late.focusPolicy() == Qt.FocusPolicy.WheelFocus, str(late.focusPolicy()))
+late.ensurePolished()
+check("...and is defused by the time it could be shown",
+      late.focusPolicy() == Qt.FocusPolicy.StrongFocus, str(late.focusPolicy()))
+late.deleteLater()
+
+
+# The probe windows above are built and closed first on purpose: each one
+# becomes the active window while it lives, and the checks below need the
+# window they act on to be the active one for focus to mean anything.
+
 window = MainWindow()
 # Deliberately short: the guard only matters on a tab that has to scroll, and
 # a window tall enough to show everything would test nothing.
@@ -102,7 +147,7 @@ combos = [w for w in tab.findChildren(QComboBox) if w.isVisibleTo(tab)]
 check("the tab offers fields to scroll past", bool(spins), "no visible spin boxes")
 
 
-print("\nSection A — a wheel turn over an unfocused field")
+print("\nSection B — a wheel turn over an unfocused field")
 
 spin = spins[0]
 area = scroll_area_of(spin)
@@ -134,7 +179,7 @@ check("a second turn still leaves it alone", spin.value() == before_value,
       f"{before_value} → {spin.value()}")
 
 
-print("\nSection B — the event delivered to the spin box's own line edit")
+print("\nSection C — the event delivered to the spin box's own line edit")
 
 inner = spin.findChild(QLineEdit)
 check("a spin box does have an internal line edit", inner is not None)
@@ -149,7 +194,7 @@ if inner is not None:
           f"scroll {before_scroll} → {bar.value()}")
 
 
-print("\nSection C — once clicked into, the field is the user's")
+print("\nSection D — once clicked into, the field is the user's")
 
 spin.setFocus(Qt.FocusReason.MouseFocusReason)
 app.processEvents()
@@ -166,7 +211,7 @@ check("and the page stays put", bar.value() == before_scroll,
 spin.clearFocus()
 
 
-print("\nSection D — combo boxes behave the same way")
+print("\nSection E — combo boxes behave the same way")
 
 if not combos:
     check("a combo box was found on this tab", False, "none visible")
@@ -190,7 +235,7 @@ else:
     combo.clearFocus()
 
 
-print("\nSection E — the guard does not break ordinary scrolling")
+print("\nSection F — the guard does not break ordinary scrolling")
 
 # The tab's own scroll area, scrolled directly rather than through a field.
 bar.setValue(0)
@@ -225,7 +270,7 @@ check("a log still scrolls its own contents",
       log.verticalScrollBar().value() > 0,
       f"scroll {log.verticalScrollBar().value()}")
 
-print("\nSection F — an open combo box's own list still scrolls")
+print("\nSection G — an open combo box's own list still scrolls")
 
 # The one place the wheel does belong to a combo box. Its popup is a separate
 # window, which is what stops the walk up from the list reaching the combo.

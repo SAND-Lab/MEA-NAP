@@ -127,6 +127,11 @@ class MainWindow(QMainWindow):
         # A scroll over a spin box or combo box belongs to the page it is on,
         # not to the field the pointer happened to cross — see gui/wheel.py.
         install_wheel_guard()
+        # Qt hands focus to the first widget that will take it, so the window
+        # opened with a settings field focused that nobody had clicked — and a
+        # focused field is one the wheel is allowed to change. The tab strip
+        # takes it instead, where the arrow keys move between tabs.
+        self._tabs.setFocus(Qt.FocusReason.OtherFocusReason)
         self._maybe_show_tutorial_on_first_launch()
 
     # ── UI construction ───────────────────────────────────────────────────────
