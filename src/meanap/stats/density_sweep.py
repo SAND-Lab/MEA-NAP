@@ -77,9 +77,17 @@ __all__ = [
     "SWEEP_METRICS",
     "COST_INT_SUFFIX",
     "DensitySweep",
+    "CONTROL_LEVELS",
+    "RAW_COUNTERPART",
+    "SelectionCheck",
     "binarise_at_density",
+    "control_effects",
+    "control_values",
     "cost_integrate",
+    "decompose_targets",
+    "group_gaps",
     "run_density_sweep",
+    "selection_sensitivity",
     "subsample_nodes",
     "sweep_one_matrix",
 ]
@@ -569,3 +577,561 @@ def attach_labels(frame: pd.DataFrame, ds) -> pd.DataFrame:
             if c in ds.table.columns]
     labels = ds.table[keys].drop_duplicates(subset=[ds.name_col])
     return out.merge(labels, on=ds.name_col, how="inner")
+
+
+# -- separating selection from resolution ------------------------------------
+#
+# Raising the subsample target does two things at once. Topology is measured on
+# bigger subgraphs, so real differences between recordings are less attenuated
+# (*resolution*); and a smaller, non-random set of recordings clears the cut, so
+# the comparison is over a different cohort (*selection*). Comparing one target
+# against another moves both, which is why a target cannot be chosen by trying
+# two and keeping whichever showed the larger effect.
+#
+# The three-condition design that separates them:
+#
+#     A   target N, every recording reaching N
+#     B   target M > N, every recording reaching M
+#     C   target N, but only B's recordings
+#
+# A vs C is then selection alone and C vs B resolution alone. The useful
+# asymmetry is that **C is free**: a recording's swept result depends only on
+# its matrix, the target and the seed, never on which cohort it sits in, so C is
+# a row subset of A rather than a second sweep. ``selection_sensitivity``
+# exploits that to report the selection term from the sweep already run;
+# ``decompose_targets`` completes the design once a second sweep supplies B.
+#
+# Every gap here is standardised by the spread of that metric *within its own
+# condition*, which is what an analysis restricted to that cohort would report.
+# So a delta between two conditions mixes a change in group means with a change
+# in spread - deliberately, because both are things the restriction really did
+# to the number you would quote.
+
+#: Dropped from gap tables: a fragmentation diagnostic for reading ``PL``
+#: against, not a topology measure anyone compares between groups.
+_NOT_A_GAP_METRIC = ("lccFraction",)
+
+
+def _gap_columns(frame: pd.DataFrame, metrics) -> list[str]:
+    """The ``<metric>_costInt`` columns present in *frame*, diagnostics excluded."""
+    return [f"{m}{COST_INT_SUFFIX}" for m in metrics
+            if m not in _NOT_A_GAP_METRIC
+            and f"{m}{COST_INT_SUFFIX}" in frame.columns]
+
+
+def _keyed(frame: pd.DataFrame) -> pd.Series:
+    """A per-recording key, including the lag when the table carries one."""
+    if "Lag" in frame.columns:
+        return frame["FileName"].astype(str) + " " + frame["Lag"].astype(str)
+    return frame["FileName"].astype(str)
+
+
+def group_gaps(
+    integrated: pd.DataFrame,
+    *,
+    group_col: str = "Grp",
+    metrics=SWEEP_METRICS,
+    min_per_group: int = 3,
+) -> pd.DataFrame:
+    """Standardised difference between every pair of groups, per metric.
+
+    One row per (metric, group pair): the difference in means divided by the
+    metric's SD across every recording in *integrated*. Pairs are ordered by
+    the group labels' sort order, so ``Gap`` keeps a stable sign between calls
+    and two conditions can be subtracted row for row.
+    """
+    from itertools import combinations
+
+    if integrated is None or integrated.empty or group_col not in integrated.columns:
+        return pd.DataFrame()
+
+    groups = sorted(g for g in integrated[group_col].dropna().unique())
+    rows = []
+    for col in _gap_columns(integrated, metrics):
+        spread = integrated[col].std()
+        if not np.isfinite(spread) or spread == 0:
+            continue
+        for a, b in combinations(groups, 2):
+            xa = integrated.loc[integrated[group_col] == a, col].dropna()
+            xb = integrated.loc[integrated[group_col] == b, col].dropna()
+            if len(xa) < min_per_group or len(xb) < min_per_group:
+                continue
+            rows.append({
+                "Metric": col[: -len(COST_INT_SUFFIX)],
+                "GroupA": a, "GroupB": b,
+                "NA": int(len(xa)), "NB": int(len(xb)),
+                "Gap": float((xa.mean() - xb.mean()) / spread),
+            })
+    return pd.DataFrame(rows)
+
+
+@dataclass
+class SelectionCheck:
+    """How much the group differences move when the cohort is restricted.
+
+    The free half of the three-condition design: no second sweep, just the
+    sweep already run read over a smaller cohort. A large ``Delta`` means the
+    reported effect is partly a statement about *which recordings were big
+    enough to keep*, not about topology.
+    """
+
+    #: One row per (metric, group pair): ``GapAll``, ``GapRestricted``,
+    #: ``Delta``, and whether the sign changed. Empty when the check could not
+    #: be run, with :attr:`note` saying why.
+    table: pd.DataFrame = field(default_factory=pd.DataFrame)
+    #: Node count the restricted cohort required, or ``None`` if not run.
+    threshold: int | None = None
+    n_all: int = 0
+    n_restricted: int = 0
+    #: ``(metric, group A, group B)`` for every gap that moved enough to be
+    #: worth reading as selection rather than topology.
+    flagged: list = field(default_factory=list)
+    note: str = ""
+
+    @property
+    def ran(self) -> bool:
+        return not self.table.empty
+
+
+def selection_sensitivity(
+    integrated: pd.DataFrame,
+    observed: pd.DataFrame,
+    *,
+    group_col: str = "Grp",
+    metrics=SWEEP_METRICS,
+    threshold: int | None = None,
+    percentile: float = 40.0,
+    min_restricted: int = 20,
+    min_dropped: float = 0.1,
+    min_delta: float = 0.1,
+    delta_ratio: float = 0.5,
+) -> SelectionCheck:
+    """Re-read one sweep over a higher-node-count cohort - the A vs C contrast.
+
+    *integrated* is a labelled cost-integrated table and *observed* supplies
+    ``NNodes``; both come from a finished :class:`DensitySweep`. Recordings
+    below *threshold* nodes are dropped and the group gaps recomputed. Nothing
+    is swept again - the same per-recording numbers are simply aggregated over
+    fewer recordings, which is exactly what raising the target would have done
+    to the cohort while leaving resolution alone.
+
+    *threshold* defaults to the *percentile* of the node counts actually swept.
+    A gap is flagged when it moves by at least *min_delta* **and** either
+    changes sign or moves by *delta_ratio* of its own size - the combination
+    matters, since a large relative move on a gap of 0.02 is noise and a small
+    relative move on a gap of 1.0 is not worth a warning.
+    """
+    if integrated is None or integrated.empty or observed is None or observed.empty:
+        return SelectionCheck(note="nothing to check")
+    if "NNodes" not in observed.columns:
+        return SelectionCheck(note="the sweep recorded no node counts")
+    if group_col not in integrated.columns:
+        return SelectionCheck(note=f"no {group_col} column to compare groups by")
+
+    join = ["FileName", "Lag"] if ("Lag" in integrated.columns
+                                   and "Lag" in observed.columns) else ["FileName"]
+    sizes = observed[join + ["NNodes"]].drop_duplicates(subset=join)
+    merged = integrated.merge(sizes, on=join, how="inner")
+    if merged.empty:
+        return SelectionCheck(note="node counts did not join onto the swept table")
+
+    counts = merged["NNodes"].to_numpy(dtype=float)
+    if threshold is None:
+        threshold = int(np.percentile(counts, percentile))
+    threshold = int(threshold)
+
+    restricted = merged[merged["NNodes"] >= threshold]
+    dropped = 1.0 - len(restricted) / len(merged)
+    if len(restricted) < min_restricted:
+        return SelectionCheck(
+            threshold=threshold, n_all=len(merged), n_restricted=len(restricted),
+            note=f"only {len(restricted)} recordings clear {threshold} nodes")
+    if dropped < min_dropped:
+        return SelectionCheck(
+            threshold=threshold, n_all=len(merged), n_restricted=len(restricted),
+            note=(f"{threshold} nodes drops only {dropped:.0%} of the swept "
+                  "recordings - too few to say anything about selection"))
+
+    all_gaps = group_gaps(merged, group_col=group_col, metrics=metrics)
+    restricted_gaps = group_gaps(restricted, group_col=group_col, metrics=metrics)
+    if all_gaps.empty or restricted_gaps.empty:
+        return SelectionCheck(
+            threshold=threshold, n_all=len(merged), n_restricted=len(restricted),
+            note="not enough recordings per group to form gaps")
+
+    keys = ["Metric", "GroupA", "GroupB"]
+    table = all_gaps.merge(restricted_gaps, on=keys, how="inner",
+                           suffixes=("All", "Restricted"))
+    if table.empty:
+        return SelectionCheck(
+            threshold=threshold, n_all=len(merged), n_restricted=len(restricted),
+            note="no metric could be compared across both cohorts")
+
+    table["Delta"] = table["GapRestricted"] - table["GapAll"]
+    table["SignFlip"] = np.sign(table["GapRestricted"]) != np.sign(table["GapAll"])
+    table["Flagged"] = (table["Delta"].abs() >= min_delta) & (
+        table["SignFlip"] | (table["Delta"].abs()
+                             >= delta_ratio * table["GapAll"].abs()))
+    table["NodeThreshold"] = threshold
+    table = table.sort_values("Delta", key=lambda s: s.abs(), ascending=False)
+
+    flagged = [(r.Metric, r.GroupA, r.GroupB)
+               for r in table.itertuples() if r.Flagged]
+    return SelectionCheck(
+        table=table.reset_index(drop=True), threshold=threshold,
+        n_all=len(merged), n_restricted=len(restricted), flagged=flagged)
+
+
+def decompose_targets(
+    low: pd.DataFrame,
+    high: pd.DataFrame,
+    *,
+    group_col: str = "Grp",
+    metrics=SWEEP_METRICS,
+    min_per_group: int = 3,
+) -> pd.DataFrame:
+    """The full A/B/C decomposition, given cost-integrated tables at two targets.
+
+    *low* is the sweep at the smaller target and *high* the sweep at the larger
+    one; both must already carry group labels. Condition C - the low target
+    over the high target's recordings - is derived from *low* by subsetting, so
+    the only cost beyond the ordinary sweep is having run *high* at all.
+
+    Returns one row per (metric, group pair) with ``GapA``/``GapC``/``GapB``
+    and the two terms they decompose into: ``Selection`` (C - A, the cohort
+    changing) and ``Resolution`` (B - C, the target changing). ``Total`` is
+    their sum, and is what comparing the two targets naively would have shown.
+    """
+    if low is None or low.empty or high is None or high.empty:
+        return pd.DataFrame()
+
+    cohort = set(_keyed(high))
+    middle = low[_keyed(low).isin(cohort)]
+    if middle.empty:
+        return pd.DataFrame()
+
+    keys = ["Metric", "GroupA", "GroupB"]
+    a = group_gaps(low, group_col=group_col, metrics=metrics,
+                   min_per_group=min_per_group)
+    c = group_gaps(middle, group_col=group_col, metrics=metrics,
+                   min_per_group=min_per_group)
+    b = group_gaps(high, group_col=group_col, metrics=metrics,
+                   min_per_group=min_per_group)
+    if a.empty or c.empty or b.empty:
+        return pd.DataFrame()
+
+    out = (a[keys + ["Gap"]].rename(columns={"Gap": "GapA"})
+           .merge(c[keys + ["Gap"]].rename(columns={"Gap": "GapC"}), on=keys)
+           .merge(b[keys + ["Gap"]].rename(columns={"Gap": "GapB"}), on=keys))
+    if out.empty:
+        return out
+
+    out["Selection"] = out["GapC"] - out["GapA"]
+    out["Resolution"] = out["GapB"] - out["GapC"]
+    out["Total"] = out["GapB"] - out["GapA"]
+    # Which term dominates is the reading: "selection" means the apparent
+    # effect of raising the target was mostly the cohort changing under it.
+    out["Dominant"] = np.where(out["Selection"].abs() >= out["Resolution"].abs(),
+                               "selection", "resolution")
+    out["NA"] = len(low)
+    out["NC"] = len(middle)
+    out["NB"] = len(high)
+    return out.sort_values("Total", key=lambda s: s.abs(), ascending=False
+                           ).reset_index(drop=True)
+
+
+# -- effects under each level of control --------------------------------------
+#
+# "Does this genotype difference survive the control?" is a different question
+# from "do the curves separate", and it is the one a reader of the 5A heatmaps
+# will ask. The answer is the same effect statistic the heatmaps use, recomputed
+# on the controlled features: standardised betas from the mixed model for
+# genotype, and its "SD change across age range" for age, both FDR-corrected.
+#
+# Three levels of control, because the sweep moves two things at once:
+#
+#     none          step 4's own metrics, at each network's own density and size
+#     density       cost-integrated over the density grid, size left alone
+#     density+size  the same, on networks first cut to a common node count
+#
+# The step from "density" to "density+size" is the subsampling effect on its
+# own. It needs the sweep run twice, which is why the middle condition is
+# optional; with only one sweep the table simply carries the two conditions it
+# has, and the figure draws whatever is there.
+
+#: Levels of control, weakest first. Also the plotting order.
+CONTROL_LEVELS: tuple[str, ...] = ("none", "density", "density+size")
+
+#: The step-4 column each swept metric is compared against. The sweep measures
+#: the *raw* quantities on binary graphs, so ``CC`` and ``PL`` pair with
+#: ``CC_rawMean`` and ``PL_raw`` — **not** with the null-model-normalised
+#: ``CC``/``PL`` the pipeline saves under those same short names, which are a
+#: different quantity and would make the comparison meaningless. ``BCmean`` has
+#: no recording-level counterpart in step 4 at all, so it appears only in the
+#: controlled conditions.
+RAW_COUNTERPART: dict[str, str] = {
+    "CC": "CC_rawMean",
+    "PL": "PL_raw",
+    "Eglob": "Eglob",
+    "ElocMean": "ElocMean",
+    "Q": "Q",
+    "nMod": "nMod",
+}
+
+#: Effect sizes the pooled comparison keeps: the two the mixed model reports,
+#: over the whole timecourse at once.
+_POOLED_EFFECTS = ("standardised beta", "SD change across age range")
+
+#: The per-age genotype contrasts are Hedges' g from a Welch t-test at each age.
+#: A different statistic on a different subset from the pooled ones, which is
+#: why the table carries a ``Scope`` column rather than stacking them on one
+#: axis: the two are not comparable and must not share a panel.
+_PER_AGE_EFFECT = "Hedges g"
+
+
+def _swept_name(column: str, metrics) -> str:
+    """The swept metric a raw or cost-integrated column belongs to."""
+    if column.endswith(COST_INT_SUFFIX):
+        return column[: -len(COST_INT_SUFFIX)]
+    for swept in metrics:
+        if RAW_COUNTERPART.get(swept) == column:
+            return swept
+    return column
+
+
+def _model_rows(table: pd.DataFrame, control: str, metrics) -> pd.DataFrame:
+    """The comparison rows worth carrying, tagged with *control*.
+
+    Two scopes, kept apart by a ``Scope`` column: ``"pooled"`` is the mixed
+    model over the whole timecourse, ``"per-age"`` is the genotype contrast
+    measured separately at each age. ``Contrast`` strips the age off the term,
+    so the same genotype pair can be followed across ages and across controls.
+    """
+    if table is None or table.empty:
+        return pd.DataFrame()
+    keep = table[table["EffectSize"].notna()].copy()
+    if keep.empty:
+        return pd.DataFrame()
+    at_age = keep["Term"].astype(str).str.contains(" at DIV ")
+
+    pooled = keep[keep["EffectSizeName"].isin(_POOLED_EFFECTS) & ~at_age].copy()
+    pooled["Scope"] = "pooled"
+    pooled["Age"] = np.nan
+    pooled["Contrast"] = pooled["Term"].astype(str)
+
+    per_age = keep[(keep["EffectSizeName"] == _PER_AGE_EFFECT) & at_age].copy()
+    per_age["Scope"] = "per-age"
+    per_age["Age"] = (per_age["Term"].astype(str)
+                      .str.extract(r" at DIV ([-\d.]+)$")[0].astype(float))
+    per_age["Contrast"] = (per_age["Term"].astype(str)
+                           .str.replace(r" at DIV [-\d.]+$", "", regex=True))
+
+    out = pd.concat([pooled, per_age], ignore_index=True)
+    if out.empty:
+        return pd.DataFrame()
+    out["Control"] = control
+    out["Metric"] = [_swept_name(m, metrics) for m in out["Metric"]]
+    columns = [c for c in ("Lag", "Control", "Scope", "Metric", "Term",
+                           "Contrast", "Age", "EffectSize", "EffectSizeName",
+                           "PValue", "PValueFDR", "N")
+               if c in out.columns]
+    return out[columns]
+
+
+def _dataset_with_integrated(ds, integrated: pd.DataFrame, metrics):
+    """*ds* with the cost-integrated features joined on, as its only metrics."""
+    cols = _gap_columns(integrated, metrics)
+    if not cols:
+        return None
+    table = integrated.copy()
+    if "Lag" in table.columns:
+        table["Lag"] = table["Lag"].map(lag_key_to_label)
+    join = ["FileName", "Lag"] if ("Lag" in ds.table.columns
+                                   and "Lag" in table.columns) else ["FileName"]
+    # Only the join keys and the features: an integrated table that has already
+    # had labels attached would otherwise duplicate ``Grp``/``DIV`` on merge.
+    slim = table[join + cols].drop_duplicates(subset=join)
+    merged = ds.table.merge(slim, on=join, how="inner")
+    if merged.empty:
+        return None
+    return ds._with_table(merged).with_metrics(cols)
+
+
+def _common_cohort(ds, tables, *, match: bool):
+    """Restrict *ds* and *tables* to the recordings every condition has.
+
+    Without this the comparison is not like-for-like. A sweep with subsampling
+    on drops every recording too small to reach the target, while the
+    uncontrolled metrics and an unsubsampled sweep keep all of them — so the
+    step between two conditions would mix the control being applied with the
+    cohort changing underneath it, which is precisely the confound the
+    selection check exists to expose. Matching costs recordings and makes the
+    uncontrolled column differ from the 5A tables, which is the honest trade:
+    those tables answer "what does this run show", this one answers "what did
+    the control do".
+    """
+    live = [t for t in tables if t is not None and not t.empty]
+    if not match or not live:
+        return ds, tables
+
+    # Key on (name, lag) as a tuple rather than a joined string: recording
+    # names come from filenames and may contain anything, spaces included.
+    use_lag = ("Lag" in ds.table.columns
+               and all("Lag" in t.columns for t in live))
+
+    def keys(frame):
+        names = frame["FileName"].astype(str)
+        if not use_lag:
+            return list(zip(names, [""] * len(frame)))
+        return list(zip(names, frame["Lag"].map(lag_key_to_label).astype(str)))
+
+    shared = None
+    for table in live:
+        found = set(keys(table))
+        shared = found if shared is None else (shared & found)
+    if not shared:
+        return ds, tables
+
+    trimmed = [None if (t is None or t.empty)
+               else t[[k in shared for k in keys(t)]] for t in tables]
+    kept = ds.table[[k in shared for k in keys(ds.table)]]
+    return (ds._with_table(kept) if not kept.empty else ds), trimmed
+
+
+def control_effects(
+    ds,
+    *,
+    density_only: pd.DataFrame | None = None,
+    density_and_size: pd.DataFrame | None = None,
+    metrics=SWEEP_METRICS,
+    match_cohort: bool = True,
+) -> pd.DataFrame:
+    """Age and genotype effects for each metric, under each level of control.
+
+    *ds* is the run's own metric table; *density_only* and *density_and_size*
+    are cost-integrated tables from a sweep run without and with node
+    subsampling. Either may be ``None``, and the result then simply carries the
+    conditions that exist.
+
+    Returns one row per (lag, control, metric, term): the same effect size and
+    FDR-corrected p-value the 5A comparisons report, so a metric's genotype
+    effect before and after the control are directly comparable. The step from
+    ``"density"`` to ``"density+size"`` is the subsampling effect isolated;
+    ``"none"`` to ``"density"`` is the density control on its own.
+
+    With *match_cohort* every condition is restricted to the recordings all of
+    them have, so a step between two conditions is the control changing and not
+    the cohort. Leave it on unless you want each condition on all the data it
+    could use, in which case the steps stop being attributable.
+    """
+    from meanap.stats.comparisons import compare_metrics
+
+    ds, (density_only, density_and_size) = _common_cohort(
+        ds, [density_only, density_and_size], match=match_cohort)
+
+    frames = []
+
+    raw_cols = [RAW_COUNTERPART[m] for m in metrics
+                if m in RAW_COUNTERPART and RAW_COUNTERPART[m] in ds.table.columns]
+    if raw_cols:
+        frames.append(_model_rows(
+            compare_metrics(ds.with_metrics(raw_cols)).table, "none", metrics))
+
+    for label, integrated in (("density", density_only),
+                              ("density+size", density_and_size)):
+        if integrated is None or integrated.empty:
+            continue
+        subset = _dataset_with_integrated(ds, integrated, metrics)
+        if subset is None:
+            continue
+        frames.append(_model_rows(
+            compare_metrics(subset).table, label, metrics))
+
+    frames = [f for f in frames if f is not None and not f.empty]
+    if not frames:
+        return pd.DataFrame()
+    out = pd.concat(frames, ignore_index=True)
+    order = {level: i for i, level in enumerate(CONTROL_LEVELS)}
+    out["_order"] = out["Control"].map(order).fillna(len(order))
+    return (out.sort_values(["Scope", "Contrast", "Metric", "Age", "_order"])
+            .drop(columns="_order").reset_index(drop=True))
+
+
+def _values_for(table: pd.DataFrame, columns: dict, ds, control: str) -> pd.DataFrame:
+    """Group-by-age summaries of *columns* (``swept name -> column``)."""
+    rows = []
+    for swept, column in columns.items():
+        if column not in table.columns:
+            continue
+        sub = table[[ds.group_col, ds.age_col, column]].dropna()
+        if sub.empty:
+            continue
+        stat = (sub.groupby([ds.group_col, ds.age_col])[column]
+                .agg(Mean="mean", SD="std", N="count", Median="median")
+                .reset_index())
+        stat["SEM"] = stat["SD"] / np.sqrt(stat["N"].clip(lower=1))
+        stat["Control"] = control
+        stat["Metric"] = swept
+        stat = stat.rename(columns={ds.group_col: "Group", ds.age_col: "Age"})
+        rows.append(stat)
+    if not rows:
+        return pd.DataFrame()
+    return pd.concat(rows, ignore_index=True)
+
+
+def control_values(
+    ds,
+    *,
+    density_only: pd.DataFrame | None = None,
+    density_and_size: pd.DataFrame | None = None,
+    metrics=SWEEP_METRICS,
+    match_cohort: bool = True,
+) -> pd.DataFrame:
+    """The metrics themselves, per group and age, under each level of control.
+
+    The companion to :func:`control_effects`: an effect size says how far apart
+    two groups are in units of their own spread, and says nothing about what
+    either group actually measured. This returns one row per (control, metric,
+    group, age) with ``Mean``, ``SD``, ``SEM``, ``N`` and ``Median``, so a
+    difference can be read in the metric's own units and a control that moves
+    every group together can be told from one that moves them apart.
+
+    Note the conditions are not the same measurement: ``"none"`` is step 4 on
+    each network at its own density and size, the others are cost-integrated
+    over the density grid. Both are on the metric's natural scale, but a shift
+    between conditions is a change of definition as well as of control.
+
+    *match_cohort* restricts every condition to the recordings all of them
+    have, for the same reason :func:`control_effects` does.
+    """
+    ds, (density_only, density_and_size) = _common_cohort(
+        ds, [density_only, density_and_size], match=match_cohort)
+
+    frames = []
+
+    raw = {m: RAW_COUNTERPART[m] for m in metrics
+           if m in RAW_COUNTERPART and RAW_COUNTERPART[m] in ds.table.columns}
+    if raw:
+        frames.append(_values_for(ds.table, raw, ds, "none"))
+
+    for label, integrated in (("density", density_only),
+                              ("density+size", density_and_size)):
+        if integrated is None or integrated.empty:
+            continue
+        subset = _dataset_with_integrated(ds, integrated, metrics)
+        if subset is None:
+            continue
+        columns = {c[: -len(COST_INT_SUFFIX)]: c
+                   for c in _gap_columns(subset.table, metrics)}
+        frames.append(_values_for(subset.table, columns, ds, label))
+
+    frames = [f for f in frames if f is not None and not f.empty]
+    if not frames:
+        return pd.DataFrame()
+    out = pd.concat(frames, ignore_index=True)
+    order = {level: i for i, level in enumerate(CONTROL_LEVELS)}
+    out["_order"] = out["Control"].map(order).fillna(len(order))
+    columns = ["Control", "Metric", "Group", "Age", "Mean", "SD", "SEM", "N",
+               "Median"]
+    return (out.sort_values(["_order", "Metric", "Group", "Age"])
+            .drop(columns="_order")[columns].reset_index(drop=True))

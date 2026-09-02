@@ -92,6 +92,17 @@ class StatsResults:
     #: The family decomposition with topology measured under density and size
     #: control, for comparison against :attr:`families`.
     families_controlled: object = None
+    #: How far the group differences move when the sweep is re-read over only
+    #: the larger networks — the selection half of the A/B/C design, which
+    #: costs nothing beyond the sweep already run.
+    sweep_selection: object = None
+    #: The full A/B/C decomposition, when a second subsample target was run.
+    sweep_decomposition: object = None
+    #: Age and genotype effects per metric under each level of control — the
+    #: 5A statistic recomputed on the controlled features.
+    control_effects: object = None
+    #: The metrics themselves, per group and age, under each level of control.
+    control_values: object = None
     regression: RegressionResults | None = None
     #: How many metrics the trajectory figure draws. Carried on the results
     #: rather than passed to every call, because the figure catalogue has to
@@ -232,6 +243,56 @@ _PROSE: dict[str, tuple[str, str]] = {
         "answer — if controlling topology does not lift it off zero, topology "
         "is redundant with activity and coupling rather than mismeasured.",
     ),
+    "size_control": (
+        "Controlling for network size",
+        "How many connected nodes each recording had, against the common size "
+        "every network was reduced to, and what fraction of each group survived "
+        "that cut. Recordings below the line cannot be subsampled up and are "
+        "dropped, and smallness is not spread evenly across groups — "
+        "if the retention bars are uneven, the size confound has been traded "
+        "for a selection one rather than removed.",
+    ),
+    "selection_check": (
+        "Do the group differences survive a stricter size cut?",
+        "Each group difference measured over every swept recording (open "
+        "marker) and over only those clearing a higher node count (filled). "
+        "Nothing is re-swept between the two, so the movement is the cohort "
+        "changing rather than the measurement. A long line marks a difference "
+        "that is partly about which recordings were big enough to keep, and "
+        "should not be quoted from one subsample target alone.",
+    ),
+    "control_effects": (
+        "Age and genotype effects, before and after the controls",
+        "Every swept metric's age effect and genotype contrasts, measured as "
+        "step 4 measured them and again on the density- and size-controlled "
+        "features, joined by a line. An effect that collapses toward zero was "
+        "a statement about how dense or how large the networks were rather "
+        "than about their organisation; one that holds its position survived "
+        "the control. Filled markers survive FDR correction. Where a sweep "
+        "with subsampling switched off was also run, the step from matched "
+        "density to matched density and size is the node-subsampling effect "
+        "on its own.",
+    ),
+    "genotype_effect_by_age": (
+        "Genotype differences at each age, before and after the controls",
+        "The genotype contrasts again, but measured separately at each age "
+        "rather than pooled over the timecourse, so a difference that only "
+        "appears late — or one that only appears before the control — is "
+        "visible as a shape rather than as a single number. Hedges' g from a "
+        "Welch t-test at each age, with filled markers surviving FDR "
+        "correction; this is not the mixed model's standardised beta and the "
+        "two are never drawn on one axis.",
+    ),
+    "metric_values": (
+        "The metrics themselves, under each level of control",
+        "Mean and SEM of every swept metric against age, one line per group, "
+        "repeated for each level of control. An effect size says how far apart "
+        "two groups are in units of their own spread and nothing about what "
+        "either group measured; this says what they measured. The controlled "
+        "columns share a y axis so the subsampling step can be read directly, "
+        "while the uncontrolled column is a different measurement of the same "
+        "quantity and is scaled on its own.",
+    ),
     "sweep_context": (
         "Reading the density sweep",
         "The densities the recordings actually have, against the range the "
@@ -276,6 +337,11 @@ _FILENAMES: dict[str, str] = {
     "sweep_by_age": "5E2_density_sweep_by_age",
     "sweep_context": "5E3_density_sweep_context",
     "topology_controlled": "5E4_topology_controlled",
+    "size_control": "5E5_size_control",
+    "selection_check": "5E6_selection_check",
+    "control_effects": "5E7_control_effects",
+    "genotype_effect_by_age": "5E8_genotype_effect_by_age",
+    "metric_values": "5E9_metric_values_by_control",
 }
 
 #: Filename stems for the effect heatmaps: the pooled mixed model first, then
@@ -305,6 +371,11 @@ _GROUPS: dict[str, str] = {
     "sweep_by_age": "density",
     "sweep_context": "density",
     "topology_controlled": "density",
+    "size_control": "density",
+    "selection_check": "density",
+    "control_effects": "density",
+    "genotype_effect_by_age": "density",
+    "metric_values": "density",
 }
 
 _EFFECTS_POOLED = (
@@ -396,6 +467,20 @@ def stats_figures(results: StatsResults) -> list[StatsFigure]:
             out.append(_fixed("sweep_by_age"))
         if not sweep.observed.empty:
             out.append(_fixed("sweep_context"))
+            # Only when size was actually controlled: with no target there is
+            # no line to draw and nothing was dropped for being too small.
+            if sweep.n_nodes is not None:
+                out.append(_fixed("size_control"))
+    if getattr(results.sweep_selection, "ran", False):
+        out.append(_fixed("selection_check"))
+    effects = results.control_effects
+    if effects is not None and not effects.empty:
+        out.append(_fixed("control_effects"))
+        if "Scope" in effects.columns and (effects["Scope"] == "per-age").any():
+            out.append(_fixed("genotype_effect_by_age"))
+    measured = results.control_values
+    if measured is not None and not measured.empty:
+        out.append(_fixed("metric_values"))
     if (results.families is not None and results.families_controlled is not None
             and not results.families_controlled.table.empty):
         out.append(_fixed("topology_controlled"))
@@ -523,6 +608,20 @@ def draw_stats_figure(
     if key == "topology_controlled":
         return plots.plot_topology_controlled(
             results.families, results.families_controlled, out_path)
+    if key == "size_control":
+        sweep = results.sweep
+        return plots.plot_size_control(
+            sweep.observed, out_path, n_nodes=sweep.n_nodes,
+            group_col=sweep.group_col, age_col=sweep.age_col, scheme=scheme)
+    if key == "selection_check":
+        return plots.plot_selection_check(results.sweep_selection, out_path)
+    if key == "control_effects":
+        return plots.plot_control_effects(results.control_effects, out_path)
+    if key == "genotype_effect_by_age":
+        return plots.plot_genotype_effect_by_age(results.control_effects, out_path)
+    if key == "metric_values":
+        return plots.plot_metric_values(results.control_values, out_path,
+                                        scheme=scheme)
     if key in ("sweep_by_group", "sweep_by_age", "sweep_context"):
         sweep = results.sweep
         if key == "sweep_context":
@@ -595,7 +694,15 @@ def load_results(folder: Path | str, dataset: StatsDataset, *, lag=None,
     results.by_age = _read(folder, "decoding_by_age.csv")
     results.shapley = _load_shapley(folder)
     results.families = _load_families(folder)
+    # The controlled decomposition travels as its own CSV and 5E4 is drawn from
+    # the pair; without this the figure exists in a fresh run but vanishes as
+    # soon as the results are read back from a folder or a bundle.
+    results.families_controlled = _load_families(
+        folder, "feature_family_contributions_controlled.csv")
     results.sweep = _load_sweep(folder, dataset)
+    results.sweep_selection = _load_selection(folder)
+    results.control_effects = _read(folder, "control_effects.csv")
+    results.control_values = _read(folder, "control_metric_values.csv")
 
     reg_scores = _read(folder, "regression_scores.csv")
     if reg_scores is not None:
@@ -653,7 +760,34 @@ def _load_sweep(folder: Path, ds: StatsDataset):
     sweep.labelled = attach_labels(curves, ds)
     if observed is not None and ds.group_col not in observed.columns:
         sweep.observed = attach_labels(observed, ds)
+    # ``NNodesUsed`` is the target when subsampling and the recording's own
+    # count otherwise, so a single distinct value that differs from ``NNodes``
+    # recovers the target the run used.
+    if observed is not None and {"NNodesUsed", "NNodes"} <= set(observed.columns):
+        used = observed["NNodesUsed"].dropna()
+        if used.nunique() == 1 and (observed["NNodes"] != used.iloc[0]).any():
+            sweep.n_nodes = int(used.iloc[0])
     return sweep
+
+
+def _load_selection(folder: Path):
+    """Rebuild the selection check from its CSV.
+
+    The cohort sizes are not stored - they are a property of the run, not of
+    the comparison - so they come back as zero and the figure simply omits
+    them. The threshold and the flags, which are what the figure needs, are
+    columns.
+    """
+    from meanap.stats.density_sweep import SelectionCheck
+
+    table = _read(folder, "density_sweep_selection_check.csv")
+    if table is None or "GapAll" not in table.columns:
+        return None
+    threshold = (int(table["NodeThreshold"].iloc[0])
+                 if "NodeThreshold" in table.columns else None)
+    flagged = [(r.Metric, r.GroupA, r.GroupB)
+               for r in table.itertuples() if bool(getattr(r, "Flagged", False))]
+    return SelectionCheck(table=table, threshold=threshold, flagged=flagged)
 
 
 def _load_families(folder: Path, name: str = "feature_family_contributions.csv"):

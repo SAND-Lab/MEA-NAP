@@ -64,9 +64,20 @@ def build_parser() -> argparse.ArgumentParser:
                         help="Common node count the density sweep subsamples "
                              "every network to, so size is controlled as well "
                              "as density. 'auto' picks a low percentile of the "
-                             "run's own counts; 0 leaves size uncontrolled.")
+                             "run's own counts; 0 leaves size uncontrolled. "
+                             "Give two counts ('22,50') to sweep at both and "
+                             "split the difference into a selection and a "
+                             "resolution term — that doubles the sweep's "
+                             "cost. The selection half alone is free and is "
+                             "always reported.")
     effort.add_argument("--sweep-subsamples", type=int, default=20,
                         help="Random node draws averaged per recording")
+    effort.add_argument("--sweep-density-only", action="store_true",
+                        help="Also sweep with subsampling off, so the density "
+                             "control and the size control can be told apart "
+                             "in control_effects.csv and on 5E7. Costs a "
+                             "second sweep; without it a change under control "
+                             "cannot be attributed to subsampling.")
     effort.add_argument("--shapley-features", type=int, default=15,
                         help="How many representative metrics the per-age "
                              "decoding attribution runs over")
@@ -82,15 +93,43 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def _sweep_nodes(value):
-    """``--sweep-nodes`` as ``"auto"``, an int, or ``None`` for uncontrolled."""
+    """``--sweep-nodes`` as ``(target, second target or None)``.
+
+    The target is ``"auto"``, an int, or ``None`` for uncontrolled. A comma
+    gives a second, larger target, which turns the sweep into the three-
+    condition design that separates selection from resolution; the smaller of
+    the two is always the one the ordinary outputs are measured at.
+    """
     if value is None or str(value).lower() in ("auto", ""):
-        return "auto"
-    try:
-        count = int(value)
-    except (TypeError, ValueError):
-        raise SystemExit(
-            f"--sweep-nodes must be 'auto', 0, or a node count, not {value!r}") from None
-    return count if count > 0 else None
+        return "auto", None
+
+    parts = [p.strip() for p in str(value).split(",") if p.strip()]
+    if len(parts) > 2:
+        raise SystemExit("--sweep-nodes takes at most two node counts")
+
+    def one(text):
+        if text.lower() == "auto":
+            return "auto"
+        try:
+            count = int(text)
+        except (TypeError, ValueError):
+            raise SystemExit("--sweep-nodes must be 'auto', 0, or a node count, "
+                             f"not {text!r}") from None
+        return count if count > 0 else None
+
+    if len(parts) == 1:
+        return one(parts[0]), None
+
+    low, high = one(parts[0]), one(parts[1])
+    if not isinstance(high, int):
+        raise SystemExit("the second --sweep-nodes count must be a node count")
+    if isinstance(low, int) and low >= high:
+        # Order is the whole point: C is the low target read over the high
+        # target's cohort, so a reversed pair would decompose nothing.
+        low, high = high, low
+        if low == high:
+            raise SystemExit("--sweep-nodes needs two different node counts")
+    return low, high
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -104,8 +143,10 @@ def main(argv: list[str] | None = None) -> int:
         decoding="decoding" in enabled,
         regression="regression" in enabled,
         density_sweep=args.density_sweep,
-        sweep_n_nodes=_sweep_nodes(args.sweep_nodes),
+        sweep_n_nodes=_sweep_nodes(args.sweep_nodes)[0],
+        sweep_n_nodes_high=_sweep_nodes(args.sweep_nodes)[1],
         sweep_subsamples=args.sweep_subsamples,
+        sweep_density_only=args.sweep_density_only,
         metrics=tuple(args.metrics or ()),
         decoding_target=args.decoding_target,
         regression_target=args.regression_target,

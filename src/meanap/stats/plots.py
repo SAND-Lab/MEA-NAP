@@ -27,6 +27,7 @@ import pandas as pd
 
 from meanap.pipeline.figure_output import savefig
 from meanap.pipeline.palette import DEFAULT_SCHEME, GROUP_SCHEMES, ColorScheme
+from meanap.stats.density_sweep import CONTROL_LEVELS, SWEEP_METRICS
 
 __all__ = [
     "plot_confusion",
@@ -35,8 +36,13 @@ __all__ = [
     "plot_decoding_by_age",
     "plot_decoding_importance",
     "plot_decoding_scores",
+    "plot_control_effects",
     "plot_density_context",
+    "plot_genotype_effect_by_age",
+    "plot_metric_values",
     "plot_density_sweep",
+    "plot_selection_check",
+    "plot_size_control",
     "plot_effect_heatmap",
     "plot_family_alone_vs_unique",
     "plot_family_contributions",
@@ -1150,4 +1156,480 @@ def plot_topology_controlled(raw, controlled, out_path: Path) -> Path | None:
              "step 4 measured them. Activity and correlation strength are left "
              "uncontrolled in both — they are what topology is being tested "
              "against.", fontsize=7.5, color=MUTED)
+    return _save(fig, out_path)
+
+
+#: Marks a comparison the selection check flagged. One accent, used nowhere
+#: else, so a flagged row reads as a warning rather than as another category.
+FLAGGED = "#c1443c"
+
+
+def plot_size_control(
+    observed: pd.DataFrame, out_path: Path, *, n_nodes: int | None,
+    group_col: str, age_col: str, scheme: ColorScheme = DEFAULT_SCHEME,
+) -> Path | None:
+    """The size half of the confound: what was subsampled to, and what it cost.
+
+    The counterpart to :func:`plot_density_context`, which covers the density
+    half. Left: how many connected nodes every recording actually had, against
+    the common size they were all reduced to - the recordings below that line
+    are the ones the sweep had to drop, since a network cannot be subsampled up.
+    Right: what fraction of each group survived, which is the number to read
+    before believing anything the sweep says. Smallness is not randomly
+    distributed across groups, so an uneven bar chart means the size confound
+    was traded for a selection one rather than removed.
+
+    Returns ``None`` when size was not controlled, since then there is no target
+    to draw and no recording was dropped for being too small.
+    """
+    if observed is None or observed.empty or n_nodes is None:
+        return None
+    if "NNodes" not in observed.columns:
+        return None
+
+    fig, (ax_size, ax_keep) = plt.subplots(1, 2, figsize=(10.5, 4.0))
+    groups = (list(pd.unique(observed[group_col].dropna()))
+              if group_col in observed.columns else [])
+    colours = _group_colors([str(g) for g in groups], scheme)
+    has_age = age_col in observed.columns and observed[age_col].notna().any()
+    rng = np.random.default_rng(0)
+
+    # Left: node counts, on a log axis because they span an order of magnitude
+    # and the target would otherwise sit squashed against the bottom.
+    if has_age:
+        ages = sorted(pd.unique(observed[age_col].dropna()))
+        for offset, group in enumerate(groups):
+            sub = observed[observed[group_col] == group]
+            jitter = (offset - (len(groups) - 1) / 2) * 0.9
+            ax_size.scatter(sub[age_col] + jitter + rng.normal(0, 0.25, len(sub)),
+                            sub["NNodes"], s=16, alpha=0.55, linewidths=0,
+                            color=colours[str(group)], label=str(group))
+            stat = sub.groupby(age_col)["NNodes"].median()
+            ax_size.plot(stat.index + jitter, stat.values, color=colours[str(group)],
+                         linewidth=2, marker="o", markersize=5)
+        ax_size.set_xlabel(f"Age ({age_col})")
+        ax_size.set_xticks(ages)
+    else:
+        for offset, group in enumerate(groups):
+            sub = observed[observed[group_col] == group]
+            ax_size.scatter(np.full(len(sub), offset) + rng.normal(0, 0.08, len(sub)),
+                            sub["NNodes"], s=16, alpha=0.55, linewidths=0,
+                            color=colours[str(group)], label=str(group))
+        ax_size.set_xticks(range(len(groups)))
+        ax_size.set_xticklabels([str(g) for g in groups], fontsize=8)
+
+    ax_size.set_yscale("log")
+    ax_size.axhline(n_nodes, color=INK, linestyle="--", linewidth=1.2)
+    ax_size.axhspan(ax_size.get_ylim()[0], n_nodes, color=FLAGGED, alpha=0.10,
+                    linewidth=0)
+    ax_size.text(ax_size.get_xlim()[0], n_nodes, f" subsampled to {n_nodes}",
+                 va="bottom", ha="left", fontsize=8, color=INK)
+    ax_size.set_ylabel("Connected nodes per recording")
+    ax_size.set_title("Sizes the recordings actually have", fontsize=10)
+    if groups and has_age:
+        # Lower right is the emptiest corner here: it is inside the band of
+        # sizes too small to keep, where by definition few points sit.
+        ax_size.legend(frameon=False, fontsize=8.5, loc="lower right")
+    _bare(ax_size)
+
+    # Right: retention. Recomputed here rather than read, so the figure needs
+    # only the table it is already handed.
+    if groups:
+        kept = (observed.assign(_kept=observed["NNodes"] >= n_nodes)
+                .groupby(group_col)["_kept"].agg(["mean", "sum", "size"]))
+        kept = kept.reindex([g for g in groups if g in kept.index])
+        positions = np.arange(len(kept))
+        ax_keep.bar(positions, kept["mean"], width=0.62,
+                    color=[colours[str(g)] for g in kept.index])
+        for pos, (_, row) in zip(positions, kept.iterrows()):
+            ax_keep.text(pos, row["mean"] + 0.02,
+                         f"{row['mean']:.0%}\n{int(row['sum'])}/{int(row['size'])}",
+                         ha="center", va="bottom", fontsize=8, color=INK)
+        ax_keep.set_xticks(positions)
+        ax_keep.set_xticklabels([str(g) for g in kept.index], fontsize=8.5)
+        ax_keep.set_ylim(0, 1.18)
+        spread = float(kept["mean"].max() - kept["mean"].min())
+        # The same 20-point rule the runner warns on, drawn rather than logged.
+        if spread > 0.2:
+            ax_keep.set_title(
+                f"Kept per group - {spread:.0%} spread, uneven", fontsize=10,
+                color=FLAGGED)
+        else:
+            ax_keep.set_title("Kept per group", fontsize=10)
+    ax_keep.set_ylabel("Fraction of recordings retained")
+    _bare(ax_keep)
+
+    fig.suptitle("Controlling for network size", fontsize=11)
+    # Footnotes are wrapped by hand: the figure is saved with a tight bounding
+    # box, so one long line silently widens the whole canvas.
+    fig.tight_layout(rect=(0, 0.15, 1, 1))
+    fig.text(0.01, 0.015,
+             "Left: every recording below the dashed line was dropped — it "
+             "cannot be subsampled up to the common size.\n"
+             "Right: if the groups were not dropped evenly, the comparison is "
+             "now between the largest networks of one group\n"
+             "and typical ones of another, and the size confound has been "
+             "traded rather than removed.",
+             fontsize=7.5, color=MUTED, va="bottom", linespacing=1.5)
+    return _save(fig, out_path)
+
+
+def plot_selection_check(check, out_path: Path) -> Path | None:
+    """Do the group differences survive a stricter size cut?
+
+    One panel per group pair, one row per metric: an open marker at the gap over
+    every swept recording, a filled one at the gap over only those clearing a
+    higher node count, joined by a line. Since nothing is re-swept between the
+    two - the same per-recording numbers are simply aggregated over fewer
+    recordings - the movement is *selection* alone, with resolution held fixed.
+
+    A long line means the difference is partly a statement about which
+    recordings were big enough to keep. Those are drawn in the warning colour;
+    they should not be quoted from a single subsample target.
+    """
+    if check is None or not getattr(check, "ran", False):
+        return None
+    table = check.table
+    pairs = list(table.groupby(["GroupA", "GroupB"]).groups)
+    if not pairs:
+        return None
+
+    # One shared metric order across panels, worst mover at the top, so a row
+    # can be read straight across.
+    order = (table.groupby("Metric")["Delta"].apply(lambda s: s.abs().max())
+             .sort_values(ascending=True).index.tolist())
+
+    fig, axes = plt.subplots(1, len(pairs), figsize=(3.6 * len(pairs) + 1.2, 4.2),
+                             squeeze=False, sharex=True, sharey=True)
+    for idx, (a, b) in enumerate(pairs):
+        ax = axes[0][idx]
+        sub = table[(table["GroupA"] == a) & (table["GroupB"] == b)]
+        sub = sub.set_index("Metric").reindex(order).dropna(subset=["GapAll"])
+        for row_idx, (metric, row) in enumerate(sub.iterrows()):
+            colour = FLAGGED if bool(row["Flagged"]) else MUTED
+            ax.plot([row["GapAll"], row["GapRestricted"]], [row_idx, row_idx],
+                    color=colour, linewidth=2, alpha=0.85, zorder=1)
+            ax.scatter(row["GapAll"], row_idx, s=34, facecolors="white",
+                       edgecolors=colour, linewidths=1.4, zorder=2)
+            ax.scatter(row["GapRestricted"], row_idx, s=34, color=colour,
+                       linewidths=0, zorder=3)
+        ax.axvline(0, color=INK, linewidth=0.9, linestyle=":")
+        ax.set_yticks(range(len(sub)))
+        ax.set_yticklabels(
+            [_SWEEP_LABELS.get(m, m) for m in sub.index], fontsize=8)
+        ax.set_xlabel("Standardised group difference", fontsize=8.5)
+        ax.set_title(f"{a} vs {b}", fontsize=9.5)
+        ax.tick_params(labelsize=8)
+        _bare(ax)
+
+    threshold = getattr(check, "threshold", None)
+    cohort = ""
+    if getattr(check, "n_restricted", 0) and getattr(check, "n_all", 0):
+        cohort = f" ({check.n_restricted} of {check.n_all} recordings)"
+    fig.suptitle("Do the group differences survive a stricter size cut?",
+                 fontsize=11)
+    fig.tight_layout(rect=(0, 0.18, 1, 1))
+    fig.text(0.01, 0.015,
+             "Open marker: every swept recording. Filled: only those with at "
+             f"least {threshold} nodes{cohort}.\n"
+             "Nothing is re-swept between the two, so the movement is the "
+             "cohort changing, not the measurement —\n"
+             "a long line in the warning colour means the difference is partly "
+             "about which recordings were big enough to keep.",
+             fontsize=7.5, color=MUTED, va="bottom", linespacing=1.5)
+    return _save(fig, out_path)
+
+
+#: One colour per level of control, darkening as more is controlled for, so the
+#: direction of the reading is legible before the legend is.
+_CONTROL_COLOURS = {
+    "none": "#b7b7b7",
+    "density": "#6f9fd0",
+    "density+size": "#1f4e79",
+}
+
+_CONTROL_LABELS = {
+    "none": "no control (step 4)",
+    "density": "matched density",
+    "density+size": "matched density + size",
+}
+
+
+def plot_control_effects(
+    table: pd.DataFrame, out_path: Path, *, alpha: float = 0.05,
+) -> Path | None:
+    """Each metric's age and genotype effect, before and after the controls.
+
+    The question the 5A heatmaps leave open: an effect measured at each
+    network's own density and size may be a statement about density and size.
+    Every metric appears once per level of control, joined by a line, so an
+    effect that shrinks to nothing under the control is visible as a collapse
+    toward zero and one that survives is visible as a flat run.
+
+    Where all three levels are present the step from matched density to matched
+    density *and* size is the node-subsampling effect on its own; with only two
+    the density and size controls cannot be separated, and the caption says so.
+
+    Filled markers survive FDR correction at *alpha*, open ones do not — a
+    marker that empties out between conditions is an effect the control removed.
+    """
+    if table is None or table.empty:
+        return None
+    # Pooled rows only. The per-age contrasts also read "<a> vs <b> ...", and
+    # matching on that alone would put every age in its own panel.
+    if "Scope" in table.columns:
+        table = table[table["Scope"] == "pooled"]
+    terms = [t for t in pd.unique(table["Term"])
+             if str(t) == "age" or (" vs " in str(t) and " at DIV " not in str(t))]
+    terms = [t for t in terms if not str(t).startswith("age within")]
+    if not terms:
+        return None
+    # Age first, then the genotype contrasts in a stable order.
+    terms = ([t for t in terms if str(t) == "age"]
+             + sorted(t for t in terms if str(t) != "age"))
+
+    present = [c for c in CONTROL_LEVELS if c in set(table["Control"])]
+    if not present:
+        return None
+    shown = table[table["Term"].isin(terms)]
+    order = (shown.groupby("Metric")["EffectSize"]
+             .apply(lambda s: s.abs().max())
+             .sort_values(ascending=True).index.tolist())
+
+    fig, axes = plt.subplots(1, len(terms), figsize=(3.5 * len(terms) + 1.3, 4.4),
+                             squeeze=False, sharey=True)
+    for idx, term in enumerate(terms):
+        ax = axes[0][idx]
+        sub = shown[shown["Term"] == term]
+        for row_idx, metric in enumerate(order):
+            points = (sub[sub["Metric"] == metric]
+                      .set_index("Control").reindex(present).dropna(subset=["EffectSize"]))
+            if points.empty:
+                continue
+            if len(points) > 1:
+                ax.plot(points["EffectSize"], [row_idx] * len(points),
+                        color=MUTED, linewidth=1.2, alpha=0.7, zorder=1)
+            for control, point in points.iterrows():
+                colour = _CONTROL_COLOURS.get(control, INK)
+                significant = (pd.notna(point.get("PValueFDR"))
+                               and float(point["PValueFDR"]) < alpha)
+                ax.scatter(point["EffectSize"], row_idx, s=42, zorder=3,
+                           color=colour if significant else "white",
+                           edgecolors=colour, linewidths=1.5)
+        ax.axvline(0, color=INK, linewidth=0.9, linestyle=":")
+        ax.set_yticks(range(len(order)))
+        ax.set_yticklabels([_SWEEP_LABELS.get(m, m) for m in order], fontsize=8)
+        ax.set_title("Age" if str(term) == "age" else str(term), fontsize=9.5)
+        ax.set_xlabel("Effect size", fontsize=8.5)
+        ax.tick_params(labelsize=8)
+        _bare(ax)
+
+    handles = [plt.Line2D([], [], marker="o", linestyle="none",
+                          markerfacecolor=_CONTROL_COLOURS.get(c, INK),
+                          markeredgecolor=_CONTROL_COLOURS.get(c, INK),
+                          markersize=7, label=_CONTROL_LABELS.get(c, c))
+               for c in present]
+    fig.legend(handles=handles, loc="lower center", ncol=len(handles),
+               frameon=False, fontsize=8.5, bbox_to_anchor=(0.5, 0.145))
+    fig.suptitle("Age and genotype effects, before and after the controls",
+                 fontsize=11)
+    # Room for three footnote lines under the legend, which sits under the axes.
+    fig.tight_layout(rect=(0, 0.23, 1, 1))
+
+    isolated = "density" in present and "density+size" in present
+    note = ("Matched density to matched density + size is the node-subsampling "
+            "step on its own." if isolated else
+            "Only one controlled condition was run, so the density and size "
+            "controls cannot be told apart here.")
+    fig.text(0.01, 0.015,
+             "Filled markers survive FDR correction; open ones do not. An "
+             "effect that collapses toward zero under control was a statement\n"
+             "about how dense or how large the networks were, not about their "
+             f"organisation.\n{note} Every condition is measured on the "
+             "recordings all of them have, so a step is the control changing "
+             "and not the cohort.",
+             fontsize=7.5, color=MUTED, va="bottom", linespacing=1.5)
+    return _save(fig, out_path)
+
+
+def plot_genotype_effect_by_age(
+    table: pd.DataFrame, out_path: Path, *, alpha: float = 0.05,
+) -> Path | None:
+    """Each genotype contrast at each age, before and after the controls.
+
+    The pooled figure asks whether an effect survives control over the whole
+    timecourse; this asks *when*. One row per metric, one column per genotype
+    pair, age along the x axis, and one line per level of control. A raw line
+    that climbs with age and a controlled line that does not is a difference
+    that was tracking how dense and how large the networks became, not a
+    genotype difference that grows.
+
+    The statistic is Hedges' g from a Welch t-test at each age, which is not
+    the mixed model's standardised beta — the two are never drawn together for
+    that reason. Filled markers survive FDR correction at *alpha*.
+    """
+    if table is None or table.empty or "Scope" not in table.columns:
+        return None
+    per_age = table[table["Scope"] == "per-age"].dropna(subset=["Age"])
+    if per_age.empty:
+        return None
+
+    contrasts = sorted(pd.unique(per_age["Contrast"].astype(str)))
+    metrics = (per_age.groupby("Metric")["EffectSize"]
+               .apply(lambda s: s.abs().max())
+               .sort_values(ascending=False).index.tolist())
+    present = [c for c in CONTROL_LEVELS if c in set(per_age["Control"])]
+    if not contrasts or not metrics or not present:
+        return None
+
+    fig, axes = plt.subplots(
+        len(metrics), len(contrasts), squeeze=False, sharex=True, sharey=True,
+        figsize=(2.9 * len(contrasts) + 1.0, 1.75 * len(metrics) + 1.8))
+    for r, metric in enumerate(metrics):
+        for c, contrast in enumerate(contrasts):
+            ax = axes[r][c]
+            sub = per_age[(per_age["Metric"] == metric)
+                          & (per_age["Contrast"].astype(str) == contrast)]
+            for control in present:
+                line = sub[sub["Control"] == control].sort_values("Age")
+                if line.empty:
+                    continue
+                colour = _CONTROL_COLOURS.get(control, INK)
+                ax.plot(line["Age"], line["EffectSize"], color=colour,
+                        linewidth=1.8, zorder=2)
+                significant = (line["PValueFDR"].notna()
+                               & (line["PValueFDR"] < alpha))
+                ax.scatter(line["Age"], line["EffectSize"], s=30, zorder=3,
+                           color=[colour if ok else "white" for ok in significant],
+                           edgecolors=colour, linewidths=1.4)
+            ax.axhline(0, color=INK, linewidth=0.9, linestyle=":")
+            if r == 0:
+                ax.set_title(contrast, fontsize=9)
+            if c == 0:
+                ax.set_ylabel(_SWEEP_LABELS.get(metric, metric), fontsize=7.5)
+            if r == len(metrics) - 1:
+                ax.set_xlabel("Age (DIV)", fontsize=8.5)
+            ax.tick_params(labelsize=7.5)
+            _bare(ax)
+
+    handles = [plt.Line2D([], [], color=_CONTROL_COLOURS.get(c, INK), marker="o",
+                          markersize=6, linewidth=1.8,
+                          label=_CONTROL_LABELS.get(c, c)) for c in present]
+    fig.legend(handles=handles, loc="lower center", ncol=len(handles),
+               frameon=False, fontsize=8.5, bbox_to_anchor=(0.5, 0.045))
+    fig.suptitle("Genotype differences at each age, before and after the controls",
+                 fontsize=11)
+    fig.tight_layout(rect=(0, 0.085, 1, 0.985))
+    fig.text(0.01, 0.008,
+             "Hedges' g at each age; filled markers survive FDR correction. "
+             "Not the same statistic as the pooled figure, so read the shape "
+             "across ages rather than against that one.\nEvery condition is "
+             "measured on the recordings all of them have, so a step is the "
+             "control changing and not the cohort.",
+             fontsize=7.5, color=MUTED, va="bottom")
+    return _save(fig, out_path)
+
+
+def plot_metric_values(
+    values: pd.DataFrame, out_path: Path, *,
+    scheme: ColorScheme = DEFAULT_SCHEME,
+) -> Path | None:
+    """The metrics themselves per group and age, under each level of control.
+
+    Effect sizes say how far apart two groups are in units of their own spread;
+    they say nothing about what either group measured. This is the same
+    trajectory figure the comparisons draw, repeated once per level of control,
+    so a control that shifts every group together can be told from one that
+    pulls them apart. Mean ± SEM.
+
+    Rows share a y axis so a metric can be followed across conditions, but the
+    conditions are not the same measurement — step 4 measures each network at
+    its own density, the controlled columns are cost-integrated over the
+    density grid — so a shift between columns is a change of definition as well
+    as of control.
+    """
+    if values is None or values.empty:
+        return None
+    metrics = [m for m in SWEEP_METRICS if m in set(values["Metric"])]
+    controls = [c for c in CONTROL_LEVELS if c in set(values["Control"])]
+    if not metrics or not controls:
+        return None
+    groups = list(pd.unique(values["Group"].dropna()))
+    colours = _group_colors([str(g) for g in groups], scheme)
+
+    # Y axes are shared across the *controlled* columns only. Those measure the
+    # same quantity the same way and differ just in how much is controlled, so a
+    # common scale is what makes the subsampling step readable. The uncontrolled
+    # column is a different measurement — step 4 on the weighted network at its
+    # own density — and forcing it onto the same axis flattens it to a line
+    # (raw nMod is ~2 against ~10-35 controlled).
+    fig, axes = plt.subplots(
+        len(metrics), len(controls), squeeze=False, sharex=True,
+        figsize=(2.9 * len(controls) + 1.0, 1.75 * len(metrics) + 1.8))
+    for r, metric in enumerate(metrics):
+        for c, control in enumerate(controls):
+            ax = axes[r][c]
+            sub = values[(values["Metric"] == metric)
+                         & (values["Control"] == control)]
+            if sub.empty:
+                ax.text(0.5, 0.5, "no step-4 equivalent", transform=ax.transAxes,
+                        ha="center", va="center", fontsize=7.5, color=MUTED)
+                # Only this panel's labels: the x axis is shared, so clearing
+                # its ticks would strip them from every column.
+                ax.tick_params(labelbottom=False)
+                ax.set_yticks([])
+            for group in groups:
+                line = sub[sub["Group"] == group].sort_values("Age")
+                if line.empty:
+                    continue
+                colour = colours[str(group)]
+                ax.plot(line["Age"], line["Mean"], color=colour, linewidth=1.8,
+                        marker="o", markersize=4, label=str(group))
+                ax.fill_between(line["Age"], line["Mean"] - line["SEM"],
+                                line["Mean"] + line["SEM"], color=colour,
+                                alpha=0.18, linewidth=0)
+            if r == 0:
+                ax.set_title(_CONTROL_LABELS.get(control, control), fontsize=9)
+            if c == 0:
+                ax.set_ylabel(_SWEEP_LABELS.get(metric, metric), fontsize=7.5)
+            if r == len(metrics) - 1:
+                ax.set_xlabel("Age (DIV)", fontsize=8.5)
+            ax.tick_params(labelsize=7.5)
+            _bare(ax)
+
+    # Put the controlled columns of each row on one scale, after autoscaling.
+    controlled = [c for c, name in enumerate(controls) if name != "none"]
+    if len(controlled) > 1:
+        for r in range(len(metrics)):
+            limits = [axes[r][c].get_ylim() for c in controlled
+                      if axes[r][c].has_data()]
+            if len(limits) < 2:
+                continue
+            low, high = min(l for l, _ in limits), max(h for _, h in limits)
+            for c in controlled:
+                axes[r][c].set_ylim(low, high)
+            for c in controlled[1:]:
+                axes[r][c].tick_params(labelleft=False)
+
+    handles, labels_ = axes[0][0].get_legend_handles_labels()
+    if not handles:
+        for row in axes:
+            for ax in row:
+                handles, labels_ = ax.get_legend_handles_labels()
+                if handles:
+                    break
+            if handles:
+                break
+    if handles:
+        fig.legend(handles, labels_, loc="lower center", ncol=min(5, len(labels_)),
+                   frameon=False, fontsize=8.5, bbox_to_anchor=(0.5, 0.045))
+    fig.suptitle("The metrics themselves, under each level of control", fontsize=11)
+    fig.tight_layout(rect=(0, 0.085, 1, 0.985))
+    fig.text(0.01, 0.008,
+             "Mean ± SEM. The controlled columns of a row share a y axis, so "
+             "the subsampling step can be read directly; the uncontrolled "
+             "column is\na different measurement of the same quantity and is "
+             "scaled on its own. Every condition uses the recordings all of "
+             "them have.",
+             fontsize=7.5, color=MUTED, va="bottom")
     return _save(fig, out_path)
