@@ -137,7 +137,9 @@ class RunPanel(QWidget):
         self.stop_btn.setFixedHeight(40)
         self.stop_btn.setEnabled(False)
 
-        for widget in (self.test_btn, self.run_btn, self.stop_btn):
+        # Run, then Stop, then Test: the first two are what this tab is for,
+        # and Test is the one you press once when setting up and never again.
+        for widget in (self.run_btn, self.stop_btn, self.test_btn):
             row.addWidget(widget)
         return box
 

@@ -51,6 +51,14 @@ class PipelinePanel(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
 
+        # ── Step overview ─────────────────────────────────────────────────────
+        # First, because it is the legend for everything below it: the numbers
+        # in "Pipeline steps" mean nothing until you know what step 3 is.
+        overview_box = QGroupBox("Step overview")
+        ov_layout = QVBoxLayout(overview_box)
+        for num, name in PIPELINE_STEPS:
+            ov_layout.addWidget(QLabel(f"  {num}. {name}"))
+
         # ── Step selection ────────────────────────────────────────────────────
         step_box = QGroupBox("Pipeline steps")
         form = QFormLayout(step_box)
@@ -134,12 +142,6 @@ class PipelinePanel(QWidget):
             optional.form().addRow(label, self.optional_steps[key])
         form.addRow(optional)
 
-        # ── Step overview ─────────────────────────────────────────────────────
-        overview_box = QGroupBox("Step overview")
-        ov_layout = QVBoxLayout(overview_box)
-        for num, name in PIPELINE_STEPS:
-            ov_layout.addWidget(QLabel(f"  {num}. {name}"))
-
         # ── Output settings ───────────────────────────────────────────────────
         out_box = QGroupBox("Output")
         form2 = QFormLayout(out_box)
@@ -193,8 +195,8 @@ class PipelinePanel(QWidget):
         out_advanced.form().addRow("Fixed random seed", seed_row)
         form2.addRow(out_advanced)
 
-        layout.addWidget(step_box)
         layout.addWidget(overview_box)
+        layout.addWidget(step_box)
         layout.addWidget(out_box)
         layout.addStretch()
 
