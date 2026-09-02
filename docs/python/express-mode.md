@@ -214,6 +214,58 @@ Each figure is guarded independently. One that cannot be drawn is recorded in
 `result.skipped` and costs its own figure, not the other several hundred.
 ```
 
+## Packing a folder you already have
+
+Express mode is a decision made *before* the run. A full run that turns out to
+be worth emailing is therefore in an awkward spot: every byte a bundle needs is
+already on disk, and the only documented way to the file used to be running the
+whole analysis again.
+
+It isn't. **📦 Make bundle…** on the [Results](gui-guide.md#results) tab packs a
+finished output folder into a `.meanap` — the same file an express run would
+have written, with the same figures left out, at the same ~25× saving. Nothing
+is recomputed; the pack is a zip write and takes seconds.
+
+```python
+from meanap.pipeline.pack import bundle_output_folder
+
+result = bundle_output_folder("OutputData07Aug2026")   # → OutputData07Aug2026.meanap
+print(result.dest, result.size_mb, result.recordings, result.warnings)
+```
+
+The manifest an express run builds from live pipeline state is reconstructed
+from the folder instead — the recordings from
+`4_NetworkActivity/NetworkActivity_RecordingLevel.csv`, the pipeline and
+settings from `params.json`, the lags from the metrics the run actually
+produced. This is the same set the viewer reads to open an *unbundled* folder,
+so a folder that the viewer can open is a folder that can be packed.
+
+```{note}
+**The output folder is left exactly as it is** — the one difference from an
+express run, which removes the folder once the bundle reads back. You asked for
+a copy to send, not for your results to be replaced by one. The single change is
+a `manifest.json` written into the folder, so the folder and the bundle agree
+about what the run was.
+```
+
+The bundle lands beside the folder under the folder's name, stepping to
+`Run_v2.meanap` if one is already there rather than overwriting it — the file at
+the default name may be an express run whose folder is long gone. The GUI offers
+that name in a save dialog, so it can go anywhere else instead.
+
+Like an express run, the file is opened again before the call returns. A bundle
+that will not read back is deleted rather than left with the right name and size
+to be emailed. That the folder survives the pack intact, and that the packed
+bundle carries the right recordings, pipeline and lags, is checked in
+`python/test_bundle_from_folder.py` rather than assumed.
+
+Two folders cannot be packed, and say so rather than failing obscurely: one that
+is not a MEA-NAP run at all, and a **MATLAB** output folder — a perfectly good
+analysis in a format that predates all of this, with none of the `.npz` and JSON
+files a bundle is made of. A run that stopped before step 4 *is* packed, with a
+warning: there is nothing in it for the viewer to show, but it is still valid to
+resume from.
+
 ## A bundle is also a resume artifact
 
 Point `prior_analysis_path` at a `.meanap` file and the pipeline resumes from

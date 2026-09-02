@@ -7,7 +7,8 @@ from a `Params` dataclass (`meanap.params.Params`, see the
 can be saved/reloaded as JSON from the toolbar (**New**, **Open params…**,
 **Save params…**). To open a `.meanap` run bundle in the viewer without
 running anything, use **📦 Open bundle…** on the [Results](#results) tab — see
-[Opening a bundle](#opening-a-bundle).
+[Opening a bundle](#opening-a-bundle). To turn a finished run *into* one, use
+**📦 Make bundle…** on the same tab.
 
 ```{admonition} In a hurry?
 :class: tip
@@ -269,11 +270,20 @@ The last tab: what to do once something has finished.
   - an **express run** → opens its `.meanap` bundle in the viewer, which draws
     any figure on demand in PNG or editable SVG, and can export the whole
     output folder back out for sharing.
+- **📦 Make bundle…** — packs the run's output folder into a single `.meanap`
+  file you can email or attach to a paper, typically around 25× smaller because
+  every figure the viewer can redraw is left out. Nothing is recomputed and the
+  output folder is left as it is. See [Packing a folder you already
+  have](express-mode.md#packing-a-folder-you-already-have).
 - **📦 Open bundle…** — for a bundle from anywhere, with no run of your own
   needed. See [Opening a bundle](#opening-a-bundle).
 - **Network viewer** — interactive exploration of a completed run's functional
   connectivity network, with optional cell-type overlays. Full walkthrough:
   [Network Viewer](network-viewer.md).
+
+**Make bundle…** is off when there is no folder to pack — including after an
+express run, whose folder is removed once its bundle reads back, so there is a
+run to *open* and nothing left to pack.
 
 A line under the buttons names what **View report** would open and in which
 form. With no run in this session it falls back to the output folder the Data
@@ -297,5 +307,6 @@ twice reuses the page already serving it.
 The bundle is written **beside** the output folder, not inside it —
 `OutputData07Aug2026/` and `OutputData07Aug2026.meanap` sit side by side. The
 status log repeats the full path in a framed block at the end of an express
-run, after the timing lines.
+run, after the timing lines. A bundle made from a finished folder with **📦 Make
+bundle…** lands in the same place, under the same name.
 ```

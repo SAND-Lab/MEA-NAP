@@ -14,6 +14,7 @@ from PyQt6.QtCore import Qt, QSettings, QSignalBlocker, QSize
 
 from meanap.params import STATS_STEP, Params
 from meanap.pipeline.bundle import BUNDLE_SUFFIX
+from meanap.pipeline.pack import default_bundle_dest
 from meanap.pipeline.example_data import download_example_data
 from meanap.pipeline.report import generate_report
 from meanap.gui.branding import CORNER_LOGO_HEIGHT, logo_icon, logo_pixmap
@@ -25,6 +26,7 @@ from meanap.gui.modes import (
     TAB_STIM_PREVIEW,
     apply_mode_to_params, mode_for_params,
 )
+from meanap.gui.bundle_worker import BundleWorker
 from meanap.gui.pipeline_worker import (
     PipelineWorker, QueueWorker, SharedHelperWorker, SharedMainWorker,
 )
@@ -95,6 +97,7 @@ class MainWindow(QMainWindow):
         self._last_output_root: Path | None = None
         self._last_bundle: Path | None = None
         self._stats_worker: StatsWorker | None = None
+        self._bundle_worker: BundleWorker | None = None
         #: True once the user has picked a run for the Stats tab by hand, after
         #: which this session's own run no longer overrides their choice.
         self._stats_source_chosen = False
@@ -265,6 +268,7 @@ class MainWindow(QMainWindow):
         self._shared_panel.finish_now_requested.connect(self._on_shared_finish_now)
         self._results_panel = ResultsPanel()
         self._results_panel.view_report_requested.connect(self._on_view_report)
+        self._results_panel.make_bundle_requested.connect(self._on_make_bundle)
         self._results_panel.open_bundle_requested.connect(self._on_open_bundle)
         self._network_viewer_panel = self._results_panel.viewer
         self._stats_panel = StatsPanel()
@@ -1401,6 +1405,87 @@ class MainWindow(QMainWindow):
 
     # ── Bundles ───────────────────────────────────────────────────────────────
 
+    def _on_make_bundle(self) -> None:
+        """Pack this run's output folder into one shareable ``.meanap`` file.
+
+        A bundle used to be something you asked for before the run, by ticking
+        Express mode. A full run that turned out to be worth sending therefore
+        had no way to become one — the data was all there on disk, and the only
+        route to the file was to run the analysis again. This is that route
+        without the run.
+        """
+        output_root = self._candidate_output_root()
+        if output_root is None or not output_root.is_dir():
+            QMessageBox.warning(
+                self, "No output folder to pack",
+                "A bundle is packed from a run's output folder. Run the "
+                "pipeline first, or set the Output data folder / name (Data "
+                "tab) to an existing MEA-NAP output folder.\n\n"
+                "An express run has no folder to pack — its bundle was written "
+                "instead of one, and sits beside where the folder would have "
+                "been.",
+            )
+            return
+        if self._bundle_worker is not None and self._bundle_worker.isRunning():
+            return
+
+        # A save dialog rather than a silent write: it offers the default name,
+        # lets the bundle be put somewhere else entirely, and asks before
+        # overwriting — which matters here, because the file being overwritten
+        # may be an express run whose folder is long gone.
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Save the run bundle as", str(default_bundle_dest(output_root)),
+            f"MEA-NAP bundles (*{BUNDLE_SUFFIX})",
+        )
+        if not path:
+            return
+        dest = Path(path)
+        if dest.suffix != BUNDLE_SUFFIX:
+            # Typing a name without the extension is normal; a bundle without it
+            # is not opened by the file dialog that looks for one.
+            dest = dest.with_name(dest.name + BUNDLE_SUFFIX)
+
+        self._results_panel.set_bundling(True)
+        worker = BundleWorker(output_root, dest, parent=self)
+        worker.log_message.connect(self._run_panel.append_log)
+        worker.finished_ok.connect(self._on_bundle_finished)
+        worker.failed.connect(self._on_bundle_failed)
+        worker.finished.connect(lambda: self._results_panel.set_bundling(False))
+        self._bundle_worker = worker
+        worker.start()
+
+    def _on_bundle_finished(self, result) -> None:
+        """Say what was written, and offer to open it.
+
+        Deliberately does *not* make the new bundle this session's bundle: for
+        a full run the output folder still holds every figure, and View report
+        should go on meaning the HTML report rather than quietly switching to
+        the viewer because a file was packed. If the bundle took the default
+        name beside the folder, :meth:`_refresh_results_target` finds it anyway
+        and the label says so.
+        """
+        for warning in result.warnings:
+            self._run_panel.append_log(f"  ! {warning}")
+        self._refresh_results_target()
+
+        box = QMessageBox(
+            QMessageBox.Icon.Information, "Bundle written",
+            f"{result.dest.name} — {result.size_mb:.1f} MB, "
+            f"{result.recordings} recording"
+            f"{'' if result.recordings == 1 else 's'}.\n\n{result.dest}\n\n"
+            "The output folder is unchanged.",
+            QMessageBox.StandardButton.Close, self,
+        )
+        open_btn = box.addButton("Open in viewer",
+                                 QMessageBox.ButtonRole.AcceptRole)
+        box.exec()
+        if box.clickedButton() is open_btn:
+            self._open_in_viewer(result.dest)
+
+    def _on_bundle_failed(self, message: str) -> None:
+        self._run_panel.append_log(f"ERROR: could not pack the bundle: {message}")
+        QMessageBox.critical(self, "Could not pack the bundle", message)
+
     def _on_open_bundle(self) -> None:
         start_dir = str(self._last_bundle.parent) if self._last_bundle else ""
         path, _ = QFileDialog.getOpenFileName(
@@ -1485,6 +1570,11 @@ class MainWindow(QMainWindow):
         # asking it to stop.
         if self._stats_worker is not None and self._stats_worker.isRunning():
             self._stats_worker.wait(10000)
+        # Likewise for packing, which is one zip write with no checkpoints in
+        # it. Waiting also means the bundle is either finished or removed by
+        # its own verification, never left half-written by a closing window.
+        if self._bundle_worker is not None and self._bundle_worker.isRunning():
+            self._bundle_worker.wait(30000)
         # Each viewer holds a port and a temporary extraction directory; both
         # live as long as the process unless handed back here.
         self._viewers.close_all()
