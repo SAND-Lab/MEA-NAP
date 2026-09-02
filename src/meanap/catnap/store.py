@@ -56,7 +56,11 @@ __all__ = [
 #: 4 — added the lag-independent activity metrics (effRank, NMF). Recovering
 #:     them otherwise means re-reading the raw fluorescence, which a resumed
 #:     run or a bundle recipient may not have.
-FORMAT_VERSION = 4
+#: 5 — added the acquisition frame rate. It comes from each recording's own
+#:     ops.npy and varies *within* a batch, so it is a property of the
+#:     recording rather than of the run — and neither params.json nor anything
+#:     else in the output folder recorded it.
+FORMAT_VERSION = 5
 
 _ADJ_PREFIX = "adj__"
 _STAT_PREFIX = "stat__"
@@ -83,6 +87,13 @@ class RecordingState:
     spike_counts: np.ndarray
     duration_s: float
     plane0: Path
+    #: Acquisition frame rate (Hz), read from this recording's own ``ops.npy``.
+    #: Held per recording, not per run, because a 2P batch routinely mixes
+    #: rates — every seconds-valued setting (denoising windows, event
+    #: interval) is converted to frames with *this* number, and every rate
+    #: metric is divided by a duration derived from it. 0.0 when read back
+    #: from a file written before format 5.
+    fs: float = 0.0
     #: User-defined cell-type groups (E/I, per-marker, …) — drives the
     #: subnetwork analysis and the by-cell-type activity comparisons.
     groups: object | None = None
@@ -140,6 +151,7 @@ def save_recording_state(path: Path, state: RecordingState, stats: dict) -> None
         "channels": np.asarray(state.channels),
         "spike_counts": np.asarray(state.spike_counts, dtype=float),
         "duration_s": np.array(float(state.duration_s)),
+        "fs": np.array(float(state.fs)),
         "coord_norm": np.asarray(state.coord_norm, dtype=float),
     }
     for key, adj in state.adjMs.items():
@@ -268,6 +280,7 @@ def load_recording_state(path: Path, plane0: Path) -> tuple[RecordingState, dict
             channels=data["channels"],
             spike_counts=data["spike_counts"],
             duration_s=float(data["duration_s"]),
+            fs=float(data["fs"]) if "fs" in keys else 0.0,
             plane0=plane0,
             groups=groups,
             markers=markers,

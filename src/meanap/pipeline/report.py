@@ -670,12 +670,22 @@ def generate_report(output_root: Path | str, out_path: Path | str | None = None)
     summary = summary_from_file(output_root / PARAMS_FILENAME)
     params_json = json.dumps(summary.as_dict() if summary else None)
 
+    # Per-recording acquisition rates. CAT-NAP reads the frame rate out of each
+    # recording's ops.npy rather than from a setting, so unlike everything in
+    # params.json this varies *within* a run — and a batch spanning culture
+    # preps routinely spans rates. Absent for ephys runs and for folders
+    # written before the column existed, where the section is simply not shown.
+    from meanap.catnap.rates import read_sampling_rates, summarise_rates
+
+    rates_json = json.dumps(summarise_rates(read_sampling_rates(output_root)))
+
     # Escape "<" so no value in the tree — a CSV cell, a filename, a parameter
     # — can close the <script> block it is embedded in. \u003c is still "<" to
     # JSON.parse.
     tree_json = json.dumps(tree).replace("<", "\\u003c")
     html = _HTML_TEMPLATE.replace("__TREE_JSON__", tree_json)
     html = html.replace("__PARAMS_JSON__", params_json.replace("<", "\\u003c"))
+    html = html.replace("__RATES_JSON__", rates_json.replace("<", "\\u003c"))
     html = html.replace("__TITLE__", f"MEA-NAP Output Report — {output_root.name}")
     out_path.write_text(html)
     return out_path
@@ -764,6 +774,20 @@ _HTML_TEMPLATE = r"""<!DOCTYPE html>
   #lightbox img { max-width: 92vw; max-height: 82vh; box-shadow: 0 10px 40px rgba(0,0,0,0.5); }
   #lightbox .lb-caption { color: #eee; max-width: 700px; text-align: center; margin-top: 16px; font-size: 14px; }
   .empty { color: var(--muted); font-size: 14px; }
+  .notice { max-width: 900px; margin: 0 0 20px; padding: 12px 16px; font-size: 13.5px;
+            line-height: 1.5; border-radius: 8px; border-left: 3px solid #d97706;
+            background: #fffbeb; color: #78350f; }
+  .notice.calm { border-left-color: var(--accent); background: #f6f7f9; color: var(--text); }
+  .notice strong { font-weight: 600; }
+  table.rates { border-collapse: collapse; font-size: 13px; margin-bottom: 22px; }
+  table.rates th, table.rates td { padding: 5px 14px 5px 0; text-align: left;
+    border-bottom: 1px solid var(--border); }
+  table.rates th { color: var(--muted); font-weight: 600; font-size: 12px;
+    text-transform: uppercase; letter-spacing: .02em; }
+  table.rates td.num { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .rate-badge { display: inline-block; padding: 1px 7px; border-radius: 999px;
+    background: #eef2ff; color: #3730a3; font-size: 11.5px;
+    font-family: ui-monospace, monospace; }
 </style>
 </head>
 <body>
@@ -774,6 +798,11 @@ _HTML_TEMPLATE = r"""<!DOCTYPE html>
       <span class="caret" style="visibility:hidden;"></span>
       <span>&#9881;</span><span>Run parameters</span>
       <span class="count" id="params-count"></span>
+    </div>
+    <div id="rates-link" class="node-label" style="display:none;">
+      <span class="caret" style="visibility:hidden;"></span>
+      <span>&#9202;</span><span>Sampling rates</span>
+      <span class="count" id="rates-count"></span>
     </div>
     <ul class="tree root" id="tree-root"></ul>
   </div>
@@ -791,6 +820,7 @@ _HTML_TEMPLATE = r"""<!DOCTYPE html>
 <script>
 const TREE = __TREE_JSON__;
 const PARAMS = __PARAMS_JSON__;
+const RATES = __RATES_JSON__;
 
 function countImages(node) {
   if (node.type !== "folder") return node.type === "image" ? 1 : 0;
@@ -976,6 +1006,89 @@ function renderParams(labelEl) {
       + Object.keys(PARAMS.unknown).join(", ");
     content.appendChild(p);
   }
+}
+
+function renderRates(labelEl) {
+  if (selectedLabel) selectedLabel.classList.remove("selected");
+  labelEl.classList.add("selected");
+  selectedLabel = labelEl;
+
+  breadcrumb.textContent = "Sampling rates";
+  mainTitle.textContent = "Sampling rates";
+  folderDesc.textContent =
+    "CAT-NAP takes each recording's frame rate from its own suite2p ops.npy, " +
+    "not from a setting \u2014 so a run has no single sampling rate, and " +
+    "params.json does not carry one. These are the rates the analysis " +
+    "actually used.";
+  folderDesc.style.display = "block";
+
+  content.innerHTML = "";
+
+  // The one thing worth reading before the group comparisons are believed.
+  const notice = document.createElement("p");
+  notice.className = RATES.mixed ? "notice" : "notice calm";
+  if (RATES.mixed) {
+    notice.innerHTML =
+      "<strong>This batch mixes " + RATES.rates.length + " acquisition rates.</strong> " +
+      "Nothing here is wrong: every seconds-valued setting (denoising windows, " +
+      "minimum event interval) was converted to frames using each recording's " +
+      "own rate, and every rate metric uses a duration derived from it. " +
+      "But frame rate is usually a property of the culture prep, so check it " +
+      "is not confounded with the groups being compared \u2014 a difference " +
+      "between groups that also differ in rate has two explanations.";
+  } else {
+    notice.textContent =
+      "Every recording in this run was acquired at the same rate, so no " +
+      "rate-related confound is possible between groups.";
+  }
+  content.appendChild(notice);
+
+  const table = document.createElement("table");
+  table.className = "rates";
+  const head = document.createElement("tr");
+  for (const col of ["Rate", "Recordings", "Share"]) {
+    const th = document.createElement("th");
+    th.textContent = col;
+    head.appendChild(th);
+  }
+  table.appendChild(head);
+  for (const r of RATES.rates) {
+    const tr = document.createElement("tr");
+    const fs = document.createElement("td");
+    fs.className = "num";
+    fs.textContent = r.fs + " Hz";
+    const n = document.createElement("td");
+    n.className = "num";
+    n.textContent = r.count;
+    const pct = document.createElement("td");
+    pct.className = "num";
+    pct.textContent = (100 * r.count / RATES.n_recordings).toFixed(1) + "%";
+    tr.appendChild(fs); tr.appendChild(n); tr.appendChild(pct);
+    table.appendChild(tr);
+  }
+  content.appendChild(table);
+
+  // Per recording, so a rate can be traced to the folders that carry it.
+  const h = document.createElement("h3");
+  h.className = "params-group";
+  h.textContent = "Per recording";
+  content.appendChild(h);
+
+  const list = document.createElement("table");
+  list.className = "rates";
+  for (const [name, fs] of Object.entries(RATES.byRecording)) {
+    const tr = document.createElement("tr");
+    const n = document.createElement("td");
+    n.textContent = name;
+    const v = document.createElement("td");
+    const badge = document.createElement("span");
+    badge.className = "rate-badge";
+    badge.textContent = fs + " Hz";
+    v.appendChild(badge);
+    tr.appendChild(n); tr.appendChild(v);
+    list.appendChild(tr);
+  }
+  content.appendChild(list);
 }
 
 let selectedLabel = null;
@@ -1171,6 +1284,15 @@ if (PARAMS) {
   document.getElementById("params-count").textContent =
     PARAMS.changed ? PARAMS.changed + " changed" : "all default";
   link.addEventListener("click", () => renderParams(link));
+}
+
+// CAT-NAP only: an ephys run's rate is a setting, and lives with the others.
+if (RATES) {
+  const link = document.getElementById("rates-link");
+  link.style.display = "flex";
+  document.getElementById("rates-count").textContent =
+    RATES.mixed ? RATES.rates.length + " rates" : RATES.rates[0].fs + " Hz";
+  link.addEventListener("click", () => renderRates(link));
 }
 
 function openHashPath() {

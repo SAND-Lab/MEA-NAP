@@ -100,6 +100,11 @@ class ViewerService:
             lags = self.ctx.lags(name)
             recordings.append({
                 "name": name, "group": rec.group, "div": rec.div, "lags": lags,
+                # Acquisition frame rate, read from this recording's own
+                # ops.npy during the run. Per recording rather than per run:
+                # a 2P batch routinely mixes rates, and no setting records it.
+                # None for ephys, and for bundles written before it was saved.
+                "fs": self.ctx.sampling_rates.get(name),
                 "figures": {
                     str(lag): [
                         {"name": f.name, "label": f.label,

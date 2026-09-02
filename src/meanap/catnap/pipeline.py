@@ -16,6 +16,7 @@ folders the ephys path produces.
 
 from __future__ import annotations
 
+from collections import Counter
 import json
 from dataclasses import dataclass
 from pathlib import Path
@@ -156,6 +157,39 @@ def _log_bin_rounding(res, log, filename: str) -> None:
             f"{'is' if len(unbinned) == 1 else 'are'} shorter than one frame at "
             f"{res.fs:.4g} Hz — no binning applied, so this is the raw "
             f"frame-resolution correlation.")
+
+
+def _log_sampling_rates(states: dict, log) -> None:
+    """Summarise the batch's acquisition rates once phase 1 has seen them all.
+
+    A per-recording line is easy to scroll past; what a reader actually needs
+    to know is whether the batch was acquired at one rate or several. It is
+    routinely several — frame rate tends to be a property of the culture prep,
+    so a dataset spanning preps spans rates — and unlike ephys there is no
+    single setting that says so, because CAT-NAP reads the rate out of each
+    recording's own ``ops.npy`` (which is also what MATLAB does; the GUI's
+    sampling-rate field is not read on this path).
+
+    That is not an error, and nothing here is wrong when it happens: every
+    seconds-valued setting is converted with the recording's own rate. It does
+    change how the results should be *read*, though — rate covaries with prep,
+    so it can covary with whatever the groups are — so it is said plainly
+    rather than left to be discovered.
+    """
+    rates = sorted({round(float(st.fs), 4) for st in states.values() if st.fs})
+    if not rates:
+        return
+    if len(rates) == 1:
+        n = len(states)
+        log(f"  Acquisition rate: {rates[0]:.4g} Hz "
+            + ("(the only recording)" if n == 1 else f"(all {n} recordings)"))
+        return
+    counts = Counter(round(float(st.fs), 4) for st in states.values() if st.fs)
+    log(f"  NOTE: this batch mixes {len(rates)} acquisition rates — "
+        + ", ".join(f"{fs:.4g} Hz x{counts[fs]}" for fs in rates))
+    log("        Each recording was analysed at its own rate, read from its "
+        "ops.npy. Frame rate often tracks the culture prep, so check it is "
+        "not confounded with the groups being compared.")
 
 
 def _spike_counts(res, twop_activity: str) -> np.ndarray:
@@ -405,6 +439,8 @@ def run_catnap_pipeline(
         if rec.filename in metric_results:
             all_results[rec.filename] = metric_results[rec.filename]
 
+    _log_sampling_rates(states, log)
+
     # ── Phase 2: reduce — data-driven node-cartography boundaries ─────────────
     # Pool PC/Z over the whole batch and re-place the six role boundaries, then
     # re-classify every node (port of MEApipeline.m's autoSetCartographyBoundaries
@@ -457,7 +493,9 @@ def run_catnap_pipeline(
 
     progress.phase_done()
     progress.begin("batch", items=1)
-    _save_catnap_results(recordings, all_results, all_stats, all_channels, net_dir, log)
+    _save_catnap_results(recordings, all_results, all_stats, all_channels, net_dir, log,
+                         sampling_rates={name: float(st.fs)
+                                         for name, st in states.items() if st.fs})
     _save_subnetwork_results(subnetwork_tables, net_dir, log)
     _plot_group_comparisons(
         params, recordings, all_results, all_stats, all_channels,
@@ -494,6 +532,13 @@ def _compute_recording(
         log(f"  [{rec.filename}] SKIP: {e}")
         return None
 
+    # Said per recording, not once per run: the rate comes from this
+    # recording's own ops.npy and a 2P batch routinely mixes rates. Everything
+    # below converts seconds to frames with it, so it belongs in the log
+    # *before* the first thing that uses it.
+    log(f"  [{rec.filename}] {data.fs:.4g} Hz, {data.n_frames} frames "
+        f"({data.duration_s:.0f} s)")
+
     if params.twop_activity in _NEEDS_DENOISING and (
         data.F_denoised is None or params.twop_redo_denoising
     ):
@@ -524,7 +569,8 @@ def _compute_recording(
     state = RecordingState(
         adjMs=res.adjMs, coords=res.coords, channels=res.channels,
         spike_counts=_spike_counts(res, params.twop_activity),
-        duration_s=duration_s, plane0=plane0, coord_norm=res.coord_norm,
+        duration_s=duration_s, fs=res.fs, plane0=plane0,
+        coord_norm=res.coord_norm,
     )
     state.lag_independent = _lag_independent_metrics(res, params, duration_s, log,
                                                      rec.filename, rng)
@@ -1132,9 +1178,17 @@ def _save_catnap_results(
     all_channels: dict[str, np.ndarray],
     net_dir: Path,
     log: Callable[[str], None],
+    sampling_rates: dict[str, float] | None = None,
 ) -> None:
     """Write netmet_results.json + NetworkActivity CSVs (compact port of the
-    save block in ``step4._run_step4_network_metrics``)."""
+    save block in ``step4._run_step4_network_metrics``).
+
+    ``sampling_rates`` adds a ``samplingRateHz`` column to the recording-level
+    tables. It is the only place the rate reaches disk in a readable form —
+    params.json cannot carry it, because it is per recording rather than per
+    run — and it is what the HTML report and the bundle viewer read back.
+    """
+    rates = sampling_rates or {}
     try:
         json_results = {
             rec_name: {
@@ -1152,6 +1206,8 @@ def _save_catnap_results(
                 continue
             for lag, metrics in all_results[rec.filename].items():
                 base = {"FileName": rec.filename, "Grp": rec.group, "DIV": rec.div, "Lag": lag}
+                if rec.filename in rates:
+                    base["samplingRateHz"] = rates[rec.filename]
                 rec_row = dict(base)
                 node_metrics = {}
                 for k, v in metrics.items():
@@ -1183,7 +1239,12 @@ def _save_catnap_results(
         # only existed in memory — and are what the group comparison figures
         # plot.
         twop_dir = net_dir.parent / "2_NeuronalActivity"
+        # samplingRateHz sits next to DIV rather than among the metrics: it
+        # describes how the recording was acquired, not something measured in
+        # it, and every rate below is derived from it.
         stats_rows = [dict({"FileName": r.filename, "Grp": r.group, "DIV": r.div},
+                           **({"samplingRateHz": rates[r.filename]}
+                              if r.filename in rates else {}),
                            **{k: v for k, v in all_stats[r.filename].items()
                               if np.size(v) <= 1})
                       for r in recordings if r.filename in all_stats]

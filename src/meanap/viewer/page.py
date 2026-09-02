@@ -103,6 +103,9 @@ PAGE_HTML = r"""<!doctype html>
   label { display: block; margin-bottom: 10px; font-size: 12px; color: var(--muted); }
   label span.l { display: block; margin-bottom: 3px; color: var(--fg); }
   label small { display: block; margin-top: 3px; color: var(--muted); font-size: 11px; }
+  #rec-fs { margin-top: 4px; font-size: 11.5px; color: var(--muted); line-height: 1.45; }
+  #rec-fs.mixed { color: #b45309; }
+  #rec-fs b { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 600; }
   /* A control the current mode does not read — see syncNodeSizeMode. */
   label.muted { opacity: .45; }
   label.muted input { cursor: not-allowed; }
@@ -156,6 +159,7 @@ does not have MEA-NAP installed.">Export output folder</button>
   <div id="side-recordings">
     <h2>Recording</h2>
     <select id="recording"></select>
+    <div id="rec-fs"></div>
     <h2 id="lag-head">Lag</h2>
     <select id="lag"></select>
 
@@ -509,7 +513,30 @@ function fillRecordings() {
   fillLags();
 }
 
+function showSamplingRate() {
+  const el = $("rec-fs");
+  const rec = currentRecording();
+  // Absent for ephys runs (where the rate is a setting, shown with the rest)
+  // and for bundles written before the rate was recorded.
+  if (!rec || rec.fs == null) { el.textContent = ""; el.className = ""; return; }
+
+  const all = MANIFEST.recordings.map((r) => r.fs).filter((v) => v != null);
+  const distinct = [...new Set(all)].sort((a, b) => a - b);
+  if (distinct.length > 1) {
+    el.className = "mixed";
+    el.innerHTML =
+      "Acquired at <b>" + rec.fs + " Hz</b>. This run mixes " +
+      distinct.length + " rates (" + distinct.join(", ") + " Hz) \u2014 each " +
+      "recording was analysed at its own, but rate usually tracks the culture " +
+      "prep, so check it is not confounded with the groups compared.";
+  } else {
+    el.className = "";
+    el.innerHTML = "Acquired at <b>" + rec.fs + " Hz</b>.";
+  }
+}
+
 function fillLags() {
+  showSamplingRate();
   fillActivity();
   fillSpikeChecks();
   fillTraces();

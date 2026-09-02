@@ -185,6 +185,12 @@ class RenderContext:
     batch_bounds: dict[str, tuple[float, float] | None]
     root: Path
     mode: str = "catnap"
+    #: ``{recording: frame rate in Hz}`` for CAT-NAP runs. Not on
+    #: :class:`RecordingInfo` because that is the spreadsheet roster, known
+    #: before any recording is opened, whereas the rate is read out of each
+    #: recording's ``ops.npy`` during the run. Empty for ephys runs, and for
+    #: folders written before the rate was recorded.
+    sampling_rates: dict[str, float] = dataclasses.field(default_factory=dict)
 
     def lags(self, recording: str) -> list[int]:
         return sorted(int(k.replace("mslag", ""))
@@ -228,6 +234,10 @@ def load_context(bundle: RunBundle | Path | str) -> RenderContext:
         for r in rec_rows
     }
 
+    from meanap.catnap.rates import read_sampling_rates
+
+    sampling_rates = read_sampling_rates(root)
+
     metrics_path = root / "4_NetworkActivity" / "netmet_results.json"
     if not metrics_path.exists():
         raise ValueError(
@@ -257,7 +267,8 @@ def load_context(bundle: RunBundle | Path | str) -> RenderContext:
                     for m in ("ND", "NS", "BC", "PC", "Eloc")}
 
     return RenderContext(params=params, recordings=recordings, results=results,
-                         batch_bounds=batch_bounds, root=root, mode=mode)
+                         batch_bounds=batch_bounds, root=root, mode=mode,
+                         sampling_rates=sampling_rates)
 
 
 def _state_file(root: Path, recording: str) -> Path | None:
