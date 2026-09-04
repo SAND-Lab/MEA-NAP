@@ -54,10 +54,37 @@ class Suite2pAdjmResult:
 
 
 def _corr_columns(x: np.ndarray) -> np.ndarray:
-    """MATLAB ``corr(X)`` — Pearson correlation between the columns (units) of X."""
+    """Pearson correlation between the columns (units) of X, without self-edges.
+
+    **Deliberate divergence from MATLAB.** ``suite2pToAdjm.m`` (lines 133-141)
+    stores ``double(corr(...))`` as the adjacency and nothing downstream clears
+    it, so every node carries a self-loop of weight 1 — the largest weight in
+    the matrix. The STTC/ETTC path has always returned a zero diagonal, so the
+    two connectivity measures were not producing comparable graphs.
+
+    What that corrupts, for anyone reading old correlation-mode results:
+
+    * ``Dens`` counts ``triu(adjM)`` *including* the diagonal against a
+      denominator that excludes it, so density is inflated by ``2/(n-1)`` and
+      can exceed 1 — which is how this was found.
+    * ``NS`` (``strengths_und``) gains exactly 1.0 per node.
+    * ``sigEdgesMean`` / ``sigEdgesTop10`` pool ``adjM[abs(adjM) > 0]``, so n
+      maximum-weight self-edges enter the distribution; the top-10% mean is
+      hit hardest.
+
+    ``ND`` and ``MEW`` are unaffected: ``find_node_deg_edge_weight`` subtracts
+    ``eye(n)`` before thresholding.
+
+    A run that needs the old behaviour bit-for-bit can compare against a
+    pre-fix bundle; nothing else in the pipeline depends on the diagonal.
+    """
     if x.shape[1] == 0:
         return np.zeros((0, 0))
-    return np.corrcoef(x, rowvar=False)
+    c = np.corrcoef(x, rowvar=False)
+    # corrcoef of a constant column is NaN throughout; that is a separate
+    # concern, handled downstream. Only the self-edges are cleared here.
+    np.fill_diagonal(c, 0.0)
+    return c
 
 
 def frames_per_bin(bin_ms: float, fs: float) -> int:

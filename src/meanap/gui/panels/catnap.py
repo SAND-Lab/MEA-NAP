@@ -24,7 +24,21 @@ from meanap.gui.advanced import AdvancedSection
 from meanap.gui.widgets import pin_width, scrollable
 from meanap.params import Params, is_remote_url
 
-ACTIVITY_TYPES = ["peaks", "denoised F", "F", "spks"]
+from meanap.catnap.activities import ACTIVITY_TYPES as _ACTIVITY_TYPES
+
+ACTIVITY_TYPES = list(_ACTIVITY_TYPES)
+
+#: One line each, shown as the checkbox tooltips. What separates the four
+#: measures is not obvious from their names, and the choice changes both the
+#: network that gets built and — sometimes — the conclusion drawn from it.
+ACTIVITY_HELP = {
+    "peaks": "Detected calcium events. The network is an STTC coincidence "
+             "network and the timescale parameter is a lag.",
+    "denoised F": "The deconvolved fluorescence trace. The network is a "
+                  "Pearson correlation between binned traces, at zero lag.",
+    "F": "Raw fluorescence, uncorrected. Correlation network, as above.",
+    "spks": "suite2p's own spike estimate. Correlation network, as above.",
+}
 
 # Subnetwork grouping modes, in combo-box order. The stored value of
 # ``Params.twop_subnetwork_groups`` is None / "E/I" / a dict of expressions;
@@ -422,6 +436,10 @@ class CatNapPanel(QWidget):
         self._activity_combo = QComboBox()
         self._activity_combo.addItems(ACTIVITY_TYPES)
         self._activity_combo.currentTextChanged.connect(self._refresh_plot)
+        self._activity_combo.currentTextChanged.connect(self._update_extra_measures)
+        self._activity_combo.setToolTip(
+            "The measure the run is built from. Its results keep the top-level "
+            "output folders.")
 
         self._n_cells_preview = QSpinBox()
         self._n_cells_preview.setRange(1, 20)
@@ -431,6 +449,7 @@ class CatNapPanel(QWidget):
         self._remove_no_peaks = QCheckBox()
 
         ctrl_form.addRow("Activity type", self._activity_combo)
+        ctrl_form.addRow("Also analyse", self._build_extra_measures())
         ctrl_form.addRow("Cells to preview", self._n_cells_preview)
         ctrl_form.addRow("Exclude cells with no peaks", self._remove_no_peaks)
 
@@ -738,6 +757,41 @@ class CatNapPanel(QWidget):
             rec = self._recordings[row]
             self._recording_list.item(row).setText(f"✓  {rec.name}")
 
+    def _build_extra_measures(self) -> QWidget:
+        """Tick boxes for measures to analyse *beside* the one above.
+
+        Each ticked measure adds a full pass over the same recordings — its own
+        adjacency, metrics and figures — and, in the statistics step, a
+        comparison against the others: how far the values move with the
+        measure, and whether the group and age conclusions survive the change.
+        The raw data is loaded and denoised once no matter how many are ticked,
+        so the extra cost is the network metrics rather than another whole run.
+        """
+        w = QWidget()
+        row = QHBoxLayout(w)
+        row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(10)
+        self._extra_measures: dict[str, QCheckBox] = {}
+        for name in ACTIVITY_TYPES:
+            box = QCheckBox(name)
+            box.setToolTip(ACTIVITY_HELP.get(name, ""))
+            self._extra_measures[name] = box
+            row.addWidget(box)
+        row.addStretch()
+        self._update_extra_measures()
+        return w
+
+    def _update_extra_measures(self) -> None:
+        """Grey out the primary measure — it is already being analysed."""
+        primary = self._activity_combo.currentText()
+        for name, box in self._extra_measures.items():
+            is_primary = name == primary
+            if is_primary and box.isChecked():
+                box.setChecked(False)
+            box.setEnabled(not is_primary)
+            box.setToolTip("Already the measure this run is built from."
+                           if is_primary else ACTIVITY_HELP.get(name, ""))
+
     def _refresh_plot(self) -> None:
         if self._current_data is None:
             return
@@ -933,9 +987,15 @@ class CatNapPanel(QWidget):
     def load(self, params: Params) -> None:
         self._folder_edit.setText(params.raw_data)
         self._suite2p_mode.setChecked(params.suite2p_mode)
-        idx = self._activity_combo.findText(params.twop_activity)
+        from meanap.catnap.activities import activity_types
+
+        measures = activity_types(params)
+        idx = self._activity_combo.findText(measures[0])
         if idx >= 0:
             self._activity_combo.setCurrentIndex(idx)
+        for name, box in self._extra_measures.items():
+            box.setChecked(name in measures[1:])
+        self._update_extra_measures()
         self._redo_denoising.setChecked(params.twop_redo_denoising)
         self._remove_no_peaks.setChecked(params.remove_nodes_with_no_peaks)
         self._denoise_threshold.setValue(params.twop_denoising_threshold)
@@ -973,6 +1033,13 @@ class CatNapPanel(QWidget):
         params.raw_data = self._folder_edit.text()
         params.suite2p_mode = self._suite2p_mode.isChecked()
         params.twop_activity = self._activity_combo.currentText()
+        # Empty rather than a one-element tuple when nothing extra is ticked:
+        # that is what marks a run as single-measure, and it is what keeps its
+        # output folders named the way they always were.
+        extra = tuple(name for name in ACTIVITY_TYPES
+                      if name != params.twop_activity
+                      and self._extra_measures[name].isChecked())
+        params.twop_activities = (params.twop_activity, *extra) if extra else ()
         params.twop_redo_denoising = self._redo_denoising.isChecked()
         params.remove_nodes_with_no_peaks = self._remove_no_peaks.isChecked()
         params.twop_denoising_threshold = self._denoise_threshold.value()

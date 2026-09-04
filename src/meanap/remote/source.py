@@ -57,6 +57,9 @@ class RecordingSource:
     #: bytes have arrived. Reported from here rather than from the cache because
     #: only this knows the transfer is one run's worth of work.
     progress: object | None = None
+    #: Where CAT-NAP's derived files live, so a fetch can tell what an earlier
+    #: run already extracted. See :meth:`_wanted_for`.
+    derived_root: str | Path | None = None
     #: cache-relative path → how many not-yet-released recordings still need it.
     _holders: dict = field(default_factory=dict, repr=False)
     #: Bytes fetched so far this run, across every file. Not guarded: prefetch
@@ -101,6 +104,29 @@ class RecordingSource:
         finally:
             self._fetched = base + seen
 
+    def _wanted_for(self, recording: str) -> frozenset:
+        """Which of :data:`WANTED` this recording still has to be fetched for.
+
+        ``ops.npy`` is the whole set bar a rounding error — 463 MB of a 480 MB
+        folder in this dataset — and the pipeline wants two small fields out of
+        it, the frame rate and the mean projection. :func:`load_suite2p` reads
+        those from the ``ops_fields.npz`` sidecar whenever one exists and never
+        opens ``ops.npy`` at all, so once an earlier run has written the sidecar
+        there is nothing left for the download to supply. Re-running a batch
+        with different parameters then costs a twentieth of the first pass.
+
+        The sidecar carries no parameters — it is a verbatim copy of two
+        suite2p fields — so it stays valid across runs, and
+        :func:`~meanap.catnap.loader._load_ops_fields` still discards one older
+        than the ``ops.npy`` it came from.
+        """
+        from meanap.catnap.derived import OPS_CACHE_NAME, derived_dir
+
+        cached = derived_dir(self.derived_root, recording)
+        if cached is not None and (cached / OPS_CACHE_NAME).exists():
+            return WANTED - {"ops.npy"}
+        return WANTED
+
     def plane0(self, recording: str) -> Path:
         """A local ``suite2p/plane0`` for *recording*, fetching it if remote.
 
@@ -122,12 +148,17 @@ class RecordingSource:
         if not entries:
             raise FileNotFoundError(f"no suite2p output at {rel}")
 
-        wanted = [e for e in entries if e.name in WANTED]
+        keep = self._wanted_for(recording)
+        wanted = [e for e in entries if e.name in keep]
         skipped = sum(e.size or 0 for e in entries if e.name not in WANTED)
+        cached_ops = sum(e.size or 0 for e in entries
+                         if e.name in WANTED and e.name not in keep)
         total = sum(e.size or 0 for e in wanted)
         self.log(f"  [{recording}] fetching {total / 1e6:.0f} MB"
                  + (f" (skipping {skipped / 1e6:.0f} MB the pipeline never opens)"
-                    if skipped else ""))
+                    if skipped else "")
+                 + (f" (skipping {cached_ops / 1e6:.0f} MB of ops.npy — already "
+                    "extracted by an earlier run)" if cached_ops else ""))
         for entry in wanted:
             self._fetch(entry.path, detail=recording)
         return self.cache.path_for(self.store, rel)

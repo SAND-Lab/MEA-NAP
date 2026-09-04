@@ -210,6 +210,21 @@ class StatsPanel(QWidget):
         self.sweep_cb.toggled.connect(self._on_sweep_toggled)
         outer.addWidget(self.sweep_cb)
 
+        self.measures_cb = QCheckBox(
+            "Compare measures of activity  (does the measure change the answer?)")
+        self.measures_cb.setChecked(True)
+        self.measures_cb.setToolTip(
+            "For a CAT-NAP run that analysed several measures of activity "
+            "(calcium events, deconvolved trace, raw fluorescence, suite2p "
+            "spikes): how far each metric moves when the measure changes, "
+            "whether the recordings still rank the same way, and — the part "
+            "that matters — whether the group and age effects survive the "
+            "change.\n\n"
+            "Free: it reads the per-measure results the analyses above already "
+            "produced. A run with one measure has nothing to compare and skips "
+            "it.")
+        outer.addWidget(self.measures_cb)
+
         self.sweep_note = QLabel()
         self.sweep_note.setWordWrap(True)
         self.sweep_note.setStyleSheet(
@@ -427,6 +442,7 @@ class StatsPanel(QWidget):
             shapley_by_age=self.shapley_cb.isChecked(),
             feature_families=self.families_cb.isChecked(),
             density_sweep=self.sweep_cb.isChecked() and self.sweep_cb.isEnabled(),
+            measure_comparison=self.measures_cb.isChecked(),
             sweep_n_nodes=self.sweep_size.currentData(),
             decoding_target=self.decode_target.currentData(),
             regression_target=self.regress_target.currentData(),

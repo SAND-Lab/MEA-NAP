@@ -100,15 +100,22 @@ class InputLocator:
         candidates += [root / ADJM_SUBDIR / name for root in self.prior_roots]
         return _first_existing(candidates)
 
-    def catnap_file(self, recording_name: str) -> Path | None:
+    def catnap_file(self, recording_name: str, *,
+                    subdir: Path | str | None = None) -> Path | None:
         """Path to a recording's CAT-NAP step-2 file, or ``None`` if absent.
 
         ``spike_dir`` is not consulted: it holds externally *spike-detected*
         MEA data, which has nothing to say about a suite2p recording.
+
+        *subdir* addresses one measure's subtree in a multi-measure run
+        (``ByActivityType/denoisedF``); the primary measure passes ``None`` and
+        reads the top-level folder, which is where a single-measure run — and
+        every run written before measures could be combined — puts it.
         """
         name = f"{recording_name}{CATNAP_SUFFIX}"
-        candidates = [self.output_root / ADJM_SUBDIR / name]
-        candidates += [root / ADJM_SUBDIR / name for root in self.prior_roots]
+        rel = (Path(subdir) / ADJM_SUBDIR) if subdir else ADJM_SUBDIR
+        candidates = [self.output_root / rel / name]
+        candidates += [root / rel / name for root in self.prior_roots]
         return _first_existing(candidates)
 
     # ── reporting ────────────────────────────────────────────────────────────

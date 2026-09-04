@@ -21,6 +21,18 @@ from meanap.pipeline.render import (  # noqa: E402
 NEEDS_DENOISING = ("peaks", "denoised F", "spks")
 
 
+def _measures(params) -> list[str]:
+    """Every measure of activity the run analysed, primary first."""
+    from meanap.catnap.activities import activity_types
+
+    return activity_types(params)
+
+
+def _denoising_measures(params) -> list[str]:
+    """The measures that make the run denoise — any one is enough for traces."""
+    return [a for a in _measures(params) if a in NEEDS_DENOISING]
+
+
 def main(argv: list[str]) -> int:
     if len(argv) != 2:
         print(__doc__)
@@ -73,8 +85,9 @@ def main(argv: list[str]) -> int:
                   "they were never drawn.\n    They cannot be recovered from the "
                   "bundle; set it above 0 (CAT-NAP tab → Denoising settings → "
                   "Advanced) and re-run.")
-        elif params is not None and params.twop_activity not in NEEDS_DENOISING:
-            print(f"  → Activity type is {params.twop_activity!r}, which skips "
+        elif params is not None and not _denoising_measures(params):
+            named = " / ".join(repr(a) for a in _measures(params))
+            print(f"  → Activity type is {named}, which skips "
                   "denoising — and these figures plot the\n    denoised trace "
                   "against the detected events. Set it to 'peaks' and re-run.")
         else:

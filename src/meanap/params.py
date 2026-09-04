@@ -239,6 +239,16 @@ class Params:
     # writing back is impossible. See catnap/derived.py.
     derived_data_folder: str = ""
     twop_activity: str = "peaks"
+    # Extra measures of activity to analyse alongside ``twop_activity`` in the
+    # same run. Empty (the default, and what every settings file written before
+    # this existed carries) means the run analyses ``twop_activity`` alone and
+    # is named exactly as it always was. Listing more makes the measure an axis
+    # of the output — an ``ActivityType`` column in every CAT-NAP table, an
+    # activity-prefixed folder per figure set, and the cross-measure comparison
+    # in step 5 (:mod:`meanap.stats.measures`), which is the point: the choice
+    # of measure changes both the numbers and, sometimes, the conclusion, and
+    # that was previously invisible. See :mod:`meanap.catnap.activities`.
+    twop_activities: tuple[str, ...] = ()
     twop_redo_denoising: bool = False
     remove_nodes_with_no_peaks: bool = False
     num_2p_traces: int = 3

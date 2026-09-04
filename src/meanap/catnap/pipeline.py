@@ -32,6 +32,10 @@ import numpy as np
 import pandas as pd
 
 from meanap.params import Params
+from meanap.catnap.activities import (
+    BY_ACTIVITY_DIR, activity_slug, activity_subtrees, activity_types,
+    is_multi_activity, primary_activity,
+)
 from meanap.catnap.adjacency import suite2p_to_adjm
 from meanap.catnap.group_plots import (
     SUBNET_GRAPH_METRICS, SUBNET_NODE_METRICS, twop_stats_frames,
@@ -87,9 +91,15 @@ class _MetricsTask:
     lag_independent: dict
     params: Params
     min_nodes: int
+    #: Which measure of activity this adjacency was built from. Carried so the
+    #: results a worker hands back can be routed to the right measure's tree —
+    #: ``params.twop_activity`` says the same thing, but a worker result is
+    #: matched on the pair, and reading it off the task is what makes that
+    #: explicit rather than implied.
+    activity: str = ""
 
 
-def _metrics_worker(task: _MetricsTask) -> tuple[str, dict]:
+def _metrics_worker(task: _MetricsTask) -> tuple[str, str, dict]:
     """Network metrics for every lag of one recording. Runs in a pool worker.
 
     Module-level and picklable-in/out because ``spawn`` re-imports this module
@@ -112,7 +122,7 @@ def _metrics_worker(task: _MetricsTask) -> tuple[str, dict]:
         # under `if e == 1` and saving them on the first lag field.
         metrics.update(task.lag_independent)
         out[f"{lag_ms}mslag"] = metrics
-    return task.filename, out
+    return task.activity, task.filename, out
 
 
 #: ``Params.startAnalysisStep`` at or above which a CAT-NAP run reads the prior
@@ -192,6 +202,84 @@ def _log_sampling_rates(states: dict, log) -> None:
         "not confounded with the groups being compared.")
 
 
+def _validated_measures(params: Params, log) -> Params:
+    """Drop measures of activity nothing can build a network from.
+
+    ``suite2p_to_adjm`` raises on an unknown measure, and it would do so partway
+    through the first recording — after the loading and the denoising, with the
+    run already committed. A typo in a settings file is worth catching here, in
+    one line, rather than as a traceback ten minutes in.
+
+    The primary measure is never dropped: if *that* is wrong the run has nothing
+    to do, and failing loudly at the first recording is the right outcome.
+    """
+    import dataclasses
+
+    from meanap.catnap.activities import ACTIVITY_TYPES
+
+    measures = activity_types(params)
+    unknown = [a for a in measures[1:] if a not in ACTIVITY_TYPES]
+    if not unknown:
+        return params
+    log(f"  Ignoring unknown measure(s) of activity: {', '.join(map(repr, unknown))} "
+        f"— expected one of {', '.join(ACTIVITY_TYPES)}")
+    kept = tuple(a for a in measures if a not in unknown)
+    return dataclasses.replace(params,
+                               twop_activities=kept if len(kept) > 1 else ())
+
+
+def _any_states(states: dict[str, dict]) -> dict:
+    """The first non-empty measure's states, for the facts they all agree on.
+
+    Frame rate, duration and cell count come out of the recording rather than
+    out of the measure, so anything reporting them can take whichever measure
+    happens to have loaded.
+    """
+    for by_rec in states.values():
+        if by_rec:
+            return by_rec
+    return {}
+
+
+def _prepare_activity_subtrees(params: Params, recordings, subtrees, log) -> None:
+    """Give each extra measure a complete, self-contained run folder.
+
+    The folder tree, so figures land where every other part of MEA-NAP expects
+    them, and a ``params.json`` describing *that measure alone* — which is what
+    lets the HTML report, the bundle viewer and ``meanap-stats`` be pointed
+    straight at ``ByActivityType/denoisedF/`` and read it as an ordinary run.
+    Without the params file they would read the parent run's, and label every
+    figure with the primary measure's name.
+    """
+    from meanap.params import save_params
+    from meanap.pipeline.output_folders import create_output_folders
+
+    groups = sorted({rec.group for rec in recordings})
+    primary = primary_activity(params)
+    for activity, (p_act, root_act) in subtrees.items():
+        if activity == primary:
+            continue  # the run folder itself, already created by the runner
+        try:
+            create_output_folders(root_act.parent, root_act.name, groups,
+                                  include_not_box_plots=params.include_not_box_plots)
+            save_params(p_act, root_act)
+        except Exception as e:
+            log(f"  Warning: could not prepare the {activity!r} output folder "
+                f"({root_act}): {e}")
+
+
+def _params_for(params: Params, activity: str) -> Params:
+    """*params* as a single-measure configuration for *activity*.
+
+    Cached per call site rather than per measure because it is cheap and the
+    alternative — threading an ``activity`` argument through every function
+    below — would put the same information in two places.
+    """
+    from meanap.catnap.activities import activity_params
+
+    return activity_params(params, activity)
+
+
 def _spike_counts(res, twop_activity: str) -> np.ndarray:
     """Per-node activity count used for the active-node inclusion test.
 
@@ -253,6 +341,18 @@ def run_catnap_pipeline(
     — the raw fluorescence matrices are hundreds of MB per recording and are
     re-read from disk in phase 3 for the trace figures.
 
+    **Several measures of activity.** With ``Params.twop_activities`` set, all
+    three phases carry a measure axis: every per-recording dict below is
+    ``{measure: {recording: …}}``, phase 2 places cartography boundaries once
+    per measure, and phase 3 draws each measure's figures into its own output
+    subtree (:mod:`meanap.catnap.activities`). Only phase 1's *loading* is
+    shared — the raw data is read and denoised once per recording however many
+    measures are asked for, which is what makes this one run rather than N.
+    Nothing else is: an event network and a binned correlation network of the
+    same recording are two different networks, and pooling anything across them
+    — boundaries, metric ranges, the RNG stream — would make each measure's
+    numbers depend on which others happened to be in the run.
+
     **Resuming.** Phase 1 writes each recording's adjacency + activity stats to
     ``ExperimentMatFiles/<rec>_catnap.npz`` (:mod:`meanap.catnap.store`). When
     ``params.start_analysis_step >= 4`` it reads that back from ``locator``
@@ -288,6 +388,21 @@ def run_catnap_pipeline(
     source.progress = progress
 
     min_nodes = params.min_number_of_nodes_to_cal_net_met
+    params = _validated_measures(params, log)
+    measures = activity_types(params)
+    # Each measure's outputs go in a complete run subtree of their own; the
+    # primary measure's *is* the run folder, so a one-measure run writes
+    # exactly what it always did. See meanap.catnap.activities.
+    subtrees = {a: (pa, root)
+                for a, pa, root in activity_subtrees(output_root, params)}
+    if is_multi_activity(params):
+        log("  Measures of activity: " + ", ".join(measures)
+            + f" (primary: {measures[0]})")
+        log(f"  Each extra measure writes a full run folder under "
+            f"{BY_ACTIVITY_DIR}/; the tables in this folder pool all of them "
+            "with an ActivityType column.")
+        _prepare_activity_subtrees(params, recordings, subtrees, log)
+
     net_dir = output_root / "4_NetworkActivity"
     net_dir.mkdir(parents=True, exist_ok=True)
     state_dir = output_root / ADJM_SUBDIR
@@ -295,11 +410,16 @@ def run_catnap_pipeline(
 
     resuming = params.start_analysis_step >= RESUME_STEP
 
-    all_results: dict[str, dict] = {}
-    all_stats: dict[str, dict] = {}
-    all_channels: dict[str, np.ndarray] = {}
-    states: dict[str, RecordingState] = {}
-    subnetwork_tables: dict[str, list] = {"summary": [], "node": [], "mix": []}
+    # Every one of these is now ``{measure: {recording: …}}``. Two measures of
+    # the same recording are two different networks, so nothing about them —
+    # not the cartography boundaries, not the batch metric ranges, not a single
+    # figure — may be pooled across the outer key.
+    all_results: dict[str, dict[str, dict]] = {a: {} for a in measures}
+    all_stats: dict[str, dict[str, dict]] = {a: {} for a in measures}
+    all_channels: dict[str, dict[str, np.ndarray]] = {a: {} for a in measures}
+    states: dict[str, dict[str, RecordingState]] = {a: {} for a in measures}
+    subnetwork_tables: dict[str, dict[str, list]] = {
+        a: {"summary": [], "node": [], "mix": []} for a in measures}
 
     progress.begin("catnap.compute", items=len(recordings))
 
@@ -337,12 +457,17 @@ def run_catnap_pipeline(
     )
     # Filled by the pool as workers finish, so in completion order — see the
     # re-ordering into ``all_results`` after the loop.
-    metric_results: dict[str, dict] = {}
+    metric_results: dict[tuple[str, str], dict] = {}
+    # One progress item per recording however many measures it is analysed
+    # under, so the bar still counts what the log's per-recording lines count.
+    outstanding: dict[str, int] = {}
 
-    def _metrics_done(result: tuple[str, dict]) -> None:
-        name, rec_results = result
-        metric_results[name] = rec_results
-        progress.item_done(name)
+    def _metrics_done(result: tuple[str, str, dict]) -> None:
+        activity, name, rec_results = result
+        metric_results[(activity, name)] = rec_results
+        outstanding[name] = outstanding.get(name, 0) - 1
+        if outstanding.get(name, 0) <= 0:
+            progress.item_done(name)
 
     with StreamingPool(n_metric_workers, on_result=_metrics_done,
                        cancel_check=should_cancel,
@@ -358,45 +483,60 @@ def run_catnap_pipeline(
             # activity stats are already in *this* folder, so load them rather than
             # redoing the STTC and the circular-shift thresholding, which is the
             # expensive half of the CAT-NAP path.
-            continued = already_done(
-                params, output_root,
-                state_dir / f"{rec.filename}{CATNAP_SUFFIX}", log)
+            # Every measure has to be there: a continued run that found only
+            # the primary measure's file would quietly drop the others, and the
+            # recording would be missing from exactly the comparison the extra
+            # measures were run for.
+            continued = all(
+                already_done(
+                    params, output_root,
+                    output_root / (_state_subdir(params, activity) or "")
+                    / ADJM_SUBDIR / f"{rec.filename}{CATNAP_SUFFIX}", log)
+                for activity in measures)
             if continued:
                 log(f"  [{rec.filename}] already computed — loading")
 
             loaded = (
-                _load_recording(locator, rec, plane0, log) if (resuming or continued)
-                else _compute_recording(params, rec, plane0, log,
-                                        make_rng(params.random_seed, "catnap",
-                                                 rec.filename))
+                _load_recording(locator, params, rec, plane0, log)
+                if (resuming or continued)
+                else _compute_recording(params, rec, plane0, log)
             )
-            if loaded is None:
+            if not loaded:
                 if not resuming:
                     source.unpin(rec.filename)
                     source.release(rec.filename)
                 continue
-            state, stats = loaded
 
             # Always re-read: cheap, and it means a resumed run picks up an edited
             # cell-type spreadsheet instead of freezing the first run's grouping.
             # A bundle carries a copy of the markers for recipients who have no
             # spreadsheet at all, so the live reading only wins when it found one.
-            groups, markers = _resolve_cell_types(params, rec, state.channels, log)
-            if groups is not None or state.groups is None:
-                state.groups = groups
-            if markers is not None or state.markers is None:
-                state.markers = markers
+            # Read once and shared: cell identity is a property of the field of
+            # view, not of how activity in it was measured.
+            first_state = next(iter(loaded.values()))[0]
+            groups, markers = _resolve_cell_types(
+                params, rec, first_state.channels, log)
 
-            all_stats[rec.filename] = stats
-            all_channels[rec.filename] = state.channels
-            states[rec.filename] = state
+            outstanding[rec.filename] = len(loaded)
+            for activity, (state, stats) in loaded.items():
+                if groups is not None or state.groups is None:
+                    state.groups = groups
+                if markers is not None or state.markers is None:
+                    state.markers = markers
 
-            try:
-                save_recording_state(
-                    state_dir / f"{rec.filename}{CATNAP_SUFFIX}", state, stats)
-            except Exception as e:
-                log(f"  [{rec.filename}] warning: could not save step-2 data for "
-                    f"re-runs: {e}")
+                all_stats[activity][rec.filename] = stats
+                all_channels[activity][rec.filename] = state.channels
+                states[activity][rec.filename] = state
+
+                sub_state_dir = (output_root / (_state_subdir(params, activity) or "")
+                                 / ADJM_SUBDIR)
+                try:
+                    sub_state_dir.mkdir(parents=True, exist_ok=True)
+                    save_recording_state(
+                        sub_state_dir / f"{rec.filename}{CATNAP_SUFFIX}", state, stats)
+                except Exception as e:
+                    log(f"  [{rec.filename}] warning: could not save step-2 data for "
+                        f"re-runs: {e}")
 
             # Everything derived from this recording is now on disk, so its raw
             # files are no longer needed — unless the trace figures still want them
@@ -409,20 +549,24 @@ def run_catnap_pipeline(
             # Hand the expensive half off. ``submit`` blocks once the pool is
             # saturated, which is what stops the stream fetching further ahead
             # than the metrics can keep up with.
-            kind = timescale_kind(params)
-            lags = [lag for lag, _ in sorted_adjm_items(state.adjMs)]
-            log(f"  [{rec.filename}] network metrics "
-                f"({kind}{'' if len(lags) == 1 else 's'} "
-                f"{', '.join(str(lag) for lag in lags)} ms)…")
-            pool.submit(_metrics_worker, _MetricsTask(
-                filename=rec.filename,
-                adjMs=state.adjMs,
-                spike_counts=state.spike_counts,
-                duration_s=state.duration_s,
-                lag_independent=state.lag_independent,
-                params=params,
-                min_nodes=min_nodes,
-            ))
+            for activity, (state, _stats) in loaded.items():
+                p_act = subtrees[activity][0]
+                kind = timescale_kind(p_act)
+                lags = [lag for lag, _ in sorted_adjm_items(state.adjMs)]
+                note = f" [{activity}]" if len(loaded) > 1 else ""
+                log(f"  [{rec.filename}]{note} network metrics "
+                    f"({kind}{'' if len(lags) == 1 else 's'} "
+                    f"{', '.join(str(lag) for lag in lags)} ms)…")
+                pool.submit(_metrics_worker, _MetricsTask(
+                    filename=rec.filename,
+                    adjMs=state.adjMs,
+                    spike_counts=state.spike_counts,
+                    duration_s=state.duration_s,
+                    lag_independent=state.lag_independent,
+                    params=p_act,
+                    min_nodes=min_nodes,
+                    activity=activity,
+                ))
 
         pool.drain()
 
@@ -435,85 +579,133 @@ def run_catnap_pipeline(
     # so everything downstream — the cartography barrier that pools PC/Z across
     # recordings, the batch metric bounds, the CSVs — sees exactly the sequence
     # it saw when this loop was serial.
-    for rec in recordings:
-        if rec.filename in metric_results:
-            all_results[rec.filename] = metric_results[rec.filename]
+    for activity in measures:
+        for rec in recordings:
+            if (activity, rec.filename) in metric_results:
+                all_results[activity][rec.filename] = \
+                    metric_results[(activity, rec.filename)]
 
-    _log_sampling_rates(states, log)
+    # Acquisition rate is a property of the recording, so it is the same under
+    # every measure — reported once, from whichever measure has the states.
+    _log_sampling_rates(_any_states(states), log)
 
     # ── Phase 2: reduce — data-driven node-cartography boundaries ─────────────
     # Pool PC/Z over the whole batch and re-place the six role boundaries, then
     # re-classify every node (port of MEApipeline.m's autoSetCartographyBoundaries
     # barrier). Without this the roles come from the fixed Params defaults and
     # almost every node lands in role 1.
-    if params.auto_set_cartography_boundaries and all_results:
-        check_cancel(should_cancel)
-        # ``out_dir=None`` suppresses the pooled PC/Z landscape scatter — a
-        # figure, and one the bundle's metrics can redraw.
-        _apply_cartography_boundaries(
-            params, all_results, log,
-            out_dir=None if params.express_mode else net_dir)
-
-    # Pooled node-metric ranges, so the ``_scaled`` network plots of different
-    # recordings share an axis.
-    batch_bounds = {m: _batch_metric_bounds(all_results, m)
-                    for m in ("ND", "NS", "BC", "PC", "Eloc")}
+    #
+    # Per measure, never pooled across them: an STTC event network and a binned
+    # correlation network have PC/Z distributions that do not live on the same
+    # scale, so one shared set of boundaries would put the two measures' roles
+    # in different places and then invite the reader to compare them.
+    batch_bounds: dict[str, dict] = {}
+    for activity in measures:
+        p_act, root_act = subtrees[activity]
+        results_act = all_results[activity]
+        if params.auto_set_cartography_boundaries and results_act:
+            check_cancel(should_cancel)
+            # ``out_dir=None`` suppresses the pooled PC/Z landscape scatter — a
+            # figure, and one the bundle's metrics can redraw.
+            _apply_cartography_boundaries(
+                p_act, results_act, log,
+                out_dir=None if params.express_mode
+                else root_act / "4_NetworkActivity")
+        # Pooled node-metric ranges, so the ``_scaled`` network plots of
+        # different recordings share an axis.
+        batch_bounds[activity] = {m: _batch_metric_bounds(results_act, m)
+                                  for m in ("ND", "NS", "BC", "PC", "Eloc")}
 
     # ── Phase 3: plot ─────────────────────────────────────────────────────────
     progress.phase_done()
     progress.begin("catnap.plot", items=len(recordings))
     for rec in recordings:
-        state = states.get(rec.filename)
-        if state is None:
+        # Whichever measures this recording has, not necessarily the primary:
+        # resuming a two-measure run against a one-measure prior analysis can
+        # leave a recording with only the *other* measure, and dropping it from
+        # the figures because the primary is missing would lose work that was
+        # done.
+        present = [a for a in measures if rec.filename in states[a]]
+        if not present:
             continue
         check_cancel(should_cancel)
         # The backdrop came from phase 1; this only re-opens the folder when
-        # per-cell trace figures were asked for.
-        data, background = _reload_for_plots(params, rec, state, log, source)
-        # Persisted, not just drawn: figure 12 is the one plot that needs pixels
-        # rather than metrics, so a bundle has to carry the projection or it
-        # could never be reconstructed.
-        try:
-            save_background(
-                state_dir / f"{rec.filename}{BACKGROUND_SUFFIX}", background)
-        except Exception as e:
-            log(f"  [{rec.filename}] warning: could not save mean projection: {e}")
+        # per-cell trace figures were asked for — once per recording, not once
+        # per measure, because the traces it draws are the raw and denoised
+        # fluorescence and neither depends on the measure.
+        data, _ = _reload_for_plots(
+            params, rec, states[present[0]][rec.filename], log, source)
+        _plot_traces(params, rec, output_root, log, data)
 
-        _plot_recording(params, rec, state, all_results[rec.filename],
-                        batch_bounds, output_root, log, data, background)
+        for activity in present:
+            state = states[activity][rec.filename]
+            if rec.filename not in all_results[activity]:
+                continue
+            p_act, root_act = subtrees[activity]
+            # Persisted, not just drawn: figure 12 is the one plot that needs
+            # pixels rather than metrics, so a bundle has to carry the
+            # projection or it could never be reconstructed. Written into every
+            # measure's subtree so each one opens as a complete run folder.
+            try:
+                save_background(
+                    root_act / ADJM_SUBDIR / f"{rec.filename}{BACKGROUND_SUFFIX}",
+                    state.background)
+            except Exception as e:
+                log(f"  [{rec.filename}] warning: could not save mean projection: {e}")
 
-        if params.twop_subnetwork_analysis:
-            _run_subnetwork_analysis(
-                params, rec, state, all_results[rec.filename],
-                min_nodes, output_root, subnetwork_tables, log,
-                make_rng(params.random_seed, "catnap_subnetwork", rec.filename),
-                background,
-            )
+            _plot_recording(p_act, rec, state, all_results[activity][rec.filename],
+                            batch_bounds[activity], root_act, log, state.background)
+
+            if params.twop_subnetwork_analysis:
+                _run_subnetwork_analysis(
+                    p_act, rec, state, all_results[activity][rec.filename],
+                    min_nodes, root_act, subnetwork_tables[activity], log,
+                    make_rng(params.random_seed, "catnap_subnetwork", rec.filename),
+                    state.background,
+                )
         progress.item_done(rec.filename)
 
     progress.phase_done()
     progress.begin("batch", items=1)
-    _save_catnap_results(recordings, all_results, all_stats, all_channels, net_dir, log,
-                         sampling_rates={name: float(st.fs)
-                                         for name, st in states.items() if st.fs})
-    _save_subnetwork_results(subnetwork_tables, net_dir, log)
-    _plot_group_comparisons(
-        params, recordings, all_results, all_stats, all_channels,
-        subnetwork_tables, states, output_root, log,
-    )
+    rates = {name: float(st.fs)
+             for name, st in _any_states(states).items() if st.fs}
+    _save_catnap_results(params, recordings, all_results, all_stats, all_channels,
+                         output_root, log, sampling_rates=rates)
+    _save_subnetwork_results(params, subnetwork_tables, output_root, log)
+    for activity in measures:
+        p_act, root_act = subtrees[activity]
+        _plot_group_comparisons(
+            p_act, recordings, all_results[activity], all_stats[activity],
+            all_channels[activity], subnetwork_tables[activity],
+            states[activity], root_act, log,
+        )
     progress.phase_done()
     log("  CAT-NAP pipeline complete.")
 
 
 def _compute_recording(
-    params: Params, rec: RecordingInfo, plane0: Path, log, rng,
-) -> tuple[RecordingState, dict] | None:
-    """Build one recording's adjacency + activity stats from its suite2p folder.
+    params: Params, rec: RecordingInfo, plane0: Path, log,
+) -> dict[str, tuple[RecordingState, dict]] | None:
+    """Build one recording's adjacency + activity stats, for every measure.
 
     This is the expensive half of the CAT-NAP path — denoising, then STTC with
     ``prob_thresh_rep_num`` circular-shift surrogates per lag — and the half a
     step-4 resume skips. Returns ``None`` (having logged why) when the
-    recording has no suite2p output to read.
+    recording has no suite2p output to read; otherwise ``{measure: (state,
+    stats)}`` with one entry per measure the run analyses.
+
+    The loading and the denoising happen **once** no matter how many measures
+    are asked for. That is the whole reason a multi-measure run is one run
+    rather than several: the fluorescence matrices are hundreds of MB and the
+    peak detection is not cheap, and every measure is derived from the same
+    pass over them. What is genuinely per-measure — the adjacency, the activity
+    statistics, the active-node counts — is what the loop below repeats.
+
+    Each measure gets a generator seeded identically, not a shared one drawn
+    down in sequence. A stream shared across measures would make ``peaks``
+    produce different numbers depending on which other measures were run beside
+    it, and the first thing anyone does with a multi-measure run is compare it
+    against a single-measure one.
     """
     from meanap.catnap.denoising import process_suite2p_folder
 
@@ -539,7 +731,8 @@ def _compute_recording(
     log(f"  [{rec.filename}] {data.fs:.4g} Hz, {data.n_frames} frames "
         f"({data.duration_s:.0f} s)")
 
-    if params.twop_activity in _NEEDS_DENOISING and (
+    measures = activity_types(params)
+    if any(a in _NEEDS_DENOISING for a in measures) and (
         data.F_denoised is None or params.twop_redo_denoising
     ):
         log(f"  [{rec.filename}] denoising ({data.F.shape[0]} ROIs)…")
@@ -555,36 +748,44 @@ def _compute_recording(
         )
         data = load_suite2p(plane0, derived, rec.filename)
 
-    log(f"  [{rec.filename}] building adjacency matrices…")
-    res = suite2p_to_adjm(
-        data, params.twop_activity, params.func_con_lag_val,
-        remove_nodes_with_no_peaks=params.remove_nodes_with_no_peaks,
-        prob_thresh_tail=params.prob_thresh_tail,
-        prob_thresh_rep_num=params.prob_thresh_rep_num,
-        rng=rng,
-    )
-    _log_bin_rounding(res, log, rec.filename)
-    duration_s = res.F.shape[0] / res.fs
+    out: dict[str, tuple[RecordingState, dict]] = {}
+    for activity in measures:
+        p_act = _params_for(params, activity)
+        label = f"  [{rec.filename}]" + (f" [{activity}]" if len(measures) > 1 else "")
+        log(f"{label} building adjacency matrices…")
+        res = suite2p_to_adjm(
+            data, activity, params.func_con_lag_val,
+            remove_nodes_with_no_peaks=params.remove_nodes_with_no_peaks,
+            prob_thresh_tail=params.prob_thresh_tail,
+            prob_thresh_rep_num=params.prob_thresh_rep_num,
+            rng=make_rng(params.random_seed, "catnap", rec.filename),
+        )
+        _log_bin_rounding(res, log, rec.filename)
+        duration_s = res.F.shape[0] / res.fs
 
-    state = RecordingState(
-        adjMs=res.adjMs, coords=res.coords, channels=res.channels,
-        spike_counts=_spike_counts(res, params.twop_activity),
-        duration_s=duration_s, fs=res.fs, plane0=plane0,
-        coord_norm=res.coord_norm,
-    )
-    state.lag_independent = _lag_independent_metrics(res, params, duration_s, log,
-                                                     rec.filename, rng)
-    # Capture the field-of-view backdrop now, while the (large) suite2p data is
-    # already loaded. Phase 3 used to re-open the whole folder just for this;
-    # doing it here means the raw data is read once per recording, which is what
-    # lets a batch stream through bounded local storage.
-    if params.twop_network_background:
-        state.background = quantize_background(
-            _mean_image_background(data.mean_img, res.coord_norm))
-        if state.background is None:
-            log(f"  [{rec.filename}] note: no mean projection in ops — "
-                "network plots drawn without a backdrop")
-    return state, _activity_stats_for(res, params, duration_s)
+        state = RecordingState(
+            adjMs=res.adjMs, coords=res.coords, channels=res.channels,
+            spike_counts=_spike_counts(res, activity),
+            duration_s=duration_s, fs=res.fs, plane0=plane0,
+            coord_norm=res.coord_norm,
+        )
+        state.lag_independent = _lag_independent_metrics(
+            res, p_act, duration_s, log, rec.filename,
+            make_rng(params.random_seed, "catnap", rec.filename))
+        # Capture the field-of-view backdrop now, while the (large) suite2p data
+        # is already loaded. Phase 3 used to re-open the whole folder just for
+        # this; doing it here means the raw data is read once per recording,
+        # which is what lets a batch stream through bounded local storage. The
+        # normalisation is per measure because ``remove_nodes_with_no_peaks``
+        # can drop nodes and move the centroid range with them.
+        if params.twop_network_background:
+            state.background = quantize_background(
+                _mean_image_background(data.mean_img, res.coord_norm))
+            if state.background is None and activity == measures[0]:
+                log(f"  [{rec.filename}] note: no mean projection in ops — "
+                    "network plots drawn without a backdrop")
+        out[activity] = (state, _activity_stats_for(res, p_act, duration_s))
+    return out
 
 
 def _activity_matrix_for(res, twop_activity: str) -> np.ndarray | None:
@@ -658,33 +859,54 @@ def _event_times_from_matrix(activity: np.ndarray, fs: float) -> list[np.ndarray
 
 
 def _load_recording(
-    locator: InputLocator, rec: RecordingInfo, plane0: Path, log,
-) -> tuple[RecordingState, dict] | None:
+    locator: InputLocator, params: Params, rec: RecordingInfo, plane0: Path, log,
+) -> dict[str, tuple[RecordingState, dict]] | None:
     """Read one recording's step-2 products back from a previous run.
 
     Mirrors MEApipeline.m's ``priorAnalysis == 1 && startAnalysisStep == 4``
     branch, which loads ``adjMs`` out of the prior ``ExperimentMatFiles`` rather
     than calling ``suite2pToAdjm`` again. Returns ``None`` (having logged why)
-    when the file is absent or unreadable, so one bad recording costs the batch
-    that recording and not the run.
+    when *no* measure could be read, so one bad recording costs the batch that
+    recording and not the run.
+
+    A measure whose file is missing is dropped with a warning and the others
+    still load: resuming a two-measure run against a one-measure prior analysis
+    is a reasonable thing to do by accident, and losing the measure that *is*
+    there would be the worse answer.
     """
-    path = locator.catnap_file(rec.filename)
-    if path is None:
-        log(f"  [{rec.filename}] SKIP: no saved step-2 data "
-            f"({rec.filename}{CATNAP_SUFFIX}) to resume from")
+    out: dict[str, tuple[RecordingState, dict]] = {}
+    for activity in activity_types(params):
+        subdir = _state_subdir(params, activity)
+        path = locator.catnap_file(rec.filename, subdir=subdir)
+        note = f" [{activity}]" if is_multi_activity(params) else ""
+        if path is None:
+            log(f"  [{rec.filename}]{note} SKIP: no saved step-2 data "
+                f"({rec.filename}{CATNAP_SUFFIX}) to resume from")
+            continue
+        try:
+            state, stats = load_recording_state(path, plane0)
+        except Exception as e:
+            log(f"  [{rec.filename}]{note} SKIP: could not read {path}: {e}")
+            continue
+        # Phase 1 didn't run, so the backdrop it would have captured is loaded
+        # from whatever the previous run persisted (present in a bundle, absent
+        # if that run had backgrounds switched off).
+        state.background = load_background(
+            path.with_name(f"{rec.filename}{BACKGROUND_SUFFIX}"))
+        log(f"  [{rec.filename}]{note} reusing adjacency matrices from {path}")
+        out[activity] = (state, stats)
+    return out or None
+
+
+def _state_subdir(params: Params, activity: str) -> Path | None:
+    """Where *activity*'s ``ExperimentMatFiles`` sit, relative to a run root.
+
+    ``None`` for the primary measure, which keeps the top-level folder — see
+    :data:`meanap.catnap.activities.BY_ACTIVITY_DIR`.
+    """
+    if not is_multi_activity(params) or activity == primary_activity(params):
         return None
-    try:
-        state, stats = load_recording_state(path, plane0)
-    except Exception as e:
-        log(f"  [{rec.filename}] SKIP: could not read {path}: {e}")
-        return None
-    # Phase 1 didn't run, so the backdrop it would have captured is loaded from
-    # whatever the previous run persisted (present in a bundle, absent if that
-    # run had backgrounds switched off).
-    state.background = load_background(
-        path.with_name(f"{rec.filename}{BACKGROUND_SUFFIX}"))
-    log(f"  [{rec.filename}] reusing adjacency matrices from {path}")
-    return state, stats
+    return Path(BY_ACTIVITY_DIR) / activity_slug(activity)
 
 
 def _mean_image_background(mean_img, coord_norm) -> tuple | None:
@@ -781,7 +1003,8 @@ def _build_source(params: Params, log):
         f"prefetch depth {params.prefetch_depth})")
     log(f"  derived {params.derived_data_folder}")
     return RecordingSource(
-        store=store, cache=FileCache(root=cache_dir, budget_bytes=budget), log=log)
+        store=store, cache=FileCache(root=cache_dir, budget_bytes=budget), log=log,
+        derived_root=params.derived_data_folder or None)
 
 
 def _reload_for_plots(params, rec, state, log, source=None):
@@ -820,8 +1043,10 @@ def _no_trace_reason(params, data) -> str | None:
     if data is None:
         return "its suite2p folder could not be re-read (see the warning above)"
     if data.F_denoised is None or data.peak_start_frames is None:
-        if params.twop_activity not in _NEEDS_DENOISING:
-            return (f"activity type {params.twop_activity!r} does not denoise, "
+        measures = activity_types(params)
+        if not any(a in _NEEDS_DENOISING for a in measures):
+            named = " or ".join(repr(a) for a in measures)
+            return (f"activity type {named} does not denoise, "
                     "and these figures plot the denoised trace against the "
                     "detected events — use 'peaks' to get them")
         return ("no denoised traces were found for it — denoising did not run "
@@ -831,9 +1056,47 @@ def _no_trace_reason(params, data) -> str | None:
     return None
 
 
+def _plot_traces(params, rec, output_root, log, data=None) -> None:
+    """The per-cell peak-detection trace figures for one recording.
+
+    Split out from the network figures because they are the one family that is
+    the same under every measure of activity: they plot the raw and denoised
+    fluorescence against the detected events, none of which depends on which
+    measure the adjacency was built from. A multi-measure run draws them once,
+    into the primary measure's tree.
+
+    They are also the one family a bundle cannot rebuild — they need the full
+    fluorescence matrices, which are hundreds of MB and deliberately not
+    carried — which is why express mode still draws them.
+    """
+    from meanap.catnap.plotting import plot_2p_traces
+
+    if not params.num_2p_traces:
+        return
+    # Say why when there is nothing to draw. These are the one family a bundle
+    # cannot rebuild, so a run that quietly skips them leaves the reader looking
+    # at an empty section in the viewer with nothing in the log to explain it —
+    # and no way to get them back but another run.
+    reason = _no_trace_reason(params, data)
+    if reason:
+        log(f"  [{rec.filename}] no peak-detection trace figures: {reason}")
+        return
+    try:
+        trace_dir = (output_root / "2_NeuronalActivity"
+                     / "2A_IndividualNeuronalAnalysis"
+                     / rec.group / rec.filename)
+        log(f"  [{rec.filename}] plotting 2P traces…")
+        drawn = plot_2p_traces(data, trace_dir, rec.filename,
+                               num_traces=params.num_2p_traces)
+        if not drawn:
+            log(f"  [{rec.filename}] warning: 2P trace plots produced no figures")
+    except Exception as e:
+        log(f"  [{rec.filename}] warning: 2P trace plots failed: {e}")
+
+
 def _plot_recording(params, rec, state, rec_results, batch_bounds, output_root, log,
-                    data=None, background=None) -> None:
-    """Per-unit trace figures + the full step-4A figure set for one recording.
+                    background=None) -> None:
+    """The full step-4A network figure set for one recording and one measure.
 
     The network figures are the *shared* ``_plot_recording_lag`` — connectivity
     stats, the five spatial network plots (plus their batch-scaled and combined
@@ -846,35 +1109,12 @@ def _plot_recording(params, rec, state, rec_results, batch_bounds, output_root, 
     circular cartography plot show the batch-derived boundaries and the roles
     that the CSVs report.
 
-    In express mode only the trace figures are drawn. They are the one family
-    here that cannot be rebuilt from the run's own outputs — they need the full
-    fluorescence matrices, which are hundreds of MB and deliberately not carried
-    — whereas every network figure is a pure function of data the bundle holds.
+    Nothing is drawn in express mode: every figure here is a pure function of
+    metrics the bundle already carries, so the viewer can rebuild them on
+    demand. The trace figures, which it cannot, are drawn by
+    :func:`_plot_traces` regardless.
     """
-    from meanap.catnap.plotting import plot_2p_traces
     from meanap.pipeline.step4 import _plot_recording_lag
-
-    if params.num_2p_traces:
-        # Say why when there is nothing to draw. These are the one family a
-        # bundle cannot rebuild, so a run that quietly skips them leaves the
-        # reader looking at an empty section in the viewer with nothing in the
-        # log to explain it — and no way to get them back but another run.
-        reason = _no_trace_reason(params, data)
-        if reason:
-            log(f"  [{rec.filename}] no peak-detection trace figures: {reason}")
-        else:
-            try:
-                trace_dir = (output_root / "2_NeuronalActivity"
-                             / "2A_IndividualNeuronalAnalysis"
-                             / rec.group / rec.filename)
-                log(f"  [{rec.filename}] plotting 2P traces…")
-                drawn = plot_2p_traces(data, trace_dir, rec.filename,
-                                       num_traces=params.num_2p_traces)
-                if not drawn:
-                    log(f"  [{rec.filename}] warning: 2P trace plots produced "
-                        "no figures")
-            except Exception as e:
-                log(f"  [{rec.filename}] warning: 2P trace plots failed: {e}")
 
     if params.express_mode:
         return
@@ -1155,105 +1395,204 @@ def _plot_group_comparisons(
             log(f"  Warning: cell-type subnetwork group comparison plots failed: {e}")
 
 
-def _save_subnetwork_results(tables: dict[str, list], net_dir: Path, log) -> None:
-    """Write the three batch-level cell-type subnetwork CSVs."""
-    outputs = {
-        "summary": "Subnetwork_RecordingLevel.csv",
-        "node": "Subnetwork_NodeLevel.csv",
-        "mix": "Subnetwork_EdgeMix.csv",
-    }
-    for key, filename in outputs.items():
-        if not tables[key]:
+#: The three batch-level cell-type subnetwork CSVs.
+_SUBNETWORK_FILES = {
+    "summary": "Subnetwork_RecordingLevel.csv",
+    "node": "Subnetwork_NodeLevel.csv",
+    "mix": "Subnetwork_EdgeMix.csv",
+}
+
+
+def _save_subnetwork_results(params: Params, tables: dict[str, dict[str, list]],
+                             output_root: Path, log) -> None:
+    """Write the cell-type subnetwork CSVs, per measure and pooled.
+
+    Each measure's subtree gets its own copy holding only its rows, so the
+    subtree reads as a complete run; the top level gets every measure's rows in
+    one file with an ``ActivityType`` column, which is the form the statistics
+    step compares measures from.
+    """
+    measures = activity_types(params)
+    multi = is_multi_activity(params)
+    for key, filename in _SUBNETWORK_FILES.items():
+        pooled: list[dict] = []
+        for activity in measures:
+            rows = tables.get(activity, {}).get(key) or []
+            if not rows:
+                continue
+            tagged = [dict(row, ActivityType=activity) for row in rows] if multi else rows
+            pooled.extend(tagged)
+            if not multi:
+                continue
+            sub_dir = (output_root / (_state_subdir(params, activity) or "")
+                       / "4_NetworkActivity")
+            try:
+                sub_dir.mkdir(parents=True, exist_ok=True)
+                pd.DataFrame(rows).to_csv(sub_dir / filename, index=False)
+            except Exception as e:
+                log(f"  Warning: could not save {activity} {filename}: {e}")
+        if not pooled:
             continue
         try:
-            pd.DataFrame(tables[key]).to_csv(net_dir / filename, index=False)
+            pd.DataFrame(pooled).to_csv(
+                output_root / "4_NetworkActivity" / filename, index=False)
         except Exception as e:
             log(f"  Warning: could not save {filename}: {e}")
 
 
 def _save_catnap_results(
+    params: Params,
     recordings: list[RecordingInfo],
-    all_results: dict[str, dict],
-    all_stats: dict[str, dict],
-    all_channels: dict[str, np.ndarray],
-    net_dir: Path,
+    all_results: dict[str, dict[str, dict]],
+    all_stats: dict[str, dict[str, dict]],
+    all_channels: dict[str, dict[str, np.ndarray]],
+    output_root: Path,
     log: Callable[[str], None],
     sampling_rates: dict[str, float] | None = None,
 ) -> None:
-    """Write netmet_results.json + NetworkActivity CSVs (compact port of the
-    save block in ``step4._run_step4_network_metrics``).
+    """Write netmet_results.json + the NetworkActivity / TwoPhotonActivity CSVs
+    (compact port of the save block in ``step4._run_step4_network_metrics``).
 
     ``sampling_rates`` adds a ``samplingRateHz`` column to the recording-level
     tables. It is the only place the rate reaches disk in a readable form —
     params.json cannot carry it, because it is per recording rather than per
     run — and it is what the HTML report and the bundle viewer read back.
+
+    Each measure's ``netmet_results.json`` goes in that measure's own subtree,
+    unchanged in shape, so the viewer and the exporter can read a subtree
+    exactly as they read any run. The four CSVs are written twice over: once per
+    subtree with that measure's rows alone, and once at the top level with every
+    measure's rows carrying an ``ActivityType`` column. The pooled copy is what
+    :mod:`meanap.stats.measures` compares, and it is why a multi-measure run is
+    one run rather than several that happen to share a parent folder.
     """
     rates = sampling_rates or {}
+    measures = activity_types(params)
+    multi = is_multi_activity(params)
+
+    def tag(rows: list[dict], activity: str) -> list[dict]:
+        """Rows with the measure named, positioned before the metrics."""
+        if not multi:
+            return rows
+        return [dict(ActivityType=activity, **row) for row in rows]
+
+    def write(frame: "pd.DataFrame | list[dict]", root: Path, rel: str) -> None:
+        frame = pd.DataFrame(frame) if not isinstance(frame, pd.DataFrame) else frame
+        if frame.empty:
+            return
+        path = root / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        frame.to_csv(path, index=False)
+
+    pooled: dict[str, list[dict]] = {
+        "net_rec": [], "net_node": [], "act_rec": [], "act_node": []}
+
     try:
-        json_results = {
-            rec_name: {
-                lag: {k: v for k, v in metrics.items() if k != "adjMsub"}
-                for lag, metrics in rec_results.items()
+        for activity in measures:
+            root_act = output_root / (_state_subdir(params, activity) or "")
+            results_act = all_results.get(activity) or {}
+            stats_act = all_stats.get(activity) or {}
+            channels_act = all_channels.get(activity) or {}
+
+            json_results = {
+                rec_name: {
+                    lag: {k: v for k, v in metrics.items() if k != "adjMsub"}
+                    for lag, metrics in rec_results.items()
+                }
+                for rec_name, rec_results in results_act.items()
             }
-            for rec_name, rec_results in all_results.items()
-        }
-        with open(net_dir / "netmet_results.json", "w") as fh:
-            json.dump(_convert_numpy(json_results), fh, indent=2)
+            net_dir = root_act / "4_NetworkActivity"
+            net_dir.mkdir(parents=True, exist_ok=True)
+            with open(net_dir / "netmet_results.json", "w") as fh:
+                json.dump(_convert_numpy(json_results), fh, indent=2)
 
-        rec_rows, node_rows = [], []
-        for rec in recordings:
-            if rec.filename not in all_results:
-                continue
-            for lag, metrics in all_results[rec.filename].items():
-                base = {"FileName": rec.filename, "Grp": rec.group, "DIV": rec.div, "Lag": lag}
-                if rec.filename in rates:
-                    base["samplingRateHz"] = rates[rec.filename]
-                rec_row = dict(base)
-                node_metrics = {}
-                for k, v in metrics.items():
-                    if k == "adjMsub" or k in _NMF_NON_NODE_KEYS:
-                        continue
-                    is_array = isinstance(v, (list, np.ndarray))
-                    if not is_array or np.size(v) <= 1:
-                        rec_row[k] = v[0] if is_array and np.size(v) == 1 else v
-                    else:
-                        node_metrics[k] = v
-                rec_rows.append(rec_row)
-                if node_metrics:
-                    num_nodes = len(next(iter(node_metrics.values())))
-                    for ch in range(num_nodes):
-                        node_row = dict(base, Channel=ch + 1)
-                        for k, arr in node_metrics.items():
-                            if len(arr) == num_nodes:
-                                node_row[k] = arr[ch]
-                        node_rows.append(node_row)
+            rec_rows, node_rows = _network_rows(recordings, results_act, rates)
+            act_rows = _activity_rows(recordings, stats_act, rates)
+            _, node_stats = twop_stats_frames(recordings, stats_act, channels_act)
+            act_node_rows = node_stats.to_dict("records") if not node_stats.empty else []
 
-        if rec_rows:
-            pd.DataFrame(rec_rows).to_csv(net_dir / "NetworkActivity_RecordingLevel.csv", index=False)
-        if node_rows:
-            pd.DataFrame(node_rows).to_csv(net_dir / "NetworkActivity_NodeLevel.csv", index=False)
+            pooled["net_rec"].extend(tag(rec_rows, activity))
+            pooled["net_node"].extend(tag(node_rows, activity))
+            pooled["act_rec"].extend(tag(act_rows, activity))
+            pooled["act_node"].extend(tag(act_node_rows, activity))
 
-        # Two-photon activity stats (step-2 equivalent). The recording-level CSV
-        # takes every scalar field; the node-level one carries the per-unit
-        # arrays (event rate, ISI, amplitude, duration, area), which otherwise
-        # only existed in memory — and are what the group comparison figures
-        # plot.
-        twop_dir = net_dir.parent / "2_NeuronalActivity"
-        # samplingRateHz sits next to DIV rather than among the metrics: it
-        # describes how the recording was acquired, not something measured in
-        # it, and every rate below is derived from it.
-        stats_rows = [dict({"FileName": r.filename, "Grp": r.group, "DIV": r.div},
-                           **({"samplingRateHz": rates[r.filename]}
-                              if r.filename in rates else {}),
-                           **{k: v for k, v in all_stats[r.filename].items()
-                              if np.size(v) <= 1})
-                      for r in recordings if r.filename in all_stats]
-        if stats_rows:
-            pd.DataFrame(stats_rows).to_csv(
-                twop_dir / "TwoPhotonActivity_RecordingLevel.csv", index=False)
+            if multi:
+                write(rec_rows, root_act,
+                      "4_NetworkActivity/NetworkActivity_RecordingLevel.csv")
+                write(node_rows, root_act,
+                      "4_NetworkActivity/NetworkActivity_NodeLevel.csv")
+                write(act_rows, root_act,
+                      "2_NeuronalActivity/TwoPhotonActivity_RecordingLevel.csv")
+                write(act_node_rows, root_act,
+                      "2_NeuronalActivity/TwoPhotonActivity_NodeLevel.csv")
 
-        _, node_stats = twop_stats_frames(recordings, all_stats, all_channels)
-        if not node_stats.empty:
-            node_stats.to_csv(twop_dir / "TwoPhotonActivity_NodeLevel.csv", index=False)
+        write(pooled["net_rec"], output_root,
+              "4_NetworkActivity/NetworkActivity_RecordingLevel.csv")
+        write(pooled["net_node"], output_root,
+              "4_NetworkActivity/NetworkActivity_NodeLevel.csv")
+        write(pooled["act_rec"], output_root,
+              "2_NeuronalActivity/TwoPhotonActivity_RecordingLevel.csv")
+        write(pooled["act_node"], output_root,
+              "2_NeuronalActivity/TwoPhotonActivity_NodeLevel.csv")
     except Exception as e:
         log(f"  Warning: could not save CAT-NAP results: {e}")
+
+
+def _network_rows(
+    recordings: list[RecordingInfo], all_results: dict[str, dict],
+    rates: dict[str, float],
+) -> tuple[list[dict], list[dict]]:
+    """One measure's network metrics as recording-level and node-level rows.
+
+    A metric with one value per recording goes in the first table and one with
+    a value per node in the second; ``adjMsub`` and the NMF matrices are neither
+    and are skipped.
+    """
+    rec_rows: list[dict] = []
+    node_rows: list[dict] = []
+    for rec in recordings:
+        if rec.filename not in all_results:
+            continue
+        for lag, metrics in all_results[rec.filename].items():
+            base = {"FileName": rec.filename, "Grp": rec.group, "DIV": rec.div,
+                    "Lag": lag}
+            if rec.filename in rates:
+                base["samplingRateHz"] = rates[rec.filename]
+            rec_row = dict(base)
+            node_metrics = {}
+            for k, v in metrics.items():
+                if k == "adjMsub" or k in _NMF_NON_NODE_KEYS:
+                    continue
+                is_array = isinstance(v, (list, np.ndarray))
+                if not is_array or np.size(v) <= 1:
+                    rec_row[k] = v[0] if is_array and np.size(v) == 1 else v
+                else:
+                    node_metrics[k] = v
+            rec_rows.append(rec_row)
+            if node_metrics:
+                num_nodes = len(next(iter(node_metrics.values())))
+                for ch in range(num_nodes):
+                    node_row = dict(base, Channel=ch + 1)
+                    for k, arr in node_metrics.items():
+                        if len(arr) == num_nodes:
+                            node_row[k] = arr[ch]
+                    node_rows.append(node_row)
+    return rec_rows, node_rows
+
+
+def _activity_rows(
+    recordings: list[RecordingInfo], all_stats: dict[str, dict],
+    rates: dict[str, float],
+) -> list[dict]:
+    """One measure's two-photon activity stats, one row per recording.
+
+    ``samplingRateHz`` sits next to DIV rather than among the metrics: it
+    describes how the recording was acquired, not something measured in it, and
+    every rate below is derived from it.
+    """
+    return [dict({"FileName": r.filename, "Grp": r.group, "DIV": r.div},
+                 **({"samplingRateHz": rates[r.filename]}
+                    if r.filename in rates else {}),
+                 **{k: v for k, v in all_stats[r.filename].items()
+                    if np.size(v) <= 1})
+            for r in recordings if r.filename in all_stats]

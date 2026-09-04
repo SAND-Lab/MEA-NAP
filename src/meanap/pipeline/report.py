@@ -31,6 +31,8 @@ FOLDER_DESCRIPTIONS: dict[str, str] = {
     "4B_GroupComparisons": "Network metrics pooled across the whole batch and compared between experimental groups and ages, one sub-folder per connectivity timescale (STTC lag, or correlation bin on a CAT-NAP correlation run).",
     "5_StatsAndML": "Step 5 — statistics and machine learning. Comparisons between experimental groups and ages, the correlation structure of the metrics, decoding of genotype or age from them, and how much of a target each metric explains. One sub-folder per connectivity timescale. Unlike steps 1-4 this is not part of a pipeline run: it is run over a finished run, from the Stats & ML tab or the meanap-stats command.",
     "ExperimentMatFiles": "Per-recording adjacency matrices (STTC, raw + significance-thresholded) saved as .npz, one file per recording.",
+    "ByActivityType": "CAT-NAP only, and only when the run analysed more than one measure of activity. One complete run folder per extra measure — its own ExperimentMatFiles, per-recording figures, group comparisons and netmet_results.json — named by the measure. The primary measure keeps the top-level folders; the tables at the top level pool every measure with an ``ActivityType`` column, which is what the statistics step compares them from.",
+    "MeasureComparison": "Step 5, CAT-NAP only. How the choice of activity measure changes the result: whether the measures rank recordings alike, how far each metric's value moves, and — the part that matters — whether the group and age conclusions survive the change. One sub-folder per connectivity timescale.",
     # Comparison sub-folders (shared by the ephys and CAT-NAP paths).
     "1_NodeByGroup": "Node-level metrics compared between experimental groups — one subplot per group, x-axis = age. Every node of every recording contributes a point.",
     "2_NodeByAge": "The same node-level metrics, transposed: one subplot per age, x-axis = experimental group.",
@@ -423,6 +425,13 @@ _DATA_FILE_DESCRIPTIONS: list[tuple[re.Pattern, str]] = [
     (re.compile(r"^Subnetwork_NodeLevel\.csv$"), "CAT-NAP. One row per recording x lag x node x cell type: whole-network node metrics labelled by type, plus each node's within-group strength fraction. Long format — a cell positive for two markers appears once per group."),
     (re.compile(r"^Subnetwork_EdgeMix\.csv$"), "CAT-NAP. One row per recording x lag x cell-type pair: edge density and mean weight within and between types."),
     (re.compile(r"^step_durations\.json$"), "Wall-clock seconds spent in each pipeline step, for performance comparison."),
+    # Step 5, cross-measure comparison. Only written by a CAT-NAP run that
+    # analysed more than one measure of activity.
+    (re.compile(r"^measure_agreement\.csv$"), "Step 5. One row per (metric, pair of activity measures): Spearman and Pearson correlation between the values the two measures give, Lin's concordance coefficient, and the Bland-Altman bias and limits of agreement in the metric's own units. High correlation with low concordance means the measures rank recordings alike but on different scales."),
+    (re.compile(r"^measure_differences\.csv$"), "Step 5. One row per (metric, pair of activity measures): the paired Wilcoxon signed-rank test of the within-recording difference, its FDR-corrected p-value, the median difference and percent change, and a paired standardised effect size (Hedges' g_av, standardised by the pooled SD of the two measures)."),
+    (re.compile(r"^measure_effects\.csv$"), "Step 5. The run's own mixed-model group and age effects, stacked with an ``ActivityType`` column — the same numbers each measure's ``comparisons.csv`` reports, side by side."),
+    (re.compile(r"^measure_concordance\.csv$"), "Step 5. One row per (metric, model term, pair of measures): both effect sizes, both FDR-corrected p-values, and a verdict — whether both measures found the effect, one did, or neither. The table to check before quoting a result without naming the measure it came from."),
+    (re.compile(r"^measure_decoding\.csv$"), "Step 5. Best decoding score per activity measure, against chance — which measure carries the most information about the target."),
     # Step 5. Every figure in this folder is a pure function of these tables,
     # which is why a bundle carries them and drops the pictures.
     (re.compile(r"^comparisons\.csv$"), "Step 5. One row per (metric, test, term): the estimate, the test statistic, the raw p-value and its Benjamini-Hochberg partner (corrected within the family named in the row), and an effect size whose name the row states. Covers the mixed models, the per-age group contrasts and the paired age contrasts."),
@@ -646,10 +655,19 @@ def _report_timescale(output_root: Path) -> str:
             data = json.load(f)
     except (OSError, ValueError):
         return "STTC lag"
-    if (data.get("suite2p_mode")
-            and data.get("twop_activity") in CORRELATION_ACTIVITIES):
-        return "correlation bin"
-    return "STTC lag"
+    if not data.get("suite2p_mode"):
+        return "STTC lag"
+    measures = [str(a) for a in (data.get("twop_activities") or ())]
+    if not measures:
+        measures = [str(data.get("twop_activity") or "peaks")]
+    kinds = {("correlation bin" if m in CORRELATION_ACTIVITIES else "STTC lag")
+             for m in measures}
+    if len(kinds) > 1:
+        # A run analysing calcium events beside a continuous trace produces
+        # both, filed under different measures — naming only one would
+        # mislabel half the folder.
+        return "STTC lag or correlation bin, depending on the measure of activity"
+    return kinds.pop()
 
 
 def generate_report(output_root: Path | str, out_path: Path | str | None = None) -> Path:

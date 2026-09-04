@@ -1732,6 +1732,11 @@ def available_stats_lags(ctx: RenderContext) -> list[str]:
     return available_lags(_stats_root(ctx))
 
 
+#: Re-exported so this module's own lag handling and the statistics step agree
+#: about which folder holds the cross-measure comparison.
+MEASURES_PREFIX = "MeasureComparison"
+
+
 def stats_results(ctx: RenderContext, lag: str):
     """The stored statistics results for one lag, loaded once per context.
 
@@ -1754,12 +1759,32 @@ def stats_results(ctx: RenderContext, lag: str):
         cache[lag] = None
         return None
     dataset = load_dataset(ctx.root)
+    # A run that analysed several measures of activity nests its folders one
+    # level deeper (``peaks/1000mslag``), and the dataset behind such a folder
+    # is that measure's rows alone — the same subsetting the step itself did.
+    # ``MeasureComparison`` is the exception: it belongs to no single measure,
+    # so it keeps every row for the lag.
+    measure, _, stem = str(lag).rpartition("/")
+    if measure and measure != MEASURES_PREFIX:
+        dataset = _stats_activity_subset(dataset, measure)
     # "all" is the folder a run with no lag axis writes to; there is nothing to
     # subset by in that case.
     cache[lag] = load_results(
-        folder, dataset if lag == "all" else dataset.for_lag(_stats_lag_value(dataset, lag)),
-        lag=lag)
+        folder,
+        dataset if stem == "all" else dataset.for_lag(_stats_lag_value(dataset, stem)),
+        lag=stem)
     return cache[lag]
+
+
+def _stats_activity_subset(dataset, slug: str):
+    """The rows of one measure of activity, addressed by its folder slug."""
+    from meanap.catnap.activities import activity_from_slug
+
+    name = activity_from_slug(slug)
+    for value in dataset.activities:
+        if str(value) == name or str(value) == slug:
+            return dataset.for_activity(value)
+    return dataset
 
 
 def _stats_lag_value(dataset, lag: str):

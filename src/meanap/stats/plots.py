@@ -47,6 +47,10 @@ __all__ = [
     "plot_family_alone_vs_unique",
     "plot_family_contributions",
     "plot_lda_projection",
+    "plot_measure_agreement",
+    "plot_measure_concordance",
+    "plot_measure_decoding",
+    "plot_measure_differences",
     "plot_metric_trajectories",
     "plot_observed_vs_predicted",
     "plot_pca_variance",
@@ -126,9 +130,10 @@ def plot_effect_heatmap(
     makes a huge effect in a small group look identical to a trivial effect in
     a large one.
     """
+    from meanap.stats.comparisons import SIGNED_EFFECT_SIZES
+
     sub = table[table["Family"] == family]
-    sub = sub[sub["EffectSizeName"].isin(
-        {"standardised beta", "SD change across age range", "Hedges g", "Cohen dz"})]
+    sub = sub[sub["EffectSizeName"].isin(SIGNED_EFFECT_SIZES)]
     if sub.empty:
         return None
 
@@ -1632,4 +1637,250 @@ def plot_metric_values(
              "scaled on its own. Every condition uses the recordings all of "
              "them have.",
              fontsize=7.5, color=MUTED, va="bottom")
+    return _save(fig, out_path)
+
+
+# ── measure of activity ──────────────────────────────────────────────────────
+#
+# Four figures answering one question in increasing order of consequence: do
+# the measures rank recordings alike, do they give the same values, do they
+# give the same conclusion, and which of them carries the most signal. See
+# meanap.stats.measures for what each table means.
+
+def _pair_label(a: str, b: str) -> str:
+    return f"{a} vs {b}"
+
+
+def plot_measure_agreement(result, out_path: Path) -> Path | None:
+    """Metrics × measure pairs, coloured by how alike the two measures rank them.
+
+    Spearman rho rather than the agreement coefficient beside it in the table:
+    the ranking is the part that has to hold for a group comparison to survive
+    a change of measure, and two measures on different scales — which an event
+    network and a correlation network always are — would show as poor agreement
+    on any statistic that also asks for the same *values*.
+
+    Signed, and drawn on the diverging map for that reason: a metric that
+    anti-correlates across measures is a much louder finding than one that
+    merely fails to correlate, and a sequential map would hide the difference
+    at the bottom of the scale.
+    """
+    table = getattr(result, "agreement", None)
+    if table is None or table.empty:
+        return None
+    sub = table.copy()
+    sub["Pair"] = [_pair_label(a, b) for a, b in zip(sub["MeasureA"], sub["MeasureB"])]
+    wide = sub.pivot_table(index="MetricLabel", columns="Pair", values="Spearman")
+    wide = wide.dropna(how="all").dropna(axis=1, how="all")
+    if wide.empty:
+        return None
+    # Worst agreement at the top: those are the rows a reader has to act on.
+    wide = wide.reindex(wide.abs().min(axis=1).sort_values().index)
+
+    n_rows, n_cols = wide.shape
+    fig, ax = plt.subplots(figsize=(max(4.0, 1.9 * n_cols + 2.4),
+                                    max(3.0, 0.28 * n_rows + 1.4)))
+    mesh = ax.imshow(wide.to_numpy(), cmap=DIVERGING, vmin=-1, vmax=1, aspect="auto")
+
+    norm = matplotlib.colors.Normalize(vmin=-1, vmax=1)
+    cmap = matplotlib.colormaps[DIVERGING]
+    for i in range(n_rows):
+        for j in range(n_cols):
+            value = wide.iat[i, j]
+            if not np.isfinite(value):
+                continue
+            r, g, b, _ = cmap(norm(value))
+            ink = "white" if (0.299 * r + 0.587 * g + 0.114 * b) < 0.55 else INK
+            ax.text(j, i, f"{value:.2f}", ha="center", va="center",
+                    fontsize=7, color=ink)
+
+    ax.set_xticks(range(n_cols))
+    ax.set_xticklabels(wide.columns, rotation=20, ha="right", fontsize=8)
+    ax.set_yticks(range(n_rows))
+    ax.set_yticklabels(wide.index, fontsize=7)
+    ax.set_title("Do the measures rank recordings the same way?\n"
+                 "Spearman rho between measures, over matched recordings",
+                 fontsize=10)
+    bar = fig.colorbar(mesh, ax=ax, fraction=0.035, pad=0.02)
+    bar.set_label("Spearman rho", fontsize=8)
+    bar.ax.tick_params(labelsize=7)
+    return _save(fig, out_path)
+
+
+def plot_measure_differences(result, out_path: Path, *, alpha: float = 0.05,
+                             limit: int = 30) -> Path | None:
+    """Paired standardised difference per metric, largest shift first.
+
+    A dot per metric per measure pair, at ``g_av`` — the shift in the metric
+    when the same recordings are measured the other way, in pooled standard
+    deviations. Filled dots survived FDR correction; open dots did not.
+
+    The zero line is the claim being tested: a metric sitting on it is one whose
+    reported mean would not have changed had the other measure been used.
+    """
+    table = getattr(result, "differences", None)
+    if table is None or table.empty:
+        return None
+    sub = table.dropna(subset=["HedgesG"]).copy()
+    if sub.empty:
+        return None
+    sub["Pair"] = [_pair_label(a, b) for a, b in zip(sub["MeasureA"], sub["MeasureB"])]
+
+    # Rank metrics by their largest shift under any pair, then keep the top
+    # few: fifty rows of dots is a figure nobody reads, and the full table is
+    # on disk beside it.
+    order = (sub.groupby("MetricLabel")["HedgesG"].apply(lambda v: v.abs().max())
+             .sort_values(ascending=False))
+    keep = list(order.index[:limit])
+    sub = sub[sub["MetricLabel"].isin(keep)]
+    positions = {name: i for i, name in enumerate(reversed(keep))}
+
+    pairs = list(pd.unique(sub["Pair"]))
+    colours = dict(zip(pairs, plt.get_cmap("tab10").colors))
+    offsets = np.linspace(-0.22, 0.22, len(pairs)) if len(pairs) > 1 else [0.0]
+
+    fig, ax = plt.subplots(figsize=(6.4, max(3.0, 0.26 * len(keep) + 1.4)))
+    ax.axvline(0.0, color=MUTED, lw=1.0, zorder=0)
+    pcol = "PValueFDR" if "PValueFDR" in sub.columns else "PValue"
+    for pair, offset in zip(pairs, offsets):
+        block = sub[sub["Pair"] == pair]
+        y = [positions[name] + offset for name in block["MetricLabel"]]
+        sig = pd.to_numeric(block[pcol], errors="coerce") < alpha
+        colour = colours[pair]
+        ax.scatter(block["HedgesG"][sig], np.asarray(y)[sig.to_numpy()],
+                   s=26, color=colour, label=pair, zorder=3)
+        ax.scatter(block["HedgesG"][~sig], np.asarray(y)[~sig.to_numpy()],
+                   s=26, facecolors="none", edgecolors=colour, zorder=3)
+
+    ax.set_yticks(list(positions.values()))
+    ax.set_yticklabels(list(positions.keys()), fontsize=7)
+    ax.set_xlabel("paired difference between measures (Hedges' g$_{av}$)", fontsize=9)
+    ax.set_title("How far do the values move when the measure changes?\n"
+                 f"filled = significant after FDR correction (p < {alpha})",
+                 fontsize=10)
+    if len(pairs) > 1:
+        ax.legend(fontsize=7, frameon=False, loc="best")
+    _bare(ax)
+    return _save(fig, out_path)
+
+
+#: Colour per concordance verdict. Green for the two agreements, warm for the
+#: two disagreements, so the figure reads before the legend does.
+_VERDICT_COLORS = {
+    "agree (both significant)": "#2f7d46",
+    "agree (neither significant)": "#9dbfa6",
+    "disagree (opposite signs)": "#a12a2a",
+}
+_VERDICT_DEFAULT = "#e08b2c"   # "disagree (only <measure>)", one per measure
+
+
+def plot_measure_concordance(result, out_path: Path) -> Path | None:
+    """Each metric's group/age effect under one measure against the other.
+
+    The figure the whole comparison exists for. A point on the identity line is
+    a conclusion that does not depend on how activity was measured; a point far
+    off it, and especially one in an off-diagonal quadrant, is a conclusion that
+    does. Colour carries the verdict — whether both measures called it
+    significant, one did, or neither.
+
+    Drawn per measure pair as its own panel so the axes can be read as "the
+    effect I would have reported using this measure".
+    """
+    table = getattr(result, "concordance", None)
+    if table is None or table.empty:
+        return None
+    sub = table.dropna(subset=["EffectA", "EffectB"]).copy()
+    if sub.empty:
+        return None
+
+    pairs = sorted({(a, b) for a, b in zip(sub["MeasureA"], sub["MeasureB"])})
+    n = len(pairs)
+    fig, axes = plt.subplots(1, n, figsize=(4.2 * n, 4.2), squeeze=False)
+    for ax, (a, b) in zip(axes[0], pairs):
+        block = sub[(sub["MeasureA"] == a) & (sub["MeasureB"] == b)]
+        limit = float(np.nanmax(np.abs(
+            np.concatenate([block["EffectA"], block["EffectB"]])))) or 1.0
+        limit *= 1.15
+        ax.plot([-limit, limit], [-limit, limit], color=MUTED, lw=1.0, ls="--",
+                zorder=0)
+        ax.axhline(0, color=MUTED, lw=0.6, zorder=0)
+        ax.axvline(0, color=MUTED, lw=0.6, zorder=0)
+        for verdict, part in block.groupby("Verdict"):
+            colour = _VERDICT_COLORS.get(str(verdict), _VERDICT_DEFAULT)
+            ax.scatter(part["EffectA"], part["EffectB"], s=30, color=colour,
+                       edgecolors="white", linewidths=0.4, label=str(verdict),
+                       zorder=3)
+        # Name only the points that disagree: labelling all fifty would bury
+        # the four that matter.
+        off = block[block["Verdict"].str.startswith("disagree")]
+        for row in off.itertuples():
+            ax.annotate(str(row.Metric), (row.EffectA, row.EffectB),
+                        textcoords="offset points", xytext=(4, 3), fontsize=6,
+                        color=INK)
+        ax.set_xlim(-limit, limit)
+        ax.set_ylim(-limit, limit)
+        ax.set_xlabel(f"effect under {a}", fontsize=9)
+        ax.set_ylabel(f"effect under {b}", fontsize=9)
+        ax.set_aspect("equal", adjustable="box")
+        _bare(ax)
+
+    handles, labels = axes[0][-1].get_legend_handles_labels()
+    if handles:
+        fig.legend(handles, labels, fontsize=7, frameon=False,
+                   loc="lower center", ncol=min(4, len(labels)),
+                   bbox_to_anchor=(0.5, -0.06))
+    fig.suptitle("Would the conclusion have been the same?\n"
+                 "group and age effects, measured each way", fontsize=10)
+    fig.tight_layout()
+    return _save(fig, out_path)
+
+
+def plot_measure_decoding(result, out_path: Path, *, scheme=None) -> Path | None:
+    """Best decoding score per measure, against chance.
+
+    Which measure carries the most information about the target — the practical
+    counterpart of the concordance figure, and the one to read when the answer
+    to "which measure should I use" has to be a single name.
+    """
+    table = getattr(result, "decoding", None)
+    if table is None or table.empty:
+        return None
+    sub = table.dropna(subset=["BalancedAccuracy"]).sort_values(
+        "BalancedAccuracy", ascending=True)
+    if sub.empty:
+        return None
+    scheme = scheme or DEFAULT_SCHEME
+
+    colours = scheme.groups(len(sub))
+    fig, ax = plt.subplots(figsize=(5.6, max(2.4, 0.5 * len(sub) + 1.4)))
+    y = np.arange(len(sub))
+    errs = pd.to_numeric(sub["SD"], errors="coerce").fillna(0.0).to_numpy()
+    ax.barh(y, sub["BalancedAccuracy"], xerr=errs, color=colours, height=0.6,
+            error_kw={"ecolor": MUTED, "elinewidth": 1.0, "capsize": 3})
+    chance = pd.to_numeric(sub["Chance"], errors="coerce").dropna()
+    if len(chance):
+        ax.axvline(float(chance.iloc[0]), color=INK, ls="--", lw=1.0,
+                   label="chance")
+        ax.legend(fontsize=7, frameon=False, loc="lower right")
+
+    for i, row in enumerate(sub.itertuples()):
+        mark = _stars(getattr(row, "PValue", np.nan))
+        # Past the error bar, not past the bar: a wide interval would otherwise
+        # run straight through the model's name.
+        ax.text(float(row.BalancedAccuracy) + float(errs[i]) + 0.015, i,
+                f"{row.Model}{(' ' + mark) if mark else ''}", va="center",
+                fontsize=7, color=INK)
+
+    ax.set_yticks(y)
+    ax.set_yticklabels(sub["ActivityType"], fontsize=8)
+    ax.set_xlabel("balanced accuracy (best model)", fontsize=9)
+    # Room past 1.0 for the winning model's name, which sits at the bar's end.
+    # Without it a measure that decodes perfectly has its label clipped, which
+    # is exactly the row a reader looks at first.
+    ax.set_xlim(0, 1.22)
+    ax.set_xticks([0.0, 0.2, 0.4, 0.6, 0.8, 1.0])
+    target = _target_label(str(sub["Target"].iloc[0])) if "Target" in sub else "target"
+    ax.set_title(f"Which measure carries the most information about {target}?",
+                 fontsize=10)
+    _bare(ax)
     return _save(fig, out_path)

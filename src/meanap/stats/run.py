@@ -39,6 +39,7 @@ from meanap.stats.density_sweep import (
     selection_sensitivity,
 )
 from meanap.stats.figures import StatsResults, draw_stats_figure, stats_figures
+from meanap.stats.measures import compare_measures, summary_lines
 from meanap.stats.regression import regress
 
 __all__ = ["StatsRunResult", "StatsSettings", "run_stats", "OUTPUT_DIRNAME"]
@@ -69,6 +70,12 @@ class StatsSettings:
     #: recordings across 16 cores it was ~15 minutes without subsampling and
     #: ~25 minutes with it.
     density_sweep: bool = False
+    #: Compare the measures of activity a CAT-NAP run analysed against each
+    #: other (:mod:`meanap.stats.measures`). On by default and free: it reads
+    #: the per-measure results the four analyses above already produced, and a
+    #: run with one measure — every ephys run, and every CAT-NAP run that did
+    #: not set ``Params.twop_activities`` — has nothing to compare and skips it.
+    measure_comparison: bool = True
 
     #: Restrict to these metrics; empty means every metric the run computed.
     metrics: tuple[str, ...] = ()
@@ -235,37 +242,74 @@ def run_stats(
             "in a way this can read. Repeated-measures handling is inert.")
 
     lags = ds.lags or [None]
-    for lag in lags:
-        sub = ds.for_lag(lag) if lag is not None else ds
-        folder = dest / (_lag_dirname(lag) if lag is not None else "all")
-        folder.mkdir(parents=True, exist_ok=True)
-        log(f"— {folder.name}: {len(sub.table)} recordings")
+    # A CAT-NAP run that analysed several measures of activity is analysed once
+    # per measure, exactly as it is analysed once per lag and for the same
+    # reason: two measures of one recording are two measurements, and a model
+    # or a decoder pooling them would treat one culture as two independent
+    # samples. What compares *across* measures runs afterwards, on the results
+    # collected here — see meanap.stats.measures.
+    activities = ds.activities or [None]
+    if len(activities) > 1:
+        log(f"Measures of activity in this run: {', '.join(map(str, activities))} "
+            "— each analysed separately, then compared")
 
-        # The analyses fill this in; the figures are drawn from it afterwards,
-        # through the same catalogue the exporter and the viewer draw through
-        # (meanap.stats.figures). Drawing here instead would give this module
-        # its own private list of which figures exist, and three lists that
-        # must agree is two too many.
-        computed = StatsResults(dataset=sub, lag=lag,
-                                n_trajectory_metrics=settings.n_trajectory_metrics)
-        for name, fn in (
-            ("comparisons", _run_comparisons),
-            ("correlation", _run_correlation),
-            ("decoding", _run_decoding),
-            ("regression", _run_regression),
-            ("density_sweep", _run_density_sweep),
-        ):
-            if not getattr(settings, name):
-                continue
+    # ``{lag: {measure: results}}``, for the cross-measure comparison below.
+    per_measure: dict = {lag: {"comparisons": {}, "decoding": {}} for lag in lags}
+
+    for activity in activities:
+        for lag in lags:
+            sub = ds.for_lag(lag) if lag is not None else ds
+            if activity is not None:
+                sub = sub.for_activity(activity)
+            name = _analysis_dirname(activity, lag)
+            folder = dest / name
+            folder.mkdir(parents=True, exist_ok=True)
+            # The name, not the basename: a multi-measure run has one folder per
+            # (measure, lag), and three log lines all reading "1000mslag" say
+            # nothing about which measure is being analysed.
+            log(f"— {name}: {len(sub.table)} recordings")
+
+            # The analyses fill this in; the figures are drawn from it afterwards,
+            # through the same catalogue the exporter and the viewer draw through
+            # (meanap.stats.figures). Drawing here instead would give this module
+            # its own private list of which figures exist, and three lists that
+            # must agree is two too many.
+            computed = StatsResults(dataset=sub, lag=lag,
+                                    n_trajectory_metrics=settings.n_trajectory_metrics)
+            for fn_name, fn in (
+                ("comparisons", _run_comparisons),
+                ("correlation", _run_correlation),
+                ("decoding", _run_decoding),
+                ("regression", _run_regression),
+                ("density_sweep", _run_density_sweep),
+            ):
+                if not getattr(settings, fn_name):
+                    continue
+                try:
+                    fn(sub, folder, settings, result, lag, log, progress, computed,
+                       sweep_root)
+                except Exception as exc:  # one analysis failing must not stop the rest
+                    result.skipped.append(f"{name}/{fn_name}: {exc}")
+                    log(f"  ! {fn_name} failed: {exc}")
+                    log(traceback.format_exc(limit=3))
+
+            _draw_all(computed, folder, settings, scheme, result, log)
+
+            if activity is not None:
+                if computed.comparisons is not None:
+                    per_measure[lag]["comparisons"][activity] = computed.comparisons
+                if computed.decoding is not None:
+                    per_measure[lag]["decoding"][activity] = computed.decoding
+
+    if settings.measure_comparison and len(activities) > 1:
+        for lag in lags:
             try:
-                fn(sub, folder, settings, result, lag, log, progress, computed,
-                   sweep_root)
-            except Exception as exc:  # one analysis failing must not stop the rest
-                result.skipped.append(f"{folder.name}/{name}: {exc}")
-                log(f"  ! {name} failed: {exc}")
+                _run_measure_comparison(ds, dest, settings, scheme, result, lag,
+                                        per_measure[lag], log, progress)
+            except Exception as exc:
+                result.skipped.append(f"measures/{lag}: {exc}")
+                log(f"  ! measure comparison failed: {exc}")
                 log(traceback.format_exc(limit=3))
-
-        _draw_all(computed, folder, settings, scheme, result, log)
 
     if sweep_bundle is not None:
         sweep_bundle.close()
@@ -288,6 +332,11 @@ def _run_density_sweep(ds: StatsDataset, folder: Path, settings,
     once per lag would be the dominant cost on a multi-lag run.
     """
     log("  density sweep: topology at matched connection density")
+    # A multi-measure CAT-NAP run stores each measure's adjacency in that
+    # measure's own subtree. Sweeping the run root for every measure would
+    # silently re-measure the primary measure's matrices and label them with
+    # whichever measure's folder they landed in.
+    source_root = _activity_source_root(source_root, ds)
     n_nodes = _resolve_target_nodes(source_root, settings, log)
     sweep = run_density_sweep(
         source_root, densities=settings.sweep_densities,
@@ -707,6 +756,178 @@ def _lag_dirname(lag) -> str:
     return str(lag).replace("/", "-").replace(" ", "")
 
 
+#: Folder holding the cross-measure comparison, one subfolder per lag. Its own
+#: top-level folder rather than a file inside each measure's, because it belongs
+#: to no single measure — filing it under one would suggest it did.
+MEASURES_DIRNAME = "MeasureComparison"
+
+
+def _shared_metrics(ds: StatsDataset) -> list[str]:
+    """Metrics usable under *every* measure of activity, in the run's order.
+
+    A metric that only one measure produces cannot be compared across measures:
+    ``RC`` and ``effRank`` are computed on some activity types and not others,
+    and the event-shape metrics (event amplitude, duration, area) exist only for
+    detected peaks. They belong in that measure's own results and nowhere in a
+    comparison against a measure that never had them.
+    """
+    per_measure = [set(ds.for_activity(a).metrics) for a in ds.activities]
+    if not per_measure:
+        return list(ds.metrics)
+    common = set.intersection(*per_measure)
+    return [m for m in ds.metrics if m in common]
+
+
+def _comparable_decoding(ds: StatsDataset, shared: list[str], collected: dict,
+                         settings, lag, log, progress) -> dict:
+    """Decoding results for every measure, trained on the same features.
+
+    The per-measure decoders in the folders above each use that measure's own
+    usable metrics, which is right for those folders and wrong for a comparison:
+    with 50 features under one measure and 47 under another, the difference in
+    accuracy is partly a difference in feature set rather than in the measure.
+    So unless every measure already decoded on identical features, they are
+    decoded again here on the shared set.
+
+    Reusing when the sets already agree is not just a saving — a re-run with a
+    different fold split would put slightly different numbers on 5F4 than the
+    ``5C`` figures beside it, for no gain.
+    """
+    feature_sets = {tuple(getattr(r, "features", []) or ()) for r in collected.values()}
+    if collected and len(collected) == len(ds.activities) and len(feature_sets) == 1:
+        return collected
+
+    out = {}
+    log(f"  decoding each measure again on the {len(shared)} metrics they share, "
+        "so the scores are comparable")
+    for activity in ds.activities:
+        sub = ds.for_activity(activity)
+        try:
+            res = decode(
+                sub, target=settings.decoding_target, models=settings.models,
+                metrics=shared, n_splits=settings.n_splits,
+                n_repeats=settings.n_repeats,
+                n_permutations=settings.n_permutations,
+                importance_repeats=settings.importance_repeats,
+                seed=settings.seed, lag=lag, progress=progress)
+        except Exception as exc:
+            log(f"    {activity}: decoding failed: {exc}")
+            continue
+        if res.scores.empty:
+            log(f"    {activity}: {_undecodable_reason(sub, shared)}")
+            continue
+        best = res.summary().iloc[0]
+        log(f"    {activity}: best {best['Model']} at "
+            f"{best['BalancedAccuracy']:.3f} balanced accuracy")
+        out[activity] = res
+    return out
+
+
+def _undecodable_reason(ds: StatsDataset, metrics: list[str] | None = None) -> str:
+    """Why this dataset produced no decoder, in terms someone can act on.
+
+    ``decode`` returns empty for three quite different reasons and used to
+    report one sentence covering all of them. The one that actually bites is the
+    third: ``feature_matrix`` drops any recording with a missing value in *any*
+    feature, so a single metric that is rarely computed — ``RC`` is missing for
+    377 of 378 recordings on some activity types — takes the entire dataset with
+    it, and the run says only "not enough data".
+    """
+    import numpy as np
+    import pandas as pd
+
+    names = [m for m in (metrics or ds.metrics) if m in ds.table.columns]
+    frame = ds.table[names].apply(pd.to_numeric, errors="coerce")
+    frame = frame.replace([np.inf, -np.inf], np.nan)
+    complete = int(frame.notna().all(axis=1).sum())
+    if complete >= 10:
+        n_classes = ds.table[ds.group_col].nunique()
+        if n_classes < 2:
+            return (f"skipped: only one class of {ds.group_col} present, so there "
+                    "is nothing to tell apart")
+        return (f"skipped: {complete} complete recordings and "
+                f"{ds.table[ds.culture_col].nunique()} cultures is too few to "
+                "cross-validate")
+    # Name the columns that emptied it, worst first — the actionable part.
+    missing = frame.isna().sum().sort_values(ascending=False)
+    culprits = [f"{name} (missing for {int(count)} of {len(frame)})"
+                for name, count in missing.items() if count > 0.5 * len(frame)][:3]
+    detail = ("; ".join(culprits) if culprits
+              else "no single metric dominates — missing values are spread across many")
+    return (f"skipped: only {complete} recordings have every metric, because "
+            f"{detail}. Re-run the statistics step restricted to the metrics you "
+            "need, or exclude the sparse ones.")
+
+
+def _activity_source_root(root: Path, ds: StatsDataset) -> Path:
+    """Where *ds*'s measure of activity stored its per-recording adjacency.
+
+    The run root for a single-measure run and for the primary measure of a
+    multi-measure one — both of which keep the top-level ``ExperimentMatFiles``
+    — and the measure's own subtree otherwise. Falls back to the root when the
+    subtree is absent, so a folder written before measures could be combined,
+    or one whose subtree was pruned, still sweeps rather than raising.
+    """
+    from meanap.catnap.activities import BY_ACTIVITY_DIR, activity_slug
+
+    activity = ds.activity
+    if activity is None:
+        return Path(root)
+    candidate = Path(root) / BY_ACTIVITY_DIR / activity_slug(str(activity))
+    return candidate if (candidate / "ExperimentMatFiles").is_dir() else Path(root)
+
+
+def _analysis_dirname(activity, lag) -> str:
+    """Folder for one measure at one lag, e.g. ``peaks/1000mslag``.
+
+    A single-measure run keeps the bare lag name it has always used, so old
+    results folders and new ones written the old way are laid out identically.
+    """
+    from meanap.catnap.activities import activity_slug
+
+    stem = _lag_dirname(lag) if lag is not None else "all"
+    return stem if activity is None else f"{activity_slug(str(activity))}/{stem}"
+
+
+def _run_measure_comparison(ds: StatsDataset, dest: Path, settings, scheme,
+                            result: StatsRunResult, lag, collected: dict,
+                            log, progress=None) -> None:
+    """Compare the measures of activity against each other, for one lag.
+
+    Reads the per-measure comparisons and decoders the loop above already
+    fitted rather than refitting anything, so the effect this reports for a
+    measure is by construction the identical number that measure's own ``5A``
+    table reports.
+    """
+    sub = ds.for_lag(lag) if lag is not None else ds
+    log(f"— {MEASURES_DIRNAME}/{_lag_dirname(lag) if lag is not None else 'all'}: "
+        "comparing measures of activity")
+    shared = _shared_metrics(sub)
+    comparison = compare_measures(
+        sub, comparisons=collected.get("comparisons"),
+        decoding=_comparable_decoding(sub, shared, collected.get("decoding") or {},
+                                      settings, lag, log, progress),
+        metrics=list(settings.metrics) or shared or None, lag=lag)
+    if not comparison.ran:
+        return
+
+    folder = dest / MEASURES_DIRNAME / (
+        _lag_dirname(lag) if lag is not None else "all")
+    folder.mkdir(parents=True, exist_ok=True)
+    _write_table(comparison.agreement, folder / "measure_agreement.csv", result)
+    _write_table(comparison.differences, folder / "measure_differences.csv", result)
+    _write_table(comparison.effects, folder / "measure_effects.csv", result)
+    _write_table(comparison.concordance, folder / "measure_concordance.csv", result)
+    _write_table(comparison.decoding, folder / "measure_decoding.csv", result)
+
+    for line in summary_lines(comparison):
+        log(line)
+    result.summary.setdefault("measures", {})[str(lag)] = comparison.summary
+
+    computed = StatsResults(dataset=sub, lag=lag, measures=comparison)
+    _draw_all(computed, folder, settings, scheme, result, log)
+
+
 # ── the four analyses ────────────────────────────────────────────────────────
 
 def _run_comparisons(ds: StatsDataset, folder: Path, settings,
@@ -763,8 +984,9 @@ def _run_decoding(ds: StatsDataset, folder: Path, settings,
         lag=lag, progress=progress)
 
     if res.scores.empty:
-        result.skipped.append(f"{folder.name}/decoding: not enough data to decode")
-        log("    skipped: not enough data (one class, or too few cultures)")
+        reason = _undecodable_reason(ds)
+        result.skipped.append(f"{folder.name}/decoding: {reason}")
+        log(f"    {reason}")
         return
 
     computed.decoding = res

@@ -68,6 +68,16 @@ def timescale_label(params) -> str:
     return timescale_kind(params)
 
 
+def timescale_folder_display(name, params) -> str:
+    """Render a stored timescale key the way this run should name it.
+
+    The structural keys on disk are always ``…mslag`` (see the module note), so
+    a log line that echoes one verbatim tells a correlation run it used a
+    "lag". This re-spells the number in the run's own vocabulary.
+    """
+    return timescale_folder(timescale_value(name), params)
+
+
 def timescale_value(name) -> int:
     """The number out of ``'1000msbin'`` / ``'1000mslag'`` / ``1000``.
 

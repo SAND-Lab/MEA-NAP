@@ -58,6 +58,9 @@ class RecordingCheck:
     missing: list[str] = field(default_factory=list)
     fetch_bytes: int = 0
     skipped_bytes: int = 0
+    #: Bytes present remotely, wanted by the loader, but already extracted
+    #: into a derived sidecar by an earlier run — so not transferred again.
+    cached_bytes: int = 0
     needs_denoising: bool = False
     #: A folder that is present and looks like this recording under another
     #: name. Renamed folders are the commonest reason a batch silently shrinks.
@@ -95,6 +98,10 @@ class PreflightReport:
     @property
     def skipped_bytes(self) -> int:
         return sum(r.skipped_bytes for r in self.usable)
+
+    @property
+    def cached_bytes(self) -> int:
+        return sum(r.cached_bytes for r in self.usable)
 
     @property
     def name_map(self) -> dict:
@@ -159,6 +166,9 @@ class PreflightReport:
                             if self.skipped_bytes else ""))
             lines.append(f"  Est. transfer {mins:6.0f} min at "
                          f"{ASSUMED_MB_PER_S:.0f} MB/s")
+        if self.cached_bytes:
+            lines.append(f"  Not fetched   {self.cached_bytes / gb:6.2f} GB"
+                         "   (ops.npy — already extracted by an earlier run)")
         if self.budget_bytes:
             fits = "OK" if self.peak_bytes <= self.budget_bytes else "TOO SMALL"
             lines.append(f"  Peak storage  {self.peak_bytes / gb:6.2f} GB"
@@ -243,7 +253,18 @@ def _roi_mismatch(entries: dict) -> str | None:
             "(re-save the recording in the suite2p GUI)")
 
 
-def _check_catnap(store: RemoteStore, name: str) -> RecordingCheck:
+def _ops_already_extracted(derived_root: Path | str | None, name: str) -> bool:
+    """Has an earlier run written this recording's ``ops_fields.npz``?"""
+    if not derived_root:
+        return False
+    from meanap.catnap.derived import OPS_CACHE_NAME, derived_dir
+
+    d = derived_dir(derived_root, name)
+    return d is not None and (d / OPS_CACHE_NAME).exists()
+
+
+def _check_catnap(store: RemoteStore, name: str,
+                  derived_root: Path | str | None = None) -> RecordingCheck:
     plane0 = f"{name}/suite2p/plane0"
     entries = {e.name: e for e in store.list(plane0)}
     if not entries:
@@ -257,11 +278,20 @@ def _check_catnap(store: RemoteStore, name: str) -> RecordingCheck:
     empty = [f for f in CATNAP_REQUIRED
              if f in entries and entries[f].size == 0]
     wanted = set(CATNAP_REQUIRED) | set(CATNAP_OPTIONAL)
+    # ``ops.npy`` is the bulk of a suite2p folder and the loader stops opening
+    # it once an earlier run has cached the two fields it wants. Counting it
+    # as a download here would quote a first-run figure for a re-run — the
+    # number someone reads when deciding whether to start at all.
+    cached = 0
+    if _ops_already_extracted(derived_root, name):
+        wanted.discard("ops.npy")
+        cached = entries["ops.npy"].size or 0 if "ops.npy" in entries else 0
     fetch = sum(e.size or 0 for n, e in entries.items() if n in wanted)
-    skipped = sum(e.size or 0 for n, e in entries.items() if n not in wanted)
+    skipped = sum(e.size or 0 for n, e in entries.items()
+                  if n not in wanted and n != "ops.npy")
     return RecordingCheck(
         name=name, found=True, missing=missing,
-        fetch_bytes=fetch, skipped_bytes=skipped,
+        fetch_bytes=fetch, skipped_bytes=skipped, cached_bytes=cached,
         needs_denoising="Fdenoised.npy" not in entries,
         unusable=_empty_required(empty) or _roi_mismatch(entries),
     )
@@ -309,6 +339,7 @@ def run_preflight(
     cache_dir: Path | str | None = None,
     cache_budget_gb: float | None = None,
     prefetch_depth: int = 1,
+    derived_root: Path | str | None = None,
 ) -> PreflightReport:
     """Inspect a source and report whether the named recordings can be analysed.
 
@@ -319,9 +350,10 @@ def run_preflight(
     report = PreflightReport(mode=mode, source=str(store),
                              spreadsheet=spreadsheet)
 
-    check = _check_catnap if mode == "catnap" else _check_ephys
     for name in recording_names:
-        report.recordings.append(check(store, name))
+        report.recordings.append(
+            _check_catnap(store, name, derived_root) if mode == "catnap"
+            else _check_ephys(store, name))
 
     named = set(recording_names)
     present = [e.name for e in store.list() if e.is_dir]

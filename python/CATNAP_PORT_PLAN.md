@@ -425,6 +425,44 @@ Fixed in passing, both in the same loop:
 See `PIPELINE_PORT_STATUS.md` § "CAT-NAP resume" for the design choices and
 `python/test_catnap_resume.py` for the tests.
 
+### Phase 12 — Several measures of activity in one run ✅ (feature extension, no MATLAB counterpart)
+
+MATLAB's `Params.twopActivity` picks **one** of `peaks` / `denoised F` / `F` /
+`spks` and every number in the run is conditional on it — `peaks` builds an STTC
+event network, the other three a binned Pearson correlation network. The choice
+was invisible in the output, so "which measure was this?" could only be answered
+from a settings file that does not travel with a figure.
+
+`Params.twop_activities` now lists extra measures to analyse beside
+`twop_activity` in the same run (`src/meanap/catnap/activities.py`):
+
+- **one pass over the raw data.** Loading and denoising happen once per
+  recording however many measures are asked for; only the per-measure half —
+  adjacency, activity statistics, network metrics — repeats. That is what makes
+  this one run rather than N.
+- **layout.** The primary measure keeps the top-level folders, byte-for-byte as
+  a one-measure run wrote them. Each extra measure gets a *complete* run folder
+  under `ByActivityType/<slug>/` — its own `ExperimentMatFiles`,
+  `netmet_results.json`, figures and `params.json` naming that measure alone —
+  so the report, the bundle viewer and `meanap-stats` can be pointed straight at
+  it. The four tables at the top level pool every measure with an
+  `ActivityType` column.
+- **independence.** Cartography boundaries, batch metric ranges and the RNG are
+  per measure. Each measure draws from a generator seeded from the recording
+  name alone, so `peaks` run beside `denoised F` gives numbers identical to
+  `peaks` run on its own — checked in
+  `python/test_catnap_multi_activity.py` § C.
+- **step 5.** `meanap.stats.dataset` treats the measure as an axis like the lag:
+  each measure is analysed separately, then `meanap.stats.measures` compares
+  them — agreement (Spearman / Lin's CCC / Bland-Altman), the paired
+  within-recording shift (Wilcoxon + Hedges' g_av), whether each group and age
+  conclusion survives the change of measure, and decoding accuracy per measure.
+  Written to `5_StatsAndML/MeasureComparison/<lag>/` with figures `5F1`-`5F4`.
+
+The conclusion table is the point of the whole phase: a genotype effect that is
+significant under `peaks` and absent under `denoised F` is a finding about the
+analysis, and it should be visible before publication rather than after.
+
 ## Reuse wins
 - Denoising / peak detection (`catnap/denoising.py`) — done.
 - STTC + probabilistic thresholding (`pipeline/probabilistic_threshold.py`) —

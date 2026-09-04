@@ -230,6 +230,37 @@ check("the structural key keeps its historical spelling",
       all(k.endswith("mslag") for k in res.adjMs), str(list(res.adjMs)))
 
 
+# ── Self-correlations must not become edges ───────────────────────────────
+# MATLAB's suite2pToAdjm.m stores corr(...) verbatim, leaving a diagonal of 1
+# — the largest weight in the matrix — which inflates Dens (past 1.0), NS and
+# both sigEdges* metrics. The ETTC path has always returned a zero diagonal,
+# so without this the two measures were not comparable graphs.
+for activity in ("F", "spks", "denoised F"):
+    r = suite2p_to_adjm(peaks_data, activity, [1000])
+    a = r.adjMs["adjM1000mslag"]
+    check(f"{activity}: correlation adjacency has a zero diagonal",
+          a.shape[0] > 1 and np.allclose(np.diag(a), 0.0), str(np.diag(a)[:4]))
+
+corr_adj = suite2p_to_adjm(peaks_data, "spks", [1000]).adjMs["adjM1000mslag"]
+ettc_adj = peaks_res.adjMs["adjM1000mslag"]
+check("both measures agree about self-edges",
+      np.allclose(np.diag(corr_adj), np.diag(ettc_adj)),
+      f"corr={np.diag(corr_adj)[:3]} ettc={np.diag(ettc_adj)[:3]}")
+
+import meanap.pipeline.network_metrics as _nm  # noqa: E402
+n = corr_adj.shape[0]
+check("density stays a proportion",
+      0.0 <= _nm.density_und(corr_adj) <= 1.0,
+      f"{_nm.density_und(corr_adj):.4f}")
+with_loops = corr_adj.copy()
+np.fill_diagonal(with_loops, 1.0)
+check("...which it would not with self-loops present",
+      _nm.density_und(with_loops) > _nm.density_und(corr_adj),
+      f"{_nm.density_und(with_loops):.4f} vs {_nm.density_und(corr_adj):.4f}")
+check("off-diagonal correlations are untouched by the fix",
+      np.allclose(corr_adj[~np.eye(n, dtype=bool)],
+                  with_loops[~np.eye(n, dtype=bool)]), "")
+
 print()
 if FAILURES:
     print(f"{len(FAILURES)} FAILED:")
