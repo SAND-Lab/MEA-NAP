@@ -81,7 +81,7 @@ texts = [a.text() for a in toolbar.actions()]
 first_named = next((t for t in texts if t), "")
 check("and it comes before every action, which is what makes that true",
       toolbar.actions()[0].text() == ""  # the Mode label is a widget action
-      and first_named == "New", f"{first_named!r} / {texts[:4]}")
+      and first_named == "Reset to defaults", f"{first_named!r} / {texts[:4]}")
 
 # Opening a bundle lives with the other things you do to a finished run.
 check("the toolbar is parameters, advanced and help — nothing about results",

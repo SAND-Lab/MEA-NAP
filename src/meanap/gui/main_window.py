@@ -145,8 +145,13 @@ class MainWindow(QMainWindow):
         tb.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextOnly)
         self.addToolBar(tb)
 
-        act_new = QAction("New", self)
-        act_new.setToolTip("Reset all parameters to defaults")
+        # "Reset to defaults", not "New": there is no document to be new, and
+        # the one thing the button does is discard the settings on screen.
+        act_new = QAction("Reset to defaults", self)
+        act_new.setToolTip(
+            "Put every setting on every tab back to its default for the "
+            "current pipeline. Parameters you saved to a file are untouched."
+        )
         act_new.triggered.connect(self._on_new)
 
         act_open = QAction("Open params…", self)
@@ -742,7 +747,7 @@ class MainWindow(QMainWindow):
     def _on_new(self) -> None:
         # ask_yes_no rather than QMessageBox.question: the latter lets the
         # platform decide which end Yes goes on, which moves it on a Mac.
-        if ask_yes_no(self, "New parameters",
+        if ask_yes_no(self, "Reset to defaults",
                       "Reset all parameters to defaults?"):
             # Defaults for the pipeline on screen, not for MEA-NAP: resetting
             # in CAT-NAP should not quietly drop you back into the ephys tabs
