@@ -194,6 +194,9 @@ class Params:
     # models, NMF, example-trace picking). None = fresh OS entropy each run,
     # matching MATLAB, which seeds nothing. See pipeline/rng.py.
     random_seed: int | None = None
+    # How much the run log says: "Normal", "Verbose" or "Debug", additive in
+    # that order. See pipeline/verbosity.py, which also accepts MATLAB's names
+    # ('High', 'Silent') so a params file from that pipeline keeps its intent.
     verbose_level: str = "Normal"
     time_processes: bool = False
     output_spreadsheet_file_type: str = "csv"

@@ -6,6 +6,7 @@ and which are deterministic vs. dependent on a stochastic null model).
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable
 
@@ -36,6 +37,7 @@ from meanap.pipeline.plotting_step4 import (
 )
 from meanap.pipeline.resume import ADJM_SUFFIX, build_input_locator
 from meanap.pipeline.rng import make_rng
+from meanap.pipeline.verbosity import as_run_log, format_elapsed
 from meanap.pipeline.spreadsheet import RecordingInfo, ground_spike_times_dict, parse_ground_electrodes
 
 
@@ -537,6 +539,35 @@ def _plot_recording_lag(
 _STEP4_MEM_PER_TASK_GB = 0.6
 
 
+def _describe_network(metrics: dict, min_nodes: int) -> str:
+    """The shape of the network one lag produced, in one line.
+
+    Node count first: a recording that fell below ``min_nodes`` has no metrics
+    at all, and saying so here is the difference between a Verbose log that
+    explains an empty row in the CSV and one that does not.
+    """
+    active = int(metrics.get("aN", 0))
+    if active < min_nodes:
+        return (f"{active} active nodes — below the {min_nodes}-node floor, "
+                f"no metrics computed")
+
+    parts = [f"{active} active nodes"]
+    density = metrics.get("Dens")
+    if density is not None:
+        parts.append(f"density {float(density):.3f}")
+    q = metrics.get("Q")
+    n_mod = metrics.get("nMod")
+    if q is not None and n_mod is not None:
+        parts.append(f"{int(n_mod)} modules (Q {float(q):.3f})")
+    sw = metrics.get("SW")
+    if sw is not None and np.isfinite(sw):
+        parts.append(f"small-worldness {float(sw):.2f}")
+    eglob = metrics.get("Eglob")
+    if eglob is not None:
+        parts.append(f"global efficiency {float(eglob):.3f}")
+    return ", ".join(parts)
+
+
 def _step4_compute_one(
     task: tuple[Params, RecordingInfo, str],
 ) -> tuple[str, dict | None, np.ndarray | None, list[str]]:
@@ -557,6 +588,9 @@ def _step4_compute_one(
     lag_values = params.func_con_lag_val
     min_nodes = params.min_number_of_nodes_to_cal_net_met
     logs: list[str] = []
+    # Level-aware view of the same buffer: the parent replays these lines, but
+    # only this process ever sees the numbers behind them.
+    vlog = as_run_log(logs.append, params.verbose_level)
 
     adj_path = locator.adjm_file(rec.filename)
     spike_path = locator.spike_file(rec.filename)
@@ -579,6 +613,7 @@ def _step4_compute_one(
         params.random_seed, "step4-dimensionality", rec.filename)
 
     logs.append(f"  [{rec.filename}] loading adjacency matrices...")
+    vlog.debug(f"      reading {adj_path}")
     adj_data = np.load(adj_path)
     spike_data = np.load(spike_path)
     fs = float(spike_data["fs"][0])
@@ -604,6 +639,11 @@ def _step4_compute_one(
 
     spike_counts = np.array([len(spike_times_dict[ch]) for ch in range(n_channels)])
     spike_times_list = [spike_times_dict[ch] for ch in range(n_channels)]
+    vlog.debug(f"      [{rec.filename}] {n_channels} channels, {duration_s:.1f}s, "
+               f"{int(spike_counts.sum())} spikes; node floor {min_nodes}, "
+               f"activity floor {params.min_activity_level} Hz; "
+               f"effective rank {'on' if params.compute_eff_rank else 'off'}, "
+               f"NMF {'on' if params.compute_nmf else 'off'}")
 
     # ``None`` means "not asked for" and leaves the field out entirely, as
     # ExtractNetMet.m does for a metric missing from netMetToCal — distinct
@@ -643,12 +683,15 @@ def _step4_compute_one(
         if key not in adj_data:
             continue
         logs.append(f"  [{rec.filename}] computing network metrics (lag={lag_ms}ms)...")
+        lag_started = time.perf_counter()
         metrics = compute_network_metrics(
             adj_data[key], spike_counts, duration_s,
             params.min_activity_level, min_nodes,
             exclude_edges_below_threshold=params.exclude_edges_below_threshold,
             params=params, rng=rng,
         )
+        vlog.detail(f"      lag {lag_ms}ms: {_describe_network(metrics, min_nodes)} "
+                    f"in {format_elapsed(time.perf_counter() - lag_started)}")
         if eff_rank is not None:
             metrics["effRank"] = eff_rank
         metrics.update(nmf_result)
@@ -909,7 +952,11 @@ def _run_step4_network_metrics(
     should_cancel: CancelCheck = None,
     progress: "RunProgress | None" = None,
 ) -> None:
+    log = as_run_log(log, params.verbose_level)
     log("\n=== Step 4: Network Activity ===")
+    log.debug(f"  {len(recordings)} recording(s) over a process pool "
+              f"(recording workers: {params.recording_workers or 'auto'}); "
+              f"lags {', '.join(str(v) for v in params.func_con_lag_val)} ms")
 
     out_dir = output_root / "4_NetworkActivity"
     out_dir.mkdir(parents=True, exist_ok=True)

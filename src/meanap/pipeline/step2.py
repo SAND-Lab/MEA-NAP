@@ -13,6 +13,7 @@ from meanap.pipeline.spreadsheet import RecordingInfo, ground_spike_times_dict, 
 from meanap.pipeline.io import find_raw_file, load_spike_times_npz, resolve_duration_s
 from meanap.pipeline.firing_rates import firing_rates_bursts
 from meanap.pipeline.plotting_step2 import plot_neuronal_activity_checks
+from meanap.pipeline.verbosity import as_run_log
 
 
 # Recording-level ("whole experiment") and node-level ("single cell/node")
@@ -90,6 +91,44 @@ def convert_numpy(obj):
     return obj
 
 
+def _describe_activity(ephys: dict) -> list[str]:
+    """The headline numbers step 2 just computed for one recording.
+
+    These are the recording-level fields the CSV carries, so a Verbose log and
+    ``NeuronalActivity_RecordingLevel.csv`` say the same thing — the log just
+    says it while the run is still going.
+    """
+    def value(name: str) -> float | None:
+        """The field as a number, or None if it isn't one.
+
+        NaN counts as "isn't one": a recording with no network bursts leaves
+        ``fracInNburst`` undefined, and "nan% of spikes in bursts" reads like a
+        failure rather than like the absence it is.
+        """
+        v = ephys.get(name)
+        try:
+            f = float(v)
+        except (TypeError, ValueError):
+            return None
+        return f if np.isfinite(f) else None
+
+    active = value("numActiveElec")
+    fr_mean = value("FRmean")
+    burst_rate = value("NBurstRate")
+    frac = value("fracInNburst")
+
+    parts = []
+    if active is not None:
+        parts.append(f"{active:.0f} active electrodes")
+    if fr_mean is not None:
+        parts.append(f"mean FR {fr_mean:.2f} Hz")
+    if burst_rate is not None:
+        parts.append(f"{burst_rate:.2f} network bursts/min")
+    if frac is not None:
+        parts.append(f"{frac * 100:.0f}% of spikes in bursts")
+    return [f"      {', '.join(parts)}"] if parts else []
+
+
 def _run_step2_neuronal_activity(
     params: Params,
     recordings: list[RecordingInfo],
@@ -100,7 +139,11 @@ def _run_step2_neuronal_activity(
 ) -> None:
     """Run Step 2: Neuronal Activity and Burst Detection."""
 
+    log = as_run_log(log, params.verbose_level)
     log("\n=== Step 2: Neuronal Activity & Burst Detection ===")
+    log.debug(f"  network bursts: {params.network_burst_detection_method}; "
+              f"single-channel bursts: {params.single_channel_burst_detection_method}; "
+              f"active-electrode floor {params.min_activity_level} Hz")
     progress = progress or RunProgress()
     progress.begin("step2", items=len(recordings))
 
@@ -163,7 +206,12 @@ def _run_step2_neuronal_activity(
             spike_times_dict = ground_spike_times_dict(spike_times_dict, data["channels"], ground_electrodes)
 
         log(f"  [{rec.filename}] calculating firing rates and bursts (method={method})...")
-        ephys = firing_rates_bursts(spike_times_dict, n_channels, fs, duration_s, params)
+        log.debug(f"      {n_channels} channels, {fs / 1000:g} kHz, {duration_s:.1f}s "
+                  f"(duration from the {duration_src})"
+                  + (f", grounding {ground_electrodes}" if ground_electrodes else ""))
+        with log.timed(f"      [{rec.filename}] activity stats"):
+            ephys = firing_rates_bursts(spike_times_dict, n_channels, fs, duration_s, params)
+        log.detail_lines(_describe_activity(ephys))
         
         all_ephys[rec.filename] = ephys
         rec_channels[rec.filename] = data["channels"]

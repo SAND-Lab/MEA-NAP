@@ -58,6 +58,7 @@ from meanap.pipeline.resume import (
     build_input_locator,
 )
 from meanap.pipeline.rng import make_rng
+from meanap.pipeline.verbosity import as_run_log
 from meanap.pipeline.parallel import StreamingPool, suggest_process_count
 from meanap.pipeline.spreadsheet import RecordingInfo
 from meanap.pipeline.step4 import (
@@ -376,6 +377,7 @@ def run_catnap_pipeline(
     change. With per-recording streams a seeded resume reproduces the numbers
     of the run it resumed from.
     """
+    log = as_run_log(log, params.verbose_level)
     from meanap.pipeline.progress import RunProgress
 
     progress = progress or RunProgress()
@@ -724,12 +726,16 @@ def _compute_recording(
         log(f"  [{rec.filename}] SKIP: {e}")
         return None
 
+    log = as_run_log(log, params.verbose_level)
     # Said per recording, not once per run: the rate comes from this
     # recording's own ops.npy and a 2P batch routinely mixes rates. Everything
     # below converts seconds to frames with it, so it belongs in the log
     # *before* the first thing that uses it.
     log(f"  [{rec.filename}] {data.fs:.4g} Hz, {data.n_frames} frames "
         f"({data.duration_s:.0f} s)")
+    log.debug(f"      suite2p folder {plane0}")
+    log.detail(f"      {data.F.shape[0]} ROIs"
+               + ("" if data.F_denoised is None else ", denoised traces already on disk"))
 
     measures = activity_types(params)
     if any(a in _NEEDS_DENOISING for a in measures) and (
@@ -762,6 +768,8 @@ def _compute_recording(
         )
         _log_bin_rounding(res, log, rec.filename)
         duration_s = res.F.shape[0] / res.fs
+        log.detail_lines(_describe_adjms(
+            res.adjMs, f" [{activity}]" if len(measures) > 1 else ""))
 
         state = RecordingState(
             adjMs=res.adjMs, coords=res.coords, channels=res.channels,
@@ -786,6 +794,29 @@ def _compute_recording(
                     "network plots drawn without a backdrop")
         out[activity] = (state, _activity_stats_for(res, p_act, duration_s))
     return out
+
+
+def _describe_adjms(adj_ms: dict[str, np.ndarray], note: str) -> list[str]:
+    """One line per lag: how connected the network this measure produced is.
+
+    The equivalent of step 3's edge report on the ephys side. It is the first
+    place a measure of activity that found almost nothing — a denoising
+    threshold set too high, say — becomes visible, and this is a run where the
+    choice of measure is the thing being tested.
+    """
+    lines = []
+    for key, adj in sorted(adj_ms.items()):
+        adj = np.asarray(adj)
+        if adj.ndim != 2 or adj.shape[0] < 2:
+            continue
+        n = adj.shape[0]
+        possible = n * (n - 1) // 2
+        upper = np.triu_indices(n, k=1)
+        kept = int(np.count_nonzero(adj[upper] > 0))
+        prefix = f"{note.strip()} " if note.strip() else ""
+        lines.append(f"      {prefix}{key}: {n} nodes, {kept} edges "
+                     f"({kept / possible * 100:.1f}% of {possible} possible)")
+    return lines
 
 
 def _activity_matrix_for(res, twop_activity: str) -> np.ndarray | None:
