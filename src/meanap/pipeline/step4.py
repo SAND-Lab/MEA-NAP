@@ -16,7 +16,9 @@ import numpy as np
 import pandas as pd
 from scipy.spatial.distance import pdist, squareform
 
-from meanap.timescale import timescale_folder, timescale_kind
+from meanap.timescale import (
+    timescale_folder, timescale_kind, timescale_folder_display,
+)
 from meanap.params import Params
 from meanap.pipeline import network_metrics as nm
 from meanap.pipeline.cancellation import CancelCheck, check_cancel
@@ -735,11 +737,13 @@ def _apply_cartography_boundaries(
             params.connector_hub_part_coef,
         )
         if bounds is None:
-            log(f"  Cartography: too few PC/Z values at {source_lag}; "
+            log("  Cartography: too few PC/Z values at "
+                f"{timescale_folder_display(source_lag, params)}; "
                 "keeping fixed boundaries.")
             continue
         hub_b, peri, non_hub_conn, pro_hub, conn_hub = bounds
-        log(f"  Cartography boundaries from {source_lag} pooled PC/Z: "
+        log("  Cartography boundaries from "
+            f"{timescale_folder_display(source_lag, params)} pooled PC/Z: "
             f"Zhub={hub_b:.3f} peri={peri:.3f} nonHubConn={non_hub_conn:.3f} "
             f"proHub={pro_hub:.3f} connHub={conn_hub:.3f}")
 
