@@ -173,7 +173,7 @@ def _early_and_isolated_checks() -> list[Check]:
             params.twop_activity = "peaks"     # the path that denoises
             out = catnap_pipeline._compute_recording(
                 params, RecordingInfo(filename="rec1", div=21.0, group="WT"),
-                plane0, log.append, np.random.default_rng(0),
+                plane0, log.append,
             )
         finally:
             denoising.process_suite2p_folder = real_denoise

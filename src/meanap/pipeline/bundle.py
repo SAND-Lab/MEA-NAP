@@ -256,6 +256,18 @@ _PAYLOAD_FAMILIES = (
 )
 
 
+def _strip_activity_prefix(posix: str) -> str:
+    """``ByActivityType/denoisedF/4_NetworkActivity/x`` → ``4_NetworkActivity/x``."""
+    from meanap.catnap.activities import BY_ACTIVITY_DIR
+
+    prefix = f"{BY_ACTIVITY_DIR}/"
+    if not posix.startswith(prefix):
+        return posix
+    rest = posix[len(prefix):]
+    _measure, sep, tail = rest.partition("/")
+    return tail if sep else posix
+
+
 def _keep_as_images(root: Path) -> tuple[str, ...]:
     """Figure dirs to pack verbatim because their payload isn't there.
 
@@ -269,7 +281,13 @@ def _keep_as_images(root: Path) -> tuple[str, ...]:
 
 
 def _is_reconstructable_member(rel: Path, keep: tuple[str, ...] = ()) -> bool:
-    posix = rel.as_posix()
+    # A multi-measure CAT-NAP run puts each extra measure's complete run folder
+    # under ByActivityType/<measure>/, so the same figure families sit one level
+    # deeper. Stripping that prefix before matching drops them from the bundle
+    # exactly as the primary measure's are dropped — they are reconstructable
+    # from the same data, which travels in that subtree beside them. Without
+    # this an extra measure's pictures would be the largest thing in the bundle.
+    posix = _strip_activity_prefix(rel.as_posix())
     dirs = tuple(d for d in _RECONSTRUCTABLE_DIRS if d not in keep)
     if any(posix.startswith(d) for d in dirs):
         return True

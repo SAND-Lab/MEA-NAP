@@ -65,6 +65,17 @@ class ComparisonResults:
         return self.table[self.table[col] < alpha].sort_values(col)
 
 
+#: ``EffectSizeName`` values that name a *signed, comparable* effect size.
+#: The comparison table also carries unsigned ones — a chi-square for the
+#: omnibus group test, a degrees-of-freedom count for the interaction — which
+#: are real results but say nothing about direction or magnitude on a shared
+#: scale. Anything reading ``EffectSize`` as a direction has to filter on this,
+#: or it will read "1.0" off an interaction row and plot it as an effect.
+SIGNED_EFFECT_SIZES = frozenset({
+    "standardised beta", "SD change across age range", "Hedges g", "Cohen dz",
+})
+
+
 # ── effect sizes and correction ──────────────────────────────────────────────
 
 def hedges_g(a: np.ndarray, b: np.ndarray) -> float:

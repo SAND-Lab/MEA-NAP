@@ -405,8 +405,12 @@ def _runner_tail_checks() -> list[Check]:
         root = create_output_folders(tmp, "OutputTest", ["WT", "KO"])
         logs: list[str] = []
 
-        _save_catnap_results(recordings, results, stats, channels,
-                             root / "4_NetworkActivity", logs.append)
+        # Nested by measure of activity: a run analysing one measure is the
+        # one-key case of the multi-measure shape the pipeline now passes.
+        _save_catnap_results(params, recordings, {params.twop_activity: results},
+                             {params.twop_activity: stats},
+                             {params.twop_activity: channels},
+                             root, logs.append)
         _plot_group_comparisons(params, recordings, results, stats, channels,
                                 tables, states, root, logs.append)
 

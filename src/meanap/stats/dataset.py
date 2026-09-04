@@ -48,7 +48,7 @@ __all__ = [
 #: are stringified tuples/arrays rather than scalars, so they are excluded here
 #: as well as by the numeric-dtype check — being explicit documents *why*.
 META_COLUMNS = frozenset({
-    "FileName", "Grp", "DIV", "Lag", "Channel", "Culture",
+    "FileName", "Grp", "DIV", "Lag", "Channel", "Culture", "ActivityType",
     "eGrp", "AgeDiv", "recordingName",
     "cartographyBoundaries", "activeChannelIndex",
 })
@@ -154,6 +154,12 @@ class StatsDataset:
     age_col: str = "DIV"
     culture_col: str = "Culture"
     name_col: str = "FileName"
+    #: Which measure of activity a row was computed from — CAT-NAP only, and
+    #: only when a run analysed more than one (see
+    #: :mod:`meanap.catnap.activities`). Absent from the table for every ephys
+    #: run and every single-measure calcium run, which is why nothing here may
+    #: assume the column exists.
+    activity_col: str = "ActivityType"
     level: str = "recording"
     source: Path | None = None
 
@@ -174,6 +180,34 @@ class StatsDataset:
             return []
         return list(pd.unique(self.table["Lag"].dropna()))
 
+    @property
+    def activities(self) -> list:
+        """Measures of activity present, or ``[]`` when the run used only one.
+
+        Empty rather than one-element for a single-measure run: the caller's
+        question is "is there a measure axis to analyse along", and a run with
+        one measure has nothing to compare, exactly as a run with no ``Lag``
+        column has no lag axis.
+        """
+        if self.activity_col not in self.table.columns:
+            return []
+        found = list(pd.unique(self.table[self.activity_col].dropna()))
+        return found if len(found) > 1 else []
+
+    @property
+    def activity(self):
+        """The single measure of activity these rows were computed from.
+
+        ``None`` when the table has no measure column (every ephys run) or
+        carries more than one — the two cases where "this dataset's measure" is
+        not a question with an answer. Distinct from :attr:`activities`, which
+        reports the axis rather than a position on it.
+        """
+        if self.activity_col not in self.table.columns:
+            return None
+        found = list(pd.unique(self.table[self.activity_col].dropna()))
+        return found[0] if len(found) == 1 else None
+
     def label(self, metric: str) -> str:
         return self.labels.get(metric, metric)
 
@@ -190,6 +224,7 @@ class StatsDataset:
             "groups": [str(g) for g in self.groups],
             "ages": [float(a) for a in self.ages],
             "lags": [str(x) for x in self.lags],
+            "activities": [str(x) for x in self.activities],
             "n_metrics": len(self.metrics),
             "level": self.level,
         }
@@ -208,6 +243,20 @@ class StatsDataset:
         sub = self.table[self.table["Lag"] == lag].reset_index(drop=True)
         return self._with_table(sub)
 
+    def for_activity(self, activity) -> "StatsDataset":
+        """The rows measured one way, as a dataset in its own right.
+
+        The measure axis is handled exactly like the lag axis and for the same
+        reason: two measures of one recording are two different measurements,
+        and a comparison or a decoder that pooled them would be treating one
+        culture as two independent samples. Everything that compares *across*
+        measures goes through :mod:`meanap.stats.measures` instead.
+        """
+        if self.activity_col not in self.table.columns:
+            return self
+        sub = self.table[self.table[self.activity_col] == activity]
+        return self._with_table(sub.reset_index(drop=True))
+
     def with_metrics(self, metrics: list[str]) -> "StatsDataset":
         keep = [m for m in metrics if m in self.table.columns]
         cols = [c for c in self.table.columns if c in META_COLUMNS] + keep
@@ -215,7 +264,7 @@ class StatsDataset:
             table=self.table[cols].copy(), metrics=keep, labels=self.labels,
             group_col=self.group_col, age_col=self.age_col,
             culture_col=self.culture_col, name_col=self.name_col,
-            level=self.level, source=self.source,
+            activity_col=self.activity_col, level=self.level, source=self.source,
         )
 
     def _with_table(self, table: pd.DataFrame) -> "StatsDataset":
@@ -223,7 +272,7 @@ class StatsDataset:
             table=table, metrics=usable_metrics(table, self.metrics),
             labels=self.labels, group_col=self.group_col, age_col=self.age_col,
             culture_col=self.culture_col, name_col=self.name_col,
-            level=self.level, source=self.source,
+            activity_col=self.activity_col, level=self.level, source=self.source,
         )
 
     # ── the feature matrix ───────────────────────────────────────────────────
@@ -352,8 +401,15 @@ def load_dataset(
             # Grp/DIV are carried by both tables and are identical; keeping one
             # copy avoids the _x/_y suffixes a plain merge would introduce.
             drop = [c for c in ("Grp", "DIV", "Lag") if c in act.columns]
+            # A multi-measure CAT-NAP run has one activity row per recording
+            # *per measure*, so the measure is part of the key. Joining on the
+            # name alone would give a recording the wrong measure's event rates
+            # — or, at the recording level, fail the m:1 check outright.
+            keys = list(join_on)
+            if "ActivityType" in act.columns and "ActivityType" in net.columns:
+                keys.append("ActivityType")
             table = net.merge(
-                act.drop(columns=drop), on=join_on, how="left", validate="m:1"
+                act.drop(columns=drop), on=keys, how="left", validate="m:1"
                 if level == "recording" else "m:m")
 
         table["Culture"] = derive_culture_ids(

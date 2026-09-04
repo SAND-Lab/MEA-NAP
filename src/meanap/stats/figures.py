@@ -48,6 +48,7 @@ FIGURE_GROUPS: tuple[tuple[str, str, str], ...] = (
     ("decoding", "Decoding", "5C"),
     ("regression", "Variance attribution", "5D"),
     ("density", "Topology at matched density", "5E"),
+    ("measures", "Measure of activity", "5F"),
 )
 
 
@@ -104,6 +105,12 @@ class StatsResults:
     #: The metrics themselves, per group and age, under each level of control.
     control_values: object = None
     regression: RegressionResults | None = None
+    #: Cross-measure comparison for a CAT-NAP run that analysed several
+    #: measures of activity (:class:`meanap.stats.measures.MeasureComparison`).
+    #: Unlike every other field here this describes the *lag* rather than one
+    #: measure of it, so it is filled on a results object of its own rather
+    #: than on any single measure's.
+    measures: object = None
     #: How many metrics the trajectory figure draws. Carried on the results
     #: rather than passed to every call, because the figure catalogue has to
     #: know whether that figure exists at all before anyone asks to draw it.
@@ -121,6 +128,37 @@ class StatsResults:
 
 #: ``key -> (label, caption)`` for every figure with a fixed name.
 _PROSE: dict[str, tuple[str, str]] = {
+    "measure_agreement": (
+        "Agreement between measures of activity",
+        "Spearman correlation between the values each measure of activity gives "
+        "for the same metric, over the recordings both could measure. High means "
+        "the two measures rank the recordings alike, so a comparison built on "
+        "one would rank them the same way on the other; near zero means the "
+        "metric is measuring a different thing under each.",
+    ),
+    "measure_differences": (
+        "How far the values move with the measure",
+        "The paired shift in each metric when the same recordings are measured "
+        "the other way, in pooled standard deviations, tested within recording. "
+        "Filled dots survive FDR correction. A large shift is expected — an "
+        "event network and a correlation network are on different scales — and "
+        "is only a problem when the conclusion moves with it.",
+    ),
+    "measure_concordance": (
+        "Would the conclusion have been the same?",
+        "Each metric's group and age effect measured one way against the same "
+        "effect measured the other. Points on the dashed identity line are "
+        "conclusions that do not depend on how activity was measured; points "
+        "off it, and especially in an off-diagonal quadrant, are conclusions "
+        "that do. Colour is whether both measures called the effect "
+        "significant, one did, or neither; the disagreements are named.",
+    ),
+    "measure_decoding": (
+        "Decoding performance by measure of activity",
+        "The best decoder trained on each measure's own features, against "
+        "chance. Answers which measure carries the most information about the "
+        "target — the practical counterpart of the concordance figure.",
+    ),
     "trajectories": (
         "Trajectories of the top metrics",
         "Mean ± SEM against age for the metrics with the strongest age or "
@@ -342,6 +380,10 @@ _FILENAMES: dict[str, str] = {
     "control_effects": "5E7_control_effects",
     "genotype_effect_by_age": "5E8_genotype_effect_by_age",
     "metric_values": "5E9_metric_values_by_control",
+    "measure_agreement": "5F1_measure_agreement",
+    "measure_differences": "5F2_measure_differences",
+    "measure_concordance": "5F3_measure_concordance",
+    "measure_decoding": "5F4_measure_decoding",
 }
 
 #: Filename stems for the effect heatmaps: the pooled mixed model first, then
@@ -376,6 +418,10 @@ _GROUPS: dict[str, str] = {
     "control_effects": "density",
     "genotype_effect_by_age": "density",
     "metric_values": "density",
+    "measure_agreement": "measures",
+    "measure_differences": "measures",
+    "measure_concordance": "measures",
+    "measure_decoding": "measures",
 }
 
 _EFFECTS_POOLED = (
@@ -484,6 +530,16 @@ def stats_figures(results: StatsResults) -> list[StatsFigure]:
     if (results.families is not None and results.families_controlled is not None
             and not results.families_controlled.table.empty):
         out.append(_fixed("topology_controlled"))
+
+    measures = results.measures
+    if measures is not None and getattr(measures, "ran", False):
+        out.append(_fixed("measure_agreement"))
+        if not measures.differences.empty:
+            out.append(_fixed("measure_differences"))
+        if not measures.concordance.empty:
+            out.append(_fixed("measure_concordance"))
+        if not measures.decoding.empty:
+            out.append(_fixed("measure_decoding"))
 
     reg = results.regression
     if reg is not None and not reg.scores.empty:
@@ -598,6 +654,14 @@ def draw_stats_figure(
         return plots.plot_family_contributions(results.families, out_path)
     if key == "family_alone_vs_unique":
         return plots.plot_family_alone_vs_unique(results.families, out_path)
+    if key == "measure_agreement":
+        return plots.plot_measure_agreement(results.measures, out_path)
+    if key == "measure_differences":
+        return plots.plot_measure_differences(results.measures, out_path)
+    if key == "measure_concordance":
+        return plots.plot_measure_concordance(results.measures, out_path)
+    if key == "measure_decoding":
+        return plots.plot_measure_decoding(results.measures, out_path, scheme=scheme)
     if key == "regression_performance":
         return plots.plot_regression_scores(results.regression, out_path)
     if key == "variance_decomposition":
@@ -691,6 +755,7 @@ def load_results(folder: Path | str, dataset: StatsDataset, *, lag=None,
         from meanap.stats.decoding import lda_projection
 
         results.lda = lda_projection(dataset) or None
+    results.measures = _load_measures(folder)
     results.by_age = _read(folder, "decoding_by_age.csv")
     results.shapley = _load_shapley(folder)
     results.families = _load_families(folder)
@@ -708,6 +773,42 @@ def load_results(folder: Path | str, dataset: StatsDataset, *, lag=None,
     if reg_scores is not None:
         results.regression = _load_regression(folder, reg_scores, dataset, lag)
     return results
+
+
+def _load_measures(folder: Path):
+    """The cross-measure comparison, read back from its five CSVs.
+
+    Rebuilt rather than recomputed because every number in it came from models
+    that are gone by the time a viewer opens the folder — refitting them would
+    be slow and, with a different random seed, would not necessarily agree with
+    the figure beside it.
+    """
+    from meanap.stats.measures import MeasureComparison
+
+    agreement = _read(folder, "measure_agreement.csv")
+    if agreement is None:
+        return None
+    activities: list[str] = []
+    for column in ("MeasureA", "MeasureB"):
+        for value in agreement.get(column, pd.Series(dtype=str)).dropna():
+            if str(value) not in activities:
+                activities.append(str(value))
+    pairs = sorted({(str(a), str(b)) for a, b in
+                    zip(agreement["MeasureA"], agreement["MeasureB"])})
+    return MeasureComparison(
+        lag=agreement["Lag"].iloc[0] if "Lag" in agreement.columns else None,
+        activities=activities, pairs=pairs, agreement=agreement,
+        differences=_frame(folder, "measure_differences.csv"),
+        effects=_frame(folder, "measure_effects.csv"),
+        concordance=_frame(folder, "measure_concordance.csv"),
+        decoding=_frame(folder, "measure_decoding.csv"),
+    )
+
+
+def _frame(folder: Path, name: str) -> pd.DataFrame:
+    """:func:`_read`, but an absent table is an empty frame rather than ``None``."""
+    frame = _read(folder, name)
+    return frame if frame is not None else pd.DataFrame()
 
 
 def _load_shapley(folder: Path):
@@ -893,15 +994,42 @@ def _load_regression(folder: Path, scores: pd.DataFrame, ds: StatsDataset,
 
 
 def available_lags(stats_root: Path | str) -> list[str]:
-    """Lag folder names inside a ``5_StatsAndML`` directory, in the run's order."""
+    """Analysis folders inside a ``5_StatsAndML`` directory, in the run's order.
+
+    Normally one per lag (``1000mslag``, or ``all`` for a run with no lag axis).
+    A CAT-NAP run that analysed several measures of activity nests them one
+    level deeper — ``peaks/1000mslag``, and ``MeasureComparison/1000mslag`` for
+    the comparison across measures — so the names returned are relative paths
+    rather than plain folder names, and a caller joining one onto the root gets
+    the right folder either way.
+    """
     root = Path(stats_root)
     if not root.is_dir():
         return []
-    names = [p.name for p in root.iterdir()
-             if p.is_dir() and any(p.glob("*.csv"))]
+    names: list[str] = []
+    for entry in root.iterdir():
+        if not entry.is_dir():
+            continue
+        if any(entry.glob("*.csv")):
+            names.append(entry.name)
+            continue
+        # A measure's folder holds no tables of its own, only one folder per
+        # lag beneath it.
+        names.extend(f"{entry.name}/{child.name}" for child in sorted(entry.iterdir())
+                     if child.is_dir() and any(child.glob("*.csv")))
     return sorted(names, key=_lag_sort_key)
 
 
 def _lag_sort_key(name: str):
-    digits = "".join(ch for ch in name if ch.isdigit())
-    return (0, int(digits)) if digits else (1, 0)
+    # Measure name first (so one measure's lags stay together), then the lag,
+    # and the cross-measure comparison last — it is read after the measures it
+    # compares, not between them.
+    prefix, _, stem = str(name).rpartition("/")
+    last = (1, "") if prefix == MEASURES_PREFIX else (0, prefix)
+    digits = "".join(ch for ch in stem if ch.isdigit())
+    return (*last, 0, int(digits)) if digits else (*last, 1, 0)
+
+
+#: Folder name :mod:`meanap.stats.run` gives the cross-measure comparison. Kept
+#: here as well so a reader of a results folder need not import the runner.
+MEASURES_PREFIX = "MeasureComparison"
