@@ -414,6 +414,71 @@ def _redaction_checks() -> list[Check]:
     return checks
 
 
+def _ops_shortcut_checks() -> list[Check]:
+    """``ops.npy`` is 96% of a suite2p folder and holds two small fields.
+
+    Once an earlier run has extracted them into the ``ops_fields.npz`` sidecar,
+    the loader never opens ``ops.npy`` again — so a re-run of the same dataset
+    with different parameters must not pay to download it a second time.
+    """
+    from meanap.catnap.derived import OPS_CACHE_NAME
+    from meanap.remote.source import RecordingSource
+
+    checks: list[Check] = []
+    MB = 1_000_000
+    folder = {
+        "rec1/suite2p/plane0/F.npy": 4 * MB,
+        "rec1/suite2p/plane0/stat.npy": 5 * MB,
+        "rec1/suite2p/plane0/iscell.npy": 1 * MB,
+        "rec1/suite2p/plane0/spks.npy": 4 * MB,
+        "rec1/suite2p/plane0/ops.npy": 463 * MB,
+        "rec1/suite2p/plane0/Fneu.npy": 4 * MB,   # never wanted
+    }
+
+    def build(tmp: str, derived: Path | None):
+        store = FakeStore(dict(folder))
+        cache = FileCache(root=Path(tmp) / "c", budget_bytes=2000 * MB)
+        return store, RecordingSource(store=store, cache=cache, log=lambda m: None,
+                                      derived_root=derived)
+
+    with tempfile.TemporaryDirectory() as tmp:
+        store, source = build(tmp, None)
+        source.plane0("rec1")
+        names = {Path(p).name for p in store.fetched}
+        checks.append(("with no sidecar, ops.npy is fetched as before",
+                       "ops.npy" in names, sorted(names)))
+        checks.append(("files the pipeline never opens stay skipped",
+                       "Fneu.npy" not in names, sorted(names)))
+
+    with tempfile.TemporaryDirectory() as tmp:
+        derived = Path(tmp) / "derived"
+        (derived / "rec1" / "plane0").mkdir(parents=True)
+        (derived / "rec1" / "plane0" / OPS_CACHE_NAME).write_bytes(b"x")
+        store, source = build(tmp, derived)
+        source.plane0("rec1")
+        names = {Path(p).name for p in store.fetched}
+        checks.append(("with a sidecar, ops.npy is not fetched",
+                       "ops.npy" not in names, sorted(names)))
+        checks.append(("everything the loader still reads is fetched",
+                       {"F.npy", "stat.npy", "iscell.npy", "spks.npy"} <= names,
+                       sorted(names)))
+        moved = sum(store.sizes[p.strip("/")] for p in store.fetched)
+        checks.append(("the transfer drops by ~96%",
+                       moved < 0.05 * sum(folder.values()),
+                       f"{moved / 1e6:.0f} MB of {sum(folder.values()) / 1e6:.0f} MB"))
+
+    with tempfile.TemporaryDirectory() as tmp:
+        derived = Path(tmp) / "derived"
+        (derived / "other" / "plane0").mkdir(parents=True)
+        (derived / "other" / "plane0" / OPS_CACHE_NAME).write_bytes(b"x")
+        store, source = build(tmp, derived)
+        source.plane0("rec1")
+        names = {Path(p).name for p in store.fetched}
+        checks.append(("another recording's sidecar does not count",
+                       "ops.npy" in names, sorted(names)))
+    return checks
+
+
 def main() -> int:
     print("=" * 70)
     print("Remote data: store protocol, cache, budgeting, redaction")
@@ -426,6 +491,8 @@ def main() -> int:
         ("D — concurrent fetch, eviction and pinning:", _concurrency_checks),
         ("E — disk budgeting:", _budget_checks),
         ("F — share links don't travel in bundles:", _redaction_checks),
+        ("G — a cached ops sidecar spares the biggest download:",
+         _ops_shortcut_checks),
     ]:
         p, n = _report(title, build())
         total_pass += p

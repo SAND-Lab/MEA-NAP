@@ -781,7 +781,8 @@ def _build_source(params: Params, log):
         f"prefetch depth {params.prefetch_depth})")
     log(f"  derived {params.derived_data_folder}")
     return RecordingSource(
-        store=store, cache=FileCache(root=cache_dir, budget_bytes=budget), log=log)
+        store=store, cache=FileCache(root=cache_dir, budget_bytes=budget), log=log,
+        derived_root=params.derived_data_folder or None)
 
 
 def _reload_for_plots(params, rec, state, log, source=None):

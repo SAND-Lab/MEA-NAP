@@ -401,6 +401,8 @@ def _check_remote_source(params: Params, recordings, log, progress=None) -> None
 
     store = open_store(params)
     names = [r.filename for r in recordings]
+    from meanap.params import default_derived_dir
+
     report = run_preflight(
         store, names,
         mode="catnap" if params.suite2p_mode else "ephys",
@@ -408,6 +410,9 @@ def _check_remote_source(params: Params, recordings, log, progress=None) -> None
         cache_dir=default_cache_dir(params),
         cache_budget_gb=params.cache_budget_gb,
         prefetch_depth=params.prefetch_depth,
+        # Resolved the same way the source will resolve it, so the estimate and
+        # the transfer agree about what an earlier run already left behind.
+        derived_root=default_derived_dir(params, store.copies) or None,
     )
     log("\n=== Pre-flight ===")
     for line in report.render().splitlines():
