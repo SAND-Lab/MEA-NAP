@@ -46,6 +46,7 @@ from meanap.gui.panels.results import ResultsPanel
 from meanap.gui.panels.stats import StatsPanel
 from meanap.gui.tooltip import install_tooltip_style, wrap_tooltips
 from meanap.gui.tutorial import TutorialOverlay, TutorialStep, tabbar_target
+from meanap.gui.combo import install_combo_popup_fit
 from meanap.gui.wheel import install_wheel_guard
 
 
@@ -130,6 +131,10 @@ class MainWindow(QMainWindow):
         # A scroll over a spin box or combo box belongs to the page it is on,
         # not to the field the pointer happened to cross — see gui/wheel.py.
         install_wheel_guard()
+        # A combo box opens its popup at the width of the box, which is set by
+        # the form around it — too narrow for the options once the popup's own
+        # check column is taken out of it. See gui/combo.py.
+        install_combo_popup_fit()
         # Qt hands focus to the first widget that will take it, so the window
         # opened with a settings field focused that nobody had clicked — and a
         # focused field is one the wheel is allowed to change. The tab strip
