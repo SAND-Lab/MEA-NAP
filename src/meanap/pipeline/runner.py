@@ -35,6 +35,7 @@ from meanap.pipeline.spike_detection import SpikeDetectionParams, detect_spikes_
 from meanap.pipeline.spreadsheet import (
     RecordingInfo, generate_spreadsheet, read_recording_csv,
 )
+from meanap.pipeline.verbosity import RunLog, as_run_log
 
 
 def default_output_folder_name() -> str:
@@ -121,6 +122,10 @@ def run_pipeline(
     raising :class:`~meanap.pipeline.cancellation.PipelineCancelled`. Callers
     that offer a Stop button should catch that and treat it as a clean stop.
 
+    ``log`` is promoted to a :class:`~meanap.pipeline.verbosity.RunLog` at
+    ``params.verbose_level`` and handed to every step, so a Verbose or Debug
+    run says more through the same callable — see ``pipeline/verbosity.py``.
+
     ``progress``, if given, receives a :class:`~meanap.pipeline.progress.Progress`
     snapshot as each recording finishes — a completed fraction and a calibrated
     estimate of the time left. It is called from whichever thread the pipeline
@@ -131,6 +136,10 @@ def run_pipeline(
     folder first, then ``prior_analysis_path``/``spike_detected_data`` — and
     validated before any compute starts.
     """
+    # Everything below — every step, every worker that is handed this — logs
+    # through the level the run was configured with. See pipeline/verbosity.py.
+    log = as_run_log(log, params.verbose_level)
+
     if not params.spreadsheet_file_name:
         raise ValueError("Spreadsheet file must be set")
     if not params.output_data_folder:
@@ -169,6 +178,7 @@ def run_pipeline(
     # pipeline and version produced it without anyone having to ask.
     log(pipeline_label(mode_for_params(params)))
     log(f"Output folder ready: {output_root}")
+    _log_run_header(params, recordings, output_root, log)
 
     # Snapshot the settings alongside the results. Until this, an output folder
     # recorded nothing about how it was produced — and every plotting routine
@@ -367,6 +377,159 @@ def run_pipeline(
     _report_working_dirs(params, log)
     reporter.finish()
     return output_root
+
+
+def _describe_spikes(result, duration_s: float) -> list[str]:
+    """What step 1 actually found, per detection method.
+
+    A count and a mean rate per method is the check anyone does by hand after
+    a detection run — a method that found nothing, or found a million spikes
+    on one noisy channel, shows up here rather than three steps later in a
+    network metric that looks odd.
+    """
+    import numpy as np
+
+    per_method: dict[str, list[int]] = {}
+    for by_method in result.spike_times.values():
+        for method, times in by_method.items():
+            per_method.setdefault(method, []).append(len(times))
+
+    lines = []
+    for method, counts in per_method.items():
+        arr = np.asarray(counts, dtype=float)
+        total = int(arr.sum())
+        active = int((arr > 0).sum())
+        rate = total / duration_s / max(len(arr), 1) if duration_s else float("nan")
+        lines.append(f"      {method}: {total} spikes on {active}/{len(arr)} "
+                     f"channels, {rate:.2f} Hz mean firing rate")
+    return lines
+
+
+def _log_run_header(
+    params: Params,
+    recordings: list[RecordingInfo],
+    output_root: Path,
+    log: RunLog,
+) -> None:
+    """What this run is, above and beyond the folder it writes to.
+
+    Only reached at Verbose and above. A Normal run's log says what the
+    pipeline is *doing*; this says what it was *asked* to do — which batch,
+    which settings differ from the defaults, and (at Debug) on what machine
+    with which libraries. That is the part a log has to carry for a result to
+    be reproducible from it months later.
+    """
+    if not log.wants_detail:
+        return
+
+    log.detail(f"  Log level: {log.level}")
+    log.detail_lines(_describe_batch(params, recordings))
+    log.detail_lines(_describe_run_shape(params))
+    log.detail_lines(_describe_settings(params, log.wants_debug))
+    log.debug_lines(_describe_environment(params, output_root))
+
+
+def _describe_batch(params: Params, recordings: list[RecordingInfo]) -> list[str]:
+    """The recordings this run covers, grouped the way the analysis will be."""
+    def divs_of(recs: list[RecordingInfo]) -> str:
+        seen = sorted({r.div for r in recs if r.div is not None})
+        if not seen:
+            return ""
+        # DIV is a float in the spreadsheet but almost always whole.
+        shown = [f"{d:g}" for d in seen]
+        return f"  DIV {', '.join(shown)}"
+
+    groups: dict[str, list[RecordingInfo]] = {}
+    for rec in recordings:
+        groups.setdefault(rec.group, []).append(rec)
+
+    lines = [f"  Batch: {len(recordings)} recording(s), {len(groups)} group(s)"
+             f"{divs_of(recordings)}"]
+    for name, recs in groups.items():
+        lines.append(f"    {name}: {len(recs)} recording(s){divs_of(recs)}")
+    lines.append(f"  Spreadsheet: {params.spreadsheet_file_name} "
+                 f"(rows {params.spreadsheet_range})")
+    return lines
+
+
+def _describe_run_shape(params: Params) -> list[str]:
+    """The handful of settings that decide what the run computes at all."""
+    if params.suite2p_mode:
+        shape = "CAT-NAP: calcium imaging, adjacency built in step 2"
+    else:
+        shape = (f"Steps {params.start_analysis_step}-{params.stop_analysis_step}"
+                 f", spike method {params.spikes_method}")
+    lags = ", ".join(str(v) for v in params.func_con_lag_val)
+    lines = [f"  {shape}; lags {lags} ms"]
+    if params.optional_steps_to_run:
+        lines.append(f"  Optional steps: {', '.join(params.optional_steps_to_run)}")
+    return lines
+
+
+def _describe_settings(params: Params, everything: bool) -> list[str]:
+    """The settings, as ``params_summary`` groups them for the report.
+
+    Verbose lists what differs from the defaults — the answer to "what was
+    different about this run?", and usually a dozen lines. Debug appends every
+    field to that, because at that point the question is "what exactly did it
+    use?" — appends rather than replaces, so a Debug log still contains, line
+    for line, everything a Verbose one would have said.
+    """
+    from meanap.params_summary import summarise_params
+
+    try:
+        summary = summarise_params(params)
+    except Exception as e:                       # never lose a run over a log line
+        return [f"  (could not summarise the settings: {e})"]
+
+    changed = [e for g in summary.groups for e in g.entries if e.changed]
+    if changed:
+        lines = [f"  Settings changed from the defaults ({len(changed)}):"]
+        lines += [f"    {e.name} = {e.value!r}   (default {e.default!r})"
+                  for e in changed]
+    else:
+        lines = ["  Settings: every field is at its default."]
+
+    if everything:
+        lines.append(f"  All {summary.total} settings, grouped as Params "
+                     f"declares them (* = changed):")
+        for group in summary.groups:
+            if not group.entries:
+                continue
+            lines.append(f"    {group.name}")
+            for entry in group.entries:
+                mark = "*" if entry.changed else " "
+                lines.append(f"     {mark} {entry.name} = {entry.value!r}")
+    return lines
+
+
+def _describe_environment(params: Params, output_root: Path) -> list[str]:
+    """Machine, interpreter and library versions — the Debug-only preamble.
+
+    Numbers that differ between two runs of the same settings are usually
+    explained here rather than in the pipeline, so a Debug log is worth little
+    without it.
+    """
+    import os
+    import platform
+    import sys
+
+    lines = [
+        f"  Python {sys.version.split()[0]} on {platform.platform()}",
+        f"  Machine: {os.cpu_count() or '?'} CPU(s); "
+        f"recording workers {params.recording_workers or 'auto'}, "
+        f"spike-detection channel workers "
+        f"{params.spike_detection_channel_workers or 'auto'}",
+        f"  Output root: {output_root.resolve()}",
+    ]
+    versions = []
+    for name in ("numpy", "scipy", "pandas", "matplotlib", "numba"):
+        try:
+            versions.append(f"{name} {__import__(name).__version__}")
+        except Exception:
+            versions.append(f"{name} —")
+    lines.append(f"  Libraries: {', '.join(versions)}")
+    return lines
 
 
 def _build_raw_source(params: Params, log):
@@ -620,6 +783,9 @@ def _run_step1_spike_detection(
     if not params.raw_data:
         raise ValueError("Raw data folder must be set to run step 1 (spike detection)")
 
+    # Already a RunLog when run_pipeline called us; promoted here too so the
+    # step can be run on its own (the tests do) and still honour the level.
+    log = as_run_log(log, params.verbose_level)
     progress = progress or RunProgress()
     progress.begin("step1", items=len(recordings))
 
@@ -654,7 +820,11 @@ def _run_step1_spike_detection(
             continue
 
         log(f"  [{rec.filename}] loading raw data…")
+        log.debug(f"      reading {raw_path}")
         dat, channels, fs = load_raw_recording(raw_path)
+        log.detail(f"      {len(channels)} channels, {fs / 1000:g} kHz, "
+                   f"{dat.shape[0] / fs:.1f}s "
+                   f"({dat.nbytes / 1e6:.0f} MB of samples)")
 
         detect_params = SpikeDetectionParams(
             fs=fs,
@@ -671,10 +841,17 @@ def _run_step1_spike_detection(
         )
 
         log(f"  [{rec.filename}] detecting spikes ({len(channels)} channels)…")
-        result = detect_spikes_recording(
-            dat, channels, fs, detect_params,
-            max_workers=params.spike_detection_channel_workers,
-        )
+        log.debug(f"      thresholds {params.thresholds}, wavelets "
+                  f"{params.wname_list}, costs {cost_list}, "
+                  f"band {params.filter_low_pass}-{params.filter_high_pass} Hz, "
+                  f"refractory {params.ref_period} ms, "
+                  f"artifact removal {'on' if params.remove_artifacts else 'off'}")
+        with log.timed(f"      [{rec.filename}] detection"):
+            result = detect_spikes_recording(
+                dat, channels, fs, detect_params,
+                max_workers=params.spike_detection_channel_workers,
+            )
+        log.detail_lines(_describe_spikes(result, dat.shape[0] / fs))
 
         out_path = spike_dir / f"{rec.filename}_spikes.npz"
         save_spike_times_npz(

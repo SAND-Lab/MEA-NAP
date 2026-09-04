@@ -11,6 +11,7 @@ surrogates) is pure Python, so it runs in separate *processes* (see
 
 from __future__ import annotations
 
+import time
 from pathlib import Path
 from typing import Callable
 
@@ -26,10 +27,28 @@ from meanap.pipeline.resume import already_done, build_input_locator
 from meanap.pipeline.rng import make_rng
 from meanap.pipeline.spreadsheet import RecordingInfo, ground_spike_times_dict, parse_ground_electrodes
 from meanap.pipeline.atomic import atomic_savez
+from meanap.pipeline.verbosity import as_run_log, format_elapsed
 
 # Peak per-worker RAM for Step 3: spike times (sparse) + a few 64x64xrep_num
 # surrogate stacks (~6 MB at rep_num=200). Tiny — worker count is CPU-limited.
 _STEP3_MEM_PER_TASK_GB = 0.3
+
+
+def _describe_edges(adj_m: np.ndarray, adj_m_ci: np.ndarray, lag_ms: int) -> str:
+    """How much of the raw correlation matrix survived thresholding.
+
+    The one number that says whether a lag was worth computing: an adjacency
+    that kept 2% of its edges and one that kept 60% produce very different
+    step-4 metrics, and nothing downstream reports the difference.
+    """
+    n = adj_m_ci.shape[0]
+    possible = n * (n - 1) // 2
+    upper = np.triu_indices(n, k=1)
+    kept = int(np.count_nonzero(adj_m_ci[upper] > 0))
+    raw = int(np.count_nonzero(adj_m[upper] > 0))
+    density = kept / possible * 100 if possible else 0.0
+    return (f"lag {lag_ms}ms: {kept}/{raw} edges survived thresholding "
+            f"({density:.1f}% of {possible} possible)")
 
 
 def _step3_one_recording(task: tuple[Params, RecordingInfo, str]) -> tuple[str, list[str]]:
@@ -49,6 +68,10 @@ def _step3_one_recording(task: tuple[Params, RecordingInfo, str]) -> tuple[str, 
     plot_checks = bool(getattr(params, "prob_thresh_plot_checks", False))
 
     logs: list[str] = []
+    # The buffer is what this worker "prints" — the parent replays it in
+    # completion order — so the level rides along in params and is applied
+    # here, in the process that has the numbers.
+    vlog = as_run_log(logs.append, params.verbose_level)
     # Continuing an interrupted run: adjacency for this recording is already
     # written, and it is the expensive part of this step.
     done_path = mat_files_dir / f"{rec.filename}_adjM.npz"
@@ -82,6 +105,10 @@ def _step3_one_recording(task: tuple[Params, RecordingInfo, str]) -> tuple[str, 
     if ground_electrodes:
         spike_times_dict = ground_spike_times_dict(spike_times_dict, data["channels"], ground_electrodes)
 
+    vlog.debug(f"      [{rec.filename}] {n_channels} channels, {fs / 1000:g} kHz, "
+               f"{duration_s:.1f}s; {rep_num} surrogates, {tail} tail, "
+               f"seed {params.random_seed if params.random_seed is not None else 'fresh'}")
+
     out_arrays: dict[str, np.ndarray] = {}
     # Per-lag check payloads, written together once every lag is done. The
     # snapshots they come from are tens of megabytes and vanish with this
@@ -96,6 +123,7 @@ def _step3_one_recording(task: tuple[Params, RecordingInfo, str]) -> tuple[str, 
     for lag_ms in lag_values:
         logs.append(f"  [{rec.filename}] computing adjacency matrix (lag={lag_ms}ms, "
                     f"{rep_num} shuffles)...")
+        lag_started = time.perf_counter()
         if plot_checks:
             adj_m, adj_m_ci, rep_val, dist1 = adjm_thr(
                 spike_times_dict, n_channels, lag_ms, tail, fs, duration_s, rep_num,
@@ -122,6 +150,8 @@ def _step3_one_recording(task: tuple[Params, RecordingInfo, str]) -> tuple[str, 
             )
         out_arrays[f"adjM{lag_ms}mslag"] = adj_m_ci
         out_arrays[f"adjM{lag_ms}mslag_raw"] = adj_m
+        vlog.detail(f"      {_describe_edges(adj_m, adj_m_ci, lag_ms)} "
+                    f"in {format_elapsed(time.perf_counter() - lag_started)}")
 
     out_path = mat_files_dir / f"{rec.filename}_adjM.npz"
     atomic_savez(out_path, channels=data["channels"], **out_arrays)
@@ -151,7 +181,10 @@ def _run_step3_functional_connectivity(
     the array with exact MATLAB parity) for each lag in
     ``params.func_con_lag_val``.
     """
+    log = as_run_log(log, params.verbose_level)
     log("\n=== Step 3: Functional Connectivity ===")
+    log.debug(f"  {len(recordings)} recording(s) over a process pool "
+              f"(recording workers: {params.recording_workers or 'auto'})")
     check_cancel(should_cancel)
     progress = progress or RunProgress()
     progress.begin("step3", items=len(recordings))

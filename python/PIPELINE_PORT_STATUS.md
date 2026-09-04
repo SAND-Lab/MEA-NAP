@@ -1681,6 +1681,54 @@ With that in place, two runs at `random_seed=42` produce byte-identical
 (all 48 columns, `Q`/`SW`/`PC`/`num_nnmf_components` included); `random_seed=7`
 differs, as it should. No BLAS thread pinning was needed.
 
+## Verbose level (`Params.verbose_level`, 2026-09-04)
+
+Was stored, written to `params.json` and **never read** — the GUI offered three
+levels and every run printed the same thing. `pipeline/verbosity.py` now makes
+it mean something.
+
+The design constraint is that the levels are **additive**: `Verbose` adds to
+what `Normal` prints, `Debug` adds to both, and nothing is ever removed. A
+level that could suppress a line would make a Debug log unsafe to reason from
+(is that warning missing, or was it never printed?) and would make raising the
+level a decision rather than a free one. Concretely: none of the ~150 existing
+`log(...)` call sites had to be audited or changed.
+
+`RunLog` is *callable*, so `log("…")` still means "print at every level"; the
+new channels are `log.detail(…)` (Verbose+), `log.debug(…)` (Debug only) and
+`log.timed(label)` (a context manager that reports elapsed time at Verbose+).
+`run_pipeline` promotes whatever callable it was given once, at the top, so
+every step and every worker downstream inherits the level.
+
+Two things worth knowing:
+
+1. **Workers get the level through `Params`, not through the log.** Steps 3 and
+   4 compute in spawned processes and buffer their own lines into a list that
+   the parent replays. Each promotes its own buffer with
+   `as_run_log(logs.append, params.verbose_level)` — the level travels in the
+   pickled `Params` that was going there anyway.
+2. **`as_run_log` never re-levels an existing `RunLog`.** A function further
+   down the stack guessing a level from its own arguments is how the run's
+   level and a step's level would drift apart.
+
+MATLAB's `Params.verboseLevel` is `'Normal' | 'High' | 'Silent'`;
+`normalise_level` accepts those names (`High` → `Verbose`, `Silent` → `Normal`,
+there being no quieter level here) so a params file from that pipeline keeps
+its intent instead of silently landing on the default. Anything unrecognised —
+a hand-edited file, a `None` — logs normally rather than raising.
+
+What each level adds, and where:
+
+| Level | Adds | Where |
+| --- | --- | --- |
+| Normal | (unchanged) | everywhere |
+| Verbose | the batch and its groups/DIVs; every setting that differs from its default; per-method spike counts and mean rate; active electrodes, mean FR, burst rate; edges surviving thresholding per lag; active nodes, density, modules/Q, small-worldness, global efficiency per lag; per-stage timings | `runner._log_run_header`, `_describe_spikes`, `step2._describe_activity`, `step3._describe_edges`, `step4._describe_network`, `catnap._describe_adjms` |
+| Debug | file paths, sampling rates and durations, detection/threshold settings, worker counts, Python/platform/library versions, and *every* setting rather than the changed ones | the same places, via `log.debug` |
+
+Checked by `python/test_verbose_level.py` (~5 s), whose load-bearing assertion
+is that the netmet JSON is byte-identical across all three levels: turning
+Debug on to diagnose a run must not invalidate it.
+
 ## Spreadsheet range convention
 
 `Params.spreadsheet_range` is a string like `"A2:A100000"`. The parser

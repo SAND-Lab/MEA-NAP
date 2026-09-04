@@ -46,6 +46,7 @@ from meanap.gui.panels.results import ResultsPanel
 from meanap.gui.panels.stats import StatsPanel
 from meanap.gui.tooltip import install_tooltip_style, wrap_tooltips
 from meanap.gui.tutorial import TutorialOverlay, TutorialStep, tabbar_target
+from meanap.gui.combo import install_combo_popup_fit
 from meanap.gui.wheel import install_wheel_guard
 
 
@@ -130,6 +131,10 @@ class MainWindow(QMainWindow):
         # A scroll over a spin box or combo box belongs to the page it is on,
         # not to the field the pointer happened to cross — see gui/wheel.py.
         install_wheel_guard()
+        # A combo box opens its popup at the width of the box, which is set by
+        # the form around it — too narrow for the options once the popup's own
+        # check column is taken out of it. See gui/combo.py.
+        install_combo_popup_fit()
         # Qt hands focus to the first widget that will take it, so the window
         # opened with a settings field focused that nobody had clicked — and a
         # focused field is one the wheel is allowed to change. The tab strip
@@ -145,8 +150,13 @@ class MainWindow(QMainWindow):
         tb.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextOnly)
         self.addToolBar(tb)
 
-        act_new = QAction("New", self)
-        act_new.setToolTip("Reset all parameters to defaults")
+        # "Reset to defaults", not "New": there is no document to be new, and
+        # the one thing the button does is discard the settings on screen.
+        act_new = QAction("Reset to defaults", self)
+        act_new.setToolTip(
+            "Put every setting on every tab back to its default for the "
+            "current pipeline. Parameters you saved to a file are untouched."
+        )
         act_new.triggered.connect(self._on_new)
 
         act_open = QAction("Open params…", self)
@@ -742,7 +752,7 @@ class MainWindow(QMainWindow):
     def _on_new(self) -> None:
         # ask_yes_no rather than QMessageBox.question: the latter lets the
         # platform decide which end Yes goes on, which moves it on a Mac.
-        if ask_yes_no(self, "New parameters",
+        if ask_yes_no(self, "Reset to defaults",
                       "Reset all parameters to defaults?"):
             # Defaults for the pipeline on screen, not for MEA-NAP: resetting
             # in CAT-NAP should not quietly drop you back into the ephys tabs

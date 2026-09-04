@@ -13,6 +13,8 @@ from PyQt6.QtWidgets import (
 from meanap.gui.advanced import AdvancedSection
 from meanap.gui.panels.prior import PriorAnalysisPanel
 from meanap.params import GENERATE_CSV_STEP, STATS_STEP, Params
+# One source of truth for the levels: the pipeline is what acts on them.
+from meanap.pipeline.verbosity import VERBOSE_LEVELS
 
 PIPELINE_STEPS = [
     (1, "Spike detection"),
@@ -42,7 +44,6 @@ OPTIONAL_STEPS = [
      "Applies to a single run started from this tab. A queued run does not "
      "pick it up."),
 ]
-VERBOSE_LEVELS = ["Normal", "Verbose", "Debug"]
 
 
 class PipelinePanel(QWidget):
@@ -148,6 +149,20 @@ class PipelinePanel(QWidget):
 
         self.verbose_level = QComboBox()
         self.verbose_level.addItems(VERBOSE_LEVELS)
+        self.verbose_level.setToolTip(
+            "How much the run log says. Each level adds to the one before it, "
+            "so nothing is ever hidden by turning it up.\n\n"
+            "Normal: what each step is doing, and anything that went wrong.\n"
+            "Verbose: what the run was asked to do (the batch, and every "
+            "setting that differs from its default), then the numbers each "
+            "step produced — spikes found per method, active electrodes and "
+            "burst rate, how many edges survived thresholding, the modules and "
+            "small-worldness of each network, and how long each took.\n"
+            "Debug: the internals underneath — file paths, sampling rates, "
+            "worker counts, the machine and library versions, and every "
+            "setting rather than the changed ones.\n\n"
+            "It changes the log only — the results are the same at every level."
+        )
 
         self.time_processes = QCheckBox()
 
