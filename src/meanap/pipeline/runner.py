@@ -36,6 +36,7 @@ from meanap.pipeline.spreadsheet import (
     RecordingInfo, generate_spreadsheet, read_recording_csv,
 )
 from meanap.pipeline.verbosity import RunLog, as_run_log
+from meanap.remote.source import stream_needing_work
 
 
 def default_output_folder_name() -> str:
@@ -178,6 +179,10 @@ def run_pipeline(
     # pipeline and version produced it without anyone having to ask.
     log(pipeline_label(mode_for_params(params)))
     log(f"Output folder ready: {output_root}")
+    # Before anything asks what is already finished: an express run left its
+    # results in the bundle beside this folder, not in it.
+    if params.continue_interrupted:
+        _restore_bundle_for_continue(output_root, log)
     _log_run_header(params, recordings, output_root, log)
 
     # Snapshot the settings alongside the results. Until this, an output folder
@@ -683,6 +688,40 @@ def _report_working_dirs(params: Params, log) -> None:
                 "denoising entirely. Deleting it only costs that work.")
 
 
+def _restore_bundle_for_continue(output_root: Path, log) -> None:
+    """Unpack an express run's bundle so this run can skip what it finished.
+
+    Express mode and continuing are each other's blind spot. Express keeps the
+    ``.meanap`` and removes the folder because the bundle holds everything the
+    folder did; continuing decides what to skip by looking for each recording's
+    artefact *in the folder*. Run one after the other, the announcement that
+    finished recordings will be skipped came out — ``output_name_taken`` counts
+    the bundle as the run existing — and then nothing was skipped, because the
+    files it looks for went with the folder.
+
+    So they are made to compose: the data comes back out of the bundle, and
+    every existing skip decision then works unchanged. Only data is restored,
+    never figures, and only files this folder does not already have — see
+    :func:`~meanap.pipeline.export.unpack_bundle_data`.
+
+    Guarded: a bundle that will not open costs the *saving*, not the run. It is
+    said out loud, because the line above it has already promised a skip.
+    """
+    from meanap.pipeline.bundle import BUNDLE_SUFFIX
+    from meanap.pipeline.export import unpack_bundle_data
+
+    bundle = output_root.with_suffix(BUNDLE_SUFFIX)
+    if not bundle.is_file():
+        return
+
+    log(f"Continuing from {bundle.name} — express mode kept the bundle in "
+        f"place of the folder.")
+    try:
+        unpack_bundle_data(bundle, output_root, log=lambda m: log(f"  {m}"))
+    except Exception as e:                            # noqa: BLE001
+        log(f"  Could not read it ({e}) — running from the start instead.")
+
+
 def _discard_folder_for_bundle(output_root: Path, bundle: Path | None, log) -> Path:
     """Drop the run folder now the bundle holds everything it did.
 
@@ -800,18 +839,27 @@ def _run_step1_spike_detection(
     # factory — the remote tests do — doesn't have to know about progress.
     source.progress = progress
 
-    for rec, raw_path in source.stream(recordings, depth=params.prefetch_depth,
-                                       kind="ephys"):
+    # Continuing an interrupted run: these recordings' spike times are already
+    # on disk, so the expensive part is done. Decided before the stream rather
+    # than inside it — the stream hands a recording over only once it has been
+    # fetched, so checking later would save the detection and still download
+    # every finished recording, which on a remote source is most of the cost.
+    already_detected = {
+        rec.filename for rec in recordings
+        if already_done(params, output_root,
+                        spike_dir / f"{rec.filename}_spikes.npz", log)
+    }
+    if already_detected and source.remote:
+        log(f"  {len(already_detected)} recording(s) already detected — their "
+            f"raw data will not be fetched.")
+
+    for rec, raw_path in stream_needing_work(
+            source, recordings, already_detected.__contains__,
+            depth=params.prefetch_depth, kind="ephys"):
         check_cancel(should_cancel)
-        # Continuing an interrupted run: this recording's spike times are
-        # already on disk, so the expensive part is done. Checked here rather
-        # than before the stream so the source still releases whatever it
-        # fetched for it.
-        done_path = spike_dir / f"{rec.filename}_spikes.npz"
-        if already_done(params, output_root, done_path, log):
+        if rec.filename in already_detected:
             log(f"  [{rec.filename}] already detected — skipping")
-            source.unpin(rec.filename)
-            source.release(rec.filename)
+            # Nothing was fetched for it, so there is no hold to drop.
             progress.item_done(rec.filename)
             continue
         if isinstance(raw_path, BaseException):

@@ -51,6 +51,10 @@ Every resumable write goes to a temporary name and is `os.replace`d into
 position, so a file existing means it is whole. Anything unreadable is deleted
 and redone rather than trusted.
 
+Express mode is no exception, though it keeps no folder to skip anything in: the
+run's data is unpacked out of the `.meanap` beside it first, and then the same
+skipping applies. See {ref}`continuing an express run <express-continue>`.
+
 ## Adding a recording
 
 Put it in the spreadsheet and continue.

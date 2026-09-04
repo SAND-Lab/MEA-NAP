@@ -59,6 +59,7 @@ from meanap.pipeline.resume import (
 )
 from meanap.pipeline.rng import make_rng
 from meanap.pipeline.verbosity import as_run_log
+from meanap.remote.source import stream_needing_work
 from meanap.pipeline.parallel import StreamingPool, suggest_process_count
 from meanap.pipeline.spreadsheet import RecordingInfo
 from meanap.pipeline.step4 import (
@@ -450,12 +451,22 @@ def run_catnap_pipeline(
     #
     # A resumed run reads adjacency from the prior analysis and never opens the
     # raw data, so it must not fetch it either: the whole point of resuming is
-    # that the recordings need not be present at all.
+    # that the recordings need not be present at all. A *continued* run is the
+    # same case per recording rather than per run — see below.
+    already_computed = _already_computed(params, output_root, measures,
+                                         recordings, log)
+    if already_computed and source.remote:
+        log(f"  {len(already_computed)} recording(s) already computed — their "
+            f"raw data will not be fetched.")
     stream = (
         ((rec, suite2p_plane0_dir(params.raw_data, rec.filename))
          for rec in recordings)
         if resuming else
-        source.stream(recordings, depth=params.prefetch_depth)
+        stream_needing_work(
+            source, recordings, already_computed.__contains__,
+            depth=params.prefetch_depth, kind="catnap",
+            stand_in=lambda rec: suite2p_plane0_dir(params.raw_data, rec.filename),
+        )
     )
     # Filled by the pool as workers finish, so in completion order — see the
     # re-ordering into ``all_results`` after the loop.
@@ -484,17 +495,9 @@ def run_catnap_pipeline(
             # Continuing an interrupted run: this recording's adjacency and
             # activity stats are already in *this* folder, so load them rather than
             # redoing the STTC and the circular-shift thresholding, which is the
-            # expensive half of the CAT-NAP path.
-            # Every measure has to be there: a continued run that found only
-            # the primary measure's file would quietly drop the others, and the
-            # recording would be missing from exactly the comparison the extra
-            # measures were run for.
-            continued = all(
-                already_done(
-                    params, output_root,
-                    output_root / (_state_subdir(params, activity) or "")
-                    / ADJM_SUBDIR / f"{rec.filename}{CATNAP_SUFFIX}", log)
-                for activity in measures)
+            # expensive half of the CAT-NAP path. Decided before the stream was
+            # built, so a remote source never fetched this recording at all.
+            continued = rec.filename in already_computed
             if continued:
                 log(f"  [{rec.filename}] already computed — loading")
 
@@ -504,7 +507,7 @@ def run_catnap_pipeline(
                 else _compute_recording(params, rec, plane0, log)
             )
             if not loaded:
-                if not resuming:
+                if not resuming and not continued:
                     source.unpin(rec.filename)
                     source.release(rec.filename)
                 continue
@@ -543,8 +546,9 @@ def run_catnap_pipeline(
             # Everything derived from this recording is now on disk, so its raw
             # files are no longer needed — unless the trace figures still want them
             # in phase 3, in which case re-fetching one recording beats holding the
-            # whole batch.
-            if not resuming:
+            # whole batch. Nothing was fetched for a recording that was already
+            # computed, so there is no hold on it to drop.
+            if not resuming and not continued:
                 source.unpin(rec.filename)
                 source.release(rec.filename)
 
@@ -927,6 +931,39 @@ def _load_recording(
         log(f"  [{rec.filename}]{note} reusing adjacency matrices from {path}")
         out[activity] = (state, stats)
     return out or None
+
+
+def _already_computed(
+    params: Params, output_root: Path, measures, recordings, log,
+) -> set[str]:
+    """Which recordings a continued run can skip, decided before anything is fetched.
+
+    The natural place for this check is beside the work it skips, inside phase
+    1's loop. That is where it used to be, and on a local dataset it costs
+    nothing to leave it there. On a remote one it costs the whole download: the
+    stream hands over a recording only after fetching it, so the run saved the
+    STTC and the thresholding and still paid for every byte — continuing a
+    Dropbox-hosted batch took about as long as not continuing at all.
+
+    Every measure has to be present for a recording to count as done. A
+    continued run that found only the primary measure's file would quietly drop
+    the others, and the recording would be missing from exactly the comparison
+    the extra measures were run for.
+
+    Empty unless the run was asked to continue: ``already_done`` returns False
+    for every other kind of run, and this is only ever a set of what it found.
+    """
+    if not params.continue_interrupted:
+        return set()
+    return {
+        rec.filename for rec in recordings
+        if all(
+            already_done(
+                params, output_root,
+                output_root / (_state_subdir(params, activity) or "")
+                / ADJM_SUBDIR / f"{rec.filename}{CATNAP_SUFFIX}", log)
+            for activity in measures)
+    }
 
 
 def _state_subdir(params: Params, activity: str) -> Path | None:

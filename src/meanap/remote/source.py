@@ -34,7 +34,7 @@ from meanap.remote.preflight import (
 )
 from meanap.remote.prefetch import stream_ahead
 
-__all__ = ["RecordingSource", "SUITE2P_SUBDIR"]
+__all__ = ["RecordingSource", "SUITE2P_SUBDIR", "stream_needing_work"]
 
 SUITE2P_SUBDIR = "suite2p/plane0"
 
@@ -274,3 +274,40 @@ class RecordingSource:
         self.cache.unpin_prefix(self.store, self.folder(recording))
         for rel in self._rels_for(recording):
             self.cache.unpin_prefix(self.store, rel)
+
+
+def stream_needing_work(
+    source: "RecordingSource",
+    recordings: list,
+    skip: Callable[[str], bool],
+    *,
+    depth: int = 1,
+    kind: str = "catnap",
+    stand_in: Callable[[object], object] | None = None,
+) -> Iterator[tuple[object, object]]:
+    """Like :meth:`RecordingSource.stream`, but never fetches a finished recording.
+
+    A continued run knows which recordings are already done before it starts.
+    Deciding that *after* the stream has handed one over — which is where the
+    check naturally sits, next to the work it skips — means a remote source has
+    already downloaded it. The compute is saved and the transfer is paid in
+    full, and on a batch read over a share link the transfer is most of the run:
+    continuing a Dropbox-hosted analysis took as long as never having continued.
+
+    So the decision moves in front of the fetch. ``skip`` is asked about each
+    recording by name; :meth:`RecordingSource.stream` yields in the order it is
+    given, so the skipped ones splice back into their places and callers see the
+    spreadsheet's order either way. What they see *for* a skipped recording is
+    ``stand_in(rec)`` — a path that would have been fetched, for a caller that
+    still wants one — or ``None``.
+
+    Nothing is pinned or fetched for a skipped recording, so its caller must not
+    ``unpin`` or ``release`` it either: there is no hold to drop.
+    """
+    todo = [rec for rec in recordings if not skip(rec.filename)]
+    fetching = iter(source.stream(todo, depth=depth, kind=kind))
+    for rec in recordings:
+        if skip(rec.filename):
+            yield rec, (stand_in(rec) if stand_in is not None else None)
+        else:
+            yield next(fetching)

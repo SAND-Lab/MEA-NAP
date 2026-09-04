@@ -287,6 +287,105 @@ def _step4_checks() -> list[Check]:
 
 # ── The GUI offers it ─────────────────────────────────────────────────────────
 
+# ── Express mode ──────────────────────────────────────────────────────────────
+
+def _express_checks() -> list[Check]:
+    """Continuing an *express* run, whose results are in the bundle.
+
+    Express keeps the ``.meanap`` and deletes the folder; continuing looks for
+    finished recordings' artefacts in the folder. Run one after the other they
+    used to cancel out silently — the log announced a skip (the bundle counts as
+    the run existing) and then recomputed everything, so the continued run was
+    slower than analysing the new recording alone. The data is unpacked out of
+    the bundle first, which is what makes them compose.
+    """
+    from meanap.pipeline.bundle import BUNDLE_SUFFIX, MANIFEST_NAME, open_bundle
+    from meanap.pipeline.export import unpack_bundle_data
+
+    checks: list[Check] = []
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = Path(tmp)
+
+        def sheet(recs) -> None:
+            pd.DataFrame([{"Recording Filename": r, "DIV group": 21,
+                           "Genotype": "WT"} for r in recs]).to_csv(
+                tmp / "recs.csv", index=False)
+
+        first, added = RECS[:2], RECS[2]
+
+        # ── An express run, then continuing it with one more recording ───────
+        sheet(first)
+        root = create_output_folders(tmp, "Express", ["WT"])
+        _seed_step4_inputs(root)          # step 1/3 inputs for all of RECS
+        run_pipeline(_step4_params(tmp, "Express", express_mode=True),
+                     log=lambda m: None)
+
+        bundle = tmp / f"Express{BUNDLE_SUFFIX}"
+        checks.append(("an express run leaves a bundle", bundle.is_file(), ""))
+        checks.append(("and no folder", not (tmp / "Express").is_dir(), ""))
+
+        sheet(first + [added])
+        logs: list[str] = []
+        out = run_pipeline(
+            _step4_params(tmp, "Express", express_mode=True,
+                          continue_interrupted=True), log=logs.append)
+
+        checks.append(("continuing says where it is continuing from",
+                       any("Express.meanap" in m and "express mode" in m
+                           for m in logs), " | ".join(logs[:6])))
+        checks.append(("and how much it put back",
+                       any("Restored" in m and "data file" in m for m in logs),
+                       " | ".join(logs[:6])))
+        # The claim worth making: the finished recordings were *not* redone.
+        checks.append(("the recordings the express run finished are skipped",
+                       any("already have network metrics" in m for m in logs),
+                       " | ".join(m for m in logs if "skip" in m.lower())))
+
+        with open_bundle(out if out.is_file() else bundle) as opened:
+            netmet = json.load(open(Path(opened.root) / "4_NetworkActivity"
+                                    / "netmet_results.json"))
+        checks.append(("and the added one is analysed with them",
+                       sorted(netmet) == sorted(first + [added]),
+                       str(sorted(netmet))))
+        checks.append(("the run still ends as one bundle, not a folder",
+                       out.is_file() and out.suffix == BUNDLE_SUFFIX
+                       and not (tmp / "Express").is_dir(), str(out)))
+
+        # ── unpack_bundle_data on its own ────────────────────────────────────
+        dest = tmp / "Unpacked"
+        dest.mkdir()
+        (dest / "4_NetworkActivity").mkdir()
+        keep = dest / "4_NetworkActivity" / "netmet_results.json"
+        keep.write_text('{"mine": true}')
+        n = unpack_bundle_data(bundle, dest, log=lambda m: None)
+        checks.append(("unpacking restores data files", n > 0, str(n)))
+        checks.append(("without overwriting what the folder already has",
+                       json.loads(keep.read_text()) == {"mine": True}, ""))
+        checks.append(("and without restoring the previous run's manifest",
+                       not (dest / MANIFEST_NAME).exists(), ""))
+        checks.append(("no figures come back — only data",
+                       not any(p.suffix == ".png" for p in dest.rglob("*")),
+                       str([p.name for p in dest.rglob("*.png")][:3])))
+
+        # ── A bundle that will not open costs the saving, not the run ────────
+        broken = tmp / "Broken"
+        broken_bundle = tmp / f"Broken{BUNDLE_SUFFIX}"
+        broken_bundle.write_bytes(b"not a zip")
+        sheet(first)
+        create_output_folders(tmp, "Broken", ["WT"])
+        _seed_step4_inputs(broken)
+        logs = []
+        run_pipeline(_step4_params(tmp, "Broken", continue_interrupted=True),
+                     log=logs.append)
+        checks.append(("an unreadable bundle is reported, not raised",
+                       any("Could not read it" in m for m in logs),
+                       " | ".join(logs[:8])))
+        checks.append(("and the run finishes anyway",
+                       (broken / "4_NetworkActivity"
+                        / "netmet_results.json").is_file(), ""))
+    return checks
+
+
 # ── Changing which recordings a run covers ────────────────────────────────────
 
 def _batch_change_checks() -> list[Check]:
@@ -585,6 +684,7 @@ def main() -> int:
                          ("Deciding what is done:", _already_done_checks),
                          ("Where it writes:", _destination_checks),
                          ("Step 4, end to end:", _step4_checks),
+                         ("Express mode:", _express_checks),
                          ("Adding, removing, combining:", _batch_change_checks)]:
         p, n = _report(title, build())
         total_pass += p

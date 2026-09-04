@@ -299,6 +299,37 @@ should resume the *whole* batch rather than a subset, and {doc}`remote-data` for
 running against data that never lands on your disk — the two compose: stream the
 inputs, ship a small bundle back.
 
+(express-continue)=
+### Continuing an express run
+
+**Continue previous run** works on an express run too, and needs nothing said
+about the bundle. Tick it, point the run at the same output folder name, and the
+recordings the express run finished are skipped exactly as they would be if the
+folder were still there:
+
+```
+Continuing the interrupted run in local/Run — recordings already finished will be skipped.
+Output folder ready: local/Run
+Continuing from Run.meanap — express mode kept the bundle in place of the folder.
+  Restored 27 data file(s) from Run.meanap.
+  Continuing: 2 recording(s) already have network metrics — skipping them.
+```
+
+The data comes back out of the bundle into the folder before anything asks what
+is finished — only data, never figures, and never over a file the folder already
+has. If the run is still in express mode it packs the folder up again at the end
+and the bundle is replaced, so a batch can be grown one recording at a time and
+still be one `.meanap` at every step.
+
+```{note}
+Continue an express run *without* express mode and you end up with both: a
+folder holding the whole batch, and the older bundle beside it. The folder is
+the complete one. Re-run in express mode to replace the bundle, or delete it.
+```
+
+A bundle that will not open costs the saving rather than the run — it is
+reported and the run continues from the start.
+
 ## The viewer
 
 ```bash

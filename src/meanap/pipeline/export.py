@@ -26,7 +26,8 @@ from typing import Callable
 
 from meanap.timescale import timescale_folder
 
-__all__ = ["ExportResult", "export_output_folder", "default_export_dest"]
+__all__ = ["ExportResult", "export_output_folder", "default_export_dest",
+           "unpack_bundle_data"]
 
 
 @dataclass
@@ -125,6 +126,53 @@ def export_output_folder(
     finally:
         if opened is not None:
             opened.close()
+
+
+def unpack_bundle_data(
+    bundle: Path | str,
+    dest: Path | str,
+    *,
+    log: Callable[[str], None] = print,
+) -> int:
+    """Put a bundle's *data* back into an output folder, drawing nothing.
+
+    This is the half of an export a continued run needs. Express mode keeps the
+    ``.meanap`` and removes the folder, but continuing decides what to skip by
+    looking for each recording's artefact *in the output folder* — so without
+    this the two features cancel out and everything is recomputed. Every
+    artefact continuing looks for travels in the bundle verbatim
+    (``<rec>_spikes.npz``, ``<rec>_adjM.npz``, ``<rec>_catnap.npz``,
+    ``netmet_results.json``): only the reconstructable *figures* are dropped,
+    and no skip decision is made on a figure.
+
+    Files already in *dest* are left alone. A folder that still exists is the
+    newer copy of the two — the bundle beside it was written from an earlier
+    state of it — and a run that overwrote a finished recording's artefact with
+    a stale one would produce a wrong answer rather than a slow one.
+
+    ``manifest.json`` is not restored: it describes the run the bundle was
+    written from, and this run is about to be a different one. Whatever writes
+    the next bundle writes the manifest to match.
+
+    Returns how many files were put back.
+    """
+    from meanap.pipeline.bundle import MANIFEST_NAME, open_bundle
+
+    dest = Path(dest)
+    with open_bundle(bundle) as opened:
+        root = Path(opened.root)
+        n = 0
+        for path in sorted(root.rglob("*")):
+            if not path.is_file() or path.name == MANIFEST_NAME:
+                continue
+            target = dest / path.relative_to(root)
+            if target.exists():
+                continue
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(path, target)
+            n += 1
+    log(f"Restored {n} data file(s) from {Path(bundle).name}.")
+    return n
 
 
 def _copy_data(root: Path, dest: Path) -> int:

@@ -265,6 +265,187 @@ def _bounded_run_checks() -> list[Check]:
     return checks
 
 
+def _continue_no_fetch_checks() -> list[Check]:
+    """Continuing must not download what it has already decided to skip.
+
+    The saving a continued run makes is the compute; on a remote source the
+    compute was never the expensive part. The check that decides what to skip
+    used to sit inside phase 1's loop, which the stream only reaches after
+    fetching the recording — so continuing a share-linked batch re-downloaded
+    every finished recording and then threw the data away. Both halves matter
+    here: nothing is fetched for a finished recording, and the finished
+    recording is still in the results.
+    """
+    from meanap.catnap import pipeline as cp
+    from meanap.pipeline.output_folders import create_output_folders
+
+    checks: list[Check] = []
+    names = [f"rec{i}" for i in range(4)]
+    first, added = names[:3], names[3]
+
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = Path(tmp)
+        _make_dataset(tmp / "remote", names)
+
+        store = CopyingStore(tmp / "remote")
+        fetched: list[str] = []
+        real_fetch = store.fetch
+
+        def counting(path, dest, progress=None):
+            fetched.append(path)
+            return real_fetch(path, dest, progress)
+
+        store.fetch = counting
+
+        def run(recs, **kw):
+            fetched.clear()
+            out = create_output_folders(tmp, "Cont", ["WT"])
+            cache = FileCache(root=tmp / "cache", budget_bytes=40_000_000)
+            source = RecordingSource(store=store, cache=cache, log=lambda m: None)
+            cp.run_catnap_pipeline(
+                _params(tmp, "Cont", express_mode=False, **kw),
+                [RecordingInfo(filename=n, div=21.0, group="WT") for n in recs],
+                out, lambda m: None, source=source)
+            return out, {n for n in names if any(p.startswith(n + "/") for p in fetched)}
+
+        out, touched = run(first)
+        checks.append(("a first run fetches every recording it analyses",
+                       touched == set(first), str(sorted(touched))))
+
+        out, touched = run(names, continue_interrupted=True)
+        checks.append(("continuing fetches only the recording that is new",
+                       touched == {added}, str(sorted(touched))))
+        checks.append(("and nothing at all for the finished ones",
+                       not (touched & set(first)), str(sorted(touched))))
+
+        import pandas as pd
+        df = pd.read_csv(out / "4_NetworkActivity"
+                         / "NetworkActivity_RecordingLevel.csv")
+        checks.append(("the recordings it did not fetch are still in the results",
+                       set(df["FileName"]) == set(names),
+                       str(sorted(set(df["FileName"])))))
+
+        checks.append(("and the cache is left empty either way",
+                       FileCache(root=tmp / "cache",
+                                 budget_bytes=40_000_000).usage() == 0, ""))
+
+        # ── Express as well: the two skips have to compose ───────────────────
+        # Express keeps the bundle and deletes the folder, and the fetch skip
+        # reads what is *in* the folder to decide. So this only works if
+        # run_pipeline unpacks the bundle before the CAT-NAP pipeline looks —
+        # which the checks above cannot see, calling run_catnap_pipeline
+        # directly. This is the combination the bug was reported on.
+        from meanap.pipeline.bundle import BUNDLE_SUFFIX, open_bundle
+        from meanap.pipeline.runner import run_pipeline
+        import meanap.catnap.pipeline as cpmod
+        import pandas as pd
+
+        sheet = tmp / "batch.csv"
+
+        def express_run(recs, **kw):
+            fetched.clear()
+            pd.DataFrame([{"Recording Filename": n, "DIV group": 21,
+                           "Genotype": "WT"} for n in recs]).to_csv(
+                sheet, index=False)
+            params = _params(tmp, "Exp", spreadsheet_file_name=str(sheet),
+                             spreadsheet_range="2:100", raw_data=str(tmp / "remote"),
+                             cache_dir=str(tmp / "xcache"), **kw)
+            logs: list[str] = []
+            built = cpmod._build_source
+
+            def fake_source(p, log):
+                return RecordingSource(
+                    store=store,
+                    cache=FileCache(root=tmp / "xcache", budget_bytes=40_000_000),
+                    log=lambda m: None)
+
+            cpmod._build_source = fake_source
+            try:
+                out = run_pipeline(params, log=logs.append)
+            finally:
+                cpmod._build_source = built
+            touched = {n for n in names if any(p.startswith(n + "/") for p in fetched)}
+            return out, touched, logs
+
+        out, touched, _ = express_run(first, express_mode=True)
+        bundle = tmp / f"Exp{BUNDLE_SUFFIX}"
+        checks.append(("an express remote run leaves a bundle and no folder",
+                       bundle.is_file() and not (tmp / "Exp").is_dir(), str(out)))
+
+        out, touched, logs = express_run(names, express_mode=True,
+                                         continue_interrupted=True)
+        checks.append(("continuing an express run unpacks it first",
+                       any("Restored" in m for m in logs),
+                       " | ".join(m for m in logs[:8])))
+        checks.append(("then fetches only the new recording",
+                       touched == {added}, str(sorted(touched))))
+        # Per-recording lines only: the summary line above them says
+        # "N recording(s) already computed" and would be counted twice over.
+        reused = [m for m in logs if "] already computed" in m]
+        checks.append(("and reuses the rest rather than recomputing them",
+                       len(reused) == len(first), str(reused)))
+        with open_bundle(out if out.is_file() else bundle) as opened:
+            df = pd.read_csv(Path(opened.root) / "4_NetworkActivity"
+                             / "NetworkActivity_RecordingLevel.csv")
+        checks.append(("the whole batch is in the bundle it ends with",
+                       set(df["FileName"]) == set(names),
+                       str(sorted(set(df["FileName"])))))
+    return checks
+
+
+def _stream_needing_work_checks() -> list[Check]:
+    """The splice itself, apart from any pipeline.
+
+    Both analysis paths use it, so the ordering guarantee is worth checking
+    directly: what a caller sees must be the spreadsheet's order whether or not
+    anything was skipped, or a run would report its recordings in an order that
+    depends on which of them happened to be finished.
+    """
+    from meanap.remote.source import stream_needing_work
+
+    checks: list[Check] = []
+    recs = [RecordingInfo(filename=f"rec{i}", div=21.0, group="WT")
+            for i in range(5)]
+    asked: list[str] = []
+
+    class FakeSource:
+        remote = True
+
+        def stream(self, recordings, depth=1, kind="catnap"):
+            for rec in recordings:
+                asked.append(rec.filename)
+                yield rec, f"data:{rec.filename}"
+
+    done = {"rec1", "rec3"}
+    got = list(stream_needing_work(
+        FakeSource(), recs, done.__contains__, kind="catnap",
+        stand_in=lambda rec: f"stand-in:{rec.filename}"))
+
+    checks.append(("order is the order it was given",
+                   [r.filename for r, _ in got] == [r.filename for r in recs],
+                   str([r.filename for r, _ in got])))
+    checks.append(("the source is only asked for what is not done",
+                   asked == ["rec0", "rec2", "rec4"], str(asked)))
+    checks.append(("skipped recordings get the stand-in",
+                   [d for r, d in got if r.filename in done]
+                   == ["stand-in:rec1", "stand-in:rec3"], str(got)))
+    checks.append(("the rest get what the source fetched",
+                   [d for r, d in got if r.filename not in done]
+                   == ["data:rec0", "data:rec2", "data:rec4"], str(got)))
+
+    asked.clear()
+    got = list(stream_needing_work(FakeSource(), recs, lambda _n: False))
+    checks.append(("with nothing done it is an ordinary stream",
+                   asked == [r.filename for r in recs] and len(got) == 5,
+                   str(asked)))
+
+    asked.clear()
+    got = list(stream_needing_work(FakeSource(), recs, lambda _n: True))
+    checks.append(("with everything done nothing is fetched at all",
+                   asked == [] and all(d is None for _r, d in got), str(asked)))
+    return checks
+
+
 def _ephys_source_checks() -> list[Check]:
     """The electrophysiology path: one file per recording, sometimes shared.
 
@@ -445,6 +626,8 @@ def main() -> int:
         ("D — electrophysiology: files, plates and refcounts:", _ephys_source_checks),
         ("E — a remote electrophysiology run:", _ephys_run_checks),
         ("F — renamed folders resolve via the name map:", _name_map_checks),
+        ("G — the skip splice:", _stream_needing_work_checks),
+        ("H — continuing without re-downloading:", _continue_no_fetch_checks),
     ]:
         p, n = _report(title, build())
         total_pass += p

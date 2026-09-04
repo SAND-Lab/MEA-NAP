@@ -209,6 +209,36 @@ if __name__ == "__main__":
 The GUI and the `meanap-*` commands already do this; it only affects scripts
 you write yourself.
 
+## Continuing a remote run
+
+**Continue previous run** fetches nothing for a recording it is going to skip.
+The decision about what is already finished is made from the output folder
+before the stream starts, so a continued run transfers only what it has to
+compute:
+
+```
+  3 recording(s) already computed — their raw data will not be fetched.
+  [rec0] already computed — loading
+  [rec3] fetching 88 MB
+```
+
+This matters more here than on local data. Continuing saves the *compute*, and
+over a share link the compute was never the expensive half — a continued run
+that re-downloaded every finished recording took about as long as one that had
+not continued at all, which is what it looked like from the outside.
+
+It composes with {doc}`express-mode`: express keeps the `.meanap` and removes
+the output folder, so a continued run unpacks the data back out of the bundle
+first and then skips on it as usual. Streamed inputs, one small bundle out, and
+a batch that can be grown a recording at a time without re-fetching the ones
+already in it.
+
+```{note}
+Only the raw recordings are streamed. The spreadsheet is read as an ordinary
+local file — see the limitation on file links below — and the output folder is
+always local.
+```
+
 ## Your share link is not sent with your results
 
 `params.json` is packed into every `.meanap` bundle, and a public share link is
