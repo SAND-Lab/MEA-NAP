@@ -26,6 +26,13 @@ dependencies = [
     "Pillow>=10.0",
     "natsort>=8.4",
     "pyqt6>=6.11.0",
+    # The spike viewer's trace and raster views. Qt-native and drawn from the
+    # numpy arrays already in memory, which is what lets a 7.5-million-sample
+    # channel pan and zoom continuously; matplotlib re-renders per interaction
+    # and a browser-based library (plotly, d3) would mean shipping the samples
+    # through QWebEngine. Only the interactive views use it — the analysis
+    # figures stay on matplotlib, which is what the pipeline draws with.
+    "pyqtgraph>=0.13",
     "pybaselines>=1.2.1",
     "tqdm>=4.68.3",
     "PyWavelets>=1.6",

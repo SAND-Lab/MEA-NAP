@@ -107,6 +107,12 @@ class MainWindow(QMainWindow):
         self._shared_worker: SharedMainWorker | SharedHelperWorker | None = None
         self._tutorial: TutorialOverlay | None = None
         self._viewers = ViewerSessions()
+        #: The spike and burst viewer, built the first time it is asked for and
+        #: kept afterwards so it holds on to whatever recording it loaded.
+        self._spike_viewer = None
+        #: The machine report, built on first use and kept so a benchmark
+        #: already run is still on screen when it is reopened.
+        self._system_report = None
 
         # A bundle is a file people email each other, so dropping one on the
         # window is the obvious way to open it. Accepted at the window level;
@@ -171,6 +177,16 @@ class MainWindow(QMainWindow):
         act_tutorial.setToolTip("Launch the guided tutorial")
         act_tutorial.triggered.connect(self._start_tutorial)
 
+        # In the toolbar rather than on a tab: it is about the computer, not
+        # about the analysis, and it is wanted in every mode — most often when
+        # a run is slower than someone expected and nobody can say why.
+        act_system = QAction("🖥  This computer", self)
+        act_system.setToolTip(
+            "What this computer is, how much of it a run will use, and how "
+            "fast it is — for choosing which machine runs a batch, and for "
+            "working out why one of them is slow.")
+        act_system.triggered.connect(self._on_show_system_report)
+
         # One switch for every folded section in the window, for someone who
         # would rather see all of it than open sections one at a time. It only
         # changes what is shown: see meanap.gui.advanced.
@@ -213,6 +229,7 @@ class MainWindow(QMainWindow):
         tb.addSeparator()
         tb.addAction(self._act_advanced)
         tb.addAction(act_tutorial)
+        tb.addAction(act_system)
         tb.addSeparator()
 
 
@@ -261,6 +278,7 @@ class MainWindow(QMainWindow):
 
         self._data_panel = DataPanel()
         self._spike_panel = SpikeDetectionPanel()
+        self._spike_panel.open_viewer_requested.connect(self._on_open_spike_viewer)
         self._connectivity_panel = ConnectivityPanel()
         self._stim_panel = StimPanel()
         self._stim_preview_panel = StimPreviewPanel()
@@ -1506,6 +1524,52 @@ class MainWindow(QMainWindow):
         self._run_panel.append_log(f"ERROR: could not pack the bundle: {message}")
         QMessageBox.critical(self, "Could not pack the bundle", message)
 
+    # ── The spike and burst viewer ────────────────────────────────────────────
+
+    def _on_show_system_report(self) -> None:
+        """Open the machine report, reusing the window if it is already up."""
+        from meanap.gui.system_report import SystemReportDialog
+
+        if self._system_report is None:
+            self._system_report = SystemReportDialog(self)
+        else:
+            # Free memory moves while the window sits open, and the worker
+            # counts move with it, so a reopen re-reads rather than showing
+            # what was true the first time.
+            self._system_report._on_refresh()
+        self._system_report.show()
+        self._system_report.raise_()
+        self._system_report.activateWindow()
+
+    def _on_open_spike_viewer(self) -> None:
+        """Open the viewer on the settings this window currently holds.
+
+        One window, reopened rather than replaced: a viewer holds a loaded
+        recording, and a second click while one is open means "show me that
+        again", not "load those gigabytes a second time".
+        """
+        from meanap.gui.spike_viewer import SpikeViewerWindow
+
+        if self._spike_viewer is None:
+            self._spike_viewer = SpikeViewerWindow(self)
+            self._spike_viewer.settings_accepted.connect(
+                self._on_spike_viewer_settings)
+            self._spike_viewer.load_defaults(self._collect_params())
+        self._spike_viewer.show()
+        self._spike_viewer.raise_()
+        self._spike_viewer.activateWindow()
+
+    def _on_spike_viewer_settings(self) -> None:
+        """Take the viewer's detection and burst settings onto the tabs."""
+        if self._spike_viewer is None:
+            return
+        params = self._collect_params()
+        self._spike_viewer.apply_to(params)
+        self._spike_panel.load(params)
+        self._tabs.setCurrentIndex(max(self._tab_index(TAB_SPIKE), 0))
+        self.statusBar().showMessage(
+            "Spike and burst settings updated from the viewer.", 5000)
+
     def _on_open_bundle(self) -> None:
         start_dir = str(self._last_bundle.parent) if self._last_bundle else ""
         path, _ = QFileDialog.getOpenFileName(
@@ -1598,4 +1662,10 @@ class MainWindow(QMainWindow):
         # Each viewer holds a port and a temporary extraction directory; both
         # live as long as the process unless handed back here.
         self._viewers.close_all()
+        # The spike viewer is a child window with its own threads, and a child
+        # left open keeps the process alive after the main window has gone.
+        if self._spike_viewer is not None:
+            self._spike_viewer.close()
+        if self._system_report is not None:
+            self._system_report.close()
         super().closeEvent(event)

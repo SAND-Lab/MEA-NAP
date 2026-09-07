@@ -50,8 +50,14 @@ _NET_ITERATIONS = 10
 
 @dataclass
 class BenchmarkResult:
-    seconds: float            # detection_s + network_s
+    #: The two parts' measured time, divided by ``scale`` — what a full-size
+    #: run would have taken. This, not the sum below, is what the score and the
+    #: work split are computed from.
+    seconds: float
     score: float              # REFERENCE_SECONDS / seconds
+    #: Measured, at whatever ``scale`` was asked for. They therefore sum to
+    #: ``seconds * scale``, and only equal ``seconds`` at the default scale of
+    #: 1.0 — which is the only scale anything but a test uses.
     detection_s: float
     network_s: float
     cores: int

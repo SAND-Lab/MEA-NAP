@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from PyQt6.QtWidgets import QPushButton, QScrollArea, QWidget
+from PyQt6.QtWidgets import (
+    QCheckBox, QDoubleSpinBox, QPushButton, QScrollArea, QWidget,
+)
 
 
 def scrollable(widget: QWidget) -> QScrollArea:
@@ -31,3 +33,19 @@ def pin_width(button: QPushButton, minimum: int) -> None:
     that already fitted exactly as it was, and lets the odd button grow.
     """
     button.setFixedWidth(max(minimum, button.sizeHint().width()))
+
+
+def show_auto_or_value(checkbox: QCheckBox, spin: QDoubleSpinBox, value) -> None:
+    """Point an automatic/fixed pair of widgets at *value*, either kind.
+
+    The burst detectors take a threshold that is *either* the string
+    ``"automatic"`` *or* a number of seconds, which one box cannot show: a
+    number typed over the word is indistinguishable from a number the word
+    would have produced. So it is always a tick box and a value, and this is
+    what loads one setting into both of them.
+    """
+    automatic = isinstance(value, str)
+    checkbox.setChecked(automatic)
+    spin.setEnabled(not automatic)
+    if not automatic:
+        spin.setValue(float(value))
