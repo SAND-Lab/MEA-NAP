@@ -13,7 +13,7 @@ anything to MATLAB before running the pipeline:
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -335,6 +335,9 @@ def save_spike_times_npz(
     fs: float,
     params: dict[str, Any] | None = None,
     duration_s: float | None = None,
+    waveforms: dict[int, dict[str, np.ndarray]] | None = None,
+    thresholds: dict[int, dict[str, float]] | None = None,
+    bursts: dict[str, np.ndarray] | None = None,
 ) -> None:
     """Save spike detection results to a ``.npz`` file.
 
@@ -344,12 +347,27 @@ def save_spike_times_npz(
     ``fs`` — sampling frequency
     ``duration_s`` — recording duration in seconds (omitted if not supplied)
     ``spike_times_{ch}_{method}`` — spike times in seconds for each channel/method
+    ``waveforms_{ch}_{method}`` — the spikes themselves, when given
+    ``threshold_{ch}_{method}`` — the value each method detected at, when given
 
     Also saves a text file ``{stem}_params.txt`` alongside if ``params`` given.
 
     ``duration_s`` is stored so Steps 2-4 don't have to re-open the raw
     recording just to recover it — which is what makes resuming from a previous
     run work when the raw data isn't mounted (see ``read_duration_npz``).
+
+    ``waveforms`` and ``thresholds`` are optional because the pipeline does not
+    need them — it wants times — while anything *looking* at a detection does:
+    a file saved without them reopens with no waveform, amplitude or threshold
+    to show. They are written as float32, since they exist to be drawn. A reader
+    that predates them is unaffected: it looks only at the ``spike_times_``
+    keys.
+
+    ``bursts`` is a flat name→array mapping written under a ``burst_`` prefix
+    and handed back verbatim as :attr:`SpikeFile.bursts`. Flat because burst
+    results are ragged — a variable number of bursts, each over a variable set
+    of channels — and ``npz`` stores arrays, not structures; whoever writes it
+    decides how to lay it out and gets it back the same way.
     """
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -363,6 +381,16 @@ def save_spike_times_npz(
     for ch_idx, methods in spike_times.items():
         for method, times in methods.items():
             arrays[f"spike_times_{ch_idx}_{method}"] = times
+    for ch_idx, methods in (waveforms or {}).items():
+        for method, waves in methods.items():
+            if np.size(waves):
+                arrays[f"waveforms_{ch_idx}_{method}"] = np.asarray(
+                    waves, dtype=np.float32)
+    for ch_idx, methods in (thresholds or {}).items():
+        for method, value in methods.items():
+            arrays[f"threshold_{ch_idx}_{method}"] = np.array([value], dtype=float)
+    for name, value in (bursts or {}).items():
+        arrays[f"burst_{name}"] = np.asarray(value)
 
     atomic_savez(path, **arrays)
 
@@ -449,3 +477,188 @@ def load_spike_times_npz(path: str | Path) -> dict[int, dict[str, np.ndarray]]:
             result[ch_idx] = {}
         result[ch_idx][method] = data[key]
     return result
+
+
+# ── Whole spike files, for inspection ─────────────────────────────────────────
+
+@dataclass
+class SpikeFile:
+    """Everything a detected-spike file holds, not just the times.
+
+    :func:`load_spike_times_mat` answers the pipeline's question — where are the
+    spikes — and drops the rest. Judging a detection needs the rest: the
+    waveforms to see whether they are spikes at all, the threshold each method
+    settled on to draw against the trace, and the sampling rate and duration to
+    turn frames into seconds and counts into rates.
+
+    ``spike_times`` and the two dicts beside it are keyed the same way
+    :func:`load_spike_times_mat` keys its result: 0-based channel index, then
+    method name. ``waveforms[ch][method]`` is ``(n_spikes, n_samples)``.
+    """
+
+    path: Path
+    spike_times: dict[int, dict[str, np.ndarray]]
+    waveforms: dict[int, dict[str, np.ndarray]]
+    thresholds: dict[int, dict[str, float]]
+    channels: np.ndarray
+    fs: float
+    duration_s: float | None = None
+    coords: np.ndarray | None = None
+    #: Scalar detection settings recovered from the file, under their MATLAB
+    #: names (``filterLowPass``, ``refPeriod``, …). Empty for a ``.npz``.
+    params: dict[str, Any] = field(default_factory=dict)
+    #: Burst detection results, exactly as whoever saved them laid them out.
+    #: Empty unless the file was written with some.
+    bursts: dict[str, np.ndarray] = field(default_factory=dict)
+
+    @property
+    def methods(self) -> list[str]:
+        """Method names present, in the order the first channel lists them."""
+        seen: list[str] = []
+        for per_method in self.spike_times.values():
+            for name in per_method:
+                if name not in seen:
+                    seen.append(name)
+        return seen
+
+
+def load_spike_file(path: str | Path) -> SpikeFile:
+    """Read a ``_spikes.mat`` or a ``.npz`` from :func:`save_spike_times_npz`.
+
+    Dispatch is by extension, since the two formats are written by different
+    halves of the project and never share one.
+    """
+    path = Path(path)
+    if path.suffix.lower() == ".npz":
+        return _load_spike_file_npz(path)
+    return _load_spike_file_mat(path)
+
+
+#: Detection settings worth recovering from a ``_spikes.mat``, so a viewer
+#: opening one starts from the settings that produced it rather than from
+#: defaults. Names are MATLAB's, as written into ``spikeDetectionResult.params``.
+_SPIKE_PARAM_SCALARS = (
+    "fs", "duration", "filterLowPass", "filterHighPass", "refPeriod", "nSpikes",
+    "costList", "L", "nScales", "minPeakThrMultiplier", "maxPeakThrMultiplier",
+    "posPeakThrMultiplier", "minSpikeNetworkBurst", "minChannelNetworkBurst",
+    "singleChannelBurstMinSpike", "multiplier",
+)
+
+
+def _load_spike_file_mat(path: Path) -> SpikeFile:
+    spike_times: dict[int, dict[str, np.ndarray]] = {}
+    waveforms: dict[int, dict[str, np.ndarray]] = {}
+    thresholds: dict[int, dict[str, float]] = {}
+
+    with h5py.File(path, "r") as f:
+        n_channels = f["spikeTimes"].shape[0]
+        for ch_idx in range(n_channels):
+            spike_times[ch_idx] = _cellstruct_row(f, "spikeTimes", ch_idx)
+            waveforms[ch_idx] = {
+                # MATLAB writes (n_spikes, n_samples); HDF5 stores it
+                # transposed, so every waveform matrix comes back on its side.
+                name: value.reshape(-1) if value.ndim == 1 else value.T
+                for name, value in _cellstruct_row(f, "spikeWaveforms", ch_idx,
+                                                   flatten=False).items()
+            }
+            thresholds[ch_idx] = {
+                name: float(value.ravel()[0]) if value.size else float("nan")
+                for name, value in _cellstruct_row(f, "thresholds", ch_idx).items()
+            }
+
+        channels = f["channels"][()].ravel().astype(int) if "channels" in f else \
+            np.arange(n_channels)
+        coords = f["coords"][()].T if "coords" in f else None
+        params = _read_spike_params(f)
+
+    fs = float(params.get("fs", 0.0)) or 25000.0
+    duration = params.get("duration")
+    return SpikeFile(
+        path=path, spike_times=spike_times, waveforms=waveforms,
+        thresholds=thresholds, channels=channels, fs=fs,
+        duration_s=float(duration) if duration else None,
+        coords=np.asarray(coords, float) if coords is not None else None,
+        params=params,
+    )
+
+
+def _cellstruct_row(f: "h5py.File", name: str, ch_idx: int, *,
+                    flatten: bool = True) -> dict[str, np.ndarray]:
+    """One channel's entry of a MATLAB cell-of-struct, as {field: array}.
+
+    Missing variables and channels holding a bare array rather than a struct
+    both yield an empty dict: a file written by an older MEA-NAP, or a channel
+    that was grounded, is a thing to display as empty, not to fail on.
+    """
+    if name not in f:
+        return {}
+    group = f[f[name][ch_idx, 0]]
+    if not isinstance(group, h5py.Group):
+        return {}
+    out = {}
+    for key in group.keys():
+        dataset = group[key]
+        if flatten:
+            out[key] = _read_maybe_empty(dataset)
+        elif int(dataset.attrs.get("MATLAB_empty", 0)):
+            # A channel with no spikes of that method has no waveforms either,
+            # and MATLAB's empty marker holds a shape, not data — transposing
+            # it would hand the caller two fictional waveforms.
+            out[key] = np.zeros((0, 0))
+        else:
+            out[key] = dataset[()]
+    return out
+
+
+def _read_spike_params(f: "h5py.File") -> dict[str, Any]:
+    if "spikeDetectionResult" not in f:
+        return {}
+    group = f["spikeDetectionResult"]
+    if "params" not in group:
+        return {}
+    params_group = group["params"]
+    out: dict[str, Any] = {}
+    for key in _SPIKE_PARAM_SCALARS:
+        if key not in params_group:
+            continue
+        try:
+            values = np.asarray(params_group[key][()]).ravel()
+        except (TypeError, OSError):
+            continue
+        if values.size == 1:
+            out[key] = float(values[0])
+        elif values.size > 1 and np.issubdtype(values.dtype, np.number):
+            out[key] = values.astype(float).tolist()
+    return out
+
+
+def _load_spike_file_npz(path: Path) -> SpikeFile:
+    data = np.load(path)
+    spike_times = load_spike_times_npz(path)
+    channels = data["channels"].ravel().astype(int) if "channels" in data.files \
+        else np.arange(len(spike_times))
+    fs = float(data["fs"].ravel()[0]) if "fs" in data.files else 25000.0
+    duration = float(data["duration_s"].ravel()[0]) if "duration_s" in data.files else None
+
+    # Present only in files written by something that had them to write — a
+    # pipeline run saves times alone, so both come back empty for those.
+    waveforms: dict[int, dict[str, np.ndarray]] = {}
+    thresholds: dict[int, dict[str, float]] = {}
+    bursts = {key[len("burst_"):]: data[key]
+              for key in data.files if key.startswith("burst_")}
+    for key in data.files:
+        for prefix, store in (("waveforms_", waveforms), ("threshold_", thresholds)):
+            if not key.startswith(prefix):
+                continue
+            parts = key[len(prefix):].split("_", 1)
+            if len(parts) != 2:
+                continue
+            value = data[key]
+            store.setdefault(int(parts[0]), {})[parts[1]] = (
+                float(value.ravel()[0]) if prefix == "threshold_" else value)
+
+    return SpikeFile(
+        path=path, spike_times=spike_times, waveforms=waveforms,
+        thresholds=thresholds, channels=channels, fs=fs, duration_s=duration,
+        bursts=bursts,
+    )

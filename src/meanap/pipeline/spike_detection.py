@@ -18,8 +18,9 @@ from __future__ import annotations
 
 import threading
 from concurrent.futures import ThreadPoolExecutor
+from functools import lru_cache
 from dataclasses import dataclass, field
-from typing import NamedTuple
+from typing import Callable, NamedTuple
 
 import numpy as np
 import pywt
@@ -35,7 +36,10 @@ def bandpass_filter(trace: np.ndarray, fs: float, low: float = 600.0, high: floa
     wn = np.array([low, high]) / (fs / 2.0)
     wn = np.clip(wn, 1e-6, 1 - 1e-6)
     b, a = butter(3, wn, btype="bandpass")
-    return filtfilt(b, a, trace.astype(float))
+    # asarray, not astype: the caller has already converted the channel to
+    # float64, and astype copies unconditionally — a second 60 MB copy of every
+    # channel, for nothing. filtfilt does not write to its input.
+    return filtfilt(b, a, np.asarray(trace, dtype=float))
 
 
 # ── Threshold detection ───────────────────────────────────────────────────────
@@ -51,6 +55,47 @@ def _apply_refractory(spike_frames: np.ndarray, ref_frames: int) -> np.ndarray:
     return np.array(kept, dtype=int)
 
 
+def threshold_method_name(multiplier: float) -> str:
+    """What a threshold detection at *multiplier* MAD is called in the results.
+
+    MATLAB's naming, which the whole pipeline keys its results off: an integer
+    multiplier gives ``thr4``, a fractional one ``thr4p5``. Public because
+    anything that asks for a set of thresholds has to know what to look the
+    answers up under, and a second copy of the rule is a second place for it to
+    drift.
+    """
+    return (f"thr{int(multiplier)}" if multiplier == int(multiplier)
+            else f"thr{multiplier}".replace(".", "p"))
+
+
+def trace_noise(trace: np.ndarray,
+                threshold_window: tuple[float, float] = (0.0, 1.0)) -> tuple[float, float]:
+    """``(sigma, median)`` for a trace: the two numbers a threshold is built from.
+
+    ``sigma`` is the robust standard deviation ``median(|x - mean|) / 0.6745``;
+    ``median`` is the trace's own median over the window. Split out because
+    every method run on one channel needs the same pair, and a median of a
+    ten-minute channel is a full partition of 7.5 million samples — the single
+    most expensive thing detection was doing, once per method rather than once.
+    """
+    n = len(trace)
+    t0 = int(round(n * threshold_window[0]))
+    t1 = int(round(n * threshold_window[1]))
+    subset = trace[t0:t1]
+    sigma = np.median(np.abs(trace - np.mean(subset))) / 0.6745
+    return float(sigma), float(np.median(subset))
+
+
+def peak_noise(trace: np.ndarray) -> float:
+    """The robust sigma :func:`align_peaks` measures its peak bounds against.
+
+    Not the same as :func:`trace_noise`'s — that one centres on the *window's*
+    mean, this one on the whole trace's — so they are computed separately even
+    though they usually agree to several decimal places.
+    """
+    return float(np.median(np.abs(trace - np.mean(trace))) / 0.6745)
+
+
 def detect_spikes_threshold(
     trace: np.ndarray,
     multiplier: float,
@@ -59,6 +104,7 @@ def detect_spikes_threshold(
     filter_flag: bool = False,
     absolute_threshold: float | None = None,
     threshold_window: tuple[float, float] = (0.0, 1.0),
+    noise: tuple[float, float] | None = None,
 ) -> tuple[np.ndarray, float]:
     """Threshold-based spike detection.
 
@@ -73,6 +119,12 @@ def detect_spikes_threshold(
     filter_flag : if True apply bandpass filter first
     absolute_threshold : if given, use this instead of the MAD threshold
     threshold_window : (start, end) as fractions of recording [0, 1]
+    noise : ``(sigma, median)`` already computed for this trace and window, as
+        :func:`trace_noise` returns them. Only ``multiplier`` varies between
+        the thresholds a run detects at, so these two are the same for all of
+        them — and each is a full partition of a multi-million-sample array.
+        Passing them in is the same arithmetic on the same numbers, not an
+        approximation.
 
     Returns
     -------
@@ -86,11 +138,7 @@ def detect_spikes_threshold(
     if absolute_threshold is not None:
         threshold = float(absolute_threshold)
     else:
-        t0 = int(round(n * threshold_window[0]))
-        t1 = int(round(n * threshold_window[1]))
-        subset = trace[t0:t1]
-        s = np.median(np.abs(trace - np.mean(subset))) / 0.6745
-        m = np.median(subset)
+        s, m = noise if noise is not None else trace_noise(trace, threshold_window)
         threshold = m - multiplier * s
 
     # Threshold crossings (signal goes below threshold)
@@ -286,7 +334,23 @@ def _determine_scales(
     """Determine CWT scales matching MATLAB's ``determine_scales()``.
 
     Returns integer scales for the desired spike-width range ``wid_ms``.
+
+    The result depends on the wavelet, the width range and the sampling rate —
+    not on the recording — so every channel of every recording in a run asks
+    for the same table and gets it from :func:`_determine_scales_cached`. A
+    copy is handed out because the answer is an array and a caller that wrote
+    to it would poison every later channel.
     """
+    return _determine_scales_cached(wname, wid_ms, fs_hz, ns).copy()
+
+
+@lru_cache(maxsize=32)
+def _determine_scales_cached(
+    wname: str,
+    wid_ms: tuple[float, float],
+    fs_hz: float,
+    ns: int,
+) -> np.ndarray:
     fs_khz = fs_hz / 1000.0
     dt = 1.0 / fs_khz           # ms per sample (of the actual signal)
     ScaleMax = int(4 * fs_khz)   # MATLAB: ScaleMax = 4*SFr
@@ -482,6 +546,7 @@ def align_peaks(
     pos_peak_thr_mult: float = 15.0,
     remove_artifacts: bool = False,
     waveform_width: int = 25,
+    noise_sigma: float | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Align spike frames to the negative peak within ±win frames.
 
@@ -515,51 +580,77 @@ def align_peaks(
     waveforms : (n_spikes, 2*waveform_width+1) array of spike waveforms
     """
     wave_len = 2 * waveform_width + 1
-    if len(spike_frames) == 0:
+    frames = np.asarray(spike_frames, dtype=np.int64).ravel()
+    if frames.size == 0:
         return np.array([], dtype=int), np.zeros((0, wave_len))
 
     n = len(trace)
-    aligned = []
-    waves = []
-
-    s = np.median(np.abs(trace - np.mean(trace))) / 0.6745
+    # One number per trace, not per method: see peak_noise.
+    s = peak_noise(trace) if noise_sigma is None else noise_sigma
     thr_min = min_peak_thr_mult * s
     thr_max = max_peak_thr_mult * s
     thr_pos = pos_peak_thr_mult * s
 
-    for f in spike_frames:
-        lo = max(0, f - win)
-        hi = min(n, f + win + 1)
-        segment = trace[lo:hi]
-        peak_offset = int(np.argmin(segment))
-        peak_frame = lo + peak_offset
-        peak_val = trace[peak_frame]
+    # Done as array work rather than a loop over spikes. Not only for its own
+    # sake: this runs inside the thread pool that detects channels in parallel,
+    # and a Python loop holds the GIL, so a permissive threshold — tens of
+    # thousands of spikes a channel — stalled every *other* channel's filtering
+    # and medians while it ran. Alignment on eight threads used to take longer
+    # than on one.
+    #
+    # Only spikes whose search window lies wholly inside the recording can be
+    # gathered as one rectangular block. The handful at either end are done
+    # singly below, so the two paths agree by construction at the edges rather
+    # than by clipping indices, which would silently change which sample the
+    # minimum is found at.
+    peak_frames = np.empty(frames.size, dtype=np.int64)
+    inside = (frames >= win) & (frames + win + 1 <= n)
 
-        if remove_artifacts:
-            if peak_val > thr_min or peak_val < thr_max:
-                continue
-            pos_peak = trace[lo:hi].max()
-            if pos_peak > thr_pos:
-                continue
+    if inside.any():
+        block = frames[inside, None] + np.arange(-win, win + 1)
+        segments = trace[block]
+        peak_frames[inside] = frames[inside] - win + segments.argmin(axis=1)
+    for i in np.flatnonzero(~inside):
+        lo = max(0, frames[i] - win)
+        hi = min(n, frames[i] + win + 1)
+        peak_frames[i] = lo + int(np.argmin(trace[lo:hi]))
 
-        aligned.append(peak_frame)
-        # Extract waveform over ±waveform_width around the peak, padding at the
-        # recording edges so the peak stays centred and every waveform is the
-        # same length (MATLAB drops edge spikes instead; they don't occur in the
-        # validated data, so padding keeps spike counts identical either way).
-        wlo = max(0, peak_frame - waveform_width)
-        whi = min(n, peak_frame + waveform_width + 1)
-        wave = trace[wlo:whi]
-        left_pad = max(0, waveform_width - peak_frame)
-        right_pad = max(0, wave_len - len(wave) - left_pad)
-        if left_pad or right_pad:
-            wave = np.pad(wave, (left_pad, right_pad))
-        waves.append(wave)
+    if remove_artifacts:
+        peak_values = trace[peak_frames]
+        keep = (peak_values <= thr_min) & (peak_values >= thr_max)
+        highest = np.empty(frames.size, dtype=trace.dtype)
+        if inside.any():
+            highest[inside] = segments.max(axis=1)
+        for i in np.flatnonzero(~inside):
+            lo = max(0, frames[i] - win)
+            hi = min(n, frames[i] + win + 1)
+            highest[i] = trace[lo:hi].max()
+        keep &= highest <= thr_pos
+        peak_frames = peak_frames[keep]
 
-    if not aligned:
+    if peak_frames.size == 0:
         return np.array([], dtype=int), np.zeros((0, wave_len))
 
-    return np.array(aligned, dtype=int), np.vstack(waves)
+    # Waveforms span ±waveform_width, which is wider than the search window, so
+    # a peak well inside it can still sit near the recording's edge. Those are
+    # padded one at a time; the rest are one gather. MATLAB drops edge spikes
+    # instead — they do not occur in the validated data, so padding keeps spike
+    # counts identical either way.
+    waveforms = np.zeros((peak_frames.size, wave_len), dtype=trace.dtype)
+    whole = ((peak_frames >= waveform_width)
+             & (peak_frames + waveform_width + 1 <= n))
+    if whole.any():
+        span = peak_frames[whole, None] + np.arange(-waveform_width,
+                                                    waveform_width + 1)
+        waveforms[whole] = trace[span]
+    for i in np.flatnonzero(~whole):
+        peak = peak_frames[i]
+        lo = max(0, peak - waveform_width)
+        hi = min(n, peak + waveform_width + 1)
+        left_pad = max(0, waveform_width - peak)
+        waveforms[i, left_pad:left_pad + (hi - lo)] = trace[lo:hi]
+
+    return peak_frames.astype(int), waveforms
 
 
 # ── High-level detector ───────────────────────────────────────────────────────
@@ -601,6 +692,7 @@ def detect_spikes_recording(
     fs: float,
     params: SpikeDetectionParams | None = None,
     max_workers: int | None = None,
+    progress: Callable[[int, int], None] | None = None,
 ) -> SpikeDetectionResult:
     """Run spike detection on all channels of a single recording.
 
@@ -610,6 +702,11 @@ def detect_spikes_recording(
     channels : (n_channels,) channel ID array
     fs : sampling frequency in Hz
     params : detection parameters (defaults match the example data MATLAB run)
+    progress : called ``(channels_done, n_channels)`` as each channel finishes,
+        for a caller that wants to show how far along this is. Called from the
+        worker threads, so anything it touches must tolerate that — emitting a
+        Qt signal is fine; drawing is not. Counting completions rather than
+        submissions is what makes the number mean "work finished".
 
     Returns
     -------
@@ -623,13 +720,8 @@ def detect_spikes_recording(
     spike_waveforms: dict[int, dict[str, np.ndarray]] = {}
     thresholds_out: dict[int, dict[str, float]] = {}
 
-    # Build full method list: wavelets + thresholds (as in MATLAB)
-    # Threshold names match MATLAB: integer threshold → "thr4", fractional → "thr4p5"
-    def _thr_name(t: float) -> str:
-        return f"thr{int(t)}" if t == int(t) else f"thr{t}".replace(".", "p")
-
     wname_list = [w for w in params.wname_list if w != "None"]
-    thr_list = [_thr_name(t) for t in params.thresholds]
+    thr_list = [threshold_method_name(t) for t in params.thresholds]
     all_methods = wname_list + thr_list
 
     # Pre-cache wavelet function before the channel loop so it's not recomputed
@@ -644,10 +736,25 @@ def detect_spikes_recording(
     # only its own result dict entry, so no locking is needed.
     def _process_channel(ch_idx: int):
         if ch_idx in params.grd:
+            report()
             return None
 
         raw_trace = dat[:, ch_idx].astype(float)
         filtered = bandpass_filter(raw_trace, fs, params.filter_low_pass, params.filter_high_pass)
+
+        # Measured once for the channel and handed to every method below: both
+        # are medians over the whole filtered trace, so they do not depend on
+        # which method or which multiplier is about to use them, and each was
+        # costing more than the detection it fed.
+        #
+        # The peak bound reuses the same sigma rather than measuring its own.
+        # That is only sound because detection here always thresholds over the
+        # whole recording, and over the whole recording peak_noise's centre —
+        # the mean of the window — *is* trace_noise's, so the two compute
+        # median(|x - mean|) on the same array and return the same float.
+        # peak_noise stays for any caller working on a sub-window.
+        channel_noise = trace_noise(filtered)
+        channel_peak_noise = channel_noise[0]
 
         spike_struct: dict[str, np.ndarray] = {}
         wave_struct: dict[str, np.ndarray] = {}
@@ -662,7 +769,7 @@ def detect_spikes_recording(
                 mult = float(mult_str)
                 frames, thr = detect_spikes_threshold(
                     filtered, mult, params.ref_period_ms, fs,
-                    filter_flag=False,
+                    filter_flag=False, noise=channel_noise,
                 )
                 thr_struct[valid_name] = thr
 
@@ -685,6 +792,7 @@ def detect_spikes_recording(
                 max_peak_thr_mult=params.max_peak_thr_mult,
                 pos_peak_thr_mult=params.pos_peak_thr_mult,
                 remove_artifacts=params.remove_artifacts,
+                noise_sigma=channel_peak_noise,
             )
 
             # Convert frames to the requested unit
@@ -698,7 +806,20 @@ def detect_spikes_recording(
             spike_struct[valid_name] = times
             wave_struct[valid_name] = waveforms
 
+        report()
         return ch_idx, spike_struct, wave_struct, thr_struct
+
+    done = 0
+    done_lock = threading.Lock()
+
+    def report() -> None:
+        if progress is None:
+            return
+        nonlocal done
+        with done_lock:
+            done += 1
+            so_far = done
+        progress(so_far, n_channels)
 
     n_threads = suggest_thread_count(n_channels, max_workers=max_workers)
     if n_threads <= 1:
