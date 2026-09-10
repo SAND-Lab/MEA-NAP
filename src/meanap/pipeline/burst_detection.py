@@ -19,13 +19,18 @@ def get_isin_threshold(spike_times: np.ndarray, n: int = 10) -> float:
     if len(isin) == 0:
         return 0.1
 
-    # Steps in ms: 10^(-5) to 10^(1.5)
+    # Bakkum's log-spaced histogram edges, in SECONDS: 10 us to 31.6 s. Both
+    # the edges and the data have to be in the same unit, and seconds is the
+    # unit Bakkum specified (getISInTh.m documents "'Steps' [sec]" and plots
+    # `Steps * 1000` under an "ms" axis label). Feeding this histogram ISI_N in
+    # *milliseconds* — as the code here and in getISInTh.m used to — caps it at
+    # 31.6 ms, which is below the baseline ISI_N of any densely firing array.
+    # The background mode then falls off the top of the histogram, only the
+    # burst mode is left, and the "one peak" fallback below decides the
+    # threshold instead of the valley this function exists to find.
     steps = 10 ** np.arange(-5, 1.55, 0.05)
-    
-    # histogram expects data in ms
-    isin_ms = isin * 1000.0
-    
-    counts, _ = np.histogram(isin_ms, bins=steps)
+
+    counts, _ = np.histogram(isin, bins=steps)
     if counts.sum() == 0:
         return 0.1
         
@@ -50,13 +55,13 @@ def get_isin_threshold(spike_times: np.ndarray, n: int = 10) -> float:
         peak2 = peaks[1]
         
         valley_idx = peak1 + np.argmin(curve[peak1:peak2+1])
-        # Bin centers or just use left edges like MATLAB does?
-        # MATLAB uses steps for plotting and returning the point
-        # So valleyPoint is steps[valley_idx]
-        valley_point = steps[valley_idx]
-        
-        isin_th = valley_point / 1000.0  # back to seconds
-        
+        # The bin edge itself, already in seconds — no conversion. (MATLAB
+        # returned `valleyPoint / 1000`, where valleyPoint was the *index* of
+        # the valley bin rather than its edge; that only ever landed near a
+        # plausible threshold by coincidence.)
+        isin_th = float(steps[valley_idx])
+
+        # Pasquale et al. 2010 cap the ISI_N threshold at 100 ms.
         return min(isin_th, 0.1)
 
 
@@ -146,14 +151,63 @@ def burst_detect_isin(spike_times: np.ndarray, n: int, isin_th: float) -> tuple[
     return burst_info, spike_burst_number
 
 
+def merge_close_bursts(t_start: np.ndarray, t_end: np.ndarray,
+                       gap_s: float) -> tuple[np.ndarray, np.ndarray]:
+    r"""Join bursts separated by less than ``gap_s`` into one.
+
+    ISI\ :sub:`N` detection segments on the interval between individual spikes,
+    which on a densely firing array breaks a single network event into many
+    pieces: the array's own background firing keeps ISI\ :sub:`N` hovering
+    around the threshold, so it crosses back and forth several times inside one
+    event. A 400 ms event on HCNT26_DIV58_E2 comes out of the detector as 21
+    bursts whose gaps are a few milliseconds each.
+
+    Merging only re-segments — it takes bursts the detector already found and
+    joins adjacent ones, so it cannot add time or spikes that were not detected
+    as bursting. What it fixes is burst *count*, *rate* and *duration*, which
+    are otherwise counting fragments rather than events. See Pasquale et al.
+    2010, who merge on a minimum inter-burst interval for the same reason.
+
+    ``gap_s <= 0`` disables merging and returns the input unchanged.
+    """
+    if gap_s <= 0 or len(t_start) < 2:
+        return np.asarray(t_start, dtype=float), np.asarray(t_end, dtype=float)
+
+    t_start = np.asarray(t_start, dtype=float)
+    t_end = np.asarray(t_end, dtype=float)
+
+    # Bursts come out of burst_detect_isin in time order, but merging is only
+    # correct on sorted input, so do not rely on it.
+    order = np.argsort(t_start)
+    t_start, t_end = t_start[order], t_end[order]
+
+    starts, ends = [t_start[0]], [t_end[0]]
+    for i in range(1, len(t_start)):
+        if t_start[i] - ends[-1] <= gap_s:
+            # max, not t_end[i]: a short burst fully inside a longer one must
+            # not shorten it.
+            ends[-1] = max(ends[-1], t_end[i])
+        else:
+            starts.append(t_start[i])
+            ends.append(t_end[i])
+
+    return np.array(starts), np.array(ends)
+
+
 def burst_detect_network(
     spike_times_dict: dict[int, np.ndarray], 
     fs: float,
     min_spikes: int = 10,
     min_channels: int = 3,
-    isin_th_param: str | float = "automatic"
+    isin_th_param: str | float = "automatic",
+    merge_gap_ms: float = 20.0,
 ) -> tuple[list[dict], np.ndarray, list[np.ndarray], dict]:
-    """Network burst detection combining all active channels."""
+    """Network burst detection combining all active channels.
+
+    ``merge_gap_ms`` joins bursts less than that far apart into one before the
+    ``min_channels`` filter runs, so a merged burst is judged on the channels
+    of the whole event rather than of one fragment. 0 disables merging.
+    """
     
     # Combine spikes
     all_spikes = []
@@ -190,16 +244,25 @@ def burst_detect_network(
         isin_th = float(isin_th_param)
         
     burst_info, spike_bn = burst_detect_isin(t_unique, min_spikes, isin_th)
-    
-    n_bursts = len(burst_info["T_start"])
+
+    # Before the channel-count filter below, so a merged burst is tested on the
+    # channels of the whole event rather than of whichever fragment came first.
+    t_start_m, t_end_m = merge_close_bursts(
+        burst_info["T_start"], burst_info["T_end"], merge_gap_ms / 1000.0)
+    # Kept so a caller can say how much of the burst count was fragmentation:
+    # a large drop here is the sign that the ISI_N threshold is short relative
+    # to the array's background rate.
+    n_before_merge = len(burst_info["T_start"])
+
+    n_bursts = len(t_start_m)
     burst_matrix_list = []
     burst_times = np.zeros((n_bursts, 2))
     burst_channels_list = []
     
     for i in range(n_bursts):
         # Time window
-        t0 = burst_info["T_start"][i]
-        t1 = burst_info["T_end"][i]
+        t0 = t_start_m[i]
+        t1 = t_end_m[i]
         
         burst_times[i, 0] = t0 * fs
         burst_times[i, 1] = t1 * fs
@@ -227,7 +290,16 @@ def burst_detect_network(
         burst_times = np.zeros((0, 2))
         burst_channels_list = []
         
-    info = {"isin_th": isin_th}
+    info = {"isin_th": isin_th, "merge_gap_ms": float(merge_gap_ms),
+            "n_before_merge": int(n_before_merge), "min_spikes": int(min_spikes),
+            # The unmerged bursts, in seconds, so a caller can show what
+            # merging did — the gaps it closed are the evidence for whether
+            # the merge gap suits this recording, and they no longer exist in
+            # the bursts that come back.
+            "pre_merge_s": np.column_stack(
+                [np.asarray(burst_info["T_start"], dtype=float),
+                 np.asarray(burst_info["T_end"], dtype=float)])
+            if n_before_merge else np.zeros((0, 2))}
     return burst_matrix_list, burst_times, burst_channels_list, info
 
 

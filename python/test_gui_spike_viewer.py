@@ -38,7 +38,7 @@ from meanap.gui.spike_viewer import (  # noqa: E402
     refractory_violations, sweep_points,
 )
 from meanap.gui.spike_viewer import (  # noqa: E402
-    UNLABELLED_METHOD, pack_bursts, unpack_bursts,
+    TAB_BURST_STATS, TAB_BURSTS, UNLABELLED_METHOD, pack_bursts, unpack_bursts,
 )
 from meanap.pipeline.io import load_spike_file, save_spike_times_npz  # noqa: E402
 from meanap.pipeline.spike_detection import (  # noqa: E402
@@ -305,12 +305,12 @@ with tempfile.TemporaryDirectory() as tmp:
     for index in range(solo._tabs.count()):
         solo._tabs.setCurrentIndex(index)
         app.processEvents()
-    # Named rather than counted: a new tab should not fail this, but a tab that
-    # went missing should.
+    # Named rather than counted, and a subset rather than an equality, so that
+    # adding a view does not fail this while a view going missing still does.
     shown = [solo._tabs.tabText(i).strip() for i in range(solo._tabs.count())]
     check("every view draws without raising",
-          shown == ["Traces", "Filtering", "Waveforms and quality",
-                    "Threshold sweep", "Bursts"], str(shown))
+          set(shown) >= {"Traces", "Filtering", "Waveforms and quality",
+                         "Threshold sweep", "Bursts"}, str(shown))
 
     solo._window_start.setValue(0.0)
     solo._window_length.setValue(0.1)
@@ -1015,7 +1015,9 @@ with tempfile.TemporaryDirectory() as tmp:
     swept.open_raw(raw_path)
     pump(swept)
 
-    check("the sweep tab is there", swept._tabs.count() == 5,
+    check("the sweep tab is there",
+          "Threshold sweep" in [swept._tabs.tabText(i).strip()
+                                for i in range(swept._tabs.count())],
           str([swept._tabs.tabText(i) for i in range(swept._tabs.count())]))
     check("and says what it needs before anything is swept",
           not swept._sweep_result)
@@ -1252,6 +1254,177 @@ with tempfile.TemporaryDirectory() as tmp:
     check("a times-only file from a pipeline run still loads",
           lean.spike_times[0]["thr4"].size == 2 and lean.waveforms == {},
           str(lean.waveforms))
+
+
+print("\nThe burst diagnostics tab")
+
+with tempfile.TemporaryDirectory() as tmp:
+    raw_path = Path(tmp) / "diag.mat"
+    synthetic_recording(raw_path, seconds=6.0, n_channels=4)
+
+    diag = SpikeViewerWindow()
+    diag.load_defaults(Params())
+    diag._auto_detect.setChecked(False)
+    diag._thresholds.setText("4")
+    diag.open_raw(raw_path)
+    pump(diag)
+
+    diag._tabs.setCurrentIndex(TAB_BURST_STATS)
+    diag._refresh()
+    check("with no spikes it says so rather than drawing an empty grid",
+          len(diag._burst_stats_canvas.figure.axes) == 1)
+
+    diag._detect(all_channels=True, thresholds_only=True)
+    pump(diag)
+    diag._tabs.setCurrentIndex(TAB_BURST_STATS)
+    diag._refresh()
+    check("spikes without bursts still ask for a detection",
+          len(diag._burst_stats_canvas.figure.axes) == 1)
+
+    diag._sc_min_spikes.setValue(4)
+    diag._nb_min_channels.setValue(2)
+    diag._detect_bursts()
+    pump(diag)
+    check("detecting bursts opens the Bursts tab, not the diagnostics",
+          diag._tabs.currentIndex() == TAB_BURSTS,
+          str(diag._tabs.currentIndex()))
+
+    diag._tabs.setCurrentIndex(TAB_BURST_STATS)
+    diag._refresh()
+    check("the diagnostics draw a panel for each distribution",
+          len(diag._burst_stats_canvas.figure.axes) == 6,
+          str(len(diag._burst_stats_canvas.figure.axes)))
+    titles = " ".join(ax.get_title() for ax in
+                      diag._burst_stats_canvas.figure.axes)
+    check("including the ISIn distribution the threshold came from",
+          "ISI$_{10}$" in titles or "ISI" in titles, titles)
+    check("and it says whether the threshold was a valley or a fallback",
+          "valley" in titles or "fallback" in titles, titles)
+
+    # The detector's own record of what it did, which the ISIn panel reports.
+    info = diag._bursts_by_method["thr4"][2]
+    check("the detector reports how many fragments it merged",
+          "n_before_merge" in info and info["n_before_merge"] >= len(
+              diag._bursts_by_method["thr4"][0]),
+          str(info.get("n_before_merge")))
+    check("and hands back the unmerged bursts for the interval panel",
+          np.asarray(info.get("pre_merge_s", ())).reshape(-1, 2).shape[0]
+          == info["n_before_merge"],
+          str(np.asarray(info.get("pre_merge_s", ())).shape))
+
+    # Channels-per-burst is recomputed rather than read from the stored list,
+    # because a reloaded file does not carry that list.
+    burst_times = diag._bursts_by_method["thr4"][0]
+    counts = diag._channels_per_burst(diag._spikes_for_method("thr4"),
+                                      burst_times)
+    check("every burst is counted against the electrodes that fired in it",
+          counts.size == len(burst_times) and counts.min() >= 2,
+          f"{counts.size} counts, min {counts.min() if counts.size else '-'}")
+
+    # A file reloaded from disk has no burst_channels and no pre-merge times;
+    # the tab has to draw from the spikes alone rather than fall over.
+    thin = dict(diag._bursts_by_method)
+    thin["thr4"] = (burst_times, [], {"isin_th": info["isin_th"]},
+                    diag._bursts_by_method["thr4"][3])
+    diag._bursts_by_method = thin
+    diag._refresh()
+    check("a reloaded file without those extras still draws",
+          len(diag._burst_stats_canvas.figure.axes) == 6,
+          str(len(diag._burst_stats_canvas.figure.axes)))
+    diag.close()
+
+
+print("\nSwitching from one recording to another")
+
+with tempfile.TemporaryDirectory() as tmp:
+    wide = Path(tmp) / "wide.mat"
+    narrow = Path(tmp) / "narrow.mat"
+    synthetic_recording(wide, seconds=3.0, n_channels=6)
+    synthetic_recording(narrow, seconds=2.0, n_channels=2)
+
+    swap = SpikeViewerWindow()
+    swap.load_defaults(Params())
+    swap._thresholds.setText("4")
+    swap.open_raw(wide)
+    pump(swap)
+    pump(swap)
+    swap._sc_min_spikes.setValue(4)
+    swap._nb_min_channels.setValue(2)
+    swap._detect_bursts()
+    pump(swap)
+
+    check("the first recording is detected and burst-detected",
+          swap._channel_combo.count() == 6 and bool(swap._spike_times)
+          and bool(swap._bursts_by_method),
+          f"{swap._channel_combo.count()} channels, "
+          f"{len(swap._spike_times)} with spikes, "
+          f"{len(swap._bursts_by_method)} with bursts")
+    wide_counts = {ch: swap._times_for(ch, "thr4").size for ch in range(6)}
+    # What the field would hold had these spikes come from a file rather than
+    # from the detection pass, so the check below has something to clear.
+    swap._spikes_path.setText(str(wide.with_name("wide_spikes.npz")))
+
+    # The second recording has fewer channels, which is what makes carrying
+    # the first one's state over visible rather than merely wrong.
+    swap.open_raw(narrow)
+    pump(swap)
+    pump(swap)
+
+    check("the channel list follows the new recording",
+          swap._channel_combo.count() == 2, str(swap._channel_combo.count()))
+    check("and its duration does too",
+          abs(swap._duration_s - 2.0) < 0.01, str(swap._duration_s))
+    check("the previous recording's spikes are gone, not drawn on this one",
+          set(swap._spike_times) <= {0, 1}, str(sorted(swap._spike_times)))
+    check("the previous recording's bursts are gone with them",
+          all(len(bursts[1]) <= 2 for bursts in swap._bursts_by_method.values())
+          if swap._bursts_by_method else True,
+          str({m: len(b[1]) for m, b in swap._bursts_by_method.items()}))
+    check("the stale spike file path is cleared",
+          "wide" not in swap._spikes_path.text(), swap._spikes_path.text())
+    check("the new recording is detected on its own",
+          bool(swap._spike_times), str(sorted(swap._spike_times)))
+    # The fixture plants a burst of five every 0.5 s, so a 2 s recording holds
+    # fewer spikes per channel than a 3 s one — the counts have to differ.
+    narrow_counts = {ch: swap._times_for(ch, "thr4").size for ch in range(2)}
+    check("and those are its spikes, not the ones carried over",
+          all(narrow_counts[ch] != wide_counts[ch] for ch in range(2))
+          and all(n > 0 for n in narrow_counts.values()),
+          f"{narrow_counts} vs {{0: {wide_counts[0]}, 1: {wide_counts[1]}}}")
+    check("the array map has no coordinates left from the other layout",
+          swap._coords is None or len(swap._coords) == 2,
+          str(None if swap._coords is None else len(swap._coords)))
+    swap.close()
+
+    # Spikes opened first, then the raw file that goes with them, is the other
+    # way through _on_raw_loaded — and there the spikes must survive.
+    keep = SpikeViewerWindow()
+    keep.load_defaults(Params())
+    keep._auto_detect.setChecked(False)
+    keep._thresholds.setText("4")
+    keep.open_raw(wide)
+    pump(keep)
+    keep._detect(all_channels=True, thresholds_only=True)
+    pump(keep)
+    saved = Path(tmp) / "wide_spikes.npz"
+    save_spike_times_npz(saved, keep._spike_times, keep._spike_channels,
+                         keep._fs, params=keep._saved_params(),
+                         duration_s=keep._duration_s,
+                         waveforms=keep._waveforms,
+                         thresholds=keep._spike_thresholds)
+    keep.close()
+
+    paired = SpikeViewerWindow()
+    paired.load_defaults(Params())
+    paired._default_raw_dir = tmp
+    paired.open_spikes(saved)
+    pump(paired)
+    pump(paired)
+    check("opening a spike file still pulls its raw recording in",
+          paired._dat is not None)
+    check("and finding that recording does not throw the spikes away",
+          bool(paired._spike_times), str(sorted(paired._spike_times)))
+    paired.close()
 
 
 print("\nReading a finished run's spikes")

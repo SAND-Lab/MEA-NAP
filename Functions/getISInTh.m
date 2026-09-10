@@ -54,7 +54,14 @@ for FRnum = N
     % n = histc(ISI_N * 1000, Steps * 1000); % Sit 2018: not really sure
     % what this 1000 is doing... I will just use my own hsitc method. Seems
     % to be some conversion of ms to s, but the input should be sec...
-    n = histc(ISI_N * 1000, Steps);   % convert ISI_N from seconds to ms
+    % Both ISI_N and Steps are in SECONDS (see the 'Steps' [sec] note above).
+    % This used to be histc(ISI_N * 1000, Steps), which binned millisecond data
+    % against second-valued edges and so truncated the histogram at 31.6 ms.
+    % On a densely firing array the baseline ISI_N is already above that, so
+    % the background mode fell off the top of the histogram, only the burst
+    % mode was left, and the "<= 1 peak" fallback below decided the threshold
+    % instead of the valley this function exists to find.
+    n = histc(ISI_N, Steps);
     % n = histcounts(log10(ISI_N), Steps);
     
     
@@ -103,10 +110,18 @@ elseif length(pks) >= 2
     peakOne = locs(1); 
     peakTwo = locs(2); 
     
-    valleyPoint = find(curve == min(curve(peakOne:peakTwo))); 
-    % this will find the first minimum, if there are multiples 
+    % Searched within [peakOne, peakTwo] only. A plain
+    % find(curve == min(curve(peakOne:peakTwo))) searches the whole curve, and
+    % the curve's low end is all zeros before any data, so whenever the valley
+    % bottoms out at zero it would return one of those instead.
+    [~, offset] = min(curve(peakOne:peakTwo));
+    valleyIdx = peakOne + offset - 1;  % first minimum, if there are multiples
     
-    ISInTh = valleyPoint / 1000; % convert ms back to seconds
+    % The bin edge itself, already in seconds. This used to be
+    % `valleyPoint / 1000`, where valleyPoint was the *index* of the valley bin
+    % rather than its edge, so it only ever landed near a plausible threshold
+    % by coincidence.
+    ISInTh = Steps(valleyIdx);
     
 end 
 

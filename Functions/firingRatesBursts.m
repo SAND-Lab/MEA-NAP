@@ -52,9 +52,16 @@ end
 
 
 % Network burst detection
+% Defaulted here rather than required, so a Params struct saved before this
+% field existed still runs (it just gets the current default).
+if isfield(Params, 'bakkumNetworkBurstMergeGapMs')
+    mergeGapMs = Params.bakkumNetworkBurstMergeGapMs;
+else
+    mergeGapMs = 20;
+end
 [burstMatrix, burstTimes, burstChannels, burstDetectionInfo] = burstDetect(spikeMatrix, ...
     Params.networkBurstDetectionMethod, Params.fs, Params.minSpikeNetworkBurst, ...
-    Params.minChannelNetworkBurst, Params.bakkumNetworkBurstISInThreshold);
+    Params.minChannelNetworkBurst, Params.bakkumNetworkBurstISInThreshold, mergeGapMs);
 
 nBursts = size(burstTimes,1);
 

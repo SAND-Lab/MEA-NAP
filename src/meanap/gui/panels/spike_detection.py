@@ -185,6 +185,21 @@ class SpikeDetectionPanel(QWidget):
         self.network_burst_isi_auto.toggled.connect(
             lambda on: self.network_burst_isi.setEnabled(not on))
 
+        self.network_burst_merge_gap = QDoubleSpinBox()
+        self.network_burst_merge_gap.setRange(0, 10000)
+        self.network_burst_merge_gap.setDecimals(1)
+        self.network_burst_merge_gap.setValue(20.0)
+        self.network_burst_merge_gap.setSuffix(" ms")
+        self.network_burst_merge_gap.setToolTip(
+            "Bursts less than this far apart are reported as one burst.\n\n"
+            "ISIn detection splits on the gap between individual spikes, so on "
+            "a densely firing array one network event arrives as a run of "
+            "short fragments a few milliseconds apart, and the burst count and "
+            "duration then describe fragments rather than events. Merging only "
+            "rejoins bursts already found; it cannot add time or spikes the "
+            "detector called quiet.\n\n"
+            "Set to 0 to report every fragment separately.")
+
         self.single_burst_min_spike = QSpinBox()
         self.single_burst_min_spike.setRange(1, 1000)
         self.single_burst_min_spike.setValue(5)
@@ -205,6 +220,8 @@ class SpikeDetectionPanel(QWidget):
         form5.addRow("Network burst: automatic ISIn threshold",
                      self.network_burst_isi_auto)
         form5.addRow("Network burst: ISIn threshold", self.network_burst_isi)
+        form5.addRow("Network burst: merge bursts closer than",
+                     self.network_burst_merge_gap)
         form5.addRow("Single-channel burst: min spikes", self.single_burst_min_spike)
         form5.addRow("Single-channel burst: automatic ISI threshold",
                      self.single_burst_isi_auto)
@@ -244,6 +261,8 @@ class SpikeDetectionPanel(QWidget):
         self.network_burst_min_channel.setValue(int(params.min_channel_network_burst))
         show_auto_or_value(self.network_burst_isi_auto, self.network_burst_isi,
                            params.bakkum_network_burst_isi_n_threshold)
+        self.network_burst_merge_gap.setValue(
+            float(params.bakkum_network_burst_merge_gap_ms))
         self.single_burst_min_spike.setValue(int(params.single_channel_burst_min_spike))
         show_auto_or_value(self.single_burst_isi_auto, self.single_burst_isi,
                            params.single_channel_isi_threshold)
@@ -275,6 +294,8 @@ class SpikeDetectionPanel(QWidget):
         params.bakkum_network_burst_isi_n_threshold = (
             "automatic" if self.network_burst_isi_auto.isChecked()
             else self.network_burst_isi.value())
+        params.bakkum_network_burst_merge_gap_ms = \
+            self.network_burst_merge_gap.value()
         params.single_channel_burst_min_spike = self.single_burst_min_spike.value()
         params.single_channel_isi_threshold = (
             "automatic" if self.single_burst_isi_auto.isChecked()

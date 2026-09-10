@@ -56,7 +56,7 @@ from matplotlib.lines import Line2D
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
 from pyqtgraph import exporters as pg_exporters
-from scipy.signal import welch
+from scipy.signal import find_peaks, savgol_filter, welch
 
 from meanap.gui.advanced import AdvancedSection
 from meanap.gui.widgets import pin_width, scrollable, show_auto_or_value
@@ -115,6 +115,11 @@ def method_color(index: int) -> str:
     return SPIKE_METHOD_COLORS[index % len(SPIKE_METHOD_COLORS)]
 _BURST_COLOR = "#f2a900"
 _TRACE_COLOR = "#2b3a4a"
+
+#: Tab positions, named so that adding one does not mean finding every literal
+#: index that meant "the bursts". Must stay in step with the addTab order in
+#: _build_views.
+TAB_TRACES, TAB_FILTER, TAB_QUALITY, TAB_SWEEP, TAB_BURSTS, TAB_BURST_STATS = range(6)
 #: How much of the recording "next spike" and "next burst" zoom to when the
 #: whole thing is on screen — which it is when a recording is first opened. A
 #: second holds a spike and enough either side to judge it; twenty seconds holds
@@ -399,6 +404,7 @@ class _BurstWorker(_Worker):
                 min_spikes=s["network_min_spikes"],
                 min_channels=s["network_min_channels"],
                 isin_th_param=s["network_isi_threshold"],
+                merge_gap_ms=s["network_merge_gap_ms"],
             )
             single = single_channel_burst_detection(
                 spikes, self._n_channels, self._fs,
@@ -1376,6 +1382,336 @@ class _SweepCanvas(_Canvas):
         self.draw()
 
 
+class _BurstDiagnosticsCanvas(_Canvas):
+    """The evidence behind the burst detection, rather than its answer.
+
+    The Bursts tab shows where the bursts are. This shows why they are there,
+    which is the only way to tell a threshold that suits the recording from one
+    that merely produced some bursts. Every panel is a distribution the
+    detector either used or produced:
+
+    * The **ISI_N histogram** is the automatic threshold's own working. The
+      method looks for two modes — short intervals from spikes inside bursts,
+      long ones from the array's background firing — and puts the threshold in
+      the valley between them. If the two modes are not both visible, there was
+      no valley to find and the threshold came from a fallback instead, which
+      is worth knowing before trusting anything downstream. (It is also how the
+      millisecond-for-seconds unit bug stayed hidden: the histogram it was
+      built on was never drawn.)
+    * The **ISI histogram** is the same distribution without the N-spike
+      window, for comparison against the per-electrode burst literature.
+    * **Burst duration** and **interval between bursts** say whether the
+      detector is finding events or fragments of events. A recording whose
+      intervals pile up well below its durations is one where single events are
+      being cut into pieces.
+    * **Channels per burst** says whether these are network events at all.
+    * The **burst-triggered rate** is every burst averaged on its start: the
+      shape of the average event, and a check that bursts begin where the
+      population rate actually rises.
+    """
+
+    def __init__(self) -> None:
+        super().__init__(figsize=(10, 6.5))
+        #: Bursts on screen, for the ISI_N panel's note about merging.
+        self._n_bursts = 0
+        self.setToolTip(
+            "What the burst detection was based on, rather than what it "
+            "found.\n\n"
+            "ISIₙ: the automatic threshold is the valley between two modes — "
+            "short intervals from spikes inside bursts, long ones from the "
+            "array's background firing. One mode only means there was no "
+            "valley and the threshold came from a fallback.\n\n"
+            "Quiet between bursts: a pile-up below the merge gap is single "
+            "events being cut into fragments. Only the unmerged bars can show "
+            "it — after merging no smaller gap survives.\n\n"
+            "Burst width: bursts on one or two electrodes are not network "
+            "events, whatever the count says.\n\n"
+            "Bursts averaged on their start: the shape of the average event, "
+            "and a check that bursts begin where the rate actually rises.")
+        self.message("Detect bursts to see what the detection was based on.")
+
+    def render(self, pooled: np.ndarray, burst_times: np.ndarray,
+               channel_counts: np.ndarray, fs: float, duration_s: float,
+               info: dict, title: str) -> None:
+        if pooled.size < 2:
+            self.message("No spikes to summarise.")
+            return
+
+        self._fig.clear()
+        axes = self._fig.subplots(2, 3)
+        (ax_isin, ax_isi, ax_dur), (ax_ibi, ax_chans, ax_trig) = axes
+        self._fig.suptitle(title, fontsize=9, fontweight="bold")
+
+        n = int(info.get("min_spikes", 10) or 10)
+        threshold = float(info.get("isin_th", float("nan")))
+        merge_gap_s = float(info.get("merge_gap_ms", 0.0) or 0.0) / 1000.0
+
+        starts = np.asarray(burst_times, dtype=float).reshape(-1, 2)[:, 0] / fs
+        ends = np.asarray(burst_times, dtype=float).reshape(-1, 2)[:, 1] / fs
+        self._n_bursts = int(starts.size)
+
+        self._draw_isin(ax_isin, pooled, n, threshold, info)
+        self._draw_isi(ax_isi, pooled, threshold)
+        self._draw_durations(ax_dur, starts, ends)
+        self._draw_intervals(ax_ibi, starts, ends, merge_gap_s,
+                             np.asarray(info.get("pre_merge_s", ()),
+                                        dtype=float).reshape(-1, 2))
+        self._draw_channels(ax_chans, channel_counts)
+        self._draw_triggered(ax_trig, pooled, starts, ends, duration_s)
+
+        self.draw()
+
+    # ── Panels ────────────────────────────────────────────────────────────────
+
+    def _draw_isin(self, ax, pooled: np.ndarray, n: int, threshold: float,
+                   info: dict) -> None:
+        """The distribution the automatic threshold is read off.
+
+        Drawn on the same log-spaced seconds edges the detector bins on, so
+        what is on screen is what the threshold was chosen from and not a
+        prettier version of it.
+        """
+        if pooled.size <= n:
+            _nothing_here(ax, f"Fewer than {n} spikes.")
+            return
+        isin = pooled[n - 1:] - pooled[:-(n - 1)]
+        edges = 10 ** np.arange(-5, 1.55, 0.05)
+        counts, _ = np.histogram(isin, bins=edges)
+        if not counts.sum():
+            _nothing_here(ax, "No intervals in range.")
+            return
+        curve = counts / counts.sum()
+        centres = np.sqrt(edges[:-1] * edges[1:]) * 1000.0
+
+        shown = curve > 0
+        ax.step(centres, curve, where="mid", lw=1.2, color=_TRACE_COLOR)
+        ax.fill_between(centres, curve, step="mid", alpha=0.25,
+                        color=_TRACE_COLOR)
+        ax.set_xscale("log")
+        if shown.any():
+            # To the data, not to the edges: the bins run to 31.6 s and almost
+            # all of them are empty, which would squash the distribution into a
+            # corner.
+            ax.set_xlim(max(centres[shown].min() / 3, 1e-3),
+                        centres[shown].max() * 3)
+
+        if np.isfinite(threshold) and threshold > 0:
+            ax.axvline(threshold * 1000.0, color=_SPIKE_COLOR, lw=1.4)
+            ax.annotate(f"{threshold * 1000:.2f} ms",
+                        xy=(threshold * 1000.0, ax.get_ylim()[1]),
+                        xytext=(2, -2), textcoords="offset points",
+                        va="top", fontsize=7, color=_SPIKE_COLOR)
+        elif np.isfinite(threshold):
+            # Zero is not a threshold anyone chose; it is the fallback for a
+            # distribution with only one peak, and it finds nothing.
+            ax.text(0.5, 0.88, "threshold 0 — no bursts can be found",
+                    transform=ax.transAxes, ha="center", fontsize=7.5,
+                    color=_SPIKE_COLOR)
+
+        # The cap the method is allowed to return, so a threshold sitting on it
+        # is visibly sitting on it rather than looking like a chosen value.
+        ax.axvline(100.0, color="#4a6b8a", lw=1.0, ls=":")
+        ax.set_xlabel(f"ISI$_{{{n}}}$ (ms, log)")
+        ax.set_ylabel("Proportion")
+        # In the title rather than inside the axes: the distribution fills the
+        # panel differently on every recording, so there is no corner a note
+        # can sit in without landing on the curve on some of them.
+        note = _isin_note(curve, threshold, info, self._n_bursts)
+        ax.set_title(f"ISI$_{{{n}}}$ — what the threshold was read from"
+                     + (f"\n{note}" if note else ""), fontsize=8)
+
+    def _draw_isi(self, ax, pooled: np.ndarray, threshold: float) -> None:
+        isi = np.diff(pooled)
+        isi = isi[isi > 0]
+        if isi.size < 2:
+            _nothing_here(ax, "Not enough intervals.")
+            return
+        edges = 10 ** np.arange(-5, 1.55, 0.05)
+        counts, _ = np.histogram(isi, bins=edges)
+        curve = counts / max(counts.sum(), 1)
+        centres = np.sqrt(edges[:-1] * edges[1:]) * 1000.0
+        shown = curve > 0
+        ax.step(centres, curve, where="mid", lw=1.2, color=_TRACE_COLOR)
+        ax.set_xscale("log")
+        if shown.any():
+            ax.set_xlim(max(centres[shown].min() / 3, 1e-3),
+                        centres[shown].max() * 3)
+        if np.isfinite(threshold) and threshold > 0:
+            ax.axvline(threshold * 1000.0, color=_SPIKE_COLOR, lw=1.2, alpha=0.7)
+        ax.set_xlabel("ISI (ms, log)")
+        ax.set_ylabel("Proportion")
+        ax.set_title("Plain ISI across the array", fontsize=8)
+
+    def _draw_durations(self, ax, starts: np.ndarray, ends: np.ndarray) -> None:
+        if starts.size == 0:
+            _nothing_here(ax, "No network bursts.")
+            return
+        durations = (ends - starts) * 1000.0
+        durations = durations[durations > 0]
+        if durations.size == 0:
+            _nothing_here(ax, "Every burst has zero length.")
+            return
+        _log_hist(ax, durations, _BURST_COLOR)
+        ax.axvline(np.median(durations), color=_TRACE_COLOR, lw=1.2, ls="--")
+        ax.set_xlabel("Burst duration (ms, log)")
+        ax.set_ylabel("Bursts")
+        ax.set_title(f"Burst duration — median "
+                     f"{np.median(durations):.0f} ms", fontsize=8)
+
+    def _draw_intervals(self, ax, starts: np.ndarray, ends: np.ndarray,
+                        merge_gap_s: float, pre_merge: np.ndarray) -> None:
+        """The quiet between bursts, before merging and after.
+
+        Both, because each answers a different question. The unmerged gaps say
+        whether the merge gap is set where the fragmentation actually is — that
+        is the only view in which a pile-up below the line can appear, since
+        after merging no gap smaller than the line survives by construction.
+        The merged gaps are the interval between network events, which is a
+        property of the culture rather than of the detector.
+        """
+        raw_gaps = _gaps_ms(pre_merge[:, 0], pre_merge[:, 1]) \
+            if np.size(pre_merge) else np.zeros(0)
+        gaps = _gaps_ms(starts, ends)
+        if gaps.size == 0 and raw_gaps.size == 0:
+            _nothing_here(ax, "Fewer than two separated bursts.")
+            return
+
+        both = np.concatenate([g for g in (raw_gaps, gaps) if g.size])
+        bins = _log_bins(both)
+        merged_note = ""
+        if raw_gaps.size and raw_gaps.size != gaps.size:
+            ax.hist(raw_gaps, bins=bins, color="#b9c2cc", edgecolor="white",
+                    linewidth=0.3, label="before merging")
+            closed = int(np.sum(raw_gaps <= merge_gap_s * 1000.0))
+            merged_note = f"\n{closed} gaps closed by merging"
+        ax.hist(gaps, bins=bins, color=_BURST_COLOR, edgecolor="white",
+                linewidth=0.3, label="after merging")
+        ax.set_xscale("log")
+
+        if merge_gap_s > 0:
+            ax.axvline(merge_gap_s * 1000.0, color=_SPIKE_COLOR, lw=1.3)
+            ax.annotate("merge gap", xy=(merge_gap_s * 1000.0, ax.get_ylim()[1]),
+                        xytext=(2, -2), textcoords="offset points",
+                        va="top", fontsize=7, color=_SPIKE_COLOR)
+        if merged_note:
+            ax.legend(fontsize=6.5, frameon=False, loc="upper right")
+        ax.set_xlabel("Quiet between bursts (ms, log)")
+        ax.set_ylabel("Gaps")
+        ax.set_title("Quiet between bursts" + merged_note, fontsize=8)
+
+    def _draw_channels(self, ax, counts: np.ndarray) -> None:
+        counts = np.asarray(counts, dtype=float).ravel()
+        counts = counts[counts > 0]
+        if counts.size == 0:
+            _nothing_here(ax, "No network bursts.")
+            return
+        top = int(max(counts))
+        ax.hist(counts, bins=np.arange(0.5, top + 1.5, 1.0),
+                color=_BURST_COLOR, edgecolor="white", linewidth=0.4)
+        ax.axvline(float(np.median(counts)), color=_TRACE_COLOR, lw=1.2, ls="--")
+        ax.set_xlabel("Electrodes contributing")
+        ax.set_ylabel("Bursts")
+        ax.set_title(f"Burst width — median "
+                     f"{np.median(counts):.0f} electrodes", fontsize=8)
+
+    def _draw_triggered(self, ax, pooled: np.ndarray, starts: np.ndarray,
+                        ends: np.ndarray, duration_s: float) -> None:
+        if starts.size == 0:
+            _nothing_here(ax, "No network bursts.")
+            return
+        # Sized on the long bursts, not the median one. Where a recording's
+        # events are ISI_N fragments plus a few whole ones, the median is a
+        # fragment, and a window scaled to it cuts off the decay that is the
+        # thing worth seeing.
+        durations = ends - starts
+        long_dur = float(np.percentile(durations, 90)) if durations.size else 0.05
+        half = max(min(2.5 * max(long_dur, 0.005), 2.0), 0.05)
+        step = half / 60.0
+        offsets = np.arange(-half, half + step, step)
+
+        # Counted by searchsorted rather than by histogramming each burst: one
+        # pass over the sorted spike times per bin edge, whatever the number of
+        # bursts.
+        edges = starts[:, None] + offsets[None, :]
+        indices = np.searchsorted(pooled, edges)
+        per_burst = np.diff(indices, axis=1) / step
+        mean_rate = per_burst.mean(axis=0)
+        centres = (offsets[:-1] + offsets[1:]) / 2 * 1000.0
+
+        ax.plot(centres, mean_rate, lw=1.4, color=_TRACE_COLOR)
+        if per_burst.shape[0] > 1:
+            spread = per_burst.std(axis=0) / np.sqrt(per_burst.shape[0])
+            ax.fill_between(centres, mean_rate - spread, mean_rate + spread,
+                            color=_TRACE_COLOR, alpha=0.2, linewidth=0)
+        baseline = pooled.size / duration_s if duration_s > 0 else 0.0
+        if baseline > 0:
+            ax.axhline(baseline, color="#4a6b8a", lw=1.0, ls=":")
+            # On a background patch: the trace can be above or below its own
+            # baseline at either end of this window depending on the recording,
+            # so there is no corner that is reliably clear of it.
+            ax.annotate("whole-recording mean", xy=(centres[-1], baseline),
+                        xytext=(-2, -3), textcoords="offset points",
+                        ha="right", va="top", fontsize=6.5, color="#4a6b8a",
+                        bbox=dict(boxstyle="square,pad=0.15", fc="white",
+                                  ec="none", alpha=0.75))
+        ax.axvline(0.0, color=_SPIKE_COLOR, lw=1.1)
+        ax.set_xlabel("Time from burst start (ms)")
+        ax.set_ylabel("Array rate (Hz)")
+        ax.set_title(f"Bursts averaged on their start (n={starts.size})",
+                     fontsize=8)
+
+
+def _log_bins(values: np.ndarray, n: int = 40) -> np.ndarray:
+    """Log-spaced bin edges spanning *values*, which spread over decades."""
+    low = max(float(np.min(values)), 1e-3)
+    high = max(float(np.max(values)), low * 1.01)
+    return np.logspace(np.log10(low), np.log10(high), n)
+
+
+def _log_hist(ax, values: np.ndarray, color: str) -> None:
+    """A histogram on log-spaced bins, which is how these quantities spread."""
+    ax.hist(values, bins=_log_bins(values), color=color, edgecolor="white",
+            linewidth=0.3)
+    ax.set_xscale("log")
+
+
+def _gaps_ms(starts: np.ndarray, ends: np.ndarray) -> np.ndarray:
+    """Quiet between consecutive bursts, in ms.
+
+    End of one to start of the next, not start to start: the quiet is what says
+    whether these are separate events, and start-to-start would fold the burst
+    durations back in.
+    """
+    if np.size(starts) < 2:
+        return np.zeros(0)
+    gaps = (np.asarray(starts)[1:] - np.asarray(ends)[:-1]) * 1000.0
+    return gaps[gaps > 0]
+
+
+def _isin_note(curve: np.ndarray, threshold: float, info: dict,
+               n_bursts: int) -> str:
+    """One line saying whether the threshold came from a valley or a fallback.
+
+    The distinction matters more than the number: a threshold read off a valley
+    describes the recording, and a fallback is a constant that happens to have
+    been returned.
+    """
+    peaks, _ = find_peaks(savgol_filter(curve, 9, 1)
+                          if curve.size >= 9 else curve, distance=2)
+    parts = []
+    if len(peaks) <= 1:
+        parts.append("one mode only: from the fallback, not a valley")
+    else:
+        parts.append(f"{len(peaks)} modes: read from the valley")
+    if np.isfinite(threshold) and threshold >= 0.1:
+        parts.append("sitting on the 100 ms cap")
+    before = info.get("n_before_merge")
+    if before is not None and before > n_bursts:
+        parts.append(f"{before} fragments merged into {n_bursts}")
+    return ", ".join(parts[:1]) + ("\n" + "; ".join(parts[1:])
+                                   if len(parts) > 1 else "")
+
+
 class _FilterCanvas(_Canvas):
     """What the bandpass did: the same stretch before and after, and its spectrum.
 
@@ -1669,6 +2005,10 @@ class SpikeViewerWindow(QDialog):
         #: from the raw channels so a mismatch between the two is detectable
         #: rather than silently plotting one channel's spikes on another's trace.
         self._spike_channels: np.ndarray | None = None
+        #: The recording ``_dat`` was read from, as the string the file picker
+        #: gave. Opening a *different* one has to clear the spikes, bursts and
+        #: channel list that belong to this one — see _on_raw_loaded.
+        self._loaded_raw_path: str | None = None
         #: Bandpassed traces, most-recently-used last. Bounded because a
         #: filtered channel is the same size as a raw one — keeping all 64 of a
         #: ten-minute recording would quietly hold four gigabytes.
@@ -1960,6 +2300,18 @@ class SpikeViewerWindow(QDialog):
         form.addRow(self._nb_auto_isi)
         form.addRow("Network: ISIₙ threshold", self._nb_isi)
 
+        self._nb_merge_gap = _spin(0, 10000, 1, 20.0, " ms")
+        self._nb_merge_gap.setToolTip(
+            "Bursts less than this far apart are reported as one burst.\n\n"
+            "ISIₙ detection splits on the gap between individual spikes, so on "
+            "a densely firing array one network event arrives as a run of "
+            "short fragments a few milliseconds apart — the burst count and "
+            "duration then describe fragments rather than events. Merging "
+            "only rejoins bursts already found; it cannot add time or spikes "
+            "the detector called quiet.\n\n"
+            "Set to 0 to report every fragment separately.")
+        form.addRow("Network: merge bursts closer than", self._nb_merge_gap)
+
         self._sc_min_spikes = _int_spin(1, 1000, 5)
         self._sc_auto_isi = QCheckBox("Set channel ISI threshold automatically")
         self._sc_auto_isi.setChecked(True)
@@ -2055,6 +2407,7 @@ class SpikeViewerWindow(QDialog):
         self._quality_canvas = _QualityCanvas()
         self._sweep_canvas = _SweepCanvas()
         self._burst_view = _BurstView()
+        self._burst_stats_canvas = _BurstDiagnosticsCanvas()
 
         self._trace_view.range_changed.connect(self._on_view_range)
 
@@ -2087,6 +2440,10 @@ class SpikeViewerWindow(QDialog):
         sweep_layout.addWidget(self._sweep_canvas, 1)
         self._tabs.addTab(sweep_page, "  Threshold sweep  ")
         self._tabs.addTab(burst_page, "  Bursts  ")
+        # Beside the bursts rather than inside them: the Bursts tab answers
+        # "where are they", this one answers "should I believe them", and the
+        # two are looked at one after the other.
+        self._tabs.addTab(self._burst_stats_canvas, "  Burst diagnostics  ")
         self._tabs.currentChanged.connect(self._refresh)
         return self._tabs
 
@@ -2195,7 +2552,7 @@ class SpikeViewerWindow(QDialog):
 
     def _on_swept(self, points) -> None:
         self._sweep_result = points
-        self._tabs.setCurrentIndex(3)
+        self._tabs.setCurrentIndex(TAB_SWEEP)
         knee = knee_threshold(points)
         # Start the picker somewhere defensible rather than at whatever it was.
         if knee is not None:
@@ -2457,6 +2814,8 @@ class SpikeViewerWindow(QDialog):
         self._nb_min_channels.setValue(int(params.min_channel_network_burst))
         show_auto_or_value(self._nb_auto_isi, self._nb_isi,
                            params.bakkum_network_burst_isi_n_threshold)
+        self._nb_merge_gap.setValue(
+            float(params.bakkum_network_burst_merge_gap_ms))
         self._sc_min_spikes.setValue(int(params.single_channel_burst_min_spike))
         show_auto_or_value(self._sc_auto_isi, self._sc_isi,
                            params.single_channel_isi_threshold)
@@ -2491,6 +2850,7 @@ class SpikeViewerWindow(QDialog):
         params.min_channel_network_burst = self._nb_min_channels.value()
         params.bakkum_network_burst_isi_n_threshold = (
             "automatic" if self._nb_auto_isi.isChecked() else self._nb_isi.value())
+        params.bakkum_network_burst_merge_gap_ms = self._nb_merge_gap.value()
         params.single_channel_burst_min_spike = self._sc_min_spikes.value()
         params.single_channel_isi_threshold = (
             "automatic" if self._sc_auto_isi.isChecked() else self._sc_isi.value())
@@ -2513,6 +2873,13 @@ class SpikeViewerWindow(QDialog):
 
     def _on_raw_loaded(self, payload) -> None:
         dat, channels, fs = payload
+        path = self._raw_path.text()
+        # Only when this is a different recording. Opening the raw file that
+        # goes with just-loaded spikes comes through here too (_maybe_find_raw),
+        # and those spikes are the reason the traces were wanted.
+        if self._loaded_raw_path is not None and self._loaded_raw_path != path:
+            self._clear_recording_state()
+        self._loaded_raw_path = path
         self._dat, self._raw_channels, self._fs = dat, channels, float(fs)
         self._duration_s = dat.shape[0] / self._fs
         self._filtered.clear()
@@ -2547,6 +2914,37 @@ class SpikeViewerWindow(QDialog):
             self._detect(all_channels=True, thresholds_only=True, automatic=True)
         else:
             self._finished(loaded)
+
+    def _clear_recording_state(self) -> None:
+        """Forget everything that belongs to the recording being replaced.
+
+        Spikes, bursts and the channel list are all indexed against one
+        recording. Carrying them into the next one is not a stale view that
+        the next redraw corrects: ``_refresh_channels`` prefers
+        ``_spike_channels`` over the raw recording's own, so a 60-channel file
+        followed by a 16-channel one keeps showing 60 channels, with the first
+        recording's spikes drawn over the second's traces. Held spikes also
+        suppress the automatic detection pass, so the new recording arrives
+        with nothing of its own on it.
+        """
+        self._spike_times = {}
+        self._waveforms = {}
+        self._spike_thresholds = {}
+        self._spike_channels = None
+        self._bursts_by_method = {}
+        # From the previous file, and wrong for this one — the layout dropdown
+        # takes over again until a spike file brings its own.
+        self._coords = None
+        self._sweep_result = []
+        self._sweep_scope = ""
+        self._newly_detected = set()
+        self._method_order = []
+        # The Bursts tab's window is in seconds into a recording that is no
+        # longer loaded; _navigate_bursts sets it again when there is something
+        # to show.
+        self._burst_start = 0.0
+        self._burst_length = 0.0
+        self._spikes_path.clear()
 
     def _should_auto_detect(self) -> bool:
         """Whether to detect on this recording without being asked.
@@ -2626,6 +3024,9 @@ class SpikeViewerWindow(QDialog):
             self._nb_min_spikes.setValue(int(params["minSpikeNetworkBurst"]))
         if "minChannelNetworkBurst" in params:
             self._nb_min_channels.setValue(int(params["minChannelNetworkBurst"]))
+        if "bakkumNetworkBurstMergeGapMs" in params:
+            self._nb_merge_gap.setValue(
+                float(params["bakkumNetworkBurstMergeGapMs"]))
         if "singleChannelBurstMinSpike" in params:
             self._sc_min_spikes.setValue(int(params["singleChannelBurstMinSpike"]))
 
@@ -2795,6 +3196,7 @@ class SpikeViewerWindow(QDialog):
             "bakkumNetworkBurstISInThreshold": (
                 "automatic" if self._nb_auto_isi.isChecked()
                 else self._nb_isi.value()),
+            "bakkumNetworkBurstMergeGapMs": self._nb_merge_gap.value(),
             "singleChannelBurstMinSpike": self._sc_min_spikes.value(),
             "singleChannelISIThreshold": (
                 "automatic" if self._sc_auto_isi.isChecked()
@@ -2818,6 +3220,7 @@ class SpikeViewerWindow(QDialog):
             "network_min_channels": self._nb_min_channels.value(),
             "network_isi_threshold": ("automatic" if self._nb_auto_isi.isChecked()
                                       else self._nb_isi.value()),
+            "network_merge_gap_ms": self._nb_merge_gap.value(),
             "single_min_spikes": self._sc_min_spikes.value(),
             "single_isi_threshold": ("automatic" if self._sc_auto_isi.isChecked()
                                      else self._sc_isi.value()),
@@ -2835,7 +3238,7 @@ class SpikeViewerWindow(QDialog):
             # over ten minutes is the first thing worth seeing, and zooming into
             # one of them is the move after that.
             self._navigate_bursts(0.0, max(self._duration_s, 0.01))
-        self._tabs.setCurrentIndex(4)
+        self._tabs.setCurrentIndex(TAB_BURSTS)
         # One line per method, because the disagreement between them is the
         # finding: the same recording gives two hundred network bursts on one
         # threshold's spikes and none on another's.
@@ -3217,16 +3620,9 @@ class SpikeViewerWindow(QDialog):
         self._sync_burst_scrollbar()
         self._draw_array_map()
         index = self._tabs.currentIndex() if hasattr(self, "_tabs") else 0
-        if index == 0:
-            self._draw_traces()
-        elif index == 1:
-            self._draw_filtering()
-        elif index == 2:
-            self._draw_quality()
-        elif index == 3:
-            self._draw_sweep()
-        else:
-            self._draw_bursts()
+        draw = (self._draw_traces, self._draw_filtering, self._draw_quality,
+                self._draw_sweep, self._draw_bursts, self._draw_burst_stats)
+        draw[index if 0 <= index < len(draw) else 0]()
 
     def _draw_array_map(self) -> None:
         channels = self._spike_channels if self._spike_channels is not None \
@@ -3373,6 +3769,58 @@ class SpikeViewerWindow(QDialog):
             single.get("burst_matrices", {}).get(channel, {}),
             self._raster_bin.value(), title,
             (self._burst_start, self._burst_start + self._burst_length))
+
+    def _draw_burst_stats(self) -> None:
+        shown = self._bursts_for_view()
+        if shown is None:
+            self._burst_stats_canvas.message(
+                "Detect bursts to see what the detection was based on."
+                if self._spike_times else
+                "No spikes yet. Detect here, or open a run's spike file.")
+            return
+        burst_method, (burst_times, burst_channels, info, _single) = shown
+
+        spikes = self._spikes_for_method(burst_method)
+        if not spikes:
+            self._burst_stats_canvas.message(
+                f"No spikes for {burst_method} in this window.")
+            return
+        # Coincident spikes counted once, as the detector does: it is the
+        # pooled train that the ISI_N threshold was read off, and counting a
+        # simultaneous pair twice would put a zero in the distribution.
+        pooled = np.unique(np.concatenate(
+            [np.asarray(t, dtype=float).ravel() for t in spikes.values()
+             if np.size(t)] or [np.zeros(0)]))
+
+        # Recomputed rather than taken from burst_channels, which a reloaded
+        # file does not carry — the stored format drops it. Cheap: one
+        # searchsorted pair per burst over the already-sorted times.
+        counts = self._channels_per_burst(spikes, burst_times)
+
+        title = (f"{burst_method} spikes · "
+                 f"{np.asarray(burst_times).reshape(-1, 2).shape[0]} network "
+                 f"burst(s) · ISIₙ threshold "
+                 f"{info.get('isin_th', float('nan')) * 1000:.2f} ms")
+        self._burst_stats_canvas.render(
+            pooled, burst_times, counts, self._fs, self._duration_s,
+            info, title)
+
+    def _channels_per_burst(self, spikes: dict[int, np.ndarray],
+                            burst_times) -> np.ndarray:
+        """How many electrodes contributed a spike to each burst."""
+        windows = np.asarray(burst_times, dtype=float).reshape(-1, 2) / self._fs
+        if windows.shape[0] == 0:
+            return np.zeros(0)
+        counts = np.zeros(windows.shape[0], dtype=int)
+        for times in spikes.values():
+            times = np.asarray(times, dtype=float).ravel()
+            if times.size == 0:
+                continue
+            times = np.sort(times)
+            first = np.searchsorted(times, windows[:, 0], side="left")
+            last = np.searchsorted(times, windows[:, 1], side="right")
+            counts += (last > first).astype(int)
+        return counts
 
     def _on_follow_trace(self, on: bool) -> None:
         if on:
@@ -3526,7 +3974,8 @@ class SpikeViewerWindow(QDialog):
 
     def _current_canvas(self) -> _Canvas:
         return (self._trace_view, self._filter_canvas, self._quality_canvas,
-                self._sweep_canvas, self._burst_view)[self._tabs.currentIndex()]
+                self._sweep_canvas, self._burst_view,
+                self._burst_stats_canvas)[self._tabs.currentIndex()]
 
     def closeEvent(self, event) -> None:
         """Let running work finish rather than tearing its thread down mid-read.

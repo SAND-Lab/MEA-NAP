@@ -1,4 +1,4 @@
-function [burstMatrix, burstTimes, burstChannels, burstDetectionInfo] = burstDetect(spikeMatrix, method, samplingRate, N, minChannel, ISInThreshold)
+function [burstMatrix, burstTimes, burstChannels, burstDetectionInfo] = burstDetect(spikeMatrix, method, samplingRate, N, minChannel, ISInThreshold, mergeGapMs)
 % burstDetect detects bursting activity from single channels
 % Parameters 
 % ----------
@@ -14,6 +14,14 @@ function [burstMatrix, burstTimes, burstChannels, burstDetectionInfo] = burstDet
 % minChannel : int
 %     minimum number of channels required to participate in a burst
 % ISInThreshold : 
+% mergeGapMs : double
+%     network bursts less than this many milliseconds apart are reported as
+%     one burst. ISI_N detection splits on the gap between individual spikes,
+%     so on a densely firing array one network event arrives as a run of short
+%     fragments a few milliseconds apart, and the burst count and duration
+%     then describe fragments rather than events. Merging only rejoins bursts
+%     already found; it cannot add time or spikes the detector called quiet.
+%     Defaults to 20. Set to 0 to report every fragment separately.
 % OUTPUT 
 % ------
     % burstMatrix
@@ -45,6 +53,10 @@ function [burstMatrix, burstTimes, burstChannels, burstDetectionInfo] = burstDet
 switch nargin
     case 1 
         method = 'Bakkum'; 
+end 
+
+if ~exist('mergeGapMs', 'var') || isempty(mergeGapMs)
+    mergeGapMs = 20;
 end 
 
 burstDetectionInfo = struct();
@@ -179,10 +191,14 @@ if strcmp(method, 'Bakkum')
     % N = 30; % N is the critical paramter here, 
     
     % ISI_N can be automatically selected (and this is dependent on N)
-    Steps = 10 .^ (-5:0.05:1.5); % this is in ms (0 - 32 ms)
-    % exact values of this doens't matter as long as its log scale, covers 
-    % the possible spikeISI times,(but we don't care about values above
-    % 0.1s anyway)
+    Steps = 10 .^ (-5:0.05:1.5); % seconds (10 us - 31.6 s)
+    % These are log-spaced histogram edges for the ISI_N distribution, in
+    % seconds, per Bakkum 2013. The range has to span the whole distribution,
+    % not just the part below the 0.1 s threshold cap: getISInTh looks for the
+    % valley *between* the burst mode and the background mode, so if the
+    % background mode is off the top of the histogram there is no valley to
+    % find. On a densely firing array the background mode sits well above
+    % 0.1 s worth of ISI_N.
     plotFig = 0;
     
     if strcmp(ISInThreshold, 'automatic')
@@ -199,6 +215,18 @@ if strcmp(method, 'Bakkum')
     
     [Burst SpikeBurstNumber] = BurstDetectISIn(Spike, N, ISInTh); 
     
+    % Rejoin fragments of the same event before the minChannel filter below,
+    % so a merged burst is judged on the channels of the whole event rather
+    % than on those of whichever fragment came first.
+    [Burst.T_start, Burst.T_end] = mergeCloseBursts(Burst.T_start, ...
+        Burst.T_end, mergeGapMs / 1000);
+    % Burst.S and Burst.C counted spikes and channels per fragment, so neither
+    % describes these bursts any more. S is recounted per merged burst from the
+    % spike matrix below; C is superseded by burstChannels, also recomputed
+    % below, so it is cleared rather than left stale.
+    Burst.S = zeros(size(Burst.T_start));
+    Burst.C = zeros(size(Burst.T_start));
+    
     % Burst.T_start Burst start time [sec] 
     % Burst.T_end Burst end time [sec] 
     % Burst.S Burst size (number of spikes) 
@@ -209,12 +237,15 @@ if strcmp(method, 'Bakkum')
     
     % now, covert it to a cell structure, where each cell contain a matrix 
     % with the spike trains during a burst period 
-    burstCell = cell(length(Burst.S), 1);
+    burstCell = cell(length(Burst.T_start), 1);
     
-    for bb = 1:length(Burst.S)
+    for bb = 1:length(Burst.T_start)
         T_start_frame = round(Burst.T_start(bb) * samplingRate); % convert from s back to frame 
         T_end_frame = round(Burst.T_end(bb) * samplingRate); 
+        T_start_frame = max(1, T_start_frame);
+        T_end_frame = min(size(spikeMatrix, 1), T_end_frame);
         burstCell{bb} = spikeMatrix(T_start_frame:T_end_frame, :);
+        Burst.S(bb) = full(sum(burstCell{bb}(:)));
     end 
     
     % burstTimes = [Burst.T_start', Burst.T_end'] % in seconds
@@ -239,6 +270,9 @@ if strcmp(method, 'Bakkum')
     burstTimes(removeBurstIndex,:) = [ ];
     
     burstMatrix = burstCell; 
+    
+    burstDetectionInfo.ISInTh = ISInTh;
+    burstDetectionInfo.mergeGapMs = mergeGapMs;
     
     % look at which channels are active 
     

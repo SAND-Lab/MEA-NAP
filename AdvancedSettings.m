@@ -78,6 +78,13 @@ Params.networkBurstDetectionMethod = 'Bakkum'; % supported methods: 'Bakkum', 'M
 Params.minSpikeNetworkBurst = 10;
 Params.minChannelNetworkBurst = 3;
 Params.bakkumNetworkBurstISInThreshold = 'automatic'; % either 'automatic' or a number in seconds
+% Network bursts less than this far apart are reported as one burst. ISI_N
+% detection splits on the gap between individual spikes, so on a densely firing
+% array one network event arrives as a run of short fragments a few
+% milliseconds apart, and the burst count and duration then describe fragments
+% rather than events. Merging only rejoins bursts already found; it cannot add
+% time or spikes the detector called quiet. Set to 0 to report every fragment.
+Params.bakkumNetworkBurstMergeGapMs = 20;
 
 Params.singleChannelBurstDetectionMethod = 'Bakkum'; % supported methods: 'Bakkum'
 Params.singleChannelBurstMinSpike = 10;
