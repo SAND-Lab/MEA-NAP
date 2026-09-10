@@ -47,7 +47,8 @@ def firing_rates_bursts(
         fs,
         min_spikes=params.min_spike_network_burst,
         min_channels=params.min_channel_network_burst,
-        isin_th_param=params.bakkum_network_burst_isi_n_threshold
+        isin_th_param=params.bakkum_network_burst_isi_n_threshold,
+        merge_gap_ms=params.bakkum_network_burst_merge_gap_ms,
     )
     
     n_bursts = len(b_times)

@@ -92,6 +92,11 @@ class Params:
     min_spike_network_burst: int = 10
     min_channel_network_burst: int = 3
     bakkum_network_burst_isi_n_threshold: str | float = "automatic"
+    # ISI_N detection segments on the gap between individual spikes, so on a
+    # densely firing array one network event arrives as many short fragments
+    # (see merge_close_bursts). Bursts closer together than this are one burst.
+    # 0 disables merging.
+    bakkum_network_burst_merge_gap_ms: float = 20.0
     single_channel_burst_detection_method: str = "Bakkum"
     single_channel_burst_min_spike: int = 5
     single_channel_isi_threshold: str | float = "automatic"
