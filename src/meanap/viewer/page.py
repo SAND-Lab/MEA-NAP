@@ -127,10 +127,13 @@ PAGE_HTML = r"""<!doctype html>
      toolbar. The served PNG is untouched — only on-screen scaling. min-height
      overrides the flex default that refuses to shrink below content; flex-start
      keeps the width derived from the shrunken height, so the border still hugs
-     the picture. Galleries and the parameters table keep scrolling. */
+     the picture. Galleries and the parameters table keep scrolling.
+     The pair's figures share the pane by their own height (basis auto, not
+     0): under 900px the grid stacks and main has no height to give, and a
+     zero basis with nothing to grow into left the figure zero pixels tall. */
   #single, #pair { flex: 1 1 auto; min-height: 0; display: flex;
     flex-direction: column; }
-  #pair figure { flex: 1 1 0; min-height: 0; display: flex;
+  #pair figure { flex: 1 1 auto; min-height: 0; display: flex;
     flex-direction: column; }
   #single img, #pair img { flex: 0 1 auto; min-height: 0;
     align-self: flex-start; object-fit: contain; }
