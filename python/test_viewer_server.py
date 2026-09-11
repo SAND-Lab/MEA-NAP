@@ -645,7 +645,10 @@ def _trace_checks() -> list[Check]:
             # it, because its list of one-image kinds did not name "trace".
             from meanap.viewer.page import PAGE_HTML
 
-            one_expr = PAGE_HTML.split("const one =", 1)[1].split(";", 1)[0]
+            # Anchored on setMode: the page has grown another "const one ="
+            # (the Statistics tab's), and the first match is no longer this one.
+            set_mode = PAGE_HTML.split("function setMode(", 1)[1]
+            one_expr = set_mode.split("const one =", 1)[1].split(";", 1)[0]
             checks.append(("a trace counts as a single-figure view",
                            '"trace"' in one_expr, " ".join(one_expr.split())))
             checks.append(("…so the PNG download is offered",
