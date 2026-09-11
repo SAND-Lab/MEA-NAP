@@ -96,6 +96,10 @@ fig = plt.figure()
 plt.plot([0, 1], [0, 1])
 fig.savefig(trace_dir / "recA_unit1.png")
 plt.close(fig)
+# The AppleDouble twin a Mac leaves beside it on an exFAT or SMB volume. Not a
+# picture, and bundles written before the packer dropped these still carry
+# them, so the viewer has to see through it on its own.
+(trace_dir / "._recA_unit1.png").write_bytes(b"\x00\x05\x16\x07" + b"\x00" * 60)
 
 httpd, service = serve(root, port=0, background=True)
 base = f"http://127.0.0.1:{httpd.server_address[1]}"
@@ -103,7 +107,12 @@ try:
     man = json.loads(urllib.request.urlopen(base + "/api/manifest", timeout=60).read())
     rec = next(r for r in man["recordings"] if r["name"] == "recA")
     names = [t["name"] for t in rec.get("traces", [])]
-    check("the manifest advertises the trace", names == ["recA_unit1"], str(names))
+    check("the manifest advertises the trace, and not its ._ sidecar",
+          names == ["recA_unit1"], str(names))
+
+    status, _ = _get(f"{base}/api/trace?rec=recA&name=._recA_unit1")
+    check("…and the sidecar cannot be fetched by name either", status == 404,
+          str(status))
 
     status, headers = _get(f"{base}/api/trace?rec=recA&name=recA_unit1")
     check("a plain request still just shows the image",

@@ -40,7 +40,7 @@ import numpy as np
 
 from meanap.params import Params
 from meanap.timescale import timescale_kind
-from meanap.pipeline.bundle import RunBundle
+from meanap.pipeline.bundle import RunBundle, is_os_metadata
 from meanap.pipeline.palette import ColorScheme
 from meanap.pipeline.resume import ADJM_SUFFIX, CATNAP_SUFFIX
 from meanap.pipeline.spreadsheet import RecordingInfo
@@ -1320,8 +1320,11 @@ def available_trace_figures(ctx: RenderContext, recording: str) -> list[FigureSp
     base = ctx.root / TRACE_DIR
     if not base.is_dir():
         return []
-    # group/recording/, matching what _plot_recording writes.
-    hits = sorted(base.glob(f"*/{recording}/*.png"))
+    # group/recording/, matching what _plot_recording writes. Bundles written
+    # before the packer skipped them can still carry a Mac's ``._*.png``
+    # sidecars, which are not pictures and must not become a "Unit" button.
+    hits = sorted(h for h in base.glob(f"*/{recording}/*.png")
+                  if not is_os_metadata(h.name))
     if not hits:
         return []
 
@@ -1343,7 +1346,7 @@ def trace_figure_path(ctx: RenderContext, recording: str, name: str) -> Path:
     """
     base = (ctx.root / TRACE_DIR).resolve()
     for hit in base.glob(f"*/{recording}/*.png"):
-        if hit.stem == name:
+        if hit.stem == name and not is_os_metadata(hit.name):
             resolved = hit.resolve()
             if not resolved.is_relative_to(base):
                 break

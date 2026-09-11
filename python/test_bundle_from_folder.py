@@ -148,6 +148,37 @@ with tempfile.TemporaryDirectory() as tmp:
           str(sorted(set(after) - set(before))))
 
 
+# ── What a Mac leaves in a folder is not part of the run ─────────────────────
+
+print("\nOperating-system droppings")
+
+with tempfile.TemporaryDirectory() as tmp:
+    tmp = Path(tmp)
+    run = make_output_folder(tmp / "FromAMac")
+    # An output folder that sat on an exFAT stick or an SMB share, as a
+    # collaborator's did: every file has an AppleDouble twin, and Finder has
+    # left its index in the folders it opened.
+    carried = run / "2_NeuronalActivity" / "2A_IndividualNeuronalAnalysis" / "WT" / "MPT_A1"
+    (carried / "._unit1_trace.png").write_bytes(b"\x00\x05\x16\x07" + b"\x00" * 60)
+    (run / ".DS_Store").write_bytes(b"\x00" * 16)
+    (run / "ExperimentMatFiles" / "._MPT_A1_adjM.npz").write_bytes(b"\x00" * 16)
+    (run / "2_NeuronalActivity" / ".DS_Store").write_bytes(b"\x00" * 16)
+
+    result = bundle_output_folder(run, log=lambda _m: None)
+    with zipfile.ZipFile(result.dest) as zf:
+        packed = set(zf.namelist())
+    droppings = sorted(p for p in packed
+                       if any(part.startswith("._") or part == ".DS_Store"
+                              for part in p.split("/")))
+    check("AppleDouble sidecars and .DS_Store files are not packed",
+          droppings == [], str(droppings))
+    check("the real files beside them still are",
+          "2_NeuronalActivity/2A_IndividualNeuronalAnalysis/WT/MPT_A1/unit1_trace.png" in packed
+          and "ExperimentMatFiles/MPT_A1_adjM.npz" in packed, str(sorted(packed)))
+    check("and the folder is left as it was, droppings included",
+          (carried / "._unit1_trace.png").is_file() and (run / ".DS_Store").is_file(), "")
+
+
 # ── Not overwriting a bundle whose run may be gone ────────────────────────────
 
 print("\nWhere a second bundle goes")

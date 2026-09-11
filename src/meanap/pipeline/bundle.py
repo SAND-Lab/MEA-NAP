@@ -68,6 +68,7 @@ __all__ = [
     "write_bundle",
     "open_bundle",
     "is_bundle",
+    "is_os_metadata",
 ]
 
 BUNDLE_SUFFIX = ".meanap"
@@ -129,6 +130,22 @@ RECONSTRUCTABLE_FAMILIES = (
 #: payloads. Kept rather than deleted because the manifest field is part of the
 #: format, and a future family that cannot be rebuilt belongs here.
 UNRECONSTRUCTABLE_FAMILIES: tuple[str, ...] = ()
+
+
+def is_os_metadata(rel: Path | str) -> bool:
+    """Whether *rel* is a file the operating system left behind, not the run.
+
+    macOS writes an ``._<name>`` AppleDouble sidecar next to every file it
+    touches on a volume with no resource forks — an exFAT stick, an SMB share,
+    some Dropbox setups — and a ``.DS_Store`` in every folder Finder opens.
+    Neither belongs to the analysis, but both sit in an output folder that
+    lived on such a volume, and the first shipped bundle from a collaborator's
+    Mac carried them: the viewer then listed ``._unit_1_2ptraces`` as a fourth
+    unit and drew a broken image for it. Named here, once, so the packer and
+    the viewer agree on what to ignore.
+    """
+    parts = Path(rel).parts
+    return any(part.startswith("._") or part == ".DS_Store" for part in parts)
 
 
 def is_bundle(path: Path | str) -> bool:
@@ -385,7 +402,7 @@ def write_bundle(
             if not path.is_file():
                 continue
             rel = path.relative_to(root)
-            if _is_reconstructable_member(rel, keep):
+            if _is_reconstructable_member(rel, keep) or is_os_metadata(rel):
                 continue
             if rel.as_posix() == PARAMS_FILENAME:
                 # The copy in the output folder keeps everything — it never
