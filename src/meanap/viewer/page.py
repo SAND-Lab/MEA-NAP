@@ -88,7 +88,8 @@ PAGE_HTML = r"""<!doctype html>
   aside { overflow-y: auto; padding: 16px; }
   aside.left { grid-area: left; border-right: 1px solid var(--line); }
   aside.right { grid-area: right; border-left: 1px solid var(--line); }
-  main { grid-area: main; overflow-y: auto; padding: 20px 24px; min-width: 0; }
+  main { grid-area: main; overflow-y: auto; padding: 20px 24px; min-width: 0;
+         display: flex; flex-direction: column; }
 
   .sub { color: var(--muted); font-size: 12px; margin-bottom: 14px;
          overflow-wrap: anywhere; }
@@ -121,6 +122,18 @@ PAGE_HTML = r"""<!doctype html>
   figure img { max-width: 100%; height: auto; display: block;
     border: 1px solid var(--line); border-radius: 8px; background: #fff; }
   figure figcaption { font-size: 12px; color: var(--muted); margin-top: 6px; }
+  /* A single figure fits the pane: main is a 1fr row of a 100vh grid, so it
+     has a height to give, and the image shrinks to what is left below the
+     toolbar. The served PNG is untouched — only on-screen scaling. min-height
+     overrides the flex default that refuses to shrink below content; flex-start
+     keeps the width derived from the shrunken height, so the border still hugs
+     the picture. Galleries and the parameters table keep scrolling. */
+  #single, #pair { flex: 1 1 auto; min-height: 0; display: flex;
+    flex-direction: column; }
+  #pair figure { flex: 1 1 0; min-height: 0; display: flex;
+    flex-direction: column; }
+  #single img, #pair img { flex: 0 1 auto; min-height: 0;
+    align-self: flex-start; object-fit: contain; }
   .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
          margin-bottom: 14px; }
   .row button { width: auto; }
