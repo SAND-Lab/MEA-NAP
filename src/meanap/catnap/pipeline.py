@@ -1414,6 +1414,7 @@ def _plot_group_comparisons(
             _, df_node = gp.plot_twop_group_comparisons(
                 recordings, all_stats, output_root / "2_NeuronalActivity",
                 custom_grp_order=order, channels_by_rec=all_channels,
+                activity=params.twop_activity,
             )
     except Exception as e:
         log(f"  Warning: two-photon activity group comparisons failed: {e}")
@@ -1431,7 +1432,7 @@ def _plot_group_comparisons(
                 by_type = gp.add_cell_type_column(df_node, groups_by_rec, all_channels)
                 gp.plot_activity_by_cell_type(
                     by_type, composition, output_root / "2_NeuronalActivity",
-                    custom_grp_order=order,
+                    custom_grp_order=order, activity=params.twop_activity,
                 )
             if not composition.empty:
                 composition.to_csv(

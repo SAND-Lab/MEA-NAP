@@ -362,6 +362,107 @@ def _robustness_checks() -> list[Check]:
 
 # ── Section A4 — runner tail ──────────────────────────────────────────────────
 
+# ── Section A5 — measures other than peaks ───────────────────────────────────
+
+def _measure_checks() -> list[Check]:
+    """What step 2 says under ``spks`` / ``denoised F`` / ``F``.
+
+    Those measures detect no events, so nothing event-shaped is defined for
+    them, and the one family that is — ``FR`` — is the summed trace per second
+    rather than a rate. Two things used to go wrong: the undefined metrics came
+    back as NaN and turned into "No data" placeholder figures and all-NaN CSV
+    columns, and the FR figures were labelled "Event Rate (Hz)" regardless.
+    """
+    from meanap.catnap.stats import calc_twop_activity_stats
+    from meanap.pipeline.plotting_step4 import plot_half_violin_by_x
+
+    checks: list[Check] = []
+    rng = np.random.default_rng(3)
+    fs, n_frames = 30.0, 900
+    activity = np.clip(rng.normal(0, 1, (n_frames, N_UNITS)), 0, None)
+    duration = n_frames / fs
+
+    got = calc_twop_activity_stats("spks", duration, fs, 0.0, activity_matrix=activity)
+    event_keys = {"ISI", "ISImean", "unitHeightMean", "unitPeakDurMean",
+                  "unitEventAreaMean", "unitEventAreaSum", "recHeightMean",
+                  "recPeakDurMean", "recEventAreaMean"}
+    checks.append(("spks: event-property metrics are absent, not NaN",
+                   not (event_keys & set(got)), f"{sorted(event_keys & set(got))}"))
+    checks.append(("spks: the FR family is the summed trace per second",
+                   np.allclose(got["FR"], activity.sum(axis=0) / duration)
+                   and got["numActiveElec"] == N_UNITS, ""))
+    checks.append(("spks: nothing in the dict is None",
+                   all(v is not None for v in got.values()),
+                   f"{[k for k, v in got.items() if v is None]}"))
+
+    # The peaks path is untouched — every metric, as before.
+    spike_times = [np.sort(rng.uniform(0, duration, 5)) for _ in range(N_UNITS)]
+    props = rng.uniform(0.1, 1.0, (N_UNITS, 5))
+    full = calc_twop_activity_stats("peaks", duration, fs, 0.0, spike_times=spike_times,
+                                    peak_heights=props, peak_duration_frames=props,
+                                    event_areas=props)
+    checks.append(("peaks: every labelled metric is still present",
+                   set(gp.TWOP_REC_METRICS) | set(gp.TWOP_NODE_METRICS) <= set(full),
+                   f"{sorted((set(gp.TWOP_REC_METRICS) | set(gp.TWOP_NODE_METRICS)) - set(full))}"))
+    # ...and an event property the caller could not supply is left out too,
+    # rather than becoming a None that every reader has to special-case.
+    bare = calc_twop_activity_stats("peaks", duration, fs, 0.0, spike_times=spike_times)
+    checks.append(("peaks without event properties: those keys are absent",
+                   "unitHeightMean" not in bare and "recHeightMean" not in bare
+                   and "ISI" in bare, f"{sorted(bare)}"))
+
+    # Labels: peaks keeps the dicts verbatim; the others say what was summed.
+    rec_p, node_p = gp.twop_metric_labels("peaks")
+    checks.append(("peaks labels are the module dicts",
+                   rec_p == gp.TWOP_REC_METRICS and node_p == gp.TWOP_NODE_METRICS, ""))
+    rec_s, node_s = gp.twop_metric_labels("spks")
+    checks.append(("spks labels do not claim an event rate in Hz",
+                   all("Event Rate" not in rec_s[k] and "Hz" not in rec_s[k]
+                       for k in ("FRmean", "FRmedian", "FRiqr"))
+                   and all("Hz" not in node_s[k] for k in ("FR", "FRactive")),
+                   f"{rec_s['FRmean']} / {node_s['FR']}"))
+    checks.append(("spks labels name the measure",
+                   "Deconvolved" in node_s["FR"] and "Deconvolved" in rec_s["FRmean"],
+                   node_s["FR"]))
+    checks.append(("denoised F and F are named too",
+                   "Fluorescence" in gp.twop_metric_labels("denoised F")[1]["FR"]
+                   and "Fluorescence" in gp.twop_metric_labels("F")[1]["FR"], ""))
+    checks.append(("labels that do not depend on the measure are unchanged",
+                   rec_s["numActiveElec"] == rec_p["numActiveElec"]
+                   and node_s["ISI"] == node_p["ISI"], ""))
+
+    # End to end: a spks batch draws the FR family with the honest label and
+    # draws nothing for the metrics the measure does not have.
+    recordings = _recordings()
+    stats = {r.filename: calc_twop_activity_stats(
+                 "spks", duration, fs, 0.0,
+                 activity_matrix=np.clip(rng.normal(0, 1, (n_frames, N_UNITS)), 0, None))
+             for r in recordings}
+    channels = {r.filename: np.arange(N_UNITS) + 1 for r in recordings}
+    with tempfile.TemporaryDirectory() as tmp:
+        twop_dir = Path(tmp) / "2_NeuronalActivity"
+        gp.plot_twop_group_comparisons(recordings, stats, twop_dir,
+                                       channels_by_rec=channels, activity="spks")
+        made = sorted(p.name for p in _pngs(twop_dir))
+        rate_keys = {"numActiveElec", "FRmean", "FRmedian", "FRiqr", "FR", "FRactive"}
+        stray = [n for n in made if n.split("_by")[0] not in rate_keys]
+        checks.append(("spks batch: no placeholder figure for an undefined metric",
+                       stray == [], f"{stray}"))
+        checks.append(("spks batch: the FR family is drawn, both levels, both axes",
+                       len(made) == 2 * 4 + 2 * 2, f"{len(made)}: {made}"))
+
+        # The label reaches the axis: draw one figure through the same plotter
+        # with the label the batch used, and look for it in the SVG text.
+        df_rec, _ = gp.twop_stats_frames(recordings, stats, channels)
+        svg = Path(tmp) / "probe.svg"
+        plot_half_violin_by_x(df_rec, "FRmean", rec_s["FRmean"], "group", svg)
+        text = svg.read_text() if svg.exists() else ""
+        checks.append(("spks batch: the axis reads the measure's name, not Hz",
+                       "Deconvolved" in text and "Hz" not in text,
+                       "label not found in SVG" if text else "no SVG written"))
+    return checks
+
+
 def _runner_tail_checks() -> list[Check]:
     """Drive the runner's save + plot tail with exactly the structures
     ``run_catnap_pipeline`` holds in memory.
@@ -523,6 +624,7 @@ def main() -> int:
         ("Section A2 — figure families and folder layout:", _figure_checks),
         ("Section A3 — degenerate inputs:", _robustness_checks),
         ("Section A4 — runner save + plot tail:", _runner_tail_checks),
+        ("Section A5 — measures other than peaks:", _measure_checks),
     ]:
         p, n = _report(title, build())
         total_pass += p

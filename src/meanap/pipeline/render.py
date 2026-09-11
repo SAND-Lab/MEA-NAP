@@ -641,7 +641,8 @@ def render_group_family(
         elif fam.key == "activity":
             gp.plot_twop_group_comparisons(
                 recordings, _all_stats(ctx), out_dir, custom_grp_order=order,
-                channels_by_rec=_channels_by_rec(ctx), fmt=fmt)
+                channels_by_rec=_channels_by_rec(ctx), fmt=fmt,
+                activity=params.twop_activity)
         elif fam.key == "cell_type":
             _, df_node = gp.twop_stats_frames(
                 recordings, _all_stats(ctx), _channels_by_rec(ctx))
@@ -655,7 +656,8 @@ def render_group_family(
                 # never drawn — which is how they went missing from bundles.
                 active_by_rec=gp.active_channels(df_node))
             gp.plot_activity_by_cell_type(
-                by_type, composition, out_dir, custom_grp_order=order, fmt=fmt)
+                by_type, composition, out_dir, custom_grp_order=order, fmt=fmt,
+                activity=params.twop_activity)
         elif fam.key == "ephys_activity":
             from meanap.pipeline.plotting_step2 import plot_step2_group_comparisons
             plot_step2_group_comparisons(
