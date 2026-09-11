@@ -170,18 +170,20 @@ def _all_checks() -> list[Check]:
                            str(status)))
 
             # ── step-2 activity figures ─────────────────────────────────────
-            # This fixture is a CAT-NAP bundle, which has no step-2 ephys data,
-            # so the correct answer is an empty list — not a broken endpoint.
-            # The ephys path is covered in test_bundle_render.py, against a
-            # bundle that actually has spike times.
+            # This fixture is a CAT-NAP bundle whose state files carry no
+            # binned activity matrix (they predate the raster figures), so the
+            # correct answer is an empty list — not a broken endpoint. The
+            # ephys path is covered in test_bundle_render.py, against a bundle
+            # that actually has spike times; the CAT-NAP rasters in
+            # test_catnap_raster.py, against a run that stored the matrix.
             act = man["recordings"][0].get("activity", [])
-            checks.append(("a CAT-NAP bundle offers no ephys activity figures",
-                           act == [], f"{act}"))
+            checks.append(("a CAT-NAP bundle without binned activity offers no "
+                           "activity figures", act == [], f"{act}"))
             status, body, _ = _get(base + "/api/activity?rec=recA&name=3_Raster")
             checks.append(("asking for one anyway is a 400 with a reason",
                            status == 400
-                           and "step-2 activity data" in json.loads(body)["error"],
-                           str(status)))
+                           and "binned activity" in json.loads(body)["error"],
+                           f"{status} {body[:120]!r}"))
 
             # ── errors are actionable, not stack traces ─────────────────────
             status, body, _ = _get(base + "/api/asset?path=../../../etc/passwd")

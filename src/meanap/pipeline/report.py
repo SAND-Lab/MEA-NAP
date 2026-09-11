@@ -223,6 +223,30 @@ _PLOT_PATTERNS: list[tuple[re.Pattern, str, str]] = [
     ),
     # ── CAT-NAP (calcium imaging) ──────────────────────────────────────────
     (
+        re.compile(r"^3_ActivityRaster\.png$"),
+        "Activity Raster",
+        "Every cell's activity across the whole recording, one row per cell "
+        "in stored order and one column per second, under the measure this "
+        "run (or this measure's subtree) was built from: events per second "
+        "for ``peaks``, the trace averaged into one-second bins for the "
+        "others. The colour ceiling is the recording's own upper percentile "
+        "(``raster_plot_upper_percentile``), so a few very bright cells do "
+        "not flatten the rest. The population-level counterpart of the "
+        "per-cell trace figures. (MATLAB ``3_Raster``; MATLAB samples one "
+        "frame per second where this averages the second.)",
+    ),
+    (
+        re.compile(r"^4_ActivityRaster_zscored\.png$"),
+        "Activity Raster (z-scored per cell)",
+        "The same matrix with each cell standardised over time — (value − "
+        "that cell's mean) / its SD — on a diverging scale centred on zero. "
+        "A raw raster is dominated by whichever cells are brightest or most "
+        "active; this puts every cell on the same footing so the *timing* of "
+        "activity stands out: population events show as vertical bands, and "
+        "cells that co-fluctuate as matching rows. Cells with no variance "
+        "are drawn at zero. Python-only; no MATLAB counterpart.",
+    ),
+    (
         re.compile(r"^unit_(?P<roi>\d+)_2ptraces\.png$"),
         "Calcium Traces — ROI {roi}",
         "Three panels for one suite2p cell: raw fluorescence, the raw trace "

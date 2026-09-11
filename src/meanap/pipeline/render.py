@@ -40,6 +40,7 @@ import numpy as np
 
 from meanap.params import Params
 from meanap.timescale import timescale_kind
+from meanap.catnap.rasters import RASTER_FIGURES
 from meanap.pipeline.bundle import RunBundle, is_os_metadata
 from meanap.pipeline.palette import ColorScheme
 from meanap.pipeline.resume import ADJM_SUFFIX, CATNAP_SUFFIX
@@ -1207,13 +1208,28 @@ def gallery(
     )
 
 
+#: CAT-NAP's per-recording activity figures: the population raster, plain and
+#: z-scored per cell. Redrawn from the one-second binned matrix the state
+#: file carries (see :mod:`meanap.catnap.rasters`).
+CATNAP_ACTIVITY_FIGURES: tuple[FigureSpec, ...] = tuple(
+    FigureSpec(stem, label) for stem, label, _z in RASTER_FIGURES)
+
+
 def available_activity_figures(ctx: RenderContext, recording: str) -> list[FigureSpec]:
     """Which step-2 activity figures this recording can produce.
 
-    Empty when the bundle has no spike times for it — the raster and the
-    burst-detection detail are drawn from spike times, not from the summary
-    metrics, so without them there is nothing to redraw.
+    Ephys: empty when the bundle has no spike times for it — the raster and
+    the burst-detection detail are drawn from spike times, not from the
+    summary metrics, so without them there is nothing to redraw.
+
+    CAT-NAP: the two rasters, when the recording's state carries the binned
+    activity matrix (every run since it was stored; nothing before).
     """
+    if ctx.mode == "catnap":
+        entry = _states(ctx).get(recording)
+        if entry is None or entry[0].binned_activity is None:
+            return []
+        return list(CATNAP_ACTIVITY_FIGURES)
     ephys = _ephys_stats(ctx).get(recording)
     if not ephys or _spike_file(ctx, recording) is None:
         return []
@@ -1640,6 +1656,10 @@ def render_activity_figure(
     from meanap.pipeline.plotting_step2 import plot_neuronal_activity_checks
     from meanap.pipeline.spreadsheet import ground_spike_times_dict, parse_ground_electrodes
 
+    if ctx.mode == "catnap":
+        return _render_catnap_raster(ctx, recording, figure, out_dir,
+                                     fmt=fmt, dpi=dpi, overrides=overrides)
+
     ephys = _ephys_stats(ctx).get(recording)
     spike_path = _spike_file(ctx, recording)
     if not ephys or spike_path is None:
@@ -1686,6 +1706,44 @@ def render_activity_figure(
             f"'{figure}' is not one of the activity figures available for "
             f"{recording}. Use available_activity_figures() to list them.")
     return written[0]
+
+
+def _render_catnap_raster(
+    ctx: RenderContext, recording: str, figure: str, out_dir: Path | str, *,
+    fmt: str, dpi: int | None, overrides: dict | None,
+) -> Path:
+    """One CAT-NAP raster, from the binned matrix in the recording's state.
+
+    The same function the pipeline calls, with the same inputs; the only
+    difference is where the matrix came from.
+    """
+    from meanap.catnap.rasters import RASTER_FIGURES, plot_activity_raster
+    from meanap.pipeline.figure_output import figure_dpi
+
+    entry = _states(ctx).get(recording)
+    if entry is None or entry[0].binned_activity is None:
+        raise ValueError(
+            f"No binned activity for {recording} in this bundle — its state "
+            "file predates the raster figures; re-run to get them.")
+    spec = next((f for f in RASTER_FIGURES if f[0] == figure), None)
+    if spec is None:
+        raise ValueError(
+            f"'{figure}' is not one of the activity figures available for "
+            f"{recording}. Use available_activity_figures() to list them.")
+    stem, _label, zscored = spec
+    params, _ = _apply_overrides(ctx.params, overrides)
+    activity = params.twop_activity
+    out_path = Path(out_dir) / f"{stem}.{fmt}"
+    with figure_dpi(dpi):
+        plot_activity_raster(
+            entry[0].binned_activity, out_path, activity=activity,
+            zscored=zscored,
+            title=f"{recording} — {activity}"
+                  + (" (z-scored per cell)" if zscored else ""),
+            upper_percentile=params.raster_plot_upper_percentile,
+            colormap=params.raster_colormap,
+        )
+    return out_path
 
 
 def _recording_arrays(ctx: RenderContext, recording: str):

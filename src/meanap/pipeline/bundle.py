@@ -55,6 +55,7 @@ import zipfile
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from meanap.catnap.rasters import RASTER_FIGURES
 from meanap.params import PARAMS_FILENAME, Params, load_params, redact
 from meanap.timescale import timescale_kind
 
@@ -100,6 +101,14 @@ _DATA_ONLY_DIRS = (
 
 #: Extensions treated as figures under :data:`_DATA_ONLY_DIRS`.
 _FIGURE_SUFFIXES = frozenset({".png", ".jpg", ".jpeg", ".svg", ".pdf", ".eps"})
+
+#: Individual figures that are reconstructable inside a folder that is
+#: otherwise carried. CAT-NAP's ``2A_IndividualNeuronalAnalysis`` holds both
+#: the per-cell trace figures, which need the raw fluorescence and travel as
+#: pictures, and the activity rasters, which are redrawn from the binned
+#: matrix in the recording's state file. Matched on the file stem, under
+#: ``2_NeuronalActivity/2A_…`` only.
+_RECONSTRUCTABLE_2A_STEMS = frozenset(stem for stem, _label, _z in RASTER_FIGURES)
 
 #: Figure families a viewer can rebuild from a bundle. Must correspond to what
 #: :mod:`meanap.pipeline.render` actually implements — ``test_bundle_render.py``
@@ -307,6 +316,10 @@ def _is_reconstructable_member(rel: Path, keep: tuple[str, ...] = ()) -> bool:
     posix = _strip_activity_prefix(rel.as_posix())
     dirs = tuple(d for d in _RECONSTRUCTABLE_DIRS if d not in keep)
     if any(posix.startswith(d) for d in dirs):
+        return True
+    if (posix.startswith("2_NeuronalActivity/2A_IndividualNeuronalAnalysis/")
+            and rel.suffix.lower() in _FIGURE_SUFFIXES
+            and rel.stem in _RECONSTRUCTABLE_2A_STEMS):
         return True
     # Data-only folders keep everything that is not a picture.
     return (any(posix.startswith(d) for d in _DATA_ONLY_DIRS)
