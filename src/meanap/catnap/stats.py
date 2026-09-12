@@ -96,10 +96,16 @@ def calc_twop_activity_stats(
     Returns a dict keyed by the MATLAB ``activityStats`` field names.
 
     Notes / deviations: the ISI and 2P-specific (height/duration/area) metrics
-    are only defined by MATLAB for the ``'peaks'`` path (they read
-    ``spikeTimes`` / ``activityProperties``, which only exist then). For the
-    other activity types those inputs are ``None`` and the corresponding fields
-    come back as NaN rather than erroring.
+    are only defined for the ``'peaks'`` path — they are properties of detected
+    events, and the other measures detect none. (MATLAB reads ``spikeTimes`` /
+    ``activityProperties`` unconditionally and its non-peaks branch errors on
+    the undefined ``peakISIPerUnit``; it has never run.) Here a metric the
+    measure does not define is **absent** from the dict, not NaN or ``None``:
+    every consumer already skips a missing key, whereas a NaN placeholder
+    became a "No data" figure and an all-NaN CSV column on every non-peaks run.
+
+    On the ``'peaks'`` path the same applies to an event property the caller
+    did not supply (``peak_heights=None`` and so on).
     """
     stats: dict = {}
 
@@ -120,9 +126,12 @@ def calc_twop_activity_stats(
             raise ValueError(
                 "activity_matrix is required for twop_activity != 'peaks'"
             )
-        # MATLAB sum(expData.(twopActivity), 1): sum over time (rows) → per unit.
+        # MATLAB sum(expData.(twopActivity), 1): sum over time (rows) → per
+        # unit. Not a rate in any physical sense — it is the summed trace per
+        # second (mean level × frame rate), which is why the group-comparison
+        # labels for these measures do not say "Hz" (``twop_metric_labels``).
         firing_rates = np.asarray(activity_matrix, dtype=float).sum(axis=0) / duration_s
-        peak_isi = np.full(firing_rates.shape[0], np.nan)
+        peak_isi = None
 
     active_index = firing_rates >= min_activity_level
     active_fr = firing_rates[active_index]
@@ -145,23 +154,27 @@ def calc_twop_activity_stats(
     stats["FRiqr"] = _round3(_iqr(active_fr))
     stats["numActiveElec"] = int(active_fr.size)
 
-    stats["ISImean"] = _nanmean_scalar(peak_isi)
-    stats["ISI"] = peak_isi
+    if peak_isi is not None:
+        stats["ISImean"] = _nanmean_scalar(peak_isi)
+        stats["ISI"] = peak_isi
 
     # ── Two-photon-specific metrics ───────────────────────────────────────────
-    # unit level
-    stats["unitHeightMean"] = _nanmean_over_events(peak_heights)
+    # unit level, each with its recording-level mean beside it
+    height_mean = _nanmean_over_events(peak_heights)
+    if height_mean is not None:
+        stats["unitHeightMean"] = height_mean
+        stats["recHeightMean"] = _nanmean_scalar(height_mean)
     dur_mean = _nanmean_over_events(peak_duration_frames)
-    stats["unitPeakDurMean"] = None if dur_mean is None else dur_mean / fs
+    if dur_mean is not None:
+        stats["unitPeakDurMean"] = dur_mean / fs
+        stats["recPeakDurMean"] = _nanmean_scalar(stats["unitPeakDurMean"])
     area_mean = _nanmean_over_events(event_areas)
-    stats["unitEventAreaMean"] = None if area_mean is None else area_mean / fs
+    if area_mean is not None:
+        stats["unitEventAreaMean"] = area_mean / fs
+        stats["recEventAreaMean"] = _nanmean_scalar(stats["unitEventAreaMean"])
     area_sum = _nansum_over_events(event_areas)
-    stats["unitEventAreaSum"] = None if area_sum is None else area_sum / fs
-
-    # recording level
-    stats["recHeightMean"] = _nanmean_scalar(stats["unitHeightMean"])
-    stats["recPeakDurMean"] = _nanmean_scalar(stats["unitPeakDurMean"])
-    stats["recEventAreaMean"] = _nanmean_scalar(stats["unitEventAreaMean"])
+    if area_sum is not None:
+        stats["unitEventAreaSum"] = area_sum / fs
 
     return stats
 

@@ -16,7 +16,9 @@ What is deliberately *not* stored:
   for the trace figures, so a copy here would be dead weight. MATLAB does store
   them, because its one chained ``.mat`` is also how step 4 gets the activity
   matrix; this port keeps the derived per-node quantities (``spike_counts``)
-  instead, which is all that step 4 actually consumes.
+  instead, which is all that step 4 actually consumes. The one exception is
+  the matrix binned to one row per second (``binned_activity``), which the
+  raster figures draw and which is small enough to travel.
 - **cell-type groups and markers** — cheap to re-read from the spreadsheet, and
   re-reading means a resumed run picks up an edited grouping rather than
   freezing whatever the first run happened to use.
@@ -60,6 +62,9 @@ __all__ = [
 #:     ops.npy and varies *within* a batch, so it is a property of the
 #:     recording rather than of the run — and neither params.json nor anything
 #:     else in the output folder recorded it.
+#: (The one-second binned activity matrix behind the raster figures was added
+#: without a bump: it is optional on read, and a file without it simply has
+#: no rasters to redraw.)
 FORMAT_VERSION = 5
 
 _ADJ_PREFIX = "adj__"
@@ -116,6 +121,13 @@ class RecordingState:
     #: persisted) so a step-4 resume does not have to re-read the raw
     #: fluorescence to recover them.
     lag_independent: dict = field(default_factory=dict)
+    #: ``(n_seconds, n_units)`` float32 — this measure's activity in one-second
+    #: bins (:func:`meanap.catnap.rasters.binned_activity`). The one slice of
+    #: the activity matrix that *is* kept: it is what the per-recording raster
+    #: figures draw, and at one row per second it is a few hundred kB, so a
+    #: bundle can carry it and the viewer can redraw both rasters from it.
+    #: ``None`` when read back from a file written before it was stored.
+    binned_activity: np.ndarray | None = None
 
 
 def lag_from_adjm_key(key: str) -> int:
@@ -157,6 +169,16 @@ def save_recording_state(path: Path, state: RecordingState, stats: dict) -> None
     for key, adj in state.adjMs.items():
         arrays[f"{_ADJ_PREFIX}{key}"] = np.asarray(adj, dtype=float)
 
+    if state.binned_activity is not None:
+        # Half precision on disk: a raster is a picture, and three significant
+        # digits is more than any colour map resolves. It is the one array
+        # here with real bulk — a dense fluorescence measure over a 15-minute,
+        # 150-cell recording is ~0.5 MB at float32 and barely deflates — and
+        # halving it is what keeps a several-hundred-recording bundle
+        # portable. Event counts and mostly-quiet spks compress to almost
+        # nothing either way.
+        arrays["binned_activity"] = np.asarray(state.binned_activity, dtype=np.float16)
+
     # Cell-type markers. A local re-run re-reads these from the spreadsheet
     # (see the loader), but a bundle shared with someone who has no spreadsheet
     # still needs them to draw the marker rings.
@@ -195,7 +217,9 @@ def save_recording_state(path: Path, state: RecordingState, stats: dict) -> None
     arrays["stat_none"] = np.asarray(none_keys, dtype=str)
 
     path.parent.mkdir(parents=True, exist_ok=True)
-    atomic_savez(path, **arrays)
+    # Compressed since the binned activity joined: it is the one array here
+    # with any bulk, and a mostly-quiet population deflates several-fold.
+    atomic_savez(path, compressed=True, **arrays)
 
 
 def load_recording_state(path: Path, plane0: Path) -> tuple[RecordingState, dict]:
@@ -286,6 +310,8 @@ def load_recording_state(path: Path, plane0: Path) -> tuple[RecordingState, dict
             markers=markers,
             coord_norm=tuple(float(v) for v in data["coord_norm"]),
             lag_independent=lag_independent,
+            binned_activity=(np.asarray(data["binned_activity"], dtype=np.float32)
+                             if "binned_activity" in keys else None),
         )
 
     return state, stats

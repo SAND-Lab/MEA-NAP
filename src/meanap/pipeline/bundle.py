@@ -55,6 +55,7 @@ import zipfile
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from meanap.catnap.rasters import RASTER_FIGURES
 from meanap.params import PARAMS_FILENAME, Params, load_params, redact
 from meanap.timescale import timescale_kind
 
@@ -68,6 +69,7 @@ __all__ = [
     "write_bundle",
     "open_bundle",
     "is_bundle",
+    "is_os_metadata",
 ]
 
 BUNDLE_SUFFIX = ".meanap"
@@ -100,6 +102,14 @@ _DATA_ONLY_DIRS = (
 #: Extensions treated as figures under :data:`_DATA_ONLY_DIRS`.
 _FIGURE_SUFFIXES = frozenset({".png", ".jpg", ".jpeg", ".svg", ".pdf", ".eps"})
 
+#: Individual figures that are reconstructable inside a folder that is
+#: otherwise carried. CAT-NAP's ``2A_IndividualNeuronalAnalysis`` holds both
+#: the per-cell trace figures, which need the raw fluorescence and travel as
+#: pictures, and the activity rasters, which are redrawn from the binned
+#: matrix in the recording's state file. Matched on the file stem, under
+#: ``2_NeuronalActivity/2A_…`` only.
+_RECONSTRUCTABLE_2A_STEMS = frozenset(stem for stem, _label, _z in RASTER_FIGURES)
+
 #: Figure families a viewer can rebuild from a bundle. Must correspond to what
 #: :mod:`meanap.pipeline.render` actually implements — ``test_bundle_render.py``
 #: asserts that, because a manifest that overclaims is worse than one that says
@@ -129,6 +139,22 @@ RECONSTRUCTABLE_FAMILIES = (
 #: payloads. Kept rather than deleted because the manifest field is part of the
 #: format, and a future family that cannot be rebuilt belongs here.
 UNRECONSTRUCTABLE_FAMILIES: tuple[str, ...] = ()
+
+
+def is_os_metadata(rel: Path | str) -> bool:
+    """Whether *rel* is a file the operating system left behind, not the run.
+
+    macOS writes an ``._<name>`` AppleDouble sidecar next to every file it
+    touches on a volume with no resource forks — an exFAT stick, an SMB share,
+    some Dropbox setups — and a ``.DS_Store`` in every folder Finder opens.
+    Neither belongs to the analysis, but both sit in an output folder that
+    lived on such a volume, and the first shipped bundle from a collaborator's
+    Mac carried them: the viewer then listed ``._unit_1_2ptraces`` as a fourth
+    unit and drew a broken image for it. Named here, once, so the packer and
+    the viewer agree on what to ignore.
+    """
+    parts = Path(rel).parts
+    return any(part.startswith("._") or part == ".DS_Store" for part in parts)
 
 
 def is_bundle(path: Path | str) -> bool:
@@ -291,6 +317,10 @@ def _is_reconstructable_member(rel: Path, keep: tuple[str, ...] = ()) -> bool:
     dirs = tuple(d for d in _RECONSTRUCTABLE_DIRS if d not in keep)
     if any(posix.startswith(d) for d in dirs):
         return True
+    if (posix.startswith("2_NeuronalActivity/2A_IndividualNeuronalAnalysis/")
+            and rel.suffix.lower() in _FIGURE_SUFFIXES
+            and rel.stem in _RECONSTRUCTABLE_2A_STEMS):
+        return True
     # Data-only folders keep everything that is not a picture.
     return (any(posix.startswith(d) for d in _DATA_ONLY_DIRS)
             and rel.suffix.lower() in _FIGURE_SUFFIXES)
@@ -385,7 +415,7 @@ def write_bundle(
             if not path.is_file():
                 continue
             rel = path.relative_to(root)
-            if _is_reconstructable_member(rel, keep):
+            if _is_reconstructable_member(rel, keep) or is_os_metadata(rel):
                 continue
             if rel.as_posix() == PARAMS_FILENAME:
                 # The copy in the output folder keeps everything — it never

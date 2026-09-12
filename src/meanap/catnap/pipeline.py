@@ -41,6 +41,7 @@ from meanap.catnap.group_plots import (
     SUBNET_GRAPH_METRICS, SUBNET_NODE_METRICS, twop_stats_frames,
 )
 from meanap.catnap.loader import Suite2pOutputMismatch, load_suite2p
+from meanap.catnap.rasters import binned_activity
 from meanap.catnap.subnetwork import WHOLE_NETWORK
 from meanap.catnap.stats import calc_twop_activity_stats
 from meanap.timescale import (
@@ -659,6 +660,7 @@ def run_catnap_pipeline(
             except Exception as e:
                 log(f"  [{rec.filename}] warning: could not save mean projection: {e}")
 
+            _plot_rasters(p_act, rec, state, root_act, log)
             _plot_recording(p_act, rec, state, all_results[activity][rec.filename],
                             batch_bounds[activity], root_act, log, state.background)
 
@@ -784,6 +786,18 @@ def _compute_recording(
         state.lag_independent = _lag_independent_metrics(
             res, p_act, duration_s, log, rec.filename,
             make_rng(params.random_seed, "catnap", rec.filename))
+        # The population at one row per second, for the raster figures. Kept on
+        # the state (and so in the file and the bundle) because the full
+        # matrices are not: phase 3, a resumed run and the viewer all draw the
+        # rasters from this without touching the raw data again.
+        try:
+            state.binned_activity = binned_activity(
+                activity, res.fs, duration_s,
+                spike_times=res.spike_times,
+                matrix=_activity_matrix_for(res, activity))
+        except Exception as e:
+            log(f"  [{rec.filename}] warning: could not bin activity for the "
+                f"raster: {e}")
         # Capture the field-of-view backdrop now, while the (large) suite2p data
         # is already loaded. Phase 3 used to re-open the whole folder just for
         # this; doing it here means the raw data is read once per recording,
@@ -1162,6 +1176,37 @@ def _plot_traces(params, rec, output_root, log, data=None) -> None:
         log(f"  [{rec.filename}] warning: 2P trace plots failed: {e}")
 
 
+def _plot_rasters(params, rec, state, output_root, log) -> None:
+    """The plain and z-scored activity rasters for one recording and measure.
+
+    Drawn from the binned matrix on the state, so this is the same call
+    whether the state was just computed or read back from a prior run. Per
+    measure, into that measure's tree: unlike the trace figures, what these
+    show *is* the measure.
+
+    Skipped in express mode like the network figures — the matrix travels in
+    the bundle and the viewer redraws both from it.
+    """
+    from meanap.catnap.rasters import RASTER_FIGURES, plot_activity_raster
+
+    if params.express_mode or state.binned_activity is None:
+        return
+    out_dir = (output_root / "2_NeuronalActivity" / "2A_IndividualNeuronalAnalysis"
+               / rec.group / rec.filename)
+    for stem, _label, zscored in RASTER_FIGURES:
+        try:
+            plot_activity_raster(
+                state.binned_activity, out_dir / f"{stem}.png",
+                activity=params.twop_activity, zscored=zscored,
+                title=f"{rec.filename} — {params.twop_activity}"
+                      + (" (z-scored per cell)" if zscored else ""),
+                upper_percentile=params.raster_plot_upper_percentile,
+                colormap=params.raster_colormap,
+            )
+        except Exception as e:
+            log(f"  [{rec.filename}] warning: {stem} failed: {e}")
+
+
 def _plot_recording(params, rec, state, rec_results, batch_bounds, output_root, log,
                     background=None) -> None:
     """The full step-4A network figure set for one recording and one measure.
@@ -1414,6 +1459,7 @@ def _plot_group_comparisons(
             _, df_node = gp.plot_twop_group_comparisons(
                 recordings, all_stats, output_root / "2_NeuronalActivity",
                 custom_grp_order=order, channels_by_rec=all_channels,
+                activity=params.twop_activity,
             )
     except Exception as e:
         log(f"  Warning: two-photon activity group comparisons failed: {e}")
@@ -1431,7 +1477,7 @@ def _plot_group_comparisons(
                 by_type = gp.add_cell_type_column(df_node, groups_by_rec, all_channels)
                 gp.plot_activity_by_cell_type(
                     by_type, composition, output_root / "2_NeuronalActivity",
-                    custom_grp_order=order,
+                    custom_grp_order=order, activity=params.twop_activity,
                 )
             if not composition.empty:
                 composition.to_csv(

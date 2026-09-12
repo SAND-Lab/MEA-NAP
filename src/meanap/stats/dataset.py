@@ -110,19 +110,26 @@ def derive_culture_ids(names: "pd.Series", *, strip_date: bool = True) -> "pd.Se
     return derived if derived.nunique() < names.nunique() else names.astype(str)
 
 
-def metric_labels() -> dict[str, str]:
+def metric_labels(activity: str | None = None) -> dict[str, str]:
     """Display names for every metric either pipeline can produce.
 
     Merged from the dicts the plotting modules already use, so a metric is
     named the same on a stats figure as on the group-comparison figure it sits
     beside. Metrics with no entry fall back to their column name.
+
+    *activity* is the CAT-NAP measure the rows were computed through, when the
+    dataset has exactly one: under ``spks`` or a fluorescence measure the
+    ``FR`` family is not an event rate, and the group-comparison figures say so
+    (:func:`~meanap.catnap.group_plots.twop_metric_labels`). ``None`` keeps the
+    ``peaks`` wording — right for ephys, and the only honest single label for
+    a table that pools several measures.
     """
-    from meanap.catnap.group_plots import TWOP_NODE_METRICS, TWOP_REC_METRICS
+    from meanap.catnap.group_plots import twop_metric_labels
     from meanap.pipeline.plotting_step4 import NETMET_NODE_METRICS, NETMET_REC_METRICS
 
+    twop_rec, twop_node = twop_metric_labels(activity or "peaks")
     labels: dict[str, str] = {}
-    for src in (NETMET_REC_METRICS, NETMET_NODE_METRICS,
-                TWOP_REC_METRICS, TWOP_NODE_METRICS):
+    for src in (NETMET_REC_METRICS, NETMET_NODE_METRICS, twop_rec, twop_node):
         labels.update(src)
     labels.setdefault("CC_rawMean", "Clustering Coefficient (raw)")
     labels.setdefault("PL_raw", "Path Length (raw)")
@@ -421,14 +428,37 @@ def load_dataset(
         table = _apply_group_order(table, root)
 
         metrics = usable_metrics(table)
-        return StatsDataset(
+        dataset = StatsDataset(
             table=table.reset_index(drop=True), metrics=metrics,
-            labels=metric_labels(), level=level, source=Path(source),
+            labels={}, level=level, source=Path(source),
         )
+        # A single-measure CAT-NAP run names its measure in the table (when it
+        # was one of several at the top level) or, failing that, in its
+        # params.json. Ephys runs have neither and get the default wording.
+        dataset.labels = metric_labels(dataset.activity or _run_activity(root))
+        return dataset
     finally:
         if bundle is not None:
             # The tables are now in memory, so the temporary extraction can go.
             bundle.close()
+
+
+def _run_activity(root: Path) -> str | None:
+    """``Params.twop_activity`` from the run's ``params.json``, for CAT-NAP runs."""
+    import json
+
+    params_path = root / "params.json"
+    if not params_path.exists():
+        return None
+    try:
+        with open(params_path) as fh:
+            data = json.load(fh)
+    except (OSError, ValueError):
+        return None
+    if not data.get("suite2p_mode"):
+        return None
+    activity = data.get("twop_activity")
+    return str(activity) if activity else None
 
 
 def _apply_group_order(table: pd.DataFrame, root: Path) -> pd.DataFrame:

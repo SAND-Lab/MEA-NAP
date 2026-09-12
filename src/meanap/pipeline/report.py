@@ -223,6 +223,30 @@ _PLOT_PATTERNS: list[tuple[re.Pattern, str, str]] = [
     ),
     # ── CAT-NAP (calcium imaging) ──────────────────────────────────────────
     (
+        re.compile(r"^3_ActivityRaster\.png$"),
+        "Activity Raster",
+        "Every cell's activity across the whole recording, one row per cell "
+        "in stored order and one column per second, under the measure this "
+        "run (or this measure's subtree) was built from: events per second "
+        "for ``peaks``, the trace averaged into one-second bins for the "
+        "others. The colour ceiling is the recording's own upper percentile "
+        "(``raster_plot_upper_percentile``), so a few very bright cells do "
+        "not flatten the rest. The population-level counterpart of the "
+        "per-cell trace figures. (MATLAB ``3_Raster``; MATLAB samples one "
+        "frame per second where this averages the second.)",
+    ),
+    (
+        re.compile(r"^4_ActivityRaster_zscored\.png$"),
+        "Activity Raster (z-scored per cell)",
+        "The same matrix with each cell standardised over time — (value − "
+        "that cell's mean) / its SD — on a diverging scale centred on zero. "
+        "A raw raster is dominated by whichever cells are brightest or most "
+        "active; this puts every cell on the same footing so the *timing* of "
+        "activity stands out: population events show as vertical bands, and "
+        "cells that co-fluctuate as matching rows. Cells with no variance "
+        "are drawn at zero. Python-only; no MATLAB counterpart.",
+    ),
+    (
         re.compile(r"^unit_(?P<roi>\d+)_2ptraces\.png$"),
         "Calcium Traces — ROI {roi}",
         "Three panels for one suite2p cell: raw fluorescence, the raw trace "
@@ -419,8 +443,8 @@ _DATA_FILE_DESCRIPTIONS: list[tuple[re.Pattern, str]] = [
     (re.compile(r"^netmet_results\.json$"), "All step 4 (network) metrics for every recording and lag, in one JSON file."),
     (re.compile(r"^NetworkActivity_RecordingLevel\.csv$"), "One row per recording per lag: every whole-network metric (density, efficiency, small-worldness, modularity, cartography role proportions, ...). The main table for statistics across groups."),
     (re.compile(r"^NetworkActivity_NodeLevel\.csv$"), "One row per active node per recording per lag: node degree, strength, participation coefficient, betweenness, local efficiency and the rest. ``Channel`` is the real electrode ID (or suite2p ROI id for CAT-NAP)."),
-    (re.compile(r"^TwoPhotonActivity_RecordingLevel\.csv$"), "CAT-NAP. One row per recording: calcium event-rate summaries, active-cell count, and mean event amplitude / duration / area."),
-    (re.compile(r"^TwoPhotonActivity_NodeLevel\.csv$"), "CAT-NAP. One row per cell per recording: event rate, mean inter-event interval, and mean event amplitude, duration, area and total area. ``Channel`` is the suite2p ROI id."),
+    (re.compile(r"^TwoPhotonActivity_RecordingLevel\.csv$"), "CAT-NAP. One row per recording: activity-rate summaries and active-cell count; under the ``peaks`` measure also mean event amplitude / duration / area (the other measures detect no events, so those columns are absent and the rate is the summed trace per second)."),
+    (re.compile(r"^TwoPhotonActivity_NodeLevel\.csv$"), "CAT-NAP. One row per cell per recording: activity rate, and under the ``peaks`` measure the mean inter-event interval and mean event amplitude, duration, area and total area. ``Channel`` is the suite2p ROI id."),
     (re.compile(r"^Subnetwork_RecordingLevel\.csv$"), "CAT-NAP. One row per recording x lag x cell type: graph metrics of that cell type's induced subgraph, plus ``aN`` (its node count — needed to interpret the size-dependent metrics)."),
     (re.compile(r"^Subnetwork_NodeLevel\.csv$"), "CAT-NAP. One row per recording x lag x node x cell type: whole-network node metrics labelled by type, plus each node's within-group strength fraction. Long format — a cell positive for two markers appears once per group."),
     (re.compile(r"^Subnetwork_EdgeMix\.csv$"), "CAT-NAP. One row per recording x lag x cell-type pair: edge density and mean weight within and between types."),

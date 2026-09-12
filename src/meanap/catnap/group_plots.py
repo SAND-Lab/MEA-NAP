@@ -60,6 +60,40 @@ TWOP_NODE_METRICS = {
     "unitEventAreaSum": "Total Event Area per Cell (a.u.·s)",
 }
 
+# The labels above are ``peaks`` labels. Under any other measure the ``FR``
+# family is ``sum(activity) / duration`` — the summed trace per second, not a
+# count of anything — so calling it an event rate in Hz would be false. One
+# noun and one unit per measure, substituted into the same label shapes.
+_ACTIVITY_NOUNS = {
+    "peaks": ("Event Rate", "Hz"),
+    "spks": ("Deconvolved Activity", "a.u./s"),
+    "denoised F": ("Denoised Fluorescence", "a.u./s"),
+    "F": ("Fluorescence", "a.u./s"),
+}
+
+#: The metric keys whose label names the measure.
+_RATE_KEYS = ("FRmean", "FRmedian", "FRiqr", "FR", "FRactive")
+
+
+def twop_metric_labels(activity: str = "peaks") -> tuple[dict[str, str], dict[str, str]]:
+    """``(recording-level, node-level)`` axis labels for *activity*.
+
+    Identical to :data:`TWOP_REC_METRICS` / :data:`TWOP_NODE_METRICS` for
+    ``peaks``; for the other measures the rate labels name what was actually
+    summed. The event-property labels are unchanged, because those metrics are
+    only ever present under ``peaks``.
+    """
+    noun, unit = _ACTIVITY_NOUNS.get(str(activity), (f"{activity} Activity", "a.u./s"))
+    rec = dict(TWOP_REC_METRICS)
+    node = dict(TWOP_NODE_METRICS)
+    rec["FRmean"] = f"Mean {noun} ({unit})"
+    rec["FRmedian"] = f"Median {noun} ({unit})"
+    rec["FRiqr"] = f"{noun} IQR ({unit})"
+    node["FR"] = f"{noun} per Cell ({unit})"
+    node["FRactive"] = f"{noun} per Active Cell ({unit})"
+    return rec, node
+
+
 # ── Cell-type subnetwork metrics (step-4 equivalent) ──────────────────────────
 # Also the single source of truth for which metrics the *per-recording*
 # subnetwork figures draw — ``catnap/pipeline.py`` takes its ordered lists from
@@ -167,6 +201,7 @@ def plot_twop_group_comparisons(
     custom_grp_order: list[str] | None = None,
     channels_by_rec: dict[str, np.ndarray] | None = None,
     fmt: str = "png",
+    activity: str = "peaks",
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Draw the ``2B_GroupComparisons`` figures for two-photon activity.
 
@@ -174,20 +209,25 @@ def plot_twop_group_comparisons(
     sub-folders the ephys step-2 comparison uses, so the two pipelines produce
     an identically-shaped output tree. Returns the two pooled frames, which the
     runner also saves as CSVs.
+
+    *activity* is the measure the stats were computed through
+    (``Params.twop_activity``); it only affects the axis labels — see
+    :func:`twop_metric_labels`.
     """
     from meanap.pipeline.plotting_step4 import plot_half_violin_by_x
 
     df_rec, df_node = twop_stats_frames(recordings, all_stats, channels_by_rec)
     base = Path(out_dir) / "2B_GroupComparisons"
+    rec_labels, node_labels = twop_metric_labels(activity)
 
     specs = [
-        (df_rec, TWOP_REC_METRICS, "group",
+        (df_rec, rec_labels, "group",
          base / "3_RecordingsByGroup" / "HalfViolinPlots", "{key}_byGroup.png"),
-        (df_rec, TWOP_REC_METRICS, "DIV",
+        (df_rec, rec_labels, "DIV",
          base / "4_RecordingsByAge" / "HalfViolinPlots", "{key}_byDIV.png"),
-        (df_node, TWOP_NODE_METRICS, "group",
+        (df_node, node_labels, "group",
          base / "1_NodeByGroup", "{key}_byGroup_node.png"),
-        (df_node, TWOP_NODE_METRICS, "DIV",
+        (df_node, node_labels, "DIV",
          base / "2_NodeByAge", "{key}_byDIV_node.png"),
     ]
     for df, metrics, x_kind, directory, pattern in specs:
@@ -344,6 +384,7 @@ def plot_activity_by_cell_type(
     custom_grp_order: list[str] | None = None,
     fmt: str = "png",
     cell_type_order: list[str] | None = None,
+    activity: str = "peaks",
 ) -> None:
     """Two-photon activity and cell-type composition, split by cell type.
 
@@ -359,10 +400,11 @@ def plot_activity_by_cell_type(
     order = cell_type_order or (sorted(df_node["CellType"].dropna().unique())
                                 if not df_node.empty and "CellType" in df_node else None)
 
+    _, node_labels = twop_metric_labels(activity)
     specs = [
-        (df_node, TWOP_NODE_METRICS, "group",
+        (df_node, node_labels, "group",
          base / "1_NodeByGroup" / "ByCellType", "{key}_byGroup_node.png"),
-        (df_node, TWOP_NODE_METRICS, "DIV",
+        (df_node, node_labels, "DIV",
          base / "2_NodeByAge" / "ByCellType", "{key}_byDIV_node.png"),
         (composition, COMPOSITION_METRICS, "group",
          base / "5_CellTypeComposition", "{key}_byGroup.png"),
