@@ -14,8 +14,9 @@ Three tabs, because a run holds three different kinds of question:
   every small multiple at once: 274 of them on a three-lag run, in one scroll,
   with the only organisation in the caption text. They are now selected by the
   address each figure actually has — lag, level, split, metric — and drawn one
-  at a time. The CAT-NAP families that have no such address stay galleries,
-  listed separately so the difference is visible rather than surprising.
+  at a time. The CAT-NAP cell-type families, which have no such address, stay
+  galleries, listed separately so the difference is visible rather than
+  surprising.
 * **Across lags** — the two sets whose subject is the lag itself: each metric's
   curve against lag, and the cartography roles at each lag. They answer a
   different question from anything sliced at one lag, so they get their own

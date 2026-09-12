@@ -513,10 +513,10 @@ class GroupFamily:
 
 GROUP_FAMILIES: tuple[GroupFamily, ...] = (
     GroupFamily("network", "Network metrics by group and age", "4_NetworkActivity"),
-    GroupFamily("activity", "Two-photon activity by group and age", "2_NeuronalActivity"),
+    GroupFamily("activity", "Activity metrics by group and age", "2_NeuronalActivity"),
     GroupFamily("cell_type", "Activity by cell type", "2_NeuronalActivity"),
     GroupFamily("subnetwork", "Cell-type subnetworks by group and age", "4_NetworkActivity"),
-    GroupFamily("ephys_activity", "Neuronal activity by group and age",
+    GroupFamily("ephys_activity", "Activity metrics by group and age",
                 "2_NeuronalActivity"),
 )
 
@@ -643,7 +643,7 @@ def render_group_family(
             gp.plot_twop_group_comparisons(
                 recordings, _all_stats(ctx), out_dir, custom_grp_order=order,
                 channels_by_rec=_channels_by_rec(ctx), fmt=fmt,
-                activity=params.twop_activity)
+                activity=params.twop_activity, colors=scheme)
         elif fam.key == "cell_type":
             _, df_node = gp.twop_stats_frames(
                 recordings, _all_stats(ctx), _channels_by_rec(ctx))
@@ -702,6 +702,9 @@ class ComparisonFamily:
 COMPARISON_FAMILIES: tuple[ComparisonFamily, ...] = (
     ComparisonFamily("network", "4_NetworkActivity", "4B_GroupComparisons", True),
     ComparisonFamily("ephys_activity", "2_NeuronalActivity", "2B_GroupComparisons", False),
+    # CAT-NAP's 2B set: the same folder layout and the same violin plotter as
+    # the ephys one, so it is just as addressable — one metric per figure.
+    ComparisonFamily("activity", "2_NeuronalActivity", "2B_GroupComparisons", False),
 )
 
 #: ``split`` → the ``x_kind`` passed to ``plot_half_violin_by_x`` and the
@@ -733,23 +736,30 @@ def comparison_family(key: str) -> ComparisonFamily:
     return fam
 
 
-def comparison_metrics(family: str, level: str) -> dict[str, str]:
+def comparison_metrics(family: str, level: str,
+                       activity: str = "peaks") -> dict[str, str]:
     """Metric key → axis label, for one family and level.
 
     These are the same maps the pipeline plots from, so the list a viewer offers
-    and the figures it can actually draw are one thing.
+    and the figures it can actually draw are one thing. *activity* matters only
+    to the CAT-NAP family, whose rate labels name the measure that was summed
+    (see :func:`~meanap.catnap.group_plots.twop_metric_labels`).
     """
+    from meanap.catnap.group_plots import twop_metric_labels
     from meanap.pipeline.plotting_step2 import EPHYS_NODE_METRICS, EPHYS_REC_METRICS
     from meanap.pipeline.plotting_step4 import NETMET_NODE_METRICS, NETMET_REC_METRICS
 
     comparison_family(family)
     if level not in COMPARISON_LEVELS:
         raise ValueError(f"Unknown level {level!r}; expected one of {list(COMPARISON_LEVELS)}")
+    twop_rec, twop_node = twop_metric_labels(activity)
     by_level = {
         ("network", "recording"): NETMET_REC_METRICS,
         ("network", "node"): NETMET_NODE_METRICS,
         ("ephys_activity", "recording"): EPHYS_REC_METRICS,
         ("ephys_activity", "node"): EPHYS_NODE_METRICS,
+        ("activity", "recording"): twop_rec,
+        ("activity", "node"): twop_node,
     }
     return dict(by_level[(family, level)])
 
@@ -773,6 +783,13 @@ def _comparison_frames(ctx: RenderContext, family: str, order: list | None):
         from meanap.pipeline.plotting_step4 import netmet_comparison_frames
         frames = netmet_comparison_frames(
             list(ctx.recordings.values()), ctx.results, order)
+    elif family == "activity":
+        # The folder path hands the group order to the plotter rather than
+        # baking it into the frame, so this does the same — the frames must be
+        # the ones plot_twop_group_comparisons draws from, or parity is lost.
+        from meanap.catnap.group_plots import twop_stats_frames
+        frames = twop_stats_frames(
+            list(ctx.recordings.values()), _all_stats(ctx), _channels_by_rec(ctx))
     else:
         from meanap.pipeline.plotting_step2 import ephys_comparison_frames
         frames = ephys_comparison_frames(
@@ -830,6 +847,8 @@ def available_comparison_families(ctx: RenderContext) -> list[ComparisonFamily]:
             out.append(fam)
         elif fam.key == "ephys_activity" and _ephys_stats(ctx):
             out.append(fam)
+        elif fam.key == "activity" and _all_stats(ctx):
+            out.append(fam)
     return out
 
 
@@ -840,17 +859,27 @@ def comparison_axes(ctx: RenderContext, family: str) -> ComparisonAxes:
     because the pipeline writes a figure for each either way — an absent metric
     gets the same "no data" placeholder here that it gets in the output folder.
     A *level* with no rows at all is dropped, since nothing there can be drawn.
+
+    The CAT-NAP family is the exception: its folder path draws only the
+    metrics the run computed (a ``spks`` run defines nothing event-shaped, so
+    those are simply not in the table), and the list here matches that.
     """
     fam = comparison_family(family)
     label = next((f.label for f in GROUP_FAMILIES if f.key == family), family)
     frames = dict(zip(COMPARISON_LEVELS, _comparison_frames(
         ctx, family, ctx.params.custom_grp_order or None)))
+    activity = ctx.params.twop_activity
+
+    def _metrics(level: str) -> dict[str, str]:
+        metrics = comparison_metrics(family, level, activity)
+        if family == "activity":
+            metrics = {k: v for k, v in metrics.items() if k in frames[level].columns}
+        return metrics
 
     levels = tuple(
         LevelAxis(
             key=level, label=_LEVEL_LABELS[level],
-            metrics=tuple(Choice(key=k, label=v)
-                          for k, v in comparison_metrics(family, level).items()),
+            metrics=tuple(Choice(key=k, label=v) for k, v in _metrics(level).items()),
         )
         for level in COMPARISON_LEVELS if not frames[level].empty
     )
@@ -891,7 +920,7 @@ def render_comparison_figure(
     """Redraw one comparison figure and return the file written.
 
     The address is ``(family, level, split, lag, metric)``: which comparison set
-    (4B network metrics or 2B neuronal activity), whether the points are
+    (4B network metrics, or 2B activity metrics from either pipeline), whether the points are
     recordings or nodes, whether groups or ages are the panels, which STTC lag,
     and which metric.
 
@@ -909,7 +938,8 @@ def render_comparison_figure(
     if split not in COMPARISON_SPLITS:
         raise ValueError(
             f"Unknown split {split!r}; expected one of {list(COMPARISON_SPLITS)}")
-    metrics = comparison_metrics(family, level)  # also validates level
+    metrics = comparison_metrics(
+        family, level, ctx.params.twop_activity)  # also validates level
     if metric not in metrics:
         raise ValueError(
             f"Unknown {level}-level metric {metric!r} for the {family} family. "
@@ -931,6 +961,13 @@ def render_comparison_figure(
         raise ValueError(
             f"This bundle has no {level}-level data for the {family} comparison "
             f"family, so there is nothing to draw.")
+    if family == "activity" and metric not in df.columns:
+        # The folder path skips these rather than drawing a placeholder, so
+        # the single path refuses rather than drawing one the run never had.
+        raise ValueError(
+            f"This run computed no {metric}: it is not defined under "
+            f"twop_activity={params.twop_activity!r}. Use comparison_axes() "
+            "to list the metrics it has.")
 
     x_kind, stem = COMPARISON_SPLITS[split]
     dest_dir = Path(out_dir) / fam.out_subdir / fam.comparisons_dir / _COMPARISON_DIRS[
