@@ -201,8 +201,8 @@ class ViewerService:
         """The facets behind the comparison tab: one entry per family.
 
         These families are the half-violin sets (4B network metrics, 2B
-        neuronal activity), which are one metric per figure and therefore
-        selectable. The gallery families in ``families`` above stay as they
+        activity metrics from either pipeline), which are one metric per
+        figure and therefore selectable. The gallery families in ``families`` above stay as they
         are — nothing there has an address to select by.
         """
         out = []

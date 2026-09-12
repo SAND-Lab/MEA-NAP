@@ -1005,6 +1005,116 @@ def _one_comparison_checks() -> list[Check]:
     return checks
 
 
+def _twop_comparison_checks() -> list[Check]:
+    """CAT-NAP's 2B set, one figure at a time, equals the folder render.
+
+    The two-photon activity metrics used to reach the viewer only as a gallery
+    — every small multiple at once, none selectable. They are now a comparison
+    family like the network and ephys ones, and the same parity holds: each
+    address drawn alone must be byte-identical to the family render.
+    """
+    from meanap.pipeline.render import (
+        available_comparison_families, comparison_axes, comparison_lags,
+        comparison_metrics, load_context, render_comparison_figure,
+        render_group_family,
+    )
+
+    checks: list[Check] = []
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = Path(tmp)
+        express = _run(tmp, "Express", express=True)
+
+        with open_bundle(express.with_suffix(BUNDLE_SUFFIX)) as b:
+            ctx = load_context(b)
+
+            offered = [f.key for f in available_comparison_families(ctx)]
+            checks.append(("a CAT-NAP bundle offers the activity family",
+                           "activity" in offered, f"{offered}"))
+            checks.append(("…and not the ephys one",
+                           "ephys_activity" not in offered, f"{offered}"))
+            checks.append(("the activity family is lagless",
+                           comparison_lags(ctx, "activity") == [], ""))
+
+            axes = comparison_axes(ctx, "activity")
+            checks.append(("its label says what it is",
+                           axes.label == "Activity metrics by group and age", axes.label))
+            checks.append(("both levels have rows in this run",
+                           {lv.key for lv in axes.levels} == {"recording", "node"},
+                           f"{[lv.key for lv in axes.levels]}"))
+
+            family_out = tmp / "family"
+            written = {p.relative_to(family_out): p
+                       for p in render_group_family(ctx, "activity", family_out)}
+            checks.append(("the family render produced the reference figures",
+                           len(written) > 0, f"{len(written)}"))
+
+            # The axes list only the metrics this run computed — the folder
+            # path draws nothing for the others — so the two sets of addresses
+            # must coincide exactly.
+            offered = {lv.key: [m.key for m in lv.metrics] for lv in axes.levels}
+            defined = {lv: set(comparison_metrics("activity", lv))
+                       for lv in ("recording", "node")}
+            checks.append(("the metrics offered are a subset of those defined",
+                           all(set(offered[lv]) <= defined[lv] for lv in offered), ""))
+            not_computed = next(
+                (m for lv in offered for m in defined[lv] - set(offered[lv])), None)
+            checks.append(("…and this fixture leaves some out",
+                           not_computed is not None, f"{offered}"))
+
+            one_out = tmp / "single"
+            compared = identical = missing = 0
+            mismatched: list[str] = []
+            for level, metrics in offered.items():
+                for split in ("group", "age"):
+                    for metric in metrics:
+                        path = render_comparison_figure(
+                            ctx, "activity", level, split, metric, one_out)
+                        reference = written.get(path.relative_to(one_out))
+                        if reference is None:
+                            missing += 1
+                            mismatched.append(f"no family figure at {path.name}")
+                            continue
+                        compared += 1
+                        if _digest(reference) == _digest(path):
+                            identical += 1
+                        else:
+                            mismatched.append(path.relative_to(one_out).as_posix())
+
+            checks.append(("every offered address lands on a family figure",
+                           missing == 0, f"{missing}: {mismatched[:2]}"))
+            checks.append(("…and every family figure is reachable by address",
+                           compared == len(written), f"{compared}/{len(written)}"))
+            checks.append((f"single renders are pixel-identical ({identical}/{compared})",
+                           compared > 0 and identical == compared,
+                           f"differ: {mismatched[:3]}"))
+
+            def _refused(metric: str, **kw) -> str:
+                try:
+                    render_comparison_figure(
+                        ctx, "activity", "recording", "group", metric, tmp / "bad",
+                        **kw)
+                except ValueError as e:
+                    return str(e)
+                return ""
+
+            checks.append(("passing a lag is refused",
+                           "do not depend on the STTC lag"
+                           in _refused("FRmean", lag=LAG), ""))
+            if not_computed is not None:
+                level_of = next(lv for lv in offered if not_computed in defined[lv])
+                try:
+                    render_comparison_figure(
+                        ctx, "activity", level_of, "group", not_computed, tmp / "bad")
+                    refused = ""
+                except ValueError as e:
+                    refused = str(e)
+                checks.append(("a metric the run never computed is refused, "
+                               "naming the measure",
+                               "not defined under twop_activity" in refused,
+                               refused[:80]))
+    return checks
+
+
 def _comparison_frames_checks() -> list[Check]:
     """The extracted frame builders must feed both plotting paths identically.
 
@@ -1361,6 +1471,7 @@ def main() -> int:
         ("Section D3b — cell types without the spreadsheet:",
          _cell_type_self_contained_checks),
         ("Section D3c — one 4B comparison figure at a time:", _one_comparison_checks),
+        ("Section D3c2 — one CAT-NAP 2B figure at a time:", _twop_comparison_checks),
         ("Section D3e — age and group palettes:", _palette_checks),
         ("Section D3f — palettes reaching the figure:", _palette_render_checks),
         ("Section D3d — the shared comparison frames (2B):", _comparison_frames_checks),

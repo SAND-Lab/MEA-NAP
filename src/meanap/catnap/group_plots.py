@@ -202,6 +202,7 @@ def plot_twop_group_comparisons(
     channels_by_rec: dict[str, np.ndarray] | None = None,
     fmt: str = "png",
     activity: str = "peaks",
+    colors=None,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Draw the ``2B_GroupComparisons`` figures for two-photon activity.
 
@@ -213,6 +214,9 @@ def plot_twop_group_comparisons(
     *activity* is the measure the stats were computed through
     (``Params.twop_activity``); it only affects the axis labels — see
     :func:`twop_metric_labels`.
+
+    ``colors`` is a :class:`~meanap.pipeline.palette.ColorScheme` for the age
+    and group palettes; omitting it keeps the historical ones.
     """
     from meanap.pipeline.plotting_step4 import plot_half_violin_by_x
 
@@ -240,7 +244,7 @@ def plot_twop_group_comparisons(
             plot_half_violin_by_x(
                 df, key, label, x_kind,
                 directory / _named(pattern, fmt).format(key=key),
-                group_order=custom_grp_order,
+                group_order=custom_grp_order, colors=colors,
             )
 
     return df_rec, df_node
