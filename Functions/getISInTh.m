@@ -45,10 +45,17 @@ for FRnum = N
     ISI_N = SpikeTimes(FRnum:end) - SpikeTimes(1:end-(FRnum-1)); 
     
     if ~exist('Steps', 'var') % Sit 2018
-        Steps = min(log10(ISI_N)):0.1:max(log10(ISI_N));
+        % Steps = min(log10(ISI_N)):0.1:max(log10(ISI_N));
         % This doesn't work as well as I expected, perhaps should stick to
         % their default values
         % I think it is because of the conversion to ms or something 
+        % 2025-11-23: it was because these were left as log10 values and
+        % then used as linear edges (in seconds) below. Convert them back.
+        if min(log10(ISI_N)) < max(log10(ISI_N))
+            Steps = 10 .^ (min(log10(ISI_N)):0.05:max(log10(ISI_N)));
+        else
+            Steps = 10.^[-5:0.05:1.5];
+        end
     end 
     
     % n = histc(ISI_N * 1000, Steps * 1000); % Sit 2018: not really sure
