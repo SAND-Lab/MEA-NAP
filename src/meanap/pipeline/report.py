@@ -436,14 +436,21 @@ _FOLDER_PLOT_PATTERNS: dict[str, list[tuple[re.Pattern, str, str]]] = {
     ), (
         re.compile(r"^NodeCartographyProportionsByGenotype(?P<lag>\d+)mslag\.png$"),
         "Cartography Role Composition by Genotype ({lag} ms {kind})",
-        "Each 100%-stacked bar shows the pooled proportion of nodes in the six "
+        "Each 100%-stacked bar shows the proportion of nodes in the six "
         "cartography roles at one age. Panels separate spreadsheet groups, such "
-        "as cell types or genotypes.",
+        "as cell types or genotypes. Node counts are pooled across all "
+        "recordings in a group before dividing, so a recording with more active "
+        "nodes contributes more — unlike the line plot in this folder, which "
+        "averages each recording's own proportions with equal weight.",
     ), (
         re.compile(r"^NodeCartographyProportionsByAge(?P<lag>\d+)mslag\.png$"),
         "Cartography Role Composition by Age ({lag} ms {kind})",
-        "Each panel is one age; the 100%-stacked bars compare the pooled "
-        "node-cartography role composition across spreadsheet groups.",
+        "Each panel is one age; the 100%-stacked bars compare the "
+        "node-cartography role composition across spreadsheet groups. Node "
+        "counts are pooled across all recordings in a group before dividing, "
+        "so a recording with more active nodes contributes more — unlike the "
+        "line plot in this folder, which averages each recording's own "
+        "proportions with equal weight.",
     )],
 }
 
