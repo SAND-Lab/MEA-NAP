@@ -433,6 +433,17 @@ _FOLDER_PLOT_PATTERNS: dict[str, list[tuple[re.Pattern, str, str]]] = {
         "plotted against age, one line per role. Shows how network "
         "organisation — peripheral nodes giving way to hubs, say — shifts as "
         "the culture matures.",
+    ), (
+        re.compile(r"^NodeCartographyProportions(?P<lag>\d+)mslag\.png$"),
+        "Cartography Role Composition ({lag} ms {kind})",
+        "Each 100%-stacked bar shows the pooled proportion of nodes in the six "
+        "cartography roles at one age. Panels separate spreadsheet groups, such "
+        "as cell types or genotypes.",
+    ), (
+        re.compile(r"^NodeCartographyProportionsByAge(?P<lag>\d+)mslag\.png$"),
+        "Cartography Role Composition by Age ({lag} ms {kind})",
+        "Each panel is one age; the 100%-stacked bars compare the pooled "
+        "node-cartography role composition across spreadsheet groups.",
     )],
 }
 

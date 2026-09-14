@@ -1342,6 +1342,147 @@ _NC_PROP_LABELS = [
 ]
 
 
+def _node_cartography_proportion_frame(df: "pd.DataFrame") -> "pd.DataFrame":
+    """Pool node-cartography role counts by group, age, and lag.
+
+    ``NCpn*`` is a proportion for one recording. Averaging it gives every
+    recording equal weight; a stacked composition plot should instead pool
+    nodes first. This mirrors the R workflow's ``count / sum(count)``.
+    """
+    import pandas as pd
+
+    count_cols = [f"NCpn{i}count" for i in range(1, 7)]
+    if df.empty or not all(col in df.columns for col in count_cols):
+        return pd.DataFrame()
+    long = df.melt(id_vars=["Grp", "DIV", "Lag"], value_vars=count_cols,
+                   var_name="Role", value_name="Count")
+    long["Count"] = pd.to_numeric(long["Count"], errors="coerce").fillna(0.0)
+    long["Role"] = long["Role"].str.extract(r"NCpn(\d+)count")[0].astype(int)
+    pooled = long.groupby(["Grp", "DIV", "Lag", "Role"], observed=True,
+                          as_index=False)["Count"].sum()
+    totals = pooled.groupby(["Grp", "DIV", "Lag"], observed=True)["Count"].transform("sum")
+    pooled["Proportion"] = np.divide(
+        pooled["Count"], totals, out=np.zeros(len(pooled), dtype=float), where=totals > 0,
+    )
+    return pooled
+
+
+def plot_node_cartography_proportions(
+    df: "pd.DataFrame", out_dir: Path, group_order: list | None = None,
+    only: int | None = None, fmt: str = "png",
+) -> list[Path]:
+    """Draw R-style 100%-stacked cartography-role bars, one figure per lag.
+
+    Each panel is one spreadsheet group (such as a cell type or genotype), with
+    DIV on the x-axis. Unlike the existing line chart, the bars pool all nodes
+    in each group/DIV/lag cell before calculating the six role proportions.
+    """
+    pooled = _node_cartography_proportion_frame(df)
+    if pooled.empty:
+        return []
+    out_dir.mkdir(parents=True, exist_ok=True)
+    groups = list(group_order) if group_order else sorted(pooled["Grp"].dropna().unique())
+
+    def _divkey(d):
+        try:
+            return float(str(d).replace("DIV", ""))
+        except ValueError:
+            return str(d)
+
+    written: list[Path] = []
+    for lag in sorted(pooled["Lag"].unique(), key=_lag_num):
+        if only is not None and _lag_num(lag) != only:
+            continue
+        ldf = pooled[pooled["Lag"] == lag]
+        divs = sorted(ldf["DIV"].dropna().unique(), key=_divkey)
+        if not divs:
+            continue
+        fig, axes = plt.subplots(len(groups), 1, figsize=(8.0, max(3.0, 3.0 * len(groups))),
+                                 squeeze=False, sharex=True, sharey=True)
+        x = np.arange(len(divs))
+        for ax, group in zip(axes[:, 0], groups):
+            gdf = ldf[ldf["Grp"].astype(str) == str(group)]
+            bottom = np.zeros(len(divs), dtype=float)
+            for role, (color, label) in enumerate(zip(_NC_PROP_COLORS, _NC_PROP_LABELS), start=1):
+                values = np.array([gdf[(gdf["DIV"].astype(str) == str(div)) &
+                                       (gdf["Role"] == role)]["Proportion"].sum() for div in divs])
+                ax.bar(x, values, bottom=bottom, color=color, edgecolor="black", linewidth=0.25,
+                       label=label)
+                bottom += values
+            ax.set_title(str(group))
+            ax.set_ylabel("Proportion of nodes")
+            ax.set_ylim(0, 1)
+            ax.spines["top"].set_visible(False)
+            ax.spines["right"].set_visible(False)
+        axes[-1, 0].set_xticks(x, [_tick_label(div) for div in divs])
+        axes[-1, 0].set_xlabel("Age")
+        axes[0, 0].legend(loc="center left", bbox_to_anchor=(1.01, 0.5), fontsize=8, frameon=False)
+        fig.tight_layout()
+        dest = out_dir / f"NodeCartographyProportions{_lag_num(lag)}mslag.{fmt}"
+        savefig(fig, dest, default_dpi=300, bbox_inches="tight")
+        plt.close(fig)
+        written.append(dest)
+    return written
+
+
+def plot_node_cartography_proportions_by_age(
+    df: "pd.DataFrame", out_dir: Path, group_order: list | None = None,
+    only: int | None = None, fmt: str = "png",
+) -> list[Path]:
+    """Draw R-style role-composition bars faceted by age, one figure per lag.
+
+    This is the complementary view to :func:`plot_node_cartography_proportions`:
+    each panel is one DIV, groups are on the x-axis, and each bar is a 100%
+    stack of the six node-cartography roles. It corresponds to the R workflow's
+    second proportion plot (``facet_wrap(~ AgeDiv)``).
+    """
+    pooled = _node_cartography_proportion_frame(df)
+    if pooled.empty:
+        return []
+    out_dir.mkdir(parents=True, exist_ok=True)
+    groups = list(group_order) if group_order else sorted(pooled["Grp"].dropna().unique())
+
+    def _divkey(d):
+        try:
+            return float(str(d).replace("DIV", ""))
+        except ValueError:
+            return str(d)
+
+    written: list[Path] = []
+    for lag in sorted(pooled["Lag"].unique(), key=_lag_num):
+        if only is not None and _lag_num(lag) != only:
+            continue
+        ldf = pooled[pooled["Lag"] == lag]
+        divs = sorted(ldf["DIV"].dropna().unique(), key=_divkey)
+        if not divs:
+            continue
+        fig, axes = plt.subplots(1, len(divs), figsize=(max(8.0, 3.2 * len(divs)), 5.5),
+                                 squeeze=False, sharey=True)
+        x = np.arange(len(groups))
+        for ax, div in zip(axes[0], divs):
+            ddf = ldf[ldf["DIV"].astype(str) == str(div)]
+            bottom = np.zeros(len(groups), dtype=float)
+            for role, (color, label) in enumerate(zip(_NC_PROP_COLORS, _NC_PROP_LABELS), start=1):
+                values = np.array([ddf[(ddf["Grp"].astype(str) == str(group)) &
+                                       (ddf["Role"] == role)]["Proportion"].sum() for group in groups])
+                ax.bar(x, values, bottom=bottom, color=color, edgecolor="black", linewidth=0.25,
+                       label=label)
+                bottom += values
+            ax.set_title(f"DIV {_tick_label(div)}")
+            ax.set_xticks(x, [str(group) for group in groups], rotation=45, ha="right")
+            ax.set_ylim(0, 1)
+            ax.spines["top"].set_visible(False)
+            ax.spines["right"].set_visible(False)
+        axes[0, 0].set_ylabel("Proportion of nodes")
+        axes[0, -1].legend(loc="center left", bbox_to_anchor=(1.01, 0.5), fontsize=8, frameon=False)
+        fig.tight_layout()
+        dest = out_dir / f"NodeCartographyProportionsByAge{_lag_num(lag)}mslag.{fmt}"
+        savefig(fig, dest, default_dpi=300, bbox_inches="tight")
+        plt.close(fig)
+        written.append(dest)
+    return written
+
+
 def plot_node_cartography_by_lag(
     df: "pd.DataFrame",
     out_dir: Path,
@@ -1856,6 +1997,12 @@ def netmet_comparison_frames(
                         val = val[0] if np.size(val) == 1 else val
                     if not isinstance(val, (list, np.ndarray)):
                         rec_row[k] = val
+            # Counts support pooled cartography-composition bars; they are not
+            # regular metrics and intentionally stay out of the violin plots.
+            for i in range(1, 7):
+                key = f"NCpn{i}count"
+                if key in metrics and np.isscalar(metrics[key]):
+                    rec_row[key] = metrics[key]
             rec_rows.append(rec_row)
 
             # Node-level
@@ -1971,3 +2118,6 @@ def plot_step4_group_comparisons(
     # 6_NodeCartographyByLag — role proportions vs DIV, one figure per lag
     ncbl_dir = out_dir / "4B_GroupComparisons" / "6_NodeCartographyByLag"
     plot_node_cartography_by_lag(df_rec, ncbl_dir, group_order=custom_grp_order, fmt=fmt)
+    plot_node_cartography_proportions(df_rec, ncbl_dir, group_order=custom_grp_order, fmt=fmt)
+    plot_node_cartography_proportions_by_age(
+        df_rec, ncbl_dir, group_order=custom_grp_order, fmt=fmt)
