@@ -1418,7 +1418,7 @@ def plot_node_cartography_proportions(
         axes[-1, 0].set_xlabel("Age")
         axes[0, 0].legend(loc="center left", bbox_to_anchor=(1.01, 0.5), fontsize=8, frameon=False)
         fig.tight_layout()
-        dest = out_dir / f"NodeCartographyProportions{_lag_num(lag)}mslag.{fmt}"
+        dest = out_dir / f"NodeCartographyProportionsByGenotype{_lag_num(lag)}mslag.{fmt}"
         savefig(fig, dest, default_dpi=300, bbox_inches="tight")
         plt.close(fig)
         written.append(dest)

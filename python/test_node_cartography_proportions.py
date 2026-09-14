@@ -39,7 +39,7 @@ def main() -> int:
     with tempfile.TemporaryDirectory() as tmp:
         files = plot_node_cartography_proportions(df, Path(tmp))
         assert len(files) == 1
-        assert files[0].name == "NodeCartographyProportions1000mslag.png"
+        assert files[0].name == "NodeCartographyProportionsByGenotype1000mslag.png"
         assert files[0].is_file() and files[0].stat().st_size > 0
         age_files = plot_node_cartography_proportions_by_age(df, Path(tmp))
         assert len(age_files) == 1

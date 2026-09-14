@@ -434,8 +434,8 @@ _FOLDER_PLOT_PATTERNS: dict[str, list[tuple[re.Pattern, str, str]]] = {
         "organisation — peripheral nodes giving way to hubs, say — shifts as "
         "the culture matures.",
     ), (
-        re.compile(r"^NodeCartographyProportions(?P<lag>\d+)mslag\.png$"),
-        "Cartography Role Composition ({lag} ms {kind})",
+        re.compile(r"^NodeCartographyProportionsByGenotype(?P<lag>\d+)mslag\.png$"),
+        "Cartography Role Composition by Genotype ({lag} ms {kind})",
         "Each 100%-stacked bar shows the pooled proportion of nodes in the six "
         "cartography roles at one age. Panels separate spreadsheet groups, such "
         "as cell types or genotypes.",
