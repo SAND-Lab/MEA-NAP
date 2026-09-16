@@ -215,7 +215,7 @@ class StatsPanel(QWidget):
         self.measures_cb.setChecked(True)
         self.measures_cb.setToolTip(
             "For a CAT-NAP run that analysed several measures of activity "
-            "(calcium events, deconvolved trace, raw fluorescence, suite2p "
+            "(calcium events, denoised trace, raw fluorescence, suite2p "
             "spikes): how far each metric moves when the measure changes, "
             "whether the recordings still rank the same way, and — the part "
             "that matters — whether the group and age effects survive the "

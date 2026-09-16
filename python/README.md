@@ -502,7 +502,7 @@ raw_data/
 | Type | Description |
 |---|---|
 | `peaks` | Detected calcium transient onset frames (from denoising pipeline) |
-| `denoised F` | Baseline-corrected, OASIS-deconvolved fluorescence |
+| `denoised F` | Baseline-corrected fluorescence, denoised by fitting a calcium model (OASIS). Still a fluorescence trace with calcium kinetics — *not* a deconvolved spike train; for that use `spks` |
 | `F` | Raw fluorescence as output by suite2p |
 | `spks` | Inferred spike probabilities from suite2p |
 
@@ -511,7 +511,7 @@ raw_data/
 The denoising runs on raw fluorescence (`F.npy`) and produces outputs saved alongside the suite2p files:
 
 1. **Polynomial baseline** (`pybaselines.imodpoly`) — estimate and remove slow drift
-2. **OASIS deconvolution** — separate calcium signal from noise (requires optional install; see below)
+2. **OASIS denoising** — fit OASIS's calcium model to the trace and keep the model's fluorescence reconstruction (its baseline + calcium component). OASIS is a deconvolution algorithm, but its deconvolved spike train is discarded here: `Fdenoised.npy` is denoised fluorescence, not spikes (requires optional install; see below)
 3. **Peak detection** (`scipy.signal.find_peaks`) — find calcium transient events
 4. Outputs saved: `Fdenoised.npy`, `timePoints.npy`, `peakStartFrames.npy`, `peakEndFrames.npy`, `peakHeights.npy`, `eventAreas.npy`
 

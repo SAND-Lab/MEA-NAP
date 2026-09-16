@@ -1,7 +1,7 @@
 """Which calcium measure(s) a CAT-NAP run analyses, and what to call each one.
 
 ``Params.twop_activity`` names one measure of neuronal activity — detected
-calcium events (``peaks``), the deconvolved/denoised trace (``denoised F``),
+calcium events (``peaks``), the denoised fluorescence trace (``denoised F``),
 raw fluorescence (``F``), or suite2p's own spike estimate (``spks``). Every
 adjacency matrix, activity statistic and network metric in a CAT-NAP run is
 computed *through* that choice, and the choice is not neutral: ``peaks`` gives

@@ -34,8 +34,10 @@ ACTIVITY_TYPES = list(_ACTIVITY_TYPES)
 ACTIVITY_HELP = {
     "peaks": "Detected calcium events. The network is an STTC coincidence "
              "network and the timescale parameter is a lag.",
-    "denoised F": "The deconvolved fluorescence trace. The network is a "
-                  "Pearson correlation between binned traces, at zero lag.",
+    "denoised F": "Fluorescence denoised by fitting a calcium model (OASIS): "
+                  "still a fluorescence trace, not a deconvolved spike train. "
+                  "The network is a Pearson correlation between binned traces, "
+                  "at zero lag.",
     "F": "Raw fluorescence, uncorrected. Correlation network, as above.",
     "spks": "suite2p's own spike estimate. Correlation network, as above.",
 }

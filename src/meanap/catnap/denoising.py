@@ -80,7 +80,14 @@ def _get_denoised_intensity(
 
 def _deconvolve_trace(rel_intensity: np.ndarray) -> np.ndarray:
     """
-    Run OASIS deconvolution and return the denoised calcium trace (b + c).
+    Run OASIS and return the denoised calcium trace (b + c).
+
+    OASIS is a deconvolution algorithm, but what is kept is not its
+    deconvolved spike train ``s`` — that is discarded — but the model's
+    fluorescence reconstruction: baseline ``b`` plus the calcium component
+    ``c`` (the inferred spikes re-convolved with the calcium kernel). So
+    "denoised F" is still a fluorescence trace with calcium kinetics, just
+    with the noise stripped out; CAT-NAP's deconvolved measure is ``spks``.
     Falls back to Savitzky-Golay smoothing if OASIS is not installed.
     """
     if _OASIS_AVAILABLE:
