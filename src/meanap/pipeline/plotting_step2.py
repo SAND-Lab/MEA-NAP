@@ -374,6 +374,46 @@ EPHYS_NODE_METRICS = {
     "channelFracSpikesInBursts": "Unit fraction of spikes in bursts",
 }
 
+# ── Feasible y-axis ranges for the comparison violins ────────────────────────
+#
+# Port of ``eMetCustomBounds`` in ``PlotEphysStats.m``: a count, rate or
+# duration is drawn from zero, a fraction on [0, 1]. ``None`` is MATLAB's
+# ``nan`` — that end is left to the data. MATLAB's table only names the
+# recording-level metrics; the same rule is applied to the node level here,
+# since a unit's burst rate is no more able to go negative than an array's.
+EPHYS_BOUNDS: dict[str, tuple[float | None, float | None]] = {
+    # Recording level
+    "numActiveElec": (0, None),
+    "FRmean": (0, None),
+    "FRmedian": (0, None),
+    "NBurstRate": (0, None),
+    "meanNumChansInvolvedInNbursts": (0, None),
+    "meanNBstLengthS": (0, None),
+    "meanISIWithinNbursts_ms": (0, None),
+    "meanISIoutsideNbursts_ms": (0, None),
+    "CVofINBI": (0, None),
+    "fracInNburst": (0, 1),
+    "channelAveBurstRate": (0, None),
+    "channelAveBurstDur": (0, None),
+    "channelAveISIwithinBurst": (0, None),
+    "channelAveISIoutsideBurst": (0, None),
+    "channelAveFracSpikesInBursts": (0, 1),
+    # Node level
+    "FR": (0, None),
+    "FRactive": (0, None),
+    "channelBurstRate": (0, None),
+    "channelWithinBurstFr": (0, None),
+    "channelBurstDur": (0, None),
+    "channelISIwithinBurst": (0, None),
+    "channeISIoutsideBurst": (0, None),
+    "channelFracSpikesInBursts": (0, 1),
+}
+
+
+def ephys_bounds(metric: str) -> tuple[float | None, float | None] | None:
+    """The y-range *metric*'s comparison violins are drawn on, or ``None``."""
+    return EPHYS_BOUNDS.get(metric)
+
 def _plot_violin(df: pd.DataFrame, metric: str, group_col: str, out_path: Path, ylabel: str) -> None:
     if df.empty or metric not in df.columns or df[metric].dropna().empty:
         return
@@ -480,7 +520,8 @@ def plot_step2_group_comparisons(
     for k, name in EPHYS_REC_METRICS.items():
         plot_half_violin_by_x(df_rec, k, name, "group",
                               grp_dir / f"{k}_byGroup.{fmt}", group_order=custom_grp_order,
-                              colors=colors)
+                              colors=colors,
+                              ylim=ephys_bounds(k))
 
     # 1_NodeByGroup
     node_grp_dir = out_dir / "2B_GroupComparisons" / "1_NodeByGroup"
@@ -489,7 +530,8 @@ def plot_step2_group_comparisons(
     for k, name in EPHYS_NODE_METRICS.items():
         plot_half_violin_by_x(df_node, k, name, "group",
                               node_grp_dir / f"{k}_byGroup_node.{fmt}",
-                              group_order=custom_grp_order, colors=colors)
+                              group_order=custom_grp_order, colors=colors,
+                              ylim=ephys_bounds(k))
 
     # 4_RecordingsByAge
     age_dir = out_dir / "2B_GroupComparisons" / "4_RecordingsByAge" / "HalfViolinPlots"
@@ -498,7 +540,8 @@ def plot_step2_group_comparisons(
     for k, name in EPHYS_REC_METRICS.items():
         plot_half_violin_by_x(df_rec, k, name, "DIV",
                               age_dir / f"{k}_byDIV.{fmt}", group_order=custom_grp_order,
-                              colors=colors)
+                              colors=colors,
+                              ylim=ephys_bounds(k))
 
     # 2_NodeByAge
     node_age_dir = out_dir / "2B_GroupComparisons" / "2_NodeByAge"
@@ -507,4 +550,5 @@ def plot_step2_group_comparisons(
     for k, name in EPHYS_NODE_METRICS.items():
         plot_half_violin_by_x(df_node, k, name, "DIV",
                               node_age_dir / f"{k}_byDIV_node.{fmt}",
-                              group_order=custom_grp_order, colors=colors)
+                              group_order=custom_grp_order, colors=colors,
+                              ylim=ephys_bounds(k))
