@@ -5,7 +5,7 @@ Run from the repo root::
     uv run python python/test_catnap_multi_activity.py
 
 ``Params.twop_activities`` lets one run build the network from detected calcium
-events *and* from the deconvolved trace (and from raw fluorescence, and from
+events *and* from the denoised trace (and from raw fluorescence, and from
 suite2p's spike estimate) over the same recordings, so the choice of measure
 becomes an axis of the output instead of a decision buried in a settings file.
 That is only worth having if three things hold, which is what this checks:
