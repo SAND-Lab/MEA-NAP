@@ -1206,6 +1206,9 @@ class MainWindow(QMainWindow):
 
     def _on_pipeline_finished(self, output_root: Path) -> None:
         self._last_output_root = output_root
+        # The CAT-NAP panel's cell-viewer button reads this to find the run's
+        # CellTracking folder; without it the button can never enable.
+        self._catnap_panel.set_output_root(output_root)
         self._run_panel.finish_progress("Finished.")
         self._run_panel.append_log(f"Done. Output folder: {output_root}")
         self._announce_bundle(output_root)

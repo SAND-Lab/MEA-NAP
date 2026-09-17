@@ -687,8 +687,80 @@ def run_catnap_pipeline(
             all_channels[activity], subnetwork_tables[activity],
             states[activity], root_act, log,
         )
+    _run_cell_tracking(params, recordings, output_root, log, source)
+
     progress.phase_done()
     log("  CAT-NAP pipeline complete.")
+
+
+def _run_cell_tracking(params: Params, recordings, output_root: Path,
+                       log: Callable[[str], None], source=None) -> None:
+    """Track the same cells across DIVs, if the run asked for it.
+
+    Off unless ``params.track_cells``: it needs multi-DIV chains of one field of
+    view, which many datasets do not have, and it costs a ROICaT run per chain.
+
+    Failures are logged and swallowed. Tracking is an addition to a CAT-NAP run,
+    not a precondition for it, so a missing ROICaT install or an unreadable
+    chain must not discard the network results that already succeeded.
+    """
+    if not getattr(params, "track_cells", False):
+        return
+
+    from meanap.catnap.tracking.pipeline import track_dataset
+    from meanap.catnap.tracking.source import LocalSessionSource
+
+    out_dir = Path(output_root) / "CellTracking"
+    # Fneu.npy is not in the standard fetch set, because nothing else opens it.
+    # Without asking for it a remote run would silently fall back to the
+    # uncorrected Fdenoised traces while a local run neuropil-corrected.
+    if source is not None and getattr(source, "remote", False) and \
+            params.track_validate_activity:
+        try:
+            source.extra_wanted = frozenset(source.extra_wanted) | {"Fneu.npy"}
+        except Exception:
+            log("  Cell tracking: could not request Fneu.npy; validation will "
+                "fall back to uncorrected traces.")
+    log("  Cell tracking: grouping recordings into fields of view…")
+    try:
+        session_source = LocalSessionSource(
+            raw_data=Path(params.raw_data),
+            derived_root=getattr(params, "twop_derived_root", None) or None,
+            source=source)
+        summary = track_dataset(
+            [rec.filename for rec in recordings],
+            session_source,
+            out_dir,
+            min_shift_px=params.track_min_shift_px,
+            tracked_threshold=params.track_tracked_threshold,
+            validate=params.track_validate_activity,
+            viewer_cells=params.track_viewer_cells,
+            neucoeff=params.track_neuropil_coeff,
+            progress=lambda msg: log(f"    {msg}"),
+        )
+    except Exception as e:
+        log(f"  Cell tracking failed ({type(e).__name__}: {e}); "
+            "the rest of the run is unaffected.")
+        return
+
+    uncorrected = getattr(session_source, "uncorrected", set())
+    if uncorrected:
+        log(f"  Cell tracking: {len(uncorrected)} recordings had no F/Fneu and used "
+            "uncorrected Fdenoised traces for validation.")
+    log(f"  Cell tracking: {summary['usable_chains']} of {summary['chains']} chains "
+        f"usable at a threshold of {summary['tracked_threshold']:.2f} "
+        f"({summary['registered']} registered).")
+    if summary.get("median_fingerprint_auc") is not None:
+        log(f"    median fingerprint AUC vs the spatial null: "
+            f"{summary['median_fingerprint_auc']:.3f} "
+            f"(a descriptor — too weak to filter individual matches)")
+    by_geno = summary.get("usable_by_genotype") or {}
+    if len(by_geno) > 1:
+        total = summary.get("chains_by_genotype") or {}
+        parts = [f"{g} {n}/{total.get(g, 0)}" for g, n in by_geno.items()]
+        log(f"    usable by genotype: {', '.join(parts)} — recovery covaries "
+            "with prep, so prefer within-prep comparisons")
+    log(f"    results and per-cell pages: {out_dir}")
 
 
 def _compute_recording(

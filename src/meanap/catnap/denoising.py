@@ -90,9 +90,24 @@ def _deconvolve_trace(rel_intensity: np.ndarray) -> np.ndarray:
     with the noise stripped out; CAT-NAP's deconvolved measure is ``spks``.
     Falls back to Savitzky-Golay smoothing if OASIS is not installed.
     """
+    # A cell with no detected transients leaves ``rel_intensity`` flat, and
+    # OASIS returns NaN for a flat trace (it estimates g = -0.0 and the AR
+    # inversion degenerates). Its denoised trace is legitimately zero, so say so
+    # rather than emitting a NaN: downstream, one NaN element propagates through
+    # any mean/std/correlation over that cell, and through ``Fz @ Fz.T`` it NaNs
+    # a whole correlation matrix. Both CAT-NAP adjacency paths drop peak-less
+    # cells before that can bite, but anything reading Fdenoised.npy directly
+    # has no such protection.
+    if not np.any(np.diff(rel_intensity)):
+        return np.zeros_like(rel_intensity)
+
     if _OASIS_AVAILABLE:
         c, _s, b, _g, _lam = oasis_deconvolve(rel_intensity)
-        return b + c
+        out = b + c
+        if not np.all(np.isfinite(out)):
+            # belt and braces: never hand back a non-finite denoised trace
+            return np.nan_to_num(out, nan=0.0, posinf=0.0, neginf=0.0)
+        return out
     else:
         # Savitzky-Golay as a reasonable fallback
         win = min(51, len(rel_intensity) // 4 * 2 + 1)  # must be odd

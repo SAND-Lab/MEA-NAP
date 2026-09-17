@@ -226,7 +226,19 @@ def load_context(bundle: RunBundle | Path | str) -> RenderContext:
         root = Path(bundle)
         params = (load_params(root / PARAMS_FILENAME)[0]
                   if (root / PARAMS_FILENAME).exists() else Params())
-        mode = "catnap" if params.suite2p_mode else "ephys"
+        # The manifest records what the run actually was, so prefer it. Deriving
+        # the mode from params alone calls a CAT-NAP run "ephys" whenever
+        # params.json is absent — the defaults then say suite2p_mode is off.
+        mode = None
+        manifest_path = root / "manifest.json"
+        if manifest_path.exists():
+            import json as _json
+            try:
+                mode = (_json.loads(manifest_path.read_text()) or {}).get("mode")
+            except (OSError, ValueError):
+                mode = None
+        if not mode:
+            mode = "catnap" if params.suite2p_mode else "ephys"
         rec_rows = _recordings_from_csv(root)
 
     recordings = {

@@ -306,6 +306,21 @@ def _keep_as_images(root: Path) -> tuple[str, ...]:
     )
 
 
+#: Cell-tracking output that must not travel in a bundle.
+#:
+#: ``CellTracking/work/`` is ROICaT's staged input and run output -- 236 MB for
+#: three chains, and nothing downstream reads it. ``CellTracking/viewer/`` is
+#: the rendered per-cell pages, which the viewer rebuilds from
+#: ``CellTracking/payload/``; carrying both would be the redundancy this format
+#: exists to avoid.
+_TRACKING_SKIP_DIRS = ("CellTracking/work/", "CellTracking/viewer/")
+
+
+def _is_tracking_skip(rel: Path) -> bool:
+    posix = _strip_activity_prefix(rel.as_posix())
+    return any(posix.startswith(d) for d in _TRACKING_SKIP_DIRS)
+
+
 def _is_reconstructable_member(rel: Path, keep: tuple[str, ...] = ()) -> bool:
     # A multi-measure CAT-NAP run puts each extra measure's complete run folder
     # under ByActivityType/<measure>/, so the same figure families sit one level
@@ -313,6 +328,8 @@ def _is_reconstructable_member(rel: Path, keep: tuple[str, ...] = ()) -> bool:
     # exactly as the primary measure's are dropped — they are reconstructable
     # from the same data, which travels in that subtree beside them. Without
     # this an extra measure's pictures would be the largest thing in the bundle.
+    if _is_tracking_skip(rel):
+        return True
     posix = _strip_activity_prefix(rel.as_posix())
     dirs = tuple(d for d in _RECONSTRUCTABLE_DIRS if d not in keep)
     if any(posix.startswith(d) for d in dirs):
@@ -377,6 +394,20 @@ def _adjust_manifest(manifest: dict, keep: tuple[str, ...]) -> dict:
     return out
 
 
+def _walk_files(root: Path):
+    """Every file under ``root``, descending into symlinked directories.
+
+    ``Path.rglob`` deliberately does not follow directory symlinks, which is
+    right for a tree that might contain a cycle and wrong for an output folder
+    someone assembled out of links to the real thing.
+    """
+    import os
+
+    for dirpath, _dirnames, filenames in os.walk(root, followlinks=True):
+        for name in filenames:
+            yield Path(dirpath) / name
+
+
 def write_bundle(
     output_root: Path | str,
     manifest: dict,
@@ -410,8 +441,9 @@ def write_bundle(
     with open(root / MANIFEST_NAME, "w") as fh:
         json.dump(manifest, fh, indent=2, sort_keys=True)
 
+    packed = 0
     with zipfile.ZipFile(dest, "w", zipfile.ZIP_DEFLATED) as zf:
-        for path in sorted(root.rglob("*")):
+        for path in sorted(_walk_files(root)):
             if not path.is_file():
                 continue
             rel = path.relative_to(root)
@@ -426,7 +458,17 @@ def write_bundle(
                                            sort_keys=True))
                 continue
             zf.write(path, rel.as_posix())
+            packed += 1
 
+    # An empty bundle is never what was wanted, and it used to be written
+    # without complaint: ``rglob`` does not descend into symlinked directories,
+    # so a run folder assembled out of symlinks produced a valid, useless file.
+    if packed == 0:
+        dest.unlink(missing_ok=True)
+        raise ValueError(
+            f"Nothing to bundle in {root}. If this folder is built from "
+            "symlinks, pack the real directories instead — a bundle cannot "
+            "follow them.")
     return dest
 
 

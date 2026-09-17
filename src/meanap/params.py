@@ -337,6 +337,31 @@ class Params:
     # acquisition rate (3.3 s at 15 Hz, 1.5 s at 33 Hz). Set it in seconds to
     # make the refractory period mean the same thing across a mixed-rate batch.
     twop_min_event_interval: float | None = None
+
+    # Cross-day cell tracking (see catnap/tracking/, designed in
+    # python/CATNAP_CELLTRACKING_PLAN.md). Off by default: it needs multi-DIV
+    # chains of the same field of view, which not every dataset has.
+    track_cells: bool = False
+    # Chains whose measured field-of-view offset is below this are tracked
+    # *unregistered*. Two density bins: correcting a smaller offset than we can
+    # measure injects more error than it removes, and did so for 47 day-pairs.
+    track_min_shift_px: float = 16.0
+    # A day-pair below this ROI-layout agreement is a different field of view;
+    # its measured displacement is noise and must not constrain the offset solve.
+    track_reliable_ncc: float = 0.45
+    # A match rate below this is indistinguishable from the false-positive
+    # floor. **Derive this from controls for your own rig** — 0.10 is the
+    # measured floor for the Mecp2 dataset (foreign-FOV max 0.091) and does not
+    # transfer. The pre-existing 0.05 convention sits *below* that floor.
+    track_tracked_threshold: float = 0.10
+    # suite2p's neuropil coefficient, for the validation traces.
+    track_neuropil_coeff: float = 0.7
+    # Validate matches against activity the matcher never saw. Costs one pass
+    # over the traces and is what makes a match rate interpretable.
+    track_validate_activity: bool = True
+    # Cells per chain in the QC page. They are sampled across the ranking,
+    # worst first, rather than taken from the top.
+    track_viewer_cells: int = 40
     python_path: str = ""
 
     # Cell-type subnetwork analysis (see catnap/subnetwork.py). When enabled,
