@@ -87,6 +87,142 @@ class ViewerService:
         self.cache = RenderCache.in_temp()
         self.source = source
 
+    # ── cell tracking ────────────────────────────────────────────────────────
+
+    def _tracking_dir(self) -> Path | None:
+        root = self._bundle.root if self._bundle is not None else Path(self.source)
+        for candidate in (root / "CellTracking", root):
+            if (candidate / "payload").is_dir():
+                return candidate
+        return None
+
+    def tracking(self) -> dict:
+        """Chains this run tracked, with the numbers needed to choose one.
+
+        Ordered by separability rather than match rate: the two disagree, and
+        the chain that tracks the fewest cells can be the one whose matches are
+        most trustworthy.
+        """
+        root = self._tracking_dir()
+        if root is None:
+            return {"available": False, "chains": []}
+
+        summary = {}
+        summary_path = root / "summary.json"
+        if summary_path.is_file():
+            summary = json.loads(summary_path.read_text())
+
+        chains = []
+        for payload_path in sorted((root / "payload").glob("*.json")):
+            key = payload_path.stem
+            meta_path = root / "chains" / f"{key}.json"
+            meta = json.loads(meta_path.read_text()) if meta_path.is_file() else {}
+            quality = meta.get("quality") or {}
+            network = meta.get("network") or {}
+            chains.append({
+                "chain": key,
+                # cells tracked into at least two days — what the network view
+                # can draw. ``allDayCells`` is the stricter all-days count.
+                "networkCells": network.get("nCells", network.get("nShared", 0)),
+                "allDayCells": network.get("nShared", 0),
+                "nStability": len(meta.get("network_stability") or []),
+                "divs": meta.get("divs", []),
+                "genotype": meta.get("genotype", ""),
+                "prep": meta.get("prep", ""),
+                "registered": bool(meta.get("registered", False)),
+                "measuredShiftPx": meta.get("measured_shift_px"),
+                "separability": quality.get("separability"),
+                "coverage": quality.get("coverage"),
+                "persistence": quality.get("persistence"),
+                "warnings": quality.get("warnings", []),
+            })
+        chains.sort(key=lambda c: (c["separability"] is None,
+                                   -(c["separability"] or 0)))
+        return {"available": True, "summary": summary, "chains": chains}
+
+    def tracking_overview(self) -> dict:
+        """Dataset-level tracking numbers, for the plots that span chains.
+
+        All of it comes out of ``CellTracking/chains/*.json``, which the bundle
+        already carries -- no extra data has to travel for these.
+        """
+        root = self._tracking_dir()
+        if root is None:
+            return {"available": False}
+
+        pairs, chains = [], []
+        for meta_path in sorted((root / "chains").glob("*.json")):
+            meta = json.loads(meta_path.read_text())
+            quality = meta.get("quality") or {}
+            rates = [v.get("frac_of_smaller") for v in (meta.get("pairwise") or {}).values()]
+            rates = [r for r in rates if r is not None]
+            chains.append({
+                "chain": meta.get("chain", meta_path.stem),
+                "genotype": meta.get("genotype", ""),
+                "prep": meta.get("prep", ""),
+                "registered": bool(meta.get("registered", False)),
+                "shiftPx": meta.get("measured_shift_px"),
+                "medianMatch": (sorted(rates)[len(rates) // 2] if rates else None),
+                "separability": quality.get("separability"),
+                "coverage": quality.get("coverage"),
+                "persistence": quality.get("persistence"),
+                "nCells": quality.get("n_cells"),
+                "nFingerprints": quality.get("n_fingerprints"),
+            })
+            for name, v in (meta.get("pairwise") or {}).items():
+                pairs.append({
+                    "chain": meta.get("chain", meta_path.stem),
+                    "genotype": meta.get("genotype", ""),
+                    "divGap": v.get("div_gap"),
+                    "rate": v.get("frac_of_smaller"),
+                    "registered": bool(meta.get("registered", False)),
+                })
+
+        summary = {}
+        summary_path = root / "summary.json"
+        if summary_path.is_file():
+            summary = json.loads(summary_path.read_text())
+        return {"available": True, "summary": summary,
+                "chains": chains, "pairs": pairs,
+                "threshold": summary.get("tracked_threshold", 0.10),
+                "gatePx": summary.get("min_shift_px", 16.0)}
+
+    def tracking_network(self, chain: str) -> dict:
+        """One chain's tracked-cell network and its day-pair stability.
+
+        Read from ``chains/<chain>.json`` rather than the per-cell payload: it
+        is a few tens of kB against a couple of megabytes, and nothing here
+        needs the traces.
+        """
+        root = self._tracking_dir()
+        if root is None:
+            raise FileNotFoundError("this run has no cell-tracking results")
+        path = (root / "chains" / f"{chain}.json").resolve()
+        if not path.is_file() or (root / "chains").resolve() not in path.parents:
+            raise FileNotFoundError(f"no chain named {chain!r}")
+        meta = json.loads(path.read_text())
+        return {"chain": chain,
+                "divs": meta.get("divs", []),
+                "network": meta.get("network") or {},
+                "stability": meta.get("network_stability") or [],
+                "metricStability": meta.get("network_metric_stability") or []}
+
+    def tracking_page(self, chain: str) -> str:
+        """The per-cell page, rebuilt from the payload the bundle carries."""
+        from meanap.catnap.tracking.viewer import render_page
+
+        return render_page(self.tracking_payload(chain))
+
+    def tracking_payload(self, chain: str) -> dict:
+        root = self._tracking_dir()
+        if root is None:
+            raise FileNotFoundError("this run has no cell-tracking results")
+        path = (root / "payload" / f"{chain}.json").resolve()
+        # the chain name arrives from a query string, so confine it to the folder
+        if not path.is_file() or (root / "payload").resolve() not in path.parents:
+            raise FileNotFoundError(f"no tracking payload for {chain!r}")
+        return json.loads(path.read_text())
+
     def close(self) -> None:
         self.cache.close()
         if self._bundle is not None:
@@ -468,6 +604,19 @@ class _Handler(BaseHTTPRequestHandler):
             elif parsed.path == "/api/family":
                 self._json(self.service.family(
                     _one(query, "key"), fmt=_fmt(query)))
+            elif parsed.path == "/api/tracking":
+                self._json(self.service.tracking())
+            elif parsed.path == "/api/trackingpayload":
+                self._json(self.service.tracking_payload(_one(query, "chain")))
+            elif parsed.path == "/api/trackingoverview":
+                self._json(self.service.tracking_overview())
+            elif parsed.path == "/api/trackingnetwork":
+                self._json(self.service.tracking_network(_one(query, "chain")))
+            elif parsed.path == "/api/trackingpage":
+                # the theme rides on the URL so the page can set it before
+                # first paint, rather than flashing the wrong one
+                self._send(200, "text/html; charset=utf-8",
+                           self.service.tracking_page(_one(query, "chain")).encode())
             elif parsed.path == "/api/trace":
                 self._trace(query)
             elif parsed.path == "/api/asset":

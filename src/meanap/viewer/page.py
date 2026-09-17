@@ -34,14 +34,29 @@ PAGE_HTML = r"""<!doctype html>
 <title>MEA-NAP viewer</title>
 <style>
   :root {
+    /* Plot colours live here rather than in the script so the theme toggle
+       moves them too. The dark variants are lightened: the light-theme blues
+       and purples sit at roughly 30% luminance and vanish on a dark ground. */
+    --plot-wt: #2c7fb8; --plot-het: #7b3294; --plot-ko: #d95f0e;
+    --plot-other: #6b7280; --plot-off: #98a0a8; --plot-sel: #d62728;
     --bg: #ffffff; --fg: #16181d; --muted: #6b7280; --line: #e3e6ea;
     --panel: #f7f8fa; --accent: #2563eb; --accent-soft: #eaf0fe;
   }
   @media (prefers-color-scheme: dark) {
-    :root {
+    :root:not([data-theme="light"]) {
+      --plot-wt: #5aa9dd; --plot-het: #b07bd6; --plot-ko: #f2a057;
+      --plot-other: #9aa1ac; --plot-off: #6b747d; --plot-sel: #ff6b6b;
       --bg: #14161a; --fg: #e7e9ee; --muted: #9aa1ac; --line: #2a2e35;
       --panel: #1b1e24; --accent: #6ea8fe; --accent-soft: #1e2836;
     }
+  }
+  /* The toggle has to win in both directions, so dark is also stated
+     explicitly rather than only as a media-query default. */
+  :root[data-theme="dark"] {
+    --plot-wt: #5aa9dd; --plot-het: #b07bd6; --plot-ko: #f2a057;
+    --plot-other: #9aa1ac; --plot-off: #6b747d; --plot-sel: #ff6b6b;
+    --bg: #14161a; --fg: #e7e9ee; --muted: #9aa1ac; --line: #2a2e35;
+    --panel: #1b1e24; --accent: #6ea8fe; --accent-soft: #1e2836;
   }
   * { box-sizing: border-box; }
   body {
@@ -51,6 +66,10 @@ PAGE_HTML = r"""<!doctype html>
     grid-template-columns: 260px 1fr 280px;
     grid-template-rows: auto 1fr;
     grid-template-areas: "tabs tabs tabs" "left main right";
+    transition: grid-template-columns .12s ease; }
+  /* The right column is a fixed track, so hiding the panel inside it leaves a
+     280px gap. Collapse the track itself when nothing is in it. */
+  body.no-right { grid-template-columns: 260px 1fr 0;
   }
   @media (max-width: 900px) {
     body { grid-template-columns: 1fr; grid-template-rows: auto auto auto auto;
@@ -73,7 +92,7 @@ PAGE_HTML = r"""<!doctype html>
     text-transform: uppercase; color: var(--muted); font-weight: 600; }
   #params table { border-collapse: collapse; width: 100%; max-width: 860px;
     font-size: 13px; }
-  #params td { padding: 5px 10px; border-top: 1px solid var(--border);
+  #params td { padding: 5px 10px; border-top: 1px solid var(--line);
     vertical-align: top; }
   #params tr.changed td.k, #params tr.changed td.v { font-weight: 600; }
   #params td.k { width: 38%; font-family: ui-monospace, SFMono-Regular, Menlo,
@@ -153,6 +172,43 @@ PAGE_HTML = r"""<!doctype html>
   .group-head { grid-column: 1 / -1; font-size: 11px; text-transform: uppercase;
     letter-spacing: .08em; color: var(--muted); margin-top: 8px; }
   .hidden { display: none !important; }
+  .trackgrid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(430px, 1fr));
+               padding: 4px 2px 16px; }
+  .trackfig { margin: 0; border: 1px solid var(--line); border-radius: 8px; padding: 10px; }
+  .trackfig figcaption { font-size: 12.5px; margin-bottom: 6px; }
+  .trackplot { width: 100%; height: auto; display: block; }
+  .trackgrid .legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 11px;
+                       margin-top: 4px; }
+  #tip { position: fixed; z-index: 99; display: none; max-width: 330px;
+         background: var(--panel); color: var(--fg); border: 1px solid var(--line);
+         border-radius: 7px; padding: 8px 10px; font-size: 12px; line-height: 1.45;
+         box-shadow: 0 6px 22px rgba(0,0,0,.28); pointer-events: none; }
+  #tip hr { border: 0; border-top: 1px solid var(--line); margin: 5px 0; }
+  #tip .dim { color: var(--muted); }
+  #tip code { font-size: 11.5px; }
+  .warn { color: var(--plot-ko); }
+  .hotdot { cursor: help; }
+  .hotdot:hover { stroke: var(--fg); stroke-width: 1.4px; }
+  .axhelp { cursor: help; text-decoration: underline dotted; }
+  .trackgrid .legend .sw { display: inline-block; width: 10px; height: 10px;
+                           border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
+  .twocol { display: flex; gap: 18px; flex-wrap: wrap; }
+  .netrow { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-start; }
+  .netfig { flex: 0 0 auto; }
+  .netlegend { display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+               font-size: 11px; margin-bottom: 8px; }
+  .netlegend .ramp { display: inline-block; width: 160px; height: 10px;
+                     border-radius: 3px; border: 1px solid var(--line); }
+  .netnode { cursor: pointer; }
+  .netplot { cursor: grab; touch-action: none; }
+  .netplot:active { cursor: grabbing; }
+  .netfig figcaption { margin-top: 4px; text-align: center; }
+  .tracktab { border-collapse: collapse; font-size: 12px; flex: 1 1 160px; }
+  .tracktab th, .tracktab td { text-align: left; padding: 2px 8px 2px 0;
+                               border-bottom: 1px solid var(--line); }
+  .tracktab .num { text-align: right; font-variant-numeric: tabular-nums; }
+  .tracktab .bar { display: inline-block; height: 7px; border-radius: 3px;
+                   background: var(--plot-wt); min-width: 1px; }
 </style>
 </head>
 <body>
@@ -162,6 +218,10 @@ PAGE_HTML = r"""<!doctype html>
   <button id="tab-recordings" data-tab="recordings" aria-selected="true">Recordings</button>
   <button id="tab-comparisons" data-tab="comparisons" aria-selected="false">Comparisons</button>
   <button id="tab-lags" data-tab="lags" aria-selected="false">Across lags</button>
+  <button id="tab-tracking" data-tab="tracking" aria-selected="false"
+          class="hidden">Cell tracking</button>
+  <button id="theme" class="ghost" title="Light, dark, or follow the system"
+          aria-label="Theme">◐ system</button>
   <button id="tab-stats" data-tab="stats" aria-selected="false">Statistics</button>
   <button id="tab-params" data-tab="params" aria-selected="false">Parameters</button>
   <span class="spacer"></span>
@@ -213,6 +273,19 @@ does not have MEA-NAP installed.">Export output folder</button>
     <div class="list" id="param-groups"></div>
   </div>
 
+  <div id="side-tracking" class="hidden">
+    <h2>View</h2>
+    <select id="track-view">
+      <option value="overview">Overview &mdash; all chains</option>
+      <option value="cells">Cells &mdash; one chain</option>
+      <option value="network">Network &mdash; one chain</option>
+    </select>
+    <h2>Chain</h2>
+    <p class="sub">Ordered by how well matches separate from a co-located
+    different cell &mdash; not by match rate. The two disagree.</p>
+    <select id="track-chain"></select>
+    <div id="track-meta" class="sub"></div>
+  </div>
   <div id="side-stats" class="hidden">
     <h2 id="stats-lag-head">Timescale</h2>
     <select id="stats-lag"></select>
@@ -242,6 +315,7 @@ does not have MEA-NAP installed.">Export output folder</button>
   <div id="pair" class="hidden"></div>
   <div class="gallery hidden" id="gallery"></div>
   <div id="params" class="hidden"></div>
+  <div id="tracking" class="hidden"></div>
 </main>
 
 <aside class="right" id="controls-panel">
@@ -1338,11 +1412,887 @@ function selectTab(tab) {
   $("side-lags").classList.toggle("hidden", tab !== "lags");
   $("side-stats").classList.toggle("hidden", tab !== "stats");
   $("side-params").classList.toggle("hidden", tab !== "params");
+  $("side-tracking").classList.toggle("hidden", tab !== "tracking");
+  $("tracking").classList.toggle("hidden", tab !== "tracking");
+  // The figure panes are hidden by setMode, which only runs for the figure
+  // tabs. Without this the last figure — and its styling controls — stay on
+  // screen underneath the tracking content, which reads as the tracking view
+  // showing someone else's plot.
+  // the right column holds only figure controls
+  document.body.classList.toggle("no-right", tab === "tracking");
+  if (tab === "tracking") {
+    // the whole toolbar, not just the buttons: #status carries the current
+    // figure's name, which otherwise sits above the tracking view labelling it
+    // as something like "1_adjM1000msConnectivityStats"
+    for (const id of ["single", "pair", "gallery", "params", "figure-caption",
+                      "controls-panel", "facets-panel", "toolbar", "error",
+                      "dl-png", "dl-svg", "dl-pdf", "export"])
+      if ($(id)) $(id).classList.add("hidden");
+  }
+  else {
+    // leaving tracking: the figure tabs own these again
+    for (const id of ["toolbar", "error"])
+      if ($(id)) $(id).classList.remove("hidden");
+  }
   if (tab === "recordings") showFigure();
   else if (tab === "comparisons") showComparison();
   else if (tab === "stats") showStats();
   else if (tab === "params") showParams();
+  else if (tab === "tracking") showTracking();
   else showLagSeries();
+}
+
+const THEMES = ["system", "light", "dark"];
+const THEME_LABEL = {system: "◐ system", light: "☀ light", dark: "☾ dark"};
+
+function currentTheme() {
+  try { return localStorage.getItem("meanap-theme") || "system"; }
+  catch (e) { return "system"; }   // private mode, or storage blocked
+}
+
+function applyTheme(name) {
+  const root = document.documentElement;
+  if (name === "system") root.removeAttribute("data-theme");
+  else root.setAttribute("data-theme", name);
+  try { localStorage.setItem("meanap-theme", name); } catch (e) {}
+  const btn = $("theme");
+  if (btn) btn.textContent = THEME_LABEL[name];
+  // Plot colours were resolved to literal values when the SVG was built, so
+  // anything already drawn has to be drawn again to pick the new ones up.
+  if (TAB === "tracking") showTracking();
+}
+
+function cycleTheme() {
+  const next = THEMES[(THEMES.indexOf(currentTheme()) + 1) % THEMES.length];
+  applyTheme(next);
+}
+
+/** What the iframe should use: the explicit choice, or whatever the OS says. */
+function effectiveTheme() {
+  const t = currentTheme();
+  if (t !== "system") return t;
+  return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches
+    ? "dark" : "light";
+}
+
+let TRACKING = null, TRACK_OVERVIEW = null;
+
+const SVGNS = "http://www.w3.org/2000/svg";
+
+/** One tooltip for the whole page, positioned by the cursor.
+ *
+ *  SVG's native <title> works but takes a second to appear and cannot be
+ *  styled or hold more than a line or two — which is not enough to say what a
+ *  point is *and* what its axis means.
+ */
+function tipHost() {
+  let el = document.getElementById("tip");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "tip";
+    el.setAttribute("role", "tooltip");
+    document.body.appendChild(el);
+  }
+  return el;
+}
+
+function attachTip(el, html) {
+  if (!html) return el;
+  const show = ev => {
+    const t = tipHost();
+    t.innerHTML = html;
+    t.style.display = "block";
+    const pad = 14, w = t.offsetWidth, h = t.offsetHeight;
+    // flip towards the middle near an edge, so the tip never leaves the window
+    let x = ev.clientX + pad, y = ev.clientY + pad;
+    if (x + w > window.innerWidth - 8) x = ev.clientX - w - pad;
+    if (y + h > window.innerHeight - 8) y = ev.clientY - h - pad;
+    t.style.left = Math.max(4, x) + "px";
+    t.style.top = Math.max(4, y) + "px";
+  };
+  el.addEventListener("mousemove", show);
+  el.addEventListener("mouseenter", show);
+  el.addEventListener("mouseleave", () => { tipHost().style.display = "none"; });
+  return el;
+}
+
+/** What each axis actually means — the definitions are not guessable. */
+const AXIS_HELP = {
+  separability:
+    "<b>Separability</b><br>Fingerprint AUC against the <i>spatial null</i>: the "
+    + "probability that a matched cell's functional fingerprint agrees across days "
+    + "better than a different cell in essentially the same place does.<br><br>"
+    + "The null swaps each matched cell for its <b>nearest spatial neighbour</b>, so "
+    + "position is held roughly fixed and only identity varies. A random null would "
+    + "score far higher and mean less — it destroys position as well as identity.<br><br>"
+    + "0.5 = no information. This dataset's median is ~0.66.",
+  coverage:
+    "<b>Coverage</b><br>Median across this chain's day-pairs of "
+    + "<code>shared clusters ÷ cells in the smaller session</code>.<br><br>"
+    + "How <i>many</i> cells were matched — which is a different question from "
+    + "whether the matches are right, and the two disagree.",
+  persistence:
+    "<b>Persistence</b><br>Fraction of tracked cells present on <i>every</i> day of "
+    + "the chain, rather than just some pair of days.",
+  divGap:
+    "<b>DIV gap</b><br>Days between the two recordings in a pair.",
+  matchRate:
+    "<b>Match rate</b><br><code>shared clusters ÷ cells in the smaller session</code> "
+    + "for one day-pair. The smaller session is the denominator, so a pair matching a "
+    + "large session against a small one is the most easily inflated.",
+  offset:
+    "<b>Field-of-view offset</b><br>Displacement between two days, estimated by "
+    + "cross-correlating <b>ROI footprints</b> — never the mean image, which carries a "
+    + "detector-fixed stripe artifact that makes unrelated recordings correlate at "
+    + "0.87.<br><br>Chains below the gate are tracked unregistered: correcting an "
+    + "offset smaller than the measurement resolution injects more error than it removes.",
+};
+function svgEl(t, a) { const e = document.createElementNS(SVGNS, t);
+  for (const k in a) e.setAttribute(k, a[k]); return e; }
+
+/** One scatter panel with axes. `pts` are {x, y, c, r, title}. */
+function scatterPanel(title, sub, pts, opts) {
+  const W = 470, H = 250, L = 52, R = 14, T = 12, B = 42;
+  const fig = document.createElement("figure");
+  fig.className = "trackfig";
+  fig.innerHTML = `<figcaption><b>${title}</b><br><span class="sub">${sub}</span></figcaption>`;
+  const svg = svgEl("svg", {viewBox: `0 0 ${W} ${H}`, class: "trackplot"});
+  const xs = pts.map(p => p.x), ys = pts.map(p => p.y);
+  let x0 = opts.x0 !== undefined ? opts.x0 : Math.min(...xs);
+  let x1 = opts.x1 !== undefined ? opts.x1 : Math.max(...xs);
+  let y0 = opts.y0 !== undefined ? opts.y0 : Math.min(...ys);
+  let y1 = opts.y1 !== undefined ? opts.y1 : Math.max(...ys);
+  if (x1 <= x0) x1 = x0 + 1;
+  if (y1 <= y0) y1 = y0 + 1;
+  const lg = opts.logX ? v => Math.log10(Math.max(v, opts.logFloor || 1)) : v => v;
+  const lx0 = lg(x0), lx1 = lg(x1);
+  const sx = v => L + (lg(v) - lx0) / ((lx1 - lx0) || 1) * (W - L - R);
+  const sy = v => H - B - (v - y0) / ((y1 - y0) || 1) * (H - B - T);
+
+  svg.append(svgEl("line", {x1: L, y1: H - B, x2: W - R, y2: H - B,
+                            stroke: "var(--line)", "stroke-width": 1}));
+  svg.append(svgEl("line", {x1: L, y1: T, x2: L, y2: H - B,
+                            stroke: "var(--line)", "stroke-width": 1}));
+  const tick = (x, y, t, anchor) => { const e = svgEl("text",
+    {x, y, "font-size": 10, fill: "var(--muted)", "text-anchor": anchor || "middle"});
+    e.textContent = t; svg.append(e); return e; };
+  (opts.xTicks || [x0, x1]).forEach(v => tick(sx(v), H - B + 14, opts.fmtX ? opts.fmtX(v) : v));
+  (opts.yTicks || [y0, y1]).forEach(v => tick(L - 7, sy(v) + 3, opts.fmtY ? opts.fmtY(v) : v, "end"));
+
+  const xl = tick((L + W - R) / 2, H - 8, opts.xLabel);
+  const yl = svgEl("text", {x: 12, y: (T + H - B) / 2, "font-size": 10,
+    fill: "var(--muted)", "text-anchor": "middle",
+    transform: `rotate(-90 12 ${(T + H - B) / 2})`});
+  yl.textContent = opts.yLabel; svg.append(yl);
+  // a dotted underline is the convention for "there is an explanation here"
+  for (const [el, help] of [[xl, opts.xHelp], [yl, opts.yHelp]]) {
+    if (!help) continue;
+    el.setAttribute("class", "axhelp");
+    attachTip(el, help);
+  }
+
+  (opts.rules || []).forEach(r => {
+    const vertical = r.x !== undefined;
+    svg.append(svgEl("line", vertical
+      ? {x1: sx(r.x), y1: T, x2: sx(r.x), y2: H - B}
+      : {x1: L, y1: sy(r.y), x2: W - R, y2: sy(r.y)},
+      ));
+    const ln = svg.lastChild;
+    ln.setAttribute("stroke", "var(--muted)");
+    ln.setAttribute("stroke-dasharray", "4 3");
+    ln.setAttribute("stroke-width", 1);
+    ln.setAttribute("opacity", .7);
+    const lab = svgEl("text", {"font-size": 9, fill: "var(--muted)",
+      x: vertical ? sx(r.x) + 4 : W - R, y: vertical ? T + 9 : sy(r.y) - 4,
+      "text-anchor": vertical ? "start" : "end"});
+    lab.textContent = r.label; svg.append(lab);
+  });
+
+  for (const p of pts) {
+    const c = svgEl("circle", {cx: sx(p.x), cy: sy(p.y), r: p.r || 3.4,
+      fill: p.c, "fill-opacity": .75, stroke: p.c, "stroke-opacity": .9,
+      "stroke-width": .8});
+    if (p.tip) {
+      // no native <title> alongside it: the browser's own tooltip appears a
+      // second later, in its own box, and lands on top of this one
+      c.setAttribute("class", "hotdot");
+      attachTip(c, p.tip);
+    } else if (p.title) {
+      const tt = svgEl("title");
+      tt.textContent = p.title;
+      c.append(tt);
+    }
+    svg.append(c);
+  }
+  fig.append(svg);
+  return fig;
+}
+
+
+/** Everything known about a chain, for its hover. */
+function chainTip(c, extra) {
+  const f = (v, d) => v == null ? "n/a" : Number(v).toFixed(d);
+  const lines = [
+    `<b>${c.chain}</b>`,
+    `${c.genotype || "?"} · prep ${c.prep || "?"}`,
+    "<hr>",
+    `separability <b>${f(c.separability, 3)}</b>`,
+    `coverage <b>${f(c.coverage, 3)}</b>`,
+    `persistence <b>${f(c.persistence, 3)}</b>`,
+    `cells tracked <b>${c.nCells == null ? "n/a" : c.nCells}</b>` +
+      (c.nCells == null ? "" : " <span class='dim'>(circle area)</span>"),
+    `fingerprints <b>${c.nFingerprints == null ? "n/a" : c.nFingerprints}</b>`,
+    `offset <b>${f(c.shiftPx, 1)} px</b> · ` +
+      (c.registered ? "registered" : "<i>passed through the gate</i>"),
+  ];
+  if (extra) lines.push("<hr>", extra);
+  return lines.join("<br>");
+}
+
+const GENO_VAR = {WT: "--plot-wt", Het: "--plot-het", KO: "--plot-ko"};
+/** Resolve a theme variable to a real colour: SVG attributes need a value, and
+ *  an unresolved var() silently falls back to black — which is invisible on a
+ *  dark ground and is what made these plots unreadable. */
+function themeColour(name) {
+  const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  return v || "#888";
+}
+const genoColour = g => themeColour(GENO_VAR[g] || "--plot-other");
+
+function legendRow(items) {
+  return '<div class="legend">' + items.map(([c, t]) =>
+    `<span><i class="sw" style="background:${c}"></i>${t}</span>`).join("") + "</div>";
+}
+
+async function showTrackingOverview() {
+  const host = $("tracking");
+  host.innerHTML = '<p class="sub">Loading…</p>';
+  if (!TRACK_OVERVIEW) {
+    try { TRACK_OVERVIEW = await getJSON("/api/trackingoverview"); }
+    catch (e) { host.innerHTML = '<p class="err">' + String(e.message || e) + "</p>"; return; }
+  }
+  const D2 = TRACK_OVERVIEW;
+  if (!D2.available) { host.innerHTML = '<p class="sub">No tracking results.</p>'; return; }
+  host.innerHTML = "";
+
+  const grid = document.createElement("div");
+  grid.className = "trackgrid";
+  const genos = [...new Set(D2.chains.map(c => c.genotype).filter(Boolean))].sort();
+  const legend = legendRow(genos.map(g => [genoColour(g), g]));
+
+  // 1. does tracking decay with elapsed time?
+  const pairs = D2.pairs.filter(p => p.rate != null && p.divGap != null);
+  grid.append(scatterPanel(
+    "Match rate against elapsed time",
+    "one point per day-pair" + legend,
+    pairs.map(p => ({x: p.divGap, y: p.rate, c: genoColour(p.genotype), r: 3,
+                     title: `${p.chain} · DIV gap ${p.divGap} · ${p.rate.toFixed(3)}`,
+                     tip: `<b>${p.chain}</b><br>${p.genotype || "?"}<hr>` +
+                          `DIV gap <b>${p.divGap}</b> days<br>` +
+                          `match rate <b>${p.rate.toFixed(3)}</b><br>` +
+                          (p.registered ? "registered" : "<i>passed through the gate</i>")})),
+    {xLabel: "DIV gap (days)", yLabel: "match rate", y0: 0,
+     xHelp: AXIS_HELP.divGap, yHelp: AXIS_HELP.matchRate,
+     y1: Math.max(0.2, ...pairs.map(p => p.rate)),
+     rules: [{y: D2.threshold, label: `tracked ≥ ${D2.threshold}`}],
+     fmtX: v => v.toFixed(0), fmtY: v => v.toFixed(2)}));
+
+  // 2. the two quality axes disagree, and that is the point
+  const q = D2.chains.filter(c => c.separability != null && c.coverage != null);
+  const maxCells = Math.max(1, ...q.map(c => c.nCells || 0));
+  grid.append(scatterPanel(
+    "Separability against coverage",
+    "one point per chain, sized by cells tracked" + legend,
+    q.map(c => ({x: c.separability, y: c.coverage, c: genoColour(c.genotype),
+                 r: 3 + 6 * Math.sqrt((c.nCells || 0) / maxCells),
+                 title: `${c.chain} · sep ${c.separability.toFixed(2)} · `
+                        + `cov ${c.coverage.toFixed(2)} · ${c.nCells || 0} cells`,
+                 tip: chainTip(c,
+                   "High separability with low coverage means few matches, well "
+                   + "made. The two axes disagree, and match rate is not a "
+                   + "per-match quality score.")})),
+    {xLabel: "separability (fingerprint AUC vs the spatial null)",
+     yLabel: "coverage (median match rate)", x0: 0.4, x1: 1, y0: 0, y1: 1,
+     xHelp: AXIS_HELP.separability, yHelp: AXIS_HELP.coverage,
+     rules: [{x: 0.55, label: "0.55 — below this, matches barely separate"}],
+     fmtX: v => v.toFixed(2), fmtY: v => v.toFixed(2)}));
+
+  // 3. did the gate decide correctly?
+  const shifted = D2.chains.filter(c => c.shiftPx != null && c.medianMatch != null);
+  grid.append(scatterPanel(
+    "Field-of-view offset against match rate",
+    "chains left of the gate were tracked unregistered" + legendRow([
+      [themeColour("--plot-wt"), "registered"],
+      [themeColour("--plot-off"), "passed through"]]),
+    shifted.map(c => ({x: Math.max(c.shiftPx, 1), y: c.medianMatch,
+                       c: c.registered ? themeColour("--plot-wt")
+                                        : themeColour("--plot-off"), r: 4,
+                       title: `${c.chain} · ${c.shiftPx.toFixed(1)} px · `
+                              + `median ${c.medianMatch.toFixed(3)}`,
+                       tip: chainTip(c,
+                         `median match <b>${c.medianMatch.toFixed(3)}</b>`)})),
+    {xLabel: "measured offset (px, log)", yLabel: "chain median match rate",
+     xHelp: AXIS_HELP.offset, yHelp: AXIS_HELP.matchRate,
+     logX: true, logFloor: 1, x0: 1, x1: Math.max(100, ...shifted.map(c => c.shiftPx)),
+     y0: 0, y1: Math.max(0.2, ...shifted.map(c => c.medianMatch)),
+     rules: [{x: D2.gatePx, label: `${D2.gatePx} px gate`},
+             {y: D2.threshold, label: `tracked ≥ ${D2.threshold}`}],
+     fmtX: v => v.toFixed(0), fmtY: v => v.toFixed(2)}));
+
+  grid.append(usablePanel(D2));
+  host.append(grid);
+}
+
+/** Usable chains by genotype and prep — the confound, shown by default. */
+function usablePanel(D2) {
+  const fig = document.createElement("figure");
+  fig.className = "trackfig";
+  const thr = D2.threshold;
+  const byGeno = {}, byPrep = {};
+  for (const c of D2.chains) {
+    const usable = c.medianMatch != null && c.medianMatch >= thr;
+    for (const [map, key] of [[byGeno, c.genotype || "?"], [byPrep, c.prep || "?"]]) {
+      map[key] = map[key] || {n: 0, ok: 0};
+      map[key].n++; if (usable) map[key].ok++;
+    }
+  }
+  const rows = (map) => Object.entries(map).sort()
+    .map(([k, v]) => `<tr><td>${k}</td><td class="num">${v.ok}/${v.n}</td>`
+      + `<td><span class="bar" style="width:${(v.n ? v.ok / v.n : 0) * 100}%"></span></td></tr>`)
+    .join("");
+  fig.innerHTML =
+    `<figcaption><b>Usable chains by genotype and prep</b><br>` +
+    `<span class="sub">median match ≥ ${thr}. Recovery covaries with prep and prep ` +
+    `covaries with genotype, so a group comparison built on tracked cells inherits ` +
+    `that — prefer within-prep comparisons.</span></figcaption>` +
+    `<div class="twocol"><table class="tracktab"><thead><tr><th>genotype</th>` +
+    `<th class="num">usable</th><th></th></tr></thead><tbody>${rows(byGeno)}</tbody></table>` +
+    `<table class="tracktab"><thead><tr><th>prep</th><th class="num">usable</th>` +
+    `<th></th></tr></thead><tbody>${rows(byPrep)}</tbody></table></div>`;
+  return fig;
+}
+
+async function initTracking() {
+  try { TRACKING = await getJSON("/api/tracking"); }
+  catch (e) { TRACKING = {available: false, chains: []}; }
+  if (!TRACKING.available || !TRACKING.chains.length) return;
+  $("tab-tracking").classList.remove("hidden");
+  fillChainPicker();
+  $("track-chain").addEventListener("change", showTracking);
+  $("track-view").addEventListener("change", showTracking);
+}
+
+async function showTracking() {
+  const view = $("track-view") ? $("track-view").value : "cells";
+  // Both the per-cell and the network views are of one chain, so the chain
+  // picker belongs to both. Only the overview spans the dataset.
+  const perChain = view !== "overview";
+  for (const id of ["track-chain", "track-meta", "track-chain-head"])
+    if ($(id)) $(id).classList.toggle("hidden", !perChain);
+  if (perChain) fillChainPicker();
+  if (view === "overview") return showTrackingOverview();
+  if (view === "network") return showTrackingNetwork();
+  const sel = $("track-chain");
+  if (!sel || !sel.value) return;
+  const meta = (TRACKING.chains || []).find(c => c.chain === sel.value) || {};
+  const fmt = (v, d) => v == null ? "n/a" : v.toFixed(d);
+  $("track-meta").innerHTML =
+    `<b>${meta.genotype || "?"}</b> · ${meta.prep || "?"} · DIVs ${(meta.divs || []).join(", ")}<br>` +
+    `separability ${fmt(meta.separability, 2)} · coverage ${fmt(meta.coverage, 2)} · ` +
+    `persistence ${fmt(meta.persistence, 2)}<br>` +
+    (meta.registered ? "registered" : "passed through unregistered") +
+    ` (${fmt(meta.measuredShiftPx, 1)} px)` +
+    networkNote(meta) +
+    (meta.warnings || []).map(w => `<br><span class="err">${w}</span>`).join("");
+
+  // The per-cell view is its own self-contained page, rebuilt by Python from
+  // the payload the bundle carries — the same "re-request it from the data"
+  // rule the figure tabs follow. An iframe keeps its markup, styles and script
+  // from colliding with this page's.
+  const host = $("tracking");
+  host.innerHTML = "";
+  const frame = document.createElement("iframe");
+  frame.setAttribute("title", "tracked cells for " + sel.value);
+  frame.style.cssText = "width:100%;height:calc(100vh - 150px);border:0;border-radius:8px";
+  frame.src = "/api/trackingpage?chain=" + encodeURIComponent(sel.value)
+            + "&theme=" + effectiveTheme();
+  host.appendChild(frame);
+}
+
+/** Whether this chain can draw a network, said plainly rather than implied. */
+function networkNote(meta) {
+  const n = meta.networkCells || 0, all = meta.allDayCells || 0;
+  return n >= 8
+    ? `<br><b>${n}</b> cells tracked into 2+ days (<b>${all}</b> on every day)`
+      + " — network can be drawn"
+    : `<br><span class="warn">only ${n} cells tracked into 2+ days — too few `
+      + "for a network</span>";
+}
+
+/** Group and order the chain list for the view being shown.
+ *
+ *  The network panels need cells present on *every* day, which is a far
+ *  stricter bar than being matched in some pair — many chains cannot draw one
+ *  at all. Putting those in their own group says so before a chain is picked,
+ *  rather than after it renders empty.
+ */
+function fillChainPicker() {
+  const sel = $("track-chain");
+  if (!sel || !TRACKING) return;
+  const keep = sel.value;
+  const view = $("track-view") ? $("track-view").value : "cells";
+  const network = view === "network";
+
+  const drawable = c => (c.networkCells || 0) >= 8;
+  const chains = TRACKING.chains.slice();
+  chains.sort((a, b) => {
+    if (network && drawable(a) !== drawable(b)) return drawable(a) ? -1 : 1;
+    if (network) return (b.networkCells || 0) - (a.networkCells || 0);
+    return (b.separability == null ? -1 : b.separability)
+         - (a.separability == null ? -1 : a.separability);
+  });
+
+  sel.innerHTML = "";
+  const label = c => {
+    const sep = c.separability == null ? "n/a" : c.separability.toFixed(2);
+    return network
+      ? `${c.chain}  ·  ${c.networkCells || 0} cells (${c.allDayCells || 0} all days)`
+      : `${c.chain}  ·  sep ${sep}`;
+  };
+  const add = (into, c) => {
+    const o = document.createElement("option");
+    o.value = c.chain; o.textContent = label(c);
+    into.appendChild(o);
+  };
+  if (network) {
+    const yes = chains.filter(drawable), no = chains.filter(c => !drawable(c));
+    for (const [name, list] of [
+        [`Network can be drawn (${yes.length})`, yes],
+        [`Too few cells through every day (${no.length})`, no]]) {
+      if (!list.length) continue;
+      const g = document.createElement("optgroup");
+      g.label = name;
+      for (const c of list) add(g, c);
+      sel.appendChild(g);
+    }
+  } else {
+    for (const c of chains) add(sel, c);
+  }
+  if (keep && [...sel.querySelectorAll("option")].some(o => o.value === keep))
+    sel.value = keep;
+}
+
+let NETWORK = null;
+
+/** One zoom shared by every network panel: the days are only comparable at the
+ *  same magnification and position, exactly as in the field-of-view strip. */
+let NET_VIEW = {k: 1, dx: 0, dy: 0};
+/** Cell index to isolate, or null for the whole network. */
+let NET_FOCUS = null;
+function netZoom() { return NET_VIEW; }
+
+/** Live panels, so pan and zoom can move what is on screen instead of
+ *  rebuilding it. Re-rendering mid-gesture destroyed the very element holding
+ *  the pointer listener, which is why dragging moved once and then stopped. */
+let NET_PANELS = [];
+
+function netTransform(S) {
+  const z = NET_VIEW;
+  return `translate(${(1 - z.k) * S / 2 + z.dx * S} `
+       + `${(1 - z.k) * S / 2 + z.dy * S}) scale(${z.k})`;
+}
+
+function applyNetView() {
+  for (const panel of NET_PANELS)
+    panel.g.setAttribute("transform", netTransform(panel.S));
+  const label = document.getElementById("net-zoom");
+  if (label) label.textContent = NET_VIEW.k.toFixed(1) + "\u00d7";
+}
+
+function resetNetZoom() { NET_VIEW = {k: 1, dx: 0, dy: 0}; drawNetwork(); }
+
+function attachNetZoom(svg, S, g) {
+  NET_PANELS.push({svg, g, S});
+
+  svg.addEventListener("wheel", ev => {
+    ev.preventDefault();
+    const r = svg.getBoundingClientRect();
+    const ux = (ev.clientX - r.left) / r.width - 0.5;
+    const uy = (ev.clientY - r.top) / r.height - 0.5;
+    const before = NET_VIEW.k;
+    const k = Math.max(1, Math.min(12, before * Math.exp(-ev.deltaY * 0.0016)));
+    NET_VIEW.dx -= ux * (k - before) / k;
+    NET_VIEW.dy -= uy * (k - before) / k;
+    NET_VIEW.k = k;
+    if (k === 1) { NET_VIEW.dx = 0; NET_VIEW.dy = 0; }
+    // a zoom changes node radii, which only a redraw can recompute
+    drawNetwork();
+  }, {passive: false});
+
+  let drag = null;
+  svg.addEventListener("pointerdown", ev => {
+    // no setPointerCapture: capturing on the svg steals the click from the
+    // node underneath, which is how clicking a cell stopped working
+    drag = {x: ev.clientX, y: ev.clientY, moved: false};
+  });
+  svg.addEventListener("pointermove", ev => {
+    if (!drag) return;
+    if (Math.abs(ev.clientX - drag.x) + Math.abs(ev.clientY - drag.y) > 2)
+      drag.moved = true;
+    const r = svg.getBoundingClientRect();
+    NET_VIEW.dx += (ev.clientX - drag.x) / r.width / NET_VIEW.k;
+    NET_VIEW.dy += (ev.clientY - drag.y) / r.height / NET_VIEW.k;
+    drag = {x: ev.clientX, y: ev.clientY, moved: drag.moved};
+    // panning only translates, so move the live panels rather than redraw
+    applyNetView();
+  });
+  const end = () => {
+    if (drag) NET_DRAGGED = drag.moved;   // a drag must not read as a click
+    drag = null;
+  };
+  svg.addEventListener("pointerup", end);
+  svg.addEventListener("pointercancel", end);
+  svg.addEventListener("dblclick", resetNetZoom);
+}
+
+/** True when the last pointer gesture moved, so click handlers can ignore it. */
+let NET_DRAGGED = false;
+
+const NODE_METRIC_LABEL = {
+  none: "uniform", strength: "strength", clustering: "clustering coefficient",
+  betweenness: "betweenness", participation: "participation coefficient",
+  module_z: "within-module z-score", role: "cartography role",
+};
+
+/** MEA-NAP's six roles. Peripheral first — it is ~90% of these nodes. */
+const ROLE_LABEL = {1: "peripheral", 2: "non-hub connector", 3: "non-hub kinless",
+                    4: "provincial hub", 5: "connector hub", 6: "kinless hub"};
+const ROLE_COLOUR = {1: "#9aa4af", 2: "#2c7fb8", 3: "#7b3294",
+                     4: "#f2a057", 5: "#d62728", 6: "#1a7f37"};
+
+/** Blue-to-red ramp for a continuous measure. */
+function rampColour(t) {
+  t = Math.max(0, Math.min(1, t));
+  const a = [44, 127, 184], b = [214, 39, 40];
+  return `rgb(${a.map((v, i) => Math.round(v + (b[i] - v) * t)).join(",")})`;
+}
+
+async function showTrackingNetwork() {
+  const sel = $("track-chain");
+  if (!sel || !sel.value) return;
+  const host = $("tracking");
+  host.innerHTML = '<p class="sub">Loading…</p>';
+  host.dataset.span = "";     // each chain picks its own default span
+  NET_VIEW = {k: 1, dx: 0, dy: 0};
+  NET_FOCUS = null;
+  try { NETWORK = await getJSON("/api/trackingnetwork?chain=" + encodeURIComponent(sel.value)); }
+  catch (e) { host.innerHTML = '<p class="err">' + String(e.message || e) + "</p>"; return; }
+  drawNetwork();
+}
+
+/** How many cells survive each span, so the choice is informed before it is made. */
+function spanCounts(net) {
+  const out = {};
+  for (let n = 2; n <= (net.nSessions || 2); n++)
+    out[n] = (net.span || []).filter(v => v >= n).length;
+  return out;
+}
+
+/** The legend for the current colouring: a ramp for a measure, swatches for roles. */
+function colourScale(colourBy, lo, hi) {
+  if (colourBy === "none") return "";
+  if (colourBy === "role") {
+    return '<div class="legend netlegend">'
+      + Object.keys(ROLE_LABEL).map(r =>
+          `<span><i class="sw" style="background:${ROLE_COLOUR[r]}"></i>`
+          + `${ROLE_LABEL[r]}</span>`).join("")
+      + "</div>";
+  }
+  const stops = [0, .25, .5, .75, 1].map(t => rampColour(t)).join(",");
+  const fmt = v => Number.isFinite(v) ? v.toFixed(2) : "–";
+  return '<div class="netlegend"><span class="sub">'
+    + `${NODE_METRIC_LABEL[colourBy]}</span>`
+    + `<span class="sub">${fmt(lo)}</span>`
+    + `<span class="ramp" style="background:linear-gradient(90deg,${stops})"></span>`
+    + `<span class="sub">${fmt(hi)}</span>`
+    + '<span class="sub">· scaled within each day</span></div>';
+}
+
+function drawNetwork() {
+  const host = $("tracking");
+  const d = NETWORK || {};
+  const net = d.network || {};
+  host.innerHTML = "";
+
+  if (!net.days || !net.days.length) {
+    host.innerHTML = '<p class="sub">Fewer than eight cells were tracked into '
+      + 'even two days of this chain, so there is no network to draw.</p>';
+    return;
+  }
+
+  const counts = spanCounts(net);
+  // default to the most demanding span that still has enough cells: the
+  // strictest honest answer, rather than the one with the most dots
+  let span = Number(host.dataset.span || 0);
+  if (!span) {
+    span = 2;
+    for (let n = net.nSessions; n >= 2; n--)
+      if ((counts[n] || 0) >= 8) { span = n; break; }
+    host.dataset.span = span;
+  }
+
+  const opts = [];
+  for (let n = 2; n <= (net.nSessions || 2); n++)
+    opts.push(`<option value="${n}"${n === span ? " selected" : ""}>`
+      + `tracked into ≥ ${n} days — ${counts[n]} cells</option>`);
+  const haveMetrics = (net.days || []).some(d => d.metrics);
+  const colourOpts = ["none", "strength", "clustering", "betweenness",
+                      "participation", "module_z", "role"]
+    .filter(k => k === "none" || haveMetrics)
+    .map(k => `<option value="${k}"${k === (host.dataset.colour || "none")
+      ? " selected" : ""}>${NODE_METRIC_LABEL[k]}</option>`).join("");
+  host.insertAdjacentHTML("beforeend",
+    '<div class="ctl" style="margin-bottom:10px">'
+    + '<label>cell set <select id="net-span">' + opts.join("") + "</select></label>"
+    + '<label>colour by <select id="net-colour">' + colourOpts + "</select></label>"
+    + '<label>size <select id="net-size">'
+    + ["small", "medium", "large"].map(k =>
+        `<option value="${k}"${k === (host.dataset.size || "medium")
+          ? " selected" : ""}>${k}</option>`).join("")
+    + "</select></label>"
+    + '<span class="sub">scroll to zoom · drag to pan · all days move together</span>'
+    + '<span class="sub" id="net-zoom">' + NET_VIEW.k.toFixed(1) + '\u00d7</span>' 
+    + '<button id="net-reset" type="button">reset view</button>' 
+    + `<span class="sub">of ${net.nCells} cells tracked into two or more days; `
+    + `${net.nShared} appear on all ${net.nSessions}</span></div>`);
+  $("net-span").addEventListener("change", e => {
+    host.dataset.span = e.target.value;
+    drawNetwork();
+  });
+  if ($("net-colour"))
+    $("net-colour").addEventListener("change", e => {
+      host.dataset.colour = e.target.value;
+      drawNetwork();
+    });
+  if ($("net-size"))
+    $("net-size").addEventListener("change", e => {
+      host.dataset.size = e.target.value;
+      drawNetwork();
+    });
+  if ($("net-reset")) $("net-reset").addEventListener("click", resetNetZoom);
+  const colourBy = host.dataset.colour || "none";
+
+  const keep = new Set();
+  (net.span || []).forEach((v, i) => { if (v >= span) keep.add(i); });
+  if (keep.size < 2) {
+    host.insertAdjacentHTML("beforeend",
+      '<p class="sub">Too few cells at this span to draw a network.</p>');
+    return;
+  }
+
+  const sizes = {small: 230, medium: 330, large: 460};
+  const sizeKey = host.dataset.size || "medium";
+  const S = sizes[sizeKey] || sizes.medium;
+
+  const xy = net.xy;
+  let lo = [Infinity, Infinity], hi = [-Infinity, -Infinity];
+  for (const i of keep) for (const k of [0, 1]) {
+    lo[k] = Math.min(lo[k], xy[i][k]); hi[k] = Math.max(hi[k], xy[i][k]); }
+  const pad = 12, spanPx = Math.max(hi[0] - lo[0], hi[1] - lo[1]) || 1;
+
+  let legendLo = Infinity, legendHi = -Infinity;
+  if (colourBy !== "none" && colourBy !== "role") {
+    for (const day of net.days) {
+      const m = (day.metrics || {})[colourBy];
+      if (!m) continue;
+      for (const i of keep) {
+        const v = m[String(i)];
+        if (v == null) continue;
+        legendLo = Math.min(legendLo, v); legendHi = Math.max(legendHi, v);
+      }
+    }
+  }
+  host.insertAdjacentHTML("beforeend", colourScale(colourBy, legendLo, legendHi));
+  if (NET_FOCUS != null)
+    host.insertAdjacentHTML("beforeend",
+      `<p class="sub">Showing <b>cell ${NET_FOCUS}</b> and what it connects to on `
+      + "each day; the rest of the network is faded. Click it again, or the "
+      + "background, to show everything.</p>");
+
+  NET_PANELS = [];
+  const wrap = document.createElement("div");
+  wrap.className = "netrow";
+  wrap.insertAdjacentHTML("beforeend",
+    `<p class="sub" style="flex:1 1 100%">${keep.size} cells, drawn on the `
+    + "coordinates of the first day each appears — so what changes between "
+    + "panels is the correlation structure, not the field of view. A cell is "
+    + "only drawn on the days it was actually tracked into. Edges are the "
+    + "strongest tenth on each day; node size is total correlation.</p>");
+
+  for (const day of net.days) {
+    const present = new Set((day.present || []).filter(i => keep.has(i)));
+    const fig = document.createElement("figure");
+    fig.className = "trackfig netfig";
+    fig.style.width = (S + 22) + "px";
+    const svg = svgEl("svg", {viewBox: `0 0 ${S} ${S}`, class: "trackplot netplot"});
+    const zoom = netZoom();
+    const g = svgEl("g", {transform:
+      `translate(${(1 - zoom.k) * S / 2 + zoom.dx * S} `
+      + `${(1 - zoom.k) * S / 2 + zoom.dy * S}) scale(${zoom.k})`});
+    svg.append(g);
+    const px = v => pad + (v - lo[1]) / spanPx * (S - 2 * pad);
+    const py = v => pad + (v - lo[0]) / spanPx * (S - 2 * pad);
+
+    let edges = (day.edges || []).filter(e => keep.has(e[0]) && keep.has(e[1]));
+    // clicking a cell asks "who is this one talking to?", so everything else
+    // fades rather than disappearing — the rest of the network is the context
+    // that makes the answer meaningful
+    let neighbours = null;
+    if (NET_FOCUS != null) {
+      neighbours = new Set([NET_FOCUS]);
+      for (const [i, j] of edges) {
+        if (i === NET_FOCUS) neighbours.add(j);
+        if (j === NET_FOCUS) neighbours.add(i);
+      }
+    }
+    let wlo = Infinity, whi = -Infinity;
+    for (const e of edges) { wlo = Math.min(wlo, e[2]); whi = Math.max(whi, e[2]); }
+    for (const [i, j, w] of edges) {
+      const t = whi > wlo ? (w - wlo) / (whi - wlo) : 1;
+      const onFocus = neighbours == null
+        || i === NET_FOCUS || j === NET_FOCUS;
+      g.append(svgEl("line", {x1: px(xy[i][1]), y1: py(xy[i][0]),
+        x2: px(xy[j][1]), y2: py(xy[j][0]),
+        stroke: onFocus ? themeColour("--plot-wt") : themeColour("--plot-off"),
+        "stroke-width": ((onFocus ? 0.5 + 2.0 * t : 0.3) / zoom.k).toFixed(2),
+        opacity: onFocus ? .55 : .06}));
+    }
+    // size always follows total correlation; colour follows the chosen measure
+    const st = day.strength || {};
+    let slo = Infinity, shi = -Infinity;
+    for (const i of present) {
+      const v = st[String(i)]; if (v == null) continue;
+      slo = Math.min(slo, v); shi = Math.max(shi, v); }
+
+    const cm = (day.metrics || {})[colourBy];
+    let clo = Infinity, chi = -Infinity;
+    if (cm) for (const i of present) {
+      const v = cm[String(i)]; if (v == null) continue;
+      clo = Math.min(clo, v); chi = Math.max(chi, v); }
+
+    for (const i of present) {
+      const v = st[String(i)];
+      const t = (v != null && shi > slo) ? (v - slo) / (shi - slo) : 0.5;
+      let fill = themeColour("--plot-sel");
+      if (colourBy === "role" && day.role) {
+        fill = ROLE_COLOUR[day.role[String(i)]] || themeColour("--plot-off");
+      } else if (cm) {
+        const cv = cm[String(i)];
+        fill = cv == null ? themeColour("--plot-off")
+          : rampColour(chi > clo ? (cv - clo) / (chi - clo) : 0.5);
+      }
+      const inFocus = neighbours == null || neighbours.has(i);
+      const isFocus = i === NET_FOCUS;
+      const dot = svgEl("circle", {cx: px(xy[i][1]), cy: py(xy[i][0]),
+        // divided by the zoom so nodes stay the same size on screen as you
+        // magnify — the point of zooming here is to separate them, not enlarge
+        r: ((isFocus ? 3.4 : 1.6 + 2.6 * t) / zoom.k).toFixed(2), fill,
+        "fill-opacity": inFocus ? .9 : .12});
+      if (isFocus) {
+        dot.setAttribute("stroke", themeColour("--fg"));
+        dot.setAttribute("stroke-width", (1.4 / zoom.k).toFixed(2));
+      }
+      dot.setAttribute("class", "netnode");
+      dot.addEventListener("click", ev => {
+        ev.stopPropagation();
+        if (NET_DRAGGED) { NET_DRAGGED = false; return; }
+        NET_FOCUS = (NET_FOCUS === i) ? null : i;   // clicking again releases
+        drawNetwork();
+      });
+      // "uniform" has no metric map; reading one because a role map happens to
+      // exist threw and took the whole render with it
+      const strengthLine = `strength ${v == null ? "n/a" : v.toFixed(3)}`;
+      let shown = null;
+      if (colourBy === "role" && day.role) shown = ROLE_LABEL[day.role[String(i)]] || "?";
+      else if (cm) shown = cm[String(i)] == null ? "n/a" : cm[String(i)].toFixed(3);
+      attachTip(dot, `<b>cell ${i}</b><br>` +
+        (shown == null ? "" : `${NODE_METRIC_LABEL[colourBy]}: <b>${shown}</b><br>`) +
+        strengthLine);
+      g.append(dot);
+    }
+    svg.addEventListener("click", () => {
+      if (NET_DRAGGED) { NET_DRAGGED = false; return; }
+      if (NET_FOCUS != null) { NET_FOCUS = null; drawNetwork(); }
+    });
+    attachNetZoom(svg, S, g);
+    fig.append(svg);
+    fig.insertAdjacentHTML("beforeend",
+      `<figcaption class="sub">DIV${day.div} · ${present.size} cells · `
+      + `${edges.length} edges` +
+      (day.threshold == null ? "" : ` ≥ ${day.threshold.toFixed(2)}`) +
+      (day.nModules == null ? ""
+        : `<br>${day.nModules} modules · Q ${day.modularity.toFixed(2)}`) +
+      "</figcaption>");
+    wrap.append(fig);
+  }
+  host.append(wrap);
+
+  // node measures and roles across days
+  const ms = d.metricStability || [];
+  if (ms.length) {
+    const metrics = Object.keys(ms[0].metrics || {});
+    const head = '<tr><th>day-pair</th><th class="num">gap</th><th class="num">n</th>'
+      + metrics.map(m => `<th class="num">${NODE_METRIC_LABEL[m] || m}</th>`).join("")
+      + '<th class="num">role κ</th></tr>';
+    const body = ms.map(r => {
+      const cells = metrics.map(m => {
+        const v = r.metrics[m] || {};
+        if (v.r == null) return '<td class="num sub">n/a</td>';
+        // the shuffled null sits beside each value: a measure can look stable
+        // simply because its distribution is skewed
+        const strong = v.null == null ? v.r > 0.2 : v.r - v.null > 0.15;
+        return `<td class="num"><b${strong ? "" : ' class="sub"'}>${v.r.toFixed(2)}</b>`
+             + `<br><span class="sub">null ${v.null == null ? "–" : v.null.toFixed(2)}</span></td>`;
+      }).join("");
+      const k = r.role || {};
+      const kappa = k.kappa == null ? "n/a" : k.kappa.toFixed(2);
+      return `<tr><td>${r.pair}</td><td class="num">${r.divGap}</td>`
+           + `<td class="num">${r.n}</td>${cells}`
+           + `<td class="num"><b>${kappa}</b><br><span class="sub">`
+           + `${k.agreement == null ? "" : (k.agreement * 100).toFixed(0) + "% raw"}`
+           + `</span></td></tr>`;
+    }).join("");
+    host.insertAdjacentHTML("beforeend",
+      '<figure class="trackfig"><figcaption><b>Do node measures and roles hold '
+      + 'across days?</b><br><span class="sub">Each cell shows the correlation '
+      + 'between the same cells\' values on the two days, with the value from '
+      + 'shuffling which cell is which beneath it. A measure is only stable if it '
+      + 'clears its own null.<br><br><b>role κ</b> is Cohen\'s kappa, not raw '
+      + 'agreement: these subnetworks are ~90% peripheral, so two unrelated '
+      + 'labellings already agree ~85% of the time. 0 is chance, 1 is perfect — '
+      + 'the raw percentage is shown beneath only for reference.'
+      + '</span></figcaption><table class="tracktab"><thead>' + head
+      + "</thead><tbody>" + body + "</tbody></table></figure>");
+  }
+
+  const rows = (d.stability || []).map(s =>
+    `<tr><td>${s.pair}</td><td class="num">${s.divGap}</td>` +
+    `<td class="num">${s.nShared}</td>` +
+    `<td class="num"><b>${s.edgeR.toFixed(3)}</b></td>` +
+    `<td class="num">${s.nullR == null ? "n/a" : s.nullR.toFixed(3)}</td></tr>`).join("");
+  host.insertAdjacentHTML("beforeend",
+    '<figure class="trackfig"><figcaption><b>Does the structure survive?</b><br>' +
+    '<span class="sub">Correlation between the same cells\' edge weights on the two ' +
+    'days, against a null that swaps each cell for its nearest neighbour — position ' +
+    'held roughly fixed, identity varied. Measured per day-pair on the cells those ' +
+    'two days share, so it does not depend on the span chosen above. Across this ' +
+    'dataset the matched median is +0.48 against +0.05, and it decays with elapsed ' +
+    'time rather than resetting.</span></figcaption>' +
+    '<table class="tracktab"><thead><tr><th>day-pair</th><th class="num">gap</th>' +
+    '<th class="num">cells</th><th class="num">edge r</th>' +
+    '<th class="num">spatial null</th></tr></thead><tbody>' +
+    (rows || '<tr><td colspan="5" class="sub">no day-pair had enough shared cells</td></tr>') +
+    "</tbody></table></figure>");
 }
 
 function download(fmt) {
@@ -1360,6 +2310,9 @@ function download(fmt) {
     return;
   }
   $("source").textContent = `${MANIFEST.source} · ${MANIFEST.mode}`;
+  applyTheme(currentTheme());
+  $("theme").addEventListener("click", cycleTheme);
+  initTracking();
   for (const id of ["lag-head", "cmp-lag-head"])
     if ($(id)) $(id).textContent = timescaleLabel();
   // A run made before version stamping simply has none; say

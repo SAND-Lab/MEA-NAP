@@ -49,6 +49,11 @@ class RecordingSource:
     store: RemoteStore
     cache: FileCache | None = None
     log: Callable[[str], None] = print
+    #: Extra plane0 files to fetch beyond :data:`WANTED`, for a step that needs
+    #: something the standard pipeline never opens. Cell tracking sets
+    #: ``{"Fneu.npy"}`` when it is going to neuropil-correct; leaving it out of
+    #: the default keeps 12.6 MB a recording off every other run.
+    extra_wanted: frozenset = frozenset()
     #: Spreadsheet name → the folder that actually holds it, from pre-flight.
     #: Applying it here means neither the spreadsheet nor the data folder has
     #: to be edited for a run to find its recordings.
@@ -122,10 +127,11 @@ class RecordingSource:
         """
         from meanap.catnap.derived import OPS_CACHE_NAME, derived_dir
 
+        wanted = WANTED | frozenset(self.extra_wanted)
         cached = derived_dir(self.derived_root, recording)
         if cached is not None and (cached / OPS_CACHE_NAME).exists():
-            return WANTED - {"ops.npy"}
-        return WANTED
+            return wanted - {"ops.npy"}
+        return wanted
 
     def plane0(self, recording: str) -> Path:
         """A local ``suite2p/plane0`` for *recording*, fetching it if remote.
@@ -150,9 +156,11 @@ class RecordingSource:
 
         keep = self._wanted_for(recording)
         wanted = [e for e in entries if e.name in keep]
-        skipped = sum(e.size or 0 for e in entries if e.name not in WANTED)
+        skipped = sum(e.size or 0 for e in entries
+                      if e.name not in WANTED and e.name not in self.extra_wanted)
         cached_ops = sum(e.size or 0 for e in entries
-                         if e.name in WANTED and e.name not in keep)
+                         if e.name in (WANTED | frozenset(self.extra_wanted))
+                         and e.name not in keep)
         total = sum(e.size or 0 for e in wanted)
         self.log(f"  [{recording}] fetching {total / 1e6:.0f} MB"
                  + (f" (skipping {skipped / 1e6:.0f} MB the pipeline never opens)"
