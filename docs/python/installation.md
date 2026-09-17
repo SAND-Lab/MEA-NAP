@@ -151,6 +151,30 @@ Note that denoising output is cached as `Fdenoised.npy` and carries no record
 of which method produced it, so installing OASIS after a run will not
 recompute anything — tick **Redo denoising** to force it.
 
+## Optional: spike sorting
+
+Step 1 can [sort spikes into units](spike-sorting.md) instead of detecting
+them per electrode, so that each neuron — not each electrode — is a node of
+the network. That needs [SpikeInterface](https://spikeinterface.readthedocs.io)
+and a sorter, installed together as the `sorting` extra:
+
+```bash
+cd /path/to/MEA-NAP
+uv sync --extra sorting
+```
+
+About 300 MB, pure CPU, no GPU or compiler needed. This is deliberately *not*
+`spikeinterface[full]`, which pulls a multi-gigabyte CUDA build of PyTorch
+onto machines with no GPU to use it. The Spike detection tab greys out the
+**Sort spikes** option until this is installed, and:
+
+```bash
+uv run python -c "from meanap.pipeline.spike_sorting import installed_sorters; print(installed_sorters())"
+```
+
+should list `tridesclous2` and `mountainsort5`. Kilosort4 users can add
+`kilosort` (and a CUDA PyTorch) themselves; it then appears in the same list.
+
 ## Verifying your install
 
 The fastest sanity check is the GUI's own **🧪 Test pipeline** button — it

@@ -132,6 +132,24 @@ Two consequences worth knowing:
 
 MC_Rack `.raw` and `.mcd` still need the MATLAB File Conversion tab.
 
+**A refractory period for the wavelet detectors.** In MATLAB, `refPeriod`
+applies only to the threshold detectors; the wavelet path (`bior1.5` and
+friends) has never had one beyond the CWT's internal 0.1 ms. The transform
+fires at more than one scale on a single spike, and peak alignment then puts
+both detections on the same trough — on a dense culture that was 5–6 % of a
+busy electrode's `bior1.5` spikes, every one of them a re-detection of the
+previous trough (all pairs closer than 0.5 ms; none of the pairs further
+apart). The Python port applies `wavelet_ref_period_ms` after alignment,
+**default 0.5 ms**, which removes exactly those. It is deliberately not the
+full `refPeriod`: on a busy electrode most spikes 0.5–2 ms apart are distinct
+neurons firing in a burst, and a 2 ms period discards half of them — which is
+what the threshold detectors do. Set it to `None` (0 in the GUI) for the old
+behaviour and exact parity with MATLAB's `bior1.5` output.
+
+**Spike sorting.** Step 1 can sort spikes into units instead of detecting
+them per electrode, making each neuron a node — see [Spike
+sorting](spike-sorting.md). Not available in the MATLAB pipeline.
+
 ## Known gaps
 
 - **No group-level statistical comparisons yet.** MATLAB's step 5 (comparing

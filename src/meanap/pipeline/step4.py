@@ -20,7 +20,7 @@ from scipy.spatial.distance import pdist, squareform
 from meanap.timescale import (
     timescale_folder, timescale_kind, timescale_folder_display,
 )
-from meanap.params import Params
+from meanap.params import Params, active_spike_method
 from meanap.pipeline import network_metrics as nm
 from meanap.pipeline.cancellation import CancelCheck, check_cancel
 from meanap.pipeline.io import find_raw_file, load_spike_times_npz, resolve_duration_s
@@ -584,7 +584,7 @@ def _step4_compute_one(
     output_root = Path(output_root_str)
     locator = build_input_locator(params, output_root)
 
-    method = params.spikes_method
+    method = active_spike_method(params)
     lag_values = params.func_con_lag_val
     min_nodes = params.min_number_of_nodes_to_cal_net_met
     logs: list[str] = []
@@ -700,6 +700,15 @@ def _step4_compute_one(
     return rec.filename, rec_results, channels_arr, logs
 
 
+def _unit_ids_for(params: Params, output_root: Path, filename: str) -> np.ndarray | None:
+    """The unit IDs of a sorted spike file, or None for a detected one."""
+    spike_path = build_input_locator(params, output_root).spike_file(filename)
+    if spike_path is None:
+        return None
+    with np.load(spike_path) as data:
+        return data["unit_id"].astype(str) if "unit_id" in data.files else None
+
+
 def _step4_plot_one(
     task: tuple[Params, RecordingInfo, dict, np.ndarray, str, dict],
 ) -> tuple[str, list[str]]:
@@ -719,11 +728,21 @@ def _step4_plot_one(
     if params.express_mode:
         return rec.filename, logs
 
+    # Sorted runs store node positions with the adjacency (step 3 copies
+    # them from the spike file); detected runs draw from the channel layout.
+    coords_all = None
+    adj_path = build_input_locator(params, Path(output_root_str)).adjm_file(rec.filename)
+    if adj_path is not None:
+        with np.load(adj_path) as adj_data:
+            if "coords" in adj_data.files:
+                coords_all = np.asarray(adj_data["coords"], dtype=float)
+
     for lag_key, metrics in rec_results.items():
         lag_ms = int(lag_key.replace("mslag", ""))
         _log(f"  [{rec.filename}] plotting network metrics (lag={lag_ms}ms)...")
         _plot_recording_lag(
             rec, lag_ms, metrics, channels_arr, params, out_dir, _log, batch_bounds,
+            coords_all=coords_all,
         )
     return rec.filename, logs
 
@@ -1066,6 +1085,8 @@ def _run_step4_network_metrics(
                 continue
             rec_results = all_results[rec.filename]
             channels_arr = channels_by_rec.get(rec.filename)
+            # A sorted run's nodes are units; name them beside their electrode.
+            unit_ids = _unit_ids_for(params, output_root, rec.filename)
             for lag, metrics in rec_results.items():
                 base_info = {"FileName": rec.filename, "Grp": rec.group, "DIV": rec.div, "Lag": lag}
                 
@@ -1107,6 +1128,8 @@ def _run_step4_network_metrics(
                         node_row["Channel"] = (
                             channel_ids[ch] if channel_ids is not None else ch + 1
                         )
+                        if unit_ids is not None and active_idx is not None:
+                            node_row["Unit"] = unit_ids[int(np.asarray(active_idx)[ch])]
                         for k, v_arr in node_metrics.items():
                             if len(v_arr) == num_nodes:
                                 node_row[k] = v_arr[ch]

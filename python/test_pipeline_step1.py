@@ -90,6 +90,10 @@ def build_params(fs: float) -> SpikeDetectionParams:
         filter_low_pass=600.0,
         filter_high_pass=6150.0,
         ref_period_ms=1.0,
+        # MATLAB applies no refractory period on the wavelet path (only the
+        # CWT's own 0.1 ms), so parity with it needs the Python option off.
+        # The pipeline default is 0.5 ms — see Params.wavelet_ref_period_ms.
+        wavelet_ref_period_ms=None,
         min_peak_thr_mult=-5.0,
         max_peak_thr_mult=-100.0,
         pos_peak_thr_mult=15.0,

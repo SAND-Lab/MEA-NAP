@@ -145,6 +145,7 @@ figure.
    installation
    quickstart
    gui-guide
+   spike-sorting
    catnap
    network-viewer
    notebooks/network-plotting-tutorial

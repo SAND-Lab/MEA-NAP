@@ -2005,6 +2005,12 @@ class SpikeViewerWindow(QDialog):
         #: from the raw channels so a mismatch between the two is detectable
         #: rather than silently plotting one channel's spikes on another's trace.
         self._spike_channels: np.ndarray | None = None
+        self._wavelet_ref_period_ms: float | None = SpikeDetectionParams().wavelet_ref_period_ms
+        #: For a spike-*sorted* file: the raw-trace column each node (unit)
+        #: was sorted from, and its unit ID. None for a detected file, whose
+        #: nodes *are* trace columns.
+        self._unit_columns: np.ndarray | None = None
+        self._unit_ids: np.ndarray | None = None
         #: The recording ``_dat`` was read from, as the string the file picker
         #: gave. Opening a *different* one has to clear the spikes, bursts and
         #: channel list that belong to this one — see _on_raw_loaded.
@@ -2809,6 +2815,9 @@ class SpikeViewerWindow(QDialog):
         self._filter_low.setValue(params.filter_low_pass)
         self._filter_high.setValue(params.filter_high_pass)
         self._ref_period.setValue(params.ref_period)
+        # Not a control here — the run's setting is carried through so a
+        # detection tried in this window matches what the pipeline will do.
+        self._wavelet_ref_period_ms = params.wavelet_ref_period_ms
 
         self._nb_min_spikes.setValue(int(params.min_spike_network_burst))
         self._nb_min_channels.setValue(int(params.min_channel_network_burst))
@@ -2845,6 +2854,7 @@ class SpikeViewerWindow(QDialog):
         params.filter_low_pass = self._filter_low.value()
         params.filter_high_pass = self._filter_high.value()
         params.ref_period = self._ref_period.value()
+        params.wavelet_ref_period_ms = self._wavelet_ref_period_ms
 
         params.min_spike_network_burst = self._nb_min_spikes.value()
         params.min_channel_network_burst = self._nb_min_channels.value()
@@ -2976,6 +2986,11 @@ class SpikeViewerWindow(QDialog):
         self._method_order = list(spike_file.methods)
         self._noise.clear()   # read off the thresholds this file brought
         self._spike_channels = spike_file.channels
+        self._unit_columns = (np.asarray(spike_file.units["channel_index"], dtype=int)
+                              if spike_file.sorted and "channel_index" in spike_file.units
+                              else None)
+        self._unit_ids = (np.asarray(spike_file.units["id"]).astype(str)
+                          if spike_file.sorted and "id" in spike_file.units else None)
         self._coords = spike_file.coords
         # A file that carries bursts arrives with them shown, rather than
         # asking for a detection that has already been done once.
@@ -3065,6 +3080,7 @@ class SpikeViewerWindow(QDialog):
             filter_low_pass=self._filter_low.value(),
             filter_high_pass=self._filter_high.value(),
             ref_period_ms=self._ref_period.value(),
+            wavelet_ref_period_ms=self._wavelet_ref_period_ms,
         )
 
     def _detect(self, *, all_channels: bool, thresholds_only: bool = False,
@@ -3106,6 +3122,7 @@ class SpikeViewerWindow(QDialog):
             self._spike_times, self._waveforms, self._spike_thresholds = {}, {}, {}
             self._method_order = []
         self._spike_channels = self._raw_channels
+        self._unit_columns = self._unit_ids = None
         # Merged per method, not per channel. ``dict.update`` would swap a
         # channel's whole method dict for the new one, so detecting bior1.5 on
         # a channel that already had thr4 and thr5 silently dropped both — the
@@ -3188,6 +3205,7 @@ class SpikeViewerWindow(QDialog):
             "filterLowPass": params.filter_low_pass,
             "filterHighPass": params.filter_high_pass,
             "refPeriod": params.ref_period_ms,
+            "waveletRefPeriod": params.wavelet_ref_period_ms,
             "fs": self._fs,
             "duration": self._duration_s,
             "savedBy": "MEA-NAP spike and burst viewer",
@@ -3262,6 +3280,12 @@ class SpikeViewerWindow(QDialog):
         """
         if self._spike_channels is None or self._raw_channels is None:
             return True
+        if self._unit_columns is not None:
+            # Sorted nodes name their electrode; they belong to this recording
+            # when every one of those electrodes is in it, in the same column.
+            raw = np.asarray(self._raw_channels).ravel()
+            return bool(np.all(self._unit_columns < len(raw)) and np.array_equal(
+                raw[self._unit_columns], np.asarray(self._spike_channels).ravel()))
         return (len(self._spike_channels) == len(self._raw_channels)
                 and bool(np.array_equal(np.asarray(self._spike_channels).ravel(),
                                         np.asarray(self._raw_channels).ravel())))
@@ -3337,11 +3361,20 @@ class SpikeViewerWindow(QDialog):
             self._refresh()
 
     def _channel_name(self, index: int) -> str:
+        if self._unit_ids is not None and index < len(self._unit_ids):
+            return f"unit {self._unit_ids[index]}"
         channels = self._spike_channels if self._spike_channels is not None \
             else self._raw_channels
         if channels is not None and index < len(channels):
             return str(int(channels[index]))
         return str(index)
+
+    def _trace_column(self, index: int) -> int:
+        """The raw-trace column behind node *index*: the node itself for a
+        detected file, its electrode for a sorted one."""
+        if self._unit_columns is not None and index < len(self._unit_columns):
+            return int(self._unit_columns[index])
+        return index
 
     def _times_for(self, index: int, method: str) -> np.ndarray:
         return np.asarray(self._spike_times.get(index, {}).get(method, ()), dtype=float)
@@ -3386,7 +3419,7 @@ class SpikeViewerWindow(QDialog):
         and very visible when it happens on every redraw of a window the user
         is stepping through.
         """
-        if self._dat is None or index >= self._dat.shape[1]:
+        if self._dat is None or self._trace_column(index) >= self._dat.shape[1]:
             return None
         if index in self._filtered:
             # Re-inserting moves it to the end, which is what makes this an LRU
@@ -3394,7 +3427,7 @@ class SpikeViewerWindow(QDialog):
             self._filtered[index] = self._filtered.pop(index)
         else:
             self._filtered[index] = bandpass_filter(
-                self._dat[:, index].astype(float), self._fs,
+                self._dat[:, self._trace_column(index)].astype(float), self._fs,
                 self._filter_low.value(), self._filter_high.value())
             while len(self._filtered) > self.FILTERED_CACHE:
                 self._noise.pop(next(iter(self._filtered)), None)
@@ -3667,7 +3700,7 @@ class SpikeViewerWindow(QDialog):
             self._trace_signature = signature
             self._trace_view.show_trace(
                 self._time_axis, filtered,
-                self._dat[:, channel].astype(float)
+                self._dat[:, self._trace_column(channel)].astype(float)
                 if self._show_raw.isChecked() else None,
                 self._fs, self._duration_s, "")
             self._trace_view.set_range(
@@ -3694,7 +3727,7 @@ class SpikeViewerWindow(QDialog):
         start = self._window_start.value()
         method = self._primary_method()
         self._filter_canvas.render(
-            self._dat[:, channel].astype(float), filtered, self._fs,
+            self._dat[:, self._trace_column(channel)].astype(float), filtered, self._fs,
             start, start + self._window_length.value(),
             self._filter_low.value(), self._filter_high.value(),
             self._times_for(channel, method),

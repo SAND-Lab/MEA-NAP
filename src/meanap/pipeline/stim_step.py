@@ -19,7 +19,7 @@ from pathlib import Path
 
 import numpy as np
 
-from meanap.params import Params
+from meanap.params import Params, active_spike_method
 from meanap.pipeline.cancellation import CancelCheck, check_cancel
 from meanap.pipeline.io import (
     RAW_EXTENSIONS,
@@ -78,7 +78,7 @@ def run_stim_analysis(
     # previous run's spike detection rather than only this run's.
     locator = build_input_locator(params, output_root)
     indiv_dir = output_root / "2_NeuronalActivity" / "2A_IndividualNeuronalAnalysis"
-    method = params.spikes_method
+    method = active_spike_method(params)
     base = params.to_stim_params_dict()
 
     all_rows: list[dict] = []

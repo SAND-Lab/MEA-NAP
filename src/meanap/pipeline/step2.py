@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import json
 
-from meanap.params import Params
+from meanap.params import Params, active_spike_method
 from meanap.pipeline.cancellation import CancelCheck, check_cancel
 from meanap.pipeline.progress import RunProgress
 from meanap.pipeline.resume import build_input_locator
@@ -46,10 +46,12 @@ def _save_ephys_stats_csv(
     all_ephys: dict[str, dict],
     rec_channels: dict[str, np.ndarray],
     out_dir: Path,
+    rec_units: dict[str, dict[str, np.ndarray]] | None = None,
 ) -> None:
     """Port of ``saveEphysStats.m``: writes ``NeuronalActivity_RecordingLevel.csv``
     and ``NeuronalActivity_NodeLevel.csv``.
     """
+    rec_units = rec_units or {}
     rec_rows = []
     node_rows = []
     for rec in recordings:
@@ -63,8 +65,14 @@ def _save_ephys_stats_csv(
         rec_rows.append(rec_row)
 
         channels = rec_channels.get(rec.filename, [])
+        units = rec_units.get(rec.filename)
         for i, ch in enumerate(channels):
             node_row = {"FileName": rec.filename, "Grp": rec.group, "DIV": rec.div, "Channel": ch}
+            # In a sorted run the node is a unit and ``Channel`` its electrode;
+            # the unit's own ID and curation label say which neuron it was.
+            if units is not None:
+                node_row["Unit"] = units["id"][i]
+                node_row["UnitLabel"] = units["label"][i]
             for field in _EPHYS_NODE_LEVEL_FIELDS:
                 arr = ephys.get(field)
                 node_row[field] = arr[i] if arr is not None and i < len(arr) else None
@@ -154,6 +162,7 @@ def _run_step2_neuronal_activity(
     # We will save all Ephys results into a single dictionary mapping rec.filename -> ephys
     all_ephys = {}
     rec_channels: dict[str, np.ndarray] = {}
+    rec_units: dict[str, dict[str, np.ndarray]] = {}
     # Per-recording plotting context, collected in this compute pass and drawn
     # in a second pass once the batch-wide max firing rate is known (needed for
     # the raster's "scaled to entire data batch" panel).
@@ -191,7 +200,7 @@ def _run_step2_neuronal_activity(
         spike_times_full = load_spike_times_npz(npz_file)
 
         # Filter down to the chosen method
-        method = params.spikes_method
+        method = active_spike_method(params)
         spike_times_dict = {}
         for ch in range(n_channels):
             # Keys in spike_times_full might be string or int
@@ -215,6 +224,8 @@ def _run_step2_neuronal_activity(
         
         all_ephys[rec.filename] = ephys
         rec_channels[rec.filename] = data["channels"]
+        if "unit_id" in data.files:
+            rec_units[rec.filename] = {"id": data["unit_id"], "label": data["unit_label"]}
         plot_contexts.append({
             "rec": rec,
             "spike_times_dict": spike_times_dict,
@@ -284,7 +295,7 @@ def _run_step2_neuronal_activity(
         log(f"  Warning: could not save ephys_results.json: {e}")
 
     try:
-        _save_ephys_stats_csv(recordings, all_ephys, rec_channels, out_dir)
+        _save_ephys_stats_csv(recordings, all_ephys, rec_channels, out_dir, rec_units)
     except Exception as e:
         log(f"  Warning: could not save NeuronalActivity CSVs: {e}")
 

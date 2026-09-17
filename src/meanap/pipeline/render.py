@@ -38,7 +38,7 @@ from pathlib import Path
 
 import numpy as np
 
-from meanap.params import Params
+from meanap.params import Params, active_spike_method
 from meanap.timescale import timescale_kind
 from meanap.catnap.rasters import RASTER_FIGURES
 from meanap.pipeline.bundle import RunBundle, is_os_metadata
@@ -1722,7 +1722,7 @@ def render_activity_figure(
     # electrode must stay empty in the raster.
     full = load_spike_times_npz(spike_path)
     spike_times_dict = {
-        ch: full.get(ch, {}).get(params.spikes_method, np.array([]))
+        ch: full.get(ch, {}).get(active_spike_method(params), np.array([]))
         for ch in range(n_channels)
     }
     ground = parse_ground_electrodes(rec.ground)
