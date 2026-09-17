@@ -117,6 +117,47 @@ Auto-merge (SpikeInterface's `auto_merge_units`) is available but off: on the
 benchmark it did not recover MountainSort5's over-splits and Tridesclous2 had
 none.
 
+## How sorted units compare with bior1.5 detection
+
+Measured on one dense hippocampal culture (`HP_tc043_DIV21`, MCS 60MEA, DIV
+21, 10 min), so treat the numbers as one data point and rerun the recipe
+below on your own recordings before generalising.
+
+| | bior1.5 (detected) | Tridesclous2 (sorted) |
+|---|---|---|
+| Spikes | 167 k on 60 electrodes | 102 k on 48 electrodes |
+| Quiet electrodes | all kept | 12 dropped — 7–74 spikes each, too few to build a template |
+| Agreement (±0.5 ms) | 43 % of bior1.5 spikes have a TDC2 spike | 71 % of TDC2 spikes have a bior1.5 spike |
+| What the other lacks | small (median 4.7 σ, half under 5 σ) and burst-interior (two-thirds within 3 ms of the previous spike) | sub-threshold spikes (median 3 σ) the peeler recovered under bigger ones |
+| Refractory violations, busiest electrode | 48 % of ISIs < 1.5 ms | 27 % |
+| STTC matrices at 10 ms, 48 shared electrodes | r = 0.91 between them; mean STTC 0.54 | mean STTC 0.65 |
+
+So on this recording the two agree on the network's structure (r ≈ 0.9,
+the same as thr5 vs either) but not on the spike population: bior1.5 is the
+more *sensitive* detector — anything spike-shaped above ~4 σ — and TDC2 the
+more *selective*, keeping only events it can attribute to a learned template.
+The sorter's trains are more strongly correlated overall because they
+concentrate in the network bursts. Neither is "right"; the choice is how
+much low-amplitude activity you want counted. Feeding bior1.5's detections
+into TDC2, or lowering TDC2's threshold, does not recover more small neurons
+on ground truth — see `python/SPIKE_SORTING_PLAN.md` §5.5 for why.
+
+To repeat this on a recording of yours, run it once in each mode and
+compare the two spike files (and, for network-level effects, the two runs):
+
+```bash
+uv run python python/compare_spike_trains.py \
+    OutputData_detected/1_SpikeDetection/1A_SpikeDetectedData/<rec>_spikes.npz \
+    OutputData_sorted/1_SpikeDetection/1A_SpikeDetectedData/<rec>_spikes.npz \
+    --method-a bior1p5 --raw /path/to/<rec>.mat
+uv run python python/compare_sorted_vs_detected.py OutputData_detected OutputData_sorted --out compare.png
+```
+
+The first prints spike totals, ISI structure, agreement, what the unmatched
+spikes look like and the STTC correlation; the second draws units per
+electrode, same- vs other-electrode STTC, and the recording-level network
+metrics of both runs side by side.
+
 ## When to use it
 
 Sorting changes the node set, so it changes every network metric; that is

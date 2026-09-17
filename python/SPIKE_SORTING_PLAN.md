@@ -346,7 +346,12 @@ follow-on population spikes, TDC2 and bior1.5 keep them — and (c) bior1.5's
 detected twice (5–6.5 % of spikes on busy electrodes), fixed by
 `Params.wavelet_ref_period_ms` (default 0.5 ms; see `PIPELINE_PORT_STATUS.md`
 "Spike detection gotchas" and `docs/python/matlab-vs-python.md`). Figures and
-script: `local/spikesort_test/real/bior_doubles.{py,png}`.
+script: `local/spikesort_test/real/bior_doubles.{py,png}`. The spike-by-spike
+comparison is reproducible on any pair of runs with
+`python/compare_spike_trains.py` (it also showed TDC2's own unmatched spikes
+sit at a median 3 σ — sub-threshold spikes the peeler recovered under larger
+ones). User-facing summary: `docs/python/spike-sorting.md`, "How sorted units
+compare with bior1.5 detection".
 
 ### 5.5 Wavelet candidates into TDC2, vs a lower threshold (2026-09-17)
 
