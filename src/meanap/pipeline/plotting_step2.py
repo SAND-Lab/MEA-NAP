@@ -63,12 +63,28 @@ def _draw_heatmap_panel(ax, xs, ys, metric, valid_mask, vmin, vmax, cmap, clabel
     ax.set_aspect("equal", "box")
 
 
+def _pool_units_by_electrode(chs: np.ndarray, metric: np.ndarray, aggregate: str):
+    """One value per electrode from the values of the units on it."""
+    electrodes = np.unique(chs)
+    pooled = np.full(len(electrodes), np.nan)
+    for i, e in enumerate(electrodes):
+        vals = metric[chs == e]
+        vals = vals[np.isfinite(vals)]
+        if len(vals):
+            pooled[i] = vals.sum() if aggregate == "sum" else vals.mean()
+    return electrodes, pooled
+
+
 def plot_heatmap(
     metric: np.ndarray, chs: np.ndarray, title: str, clabel: str, out_path: Path,
     cmap="viridis", channel_layout: str = "Axion64",
     batch_max: float | None = None,
+    aggregate: str = "mean",
 ):
     """Electrode heatmap, port of ``electrodeHeatMaps.m`` / ``plotNodeHeatmap.m``.
+
+    ``aggregate`` (``"sum"`` or ``"mean"``) only matters when several nodes
+    share an electrode — a spike-sorted run — and says how they pool.
 
     When ``batch_max`` is given, produce a two-panel figure (like MATLAB's
     ``tiledlayout(1,2)``): left scaled to this recording (color axis = 99th
@@ -83,6 +99,15 @@ def plot_heatmap(
 
     layout_channels, layout_coords = get_coords_from_layout(channel_layout)
     coord_by_channel = dict(zip(layout_channels.tolist(), map(tuple, layout_coords)))
+    chs = np.asarray(chs).ravel()
+    metric = np.asarray(metric, dtype=float)
+    # A spike-sorted run has several nodes per electrode (its units), listed
+    # under the same electrode ID. An electrode heatmap has one cell per
+    # electrode, so units are pooled onto theirs: summed for rates and
+    # fractions of spikes — what the electrode as a whole did — averaged for
+    # everything else. A detected run has no repeats and is left as it is.
+    if len(np.unique(chs)) < len(chs):
+        chs, metric = _pool_units_by_electrode(chs, metric, aggregate)
     keep = np.array([int(c) in coord_by_channel for c in chs])
     if not np.any(keep):
         return
@@ -263,6 +288,11 @@ def plot_burst_detection_info(spike_times_dict: dict, ephys: dict, duration_s: f
 #: label, colormap)``. One list rather than six near-identical call sites, so
 #: the pipeline and the bundle renderer cannot disagree about which figures
 #: exist or what they are called.
+#: How the units of one electrode pool onto it in a sorted run (see
+#: :func:`plot_heatmap`). Rates and burst rates add up; the rest are per-unit
+#: properties and average.
+_POOL_BY_SUM = {"FR": "sum", "channelBurstRate": "sum"}
+
 ACTIVITY_HEATMAPS = (
     ("2_Heatmap.png", "FR", "Firing Rate", "Mean FR (Hz)", "viridis"),
     ("3_BurstRate_heatmap.png", "channelBurstRate", "Burst Rate",
@@ -328,7 +358,8 @@ def plot_neuronal_activity_checks(
             continue
         if (p := want(name)) is not None:
             plot_heatmap(ephys[key], chs, title, cbar, p, cmap=cmap,
-                         channel_layout=channel_layout, batch_max=bmax.get(key))
+                         channel_layout=channel_layout, batch_max=bmax.get(key),
+                         aggregate=_POOL_BY_SUM.get(key, "mean"))
 
     if (p := want("3_Raster.png")) is not None:
         plot_raster(

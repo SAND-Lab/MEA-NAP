@@ -246,10 +246,18 @@ class RecordingSource:
 
         if not self.remote:
             for rec in recordings:
+                # A fetch failure is handed over as the value, so one bad file
+                # does not end the batch. Only the fetch is guarded: the
+                # ``yield`` sits outside the ``try``, because a generator left
+                # suspended at it — a caller that stopped early, or
+                # ``stream_needing_work`` finishing after the last recording —
+                # is closed with GeneratorExit, and catching *that* and
+                # yielding again is an error Python reports on every run.
                 try:
-                    yield rec, get(rec.filename)
-                except BaseException as exc:  # noqa: BLE001
-                    yield rec, exc
+                    value = get(rec.filename)
+                except Exception as exc:  # noqa: BLE001
+                    value = exc
+                yield rec, value
             return
 
         def pin(rec) -> None:

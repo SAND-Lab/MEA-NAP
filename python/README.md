@@ -28,6 +28,10 @@ MEA-NAP/
 │       │   ├── axion_raw.py         # Axion .raw reader (AxionFileLoader port)
 │       │   ├── spike_detection.py    # Step 1: threshold + bior1.5 wavelet CWT
 │       │   ├── plotting.py           # Step 1 check plots
+│       │   ├── spike_sorting.py      # Step 1 alternative: SpikeInterface sorting, units as nodes
+│       │   ├── probes.py             # channel_layout → probeinterface.Probe at real pitch
+│       │   ├── plotting_sorting.py   # Step 1 sorting check plots + units.csv
+│       │   ├── sorting_benchmark.py  # synthetic ground truth on the MEA geometry
 │       │   ├── firing_rates.py       # Step 2: firing rates
 │       │   ├── burst_detection.py    # Step 2: network + single-channel bursts
 │       │   ├── plotting_step2.py     # Step 2 check plots

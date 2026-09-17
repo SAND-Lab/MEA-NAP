@@ -874,6 +874,15 @@ def _run_step1_spike_detection(
                    f"{dat.shape[0] / fs:.1f}s "
                    f"({dat.nbytes / 1e6:.0f} MB of samples)")
 
+        if params.spike_source == "sort":
+            _sort_one_recording(params, rec, dat, channels, fs, output_root,
+                                spike_dir, log)
+            del dat
+            source.unpin(rec.filename)
+            source.release(rec.filename)
+            progress.item_done(rec.filename)
+            continue
+
         detect_params = SpikeDetectionParams(
             fs=fs,
             thresholds=params.thresholds,
@@ -882,6 +891,7 @@ def _run_step1_spike_detection(
             filter_low_pass=params.filter_low_pass,
             filter_high_pass=params.filter_high_pass,
             ref_period_ms=params.ref_period,
+            wavelet_ref_period_ms=params.wavelet_ref_period_ms,
             min_peak_thr_mult=params.min_peak_thr_multiplier,
             max_peak_thr_mult=params.max_peak_thr_multiplier,
             pos_peak_thr_mult=params.pos_peak_thr_multiplier,
@@ -936,3 +946,89 @@ def _run_step1_spike_detection(
         progress.item_done(rec.filename)
 
     progress.phase_done()
+
+
+def _sort_one_recording(
+    params: Params,
+    rec: RecordingInfo,
+    dat,
+    channels,
+    fs: float,
+    output_root: Path,
+    spike_dir: Path,
+    log,
+) -> None:
+    """Step 1 by spike sorting for one recording — the ``sort`` branch of
+    :func:`_run_step1_spike_detection`. Writes the same ``_spikes.npz`` the
+    detectors would, with units as its nodes, plus the sorting checks."""
+    import numpy as np
+
+    from meanap.pipeline.plotting_sorting import (
+        SORTING_CHECKS_SUFFIX, draw_sorting_check_figures, save_sorting_check_data,
+        sorting_check_data,
+    )
+    from meanap.pipeline.spike_sorting import (
+        params_from_pipeline, sort_spikes_recording,
+    )
+
+    sort_params = params_from_pipeline(params)
+    duration_s = dat.shape[0] / fs
+    log(f"  [{rec.filename}] sorting spikes with {sort_params.sorter_name} "
+        f"({len(channels)} channels)…")
+    log.debug(f"      layout {sort_params.channel_layout}, band "
+              f"{sort_params.freq_min:g}–{sort_params.freq_max:g} Hz, curation: SNR ≥ "
+              f"{sort_params.curation_min_snr:g}, refractory violations ≤ "
+              f"{sort_params.curation_max_rp_violation_frac:.0%} within "
+              f"{sort_params.curation_refractory_ms:g} ms, rate ≥ "
+              f"{sort_params.curation_min_firing_rate:g} Hz; keeping "
+              f"{', '.join(sort_params.curation_keep_labels)}")
+    # The sorter's scratch lives beside the spike files so it lands on the
+    # same disk as the output (it holds a copy of the recording, not a
+    # temp-sized file) and is easy to find when kept.
+    work_dir = spike_dir / "sorting" / rec.filename
+    with log.timed(f"      [{rec.filename}] sorting"):
+        result = sort_spikes_recording(
+            dat, channels, fs, sort_params, work_dir, log=log.detail,
+            duration_s=duration_s)
+    # The sorter removed its own folder; the shared parent goes once it is
+    # empty, so a run that kept nothing leaves nothing.
+    if work_dir.parent.is_dir() and not any(work_dir.parent.iterdir()):
+        work_dir.parent.rmdir()
+
+    n_units = len(result.channels)
+    n_electrodes = len(np.unique(result.channels)) if n_units else 0
+    log(f"  [{rec.filename}] {n_units} unit(s) on {n_electrodes} electrode(s) "
+        f"→ nodes")
+
+    out_path = spike_dir / f"{rec.filename}_spikes.npz"
+    save_spike_times_npz(
+        out_path, result.spike_times, result.channels, fs,
+        duration_s=duration_s, waveforms=result.waveforms, units=result.units,
+        params={
+            "spike_source": "sort", "sorter": result.sorter_name,
+            "sorter_version": result.sorter_version,
+            "sorter_params": result.sorter_params,
+            "channel_layout": sort_params.channel_layout,
+            "band_hz": [sort_params.freq_min, sort_params.freq_max],
+            "common_reference": sort_params.common_reference,
+            "curation_min_snr": sort_params.curation_min_snr,
+            "curation_refractory_ms": sort_params.curation_refractory_ms,
+            "curation_max_rp_violation_frac": sort_params.curation_max_rp_violation_frac,
+            "curation_min_firing_rate": sort_params.curation_min_firing_rate,
+            "curation_keep_labels": list(sort_params.curation_keep_labels),
+            "fs": fs, "duration": duration_s,
+        })
+    log(f"  [{rec.filename}] saved → {out_path.relative_to(output_root)}")
+
+    check_dir = (output_root / "1_SpikeDetection" / "1B_SpikeDetectionChecks"
+                 / rec.group / rec.filename)
+    check_dir.mkdir(parents=True, exist_ok=True)
+    checks = sorting_check_data(result, channels, sort_params.channel_layout,
+                                rec.filename, params=sort_params)
+    save_sorting_check_data(spike_dir / f"{rec.filename}{SORTING_CHECKS_SUFFIX}", checks)
+    # The unit table is written whatever the mode: it is the record of what
+    # the sorter found and what curation did with it.
+    checks.write_unit_table(check_dir / "units.csv")
+    if not params.express_mode:
+        log(f"  [{rec.filename}] generating spike sorting check plots…")
+        draw_sorting_check_figures(checks, check_dir)
