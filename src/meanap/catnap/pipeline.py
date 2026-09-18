@@ -736,6 +736,7 @@ def _run_cell_tracking(params: Params, recordings, output_root: Path,
             validate=params.track_validate_activity,
             viewer_cells=params.track_viewer_cells,
             neucoeff=params.track_neuropil_coeff,
+            completion_radius_px=params.track_completion_radius_px,
             progress=lambda msg: log(f"    {msg}"),
         )
     except Exception as e:
@@ -750,6 +751,18 @@ def _run_cell_tracking(params: Params, recordings, output_root: Path,
     log(f"  Cell tracking: {summary['usable_chains']} of {summary['chains']} chains "
         f"usable at a threshold of {summary['tracked_threshold']:.2f} "
         f"({summary['registered']} registered).")
+    if summary.get("rescued_cell_days"):
+        line = (f"    {summary['rescued_cell_days']} cell-days added by position "
+                f"after matching")
+        if summary.get("median_rescued_fingerprint_auc") is not None:
+            line += (f"; their fingerprint AUC "
+                     f"{summary['median_rescued_fingerprint_auc']:.3f}")
+        log(line)
+    if summary.get("merged_clusters"):
+        line = f"    {summary['merged_clusters']} split cells joined"
+        if summary.get("median_merged_fingerprint_auc") is not None:
+            line += f"; fingerprint AUC across the join {summary['median_merged_fingerprint_auc']:.3f}"
+        log(line)
     if summary.get("median_fingerprint_auc") is not None:
         log(f"    median fingerprint AUC vs the spatial null: "
             f"{summary['median_fingerprint_auc']:.3f} "

@@ -16,6 +16,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from meanap.catnap.tracking.chains import build_chains, parse_recording
+from meanap.catnap.tracking.complete import complete_clusters, merge_split_clusters
 from meanap.catnap.tracking.controls import roi_shift_control, summarise_floor
 from meanap.catnap.tracking.footprint import density_map, displacement
 from meanap.catnap.tracking.register import (
@@ -149,7 +150,77 @@ def test_gate_leaves_an_already_aligned_chain_alone():
     centres = rng.integers(30, 226, size=(50, 2))
     maps = [density_map(_rois(centres), 256),
             density_map(_rois(centres), 256)]
-    assert solve_offsets(maps).should_register is False
+    assert solve_offsets(maps).should_register() is False
+
+
+def test_gate_catches_one_drifted_session_among_aligned_ones():
+    """One session 24 px off in a four-session chain.
+
+    Three of the six pairs measure the drift and three measure 0, so a median
+    over pairs lands between them and passes the chain through -- which is how
+    a real DIV21 was left 20 px off and matched nothing. The gate must look at
+    the largest reliable pair.
+    """
+    rng = np.random.default_rng(5)
+    centres = rng.integers(30, 226, size=(50, 2))
+    maps = [density_map(_rois(centres + t), 256)
+            for t in ([0, 0], [0, 0], [0, 0], [24, 0])]
+    offsets = solve_offsets(maps)
+    assert offsets.median_shift_px < 16.0          # the trap
+    assert offsets.max_session_shift_px >= 16.0
+    assert offsets.should_register() is True
+    # the three aligned sessions stay put; only the drifted one moves
+    assert [tuple(o) for o in offsets.offsets[:3]] == [(0, 0)] * 3
+    assert abs(offsets.offsets[3][0] - 24) <= 8
+
+
+def test_a_single_wobbly_pair_does_not_register_an_aligned_chain(monkeypatch):
+    """Three sessions; one pair measured two bins off, the other two pairs
+    measured 0. That is quantisation noise, not a drift: the solve spreads it
+    and no session ends up two bins from the majority. Gating on the largest
+    *pair* would register the chain and nudge every session."""
+    from meanap.catnap.tracking import register
+    from meanap.catnap.tracking.register import PairMeasurement
+
+    wobbly = [PairMeasurement(0, 1, 16.0, 0.0, 20.0, 0.8),
+              PairMeasurement(0, 2, 0.0, 0.0, 20.0, 0.8),
+              PairMeasurement(1, 2, 0.0, 0.0, 20.0, 0.8)]
+    monkeypatch.setattr(register, "measure_pairs", lambda maps, bin_px: wobbly)
+    offsets = solve_offsets([np.zeros((4, 4))] * 3)
+    assert max(p.shift_px for p in offsets.pairs) >= 16.0
+    assert offsets.max_session_shift_px < 16.0
+    assert offsets.should_register() is False
+
+
+def test_sessions_below_the_gate_keep_their_solved_offset(monkeypatch):
+    """One session 24 px off, another 8 px off: the chain registers, and the
+    8 px session keeps its solved offset. Zeroing sub-gate sessions was tried
+    and cost matches on 19 of the 25 chains it touched -- the small solved
+    components carry real sub-bin information."""
+    from meanap.catnap.tracking import register
+    from meanap.catnap.tracking.register import PairMeasurement
+
+    # sessions at 0, 0, 24 and 8 px along y
+    truth = [0.0, 0.0, 24.0, 8.0]
+    measured = [PairMeasurement(i, j, truth[j] - truth[i], 0.0, 20.0, 0.8)
+                for i in range(4) for j in range(i + 1, 4)]
+    monkeypatch.setattr(register, "measure_pairs", lambda maps, bin_px: measured)
+    offsets = solve_offsets([np.zeros((4, 4))] * 4)
+    assert offsets.should_register() is True
+    assert offsets.offsets.tolist() == [[0, 0], [0, 0], [-24, 0], [-8, 0]]
+
+
+def test_gate_ignores_offsets_measured_on_different_fields():
+    """Two unrelated fields have no offset to correct, however large the
+    correlation peak's position. Registering them would switch ROICaT's own
+    alignment off in exchange for all-zero offsets."""
+    rng = np.random.default_rng(6)
+    maps = [density_map(_rois(rng.integers(30, 226, size=(50, 2))), 256),
+            density_map(_rois(rng.integers(30, 226, size=(50, 2))), 256)]
+    offsets = solve_offsets(maps)
+    assert all(p.aligned_ncc < offsets.reliable_ncc for p in offsets.pairs)
+    assert offsets.max_session_shift_px == 0.0
+    assert offsets.should_register() is False
 
 
 # ── staging ───────────────────────────────────────────────────────────────────
@@ -231,6 +302,9 @@ def test_viewer_orders_worst_first_and_unscored_counts_as_worst():
     order = [c.fingerprint for c in select_cards(cards, 4)]
     assert np.isnan(order[0])
     assert order[1:] == [0.2, 0.5, 0.9]
+    # 0 = no cap: every cell gets a card, still worst first
+    assert len(select_cards(cards, 0)) == 4
+    assert len(select_cards(cards, 2)) == 2
 
 
 # ── data source ───────────────────────────────────────────────────────────────
@@ -428,6 +502,130 @@ def test_exactly_one_registration_happens(tmp_path):
     assert passed["alignment"]["fit_nonrigid"]["method"] != "NullRegistration"
 
 
+# ── completion ────────────────────────────────────────────────────────────────
+
+def _three_days(cluster_at, extra):
+    """Two days with a cluster at ``cluster_at``, a third day with ``extra``
+    unmatched cells at the given positions. Returns (labels, centroids)."""
+    labels = [np.array([0, -1]), np.array([0, -1]), np.full(len(extra), -1)]
+    centroids = [np.array([cluster_at, [200.0, 200.0]]),
+                 np.array([cluster_at, [200.0, 200.0]]),
+                 np.array(extra, dtype=float)]
+    return labels, centroids
+
+
+def test_completion_adds_the_one_unmatched_cell_where_the_cluster_should_be():
+    labels, centroids = _three_days([50.0, 50.0], [[54.0, 52.0], [200.0, 200.0]])
+    new, rescues = complete_clusters(labels, centroids, radius_px=10.0)
+    assert new[2].tolist() == [0, -1]
+    assert [(r.cluster, r.session, r.roi) for r in rescues] == [(0, 2, 0)]
+    assert rescues[0].dist_px == pytest.approx(np.hypot(4, 2))
+    assert labels[2].tolist() == [-1, -1]        # inputs untouched
+
+
+def test_completion_refuses_when_two_cells_are_both_close():
+    """Two unmatched cells within the radius and no way to choose: leave it."""
+    labels, centroids = _three_days([50.0, 50.0], [[54.0, 52.0], [47.0, 45.0]])
+    new, rescues = complete_clusters(labels, centroids, radius_px=10.0)
+    assert new[2].tolist() == [-1, -1]
+    assert rescues == []
+
+
+def test_completion_refuses_a_cell_two_clusters_want():
+    labels = [np.array([0, 1]), np.array([0, 1]), np.array([-1])]
+    centroids = [np.array([[50.0, 50.0], [56.0, 56.0]]),
+                 np.array([[50.0, 50.0], [56.0, 56.0]]),
+                 np.array([[53.0, 53.0]])]
+    new, rescues = complete_clusters(labels, centroids, radius_px=10.0)
+    assert new[2].tolist() == [-1]
+    assert rescues == []
+
+
+def test_completion_never_reassigns_a_matched_cell_or_grows_a_singleton():
+    # day 2's cell at the cluster position already belongs to cluster 1
+    labels = [np.array([0]), np.array([0]), np.array([1]), np.array([1, -1])]
+    centroids = [np.array([[50.0, 50.0]])] * 3 + [np.array([[50.0, 50.0], [300.0, 300.0]])]
+    new, rescues = complete_clusters(labels, centroids, radius_px=10.0)
+    assert [l.tolist() for l in new] == [[0], [0], [1], [1, -1]]
+    assert rescues == []
+
+
+def test_completion_respects_the_radius():
+    labels, centroids = _three_days([50.0, 50.0], [[62.0, 50.0]])
+    assert complete_clusters(labels, centroids, radius_px=10.0)[1] == []
+    assert len(complete_clusters(labels, centroids, radius_px=14.0)[1]) == 1
+
+
+def _split(pos_b, other_days=(2, 3)):
+    """Cluster 0 on days 0-1 at (50, 50); cluster 1 on ``other_days`` at
+    ``pos_b``; a far cell 5 everywhere."""
+    labels = [np.array([0, 5]), np.array([0, 5]), np.array([-1, 5]), np.array([-1, 5])]
+    for d in other_days:
+        labels[d][0] = 1
+    centroids = [np.array([[50.0, 50.0], [300.0, 300.0]])] * 2 + \
+                [np.array([pos_b, [300.0, 300.0]], dtype=float)] * 2
+    return labels, centroids
+
+
+def test_split_clusters_on_disjoint_days_are_joined():
+    labels, centroids = _split([53.0, 54.0])
+    new, merges = merge_split_clusters(labels, centroids, radius_px=10.0)
+    assert [(m.cluster, m.absorbed) for m in merges] == [(0, 1)]
+    assert merges[0].dist_px == pytest.approx(5.0)
+    assert [l[0] for l in new] == [0, 0, 0, 0]
+    assert labels[2][0] == 1                    # inputs untouched
+
+
+def test_clusters_sharing_a_day_are_two_cells_not_one():
+    labels, centroids = _split([53.0, 54.0], other_days=(1, 2))
+    new, merges = merge_split_clusters(labels, centroids, radius_px=10.0)
+    assert merges == []
+    assert [l.tolist() for l in new] == [l.tolist() for l in labels]
+
+
+def test_a_cluster_with_two_candidate_partners_is_left_alone():
+    # clusters 1 and 2 both on days 2-3, both within radius of cluster 0
+    labels = [np.array([0]), np.array([0]), np.array([1, 2]), np.array([1, 2])]
+    centroids = [np.array([[50.0, 50.0]])] * 2 + [np.array([[53.0, 50.0], [50.0, 53.0]])] * 2
+    new, merges = merge_split_clusters(labels, centroids, radius_px=10.0)
+    assert merges == []
+
+
+def test_merge_respects_the_radius():
+    labels, centroids = _split([62.0, 50.0])
+    assert merge_split_clusters(labels, centroids, radius_px=10.0)[1] == []
+    assert len(merge_split_clusters(labels, centroids, radius_px=14.0)[1]) == 1
+
+
+def test_reused_clusters_must_come_from_the_same_gate_decision(tmp_path):
+    """A passed-through chain's clusters describe unshifted coordinates; a
+    registered chain's describe staged ones. Never mix them."""
+    from meanap.catnap.tracking.pipeline import _reuse_clusters
+
+    runs = tmp_path / "work" / "runs"          # <run>/work/runs, beside <run>/chains
+    (runs / "c").mkdir(parents=True)
+    (runs / "c" / "c.tracking.results_clusters.json").write_text(
+        json.dumps({"labels_bySession": [[0, -1], [0, 1]]}))
+    (runs / "c" / "c.tracking.params_used.json").write_text(
+        json.dumps({"aligner": {"fit_geometric": {"method": "NullRegistration"}}}))
+
+    dest = tmp_path / "new" / "c"
+    assert _reuse_clusters(runs, dest, "c", pre_registered=False) is None
+    got = _reuse_clusters(runs, dest, "c", pre_registered=True)
+    assert got == {"labels_bySession": [[0, -1], [0, 1]]}
+    assert (dest / "c.tracking.results_clusters.json").exists()
+    assert _reuse_clusters(runs, dest, "missing", pre_registered=True) is None
+
+    # with the earlier chain result beside it, the staged geometry must agree
+    # up to a common translation, which the matcher cannot see
+    (tmp_path / "chains").mkdir()
+    (tmp_path / "chains" / "c.json").write_text(json.dumps({"offsets": [[0, 0], [24, 0]]}))
+    assert _reuse_clusters(runs, dest, "c", pre_registered=True,
+                           offsets=[[-8, 0], [16, 0]]) is not None
+    assert _reuse_clusters(runs, dest, "c", pre_registered=True,
+                           offsets=[[0, 0], [16, 0]]) is None
+
+
 def test_viewer_js_render_path_executes(tmp_path):
     """Run the page's JavaScript against a DOM shim.
 
@@ -477,6 +675,67 @@ def test_viewer_js_render_path_executes(tmp_path):
       api.select(0); api.select(api.order.length - 1);
       if (calls.putImageData === 0) throw new Error('no footprints drawn');
       if (calls.arcs === 0) throw new Error('no ROIs drawn on the field of view');
+      console.log('OK');
+    """
+    result = subprocess.run([node, "-e", script], capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr[:600]
+    assert "OK" in result.stdout
+
+
+def test_fov_click_picks_the_nearest_cell_that_has_a_card(tmp_path):
+    """Only the cells with cards can be selected. Picking the nearest *tracked*
+    cell made most clicks on a big chain do nothing, because the nearest one
+    had no card; and a click far from any card must not jump the selection."""
+    import shutil
+    import subprocess
+
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("node not available")
+
+    from meanap.catnap.tracking.viewer import (CellCard, SessionView,
+                                               build_payload, mean_image_png)
+
+    rng = np.random.default_rng(0)
+    # clusters 0-2 have cards; cluster 7 is tracked but has none, and sits
+    # right next to where the click lands
+    centroids = np.array([[100, 100], [1000, 1000], [500, 500], [520, 520],
+                          [300, 900]], dtype=float)
+    sessions = [SessionView(div=d, mean_png=mean_image_png(rng.random((64, 64))),
+                            centroids=centroids,
+                            cluster_of=np.array([0, 1, 2, 7, -1]))
+                for d in (14, 21)]
+    cards = [CellCard(cluster=c, divs=[14, 21],
+                      crops=[rng.random((7, 7))] * 2, traces=[rng.random(500)] * 2,
+                      metrics=[{"rate": 2.0, "pop": 0.3}] * 2,
+                      fingerprint=0.1 * c, percentile=10.0 * c,
+                      positions=[(0, 5.0, 7.0), (1, 6.0, 8.0)])
+             for c in range(3)]
+    payload = build_payload("c", "s", cards, 30.0, sessions, {})
+    payload["frame"] = 1280
+
+    js_dir = Path(__file__).resolve().parent / "js"
+    from meanap.catnap.tracking import viewer as v
+    (tmp_path / "viewer.js").write_text(v._JS)
+    (tmp_path / "payload.json").write_text(json.dumps(payload))
+
+    script = f"""
+      require({str(js_dir / 'viewer_dom_shim.js')!r});
+      const fs = require('fs');
+      global.window.__TRACK__ = JSON.parse(fs.readFileSync({str(tmp_path / 'payload.json')!r}));
+      const src = fs.readFileSync({str(tmp_path / 'viewer.js')!r}, 'utf8');
+      const api = new Function(src + '; return {{buildFov, applyFilter, select, pickFromFov, cells, order, current: () => cells[order[sel]].cluster}};')();
+      api.buildFov(); api.applyFilter();
+      const size = 300, k = size / 1280;           // canvas px per frame px at 1x
+      const ev = (fx, fy) => ({{clientX: fx * k, clientY: fy * k,
+                                target: {{getBoundingClientRect: () => ({{left: 0, top: 0}})}}}});
+      api.select(0);
+      api.pickFromFov(0, ev(522, 522), size);      // nearest tracked is 7 (no card); nearest card is 2
+      if (api.current() !== 2) throw new Error('expected cluster 2, got ' + api.current());
+      api.pickFromFov(0, ev(1270, 10), size);      // nothing with a card anywhere near
+      if (api.current() !== 2) throw new Error('a far click moved the selection to ' + api.current());
+      api.pickFromFov(0, ev(1010, 990), size);     // generous: 14 frame px off cluster 1
+      if (api.current() !== 1) throw new Error('expected cluster 1, got ' + api.current());
       console.log('OK');
     """
     result = subprocess.run([node, "-e", script], capture_output=True, text=True)
@@ -976,6 +1235,69 @@ def test_a_point_never_has_both_tooltips():
     # the else-if is what enforces it
     assert 'if (p.tip) {' in PAGE_HTML
     assert '} else if (p.title) {' in PAGE_HTML
+
+
+def test_page_lands_on_a_chain_when_the_url_asks_for_it():
+    """The GUI's "Open in viewer" sends ?tab=tracking&chain=…; the page must
+    select that chain and tab once the tracking data has answered -- the tab
+    does not exist before then, so this cannot happen in init()."""
+    import re
+
+    from meanap.viewer.page import PAGE_HTML
+
+    m = re.search(r"async function initTracking\(\) \{(.*?)\n\}", PAGE_HTML, re.S)
+    body = m.group(1)
+    assert 'want.get("tab") === "tracking"' in body
+    assert 'want.get("chain")' in body
+    assert 'selectTab("tracking")' in body
+    # the chain is set, and the view switched off the overview, before the tab
+    # is shown -- otherwise showTracking draws the overview
+    assert body.index("sel.value = chain") < body.index('selectTab("tracking")')
+    assert '$("track-view").value' in body
+
+
+def test_gui_button_opens_the_served_viewer_on_the_chain(tmp_path, monkeypatch):
+    """The panel asks; the main window serves the run folder and opens the
+    browser on the tracking tab at that chain. Not a static file: the page
+    written at run time carries that day's JavaScript and none of the other
+    tracking views."""
+    import os
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    pytest.importorskip("PyQt6")
+    from PyQt6.QtWidgets import QApplication
+    app = QApplication.instance() or QApplication([])
+
+    from meanap.gui.panels.catnap import CatNapPanel
+
+    root = tmp_path / "OutputData"
+    _fake_tracking_output(root)
+    panel = CatNapPanel()
+    panel.set_output_root(root)
+    assert panel._track_viewer_btn.isEnabled()
+    asked = []
+    panel.open_tracking_viewer_requested.connect(asked.append)
+    panel._track_viewer_btn.click()
+    assert asked == ["chainA"]
+
+    # the window side, without a window: the same method the signal reaches
+    from meanap.gui import main_window as mw
+    opened = []
+    monkeypatch.setattr(mw.webbrowser, "open", opened.append)
+
+    class FakeViewers:
+        def url_for(self, source):
+            return None
+        def open(self, source):
+            assert Path(source) == root.resolve()
+            return "http://127.0.0.1:1/"
+
+    class Stub:
+        _last_output_root = root
+        _viewers = FakeViewers()
+        _run_panel = type("P", (), {"append_log": staticmethod(lambda *_: None)})()
+        _open_in_viewer = mw.MainWindow._open_in_viewer
+    mw.MainWindow._on_open_tracking_viewer(Stub(), "chainA")
+    assert opened == ["http://127.0.0.1:1/?tab=tracking&chain=chainA"]
 
 
 def test_tracking_tab_hides_the_figure_panes():

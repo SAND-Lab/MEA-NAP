@@ -5,12 +5,18 @@ Ties the pieces together in the order the design requires:
 1. group recordings into chains (``chains``)
 2. rasterise iscell-filtered footprints (``footprint``)
 3. solve robust per-session offsets (``register``)
-4. **gate**: chains whose measured offset is below ``min_shift_px`` are passed
-   through untouched -- correcting an offset you cannot measure injects error
+4. **gate**: chains in which no session would move by ``min_shift_px`` or
+   more are passed through untouched -- correcting an offset you cannot
+   measure injects error
 5. stage the shifted ROIs on a padded canvas and run ROICaT with its own
    registration disabled (``roicat``)
-6. validate against activity the matcher never saw (``validate``)
-7. write per-chain results, a manifest, and QC pages (``viewer``)
+6. **complete**: fold together two clusters that are one cell tracked in two
+   pieces on disjoint days, then attach the unmatched cell sitting exactly
+   where a tracked cluster should be on a day it is missing from
+   (``complete``) -- ROICaT declines both on footprint similarity, and by
+   activity they are indistinguishable from the matches it accepts
+7. validate against activity the matcher never saw (``validate``)
+8. write per-chain results, a manifest, and QC pages (``viewer``)
 
 Every chain records **why** it was treated the way it was, so a surprising match
 rate can be traced back to its offset and gate decision rather than guessed at.
@@ -26,6 +32,11 @@ from typing import Callable, Protocol
 import numpy as np
 
 from meanap.catnap.tracking.chains import Chain, build_chains
+from meanap.catnap.tracking.complete import (
+    COMPLETION_RADIUS_PX,
+    complete_clusters,
+    merge_split_clusters,
+)
 from meanap.catnap.tracking.footprint import DENSITY_BIN_PX, density_map
 from meanap.catnap.tracking.register import (
     MIN_SHIFT_PX,
@@ -107,6 +118,22 @@ class ChainResult:
     #: two disagree -- a high match rate does not mean well-matched cells.
     fingerprint_auc: float = float("nan")
     n_fingerprints: int = 0
+    #: Cluster members added by position after ROICaT (``complete.py``), as
+    #: ``{cluster, div, roi, dist_px}``. Every count above includes them; the
+    #: by-pair table also carries ``shared_roicat`` so they can be left out.
+    rescued: list = field(default_factory=list)
+    #: The fingerprint test run on the rescued members alone. On the Mecp2 run
+    #: it matches the accepted matches' (0.675 vs 0.684); a chain where it does
+    #: not is one where position alone was not enough.
+    rescued_fingerprint_auc: float = float("nan")
+    n_rescued_fingerprints: int = 0
+    #: Clusters folded into another because they are one cell tracked in two
+    #: pieces on disjoint days, as ``{cluster, absorbed, dist_px, divs}`` --
+    #: ``divs`` being the days that came from the absorbed half.
+    merged: list = field(default_factory=list)
+    #: The fingerprint test across the joins alone.
+    merged_fingerprint_auc: float = float("nan")
+    n_merged_fingerprints: int = 0
     #: Chain quality as a vector (separability / coverage / persistence /
     #: residual shift). Not collapsed into one number: the parts fail
     #: independently, and a composite was measured to add nothing (see
@@ -142,11 +169,20 @@ def track_chain(
     bin_px: int = DENSITY_BIN_PX,
     validate: bool = True,
     viewer_dir: Path | None = None,
-    viewer_cells: int = 40,
+    viewer_cells: int = 0,
     neucoeff: float = NEUCOEFF,
+    completion_radius_px: float = COMPLETION_RADIUS_PX,
+    reuse_runs: Path | None = None,
     progress: ProgressFn | None = None,
 ) -> ChainResult:
-    """Register (if warranted), match, and summarise one chain."""
+    """Register (if warranted), match, complete, and summarise one chain.
+
+    ``completion_radius_px`` <= 0 turns the completion step off.
+    ``reuse_runs`` names an earlier run's ``work/runs`` directory; a chain whose
+    ROICaT clusters are there, produced under the *same* gate decision, reads
+    them back instead of spending ten minutes recomputing them. Everything
+    after ROICaT is still redone.
+    """
     names = [r.name for r in chain.recordings]
     divs = [r.div for r in chain.recordings]
     result = ChainResult(chain=chain.key, divs=divs,
@@ -157,8 +193,8 @@ def track_chain(
     maps = [density_map(s, frame_px, bin_px=bin_px) for s in stats]
 
     offsets = solve_offsets(maps, reliable_ncc=reliable_ncc, bin_px=bin_px)
-    result.measured_shift_px = offsets.median_shift_px
-    result.registered = offsets.median_shift_px >= min_shift_px
+    result.measured_shift_px = offsets.max_session_shift_px
+    result.registered = offsets.should_register(min_shift_px)
 
     if result.registered:
         residual = verify_offsets(maps, offsets.offsets, bin_px=bin_px)
@@ -170,10 +206,10 @@ def track_chain(
     else:
         # below the gate the measurement is not distinguishable from noise, so
         # the honest correction is none at all
-        result.residual_shift_px = offsets.median_shift_px
+        result.residual_shift_px = offsets.max_session_shift_px
         result.offsets = [[0, 0]] * len(names)
-        result.note = (f"offset {offsets.median_shift_px:.1f} px is below the "
-                       f"{min_shift_px:.0f} px gate; passed through unregistered")
+        result.note = (f"largest session offset {offsets.max_session_shift_px:.1f} px "
+                       f"is below the {min_shift_px:.0f} px gate; passed through unregistered")
         height = width = frame_px
         staged = stats
 
@@ -184,21 +220,56 @@ def track_chain(
 
     if progress:
         progress(f"{chain.key}: {'registered' if result.registered else 'passed through'} "
-                 f"({offsets.median_shift_px:.1f} px)")
+                 f"({offsets.max_session_shift_px:.1f} px)")
 
     # exactly one registration happens: ours if we registered, ROICaT's if we
     # deliberately did not
-    run = run_chain(chain_dir, work_dir / "runs" / chain.key, chain.key,
-                    pre_registered=result.registered)
+    run = None
+    if reuse_runs is not None:
+        run = _reuse_clusters(Path(reuse_runs), work_dir / "runs" / chain.key,
+                              chain.key, pre_registered=result.registered,
+                              offsets=result.offsets)
+    if run is None:
+        run = run_chain(chain_dir, work_dir / "runs" / chain.key, chain.key,
+                        pre_registered=result.registered)
     labels = [np.asarray(s, dtype=int) for s in run["labels_bySession"]]
-    if labels:
-        rates = match_rates(labels, divs)
-        result.n_roi = rates["n_roi"]
-        result.frac_tracked = rates["frac_tracked"]
-        result.pairwise = rates["pairwise"]
-    else:
+    if not labels:
         result.note = (result.note + "; " if result.note else "") + "no clusters found"
         return result
+
+    before = match_rates(labels, divs)
+    if completion_radius_px > 0:
+        # The lookup wants the best geometry there is. A registered chain's
+        # staged ROIs already share a frame; a passed-through chain's were
+        # handed to ROICaT unshifted (its residual is below the gate), but its
+        # solved offsets are still the best estimate of where a cell should be.
+        centroids = [np.array([r["med"][:2] for r in st], dtype=float) for st in staged]
+        if not result.registered:
+            centroids = [c - np.asarray(o, dtype=float)
+                         for c, o in zip(centroids, offsets.offsets)]
+        # merge first: a cluster made whole has a better expected position
+        # for completion to look at
+        absorbed_days = {}
+        for s, lab in enumerate(labels):
+            for c in set(int(x) for x in lab if x >= 0):
+                absorbed_days.setdefault(c, []).append(divs[s])
+        labels, merges = merge_split_clusters(labels, centroids,
+                                              radius_px=completion_radius_px)
+        result.merged = [{"cluster": m.cluster, "absorbed": m.absorbed,
+                          "dist_px": round(m.dist_px, 1),
+                          "divs": sorted(absorbed_days.get(m.absorbed, []))}
+                         for m in merges]
+        labels, rescues = complete_clusters(labels, centroids,
+                                            radius_px=completion_radius_px)
+        result.rescued = [{"cluster": r.cluster, "div": divs[r.session],
+                           "roi": r.roi, "dist_px": round(r.dist_px, 1)}
+                          for r in rescues]
+    rates = match_rates(labels, divs)
+    result.n_roi = rates["n_roi"]
+    result.frac_tracked = rates["frac_tracked"]
+    result.pairwise = rates["pairwise"]
+    for pair, v in result.pairwise.items():
+        v["shared_roicat"] = before["pairwise"][pair]["shared"]
 
     if validate or viewer_dir is not None:
         try:
@@ -213,6 +284,52 @@ def track_chain(
             if progress:
                 progress(f"{chain.key}: validation failed — {exc}")
     return result
+
+
+def _reuse_clusters(runs_dir: Path, dest_dir: Path, name: str,
+                    *, pre_registered: bool, offsets: list | None = None
+                    ) -> dict | None:
+    """Read back an earlier run's ROICaT clusters for this chain, if they were
+    produced from the same staging.
+
+    The gate decision is recorded in ROICaT's own ``params_used.json``: a
+    pre-registered chain ran with ``NullRegistration``, a passed-through one
+    with ``PhaseCorrelation``. The staged geometry is checked against the
+    earlier run's chain result when it is there (``<run>/chains/<name>.json``,
+    next to ``work/``): the offsets may differ by a common translation, which
+    the matcher cannot see, and by nothing else.
+    """
+    import shutil
+
+    src = runs_dir / name
+    clusters = src / f"{name}.tracking.results_clusters.json"
+    params = src / f"{name}.tracking.params_used.json"
+    if not clusters.exists() or not params.exists():
+        return None
+    try:
+        method = json.loads(params.read_text())["aligner"]["fit_geometric"]["method"]
+    except (KeyError, ValueError, TypeError):
+        return None
+    if (method == "NullRegistration") != pre_registered:
+        return None
+    earlier = runs_dir.parent.parent / "chains" / f"{name}.json"
+    if pre_registered and offsets is not None and earlier.exists():
+        try:
+            before = np.asarray(json.loads(earlier.read_text())["offsets"], dtype=float)
+        except (KeyError, ValueError, TypeError):
+            return None
+        now = np.asarray(offsets, dtype=float)
+        if before.shape != now.shape:
+            return None
+        delta = now - before
+        if np.abs(delta - delta[0]).max() > 1.0:
+            return None
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    for f in (clusters, params):
+        if f.resolve() != (dest_dir / f.name).resolve():
+            shutil.copy2(f, dest_dir / f.name)
+    by_session = json.loads(clusters.read_text()).get("labels_bySession") or []
+    return {"labels_bySession": [np.asarray(s, dtype=int).tolist() for s in by_session]}
 
 
 def _validate_and_render(
@@ -257,6 +374,12 @@ def _validate_and_render(
 
     stats_for_metrics = [source.stat(name) for name in names]
     matched, null, per_cluster = [], [], {}
+    # the rescued members get their own AUC: it is the check that position
+    # alone was enough on this chain, kept apart from the pooled number
+    rescued_at = {(int(r["cluster"]), int(r["div"])) for r in result.rescued}
+    rescued_matched, rescued_null = [], []
+    merged_at = {(int(m["cluster"]), int(d)) for m in result.merged for d in m["divs"]}
+    merged_matched, merged_null = [], []
     # every metric, for matched pairs and for their spatial nulls, so a cell can
     # be placed against both populations rather than shown as a bare number
     pools: dict[str, dict[str, list]] = {}
@@ -273,6 +396,15 @@ def _validate_and_render(
                 matched.append(row["matched"])
                 null.append(row["nearest"])
                 per_cluster.setdefault(row["cluster"], []).append(row["matched"])
+                if ((row["cluster"], result.divs[a]) in rescued_at
+                        or (row["cluster"], result.divs[b]) in rescued_at):
+                    rescued_matched.append(row["matched"])
+                    rescued_null.append(row["nearest"])
+                # a pair that straddles the join -- one day from each half
+                elif (((row["cluster"], result.divs[a]) in merged_at)
+                        != ((row["cluster"], result.divs[b]) in merged_at)):
+                    merged_matched.append(row["matched"])
+                    merged_null.append(row["nearest"])
                 _record("fingerprint", "matched", row["matched"])
                 _record("fingerprint", "null", row["nearest"])
 
@@ -302,6 +434,14 @@ def _validate_and_render(
     if validate and matched:
         result.fingerprint_auc = auc_vs_null(np.array(matched), np.array(null))
         result.n_fingerprints = len(matched)
+        if rescued_matched:
+            result.rescued_fingerprint_auc = auc_vs_null(
+                np.array(rescued_matched), np.array(rescued_null))
+            result.n_rescued_fingerprints = len(rescued_matched)
+        if merged_matched:
+            result.merged_fingerprint_auc = auc_vs_null(
+                np.array(merged_matched), np.array(merged_null))
+            result.n_merged_fingerprints = len(merged_matched)
         spans = [len(v) for v in _cluster_spans(labels).values()]
         result.quality = asdict(chain_quality(
             chain.key, fingerprint_auc=result.fingerprint_auc,
@@ -350,7 +490,11 @@ def _validate_and_render(
             metrics=[{"rate": rates[k][i], "iei": ieis[k][i],
                       "pop": sessions[k].pop_coupling[i]} for k, i in entries],
             fingerprint=score, percentile=pct,
-            comparisons=compare_metrics(values, null_only, matched_only)))
+            comparisons=compare_metrics(values, null_only, matched_only),
+            rescued_divs=[result.divs[k] for k, _ in entries
+                          if (cluster, result.divs[k]) in rescued_at],
+            merged_divs=[result.divs[k] for k, _ in entries
+                         if (cluster, result.divs[k]) in merged_at]))
     if not cards:
         return
 
@@ -369,10 +513,15 @@ def _validate_and_render(
     chosen = select_cards(cards, viewer_cells)
     good = sum(1 for c in chosen if np.isfinite(c.fingerprint) and c.fingerprint >= 0.5)
     subtitle = (
-        f"{len(chosen)} of {len(cards)} tracked cells shown, worst first. "
-        f"{good} score r &ge; 0.50. "
+        (f"{len(cards)} tracked cells, worst first. " if len(chosen) == len(cards)
+         else f"{len(chosen)} of {len(cards)} tracked cells shown, worst first. ")
+        + f"{good} score r &ge; 0.50. "
         f"{'Registered' if result.registered else 'Passed through unregistered'}; "
-        f"measured field-of-view shift {result.measured_shift_px:.1f} px.")
+        f"largest field-of-view shift {result.measured_shift_px:.1f} px."
+        + (f" {len(result.rescued)} cell-days added by position."
+           if result.rescued else "")
+        + (f" {len(result.merged)} split cells joined."
+           if result.merged else ""))
     title = f"Tracked cells — {chain.key}"
     fs = source.frame_rate(names[0])
     write_page(viewer_dir / f"{chain.key}.html", title, subtitle, chosen, fs,
@@ -398,8 +547,10 @@ def track_dataset(
     min_shift_px: float = MIN_SHIFT_PX,
     tracked_threshold: float = 0.10,
     validate: bool = True,
-    viewer_cells: int = 40,
+    viewer_cells: int = 0,
     neucoeff: float = NEUCOEFF,
+    completion_radius_px: float = COMPLETION_RADIUS_PX,
+    reuse_runs: Path | None = None,
     workers: int = 1,
     threads_per_worker: int = 4,
     progress: ProgressFn | None = None,
@@ -411,6 +562,9 @@ def track_dataset(
     every run, and torch sizes its thread pools to the whole machine — see
     :mod:`meanap.catnap.tracking.__main__`. A chain whose result is already on
     disk is skipped, so an interrupted run continues where it stopped.
+    ``reuse_runs`` points at an earlier run's ``work/runs`` so that chains whose
+    gate decision has not changed reuse their ROICaT clusters (see
+    :func:`track_chain`).
     """
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -424,12 +578,14 @@ def track_dataset(
             ordered, recordings, source, out_dir,
             min_shift_px=min_shift_px, validate=validate,
             viewer_cells=viewer_cells, neucoeff=neucoeff,
+            completion_radius_px=completion_radius_px, reuse_runs=reuse_runs,
             workers=workers, threads_per_worker=threads_per_worker,
             progress=progress)
     else:
         results = _track_serial(
             ordered, source, out_dir, min_shift_px=min_shift_px,
             validate=validate, viewer_cells=viewer_cells, neucoeff=neucoeff,
+            completion_radius_px=completion_radius_px, reuse_runs=reuse_runs,
             progress=progress)
 
     usable = [r for r in results if r.pairwise and r.median_match >= tracked_threshold]
@@ -456,13 +612,24 @@ def track_dataset(
     aucs = [r.fingerprint_auc for r in results if np.isfinite(r.fingerprint_auc)]
     if aucs:
         summary["median_fingerprint_auc"] = float(np.median(aucs))
+    summary["rescued_cell_days"] = sum(len(r.rescued) for r in results)
+    rescued_aucs = [r.rescued_fingerprint_auc for r in results
+                    if np.isfinite(r.rescued_fingerprint_auc)]
+    if rescued_aucs:
+        summary["median_rescued_fingerprint_auc"] = float(np.median(rescued_aucs))
+    summary["merged_clusters"] = sum(len(r.merged) for r in results)
+    merged_aucs = [r.merged_fingerprint_auc for r in results
+                   if np.isfinite(r.merged_fingerprint_auc)]
+    if merged_aucs:
+        summary["median_merged_fingerprint_auc"] = float(np.median(merged_aucs))
     (out_dir / "summary.json").write_text(json.dumps(summary, indent=1))
     _write_csv(out_dir, results)
     return summary
 
 
 def _track_serial(ordered, source, out_dir, *, min_shift_px, validate,
-                  viewer_cells, neucoeff, progress) -> list[ChainResult]:
+                  viewer_cells, neucoeff, completion_radius_px, reuse_runs,
+                  progress) -> list[ChainResult]:
     results: list[ChainResult] = []
     for i, chain in enumerate(ordered, 1):
         dest = out_dir / "chains" / f"{chain.key}.json"
@@ -474,7 +641,8 @@ def _track_serial(ordered, source, out_dir, *, min_shift_px, validate,
                               min_shift_px=min_shift_px, validate=validate,
                               viewer_dir=out_dir / "viewer",
                               viewer_cells=viewer_cells, neucoeff=neucoeff,
-                              progress=progress)
+                              completion_radius_px=completion_radius_px,
+                              reuse_runs=reuse_runs, progress=progress)
         except Exception as exc:               # one bad chain must not end the run
             res = ChainResult(chain=chain.key, divs=chain.divs,
                               genotype=chain.genotype, prep=chain.prep,
@@ -500,8 +668,9 @@ def _track_serial(ordered, source, out_dir, *, min_shift_px, validate,
 
 
 def _track_parallel(ordered, recordings, source, out_dir, *, min_shift_px,
-                    validate, viewer_cells, neucoeff, workers,
-                    threads_per_worker, progress) -> list[ChainResult]:
+                    validate, viewer_cells, neucoeff, completion_radius_px,
+                    reuse_runs, workers, threads_per_worker, progress
+                    ) -> list[ChainResult]:
     """Run chains in parallel subprocesses, longest first.
 
     Longest first because cost tracks total ROI count: starting the big chains
@@ -520,7 +689,9 @@ def _track_parallel(ordered, recordings, source, out_dir, *, min_shift_px,
             progress("this source cannot be used from a subprocess; running serially")
         return _track_serial(ordered, source, out_dir, min_shift_px=min_shift_px,
                              validate=validate, viewer_cells=viewer_cells,
-                             neucoeff=neucoeff, progress=progress)
+                             neucoeff=neucoeff,
+                             completion_radius_px=completion_radius_px,
+                             reuse_runs=reuse_runs, progress=progress)
 
     todo, results = [], []
     for chain in ordered:
@@ -573,6 +744,8 @@ def _track_parallel(ordered, recordings, source, out_dir, *, min_shift_px,
             "dest": str(dest),
             "min_shift_px": min_shift_px, "validate": validate,
             "viewer_cells": viewer_cells, "neucoeff": neucoeff,
+            "completion_radius_px": completion_radius_px,
+            "reuse_runs": str(reuse_runs) if reuse_runs else "",
         }))
         env = dict(env_base)
         tmp = tmp_root / chain.key
@@ -769,17 +942,20 @@ def _write_csv(out_dir: Path, results: list[ChainResult]) -> None:
     with open(out_dir / "tracking_by_chain.csv", "w", newline="") as fh:
         w = csv.writer(fh)
         w.writerow(["chain", "genotype", "prep", "div", "n_roi", "frac_tracked",
-                    "registered", "measured_shift_px"])
+                    "registered", "measured_shift_px", "n_rescued", "n_merged"])
         for r in results:
             for div, n, f in zip(r.divs, r.n_roi, r.frac_tracked):
                 w.writerow([r.chain, r.genotype, r.prep, div, n, f,
-                            int(r.registered), round(r.measured_shift_px, 1)])
+                            int(r.registered), round(r.measured_shift_px, 1),
+                            sum(1 for x in r.rescued if x["div"] == div),
+                            sum(1 for m in r.merged if div in m["divs"])])
 
     with open(out_dir / "tracking_by_pair.csv", "w", newline="") as fh:
         w = csv.writer(fh)
         w.writerow(["chain", "genotype", "prep", "pair", "div_gap", "shared",
-                    "frac_of_smaller", "registered"])
+                    "shared_roicat", "frac_of_smaller", "registered"])
         for r in results:
             for pair, v in r.pairwise.items():
                 w.writerow([r.chain, r.genotype, r.prep, pair, v["div_gap"],
-                            v["shared"], v["frac_of_smaller"], int(r.registered)])
+                            v["shared"], v.get("shared_roicat", v["shared"]),
+                            v["frac_of_smaller"], int(r.registered)])

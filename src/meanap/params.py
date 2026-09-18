@@ -354,14 +354,22 @@ class Params:
     # measured floor for the Mecp2 dataset (foreign-FOV max 0.091) and does not
     # transfer. The pre-existing 0.05 convention sits *below* that floor.
     track_tracked_threshold: float = 0.10
+    # After ROICaT, a tracked cell missing on a day is completed with the one
+    # unmatched cell sitting within this radius of where it should be. By
+    # activity those cells are indistinguishable from ROICaT's own matches
+    # (fingerprint AUC 0.675 vs 0.684); ROICaT declines them on footprint shape.
+    # 0 turns completion off. The added members are flagged everywhere.
+    track_completion_radius_px: float = 10.0
     # suite2p's neuropil coefficient, for the validation traces.
     track_neuropil_coeff: float = 0.7
     # Validate matches against activity the matcher never saw. Costs one pass
     # over the traces and is what makes a match rate interpretable.
     track_validate_activity: bool = True
-    # Cells per chain in the QC page. They are sampled across the ranking,
-    # worst first, rather than taken from the top.
-    track_viewer_cells: int = 40
+    # Cells per chain in the QC page; 0 means every tracked cell. A cap samples
+    # across the ranking, worst first, rather than taking the top. Each cell
+    # costs ~34 kB (crops + traces), so a cap only matters for bundle size --
+    # a 265-cell chain is ~9 MB uncapped.
+    track_viewer_cells: int = 0
     python_path: str = ""
 
     # Cell-type subnetwork analysis (see catnap/subnetwork.py). When enabled,

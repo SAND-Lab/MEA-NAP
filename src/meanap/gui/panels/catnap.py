@@ -211,6 +211,9 @@ class _TraceCanvas(FigureCanvasQTAgg):
 
 class CatNapPanel(QWidget):
     log_message = pyqtSignal(str)
+    #: The user wants the run's viewer open on the cell-tracking tab for this
+    #: chain. The main window owns viewer servers, so it does the opening.
+    open_tracking_viewer_requested = pyqtSignal(str)
     #: A batch spreadsheet was written; the Data tab points itself at it.
     spreadsheet_saved = pyqtSignal(str)
 
@@ -1004,6 +1007,7 @@ class CatNapPanel(QWidget):
         self._track_enabled.setChecked(params.track_cells)
         self._track_min_shift.setValue(params.track_min_shift_px)
         self._track_threshold.setValue(params.track_tracked_threshold)
+        self._track_complete.setValue(params.track_completion_radius_px)
         self._track_validate.setChecked(params.track_validate_activity)
         self._refresh_tracking_chains()
         self._redo_denoising.setChecked(params.twop_redo_denoising)
@@ -1067,6 +1071,7 @@ class CatNapPanel(QWidget):
         params.track_cells = self._track_enabled.isChecked()
         params.track_min_shift_px = self._track_min_shift.value()
         params.track_tracked_threshold = self._track_threshold.value()
+        params.track_completion_radius_px = self._track_complete.value()
         params.track_validate_activity = self._track_validate.isChecked()
 
 
@@ -1109,6 +1114,20 @@ class CatNapPanel(QWidget):
             "floor. Derive it from controls for your own rig: the default is the "
             "floor measured on the Mecp2 dataset and does not transfer.")
         row.addWidget(self._track_threshold)
+        row.addSpacing(12)
+        row.addWidget(QLabel("Complete within"))
+        self._track_complete = QDoubleSpinBox()
+        self._track_complete.setRange(0.0, 64.0)
+        self._track_complete.setSingleStep(2.0)
+        self._track_complete.setSuffix(" px")
+        self._track_complete.setSpecialValueText("off")
+        self._track_complete.setToolTip(
+            "After matching, a tracked cell missing on a day is completed with "
+            "the one unmatched cell within this distance of where it should be. "
+            "By activity those cells are as good as the matcher's own "
+            "(fingerprint AUC 0.675 vs 0.684); it declines them on mask shape. "
+            "Added members are flagged in every output. 0 turns this off.")
+        row.addWidget(self._track_complete)
         row.addStretch(1)
         layout.addLayout(row)
 
@@ -1126,10 +1145,12 @@ class CatNapPanel(QWidget):
             QComboBox.SizeAdjustPolicy.AdjustToContents)
         self._track_chain.setToolTip("Chain to inspect cell by cell.")
         viewer_row.addWidget(self._track_chain, stretch=1)
-        self._track_viewer_btn = QPushButton("Open cell viewer")
+        self._track_viewer_btn = QPushButton("Open in viewer")
         self._track_viewer_btn.setToolTip(
-            "Per-cell page: footprint and trace on each day, with the "
-            "fingerprint score. Ordered worst first, so it calibrates how much "
+            "Opens the run's viewer in a browser on the cell-tracking tab, at "
+            "this chain: every tracked cell with its footprint and trace on "
+            "each day and its fingerprint score, plus the dataset overview and "
+            "the network view. Ordered worst first, so it calibrates how much "
             "to trust a given score.")
         self._track_viewer_btn.clicked.connect(self._on_open_cell_viewer)
         viewer_row.addWidget(self._track_viewer_btn)
@@ -1171,8 +1192,6 @@ class CatNapPanel(QWidget):
         self._track_viewer_btn.setEnabled(True)
 
     def _on_open_cell_viewer(self) -> None:
-        import webbrowser
-
         out = self._tracking_output_dir()
         if out is None:
             QMessageBox.information(
@@ -1180,15 +1199,13 @@ class CatNapPanel(QWidget):
                 "Run the pipeline with cell tracking enabled first.")
             return
         chain = self._track_chain.currentText()
-        page = out / "viewer" / f"{chain}.html"
-        if not page.is_file():
+        if not (out / "payload" / f"{chain}.json").is_file():
             QMessageBox.information(
                 self, "No page for this chain",
-                f"{chain} has no QC page. A chain with fewer than two matched "
-                "cells does not get one.")
+                f"{chain} has no per-cell page. A chain with fewer than two "
+                "matched cells does not get one.")
             return
-        webbrowser.open(page.as_uri())
-        self._log_msg(f"Opened cell viewer: {page}")
+        self.open_tracking_viewer_requested.emit(chain)
 
     # ── Helpers ───────────────────────────────────────────────────────────────
 
