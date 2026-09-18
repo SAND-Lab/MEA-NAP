@@ -83,6 +83,10 @@ class CellCard:
     #: ``(session_index, y, x)`` per day, so the cell can be marked on the FOV.
     positions: list[tuple[int, float, float]] = field(default_factory=list)
     comparisons: list = field(default_factory=list)
+    #: Days on which this member was added by position rather than by ROICaT.
+    rescued_divs: list[int] = field(default_factory=list)
+    #: Days that came from a second cluster folded into this one.
+    merged_divs: list[int] = field(default_factory=list)
     extra: dict = field(default_factory=dict)
 
 
@@ -206,11 +210,14 @@ def crop_footprint(roi, frame_px: int, pad: int = 6) -> np.ndarray:
 
 
 def select_cards(cards: list[CellCard], max_cells: int) -> list[CellCard]:
-    """Order worst-first and sample across the range, keeping the bad end."""
+    """Order worst-first and sample across the range, keeping the bad end.
+
+    ``max_cells`` <= 0 keeps every card.
+    """
     # an unscored cell sorts to the worst end: it is unverified, not good
     ranked = sorted(cards, key=lambda c: c.fingerprint
                     if np.isfinite(c.fingerprint) else -np.inf)
-    if len(ranked) <= max_cells:
+    if max_cells <= 0 or len(ranked) <= max_cells:
         return ranked
     step = len(ranked) / max_cells
     return [ranked[int(i * step)] for i in range(max_cells)]
@@ -277,6 +284,8 @@ def build_payload(chain: str, subtitle: str, cards: list[CellCard], fs: float,
         payload["cells"].append({
             "cluster": int(card.cluster),
             "divs": [int(d) for d in card.divs],
+            "rescuedDivs": [int(d) for d in card.rescued_divs],
+            "mergedDivs": [int(d) for d in card.merged_divs],
             "fingerprint": (None if not np.isfinite(card.fingerprint)
                             else round(float(card.fingerprint), 4)),
             "percentile": (None if not np.isfinite(card.percentile)
@@ -365,6 +374,9 @@ h2.hashelp,span.hashelp{text-decoration:underline dotted;text-underline-offset:2
   margin-right:5px;vertical-align:-1px}
 .legend .sw.bar{width:18px;height:7px;border-radius:2px;opacity:.55;vertical-align:0}
 .legend .sw.sel{background:var(--sel);border-radius:50%}
+.legend .sw.dot{border-radius:50%;opacity:.85}
+.legend .sw.dot.small{width:7px;height:7px;opacity:.5;margin-left:2px;margin-right:7px}
+.legend .sw.ring{border-radius:50%;border:1.5px solid;background:transparent;box-sizing:border-box}
 .hist{margin-bottom:14px}
 .histhead{font-size:12.5px;margin-bottom:2px}
 .warnpill{font-size:10px;background:var(--line);color:var(--mut);
@@ -482,7 +494,11 @@ const HELP = {
     + "selected cell is ringed and crosshaired on <i>all</i> days at once, so "
     + "you can see whether the match landed in the same place.<br><br>Scroll to "
     + "zoom, drag to pan — every day moves together, because they are only "
-    + "comparable at the same magnification.",
+    + "comparable at the same magnification.<br><br>Click a <b>solid blue</b> dot "
+    + "to select that cell. <b>Hollow orange</b> dots are tracked cells with no "
+    + "card on the left (the page carries at most 40), so they cannot be "
+    + "selected; untick them to hide them. Grey dots are cells tracked on no "
+    + "other day.",
   masks:
     "<b>Cell masks</b><br>The footprints suite2p actually segmented. Each "
     + "tracked cell is coloured by its <b>cluster</b>, so the same cell is the "
@@ -490,6 +506,9 @@ const HELP = {
 };
 
 let cells = D.cells.slice(), order = cells.map((_, i) => i), sel = 0, showAll = true;
+let showNoCard = true;     // tracked cells that have no card, and so cannot be picked
+// clusters that have a card, and so can be selected at all
+const selectable = new Set(D.cells.map(c => c.cluster));
 let background = "mean";   // mean image · cell masks · none
 // one view for every day: zooming one day zooms them all, which is the whole
 // point — the days are only comparable at the same magnification and position
@@ -510,7 +529,7 @@ function buildFov(){
     cap.textContent = "DIV" + s.div;
     fig.append(cv, cap); host.append(fig);
     s._cy = b64f32(s.cy); s._cx = b64f32(s.cx);
-    cv.addEventListener("click", ev => pickFromFov(si, ev, size));
+    cv.style.cursor = "crosshair";
     cv.addEventListener("wheel", ev => {
       ev.preventDefault();
       const r = cv.getBoundingClientRect();
@@ -522,19 +541,27 @@ function buildFov(){
       view.cx += before.x - after.x; view.cy += before.y - after.y;
       clampView(); redrawFov();
     }, {passive: false});
+    // a press that moves is a pan; a press that does not is a pick. Letting
+    // the browser's click fire after a pan jumped the selection every time
+    // the view was dragged.
     let drag = null;
     cv.addEventListener("pointerdown", ev => {
-      drag = {x: ev.clientX, y: ev.clientY}; cv.setPointerCapture(ev.pointerId); });
+      drag = {x: ev.clientX, y: ev.clientY, x0: ev.clientX, y0: ev.clientY, moved: false};
+      cv.setPointerCapture(ev.pointerId); });
     cv.addEventListener("pointermove", ev => {
       if (!drag) return;
+      if (Math.hypot(ev.clientX - drag.x0, ev.clientY - drag.y0) > 4) drag.moved = true;
       const span = D.frame / view.scale;
       view.cx -= (ev.clientX - drag.x) / size * span;
       view.cy -= (ev.clientY - drag.y) / size * span;
-      drag = {x: ev.clientX, y: ev.clientY};
+      drag = {...drag, x: ev.clientX, y: ev.clientY};
       clampView(); redrawFov(); });
-    const endDrag = () => { drag = null; };
-    cv.addEventListener("pointerup", endDrag);
-    cv.addEventListener("pointercancel", endDrag);
+    cv.addEventListener("pointerup", ev => {
+      const wasPick = drag && !drag.moved;
+      drag = null;
+      if (wasPick) pickFromFov(si, ev, size);
+    });
+    cv.addEventListener("pointercancel", () => { drag = null; });
     cv.addEventListener("dblclick", () => { resetView(); });
     // register the canvas before the image can call back: a cached or
     // synchronously-decoded data URL fires onload immediately, and drawFov
@@ -597,17 +624,32 @@ function drawFov(si){
   const here = cell ? cell.positions.find(p => p[0] === si) : null;
   // on the mask background the footprints already show every ROI, so only the
   // selected cell is marked — drawing every dot would just cover them
+  // dots grow with the zoom, but slowly (square root), so they stay a
+  // marker on the cell rather than becoming the cell: 2.2 px at 1x, ~5 px at
+  // 5x, capped at 6 px
+  const rDot = Math.max(2.2, Math.min(6, 2.2 * Math.sqrt(view.scale)));
   for (let i = 0; background !== "masks" && i < s._cy.length; i++){
     const tracked = s.cluster[i] >= 0;
+    const pickable = tracked && selectable.has(s.cluster[i]);
     if (!tracked && !showAll) continue;
+    if (tracked && !pickable && !showNoCard) continue;
     const isSel = cell && s.cluster[i] === cell.cluster;
     const X = px(s._cx[i]), Y = py(s._cy[i]);
-    if (X < -8 || Y < -8 || X > size + 8 || Y > size + 8) continue;
+    if (X < -12 || Y < -12 || X > size + 12 || Y > size + 12) continue;
     g.beginPath();
-    g.arc(X, Y, isSel ? 5 : (tracked ? 2.2 : 1.4), 0, 6.284);
-    if (isSel){ g.strokeStyle = css("--sel"); g.lineWidth = 2; g.stroke(); }
-    else { g.fillStyle = tracked ? css("--match") : css("--null");
-           g.globalAlpha = tracked ? .85 : .40; g.fill(); g.globalAlpha = 1; }
+    if (isSel){
+      g.arc(X, Y, rDot + 3, 0, 6.284);
+      g.strokeStyle = css("--sel"); g.lineWidth = 2; g.stroke();
+    } else if (pickable){            // solid blue: click to select
+      g.arc(X, Y, rDot, 0, 6.284);
+      g.fillStyle = css("--match"); g.globalAlpha = .85; g.fill(); g.globalAlpha = 1;
+    } else if (tracked){             // hollow orange: tracked, but no card
+      g.arc(X, Y, rDot, 0, 6.284);
+      g.strokeStyle = css("--lo"); g.lineWidth = 1.5; g.globalAlpha = .8; g.stroke(); g.globalAlpha = 1;
+    } else {                         // small grey: not tracked
+      g.arc(X, Y, Math.max(1.4, rDot * .55), 0, 6.284);
+      g.fillStyle = css("--null"); g.globalAlpha = .4; g.fill(); g.globalAlpha = 1;
+    }
   }
   if (background === "masks" && cell){
     for (let i = 0; i < s._cy.length; i++){
@@ -625,13 +667,18 @@ function drawFov(si){
     g.stroke(); g.globalAlpha = 1;
   }
 }
+// how far (in screen px) a click may land from a cell and still pick it. In
+// frame px this shrinks as the view zooms in, which is what a pointer wants:
+// the target is the dot on screen, not the cell's real size
+const PICK_RADIUS_PX = 40;
 function pickFromFov(si, ev, size){
   const s = D.sessions[si], r = ev.target.getBoundingClientRect();
   const f = toFrame(ev.clientX - r.left, ev.clientY - r.top, size);
   const x = f.x, y = f.y;
-  let best = -1, bestD = 1e18;
+  const limit = (PICK_RADIUS_PX * span() / size) ** 2;
+  let best = -1, bestD = limit;
   for (let i = 0; i < s._cy.length; i++){
-    if (s.cluster[i] < 0) continue;
+    if (s.cluster[i] < 0 || !selectable.has(s.cluster[i])) continue;
     const d = (s._cy[i]-y)**2 + (s._cx[i]-x)**2;
     if (d < bestD){ bestD = d; best = i; }
   }
@@ -699,7 +746,20 @@ function drawDetail(){
     popEl.textContent = "pop " + (m.pop == null ? "n/a"
       : (m.pop >= 0 ? "+" : "") + m.pop.toFixed(2));
     attachTip(rateEl, HELP.rate); attachTip(popEl, HELP.pop);
-    cap.append(`DIV${c.divs[k]}`, document.createElement("br"), rateEl,
+    const dayEl = document.createElement("span");
+    dayEl.textContent = `DIV${c.divs[k]}`;
+    if ((c.rescuedDivs || []).includes(c.divs[k])){
+      dayEl.textContent += " ·";
+      dayEl.style.color = "var(--sel)";
+      dayEl.title = "Added by position: ROICaT left this cell unmatched, and it "
+        + "was the only unmatched cell within 10 px of where the tracked cell should be.";
+    } else if ((c.mergedDivs || []).includes(c.divs[k])){
+      dayEl.textContent += " ∙∙";
+      dayEl.style.color = "var(--sel)";
+      dayEl.title = "Joined: ROICaT tracked this cell as a second cluster on these "
+        + "days, at the same position and on days the first cluster lacked.";
+    }
+    cap.append(dayEl, document.createElement("br"), rateEl,
                document.createElement("br"), popEl);
     wrap.append(cv, cap); host.append(wrap);
   });
@@ -833,6 +893,9 @@ window.addEventListener("DOMContentLoaded", () => {
   $("#showall").addEventListener("change", e => {
     showAll = e.target.checked; redrawFov();
   });
+  $("#shownocard").addEventListener("change", e => {
+    showNoCard = e.target.checked; redrawFov();
+  });
   $("#bg").addEventListener("change", e => {
     background = e.target.value; redrawFov();
   });
@@ -888,10 +951,17 @@ def render_page(payload: dict, *, note: str = _NOTE) -> str:
         <option value="masks">cell masks</option>
         <option value="none">none</option>
       </select></label>
-    <label><input type="checkbox" id="showall" checked> show untracked</label>
+    <label><input type="checkbox" id="shownocard" checked> tracked, no card</label>
+    <label><input type="checkbox" id="showall" checked> untracked</label>
     <span>scroll to zoom &middot; drag to pan &middot; all days move together</span>
     <span id="zoom">1.0&times;</span>
     <button id="reset" type="button">reset view</button>
+  </div>
+  <div class="legend" id="fovlegend" style="margin:6px 0 0">
+    <span><i class="sw dot" style="background:var(--match)"></i>click to select</span>
+    <span><i class="sw ring" style="border-color:var(--lo)"></i>tracked, no card &mdash; not selectable</span>
+    <span><i class="sw dot small" style="background:var(--null)"></i>untracked</span>
+    <span><i class="sw ring" style="border-color:var(--sel);border-width:2px"></i>selected</span>
   </div></div>
 <div class="wrap">
   <div class="side box"><h2>cells &middot; worst first</h2>

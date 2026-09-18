@@ -1781,6 +1781,20 @@ async function initTracking() {
   fillChainPicker();
   $("track-chain").addEventListener("change", showTracking);
   $("track-view").addEventListener("change", showTracking);
+  // A link can land straight on a chain's cells: the GUI's "Open in viewer"
+  // button sends ?tab=tracking&chain=…, and the tab only exists once the
+  // tracking data has answered, which is now.
+  const want = new URLSearchParams(location.search);
+  if (want.get("tab") === "tracking") {
+    const chain = want.get("chain");
+    const sel = $("track-chain");
+    if (chain && [...sel.options].some(o => o.value === chain)) {
+      sel.value = chain;
+      // a chain was asked for, so show its cells, not the dataset overview
+      $("track-view").value = want.get("view") || "cells";
+    }
+    selectTab("tracking");
+  }
 }
 
 async function showTracking() {

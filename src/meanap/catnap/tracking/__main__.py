@@ -44,8 +44,10 @@ def main() -> int:
         min_shift_px=spec.get("min_shift_px", 16.0),
         validate=spec.get("validate", True),
         viewer_dir=Path(spec["viewer_dir"]) if spec.get("viewer_dir") else None,
-        viewer_cells=spec.get("viewer_cells", 40),
+        viewer_cells=spec.get("viewer_cells", 0),
         neucoeff=spec.get("neucoeff", 0.7),
+        completion_radius_px=spec.get("completion_radius_px", 10.0),
+        reuse_runs=Path(spec["reuse_runs"]) if spec.get("reuse_runs") else None,
     )
     Path(spec["dest"]).write_text(json.dumps(asdict(result), indent=1))
     return 0

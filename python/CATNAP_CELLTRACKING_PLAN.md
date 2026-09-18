@@ -112,6 +112,7 @@ track_cells: bool = False           # off by default; opt in per run
 track_min_shift_px: float = 16.0    # below this, leave the chain alone
 track_reliable_ncc: float = 0.45    # pairs below this do not constrain the solve
 track_tracked_threshold: float = 0.10   # set from the measured foreign-FOV floor
+track_completion_radius_px: float = 10.0  # attach the one unmatched cell this close; 0 = off
 track_density_bin_px: int = 8
 track_neuropil_coeff: float = 0.7   # suite2p convention
 track_validate_activity: bool = True
@@ -141,12 +142,24 @@ hand**, not inherited. The 0.10 above belongs to this rig.
      noise, and letting them constrain the solve moved one chain from 12 px to
      89 px;
    - weight surviving pairs by `ncc - threshold`;
-   - solve each **connected component** separately, pinning its mean at zero, so
-     a session on a genuinely different field is left where it is rather than
-     averaged into a meaningless common frame.
+   - solve each **connected component** separately, so a session on a genuinely
+     different field is left where it is rather than averaged into a
+     meaningless common frame;
+   - **anchor each component on its medoid session**, not its mean. Mean-pinning
+     spreads one session's 18 px drift into 13.5 / −4.5 / −4.5 / −4.5 — three
+     sub-bin corrections nobody asked for — and hides the drift from the gate.
+     A common translation is invisible to the matcher.
 
-4. **Gate and stage.** If a chain's median measured offset `< track_min_shift_px`,
-   **skip pre-registration entirely** and pass the original data through. Else
+4. **Gate and stage.** If **no session would be moved by**
+   `track_min_shift_px` **or more** (the largest solved per-session offset),
+   **skip pre-registration entirely** and pass the original data through.
+   Not the median over pairs — that hid a single drifted session (three of six
+   pairs measure the drift, three measure 0; OPME240112_5's DIV21 sat 18–25 px
+   off, was passed through at a median of 8.9 px, and matched nothing), and
+   "registered" chains with no reliable pair at all with all-zero offsets
+   while switching ROICaT's own alignment off. Not the largest pair either —
+   a single 16 px pair in an aligned chain is bin-quantisation wobble, and
+   registering on it nudges every session by ~8 px. Else
    shift ROI pixel coordinates and **pad the canvas** so nothing is clipped
    (padding is harmless — verified at 0.742 vs 0.740). Leave the mean images at a
    shared origin.
@@ -166,6 +179,62 @@ hand**, not inherited. The 0.10 above belongs to this rig.
 
    **Keep only `results_clusters.json`.** `run_data.richfile.zip` is ~400 MB per
    chain (109 GB across this session's runs) and nothing downstream reads it.
+
+   A re-run can hand `track_dataset(reuse_runs=<old>/work/runs)` and any chain
+   whose gate decision *and* staged geometry are unchanged reads its clusters
+   back (seconds) instead of recomputing them (~10 min). The check is against
+   ROICaT's own `params_used.json` and the earlier chain result's offsets.
+
+5b. **Completion** (`complete.py`). ROICaT clusters on footprint similarity and
+   is conservative about it. Audited over the 93-chain run: for every tracked
+   cell and every day it was missing from, what sat at its expected position?
+
+   | at the expected position (≤ 10 px) | slots | share |
+   |---|---|---|
+   | an iscell ROI ROICaT left unmatched | 2,089 | 24% |
+   | an iscell ROI in another cluster | 682 | 8% |
+   | a non-iscell ROI | 274 | 3% |
+   | nothing — suite2p extracted no ROI | 5,857 | 66% |
+
+   The first row is recovered by position: a tracked cluster missing on a day,
+   with **exactly one** unmatched iscell ROI within `track_completion_radius_px`
+   of its expected position, claimed by **exactly one** cluster, gets it. The
+   rule is strict because ambiguity is rare (66 of 2,116 slots had two
+   candidates; 32 ROIs were claimed twice), so strictness costs almost nothing
+   and never guesses. Whether those cells are really the same cell was asked of
+   the activity fingerprint, with exactly the test the accepted matches got:
+
+   | | n | matched | nearest null | AUC |
+   |---|---|---|---|---|
+   | ROICaT's accepted matches, same day-pairs | 8,603 | +0.539 | +0.274 | 0.684 |
+   | declined ROIs ≤ 10 px from the cell | 1,747 | +0.543 | +0.267 | 0.675 |
+
+   Candidates against the accepted pool: AUC 0.499 — the same population.
+   It holds within bins (≤ 4 px: 0.701; 7–10 px: 0.657; Jaccard < 0.2: 0.613).
+   Added members are flagged everywhere (`rescued` in the result JSON,
+   `n_rescued` / `shared_roicat` in the CSVs, a marked day in the viewer) and
+   validated separately (`rescued_fingerprint_auc`), so an analysis can leave
+   them out.
+
+   The second row is the other repair: **split chains**, one cell ROICaT
+   tracked as two clusters on disjoint days (DIV21–29 as one, DIV36–44 as
+   another) because the mask changed across the gap. Two tracked clusters with
+   **disjoint** day sets (a shared day means two cells side by side) whose mean
+   positions lie within the radius, each the other's **only** such partner,
+   are folded into one (`merge_split_clusters`, run before completion). The
+   fingerprint across the join — one half's last day against the other's
+   first, versus the nearest neighbour — scored AUC **0.695** on 163 candidate
+   pairs (median +0.626 vs null +0.350), again as strong as ROICaT's own
+   matches. Merging lengthens chains rather than adding matches; the absorbed
+   half's days are flagged (`merged` in the result, `n_merged` in the CSV,
+   marked in the viewer) and validated separately (`merged_fingerprint_auc`).
+
+   What completion does **not** do, and why: the 66% "nothing there" slots are
+   suite2p's detection — a cell with no transients that day is invisible to a
+   detector built on temporal fluctuation (a bright, saturated soma with no ROI
+   is the typical case) — and no matching step fixes that; it needs seeded
+   re-extraction from the movie. Feeding non-iscell ROIs to ROICaT has a 3%
+   ceiling (most at iscell prob ~0.1) and a documented cost (yield 45% → 6%).
 
 6. **Validation** (`validate.py`). Stream `F`/`Fneu`, compute
    `F - track_neuropil_coeff * Fneu`, reduce each recording to its cell-by-cell
