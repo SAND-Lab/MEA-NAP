@@ -37,6 +37,9 @@ Ensure that all relevant recordings that you want to analyze are saved in the sa
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 The MEA-NAP pipeline is currently optimized for single MEA recordings made on the Multichannel Systems MEA2100 60-channel MEA system and for multi-well plates using the Axion Maestro MEA System. However, these recordings must be converted to `*.mat` files first.
 
+.. note::
+   This applies to the MATLAB pipeline. The Python port reads Multichannel Systems ``.h5`` and Axion ``.raw`` files directly, so if you are using it you can skip the conversion below and point the raw data folder at your recordings. For an Axion plate, name each spreadsheet row ``<file stem>_<well>`` (e.g. ``Plate2_DIV75_A1``) — the same names the conversion would have produced. See :doc:`python/gui-guide` for the formats it accepts and the settings each needs. MC_Rack ``.raw`` and ``.mcd`` files still need converting.
+
 For Axion Biosystems users, please use MEA-NAP version 1.10.2 or later to convert your data to *.mat files again.  This will correct the electrode naming and orientation of MEA grid plots, which was flipped on the diagonal in versions of MEA-NAP prior to 1.10.2.
 
 - **Converting .mcd files acquired from a Multichannel Systems MEA system with MC_Rack to .raw files:**
