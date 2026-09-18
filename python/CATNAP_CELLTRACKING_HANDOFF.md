@@ -11,8 +11,7 @@ This document is the state of play and the traps.
 
 PR #143 (the pipeline) is **merged** into `origin/main` (`31e7fb0`). The
 refinements of 2026-09-17 — `complete.py`, the per-session gate, cluster
-reuse — are in the working tree on top of it, **uncommitted** at the time of
-writing.
+reuse, the viewer changes — are PR #144 (`catnap/tracking-completion`).
 
 | thing | where | size |
 |---|---|---|
