@@ -198,6 +198,10 @@ def _entry_point_reruns_itself() -> bool:
     path = getattr(main, "__file__", None)
     if not path:
         return False  # interactive / -c: spawn re-imports nothing
+    if path == "<stdin>":
+        # A script piped to python: spawn tries to re-run "<stdin>" as a file
+        # and the worker dies before its task. Not a re-run, but not usable.
+        return True
     try:
         tree = ast.parse(Path(path).read_text(encoding="utf-8"))
     except Exception:  # noqa: BLE001 - unreadable/odd entry point: assume fine

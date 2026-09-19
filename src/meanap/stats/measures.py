@@ -1,7 +1,7 @@
 """Does the measure of activity you chose change the answer you got?
 
 A CAT-NAP recording has no single "activity". Detected calcium events, the
-deconvolved trace, raw fluorescence and suite2p's spike estimate are four
+denoised trace, raw fluorescence and suite2p's spike estimate are four
 different readings of the same field of view, and the pipeline builds a
 different network from each: events give an STTC coincidence network, the three
 continuous traces give a binned Pearson correlation network. Every number

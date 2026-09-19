@@ -28,6 +28,10 @@ MEA-NAP/
 │       │   ├── axion_raw.py         # Axion .raw reader (AxionFileLoader port)
 │       │   ├── spike_detection.py    # Step 1: threshold + bior1.5 wavelet CWT
 │       │   ├── plotting.py           # Step 1 check plots
+│       │   ├── spike_sorting.py      # Step 1 alternative: SpikeInterface sorting, units as nodes
+│       │   ├── probes.py             # channel_layout → probeinterface.Probe at real pitch
+│       │   ├── plotting_sorting.py   # Step 1 sorting check plots + units.csv
+│       │   ├── sorting_benchmark.py  # synthetic ground truth on the MEA geometry
 │       │   ├── firing_rates.py       # Step 2: firing rates
 │       │   ├── burst_detection.py    # Step 2: network + single-channel bursts
 │       │   ├── plotting_step2.py     # Step 2 check plots
@@ -502,7 +506,7 @@ raw_data/
 | Type | Description |
 |---|---|
 | `peaks` | Detected calcium transient onset frames (from denoising pipeline) |
-| `denoised F` | Baseline-corrected, OASIS-deconvolved fluorescence |
+| `denoised F` | Baseline-corrected fluorescence, denoised by fitting a calcium model (OASIS). Still a fluorescence trace with calcium kinetics — *not* a deconvolved spike train; for that use `spks` |
 | `F` | Raw fluorescence as output by suite2p |
 | `spks` | Inferred spike probabilities from suite2p |
 
@@ -511,7 +515,7 @@ raw_data/
 The denoising runs on raw fluorescence (`F.npy`) and produces outputs saved alongside the suite2p files:
 
 1. **Polynomial baseline** (`pybaselines.imodpoly`) — estimate and remove slow drift
-2. **OASIS deconvolution** — separate calcium signal from noise (requires optional install; see below)
+2. **OASIS denoising** — fit OASIS's calcium model to the trace and keep the model's fluorescence reconstruction (its baseline + calcium component). OASIS is a deconvolution algorithm, but its deconvolved spike train is discarded here: `Fdenoised.npy` is denoised fluorescence, not spikes (requires optional install; see below)
 3. **Peak detection** (`scipy.signal.find_peaks`) — find calcium transient events
 4. Outputs saved: `Fdenoised.npy`, `timePoints.npy`, `peakStartFrames.npy`, `peakEndFrames.npy`, `peakHeights.npy`, `eventAreas.npy`
 

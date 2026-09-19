@@ -46,13 +46,23 @@ def bandpass_filter(trace: np.ndarray, fs: float, low: float = 600.0, high: floa
 
 def _apply_refractory(spike_frames: np.ndarray, ref_frames: int) -> np.ndarray:
     """Remove spikes that occur within ``ref_frames`` of a previous spike."""
+    return spike_frames[_refractory_mask(spike_frames, ref_frames)]
+
+
+def _refractory_mask(spike_frames: np.ndarray, ref_frames: int) -> np.ndarray:
+    """Which of the (sorted) frames survive a refractory period: the first of
+    any run of spikes closer than ``ref_frames`` is kept, the rest dropped,
+    measured from the last *kept* spike."""
+    keep = np.ones(len(spike_frames), dtype=bool)
     if len(spike_frames) == 0:
-        return spike_frames
-    kept = [spike_frames[0]]
-    for f in spike_frames[1:]:
-        if f - kept[-1] > ref_frames:
-            kept.append(f)
-    return np.array(kept, dtype=int)
+        return keep
+    last = spike_frames[0]
+    for i in range(1, len(spike_frames)):
+        if spike_frames[i] - last > ref_frames:
+            last = spike_frames[i]
+        else:
+            keep[i] = False
+    return keep
 
 
 def threshold_method_name(multiplier: float) -> str:
@@ -668,6 +678,11 @@ class SpikeDetectionParams:
     filter_low_pass: float = 600.0
     filter_high_pass: float = 6150.0
     ref_period_ms: float = 1.0
+    # Refractory period applied to the *wavelet* detectors after alignment,
+    # in ms; None leaves them as MATLAB has them (the CWT's internal 0.1 ms
+    # only). See ``Params.wavelet_ref_period_ms`` for why this is separate
+    # from ``ref_period_ms`` and why it defaults to a short value.
+    wavelet_ref_period_ms: float | None = 0.5
     n_spikes: int = 10000
     min_peak_thr_mult: float = -5.0
     max_peak_thr_mult: float = -100.0
@@ -794,6 +809,25 @@ def detect_spikes_recording(
                 remove_artifacts=params.remove_artifacts,
                 noise_sigma=channel_peak_noise,
             )
+
+            # The CWT fires more than once on one spike — at different scales,
+            # on the trough and on its rising edge — and alignment then puts
+            # both detections on the same trough. The threshold detector has
+            # its refractory period built in; the wavelet path never applied
+            # one (nor does MATLAB's), which on a dense culture over-counted
+            # by 5–6 % on busy electrodes, every extra one a re-detection of
+            # the previous trough. Applied *after* alignment so the two
+            # detections of one trough have already collapsed onto it.
+            if (not wname.startswith("thr")
+                    and params.wavelet_ref_period_ms is not None
+                    and params.wavelet_ref_period_ms > 0
+                    and len(aligned_frames) > 1):
+                order = np.argsort(aligned_frames, kind="stable")
+                aligned_frames, waveforms = aligned_frames[order], waveforms[order]
+                keep = _refractory_mask(
+                    aligned_frames,
+                    int(round(params.wavelet_ref_period_ms * 1e-3 * fs)))
+                aligned_frames, waveforms = aligned_frames[keep], waveforms[keep]
 
             # Convert frames to the requested unit
             if params.unit == "s":

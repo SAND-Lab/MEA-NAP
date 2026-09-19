@@ -34,8 +34,10 @@ ACTIVITY_TYPES = list(_ACTIVITY_TYPES)
 ACTIVITY_HELP = {
     "peaks": "Detected calcium events. The network is an STTC coincidence "
              "network and the timescale parameter is a lag.",
-    "denoised F": "The deconvolved fluorescence trace. The network is a "
-                  "Pearson correlation between binned traces, at zero lag.",
+    "denoised F": "Fluorescence denoised by fitting a calcium model (OASIS): "
+                  "still a fluorescence trace, not a deconvolved spike train. "
+                  "The network is a Pearson correlation between binned traces, "
+                  "at zero lag.",
     "F": "Raw fluorescence, uncorrected. Correlation network, as above.",
     "spks": "suite2p's own spike estimate. Correlation network, as above.",
 }
@@ -209,6 +211,9 @@ class _TraceCanvas(FigureCanvasQTAgg):
 
 class CatNapPanel(QWidget):
     log_message = pyqtSignal(str)
+    #: The user wants the run's viewer open on the cell-tracking tab for this
+    #: chain. The main window owns viewer servers, so it does the opening.
+    open_tracking_viewer_requested = pyqtSignal(str)
     #: A batch spreadsheet was written; the Data tab points itself at it.
     spreadsheet_saved = pyqtSignal(str)
 
@@ -412,6 +417,8 @@ class CatNapPanel(QWidget):
         denoise_advanced.form().addRow("Redo if already exists", self._redo_denoising)
         denoise_form.addRow(denoise_advanced)
 
+        self._tracking_box = self._build_tracking_box()
+
         self._denoise_btn = QPushButton("Run denoising on selected recording")
         self._denoise_btn.setEnabled(False)
         self._denoise_btn.clicked.connect(self._on_denoise)
@@ -421,6 +428,7 @@ class CatNapPanel(QWidget):
         layout.addWidget(mode_box)
         layout.addWidget(denoise_box)
         layout.addWidget(self._denoise_btn)
+        layout.addWidget(self._tracking_box)
         layout.addStretch()
         return w
 
@@ -996,6 +1004,12 @@ class CatNapPanel(QWidget):
         for name, box in self._extra_measures.items():
             box.setChecked(name in measures[1:])
         self._update_extra_measures()
+        self._track_enabled.setChecked(params.track_cells)
+        self._track_min_shift.setValue(params.track_min_shift_px)
+        self._track_threshold.setValue(params.track_tracked_threshold)
+        self._track_complete.setValue(params.track_completion_radius_px)
+        self._track_validate.setChecked(params.track_validate_activity)
+        self._refresh_tracking_chains()
         self._redo_denoising.setChecked(params.twop_redo_denoising)
         self._remove_no_peaks.setChecked(params.remove_nodes_with_no_peaks)
         self._denoise_threshold.setValue(params.twop_denoising_threshold)
@@ -1053,6 +1067,145 @@ class CatNapPanel(QWidget):
         params.twop_subnetwork_analysis = self._subnetwork_enabled.isChecked()
         params.twop_cell_type_file = self._celltype_file.text().strip()
         params.twop_subnetwork_groups = self._current_groups()
+
+        params.track_cells = self._track_enabled.isChecked()
+        params.track_min_shift_px = self._track_min_shift.value()
+        params.track_tracked_threshold = self._track_threshold.value()
+        params.track_completion_radius_px = self._track_complete.value()
+        params.track_validate_activity = self._track_validate.isChecked()
+
+
+    def _build_tracking_box(self) -> QWidget:
+        """Cross-day cell tracking: settings, and the per-cell QC page.
+
+        Lives inside the CAT-NAP tab rather than a tab of its own so that
+        ``MainWindow._collect_params`` already reaches it — a Params field no
+        panel writes is silently reset to its default on every run.
+        """
+        box = QGroupBox("Cross-day cell tracking")
+        layout = QVBoxLayout(box)
+
+        self._track_enabled = QCheckBox(
+            "Track the same cells across DIVs (needs multi-DIV chains)")
+        self._track_enabled.setToolTip(
+            "Groups recordings that share a field of view, registers them from "
+            "their ROI footprints, and matches cells with ROICaT.")
+        layout.addWidget(self._track_enabled)
+
+        row = QHBoxLayout()
+        row.addWidget(QLabel("Register above"))
+        self._track_min_shift = QDoubleSpinBox()
+        self._track_min_shift.setRange(0.0, 256.0)
+        self._track_min_shift.setSingleStep(4.0)
+        self._track_min_shift.setSuffix(" px")
+        self._track_min_shift.setToolTip(
+            "Chains whose measured field-of-view offset is smaller than this are "
+            "tracked unregistered. Correcting an offset below the measurement "
+            "resolution injects more error than it removes.")
+        row.addWidget(self._track_min_shift)
+        row.addSpacing(12)
+        row.addWidget(QLabel("Tracked above"))
+        self._track_threshold = QDoubleSpinBox()
+        self._track_threshold.setRange(0.0, 1.0)
+        self._track_threshold.setSingleStep(0.05)
+        self._track_threshold.setDecimals(2)
+        self._track_threshold.setToolTip(
+            "A match rate below this is indistinguishable from the false-positive "
+            "floor. Derive it from controls for your own rig: the default is the "
+            "floor measured on the Mecp2 dataset and does not transfer.")
+        row.addWidget(self._track_threshold)
+        row.addSpacing(12)
+        row.addWidget(QLabel("Complete within"))
+        self._track_complete = QDoubleSpinBox()
+        self._track_complete.setRange(0.0, 64.0)
+        self._track_complete.setSingleStep(2.0)
+        self._track_complete.setSuffix(" px")
+        self._track_complete.setSpecialValueText("off")
+        self._track_complete.setToolTip(
+            "After matching, a tracked cell missing on a day is completed with "
+            "the one unmatched cell within this distance of where it should be. "
+            "By activity those cells are as good as the matcher's own "
+            "(fingerprint AUC 0.675 vs 0.684); it declines them on mask shape. "
+            "Added members are flagged in every output. 0 turns this off.")
+        row.addWidget(self._track_complete)
+        row.addStretch(1)
+        layout.addLayout(row)
+
+        self._track_validate = QCheckBox(
+            "Validate matches against activity the matcher never saw")
+        self._track_validate.setToolTip(
+            "Compares each matched cell's functional fingerprint across days "
+            "against its nearest spatial neighbour — a different cell in the "
+            "same place. This is what makes a match rate interpretable.")
+        layout.addWidget(self._track_validate)
+
+        viewer_row = QHBoxLayout()
+        self._track_chain = QComboBox()
+        self._track_chain.setSizeAdjustPolicy(
+            QComboBox.SizeAdjustPolicy.AdjustToContents)
+        self._track_chain.setToolTip("Chain to inspect cell by cell.")
+        viewer_row.addWidget(self._track_chain, stretch=1)
+        self._track_viewer_btn = QPushButton("Open in viewer")
+        self._track_viewer_btn.setToolTip(
+            "Opens the run's viewer in a browser on the cell-tracking tab, at "
+            "this chain: every tracked cell with its footprint and trace on "
+            "each day and its fingerprint score, plus the dataset overview and "
+            "the network view. Ordered worst first, so it calibrates how much "
+            "to trust a given score.")
+        self._track_viewer_btn.clicked.connect(self._on_open_cell_viewer)
+        viewer_row.addWidget(self._track_viewer_btn)
+        layout.addLayout(viewer_row)
+
+        self._refresh_tracking_chains()
+        return box
+
+    def set_output_root(self, root: Path | None) -> None:
+        """Point the cell viewer at a finished run's output folder."""
+        self._last_output_root = Path(root) if root else None
+        self._refresh_tracking_chains()
+
+    def _tracking_output_dir(self) -> Path | None:
+        """Where a finished tracking run wrote its results, if there is one."""
+        root = getattr(self, "_last_output_root", None)
+        if root is None:
+            return None
+        candidate = Path(root) / "CellTracking"
+        return candidate if candidate.is_dir() else None
+
+    def _refresh_tracking_chains(self) -> None:
+        """Fill the chain list from a finished run, if one is on disk."""
+        self._track_chain.clear()
+        out = self._tracking_output_dir()
+        if out is None:
+            self._track_chain.addItem("— run tracking first —")
+            self._track_chain.setEnabled(False)
+            self._track_viewer_btn.setEnabled(False)
+            return
+        chains = sorted(p.stem for p in (out / "chains").glob("*.json"))
+        if not chains:
+            self._track_chain.addItem("— no chains tracked —")
+            self._track_chain.setEnabled(False)
+            self._track_viewer_btn.setEnabled(False)
+            return
+        self._track_chain.addItems(chains)
+        self._track_chain.setEnabled(True)
+        self._track_viewer_btn.setEnabled(True)
+
+    def _on_open_cell_viewer(self) -> None:
+        out = self._tracking_output_dir()
+        if out is None:
+            QMessageBox.information(
+                self, "No tracking results",
+                "Run the pipeline with cell tracking enabled first.")
+            return
+        chain = self._track_chain.currentText()
+        if not (out / "payload" / f"{chain}.json").is_file():
+            QMessageBox.information(
+                self, "No page for this chain",
+                f"{chain} has no per-cell page. A chain with fewer than two "
+                "matched cells does not get one.")
+            return
+        self.open_tracking_viewer_requested.emit(chain)
 
     # ── Helpers ───────────────────────────────────────────────────────────────
 

@@ -283,6 +283,8 @@ class MainWindow(QMainWindow):
         self._stim_panel = StimPanel()
         self._stim_preview_panel = StimPreviewPanel()
         self._catnap_panel = CatNapPanel()
+        self._catnap_panel.open_tracking_viewer_requested.connect(
+            self._on_open_tracking_viewer)
         self._run_panel = RunPanel()
         # The Run tab holds both pages; these name them for the code that only
         # cares about one — loading parameters, or the queue's list.
@@ -1206,6 +1208,9 @@ class MainWindow(QMainWindow):
 
     def _on_pipeline_finished(self, output_root: Path) -> None:
         self._last_output_root = output_root
+        # The CAT-NAP panel's cell-viewer button reads this to find the run's
+        # CellTracking folder; without it the button can never enable.
+        self._catnap_panel.set_output_root(output_root)
         self._run_panel.finish_progress("Finished.")
         self._run_panel.append_log(f"Done. Output folder: {output_root}")
         self._announce_bundle(output_root)
@@ -1559,6 +1564,24 @@ class MainWindow(QMainWindow):
         self._spike_viewer.raise_()
         self._spike_viewer.activateWindow()
 
+    def _on_open_tracking_viewer(self, chain: str) -> None:
+        """Serve the last run's folder and open the browser on its tracking tab.
+
+        The viewer is the same one a bundle gets, served from the output
+        folder; the page reads ``?tab=tracking&chain=…`` and lands on that
+        chain's cells rather than on the first recording's figure.
+        """
+        from urllib.parse import urlencode
+
+        root = self._last_output_root
+        if root is None:
+            QMessageBox.information(
+                self, "No run to view", "Run the pipeline with cell tracking "
+                "enabled first, or open a bundle that carries tracking results.")
+            return
+        self._open_in_viewer(Path(root), query=urlencode(
+            {"tab": "tracking", "chain": chain}))
+
     def _on_spike_viewer_settings(self) -> None:
         """Take the viewer's detection and burst settings onto the tabs."""
         if self._spike_viewer is None:
@@ -1579,12 +1602,13 @@ class MainWindow(QMainWindow):
         if path:
             self._open_in_viewer(Path(path))
 
-    def _open_in_viewer(self, source: Path) -> bool:
+    def _open_in_viewer(self, source: Path, *, query: str = "") -> bool:
         """Serve *source* in the local viewer and open a browser on it.
 
         Reading a bundle means extracting and parsing it, which is quick but
         not instant, so the wait is shown rather than looking like a click that
-        did nothing. Returns whether it opened.
+        did nothing. ``query`` is appended to the URL, so a caller can land the
+        browser on a particular tab. Returns whether it opened.
         """
         already = self._viewers.url_for(source)
         if already is None:
@@ -1602,7 +1626,7 @@ class MainWindow(QMainWindow):
             self._run_panel.append_log(
                 f"Viewer serving at {url} — it stays up until MEA-NAP closes."
             )
-        webbrowser.open(url)
+        webbrowser.open(url + ("?" + query if query else ""))
         return True
 
     @staticmethod

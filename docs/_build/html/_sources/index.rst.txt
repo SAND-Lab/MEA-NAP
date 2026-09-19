@@ -20,10 +20,35 @@ The inputs to the pipeline are MEA recordings (raw or filtered time series) impo
 
 Note that the pipeline can be run as a whole from raw MEA data to comparison of network features.  Alternatively, the functions can be run independently. For example, the functions for analysing network activity and comparing network features can be run on spike detected data.
 
+Choose your track
+-------------------
+
+MEA-NAP is available in two implementations, sharing the same underlying methods and output structure. Pick whichever matches how you want to run the pipeline:
+
+.. grid:: 2
+   :gutter: 3
+   :margin: 0
+
+   .. grid-item-card:: 🅼 MATLAB pipeline
+      :link: guide-for-new-users
+      :link-type: doc
+
+      The original MEA-NAP, built for MATLAB App Designer. Requires a MATLAB
+      license and several toolboxes — see :doc:`system-requirements`.
+
+   .. grid-item-card:: 🐍 Python pipeline
+      :link: python/index
+      :link-type: doc
+
+      A from-scratch reimplementation with a PyQt6 desktop GUI, a scriptable
+      Python API, and no MATLAB license required. Actively validated against
+      the MATLAB pipeline — see :doc:`python/matlab-vs-python` for current
+      parity status.
+
 The documentation
 -------------------
 
-This document is a short guide for running the pipeline and interpreting the outputs of network analysis and age-genotype comparisons.  For new MATLAB users, there are helpful tips for an introduction to MATLAB.  There is also more extensive document available for experienced MATLAB users.
+This document is a short guide for running the pipeline and interpreting the outputs of network analysis and age-genotype comparisons.  For new MATLAB users, there are helpful tips for an introduction to MATLAB.  There is also more extensive document available for experienced MATLAB users. Using the Python port instead? Jump straight to the :doc:`python/index` section.
 
 Applications for basic and translational research
 ----------------------------------------------------------------------------
@@ -37,12 +62,12 @@ Timothy PH Sit, Rachael C Feord, Alexander WE Dunn, Jeremi Chabros, David Oluigb
 
 .. toctree::
    :maxdepth: 2
-   :caption: Contents:
+   :caption: MATLAB pipeline:
    :hidden:
 
    setting-up-matlab
    setting-up-meanap
-   guide-for-new-users 
+   guide-for-new-users
    guide-for-advanced-users
    running-MEANAP-on-HPC
    meanap-methods
@@ -52,3 +77,10 @@ Timothy PH Sit, Rachael C Feord, Alexander WE Dunn, Jeremi Chabros, David Oluigb
    how-to-contribute
    sources
    citing-MEANAP
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Python pipeline:
+   :hidden:
+
+   python/index

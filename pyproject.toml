@@ -60,6 +60,19 @@ dev = [
 oasis = [
     "oasis-deconv>=0.3.2",
 ]
+# Spike sorting (Params.spike_source = "sort"): SpikeInterface wraps the
+# sorters and measures the units; MountainSort5 is the default sorter, and
+# hdbscan is what SpikeInterface's own sorters (tridesclous2, spykingcircus2,
+# lupin) cluster with but do not declare. Deliberately *not*
+# `spikeinterface[full]`, which pulls a multi-GB CUDA torch onto GPU-less
+# machines. Kilosort4 users add `kilosort` (and torch) themselves.
+# See python/SPIKE_SORTING_PLAN.md.
+sorting = [
+    "spikeinterface>=0.104",
+    "probeinterface>=0.3",
+    "mountainsort5>=0.5",
+    "hdbscan>=0.8",
+]
 
 [project.scripts]
 meanap-gui = "meanap.gui.app:main"

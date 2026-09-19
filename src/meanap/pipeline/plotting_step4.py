@@ -1136,6 +1136,7 @@ def plot_half_violin_by_x(
     series_order: list | None = None,
     series_colors: list | None = None,
     colors=None,
+    ylim: tuple[float | None, float | None] | None = None,
 ) -> None:
     """Group-comparison half-violin plot, port of ``plotHalfViolinByX.m``.
 
@@ -1164,6 +1165,12 @@ def plot_half_violin_by_x(
     by cell type, so "excitatory vs inhibitory, per genotype, per age" is one
     figure rather than one file per cell type. Omitting it reproduces the
     original two-factor plot exactly.
+
+    ``ylim`` pins the y-axis to the metric's feasible range — ``(0, 1)`` for a
+    density, say — as MATLAB's ``networkLevelNetMetCustomBounds`` does. A
+    ``None`` on either side leaves that end to the data, so ``(0, None)`` is
+    "from zero, up to whatever this batch reaches". The axes share y, so this
+    is one range for every panel. See :func:`netmet_bounds`.
     """
     if df.empty:
         return
@@ -1301,6 +1308,20 @@ def plot_half_violin_by_x(
                  f"Note: {no_data_files}/{total_files} recording(s) had no {noun} "
                  "and are not shown",
                  ha="center", va="bottom", fontsize=8, color="0.5")
+
+    if ylim is not None and not is_empty:
+        # Only the pinned ends move; the others keep the autoscaled value the
+        # drawing settled on (sharey, so reading one axis is reading them all).
+        # An empty plot is left alone: its "No data" note is what matters, and
+        # a lower bound of 1 on default (0, 1) axes would be no range at all.
+        # The same guard covers data lying wholly outside the bound — pinning
+        # would then hide every point, so the autoscaled axis stands.
+        lo, hi = ylim
+        cur_lo, cur_hi = axes[0].get_ylim()
+        lo = cur_lo if lo is None else lo
+        hi = cur_hi if hi is None else hi
+        if hi > lo:
+            axes[0].set_ylim(lo, hi)
 
     fig.tight_layout()
     savefig(fig, out_path, default_dpi=300, bbox_inches="tight")
@@ -1898,8 +1919,8 @@ NETMET_REC_METRICS = {
     "nComponentsRelNS": "NNMF Components / NS",
     "NDmean": "Mean Node Degree",
     "NDtop25": "Top 25% Node Degree",
-    "sigEdgesMean": "Mean Significant Edges",
-    "sigEdgesTop10": "Top 10% Significant Edges",
+    "sigEdgesMean": "Mean Significant Edge Weight",
+    "sigEdgesTop10": "Top 10% Significant Edge Weight",
     "NSmean": "Mean Node Strength",
     "ElocMean": "Mean Local Efficiency",
     "PCmean": "Mean Participation Coefficient",
@@ -1907,12 +1928,14 @@ NETMET_REC_METRICS = {
     "PCmeanBottom10": "Bottom 10% Participation Coefficient",
     "percentZscoreGreaterThanZero": "Percent Z > 0",
     "percentZscoreLessThanZero": "Percent Z < 0",
-    "NCpn1": "Node Cartography R1 (%)",
-    "NCpn2": "Node Cartography R2 (%)",
-    "NCpn3": "Node Cartography R3 (%)",
-    "NCpn4": "Node Cartography R4 (%)",
-    "NCpn5": "Node Cartography R5 (%)",
-    "NCpn6": "Node Cartography R6 (%)",
+    # Stored as a fraction of the active nodes (``pop_num_nc[i] / a_n``), so
+    # "proportion", not "%": the axis runs 0-1.
+    "NCpn1": "Proportion Peripheral Nodes (R1)",
+    "NCpn2": "Proportion Non-hub Connectors (R2)",
+    "NCpn3": "Proportion Non-hub Kinless Nodes (R3)",
+    "NCpn4": "Proportion Provincial Hubs (R4)",
+    "NCpn5": "Proportion Connector Hubs (R5)",
+    "NCpn6": "Proportion Kinless Hubs (R6)",
     "aveControlMean": "Mean Average Controllability",
     "modalControlMean": "Mean Modal Controllability"
 }
@@ -1928,6 +1951,82 @@ NETMET_NODE_METRICS = {
     "aveControl": "Average Controllability",
     "modalControl": "Modal Controllability"
 }
+
+# ── Feasible y-axis ranges for the comparison violins ────────────────────────
+#
+# Port of ``Params.networkLevelNetMetCustomBounds`` (getParamsFromApp.m), which
+# ``plotHalfViolinByX.m`` applies to every half-violin so that a bounded metric
+# is drawn on the range it *can* take rather than the range this batch happened
+# to fill — density on [0, 1], a participation coefficient on [0, 1]. ``None``
+# on a side is MATLAB's ``nan``: let the data decide.
+#
+# Beyond MATLAB's table: the cartography role proportions and the two z-score
+# percentages, which are fractions and percentages by construction. And two
+# repairs — MATLAB keys the edge-weight bound as ``EW`` while the metric is
+# ``MEW``, so it never fired there; and node degree is capped by the largest
+# network in the batch (see :func:`netmet_bounds`) rather than the electrode
+# layout, which a CAT-NAP run of cells does not have.
+NETMET_BOUNDS: dict[str, tuple[float | None, float | None]] = {
+    # Recording level
+    "Dens": (0, 1),
+    "effRank": (1, None),
+    "num_nnmf_components": (1, None),
+    "nComponentsRelNS": (0, 1),
+    "NDmean": (0, None),
+    "NDtop25": (0, None),
+    "sigEdgesMean": (0, None),
+    "sigEdgesTop10": (0, None),
+    "NSmean": (0, None),
+    "ElocMean": (0, 1),
+    "PCmean": (0, 1),
+    "PCmeanTop10": (0, 1),
+    "PCmeanBottom10": (0, 1),
+    "CC": (0, None),
+    "nMod": (0, None),
+    "Q": (0, None),
+    "PL": (0, None),
+    "Eglob": (0, 1),
+    "percentZscoreGreaterThanZero": (0, 100),
+    "percentZscoreLessThanZero": (0, 100),
+    "NCpn1": (0, 1),
+    "NCpn2": (0, 1),
+    "NCpn3": (0, 1),
+    "NCpn4": (0, 1),
+    "NCpn5": (0, 1),
+    "NCpn6": (0, 1),
+    # Node level
+    "ND": (0, None),
+    "MEW": (0, 1),
+    "NS": (0, None),
+    "Eloc": (0, 1),
+    "BC": (0, 1),
+    "PC": (0, 1),
+    "aveControl": (1, 1.5),
+    "modalControl": (0.6, 1),
+}
+
+
+def netmet_bounds(metric: str, n_nodes: int | None = None) -> tuple[float | None, float | None] | None:
+    """The y-range *metric*'s comparison violins are drawn on, or ``None``.
+
+    ``n_nodes`` is the node count of the largest network in the batch — from
+    :func:`batch_node_count` — and caps node degree at ``n_nodes - 1``, the most
+    neighbours any node there could have. Without it the cap is left to the data.
+    """
+    bounds = NETMET_BOUNDS.get(metric)
+    if bounds is None:
+        return None
+    if metric == "ND" and n_nodes is not None and n_nodes > 1:
+        return (bounds[0], n_nodes - 1)
+    return bounds
+
+
+def batch_node_count(df_node: "pd.DataFrame") -> int | None:
+    """The node count of the largest network in a node-level frame, or ``None``."""
+    if df_node is None or df_node.empty or "Channel" not in df_node.columns:
+        return None
+    n = df_node["Channel"].max()
+    return int(n) if np.isfinite(n) else None
 
 def _plot_violin(df: pd.DataFrame, metric: str, group_col: str, out_path: Path, ylabel: str) -> None:
     if df.empty or metric not in df.columns or df[metric].dropna().empty:
@@ -2061,6 +2160,7 @@ def plot_step4_group_comparisons(
     df_rec, df_node = netmet_comparison_frames(recordings, all_results, custom_grp_order)
     if df_rec.empty:
         return
+    n_nodes = batch_node_count(df_node)
 
     # 3_RecordingsByGroup and 1_NodeByGroup
     grp_dir = out_dir / "4B_GroupComparisons" / "3_RecordingsByGroup" / "HalfViolinPlots"
@@ -2075,7 +2175,8 @@ def plot_step4_group_comparisons(
         for k, name in NETMET_REC_METRICS.items():
             plot_half_violin_by_x(df_rec_lag, k, name, "group",
                                   lag_grp_dir / f"{k}_byGroup.{fmt}",
-                                  group_order=custom_grp_order, colors=colors)
+                                  group_order=custom_grp_order, colors=colors,
+                                  ylim=netmet_bounds(k, n_nodes))
 
         lag_node_grp_dir = node_grp_dir / _timescale_group_folder(lag, timescale)
         lag_node_grp_dir.mkdir(parents=True, exist_ok=True)
@@ -2084,7 +2185,8 @@ def plot_step4_group_comparisons(
         for k, name in NETMET_NODE_METRICS.items():
             plot_half_violin_by_x(df_node_lag, k, name, "group",
                                   lag_node_grp_dir / f"{k}_byGroup_node.{fmt}",
-                                  group_order=custom_grp_order, colors=colors)
+                                  group_order=custom_grp_order, colors=colors,
+                                  ylim=netmet_bounds(k, n_nodes))
         
     # 4_RecordingsByAge and 2_NodeByAge
     age_dir = out_dir / "4B_GroupComparisons" / "4_RecordingsByAge" / "HalfViolinPlots"
@@ -2099,7 +2201,8 @@ def plot_step4_group_comparisons(
         for k, name in NETMET_REC_METRICS.items():
             plot_half_violin_by_x(df_rec_lag, k, name, "DIV",
                                   lag_age_dir / f"{k}_byDIV.{fmt}",
-                                  group_order=custom_grp_order, colors=colors)
+                                  group_order=custom_grp_order, colors=colors,
+                                  ylim=netmet_bounds(k, n_nodes))
 
         lag_node_age_dir = node_age_dir / _timescale_group_folder(lag, timescale)
         lag_node_age_dir.mkdir(parents=True, exist_ok=True)
@@ -2108,7 +2211,8 @@ def plot_step4_group_comparisons(
         for k, name in NETMET_NODE_METRICS.items():
             plot_half_violin_by_x(df_node_lag, k, name, "DIV",
                                   lag_node_age_dir / f"{k}_byDIV_node.{fmt}",
-                                  group_order=custom_grp_order, colors=colors)
+                                  group_order=custom_grp_order, colors=colors,
+                                  ylim=netmet_bounds(k, n_nodes))
 
     # 5_GraphMetricsByLag — network metric vs. timescale, one figure per metric
     gmbl_dir = out_dir / "4B_GroupComparisons" / "5_GraphMetricsByLag"

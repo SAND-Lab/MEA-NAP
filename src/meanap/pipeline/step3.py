@@ -17,7 +17,7 @@ from typing import Callable
 
 import numpy as np
 
-from meanap.params import Params
+from meanap.params import Params, active_spike_method
 from meanap.pipeline.cancellation import CancelCheck, check_cancel
 from meanap.pipeline.io import find_raw_file, load_spike_times_npz, resolve_duration_s
 from meanap.pipeline.parallel import map_recordings
@@ -61,7 +61,7 @@ def _step3_one_recording(task: tuple[Params, RecordingInfo, str]) -> tuple[str, 
     locator = build_input_locator(params, output_root)
     mat_files_dir = output_root / "ExperimentMatFiles"
 
-    method = params.spikes_method
+    method = active_spike_method(params)
     lag_values = params.func_con_lag_val
     rep_num = params.prob_thresh_rep_num
     tail = params.prob_thresh_tail
@@ -154,6 +154,12 @@ def _step3_one_recording(task: tuple[Params, RecordingInfo, str]) -> tuple[str, 
                     f"in {format_elapsed(time.perf_counter() - lag_started)}")
 
     out_path = mat_files_dir / f"{rec.filename}_adjM.npz"
+    # A sorted spike file places its nodes itself (units sit on a ring round
+    # their electrode); carried along so step 4 and the re-renderer can draw
+    # them without going back to the spike file. Detected files have no
+    # ``unit_coords`` and keep drawing from the channel layout.
+    if "unit_coords" in data.files:
+        out_arrays["coords"] = data["unit_coords"]
     atomic_savez(out_path, channels=data["channels"], **out_arrays)
     if edge_checks:
         from meanap.pipeline.plotting_step3 import (

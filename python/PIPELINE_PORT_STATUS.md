@@ -1219,7 +1219,46 @@ whatever's on disk and opens it via `webbrowser.open()`.
   to diff an HTML report against. If the tree/gallery structure changes,
   re-screenshot a few folders by hand rather than trusting it blind.
 
+## Spike sorting (`Params.spike_source = "sort"`, 2026-09-16)
+
+Step 1 can sort spikes into units instead of detecting them per electrode;
+each unit is then a node through steps 2–4. Everything about it — the survey
+of sorters, why low-density MEAs are a different problem from Neuropixels,
+the synthetic-ground-truth benchmark that made Tridesclous2 the default, the
+file format (`channels` = parent electrode per unit, `unit_*` arrays, method
+`sorted`), and the follow-ups — is in **`python/SPIKE_SORTING_PLAN.md`**.
+User docs: `docs/python/spike-sorting.md`. Tests:
+`python/test_spike_sorting.py`; benchmark: `python/benchmark_spike_sorting.py`.
+
+Gotchas that are easy to re-break:
+- `active_spike_method(params)`, not `params.spikes_method`, is what steps
+  2/3/4 (and stim, render) read: it is `sorted` in sort mode.
+- Never `spikeinterface[full]` (CUDA torch, and still no `hdbscan`).
+- Preprocessing is saved **in-process**: a spawned worker gets a pickled copy
+  of an in-memory `NumpyRecording`.
+- Workers are spawned, set through `si.set_global_job_kwargs`, because the
+  sorters' internal stages do not all take job kwargs and a fork copies the
+  pipeline process.
+- Curate on the refractory-violation *fraction*; SI's `isi_violations_ratio`
+  is Poisson-normalised and reads 4–60 on bursting cultures.
+
 ## Spike detection gotchas (don't re-discover these)
+
+- **The wavelet detectors never had a refractory period** — in MATLAB
+  (`detectSpikesCWT.m` passes `refPeriod` only to `detectSpikesThreshold`)
+  and, until 2026-09-17, in this port. The CWT fires at more than one scale
+  on one spike and `alignPeaks` then puts both on the same trough. Measured
+  on `HP_tc043_DIV21` (dense hippocampal culture): every bior1.5 pair closer
+  than 0.5 ms was one trough detected twice (442/442, 435/435, 370/370 on
+  three busy electrodes; 5–6.5 % of their spikes), while pairs 0.5–1 ms
+  apart were 95 % distinct troughs and everything above 1 ms was 100 %
+  distinct — population spikes, which `refPeriod` (2 ms) would discard as
+  the threshold detectors do (bior1.5 on electrode 57: 7925 → 7484 at
+  0.5 ms, → 4468 at 2 ms, below thr4's 5499). Hence
+  `Params.wavelet_ref_period_ms`, **default 0.5 ms**, applied after
+  alignment; `None` restores the old behaviour and is what
+  `test_pipeline_step1.py` uses for MATLAB parity. Analysis script:
+  `local/spikesort_test/real/bior_doubles.py` (not committed).
 
 - ~~**bior1.5 CWT sign**: PyWavelets' `wavefun()` gives the analysis wavelet with
   the *opposite* sign to MATLAB's Wavelet Toolbox CWT. `_cwt_bior15()` must

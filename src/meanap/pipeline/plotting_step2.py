@@ -63,12 +63,28 @@ def _draw_heatmap_panel(ax, xs, ys, metric, valid_mask, vmin, vmax, cmap, clabel
     ax.set_aspect("equal", "box")
 
 
+def _pool_units_by_electrode(chs: np.ndarray, metric: np.ndarray, aggregate: str):
+    """One value per electrode from the values of the units on it."""
+    electrodes = np.unique(chs)
+    pooled = np.full(len(electrodes), np.nan)
+    for i, e in enumerate(electrodes):
+        vals = metric[chs == e]
+        vals = vals[np.isfinite(vals)]
+        if len(vals):
+            pooled[i] = vals.sum() if aggregate == "sum" else vals.mean()
+    return electrodes, pooled
+
+
 def plot_heatmap(
     metric: np.ndarray, chs: np.ndarray, title: str, clabel: str, out_path: Path,
     cmap="viridis", channel_layout: str = "Axion64",
     batch_max: float | None = None,
+    aggregate: str = "mean",
 ):
     """Electrode heatmap, port of ``electrodeHeatMaps.m`` / ``plotNodeHeatmap.m``.
+
+    ``aggregate`` (``"sum"`` or ``"mean"``) only matters when several nodes
+    share an electrode — a spike-sorted run — and says how they pool.
 
     When ``batch_max`` is given, produce a two-panel figure (like MATLAB's
     ``tiledlayout(1,2)``): left scaled to this recording (color axis = 99th
@@ -83,6 +99,15 @@ def plot_heatmap(
 
     layout_channels, layout_coords = get_coords_from_layout(channel_layout)
     coord_by_channel = dict(zip(layout_channels.tolist(), map(tuple, layout_coords)))
+    chs = np.asarray(chs).ravel()
+    metric = np.asarray(metric, dtype=float)
+    # A spike-sorted run has several nodes per electrode (its units), listed
+    # under the same electrode ID. An electrode heatmap has one cell per
+    # electrode, so units are pooled onto theirs: summed for rates and
+    # fractions of spikes — what the electrode as a whole did — averaged for
+    # everything else. A detected run has no repeats and is left as it is.
+    if len(np.unique(chs)) < len(chs):
+        chs, metric = _pool_units_by_electrode(chs, metric, aggregate)
     keep = np.array([int(c) in coord_by_channel for c in chs])
     if not np.any(keep):
         return
@@ -263,6 +288,11 @@ def plot_burst_detection_info(spike_times_dict: dict, ephys: dict, duration_s: f
 #: label, colormap)``. One list rather than six near-identical call sites, so
 #: the pipeline and the bundle renderer cannot disagree about which figures
 #: exist or what they are called.
+#: How the units of one electrode pool onto it in a sorted run (see
+#: :func:`plot_heatmap`). Rates and burst rates add up; the rest are per-unit
+#: properties and average.
+_POOL_BY_SUM = {"FR": "sum", "channelBurstRate": "sum"}
+
 ACTIVITY_HEATMAPS = (
     ("2_Heatmap.png", "FR", "Firing Rate", "Mean FR (Hz)", "viridis"),
     ("3_BurstRate_heatmap.png", "channelBurstRate", "Burst Rate",
@@ -328,7 +358,8 @@ def plot_neuronal_activity_checks(
             continue
         if (p := want(name)) is not None:
             plot_heatmap(ephys[key], chs, title, cbar, p, cmap=cmap,
-                         channel_layout=channel_layout, batch_max=bmax.get(key))
+                         channel_layout=channel_layout, batch_max=bmax.get(key),
+                         aggregate=_POOL_BY_SUM.get(key, "mean"))
 
     if (p := want("3_Raster.png")) is not None:
         plot_raster(
@@ -373,6 +404,46 @@ EPHYS_NODE_METRICS = {
     "channeISIoutsideBurst": "Unit ISI outside burst (ms)",
     "channelFracSpikesInBursts": "Unit fraction of spikes in bursts",
 }
+
+# ── Feasible y-axis ranges for the comparison violins ────────────────────────
+#
+# Port of ``eMetCustomBounds`` in ``PlotEphysStats.m``: a count, rate or
+# duration is drawn from zero, a fraction on [0, 1]. ``None`` is MATLAB's
+# ``nan`` — that end is left to the data. MATLAB's table only names the
+# recording-level metrics; the same rule is applied to the node level here,
+# since a unit's burst rate is no more able to go negative than an array's.
+EPHYS_BOUNDS: dict[str, tuple[float | None, float | None]] = {
+    # Recording level
+    "numActiveElec": (0, None),
+    "FRmean": (0, None),
+    "FRmedian": (0, None),
+    "NBurstRate": (0, None),
+    "meanNumChansInvolvedInNbursts": (0, None),
+    "meanNBstLengthS": (0, None),
+    "meanISIWithinNbursts_ms": (0, None),
+    "meanISIoutsideNbursts_ms": (0, None),
+    "CVofINBI": (0, None),
+    "fracInNburst": (0, 1),
+    "channelAveBurstRate": (0, None),
+    "channelAveBurstDur": (0, None),
+    "channelAveISIwithinBurst": (0, None),
+    "channelAveISIoutsideBurst": (0, None),
+    "channelAveFracSpikesInBursts": (0, 1),
+    # Node level
+    "FR": (0, None),
+    "FRactive": (0, None),
+    "channelBurstRate": (0, None),
+    "channelWithinBurstFr": (0, None),
+    "channelBurstDur": (0, None),
+    "channelISIwithinBurst": (0, None),
+    "channeISIoutsideBurst": (0, None),
+    "channelFracSpikesInBursts": (0, 1),
+}
+
+
+def ephys_bounds(metric: str) -> tuple[float | None, float | None] | None:
+    """The y-range *metric*'s comparison violins are drawn on, or ``None``."""
+    return EPHYS_BOUNDS.get(metric)
 
 def _plot_violin(df: pd.DataFrame, metric: str, group_col: str, out_path: Path, ylabel: str) -> None:
     if df.empty or metric not in df.columns or df[metric].dropna().empty:
@@ -480,7 +551,8 @@ def plot_step2_group_comparisons(
     for k, name in EPHYS_REC_METRICS.items():
         plot_half_violin_by_x(df_rec, k, name, "group",
                               grp_dir / f"{k}_byGroup.{fmt}", group_order=custom_grp_order,
-                              colors=colors)
+                              colors=colors,
+                              ylim=ephys_bounds(k))
 
     # 1_NodeByGroup
     node_grp_dir = out_dir / "2B_GroupComparisons" / "1_NodeByGroup"
@@ -489,7 +561,8 @@ def plot_step2_group_comparisons(
     for k, name in EPHYS_NODE_METRICS.items():
         plot_half_violin_by_x(df_node, k, name, "group",
                               node_grp_dir / f"{k}_byGroup_node.{fmt}",
-                              group_order=custom_grp_order, colors=colors)
+                              group_order=custom_grp_order, colors=colors,
+                              ylim=ephys_bounds(k))
 
     # 4_RecordingsByAge
     age_dir = out_dir / "2B_GroupComparisons" / "4_RecordingsByAge" / "HalfViolinPlots"
@@ -498,7 +571,8 @@ def plot_step2_group_comparisons(
     for k, name in EPHYS_REC_METRICS.items():
         plot_half_violin_by_x(df_rec, k, name, "DIV",
                               age_dir / f"{k}_byDIV.{fmt}", group_order=custom_grp_order,
-                              colors=colors)
+                              colors=colors,
+                              ylim=ephys_bounds(k))
 
     # 2_NodeByAge
     node_age_dir = out_dir / "2B_GroupComparisons" / "2_NodeByAge"
@@ -507,4 +581,5 @@ def plot_step2_group_comparisons(
     for k, name in EPHYS_NODE_METRICS.items():
         plot_half_violin_by_x(df_node, k, name, "DIV",
                               node_age_dir / f"{k}_byDIV_node.{fmt}",
-                              group_order=custom_grp_order, colors=colors)
+                              group_order=custom_grp_order, colors=colors,
+                              ylim=ephys_bounds(k))

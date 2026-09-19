@@ -64,6 +64,18 @@ class Params:
     filter_low_pass: float = 600.0
     filter_high_pass: float = 8000.0
     ref_period: float = 2.0
+    # Refractory period for the *wavelet* detectors (bior1.5 etc.), in ms.
+    # ``ref_period`` above has only ever applied to the threshold detectors,
+    # in MATLAB and here: the wavelet path kept the CWT's internal 0.1 ms and
+    # nothing else, so on a dense culture 5–6 % of a busy electrode's bior1.5
+    # spikes were the same trough detected twice (every pair closer than
+    # 0.5 ms was; measured on HP_tc043_DIV21, 2026-09-17). 0.5 ms removes
+    # exactly those: pairs 0.5–1 ms apart are 95 % distinct troughs —
+    # population spikes, which the full ``ref_period`` would throw away as
+    # the threshold detectors do (half the spikes in a burst). Set it to
+    # ``ref_period`` for parity with them, or None for the old behaviour and
+    # exact MATLAB parity. See python/PIPELINE_PORT_STATUS.md.
+    wavelet_ref_period_ms: float | None = 0.5
     get_template_ref_period: float = 2.0
     min_peak_thr_multiplier: float = -5.0
     max_peak_thr_multiplier: float = -100.0
@@ -74,6 +86,60 @@ class Params:
     min_activity_level: float = 0.0
     remove_inactive_nodes: bool = False
     remove_artifacts: bool = False
+
+    # ── Spike sorting ────────────────────────────────────────────────────────
+    # Where step 1's spike trains come from. ``detect`` is what MEA-NAP has
+    # always done: one train per electrode, from the threshold/wavelet
+    # detectors above. ``sort`` runs a spike sorter over the recording instead
+    # and makes each *unit* a node — several per electrode where the sorter
+    # separates them — so every later step works on neurons rather than
+    # electrodes. Needs the ``sorting`` extra (``pip install meanap[sorting]``).
+    # See python/SPIKE_SORTING_PLAN.md and pipeline/spike_sorting.py.
+    spike_source: str = "detect"
+    # Which sorter, by its SpikeInterface name. ``tridesclous2`` is the
+    # default: on the synthetic low-density ground truth
+    # (python/benchmark_spike_sorting.py) it recovered more neurons with no
+    # false-positive or over-split units, where ``mountainsort5`` — the
+    # faster alternative — left several of each. ``spykingcircus2``,
+    # ``lupin`` and ``kilosort4`` run but are tuned for dense probes (the
+    # last needs a GPU to be worth it).
+    sorter_name: str = "tridesclous2"
+    # Extra keyword arguments for the sorter, layered over MEA-NAP's presets
+    # for it. Anything SpikeInterface's ``run_sorter`` accepts for that sorter.
+    sorter_params: dict = field(default_factory=dict)
+    # The band the sorter sees. Separate from ``filter_low_pass`` /
+    # ``filter_high_pass`` because those were chosen for the wavelet detector;
+    # sorters cluster on waveform shape and prefer the conventional 300–6000 Hz.
+    sort_freq_min: float = 300.0
+    sort_freq_max: float = 6000.0
+    # Subtract the median across electrodes at every sample before sorting.
+    # Removes the shared noise a culture dish picks up; ``none`` to skip.
+    sort_common_reference: str = "global_median"
+    # Centre-to-centre electrode spacing in µm. None = the layout's known
+    # pitch (200 µm MCS, 350 µm Axion); set it for a custom array.
+    electrode_pitch_um: float | None = None
+    # Merge units the sorter split that look like one neuron (SpikeInterface's
+    # ``auto_merge_units``). Whether this helps or hurts on single-electrode
+    # data is what the synthetic-ground-truth test decides — see the plan.
+    sort_auto_merge: bool = False
+    # Unit curation. A unit is ``good`` when it clears all three floors, ``mua``
+    # (multi-unit) when its refractory violations say it is more than one
+    # neuron but it is otherwise real, and ``noise`` otherwise. Which labels
+    # become nodes is ``curation_keep_labels``. The violation *fraction* is
+    # used deliberately: SpikeInterface's Poisson-normalised
+    # ``isi_violations_ratio`` is meaningless for bursting cultures.
+    curation_min_snr: float = 4.0
+    # Two spikes of one unit closer than this are one spike counted twice
+    # (a matcher resolving a burst); the second is dropped. 0 disables.
+    sort_censor_ms: float = 0.3
+    curation_refractory_ms: float = 1.5
+    curation_max_rp_violation_frac: float = 0.05
+    curation_min_firing_rate: float = 0.05
+    curation_keep_labels: list[str] = field(default_factory=lambda: ["good", "mua"])
+    # Keep the sorter's own output folder (and the preprocessed copy of the
+    # recording it worked from) beside the spike file, for Phy or a second
+    # look. Off because that copy is as large as the recording.
+    keep_sorter_output: bool = False
 
     # ── Functional connectivity ──────────────────────────────────────────────
     func_con_lag_val: list[int] = field(default_factory=lambda: [10, 15, 25])
@@ -271,6 +337,39 @@ class Params:
     # acquisition rate (3.3 s at 15 Hz, 1.5 s at 33 Hz). Set it in seconds to
     # make the refractory period mean the same thing across a mixed-rate batch.
     twop_min_event_interval: float | None = None
+
+    # Cross-day cell tracking (see catnap/tracking/, designed in
+    # python/CATNAP_CELLTRACKING_PLAN.md). Off by default: it needs multi-DIV
+    # chains of the same field of view, which not every dataset has.
+    track_cells: bool = False
+    # Chains whose measured field-of-view offset is below this are tracked
+    # *unregistered*. Two density bins: correcting a smaller offset than we can
+    # measure injects more error than it removes, and did so for 47 day-pairs.
+    track_min_shift_px: float = 16.0
+    # A day-pair below this ROI-layout agreement is a different field of view;
+    # its measured displacement is noise and must not constrain the offset solve.
+    track_reliable_ncc: float = 0.45
+    # A match rate below this is indistinguishable from the false-positive
+    # floor. **Derive this from controls for your own rig** — 0.10 is the
+    # measured floor for the Mecp2 dataset (foreign-FOV max 0.091) and does not
+    # transfer. The pre-existing 0.05 convention sits *below* that floor.
+    track_tracked_threshold: float = 0.10
+    # After ROICaT, a tracked cell missing on a day is completed with the one
+    # unmatched cell sitting within this radius of where it should be. By
+    # activity those cells are indistinguishable from ROICaT's own matches
+    # (fingerprint AUC 0.675 vs 0.684); ROICaT declines them on footprint shape.
+    # 0 turns completion off. The added members are flagged everywhere.
+    track_completion_radius_px: float = 10.0
+    # suite2p's neuropil coefficient, for the validation traces.
+    track_neuropil_coeff: float = 0.7
+    # Validate matches against activity the matcher never saw. Costs one pass
+    # over the traces and is what makes a match rate interpretable.
+    track_validate_activity: bool = True
+    # Cells per chain in the QC page; 0 means every tracked cell. A cap samples
+    # across the ranking, worst first, rather than taking the top. Each cell
+    # costs ~34 kB (crops + traces), so a cap only matters for bundle size --
+    # a 265-cell chain is ~9 MB uncapped.
+    track_viewer_cells: int = 0
     python_path: str = ""
 
     # Cell-type subnetwork analysis (see catnap/subnetwork.py). When enabled,
@@ -357,6 +456,22 @@ class Params:
 
 
 #: Name of the parameter snapshot written into every output folder.
+#: The method name sorted spike trains are stored under in ``_spikes.npz``,
+#: beside the detectors' ``thr4`` / ``bior1p5``.
+SORTED_METHOD = "sorted"
+
+
+def active_spike_method(params: "Params") -> str:
+    """The method steps 2–4 read from the spike file.
+
+    ``spikes_method`` names a detector; when the run sorts spikes instead there
+    is exactly one train per node, stored as :data:`SORTED_METHOD`, so that is
+    what every later step must read whatever ``spikes_method`` says — the
+    field keeps its value so switching back to detection restores it.
+    """
+    return SORTED_METHOD if params.spike_source == "sort" else params.spikes_method
+
+
 PARAMS_FILENAME = "params.json"
 
 #: Path fields that may hold a remote URL rather than a local path. A share

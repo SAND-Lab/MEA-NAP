@@ -38,7 +38,7 @@ from pathlib import Path
 
 import numpy as np
 
-from meanap.params import Params
+from meanap.params import Params, active_spike_method
 from meanap.timescale import timescale_kind
 from meanap.catnap.rasters import RASTER_FIGURES
 from meanap.pipeline.bundle import RunBundle, is_os_metadata
@@ -92,6 +92,7 @@ __all__ = [
     "comparison_family",
     "comparison_lags",
     "comparison_metrics",
+    "comparison_bounds",
     "render_comparison_figure",
 ]
 
@@ -225,7 +226,19 @@ def load_context(bundle: RunBundle | Path | str) -> RenderContext:
         root = Path(bundle)
         params = (load_params(root / PARAMS_FILENAME)[0]
                   if (root / PARAMS_FILENAME).exists() else Params())
-        mode = "catnap" if params.suite2p_mode else "ephys"
+        # The manifest records what the run actually was, so prefer it. Deriving
+        # the mode from params alone calls a CAT-NAP run "ephys" whenever
+        # params.json is absent — the defaults then say suite2p_mode is off.
+        mode = None
+        manifest_path = root / "manifest.json"
+        if manifest_path.exists():
+            import json as _json
+            try:
+                mode = (_json.loads(manifest_path.read_text()) or {}).get("mode")
+            except (OSError, ValueError):
+                mode = None
+        if not mode:
+            mode = "catnap" if params.suite2p_mode else "ephys"
         rec_rows = _recordings_from_csv(root)
 
     recordings = {
@@ -764,6 +777,24 @@ def comparison_metrics(family: str, level: str,
     return dict(by_level[(family, level)])
 
 
+def comparison_bounds(family: str, metric: str, df_node) -> tuple | None:
+    """The y-range one comparison figure is drawn on, or ``None`` for autoscale.
+
+    The same lookup the folder-at-a-time plotters make, so a figure the viewer
+    redraws sits on the same axis as the one the pipeline wrote. ``df_node`` is
+    the family's *full* node frame (before any lag filter): the node-degree cap
+    is the largest network in the batch, and must not shrink with the lag.
+    """
+    if family == "network":
+        from meanap.pipeline.plotting_step4 import batch_node_count, netmet_bounds
+        return netmet_bounds(metric, batch_node_count(df_node))
+    if family == "ephys_activity":
+        from meanap.pipeline.plotting_step2 import ephys_bounds
+        return ephys_bounds(metric)
+    # CAT-NAP's activity family is drawn by its own plotter, which pins nothing.
+    return None
+
+
 def _comparison_frames(ctx: RenderContext, family: str, order: list | None):
     """``(df_rec, df_node)`` for a family, built once and cached on the context.
 
@@ -956,6 +987,7 @@ def render_comparison_figure(
     params, _ = _apply_overrides(ctx.params, overrides)
     order = params.custom_grp_order or None
     df_rec, df_node = _comparison_frames(ctx, family, order)
+    ylim = comparison_bounds(family, metric, df_node)
     df = df_rec if level == "recording" else df_node
     if df.empty:
         raise ValueError(
@@ -991,7 +1023,8 @@ def render_comparison_figure(
 
     with figure_dpi(dpi):
         plot_half_violin_by_x(df, metric, metrics[metric], x_kind, dest,
-                              group_order=order, colors=ColorScheme.from_params(params))
+                              group_order=order, colors=ColorScheme.from_params(params),
+                              ylim=ylim)
 
     if not dest.is_file():
         raise ValueError(
@@ -1722,7 +1755,7 @@ def render_activity_figure(
     # electrode must stay empty in the raster.
     full = load_spike_times_npz(spike_path)
     spike_times_dict = {
-        ch: full.get(ch, {}).get(params.spikes_method, np.array([]))
+        ch: full.get(ch, {}).get(active_spike_method(params), np.array([]))
         for ch in range(n_channels)
     }
     ground = parse_ground_electrodes(rec.ground)
