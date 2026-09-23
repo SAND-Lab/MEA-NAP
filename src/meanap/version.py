@@ -14,6 +14,13 @@ would let the two disagree, and the MATLAB side is the one users are told to
 check. The two newer subsystems have no such history, so they are declared in
 ``versions.json`` beside it.
 
+**Which build.** Between official releases ``main`` moves on every merge while
+``version.txt`` stays put, so "1.11.0" alone cannot tell last week's result
+from today's. :func:`build_info` adds what git knows — the development-build
+tag (``v1.11.0-dev.23``, see ``.github/workflows/dev-build.yml``), the commit,
+and whether the code had uncommitted edits — and :func:`version_stamp` records
+it with every run.
+
 Both files are read at import and cached. A missing or unparseable file yields
 :data:`UNKNOWN` rather than raising — a version string is metadata, and failing
 a run because it could not be stamped would be a poor trade.
@@ -22,6 +29,8 @@ a run because it could not be stamped would be a poor trade.
 from __future__ import annotations
 
 import json
+import os
+import subprocess
 from functools import lru_cache
 from pathlib import Path
 
@@ -33,6 +42,8 @@ __all__ = [
     "pipeline_label",
     "all_versions",
     "version_stamp",
+    "build_info",
+    "build_label",
 ]
 
 #: What a version reads as when the file it comes from is missing or malformed.
@@ -118,6 +129,41 @@ def all_versions() -> dict[str, str]:
     return {key: pipeline_version(key) for key in PIPELINE_NAMES}
 
 
+@lru_cache(maxsize=1)
+def build_info() -> dict[str, object]:
+    """The exact code running, from git: ``{"describe", "commit", "dirty"}``.
+
+    ``describe`` is the nearest version tag plus any commits since, e.g.
+    ``v1.11.0-dev.23`` on a tagged build or ``v1.11.0-dev.23-2-g1a2b3c4`` two
+    commits past it, with ``-dirty`` when files were edited. Empty when there
+    is no git checkout (an installed wheel) or no git — the version number is
+    then all there is to say, and saying nothing is better than guessing.
+    """
+    root = Path(__file__).resolve().parents[2]
+    if not (root / ".git").exists():
+        return {}
+    env = {**os.environ, "GIT_TERMINAL_PROMPT": "0", "LC_ALL": "C"}
+
+    def git(*args: str) -> str:
+        return subprocess.run(
+            ["git", "-C", str(root), *args], capture_output=True, text=True,
+            timeout=10, env=env, check=True).stdout.strip()
+
+    try:
+        commit = git("rev-parse", "HEAD")
+        describe = git("describe", "--tags", "--match", "v[0-9]*",
+                       "--always", "--dirty")
+    except (OSError, subprocess.SubprocessError):
+        return {}
+    return {"describe": describe, "commit": commit,
+            "dirty": describe.endswith("-dirty")}
+
+
+def build_label() -> str | None:
+    """``"v1.11.0-dev.23"`` (or its describe string) for display, if known."""
+    return build_info().get("describe") or None
+
+
 def version_stamp(mode: str) -> dict:
     """What a run records about the code that produced it.
 
@@ -126,9 +172,13 @@ def version_stamp(mode: str) -> dict:
     later — "which CAT-NAP was this?" — even when the reader has forgotten
     which mode the run used.
     """
-    return {
+    stamp = {
         "pipeline": mode,
         "pipeline_name": PIPELINE_NAMES.get(mode, mode),
         "version": pipeline_version(mode),
         "versions": all_versions(),
     }
+    build = build_info()
+    if build:
+        stamp["build"] = dict(build)
+    return stamp

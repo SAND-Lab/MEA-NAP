@@ -8,7 +8,9 @@ the checks need no network and cannot touch the real clone. Four groups:
   C. updating — fast-forward only, and every refusal leaves the clone as it was;
   D. releases — each in its own worktree, started the right way;
   E. the GUI — the version button's badge and the versions dialog;
-  F. the default version — what ``meanap-gui`` opens, and how it is chosen.
+  F. the default version — what ``meanap-gui`` opens, and how it is chosen;
+  G. development builds — the automatic tags between official releases, and
+     the exact build stamped into every run.
 """
 
 from __future__ import annotations
@@ -29,6 +31,8 @@ for key, value in {"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
                    "GIT_CONFIG_GLOBAL": os.devnull,
                    "GIT_CONFIG_NOSYSTEM": "1"}.items():
     os.environ[key] = value
+
+from PyQt6.QtCore import Qt  # noqa: E402
 
 from meanap import updates as U  # noqa: E402
 
@@ -256,7 +260,9 @@ def main() -> int:
 
         dlg = VersionsDialog(checkout=status.checkout)
         dlg.set_status(status)
-        items = [dlg._list.item(i) for i in range(dlg._list.count())]
+        # Section titles carry no version; the checks are about the versions.
+        items = [dlg._list.item(i) for i in range(dlg._list.count())
+                 if dlg._list.item(i).data(0x0100)]
         check("the dialog lists cutting edge first, then every release",
               [i.data(0x0100) for i in items] == [CUTTING_EDGE, "v1.2.0", "v1.1.0", "v1.0.0"],
               [i.text() for i in items])
@@ -265,7 +271,7 @@ def main() -> int:
               and "MATLAB" not in items[2].text(), [i.text() for i in items])
         check("the running version cannot be 'opened' again",
               not dlg._open_button.isEnabled())
-        dlg._list.setCurrentRow(3)
+        dlg._list.setCurrentItem(items[3])
         check("a release can", dlg._open_button.isEnabled())
         check("the download button is offered when behind",
               not dlg._update_button.isHidden())
@@ -381,6 +387,81 @@ def main() -> int:
         finally:
             U.launch = real_launch
             set_default_version(None)
+
+        print("\nG — development builds")
+        U.update_main(U.find_checkout(user), "origin")
+        # As the dev-build workflow would tag them: numbered from v1.2.0.
+        for n in (1, 2, 10):
+            commit(dev, {"MEApipeline.m": f"% dev {n}\n",
+                         "src/meanap/gui/app.py": "# gui\n"}, f"merge {n}")
+            git(dev, "tag", f"v1.2.0-dev.{n}")
+        git(dev, "push", "-q", "origin", "main", "--tags")
+        here = U.find_checkout(user)
+        st = U.check(here)
+        tags = [r.tag for r in st.releases]
+        check("dev builds sort after their release and by number, not as text",
+              tags[:4] == ["v1.2.0-dev.10", "v1.2.0-dev.2", "v1.2.0-dev.1", "v1.2.0"],
+              tags)
+        check("…and know they are dev builds",
+              [r.dev for r in st.releases[:4]] == [True, True, True, False])
+        check("the newest official release ignores them",
+              st.latest_release == "v1.2.0" and st.latest_dev == "v1.2.0-dev.10",
+              (st.latest_release, st.latest_dev))
+        check("a dev build is a tag that can be opened",
+              U.is_version_tag("v1.2.0-dev.2") and not U.is_version_tag("v1.2.0-dev")
+              and not U.is_version_tag("v1.2.0-rc.1"))
+        old_rel = U.find_checkout(U.ensure_release(user, "v1.1.0"))
+        check("someone on an official release is not told about dev builds",
+              U.check(old_rel, fetch=False).newer_version == "v1.2.0",
+              U.check(old_rel, fetch=False).newer_version)
+        devco = U.find_checkout(U.ensure_release(user, "v1.2.0-dev.1"))
+        check("a dev build checks out into its own folder, as a dev build",
+              devco.is_dev and devco.tag == "v1.2.0-dev.1", devco)
+        dst = U.check(devco, fetch=False)
+        check("someone on a dev build is told about the newest one",
+              dst.update_available and dst.newer_version == "v1.2.0-dev.10",
+              dst.newer_version)
+        check("a dev build with the Python GUI can be the default",
+              U.default_folder("v1.2.0-dev.2", here) == U.release_dir("v1.2.0-dev.2"))
+        git(dev, "tag", "v1.3.0")
+        git(dev, "push", "-q", "origin", "--tags")
+        both = U.find_checkout(dev)
+        check("a commit with an official and a dev tag goes by the official one",
+              both.tag == "v1.3.0", both.tag)
+
+        from meanap.gui.versions_dialog import DEV_BUILDS_SHOWN
+        for n in range(11, 11 + DEV_BUILDS_SHOWN):
+            commit(dev, {"MEApipeline.m": f"% dev {n}\n"}, f"merge {n}")
+            git(dev, "tag", f"v1.3.0-dev.{n}")
+        git(dev, "push", "-q", "origin", "main", "--tags")
+        set_default_version("v1.2.0-dev.1")
+        dlg = VersionsDialog(checkout=here)
+        dlg.set_status(U.check(here))
+        texts = [dlg._list.item(i).text() for i in range(dlg._list.count())]
+        datas = [dlg._list.item(i).data(0x0100) for i in range(dlg._list.count())]
+        official_at = texts.index("Official releases") if "Official releases" in texts else -1
+        dev_at = next((i for i, t in enumerate(texts) if t.startswith("Development builds")), -1)
+        check("official releases and dev builds are listed apart",
+              0 < dev_at < official_at, texts)
+        check("…dev builds first, newest to oldest, then only official ones",
+              all(not U.is_dev_tag(d) for d in datas[official_at:] if d), texts)
+        shown = [d for d in datas[dev_at:official_at] if d]
+        check(f"only the newest {DEV_BUILDS_SHOWN} dev builds, plus the default",
+              shown[:DEV_BUILDS_SHOWN] == [f"v1.3.0-dev.{n}" for n in
+                                          range(10 + DEV_BUILDS_SHOWN, 10, -1)]
+              and shown[DEV_BUILDS_SHOWN:] == ["v1.2.0-dev.1"], shown)
+        check("section titles cannot be selected, so never opened",
+              not (dlg._list.item(dev_at).flags() & Qt.ItemFlag.ItemIsSelectable))
+        set_default_version(None)
+
+        from meanap import version as V
+        V.build_info.cache_clear()
+        stamp = V.version_stamp("meanap")
+        check("a run records the exact commit it ran",
+              stamp.get("build", {}).get("commit")
+              == git(REPO_ROOT, "rev-parse", "HEAD"), stamp.get("build"))
+        check("…and a describable build name",
+              bool(stamp["build"].get("describe")), stamp.get("build"))
 
     print()
     if FAILURES:

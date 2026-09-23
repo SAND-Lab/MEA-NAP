@@ -46,6 +46,8 @@ __all__ = [
     "UpdateResult",
     "LaunchPlan",
     "find_checkout",
+    "is_version_tag",
+    "is_dev_tag",
     "upstream_remote",
     "releases",
     "check",
@@ -75,8 +77,22 @@ UPSTREAM = "SAND-Lab/MEA-NAP"
 #: proxy does not leave the check spinning forever.
 NETWORK_TIMEOUT_S = 60
 
-#: Release tags as MEA-NAP writes them: ``v1.10.2``, and the odd ``v1.9.2a``.
+#: Official release tags as MEA-NAP writes them: ``v1.10.2``, and the odd ``v1.9.2a``.
 _RELEASE_TAG = re.compile(r"^v\d+\.\d+\.\d+[a-z]?$")
+
+#: Development builds, tagged automatically on every merge to ``main`` by
+#: ``.github/workflows/dev-build.yml``: ``v1.11.0-dev.23`` is the 23rd merge
+#: since v1.11.0, so it sorts after v1.11.0 and before whatever comes next.
+_DEV_TAG = re.compile(r"^v\d+\.\d+\.\d+[a-z]?-dev\.\d+$")
+
+
+def is_version_tag(tag: str | None) -> bool:
+    """An official release or a development build — something that can be opened."""
+    return bool(tag) and bool(_RELEASE_TAG.match(tag) or _DEV_TAG.match(tag))
+
+
+def is_dev_tag(tag: str | None) -> bool:
+    return bool(tag) and bool(_DEV_TAG.match(tag))
 
 #: The file whose presence means a version has the Python GUI.
 _PYTHON_GUI_ENTRY = "src/meanap/gui/app.py"
@@ -139,7 +155,12 @@ class Checkout:
 
     @property
     def is_release(self) -> bool:
+        """Running a tagged version (official or development build) as such."""
         return self.tag is not None and self.branch is None
+
+    @property
+    def is_dev(self) -> bool:
+        return self.is_release and is_dev_tag(self.tag)
 
     def describe(self) -> str:
         """``"main"``, ``"v1.10.2"``, or ``"branch foo"`` — for the dialog."""
@@ -174,10 +195,11 @@ def find_checkout(start: Path | None = None) -> Checkout | None:
         branch = None
     tag = None
     try:
-        for t in _git(root, "tag", "--points-at", "HEAD").splitlines():
-            if _RELEASE_TAG.match(t):
-                tag = t
-                break
+        # An official tag wins over a development build on the same commit:
+        # "v1.12.0" is what the user would call it.
+        at_head = [t for t in _git(root, "tag", "--points-at", "HEAD").splitlines()
+                   if is_version_tag(t)]
+        tag = min(at_head, key=is_dev_tag, default=None)
     except GitError:
         pass
     return Checkout(root=root, clone=clone, commit=commit, branch=branch, tag=tag)
@@ -220,20 +242,29 @@ class Release:
     #: MATLAB-only, which decides how :func:`launch_plan` starts them.
     python_gui: bool = False
 
+    @property
+    def dev(self) -> bool:
+        """A development build rather than an official release."""
+        return is_dev_tag(self.tag)
+
 
 def releases(repo: Path) -> list[Release]:
-    """Release tags known to the clone, newest first.
+    """Official releases and development builds known to the clone, newest first.
 
     Only what has been fetched — :func:`check` fetches tags, so after one check
     this includes anything published since the clone was made.
     """
     try:
-        out = _git(repo, "tag", "--list", "v*", "--sort=-v:refname",
+        out = _git(repo, "tag", "--list", "v*",
                    "--format=%(refname:short)\t%(creatordate:short)")
     except GitError:
         return []
-    tagged = [(t, d) for t, _, d in (ln.partition("\t") for ln in out.splitlines())
-              if _RELEASE_TAG.match(t)]
+    # Sorted here rather than by git's version sort, which has no idea that
+    # "-dev.23" comes *after* the release it is numbered from.
+    tagged = sorted(
+        ((t, d) for t, _, d in (ln.partition("\t") for ln in out.splitlines())
+         if is_version_tag(t)),
+        key=lambda td: _tag_key(td[0]), reverse=True)
     # One batch lookup rather than a git call per tag: which releases carry the
     # Python GUI, without checking any of them out.
     python_gui: set[str] = set()
@@ -260,7 +291,9 @@ class Status:
     #: the reverse. ``None`` when that could not be worked out.
     behind: int | None = None
     ahead: int | None = None
+    #: The newest official release, and the newest development build.
     latest_release: str | None = None
+    latest_dev: str | None = None
     releases: list[Release] = field(default_factory=list)
     #: Why the check could not finish, in words a user can act on.
     error: str | None = None
@@ -269,25 +302,36 @@ class Status:
     def update_available(self) -> bool:
         """Something newer exists for what is *running*.
 
-        For cutting edge that is new commits on ``main``; for a release, a
-        newer release. A feature branch is somebody's work in progress and is
-        not nagged about.
+        For cutting edge that is new commits on ``main``. For an official
+        release, a newer *official* release — someone who chose the stable
+        track is not told about every merge. For a development build, anything
+        newer. A feature branch is somebody's work in progress and is not
+        nagged about.
         """
+        newer = self.newer_version
         co = self.checkout
-        if co is None:
-            return False
-        if co.is_main:
+        if co is not None and co.is_main:
             return bool(self.behind)
-        if co.is_release and self.latest_release:
-            return _tag_key(self.latest_release) > _tag_key(co.tag)
-        return False
+        return newer is not None
+
+    @property
+    def newer_version(self) -> str | None:
+        """The version a release or development build would move to, if any."""
+        co = self.checkout
+        if co is None or not co.is_release:
+            return None
+        candidates = [t for t in (self.latest_release,
+                                  self.latest_dev if co.is_dev else None) if t]
+        best = max(candidates, key=_tag_key, default=None)
+        return best if best and _tag_key(best) > _tag_key(co.tag) else None
 
 
 def _tag_key(tag: str) -> tuple:
-    m = re.match(r"^v(\d+)\.(\d+)\.(\d+)([a-z]?)$", tag or "")
+    """Sort key: ``v1.11.0`` < ``v1.11.0-dev.1`` < ``v1.11.0-dev.23`` < ``v1.12.0``."""
+    m = re.match(r"^v(\d+)\.(\d+)\.(\d+)([a-z]?)(?:-dev\.(\d+))?$", tag or "")
     if not m:
         return ()
-    return (int(m[1]), int(m[2]), int(m[3]), m[4])
+    return (int(m[1]), int(m[2]), int(m[3]), m[4], int(m[5] or 0))
 
 
 #: Default for :func:`check`: "whatever is running", as distinct from an
@@ -324,7 +368,8 @@ def check(checkout: Checkout | None = _RUNNING, *, fetch: bool = True,  # type: 
         except GitError as exc:
             status.error = f"Could not reach GitHub to check for updates ({exc})."
     status.releases = releases(repo)
-    status.latest_release = status.releases[0].tag if status.releases else None
+    status.latest_release = next((r.tag for r in status.releases if not r.dev), None)
+    status.latest_dev = next((r.tag for r in status.releases if r.dev), None)
     try:
         counts = _git(repo, "rev-list", "--left-right", "--count",
                       f"{MAIN}...{status.remote}/{MAIN}")
@@ -424,7 +469,7 @@ def ensure_release(clone: Path, tag: str, root: Path | None = None) -> Path:
     Raises :class:`GitError` when *tag* is not a release the clone knows, or
     the folder exists but is something else — never deletes to make room.
     """
-    if not _RELEASE_TAG.match(tag):
+    if not is_version_tag(tag):
         raise GitError(f"'{tag}' is not a release tag")
     target = release_dir(tag, root)
     if target.exists():
@@ -532,7 +577,7 @@ def default_folder(choice: str | None, checkout: Checkout | None) -> Path | None
     """
     if not choice or checkout is None or os.environ.get(NO_REDIRECT_ENV):
         return None
-    if choice != MAIN and not _RELEASE_TAG.match(choice):
+    if choice != MAIN and not is_version_tag(choice):
         return None
     target = folder_for(choice, checkout)
     if target.resolve() == checkout.root.resolve():

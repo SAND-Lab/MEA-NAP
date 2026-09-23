@@ -512,7 +512,11 @@ class MainWindow(QMainWindow):
         label.setText(text + ("  ⬆ update" if fresh else ""))
         label.setStyleSheet("" if fresh else "color: palette(mid);")
         every = all_versions()
-        tip = ("Versions in this install:\n"
+        from meanap.version import build_label
+
+        build = build_label()
+        tip = ((f"Build: {build}\n\n" if build else "")
+               + "Versions in this install:\n"
                + "\n".join(f"  {PIPELINE_NAMES[k]} {every[k]}" for k in PIPELINE_NAMES)
                + "\n\nThe running pipeline's version is written into every run's "
                  "params.json and bundle manifest.")

@@ -40,6 +40,12 @@ _SETTINGS_KEY = "updates/check_on_start"
 
 _DEFAULT_KEY = "versions/default"
 
+#: How many development builds the list shows. There is one per merge, so the
+#: whole history would bury the official releases; the newest few cover
+#: "the build from before that last change", which is what people reach for.
+#: The running and default builds are always listed, however old.
+DEV_BUILDS_SHOWN = 5
+
 #: The list item that means "the clone, on main" rather than a release tag.
 #: The same string is what is stored as the default.
 CUTTING_EDGE = updates.MAIN
@@ -121,11 +127,14 @@ def status_summary(status: updates.Status | None) -> str:
             return ("Up to date with GitHub." if not status.error else
                     f"Up to date as of the last check. {status.error}")
     elif co.is_release:
-        if status.update_available:
-            return (f"A newer release, {status.latest_release}, is available — "
-                    "choose it below.")
+        newer = status.newer_version
+        if newer:
+            kind = "development build" if updates.is_dev_tag(newer) else "release"
+            return f"A newer {kind}, {newer}, is available — choose it below."
+        if co.is_dev:
+            return "This is the latest development build."
         if status.latest_release:
-            return "This is the latest release."
+            return "This is the latest official release."
     else:
         return (f"This copy is on {co.describe()}, which is not tracked "
                 "for updates.")
@@ -202,9 +211,11 @@ class VersionsDialog(QDialog):
         cl = QVBoxLayout(choose)
         hint = QLabel(
             "Cutting edge has the newest features and fixes, and changes as "
-            "they land. A release stays exactly as it was published — use one "
-            "to reproduce an analysis. Each release opens from its own folder "
-            f"in {updates.versions_dir()}; your MEA-NAP folder is not touched.")
+            "they land. An official release is tested and written up; a "
+            "development build is main as it was after one change, named so "
+            "you can come back to it. Either stays exactly as published — use "
+            "one to reproduce an analysis. Each opens from its own folder in "
+            f"{updates.versions_dir()}; your MEA-NAP folder is not touched.")
         hint.setWordWrap(True)
         cl.addWidget(hint)
         self._list = QListWidget()
@@ -259,6 +270,7 @@ class VersionsDialog(QDialog):
                 f"MEA-NAP {meanap_version()}, not from a git clone.")
         else:
             kind = ("cutting edge (main)" if co.is_main else
+                    f"development build {co.tag}" if co.is_dev else
                     f"release {co.tag}" if co.is_release else co.describe())
             self._running_label.setText(
                 f"<b>MEA-NAP {meanap_version()}</b> — {kind}, commit "
@@ -287,25 +299,53 @@ class VersionsDialog(QDialog):
         self._releases = {r.tag: r for r in (
             self._status.releases if self._status else
             updates.releases(co.clone) if co is not None else [])}
-        for rel in self._releases.values():
-            text = f"{rel.tag}   released {rel.date}"
-            if not rel.python_gui:
-                text += "   (MATLAB)"
-            if co is not None and co.is_release and co.tag == rel.tag:
-                text += "   ● running"
-            if default == rel.tag:
-                text += "   ★ default"
-            item = QListWidgetItem(text)
-            item.setData(Qt.ItemDataRole.UserRole, rel.tag)
-            self._list.addItem(item)
+        official = [r for r in self._releases.values() if not r.dev]
+        dev = [r for r in self._releases.values() if r.dev]
+        keep_dev = {co.tag if co is not None else None, default}
+        dev = [r for i, r in enumerate(dev)
+               if i < DEV_BUILDS_SHOWN or r.tag in keep_dev]
+        # Newest first throughout: the development builds sit between cutting
+        # edge and the last release, in time as in the list — and above the
+        # long tail of old releases rather than scrolled away beneath it.
+        if dev:
+            self._add_header("Development builds — one per change to main, "
+                             "without release notes")
+        for rel in dev:
+            self._add_version(rel, "built", co, default)
+        if official:
+            self._add_header("Official releases")
+        for rel in official:
+            self._add_version(rel, "released", co, default)
         self._list.blockSignals(False)
         for i in range(self._list.count()):
-            if self._list.item(i).data(Qt.ItemDataRole.UserRole) == keep:
+            if keep is not None and self._list.item(i).data(Qt.ItemDataRole.UserRole) == keep:
                 self._list.setCurrentRow(i)
                 break
         else:
             self._list.setCurrentRow(0)
         self._on_selection()
+
+    def _add_header(self, text: str) -> None:
+        """A section title in the list: not selectable, so never "opened"."""
+        item = QListWidgetItem(text)
+        item.setFlags(Qt.ItemFlag.NoItemFlags)
+        font = item.font()
+        font.setBold(True)
+        item.setFont(font)
+        self._list.addItem(item)
+
+    def _add_version(self, rel: updates.Release, verb: str,
+                     co: updates.Checkout | None, default: str | None) -> None:
+        text = f"{rel.tag}   {verb} {rel.date}"
+        if not rel.python_gui:
+            text += "   (MATLAB)"
+        if co is not None and co.is_release and co.tag == rel.tag:
+            text += "   ● running"
+        if default == rel.tag:
+            text += "   ★ default"
+        item = QListWidgetItem(text)
+        item.setData(Qt.ItemDataRole.UserRole, rel.tag)
+        self._list.addItem(item)
 
     def _selected(self) -> str | None:
         item = self._list.currentItem()

@@ -1,0 +1,82 @@
+# Development builds: a tag and a GitHub pre-release for every change to main.
+#
+# Official releases (v1.11.0, v1.12.0, …) stay hand-made: a bump of
+# version.txt, notes written in release_notes/, and a GitHub release. This
+# workflow does the other kind, so that everything merged between them still
+# has a name someone can cite, pin, and open from the GUI's versions dialog.
+#
+# The tag is <last official release>-dev.<n>, n counting merges to main since
+# that release (first-parent commits), e.g. v1.11.0-dev.100. version.txt is
+# deliberately NOT touched: MATLAB's getVersion.m compares it with GitHub's copy,
+# and changing it on every merge would tell every user of the official release
+# that they are out of date, constantly.
+#
+# Notes are GitHub's generated list of the pull requests merged since the
+# previous development build — nobody writes anything.
+
+name: Development build
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  # One at a time, in order: two merges in quick succession must not race for
+  # the same number.
+  group: dev-build
+  cancel-in-progress: false
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # the whole history and every tag, to count from
+
+      - name: Work out the build number
+        id: name
+        run: |
+          set -euo pipefail
+          # Official releases only: v1.2.3, and the odd v1.9.2a — never a
+          # previous development build.
+          base=$(git describe --tags --abbrev=0 \
+                   --match 'v[0-9]*.[0-9]*.[0-9]*' --exclude '*-dev.*' HEAD)
+          n=$(git rev-list --count --first-parent "$base..HEAD")
+          tag="$base-dev.$n"
+          # The development build before this one, for the notes to start
+          # from; the official release itself when this is the first.
+          prev=$(git describe --tags --abbrev=0 --match "$base-dev.*" HEAD^ 2>/dev/null || echo "$base")
+          echo "base=$base" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag"   >> "$GITHUB_OUTPUT"
+          echo "prev=$prev" >> "$GITHUB_OUTPUT"
+          if [ "$n" = 0 ] || git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"   # the release commit itself, or a re-run
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "base $base, build $tag, notes since $prev"
+
+      - name: Tag and publish the pre-release
+        if: steps.name.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.name.outputs.tag }}
+          BASE: ${{ steps.name.outputs.base }}
+          PREV: ${{ steps.name.outputs.prev }}
+        run: |
+          set -euo pipefail
+          git tag "$TAG" "$GITHUB_SHA"
+          git push origin "refs/tags/$TAG"
+          gh release create "$TAG" \
+            --verify-tag \
+            --prerelease \
+            --latest=false \
+            --title "Development build $TAG" \
+            --generate-notes \
+            --notes-start-tag "$PREV" \
+            --notes "Automatic development build of main since $BASE. Not an official release: it has not been through release testing, and its changes are listed below as pull requests rather than written up. Official releases are the ones marked Latest."
