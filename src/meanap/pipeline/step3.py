@@ -19,7 +19,9 @@ import numpy as np
 
 from meanap.params import Params, active_spike_method
 from meanap.pipeline.cancellation import CancelCheck, check_cancel
-from meanap.pipeline.io import find_raw_file, load_spike_times_npz, resolve_duration_s
+from meanap.pipeline.io import (
+    find_raw_file, load_spike_times_npz, resolve_duration_s, truncate_spike_times,
+)
 from meanap.pipeline.parallel import map_recordings
 from meanap.pipeline.progress import RunProgress
 from meanap.pipeline.probabilistic_threshold import adjm_thr
@@ -104,6 +106,7 @@ def _step3_one_recording(task: tuple[Params, RecordingInfo, str]) -> tuple[str, 
     ground_electrodes = parse_ground_electrodes(rec.ground)
     if ground_electrodes:
         spike_times_dict = ground_spike_times_dict(spike_times_dict, data["channels"], ground_electrodes)
+    spike_times_dict, duration_s = truncate_spike_times(spike_times_dict, duration_s, params)
 
     vlog.debug(f"      [{rec.filename}] {n_channels} channels, {fs / 1000:g} kHz, "
                f"{duration_s:.1f}s; {rep_num} surrogates, {tail} tail, "

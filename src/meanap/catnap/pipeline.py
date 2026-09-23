@@ -40,7 +40,7 @@ from meanap.catnap.adjacency import suite2p_to_adjm
 from meanap.catnap.group_plots import (
     SUBNET_GRAPH_METRICS, SUBNET_NODE_METRICS, twop_stats_frames,
 )
-from meanap.catnap.loader import Suite2pOutputMismatch, load_suite2p
+from meanap.catnap.loader import Suite2pOutputMismatch, load_suite2p, truncate_suite2p
 from meanap.catnap.rasters import binned_activity
 from meanap.catnap.subnetwork import WHOLE_NETWORK
 from meanap.catnap.stats import calc_twop_activity_stats
@@ -845,6 +845,13 @@ def _compute_recording(
         )
         data = load_suite2p(plane0, derived, rec.filename)
 
+    # After denoising, which runs on (and caches) the whole recording.
+    full_duration_s = data.duration_s
+    data = truncate_suite2p(data, params)
+    if data.duration_s != full_duration_s:
+        log(f"  [{rec.filename}] truncated to the {params.trunc_keep} "
+            f"{data.duration_s:.0f} s of {full_duration_s:.0f} s")
+
     out: dict[str, tuple[RecordingState, dict]] = {}
     for activity in measures:
         p_act = _params_for(params, activity)
@@ -1196,7 +1203,8 @@ def _reload_for_plots(params, rec, state, log, source=None):
     except Exception as e:
         log(f"  [{rec.filename}] warning: could not re-read suite2p data: {e}")
         return None, state.background
-    return data, state.background
+    # The trace figures show the stretch that was analysed.
+    return truncate_suite2p(data, params), state.background
 
 
 def _no_trace_reason(params, data) -> str | None:

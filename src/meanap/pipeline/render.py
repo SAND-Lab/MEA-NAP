@@ -1722,7 +1722,7 @@ def render_activity_figure(
     calls — with the spike times and metrics reassembled from the bundle.
     """
     from meanap.pipeline.figure_output import figure_dpi
-    from meanap.pipeline.io import load_spike_times_npz
+    from meanap.pipeline.io import load_spike_times_npz, truncate_spike_times
     from meanap.pipeline.plotting_step2 import plot_neuronal_activity_checks
     from meanap.pipeline.spreadsheet import ground_spike_times_dict, parse_ground_electrodes
 
@@ -1761,6 +1761,7 @@ def render_activity_figure(
     ground = parse_ground_electrodes(rec.ground)
     if ground:
         spike_times_dict = ground_spike_times_dict(spike_times_dict, channels, ground)
+    spike_times_dict, duration_s = truncate_spike_times(spike_times_dict, duration_s, params)
 
     batch_max = _activity_batch_max(ctx)
     with figure_dpi(dpi):

@@ -10,7 +10,9 @@ from meanap.pipeline.cancellation import CancelCheck, check_cancel
 from meanap.pipeline.progress import RunProgress
 from meanap.pipeline.resume import build_input_locator
 from meanap.pipeline.spreadsheet import RecordingInfo, ground_spike_times_dict, parse_ground_electrodes
-from meanap.pipeline.io import find_raw_file, load_spike_times_npz, resolve_duration_s
+from meanap.pipeline.io import (
+    find_raw_file, load_spike_times_npz, resolve_duration_s, truncate_spike_times,
+)
 from meanap.pipeline.firing_rates import firing_rates_bursts
 from meanap.pipeline.plotting_step2 import plot_neuronal_activity_checks
 from meanap.pipeline.verbosity import as_run_log
@@ -213,6 +215,11 @@ def _run_step2_neuronal_activity(
         ground_electrodes = parse_ground_electrodes(rec.ground)
         if ground_electrodes:
             spike_times_dict = ground_spike_times_dict(spike_times_dict, data["channels"], ground_electrodes)
+        full_duration_s = duration_s
+        spike_times_dict, duration_s = truncate_spike_times(spike_times_dict, duration_s, params)
+        if duration_s != full_duration_s:
+            log(f"  [{rec.filename}] truncated to the {params.trunc_keep} "
+                f"{duration_s:g}s of {full_duration_s:.1f}s")
 
         log(f"  [{rec.filename}] calculating firing rates and bursts (method={method})...")
         log.debug(f"      {n_channels} channels, {fs / 1000:g} kHz, {duration_s:.1f}s "

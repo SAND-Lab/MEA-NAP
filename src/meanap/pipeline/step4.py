@@ -23,7 +23,9 @@ from meanap.timescale import (
 from meanap.params import Params, active_spike_method
 from meanap.pipeline import network_metrics as nm
 from meanap.pipeline.cancellation import CancelCheck, check_cancel
-from meanap.pipeline.io import find_raw_file, load_spike_times_npz, resolve_duration_s
+from meanap.pipeline.io import (
+    find_raw_file, load_spike_times_npz, resolve_duration_s, truncate_spike_times,
+)
 from meanap.pipeline.modularity import mod_consensus_cluster_iterate
 from meanap.pipeline.nmf import cal_nmf
 from meanap.pipeline.null_models import latmio_und_v2, randmio_und_v2
@@ -636,6 +638,7 @@ def _step4_compute_one(
     ground_electrodes = parse_ground_electrodes(rec.ground)
     if ground_electrodes:
         spike_times_dict = ground_spike_times_dict(spike_times_dict, channels_arr, ground_electrodes)
+    spike_times_dict, duration_s = truncate_spike_times(spike_times_dict, duration_s, params)
 
     spike_counts = np.array([len(spike_times_dict[ch]) for ch in range(n_channels)])
     spike_times_list = [spike_times_dict[ch] for ch in range(n_channels)]
