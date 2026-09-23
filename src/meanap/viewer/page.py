@@ -2335,6 +2335,10 @@ function download(fmt) {
   const pb = MANIFEST.produced_by;
   if (pb && pb.version)
     $("source").textContent += `  ·  ${pb.pipeline_name} ${pb.version}`;
+  // The exact build, for "which code was this?" — on hover, since the
+  // version number already answers the everyday question.
+  if (pb && pb.build && pb.build.describe)
+    $("source").title = `Built with ${pb.build.describe} (commit ${String(pb.build.commit || "").slice(0, 7)})`;
   // A viewer opened on a folder has nothing to export: it is already one.
   $("export").classList.toggle("hidden", !MANIFEST.can_export);
   buildControls();

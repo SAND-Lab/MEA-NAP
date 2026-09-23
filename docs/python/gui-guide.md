@@ -107,6 +107,21 @@ a new window. Releases marked **(MATLAB)** predate the Python GUI. They open in
 MATLAB (`runPipelineApp`) if `matlab` is on your PATH. Otherwise the dialog
 shows the folder and tells you what to run in it.
 
+**A development build** (`v1.11.0-dev.23`, …) is `main` as it was right after
+one change was merged. A build is made automatically for every merge, and it
+has no written release notes. The dialog lists them under **Development
+builds**, between cutting edge and the official releases. It shows the five newest, plus the one
+you're running and your default. Open one, or set it as the default, the same
+way as a release. Use one to go back to "the version from before that last
+change", or to pin a result made between official releases. If you're running
+an official release, you're only told about newer official releases. If you're
+running a development build, you're told about newer builds too.
+
+Every Python run records the exact build it ran with, as well as the version
+number. The record goes in `params.json` and the bundle manifest, under
+`_meanap.build`: the nearest tag, the commit, and whether the code had
+uncommitted edits. In the results viewer, hover over the version to see it.
+
 **The default version** is the one `meanap-gui` opens. The last version you
 open from the dialog becomes the default. To choose one without opening it,
 use **Set as default**. The default is marked **★ default** in the list. When
