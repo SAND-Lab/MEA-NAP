@@ -55,6 +55,10 @@ __all__ = [
     "ensure_release",
     "launch_plan",
     "launch",
+    "NO_REDIRECT_ENV",
+    "folder_for",
+    "default_folder",
+    "exec_into",
 ]
 
 #: The branch that "cutting edge" means.
@@ -76,6 +80,10 @@ _RELEASE_TAG = re.compile(r"^v\d+\.\d+\.\d+[a-z]?$")
 
 #: The file whose presence means a version has the Python GUI.
 _PYTHON_GUI_ENTRY = "src/meanap/gui/app.py"
+
+#: Set in the environment of a copy we start, so that it opens as itself
+#: rather than switching again to the default version (see :func:`default_folder`).
+NO_REDIRECT_ENV = "MEANAP_NO_VERSION_REDIRECT"
 
 #: Files whose change means the Python environment may need re-syncing.
 _DEPENDENCY_FILES = ("pyproject.toml", "uv.lock")
@@ -462,7 +470,11 @@ def launch_plan(folder: Path, *, matlab: str | None = None) -> LaunchPlan:
     folder = Path(folder)
     if (folder / _PYTHON_GUI_ENTRY).is_file():
         env = {"PYTHONPATH": os.pathsep.join(
-            [str(folder / "src"), *filter(None, [os.environ.get("PYTHONPATH")])])}
+            [str(folder / "src"), *filter(None, [os.environ.get("PYTHONPATH")])]),
+               # What was chosen is what opens: without this, a copy started
+               # from the dialog would look up the default and could switch
+               # straight back to another.
+               NO_REDIRECT_ENV: "1"}
         return LaunchPlan(
             folder, "python", sys.executable, ("-m", "meanap.gui.app"), env,
             "Opens this version's MEA-NAP window in a new process, using the "
@@ -496,3 +508,57 @@ def launch(plan: LaunchPlan, extra_args: tuple[str, ...] = ()) -> subprocess.Pop
         [plan.program, *plan.args, *extra_args], cwd=plan.folder,
         env={**os.environ, **plan.env}, stdin=subprocess.DEVNULL,
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, **kwargs)
+
+
+# ── The default version ──────────────────────────────────────────────────────
+
+def folder_for(choice: str, checkout: Checkout) -> Path:
+    """The folder that runs *choice*: the clone for :data:`MAIN`, else the release's."""
+    return checkout.clone if choice == MAIN else release_dir(choice)
+
+
+def default_folder(choice: str | None, checkout: Checkout | None) -> Path | None:
+    """Where to switch to so that the default version is what opens, or ``None`` to stay.
+
+    Stays when there is no default, no clone to find it from, this process was
+    itself started by a switch (:data:`NO_REDIRECT_ENV`), the default is what
+    is already running, or the default cannot open in Python — a MATLAB-only
+    release is never switched to automatically, since the Python window would
+    vanish and MATLAB appear in its place every time.
+
+    A release not yet checked out is set up here, which needs no network.
+    Raises :class:`GitError` when that fails, for the caller to report before
+    opening the running copy instead.
+    """
+    if not choice or checkout is None or os.environ.get(NO_REDIRECT_ENV):
+        return None
+    if choice != MAIN and not _RELEASE_TAG.match(choice):
+        return None
+    target = folder_for(choice, checkout)
+    if target.resolve() == checkout.root.resolve():
+        return None
+    if choice != MAIN:
+        if not any(r.tag == choice and r.python_gui for r in releases(checkout.clone)):
+            return None
+        target = ensure_release(checkout.clone, choice)
+    if not (target / _PYTHON_GUI_ENTRY).is_file():
+        return None
+    return target
+
+
+def exec_into(plan: LaunchPlan, args: tuple[str, ...] = ()) -> None:
+    """Become *plan*: replace this process where the OS allows, else run it and exit.
+
+    Replacing rather than spawning keeps a terminal launch behaving like one —
+    the window's output still lands in that terminal, and Ctrl+C still reaches
+    it. Does not return.
+    """
+    if plan.program is None:
+        raise GitError(plan.explanation)
+    argv = [plan.program, *plan.args, *args]
+    env = {**os.environ, **plan.env}
+    if sys.platform == "win32":
+        raise SystemExit(subprocess.run(argv, env=env, check=False).returncode)
+    sys.stdout.flush()
+    sys.stderr.flush()
+    os.execve(plan.program, argv, env)

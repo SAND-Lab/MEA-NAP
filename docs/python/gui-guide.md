@@ -107,6 +107,17 @@ a new window. Releases marked **(MATLAB)** predate the Python GUI. They open in
 MATLAB (`runPipelineApp`) if `matlab` is on your PATH. Otherwise the dialog
 shows the folder and tells you what to run in it.
 
+**The default version** is the one `meanap-gui` opens. The last version you
+open from the dialog becomes the default. To choose one without opening it,
+use **Set as default**. The default is marked **★ default** in the list. When
+MEA-NAP starts in a different copy, it switches to the default before any
+window appears, setting the release up first if needed. Run
+`meanap-gui --here` to open the copy you started just once, ignoring the
+default. Only versions with the Python GUI can be the default. Opening a
+**(MATLAB)** release leaves the default unchanged, so MEA-NAP never opens
+MATLAB on its own at startup. Until you choose a version, there is no default
+and `meanap-gui` opens whichever copy you run it from.
+
 Untick **Check for updates when MEA-NAP starts** to stop the startup check. You
 can still check from the dialog at any time.
 

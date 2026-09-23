@@ -7,7 +7,8 @@ the checks need no network and cannot touch the real clone. Four groups:
   B. is it current — behind/ahead counts, new releases, which remote counts;
   C. updating — fast-forward only, and every refusal leaves the clone as it was;
   D. releases — each in its own worktree, started the right way;
-  E. the GUI — the version button's badge and the versions dialog.
+  E. the GUI — the version button's badge and the versions dialog;
+  F. the default version — what ``meanap-gui`` opens, and how it is chosen.
 """
 
 from __future__ import annotations
@@ -280,6 +281,106 @@ def main() -> int:
         window._on_update_status(dlg._status)
         check("the badge follows the dialog's status",
               "update" not in window._version_label.text(), window._version_label.text())
+
+        print("\nF — the default version")
+        from PyQt6.QtCore import QSettings
+        from meanap.gui import app as gui_app
+        from meanap.gui.versions_dialog import default_version, set_default_version
+        # Settings in the temp dir, so choosing a default here cannot change
+        # the one on the machine running the tests.
+        QSettings.setPath(QSettings.Format.NativeFormat,
+                          QSettings.Scope.UserScope, str(tmp / "settings"))
+        QSettings.setPath(QSettings.Format.IniFormat,
+                          QSettings.Scope.UserScope, str(tmp / "settings"))
+        set_default_version(None)
+        here = U.find_checkout(user)
+        check("never chosen: no default", default_version() is None)
+        check("…and nothing to switch to", U.default_folder(None, here) is None)
+        check("the default already running: stay",
+              U.default_folder("main", here) is None)
+        target = U.default_folder("v1.1.0", here)
+        check("a Python release as default: switch to its folder",
+              target == U.release_dir("v1.1.0"), target)
+        check("a MATLAB-only release is never switched to automatically",
+              U.default_folder("v1.0.0", here) is None)
+        check("an unknown release is ignored, not an error",
+              U.default_folder("v9.9.9", here) is None
+              and U.default_folder("rm -rf", here) is None)
+        rel = U.find_checkout(U.release_dir("v1.1.0"))
+        check("from a release, a default of main switches to the clone",
+              U.default_folder("main", rel) == user.resolve(),
+              U.default_folder("main", rel))
+        os.environ[U.NO_REDIRECT_ENV] = "1"
+        check("a copy started by a switch does not switch again",
+              U.default_folder("v1.1.0", here) is None)
+        del os.environ[U.NO_REDIRECT_ENV]
+        check("…because every Python launch carries the guard",
+              U.launch_plan(U.release_dir("v1.1.0")).env.get(U.NO_REDIRECT_ENV) == "1")
+        out = subprocess.run(
+            [sys.executable, "-c",
+             "import sys; sys.path.insert(0, sys.argv[1]);"
+             "from meanap import updates as U;"
+             "U.exec_into(U.LaunchPlan(U.Path('.'), 'python', sys.executable,"
+             " ('-c', 'import os,sys; print(sys.argv[1:], os.environ.get(\"X\"))'),"
+             " {'X': 'y'}), ('--mode', 'catnap'))",
+             str(REPO_ROOT / "src")], capture_output=True, text=True)
+        check("switching becomes the other copy, arguments and all",
+              out.stdout.strip() == "['--mode', 'catnap'] y", out.stdout + out.stderr)
+
+        calls = []
+        real_exec, real_find = U.exec_into, U.find_checkout
+        U.exec_into = lambda plan, args=(): calls.append((plan.folder, args))
+        # Only "what is running" is faked; every other lookup stays real.
+        U.find_checkout = lambda start=None: here if start is None else real_find(start)
+        try:
+            gui_app._open_default_version(["--mode", "catnap"])
+            check("with no default, meanap-gui opens itself", calls == [], calls)
+            set_default_version("v1.1.0")
+            gui_app._open_default_version(["--mode", "catnap"])
+            check("with one, it switches, passing its arguments on",
+                  calls == [(U.release_dir("v1.1.0"), ("--mode", "catnap"))], calls)
+            check("--here is an option", gui_app._parse_args(["--here"]).here)
+        finally:
+            U.exec_into, U.find_checkout = real_exec, real_find
+
+        set_default_version(None)
+        dlg = VersionsDialog(checkout=here)
+        dlg.set_status(U.check(here, fetch=False))
+        rows = {dlg._list.item(i).data(0x0100): i for i in range(dlg._list.count())}
+        check("no star without a default",
+              not any("default" in dlg._list.item(i).text() for i in rows.values()))
+        check("…and the dialog says what happens instead",
+              "No default" in dlg._default_label.text(), dlg._default_label.text())
+        dlg._list.setCurrentRow(rows["v1.0.0"])
+        check("a MATLAB release cannot be made the default",
+              not dlg._default_button.isEnabled())
+        dlg._list.setCurrentRow(rows["v1.1.0"])
+        check("a Python one can", dlg._default_button.isEnabled())
+        dlg._on_set_default()
+        check("Set as default stores it", default_version() == "v1.1.0",
+              default_version())
+        check("…stars it", "★ default" in dlg._list.item(rows["v1.1.0"]).text(),
+              dlg._list.item(rows["v1.1.0"]).text())
+        check("…and the button has nothing more to do",
+              not dlg._default_button.isEnabled())
+        launched = []
+        real_launch = U.launch
+        U.launch = lambda plan, args=(): launched.append(plan.folder)
+        try:
+            dlg._launch_folder(user, CUTTING_EDGE)
+            check("opening a version makes it the default",
+                  launched == [user] and default_version() == "main",
+                  (launched, default_version()))
+            check("…and moves the star",
+                  "★ default" in dlg._list.item(rows[CUTTING_EDGE]).text()
+                  and "★" not in dlg._list.item(rows["v1.1.0"]).text())
+            U.launch = lambda plan, args=(): launched.append(plan.folder)
+            dlg._launch_folder(U.release_dir("v1.0.0"), "v1.0.0")
+            check("opening a MATLAB release leaves the default alone",
+                  default_version() == "main", default_version())
+        finally:
+            U.launch = real_launch
+            set_default_version(None)
 
     print()
     if FAILURES:

@@ -33,12 +33,16 @@ from PyQt6.QtWidgets import (
 from meanap import updates
 from meanap.version import meanap_version
 
-__all__ = ["VersionsDialog", "Background", "check_on_start", "set_check_on_start"]
+__all__ = ["VersionsDialog", "Background", "check_on_start", "set_check_on_start",
+           "default_version", "set_default_version"]
 
 _SETTINGS_KEY = "updates/check_on_start"
 
+_DEFAULT_KEY = "versions/default"
+
 #: The list item that means "the clone, on main" rather than a release tag.
-CUTTING_EDGE = "__main__"
+#: The same string is what is stored as the default.
+CUTTING_EDGE = updates.MAIN
 
 
 def check_on_start() -> bool:
@@ -47,6 +51,20 @@ def check_on_start() -> bool:
 
 def set_check_on_start(on: bool) -> None:
     QSettings("SAND Lab", "MEA-NAP").setValue(_SETTINGS_KEY, bool(on))
+
+
+def default_version() -> str | None:
+    """The version ``meanap-gui`` opens: ``"main"``, a release tag, or ``None``.
+
+    ``None`` — never chosen — means no switching: whichever copy is started is
+    the one that opens, which is how MEA-NAP behaved before there was a choice.
+    """
+    value = QSettings("SAND Lab", "MEA-NAP").value(_DEFAULT_KEY, "", type=str)
+    return value or None
+
+
+def set_default_version(choice: str | None) -> None:
+    QSettings("SAND Lab", "MEA-NAP").setValue(_DEFAULT_KEY, choice or "")
 
 
 class Background(QObject):
@@ -199,12 +217,22 @@ class VersionsDialog(QDialog):
         orow = QHBoxLayout()
         self._open_button = QPushButton("Open selected version")
         self._open_button.clicked.connect(self._on_open)
+        self._default_button = QPushButton("Set as default")
+        self._default_button.setToolTip(
+            "Open this version whenever MEA-NAP starts. Start with "
+            "'meanap-gui --here' to open a different copy just once.")
+        self._default_button.clicked.connect(self._on_set_default)
         self._folder_button = QPushButton("Show folder")
         self._folder_button.clicked.connect(self._on_show_folder)
         orow.addWidget(self._open_button)
+        orow.addWidget(self._default_button)
         orow.addWidget(self._folder_button)
         orow.addStretch(1)
         cl.addLayout(orow)
+        self._default_label = QLabel()
+        self._default_label.setWordWrap(True)
+        self._default_label.setStyleSheet("color: palette(mid);")
+        cl.addWidget(self._default_label)
         layout.addWidget(choose, 1)
 
         self._auto_check = QCheckBox("Check for updates when MEA-NAP starts")
@@ -252,6 +280,9 @@ class VersionsDialog(QDialog):
         edge.setData(Qt.ItemDataRole.UserRole, CUTTING_EDGE)
         if co is not None and co.is_main:
             edge.setText(edge.text() + "   ● running")
+        default = default_version()
+        if default == CUTTING_EDGE:
+            edge.setText(edge.text() + "   ★ default")
         self._list.addItem(edge)
         self._releases = {r.tag: r for r in (
             self._status.releases if self._status else
@@ -262,6 +293,8 @@ class VersionsDialog(QDialog):
                 text += "   (MATLAB)"
             if co is not None and co.is_release and co.tag == rel.tag:
                 text += "   ● running"
+            if default == rel.tag:
+                text += "   ★ default"
             item = QListWidgetItem(text)
             item.setData(Qt.ItemDataRole.UserRole, rel.tag)
             self._list.addItem(item)
@@ -284,9 +317,40 @@ class VersionsDialog(QDialog):
             return False
         return co.is_main if choice == CUTTING_EDGE else (co.is_release and co.tag == choice)
 
+    def _can_be_default(self, choice: str | None) -> bool:
+        """Only a version that opens in this GUI; see :func:`updates.default_folder`."""
+        if choice is None or self._checkout is None:
+            return False
+        if choice == CUTTING_EDGE:
+            return True
+        rel = self._releases.get(choice)
+        return rel is not None and rel.python_gui
+
     def _on_selection(self, *_args) -> None:
         choice = self._selected()
         co = self._checkout
+        default = default_version()
+        self._default_button.setEnabled(
+            self._can_be_default(choice) and choice != default)
+        if choice is not None and co is not None and not self._can_be_default(choice):
+            self._default_button.setToolTip(
+                "Releases that run in MATLAB cannot be the default: MEA-NAP "
+                "would open MATLAB instead of this window every time it starts.")
+        else:
+            self._default_button.setToolTip(
+                "Open this version whenever MEA-NAP starts. Start with "
+                "'meanap-gui --here' to open a different copy just once.")
+        if default is None:
+            self._default_label.setText(
+                "No default is set, so MEA-NAP opens whichever copy you start. "
+                "Opening a version from this list makes it the default, unless "
+                "it runs in MATLAB.")
+        else:
+            name = "cutting edge (main)" if default == CUTTING_EDGE else default
+            self._default_label.setText(
+                f"MEA-NAP opens {name} when it starts (★). Opening another "
+                "version from this list makes that the default instead, "
+                "unless it runs in MATLAB; 'meanap-gui --here' skips it once.")
         self._open_button.setEnabled(
             co is not None and choice is not None and not self._is_running(choice))
         self._folder_button.setEnabled(co is not None and choice is not None)
@@ -405,17 +469,23 @@ class VersionsDialog(QDialog):
         if co is None or choice is None or self._is_running(choice):
             return
         if choice == CUTTING_EDGE:
-            self._launch_folder(co.clone)
+            self._launch_folder(co.clone, choice)
             return
         self._set_busy(True, f"Setting up {choice}…")
         self._run(lambda: updates.ensure_release(co.clone, choice),
-                  self._on_release_ready)
+                  lambda folder: self._on_release_ready(folder, choice))
 
-    def _on_release_ready(self, folder: Path) -> None:
+    def _on_release_ready(self, folder: Path, choice: str) -> None:
         self._set_busy(False)
-        self._launch_folder(folder)
+        self._launch_folder(folder, choice)
 
-    def _launch_folder(self, folder: Path) -> None:
+    def _on_set_default(self) -> None:
+        choice = self._selected()
+        if self._can_be_default(choice):
+            set_default_version(choice)
+            self._fill_list()
+
+    def _launch_folder(self, folder: Path, choice: str) -> None:
         plan = updates.launch_plan(folder)
         if plan.kind == "manual":
             QMessageBox.information(self, "MEA-NAP versions", plan.explanation)
@@ -426,6 +496,11 @@ class VersionsDialog(QDialog):
         except Exception as exc:   # noqa: BLE001
             self._show_error(f"Could not open MEA-NAP from {folder}: {exc}")
             return
+        # The last version opened is the one wanted next time — but only one
+        # that opens here; a MATLAB release leaves the default as it was.
+        if plan.kind == "python" and self._can_be_default(choice):
+            set_default_version(choice)
+            self._fill_list()
         self._update_message.setText(
             f"Opening MEA-NAP from {folder}. " + plan.explanation
             + " This window stays open; close it when you no longer need it.")
