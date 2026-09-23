@@ -7,7 +7,7 @@ from pathlib import Path
 
 from PyQt6.QtWidgets import (
     QApplication, QComboBox, QFileDialog, QLabel, QMainWindow, QMessageBox,
-    QLineEdit, QTabWidget, QToolBar, QWidget,
+    QLineEdit, QTabWidget, QToolBar, QToolButton, QWidget,
 )
 from PyQt6.QtGui import QAction
 from PyQt6.QtCore import Qt, QSettings, QSignalBlocker, QSize
@@ -46,6 +46,7 @@ from meanap.gui.panels.results import ResultsPanel
 from meanap.gui.panels.stats import StatsPanel
 from meanap.gui.tooltip import install_tooltip_style, wrap_tooltips
 from meanap.gui.tutorial import TutorialOverlay, TutorialStep, tabbar_target
+from meanap.gui.versions_dialog import Background, VersionsDialog, status_summary
 from meanap.gui.combo import install_combo_popup_fit
 from meanap.gui.wheel import install_wheel_guard
 
@@ -113,6 +114,10 @@ class MainWindow(QMainWindow):
         #: The machine report, built on first use and kept so a benchmark
         #: already run is still on screen when it is reopened.
         self._system_report = None
+        #: The versions dialog, kept like the system report; and the last
+        #: result of checking GitHub, which the version button reflects.
+        self._versions_dialog = None
+        self._update_status = None
 
         # A bundle is a file people email each other, so dropping one on the
         # window is the obvious way to open it. Accepted at the window level;
@@ -215,9 +220,12 @@ class MainWindow(QMainWindow):
         # Beside the selector rather than in an About box: the three pipelines
         # are versioned separately, so "which version" is only answerable once
         # you know which mode, and putting them together makes that obvious.
-        self._version_label = QLabel()
-        self._version_label.setContentsMargins(8, 0, 0, 0)
-        self._version_label.setStyleSheet("color: palette(mid);")
+        # A button, because it is also the way in to choosing another version
+        # and to updating this one — and the place a new version announces
+        # itself, which is why the check colours it rather than popping up.
+        self._version_label = QToolButton()
+        self._version_label.setAutoRaise(True)
+        self._version_label.clicked.connect(self._on_show_versions)
         tb.addWidget(self._version_label)
         self._refresh_version_label()
         tb.addSeparator()
@@ -498,13 +506,61 @@ class MainWindow(QMainWindow):
             return
         from meanap.version import PIPELINE_NAMES, all_versions, pipeline_version
 
-        label.setText(f"v{pipeline_version(self._mode)}")
+        status = self._update_status
+        fresh = status is not None and status.update_available
+        text = f"v{pipeline_version(self._mode)}"
+        label.setText(text + ("  ⬆ update" if fresh else ""))
+        label.setStyleSheet("" if fresh else "color: palette(mid);")
         every = all_versions()
-        label.setToolTip(
-            "Versions in this install:\n"
-            + "\n".join(f"  {PIPELINE_NAMES[k]} {every[k]}" for k in PIPELINE_NAMES)
-            + "\n\nThe running pipeline's version is written into every run's "
-              "params.json and bundle manifest.")
+        tip = ("Versions in this install:\n"
+               + "\n".join(f"  {PIPELINE_NAMES[k]} {every[k]}" for k in PIPELINE_NAMES)
+               + "\n\nThe running pipeline's version is written into every run's "
+                 "params.json and bundle manifest.")
+        if status is not None:
+            tip += "\n\n" + status_summary(status)
+        label.setToolTip(tip + "\n\nClick to update MEA-NAP or choose another version.")
+
+    # ── Versions and updates ──────────────────────────────────────────────────
+
+    def start_update_check(self) -> None:
+        """Ask GitHub, in the background, whether this copy is current.
+
+        Called by ``app.main`` rather than from ``__init__``, so that a window
+        built by a test or embedded somewhere never reaches for the network.
+        Failures are quiet: offline is normal, and the version button simply
+        stays as it was.
+        """
+        from meanap import updates
+
+        job = Background(updates.check, self)
+        job.done.connect(self._on_update_status)
+        job.start()
+        self._update_job = job
+
+    def _on_update_status(self, status) -> None:
+        self._update_status = status
+        self._refresh_version_label()
+        if self._versions_dialog is not None:
+            self._versions_dialog.set_status(status)
+
+    def _on_show_versions(self) -> None:
+        if self._versions_dialog is None:
+            self._versions_dialog = VersionsDialog(
+                self,
+                checkout=(self._update_status.checkout
+                          if self._update_status is not None else None),
+                is_busy=self._busy,
+                restart_args=lambda: ("--mode", self._mode),
+                on_restart=self.close,
+            )
+            self._versions_dialog.status_changed.connect(self._on_update_status)
+            if self._update_status is not None:
+                self._versions_dialog.set_status(self._update_status)
+            else:
+                self._versions_dialog.refresh()
+        self._versions_dialog.show()
+        self._versions_dialog.raise_()
+        self._versions_dialog.activateWindow()
 
     def _tab_index(self, key: str) -> int:
         """Current index of tab *key*, or -1 when this mode hides it."""
