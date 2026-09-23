@@ -326,3 +326,59 @@ def load_suite2p(
                 f"(including Fdenoised.npy) and let it denoise again.")
 
     return data
+
+
+def truncate_suite2p(data: Suite2pData, params) -> Suite2pData:
+    """Cut *data* to the window ``params.trunc_rec`` asks for.
+
+    The CAT-NAP side of recording truncation (:func:`meanap.pipeline.io.truncate_spike_times`
+    is the MEA side): every per-frame array keeps the first or last
+    ``trunc_length`` seconds, and the peak arrays keep the events that *start*
+    inside it, re-indexed so frame 0 is the start of the window. Denoising has
+    already run on the whole recording by the time this is called, so the
+    events and their sizes are the ones the full trace gave — cutting the trace
+    first would detect a slightly different set near the cut.
+
+    Returns *data* unchanged when nothing is cut; otherwise a new object, so a
+    caller holding the full recording still has it.
+    """
+    import dataclasses
+
+    from meanap.pipeline.io import truncation_window
+
+    window = truncation_window(data.duration_s, params.trunc_rec,
+                               params.trunc_length, params.trunc_keep)
+    if window is None:
+        return data
+    n_keep = min(data.n_frames, max(1, int(round(params.trunc_length * data.fs))))
+    f0 = 0 if params.trunc_keep == "first" else data.n_frames - n_keep
+    f1 = f0 + n_keep
+
+    out = dataclasses.replace(
+        data,
+        F=data.F[:, f0:f1],
+        spks=data.spks[:, f0:f1],
+        n_frames=n_keep,
+        duration_s=n_keep / data.fs,
+    )
+    if data.F_denoised is not None:
+        out.F_denoised = data.F_denoised[:, f0:f1]
+    if data.time_points is not None:
+        out.time_points = data.time_points[f0:f1] - data.time_points[f0]
+    if data.peak_start_frames is not None:
+        starts = data.peak_start_frames
+        inside = (starts >= f0) & (starts < f1)       # NaN compares False
+        width = max(1, int(inside.sum(axis=1).max(initial=0)))
+
+        def repack(values: np.ndarray, shift: int) -> np.ndarray:
+            packed = np.full((values.shape[0], width), np.nan)
+            for row in range(values.shape[0]):
+                kept = values[row][inside[row]] - shift
+                packed[row, :kept.size] = kept
+            return packed
+
+        out.peak_start_frames = repack(starts, f0)
+        out.peak_end_frames = repack(data.peak_end_frames, f0)
+        out.peak_heights = repack(data.peak_heights, 0)
+        out.event_areas = repack(data.event_areas, 0)
+    return out

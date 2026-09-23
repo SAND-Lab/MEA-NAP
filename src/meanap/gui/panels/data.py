@@ -122,13 +122,25 @@ class DataPanel(QWidget):
         # tab is not shown at all until connectivity is the thing being set up.
         self.trunc_rec = QCheckBox()
         self.trunc_rec.setToolTip(
-            "Analyse only the first part of every recording, so recordings of "
-            "different lengths are compared over the same window.")
+            "Analyse only part of every recording, so recordings of different "
+            "lengths are compared over the same window. Applies to MEA spike "
+            "times and to 2P (suite2p) traces alike.")
         self.trunc_length = QDoubleSpinBox()
         self.trunc_length.setRange(1, 100000)
         self.trunc_length.setDecimals(0)
         self.trunc_length.setSuffix(" s")
         self.trunc_length.setValue(120)
+        self.trunc_keep = QComboBox()
+        self.trunc_keep.addItem("First part of the recording", "first")
+        self.trunc_keep.addItem("Last part of the recording", "last")
+        self.trunc_keep.setToolTip(
+            "Which end of each recording to keep. The last part is re-timed to "
+            "start at 0 s, so rasters and rates cover the kept window only.")
+        # Length and end mean nothing until truncation is on.
+        self.trunc_rec.toggled.connect(self.trunc_length.setEnabled)
+        self.trunc_rec.toggled.connect(self.trunc_keep.setEnabled)
+        self.trunc_length.setEnabled(False)
+        self.trunc_keep.setEnabled(False)
 
         # The default range covers any spreadsheet anyone will write, the group
         # order only changes how figures are ordered, most people have no
@@ -140,6 +152,7 @@ class DataPanel(QWidget):
         advanced.form().addRow("Spike data folder", self.spike_detected_data)
         advanced.form().addRow("Truncate recording", self.trunc_rec)
         advanced.form().addRow("Truncation length", self.trunc_length)
+        advanced.form().addRow("Keep", self.trunc_keep)
         form.addRow(advanced)
         return box
 
@@ -287,6 +300,8 @@ class DataPanel(QWidget):
         self.spike_detected_data.set_value(params.spike_detected_data)
         self.trunc_rec.setChecked(params.trunc_rec)
         self.trunc_length.setValue(params.trunc_length)
+        self.trunc_keep.setCurrentIndex(
+            max(0, self.trunc_keep.findData(params.trunc_keep)))
         self.output_data_folder.set_value(params.output_data_folder)
         self.output_data_folder_name.setText(params.output_data_folder_name)
         self.cache_dir.set_value(params.cache_dir)
@@ -316,6 +331,7 @@ class DataPanel(QWidget):
         params.spike_detected_data = self.spike_detected_data.value
         params.trunc_rec = self.trunc_rec.isChecked()
         params.trunc_length = self.trunc_length.value()
+        params.trunc_keep = self.trunc_keep.currentData()
         params.output_data_folder = self.output_data_folder.value
         params.output_data_folder_name = self.output_data_folder_name.text()
         params.cache_dir = self.cache_dir.value

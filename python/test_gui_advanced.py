@@ -136,11 +136,17 @@ check("connectivity no longer owns truncation",
       not hasattr(panel, "trunc_rec"))
 
 trunc_out = Params()
-data_panel.load(Params(trunc_rec=True, trunc_length=45.0))
+data_panel.load(Params(trunc_rec=True, trunc_length=45.0, trunc_keep="last"))
 data_panel.save(trunc_out)
 check("truncation round-trips from the Data tab",
-      (trunc_out.trunc_rec, trunc_out.trunc_length) == (True, 45.0),
-      f"{trunc_out.trunc_rec} {trunc_out.trunc_length}")
+      (trunc_out.trunc_rec, trunc_out.trunc_length, trunc_out.trunc_keep)
+      == (True, 45.0, "last"),
+      f"{trunc_out.trunc_rec} {trunc_out.trunc_length} {trunc_out.trunc_keep}")
+check("length and end are live while truncation is on",
+      data_panel.trunc_length.isEnabled() and data_panel.trunc_keep.isEnabled())
+data_panel.load(Params())
+check("length and end are greyed out while truncation is off",
+      not data_panel.trunc_length.isEnabled() and not data_panel.trunc_keep.isEnabled())
 
 
 # ── What each mode shows of the Data tab ──────────────────────────────────────

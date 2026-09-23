@@ -471,6 +471,50 @@ def resolve_duration_s(
         return None, "unavailable"
 
 
+def truncation_window(
+    duration_s: float, trunc_rec: bool, trunc_length: float, trunc_keep: str,
+) -> tuple[float, float] | None:
+    """The ``(start, end)`` seconds of a recording that truncation keeps.
+
+    ``None`` when nothing is cut: truncation is off, or the recording is no
+    longer than ``trunc_length`` (MATLAB's ``formatSpikeTimes`` then keeps the
+    recording's own duration rather than claiming the longer one).
+    ``trunc_keep`` is ``"first"`` or ``"last"``.
+    """
+    if not trunc_rec or duration_s <= trunc_length:
+        return None
+    if trunc_keep == "first":
+        return 0.0, float(trunc_length)
+    if trunc_keep == "last":
+        return float(duration_s - trunc_length), float(duration_s)
+    raise ValueError(f"trunc_keep must be 'first' or 'last', not {trunc_keep!r}")
+
+
+def truncate_spike_times(
+    spike_times_dict: dict[int, np.ndarray],
+    duration_s: float,
+    params,
+) -> tuple[dict[int, np.ndarray], float]:
+    """Apply ``params.trunc_rec`` to one recording's spike times.
+
+    Port of the truncation in ``formatSpikeTimes.m``, extended to keep the last
+    ``trunc_length`` seconds as well as the first. Spike times kept from the
+    end are shifted to start at 0, so everything downstream — firing rates,
+    rasters, STTC surrogates — sees a recording that runs ``[0, duration)``
+    either way. Returns the spike times and the duration they now span.
+    """
+    window = truncation_window(duration_s, params.trunc_rec,
+                               params.trunc_length, params.trunc_keep)
+    if window is None:
+        return spike_times_dict, duration_s
+    start, end = window
+    out = {}
+    for ch, times in spike_times_dict.items():
+        times = np.asarray(times, dtype=float)
+        out[ch] = times[(times >= start) & (times <= end)] - start
+    return out, end - start
+
+
 def load_spike_times_npz(path: str | Path) -> dict[int, dict[str, np.ndarray]]:
     """Load spike times saved by ``save_spike_times_npz``."""
     data = np.load(path)

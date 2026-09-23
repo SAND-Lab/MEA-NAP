@@ -143,8 +143,13 @@ class Params:
 
     # ── Functional connectivity ──────────────────────────────────────────────
     func_con_lag_val: list[int] = field(default_factory=lambda: [10, 15, 25])
+    # Analyse only ``trunc_length`` seconds of each recording: the first
+    # stretch (``trunc_keep = "first"``, MATLAB's only mode) or the last
+    # (``"last"``, re-zeroed so the kept window runs from 0). Applies to spike
+    # times on the MEA path and to the suite2p traces on the CAT-NAP path.
     trunc_rec: bool = False
     trunc_length: float = 120.0
+    trunc_keep: Literal["first", "last"] = "first"
     adj_m_type: Literal["weighted", "binary"] = "weighted"
 
     # ── Thresholding ─────────────────────────────────────────────────────────
