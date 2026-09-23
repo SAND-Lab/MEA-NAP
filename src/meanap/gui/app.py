@@ -9,6 +9,7 @@ from meanap.gui import theme
 from meanap.gui.branding import logo_icon
 from meanap.gui.main_window import MainWindow
 from meanap.gui.modes import DEFAULT_MODE, MODES
+from meanap.gui.versions_dialog import check_on_start
 
 
 def _parse_args(argv: list[str]) -> argparse.Namespace:
@@ -42,6 +43,8 @@ def main() -> None:
 
     window = MainWindow(mode=args.mode)
     window.show()
+    if check_on_start():
+        window.start_update_check()
     sys.exit(app.exec())
 
 
