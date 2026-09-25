@@ -471,3 +471,24 @@ analysis, and it should be visible before publication rather than after.
   already ported.
 - Cell types from a spreadsheet — the network viewer already reads cell types
   from Excel/CSV rather than the MCOS `MatlabOpaque` table in the mat.
+
+### Phase 13 — Probabilistic thresholding for correlation networks ✅ (feature extension, no MATLAB counterpart)
+
+MATLAB's `suite2pToAdjm.m` stores the raw `corr(...)` for `F` / `spks` /
+`denoised F`: a dense, signed, fully-connected network, while `peaks` gets
+STTC + circular-shift thresholding. The two were never the same kind of graph.
+
+`catnap/adjacency.py::threshold_correlation` applies the STTC path's test to
+the correlation paths: each repetition circularly shifts each cell's **binned**
+trace (offset `1 .. n_bins-1`), recomputes Pearson, and an edge survives only
+if the real value is at or above the `ceil((1-tail)·rep_num)`-th smallest
+surrogate, which is the `adjm_thr` cutoff. It is one-sided, so negatives are dropped.
+
+- `Params.twop_corr_prob_thresh`, **on by default** (CAT-NAP 1.9.0). Off
+  reproduces the pre-1.9.0 matrix exactly. `suite2p_to_adjm`'s own keyword
+  defaults to off, so direct calls and the MATLAB parity checks are unchanged.
+- Surrogates are counted, not stored (`n²` ints instead of `n²·rep_num`
+  floats), and each repetition is one matmul of pre-standardised z-scores.
+- Caveat: a circular-shift null can't detect a shared *periodic* drive.
+- Tests: `python/test_catnap_correlation_bins.py` (count-vs-sort equivalence,
+  calibration of the false-positive rate at `tail`, NaN handling, seeding).

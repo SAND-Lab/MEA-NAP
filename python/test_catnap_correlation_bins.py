@@ -261,6 +261,108 @@ check("off-diagonal correlations are untouched by the fix",
       np.allclose(corr_adj[~np.eye(n, dtype=bool)],
                   with_loops[~np.eye(n, dtype=bool)]), "")
 
+# ── Probabilistic thresholding of correlations ────────────────────────────────
+
+print("\nCircular-shift thresholding on the correlation paths")
+
+from meanap.catnap.adjacency import threshold_correlation  # noqa: E402
+from meanap.params import Params  # noqa: E402
+
+check("on by default for a run", Params().twop_corr_prob_thresh is True, "")
+
+binned = _bin_columns(data.F.T, 33)
+raw = _corr_columns(binned)
+thr = threshold_correlation(binned, 0.05, 200, np.random.default_rng(1))
+
+check("thresholding only ever removes edges",
+      np.all((thr == 0) | np.isclose(thr, raw)), "")
+check("the matrix stays symmetric with a zero diagonal",
+      np.allclose(thr, thr.T) and np.allclose(np.diag(thr), 0), "")
+# The caveat of any circular-shift null: a shifted periodic signal is still the
+# same periodic signal, so a pure sine shared by two cells (here 3 cycles of
+# 0.05 Hz) correlates about as well after shifting and is *not* significant.
+check("a shared purely periodic drive is not significant under shifting",
+      thr[0, 1] == 0, f"{raw[0, 1]:.3f} -> {thr[0, 1]:.3f}")
+
+# A shared *aperiodic* drive — sparse calcium-like events — is what the test
+# is for, and it has to survive.
+ev_rng = np.random.default_rng(11)
+events = np.convolve((ev_rng.random(N_FRAMES) < 0.01).astype(float),
+                     np.exp(-np.arange(60) / 20.0))[:N_FRAMES]
+ev = np.column_stack([events + ev_rng.normal(0, 0.3, N_FRAMES),
+                      events + ev_rng.normal(0, 0.3, N_FRAMES),
+                      ev_rng.normal(0, 0.3, N_FRAMES)])
+ev_thr = threshold_correlation(_bin_columns(ev, 5), 0.05, 200,
+                               np.random.default_rng(2))
+check("a shared aperiodic drive survives thresholding",
+      ev_thr[0, 1] > 0.3, f"{ev_thr[0, 1]:.3f}")
+
+# Calibration: among independent cells the test should pass about ``tail`` of
+# the edges — no more (it would be too lenient), no fewer (the null would be
+# wrong). A single pair is a coin flip at 5%, so count over many.
+noise = np.random.default_rng(13).normal(size=(600, 40))
+kept = threshold_correlation(noise, 0.05, 200, np.random.default_rng(14))
+iu = np.triu_indices(40, 1)
+rate = float(np.mean(kept[iu] > 0))
+check("independent cells keep about `tail` of their edges",
+      0.02 <= rate <= 0.08, f"{rate:.3f} of {len(iu[0])} pairs")
+check("every negative correlation is removed (one-sided test)",
+      not (thr < 0).any() and (raw < 0).any(), "")
+
+# The counting shortcut must agree with the sort-and-pick cutoff adjm_thr uses.
+rng_a, rng_b = np.random.default_rng(5), np.random.default_rng(5)
+R, tail = 40, 0.1
+fast_thr = threshold_correlation(binned, tail, R, rng_a)
+n_bins, n_units = binned.shape
+z = (binned - binned.mean(0)) / binned.std(0)
+surr = np.empty((n_units, n_units, R))
+for r in range(R):
+    k = rng_b.integers(1, n_bins, size=n_units)
+    shifted = np.column_stack([np.roll(z[:, u], k[u]) for u in range(n_units)])
+    surr[:, :, r] = np.corrcoef(shifted, rowvar=False)
+import math  # noqa: E402
+cut = np.sort(surr, axis=2)[:, :, math.ceil((1 - tail) * R) - 1]
+slow_thr = raw.copy()
+slow_thr[cut > raw] = 0
+np.fill_diagonal(slow_thr, 0)
+check("the count-based cutoff equals sorting the surrogates",
+      np.allclose(fast_thr, slow_thr), "")
+
+res_thr = suite2p_to_adjm(peaks_data, "spks", [1000], corr_prob_threshold=True,
+                          prob_thresh_rep_num=50, rng=np.random.default_rng(3))
+res_raw = suite2p_to_adjm(peaks_data, "spks", [1000])
+check("suite2p_to_adjm thresholds when asked, and not otherwise",
+      np.allclose(res_raw.adjMs["adjM1000mslag"],
+                  _corr_columns(_bin_columns(peaks_data.spks.T, 33)))
+      and (res_thr.adjMs["adjM1000mslag"] == 0).sum()
+      > (res_raw.adjMs["adjM1000mslag"] == 0).sum(), "")
+same_seed = suite2p_to_adjm(peaks_data, "spks", [1000], corr_prob_threshold=True,
+                            prob_thresh_rep_num=50, rng=np.random.default_rng(3))
+check("a seeded run reproduces",
+      np.array_equal(res_thr.adjMs["adjM1000mslag"],
+                     same_seed.adjMs["adjM1000mslag"]), "")
+
+# Near-identical cells put real and surrogate correlations within rounding of
+# each other, where comparing the two halves separately used to split an edge
+# — an asymmetric matrix that crashed null_model_und_sign in step 4.
+tie_rng = np.random.default_rng(21)
+base = tie_rng.normal(size=(300, 1))
+ties = np.hstack([base + tie_rng.normal(0, 1e-3, (300, 1)) for _ in range(8)]
+                 + [tie_rng.normal(size=(300, 6))])
+check("near-tied edges are kept or dropped on both sides together",
+      all(np.array_equal(t, t.T) for t in (
+          (threshold_correlation(ties, 0.05, 30, np.random.default_rng(s)) != 0)
+          for s in range(20))), "")
+
+const = binned.copy()
+const[:, 5] = 2.0
+with np.errstate(invalid="ignore", divide="ignore"):
+    c_thr = threshold_correlation(const, 0.05, 20, np.random.default_rng(0))
+    c_raw = _corr_columns(const)
+check("a constant cell's NaN edges stay NaN rather than turning into 0",
+      np.isnan(c_thr[5, :4]).all() and np.array_equal(np.isnan(c_thr), np.isnan(c_raw)),
+      str(c_thr[5]))
+
 print()
 if FAILURES:
     print(f"{len(FAILURES)} FAILED:")
