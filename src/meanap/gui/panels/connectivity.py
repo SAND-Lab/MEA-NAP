@@ -70,6 +70,22 @@ class ConnectivityPanel(QWidget):
         self.prob_thresh_plot_checks_n.setRange(1, 100)
         self.prob_thresh_plot_checks_n.setValue(5)
 
+        # Only read by a CAT-NAP correlation run; set_timescale() shows it then.
+        self.corr_prob_thresh = QCheckBox()
+        self.corr_prob_thresh.setChecked(True)
+        set_tooltip(self.corr_prob_thresh,
+                    "Keep only correlations that beat circular-shift "
+                    "surrogates: each cell's binned trace is shifted by a "
+                    "random offset, the correlation recomputed, and an edge "
+                    "kept only if its real value is in the upper tail of its "
+                    "surrogates. The test is one-sided, so negative "
+                    "correlations are dropped too.\n\n"
+                    "Off keeps the whole correlation matrix — every edge, "
+                    "negatives included — as runs before CAT-NAP 1.9.0 did.")
+        self._corr_prob_thresh_label = QLabel("Threshold correlations")
+        form2.addRow(self._corr_prob_thresh_label, self.corr_prob_thresh)
+        self.corr_prob_thresh.toggled.connect(self._update_thr_enabled)
+
         # Iterations stays in the open: it is the one here that visibly costs
         # time, so it is worth seeing before starting a run.
         form2.addRow("Iterations", self.prob_thresh_rep_num)
@@ -192,19 +208,25 @@ class ConnectivityPanel(QWidget):
                         "spikes, ~1-5 s for calcium, so these follow the mode "
                         "unless you set them yourself.")
 
-        # Probabilistic thresholding is an STTC-only step: the correlation paths
-        # return the raw correlation matrix, with no surrogates and no cutoff.
-        # Leaving the settings live would let someone set an iteration count
-        # that their run never reads.
-        self._thr_box.setEnabled(not binning)
+        # STTC is always thresholded; a correlation run is thresholded only if
+        # the switch says so, and that switch means nothing on the STTC path.
+        self._binning = binning
+        self.corr_prob_thresh.setVisible(binning)
+        self._corr_prob_thresh_label.setVisible(binning)
+        self._update_thr_enabled()
+
+    def _update_thr_enabled(self) -> None:
+        """Grey out the surrogate settings when the run will not read them.
+
+        Leaving them live under an unthresholded correlation run would let
+        someone set an iteration count that their run never uses.
+        """
+        unused = self._binning and not self.corr_prob_thresh.isChecked()
+        for w in (self.prob_thresh_rep_num, self.threshold_advanced):
+            w.setEnabled(not unused)
         self._thr_box.setTitle(
-            "Probabilistic thresholding  ·  not used for correlation" if binning
+            "Probabilistic thresholding  ·  off for correlation" if unused
             else "Probabilistic thresholding")
-        set_tooltip(self._thr_box,
-                    "Circular-shift surrogate thresholding applies to STTC "
-                    "only. A correlation run keeps every edge of the "
-                    "correlation matrix, so nothing here is read."
-                    if binning else "")
 
     def set_pipeline(self, mode_key: str) -> None:
         """Say whether these settings belong to the pipeline about to run.
@@ -287,6 +309,7 @@ class ConnectivityPanel(QWidget):
         self.prob_thresh_tail.setValue(params.prob_thresh_tail)
         self.prob_thresh_plot_checks.setChecked(params.prob_thresh_plot_checks)
         self.prob_thresh_plot_checks_n.setValue(params.prob_thresh_plot_checks_n)
+        self.corr_prob_thresh.setChecked(params.twop_corr_prob_thresh)
         self.min_activity_level.setValue(params.min_activity_level)
         self.exclude_edges_below_threshold.setChecked(
             params.exclude_edges_below_threshold)
@@ -300,6 +323,7 @@ class ConnectivityPanel(QWidget):
         params.prob_thresh_tail = self.prob_thresh_tail.value()
         params.prob_thresh_plot_checks = self.prob_thresh_plot_checks.isChecked()
         params.prob_thresh_plot_checks_n = self.prob_thresh_plot_checks_n.value()
+        params.twop_corr_prob_thresh = self.corr_prob_thresh.isChecked()
         params.min_activity_level = self.min_activity_level.value()
         params.exclude_edges_below_threshold = (
             self.exclude_edges_below_threshold.isChecked())

@@ -157,6 +157,12 @@ class Params:
     prob_thresh_tail: float = 0.05
     prob_thresh_plot_checks: bool = False
     prob_thresh_plot_checks_n: int = 5
+    # CAT-NAP correlation measures (F / spks / denoised F): threshold the binned
+    # Pearson matrix against circular-shift surrogates, with the two settings
+    # above, as the STTC path always does. Off gives the raw correlation matrix
+    # — every edge, negatives included — which is what runs before 1.9.0 did.
+    # See catnap/adjacency.py::threshold_correlation.
+    twop_corr_prob_thresh: bool = True
 
     # ── Burst detection ──────────────────────────────────────────────────────
     network_burst_detection_method: str = "Bakkum"

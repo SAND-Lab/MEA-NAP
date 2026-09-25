@@ -55,8 +55,31 @@ field on the Connectivity tab means:
   detected transient, thresholded against circular-shift surrogates.
 * The other three read them as **correlation bin lengths** — traces are averaged
   into bins that long, and the Pearson correlation is taken between the binned
-  series. There is no lag: the correlation is at zero lag by construction, and
-  no probabilistic thresholding is applied.
+  series. There is no lag: the correlation is at zero lag by construction.
+
+### Thresholding correlation networks
+
+Since CAT-NAP 1.9.0 the correlation networks are probabilistically thresholded
+too, with the same **Iterations** and **Tail percentile** settings as STTC. For
+each repetition, every cell's *binned* trace is circularly shifted by its own
+random offset and the correlation matrix is recomputed. An edge is kept only if
+its real correlation reaches the upper-tail cutoff of its surrogates, and is
+otherwise set to zero. The test is one-sided, so **negative correlations are
+always removed**.
+
+It is on by default. To get the old behaviour back (the full correlation matrix,
+negative edges included), untick **Threshold correlations** in the
+Probabilistic thresholding box, which appears when a correlation activity type
+is selected, or set `twop_corr_prob_thresh = False`. Parameter files saved before
+1.9.0 don't contain the field, so they now run thresholded.
+
+:::{note}
+Shifting a trace keeps its own timing structure and breaks only its alignment
+with other cells. This means a drive two cells share that is *periodic* (for
+example, a slow oscillation covering a few cycles of the recording) looks the
+same after shifting and won't come out as significant. Transient, event-like
+co-activity does.
+:::
 
 Either way you get one adjacency matrix, and one full set of downstream metrics
 and figures, per value in the field. The GUI relabels the field (and the group
