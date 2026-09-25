@@ -40,13 +40,17 @@ PAGE_HTML = r"""<!doctype html>
        and purples sit at roughly 30% luminance and vanish on a dark ground. */
     --plot-wt: #2c7fb8; --plot-het: #7b3294; --plot-ko: #d95f0e;
     --plot-other: #6b7280; --plot-off: #98a0a8; --plot-sel: #d62728;
+    --type-pos: #f59e0b; --type-neg: #2563eb; --type-flip: #9333ea;
     --bg: #ffffff; --fg: #16181d; --muted: #6b7280; --line: #e3e6ea;
     --panel: #f7f8fa; --accent: #2563eb; --accent-soft: #eaf0fe;
   }
   @media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) {
+    /* "system" only: an explicit light or neutral choice must win over a
+       dark OS setting */
+    :root:not([data-theme="light"]):not([data-theme="neutral"]) {
       --plot-wt: #5aa9dd; --plot-het: #b07bd6; --plot-ko: #f2a057;
       --plot-other: #9aa1ac; --plot-off: #6b747d; --plot-sel: #ff6b6b;
+      --type-pos: #fbbf24; --type-neg: #60a5fa; --type-flip: #c084fc;
       --bg: #14161a; --fg: #e7e9ee; --muted: #9aa1ac; --line: #2a2e35;
       --panel: #1b1e24; --accent: #6ea8fe; --accent-soft: #1e2836;
     }
@@ -56,8 +60,19 @@ PAGE_HTML = r"""<!doctype html>
   :root[data-theme="dark"] {
     --plot-wt: #5aa9dd; --plot-het: #b07bd6; --plot-ko: #f2a057;
     --plot-other: #9aa1ac; --plot-off: #6b747d; --plot-sel: #ff6b6b;
+      --type-pos: #fbbf24; --type-neg: #60a5fa; --type-flip: #c084fc;
     --bg: #14161a; --fg: #e7e9ee; --muted: #9aa1ac; --line: #2a2e35;
     --panel: #1b1e24; --accent: #6ea8fe; --accent-soft: #1e2836;
+  }
+  /* Neutral: warm stone greys with one slate-blue accent — quieter than pure
+     white, lighter than dark. Plot colours are the light set, slightly muted to
+     sit on the tinted ground; the cell-type pair stays bright on purpose. */
+  :root[data-theme="neutral"] {
+    --plot-wt: #3b7ea8; --plot-het: #7d5a9e; --plot-ko: #c8733a;
+    --plot-other: #7a766e; --plot-off: #aaa59b; --plot-sel: #c2413b;
+    --type-pos: #e59a0b; --type-neg: #2f64c8; --type-flip: #8a5cc7;
+    --bg: #f4f2ee; --fg: #2b2a27; --muted: #78746c; --line: #e2ded6;
+    --panel: #faf9f6; --accent: #4f6d8f; --accent-soft: #e6ecf2;
   }
   * { box-sizing: border-box; }
   body {
@@ -196,6 +211,12 @@ PAGE_HTML = r"""<!doctype html>
   .twocol { display: flex; gap: 18px; flex-wrap: wrap; }
   .netrow { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-start; }
   .netfig { flex: 0 0 auto; }
+  /* the network view's control bar: inline, not the sidebar's stacked form */
+  #tracking .ctl { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; }
+  #tracking .ctl label { display: flex; align-items: center; gap: 5px; margin: 0; }
+  #tracking .ctl select, #tracking .ctl button { width: auto; padding: 3px 6px; }
+  .netlegend .sw { display: inline-block; width: 10px; height: 10px; border-radius: 50%;
+    margin-right: 4px; vertical-align: -1px; }
   .netlegend { display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
                font-size: 11px; margin-bottom: 8px; }
   .netlegend .ramp { display: inline-block; width: 160px; height: 10px;
@@ -284,6 +305,13 @@ does not have MEA-NAP installed.">Export output folder</button>
     <h2>Chain</h2>
     <p class="sub">Ordered by how well matches separate from a co-located
     different cell &mdash; not by match rate. The two disagree.</p>
+    <div id="track-filter" class="row" style="gap:8px;flex-wrap:wrap;margin-bottom:6px">
+      <select id="track-geno" aria-label="genotype">
+        <option value="">all genotypes</option></select>
+      <label class="sub" style="display:flex;align-items:center;gap:6px;margin:0"
+             title="Only chains with immunostaining labels on at least one day">
+        <input type="checkbox" id="track-typed" style="width:auto;margin:0"> with cell types</label>
+    </div>
     <select id="track-chain"></select>
     <div id="track-meta" class="sub"></div>
   </div>
@@ -1443,8 +1471,9 @@ function selectTab(tab) {
   else showLagSeries();
 }
 
-const THEMES = ["system", "light", "dark"];
-const THEME_LABEL = {system: "◐ system", light: "☀ light", dark: "☾ dark"};
+const THEMES = ["system", "light", "neutral", "dark"];
+const THEME_LABEL = {system: "◐ system", light: "☀ light", neutral: "◇ neutral",
+                     dark: "☾ dark"};
 
 function currentTheme() {
   try { return localStorage.getItem("meanap-theme") || "system"; }
@@ -1460,7 +1489,24 @@ function applyTheme(name) {
   if (btn) btn.textContent = THEME_LABEL[name];
   // Plot colours were resolved to literal values when the SVG was built, so
   // anything already drawn has to be drawn again to pick the new ones up.
-  if (TAB === "tracking") showTracking();
+  if (TAB === "tracking") retheme();
+}
+
+/** Redraw the tracking view in the new theme *where it stands*. Rebuilding it
+ *  (showTracking) reloaded the cell page and re-fetched the network, which
+ *  threw away the selected cell, the zoom, the filters and any focus. */
+function retheme() {
+  const view = $("track-view") ? $("track-view").value : "cells";
+  if (view === "network" && NETWORK) return drawNetwork();
+  if (view === "cells") {
+    const frame = $("tracking").querySelector("iframe");
+    const win = frame && frame.contentWindow;
+    if (win && typeof win.__setTheme === "function") {
+      win.__setTheme(effectiveTheme());
+      return;
+    }
+  }
+  showTracking();
 }
 
 function cycleTheme() {
@@ -1778,6 +1824,15 @@ async function initTracking() {
   catch (e) { TRACKING = {available: false, chains: []}; }
   if (!TRACKING.available || !TRACKING.chains.length) return;
   $("tab-tracking").classList.remove("hidden");
+  const genoSel = $("track-geno");
+  for (const g of [...new Set(TRACKING.chains.map(c => c.genotype).filter(Boolean))].sort()) {
+    const o = document.createElement("option");
+    o.value = g; o.textContent = g + " only";
+    genoSel.appendChild(o);
+  }
+  if (!TRACKING.chains.some(hasCellTypes)) $("track-typed").closest("label").classList.add("hidden");
+  for (const id of ["track-geno", "track-typed"])
+    $(id).addEventListener("change", () => { fillChainPicker(); showTracking(); });
   fillChainPicker();
   $("track-chain").addEventListener("change", showTracking);
   $("track-view").addEventListener("change", showTracking);
@@ -1802,19 +1857,26 @@ async function showTracking() {
   // Both the per-cell and the network views are of one chain, so the chain
   // picker belongs to both. Only the overview spans the dataset.
   const perChain = view !== "overview";
-  for (const id of ["track-chain", "track-meta", "track-chain-head"])
+  for (const id of ["track-chain", "track-meta", "track-chain-head", "track-filter"])
     if ($(id)) $(id).classList.toggle("hidden", !perChain);
   if (perChain) fillChainPicker();
   if (view === "overview") return showTrackingOverview();
-  if (view === "network") return showTrackingNetwork();
   const sel = $("track-chain");
-  if (!sel || !sel.value) return;
+  if (!sel || !sel.value) {
+    $("tracking").innerHTML = '<p class="sub">No chain matches the filter.</p>';
+    $("track-meta").innerHTML = "";
+    return;
+  }
+  if (view === "network") return showTrackingNetwork();
   const meta = (TRACKING.chains || []).find(c => c.chain === sel.value) || {};
   const fmt = (v, d) => v == null ? "n/a" : v.toFixed(d);
   $("track-meta").innerHTML =
     `<b>${meta.genotype || "?"}</b> · ${meta.prep || "?"} · DIVs ${(meta.divs || []).join(", ")}<br>` +
     `separability ${fmt(meta.separability, 2)} · coverage ${fmt(meta.coverage, 2)} · ` +
     `persistence ${fmt(meta.persistence, 2)}<br>` +
+    (hasCellTypes(meta)
+      ? `cell types (${meta.cellTypes.markers.join(", ")}) on DIV ` +
+        `${meta.cellTypes.labelledDivs.join(", ")}<br>` : "") +
     (meta.registered ? "registered" : "passed through unregistered") +
     ` (${fmt(meta.measuredShiftPx, 1)} px)` +
     networkNote(meta) +
@@ -1859,7 +1921,10 @@ function fillChainPicker() {
   const network = view === "network";
 
   const drawable = c => (c.networkCells || 0) >= 8;
-  const chains = TRACKING.chains.slice();
+  const geno = $("track-geno") ? $("track-geno").value : "";
+  const typedOnly = $("track-typed") ? $("track-typed").checked : false;
+  const chains = TRACKING.chains.filter(c =>
+    (!geno || c.genotype === geno) && (!typedOnly || hasCellTypes(c)));
   chains.sort((a, b) => {
     if (network && drawable(a) !== drawable(b)) return drawable(a) ? -1 : 1;
     if (network) return (b.networkCells || 0) - (a.networkCells || 0);
@@ -1876,7 +1941,8 @@ function fillChainPicker() {
   };
   const add = (into, c) => {
     const o = document.createElement("option");
-    o.value = c.chain; o.textContent = label(c);
+    o.value = c.chain;
+    o.textContent = label(c) + (hasCellTypes(c) ? "  ·  cell types" : "");
     into.appendChild(o);
   };
   if (network) {
@@ -1893,10 +1959,21 @@ function fillChainPicker() {
   } else {
     for (const c of chains) add(sel, c);
   }
+  if (!chains.length) {
+    const o = document.createElement("option");
+    o.value = ""; o.textContent = "no chain matches the filter";
+    sel.appendChild(o);
+  }
   if (keep && [...sel.querySelectorAll("option")].some(o => o.value === keep))
     sel.value = keep;
 }
 
+/** Whether a chain has immunostaining labels on at least one day. */
+function hasCellTypes(c) {
+  return !!(c.cellTypes && c.cellTypes.labelledDivs && c.cellTypes.labelledDivs.length);
+}
+
+/*__TYPE_CATEGORY_JS__*/
 let NETWORK = null;
 
 /** One zoom shared by every network panel: the days are only comparable at the
@@ -1985,6 +2062,76 @@ const ROLE_LABEL = {1: "peripheral", 2: "non-hub connector", 3: "non-hub kinless
 const ROLE_COLOUR = {1: "#9aa4af", 2: "#2c7fb8", 3: "#7b3294",
                      4: "#f2a057", 5: "#d62728", 6: "#1a7f37"};
 
+/** Immunostaining labels on the network's nodes (``cell_types.nodes`` in the
+ *  chain summary): per marker, each node's state on each day and its call
+ *  across days. Colouring uses the day's own label, so a cell whose label
+ *  flips shows it panel to panel; filtering uses the call. */
+let NET_TYPE_FILTER = {};    // marker -> "" | "+" | "-" | "~" | "?"
+const TYPE_STATE_LABEL = {"1": "+", "-1": "−", "0": "not labelled"};
+function netTypes() {
+  const ct = (NETWORK || {}).cellTypes || {};
+  return ct.nodes && ct.nodes.states ? ct.nodes : null;
+}
+function typeFill(v) {
+  return v === 1 ? themeColour("--type-pos") : v === -1 ? themeColour("--type-neg")
+       : themeColour("--plot-off");
+}
+/** A node's final call for a marker: a person's decision (made on the cell
+ *  page), else the recommendation, else — for summaries written before
+ *  recommendations — the raw call when the days agree. */
+function netFinal(m, i) {
+  const t = netTypes();
+  const ov = (((NETWORK || {}).overrides || {})[String(t.clusters[i])] || {})[m];
+  if (ov !== undefined) return ov === "?" ? null : ov;
+  if (t.rec && t.rec[m]) return t.rec[m][i];
+  const k = t.calls[m][i];
+  return k === "~" ? null : k;
+}
+/** "day" colours each panel by that day's own label; "final" by the call. */
+let NET_LABEL_MODE = "day";
+function netState(m, i, di) {
+  const t = netTypes();
+  if (NET_LABEL_MODE !== "final") return t.states[m][i][di];
+  const f = netFinal(m, i);
+  return f === "+" ? 1 : f === "-" ? -1 : 0;
+}
+function passesNetTypes(i) {
+  const t = netTypes();
+  if (!t) return true;
+  for (const [m, want] of Object.entries(NET_TYPE_FILTER)) {
+    if (!want || !t.calls[m]) continue;
+    if (want === "~") { if (t.calls[m][i] !== "~") return false; continue; }
+    const f = netFinal(m, i);
+    if (want === "?" ? f != null : f !== want) return false;
+  }
+  return true;
+}
+
+/** Swatches for "cell type (all markers)", listing only categories that
+ *  occur among the drawn nodes on some day, each with its node-day count. */
+function netCategoryLegend(types, markers, keep) {
+  const count = new Map();
+  const days = ((NETWORK || {}).network || {}).days || [];
+  days.forEach((day, di) => {
+    for (const i of day.present || []) {
+      if (!keep.has(i)) continue;
+      const c = typeCategory(m => netState(m, i, di), markers);
+      count.set(c, (count.get(c) || 0) + 1);
+    }
+  });
+  const order = typeCategoryOrder(new Set(count.keys()), markers);
+  return '<div class="legend netlegend">'
+    + order.map(c => `<span><i class="sw" style="background:${
+        typeCategoryColour(c, markers, themeColour("--plot-off"))}"></i>`
+        + `${c} <span class="sub">${count.get(c)}</span></span>`).join("")
+    + `<span class="sub">· per node-day, from ${NET_LABEL_MODE === "final"
+        ? "each cell\'s final call" : "that day\'s labels"}</span>`
+    + (markers.includes("Mecp2")
+       ? '<span style="flex-basis:100%;height:0"></span>'
+         + mecp2Legend(themeColour("--fg"), false) : "")
+    + "</div>";
+}
+
 /** Blue-to-red ramp for a continuous measure. */
 function rampColour(t) {
   t = Math.max(0, Math.min(1, t));
@@ -2000,6 +2147,7 @@ async function showTrackingNetwork() {
   host.dataset.span = "";     // each chain picks its own default span
   NET_VIEW = {k: 1, dx: 0, dy: 0};
   NET_FOCUS = null;
+  NET_TYPE_FILTER = {};
   try { NETWORK = await getJSON("/api/trackingnetwork?chain=" + encodeURIComponent(sel.value)); }
   catch (e) { host.innerHTML = '<p class="err">' + String(e.message || e) + "</p>"; return; }
   drawNetwork();
@@ -2016,6 +2164,15 @@ function spanCounts(net) {
 /** The legend for the current colouring: a ramp for a measure, swatches for roles. */
 function colourScale(colourBy, lo, hi) {
   if (colourBy === "none") return "";
+  if (colourBy.startsWith("type:")) {
+    const sw = (v, t) => `<span><i class="sw" style="background:${v}"></i>${t}</span>`;
+    return '<div class="legend netlegend">'
+      + sw(themeColour("--type-pos"), colourBy.slice(5) + "+")
+      + sw(themeColour("--type-neg"), colourBy.slice(5) + "−")
+      + sw(themeColour("--plot-off"), "not labelled that day")
+      + `<span class="sub">· ${NET_LABEL_MODE === "final" ? "each cell\'s final call"
+          : "each panel uses that day\'s own label"}</span></div>`;
+  }
   if (colourBy === "role") {
     return '<div class="legend netlegend">'
       + Object.keys(ROLE_LABEL).map(r =>
@@ -2061,11 +2218,37 @@ function drawNetwork() {
     opts.push(`<option value="${n}"${n === span ? " selected" : ""}>`
       + `tracked into ≥ ${n} days — ${counts[n]} cells</option>`);
   const haveMetrics = (net.days || []).some(d => d.metrics);
+  const types = netTypes();
+  const markers = types ? Object.keys(types.states) : [];
   const colourOpts = ["none", "strength", "clustering", "betweenness",
                       "participation", "module_z", "role"]
     .filter(k => k === "none" || haveMetrics)
+    .concat(markers.length > 1 ? ["type:*"] : [])
+    .concat(markers.map(m => "type:" + m))
     .map(k => `<option value="${k}"${k === (host.dataset.colour || "none")
-      ? " selected" : ""}>${NODE_METRIC_LABEL[k]}</option>`).join("");
+      ? " selected" : ""}>${k === "type:*" ? "cell type (all markers)"
+        : k.startsWith("type:") ? k.slice(5) + " expression"
+        : NODE_METRIC_LABEL[k]}</option>`).join("");
+  const typeCtl = markers.length
+    ? '<div class="ctl" style="margin-bottom:10px"><span class="sub">cell types:</span>'
+      + markers.map(m => {
+          const calls = types.calls[m];
+          const finals = calls.map((_, i) => netFinal(m, i));
+          const n = k => (k === "~" ? calls : finals).filter(c => c === k).length;
+          const cur = NET_TYPE_FILTER[m] || "";
+          return `<label>${m} <select class="net-type" data-marker="${m}">`
+            + [["", "any"], ["+", `+ (${n("+")})`], ["-", `− (${n("-")})`],
+               ["~", `changes (${n("~")})`], ["?", "unlabelled"]]
+              .map(([v, t]) => `<option value="${v}"${v === cur ? " selected" : ""}>${t}</option>`)
+              .join("")
+            + "</select></label>";
+        }).join("")
+      + `<label title="Each day's own label, or each cell's final call (recommendation or your decision) on every day">labels <select id="net-labels">`
+      + `<option value="day"${NET_LABEL_MODE === "day" ? " selected" : ""}>each day's own</option>`
+      + `<option value="final"${NET_LABEL_MODE === "final" ? " selected" : ""}>final call per cell</option></select></label>`
+      + '<span class="sub">+/− filter on the final call; nodes that fail are hidden with their edges. '
+      + 'Decide undecided cells on the Cells view.</span></div>'
+    : "";
   host.insertAdjacentHTML("beforeend",
     '<div class="ctl" style="margin-bottom:10px">'
     + '<label>cell set <select id="net-span">' + opts.join("") + "</select></label>"
@@ -2079,7 +2262,15 @@ function drawNetwork() {
     + '<span class="sub" id="net-zoom">' + NET_VIEW.k.toFixed(1) + '\u00d7</span>' 
     + '<button id="net-reset" type="button">reset view</button>' 
     + `<span class="sub">of ${net.nCells} cells tracked into two or more days; `
-    + `${net.nShared} appear on all ${net.nSessions}</span></div>`);
+    + `${net.nShared} appear on all ${net.nSessions}</span></div>` + typeCtl);
+  if ($("net-labels"))
+    $("net-labels").addEventListener("change", e => {
+      NET_LABEL_MODE = e.target.value; drawNetwork(); });
+  for (const el of host.querySelectorAll(".net-type"))
+    el.addEventListener("change", () => {
+      NET_TYPE_FILTER[el.dataset.marker] = el.value;
+      drawNetwork();
+    });
   $("net-span").addEventListener("change", e => {
     host.dataset.span = e.target.value;
     drawNetwork();
@@ -2098,7 +2289,8 @@ function drawNetwork() {
   const colourBy = host.dataset.colour || "none";
 
   const keep = new Set();
-  (net.span || []).forEach((v, i) => { if (v >= span) keep.add(i); });
+  (net.span || []).forEach((v, i) => { if (v >= span && passesNetTypes(i)) keep.add(i); });
+  if (NET_FOCUS != null && !keep.has(NET_FOCUS)) NET_FOCUS = null;
   if (keep.size < 2) {
     host.insertAdjacentHTML("beforeend",
       '<p class="sub">Too few cells at this span to draw a network.</p>');
@@ -2116,7 +2308,7 @@ function drawNetwork() {
   const pad = 12, spanPx = Math.max(hi[0] - lo[0], hi[1] - lo[1]) || 1;
 
   let legendLo = Infinity, legendHi = -Infinity;
-  if (colourBy !== "none" && colourBy !== "role") {
+  if (colourBy !== "none" && colourBy !== "role" && !colourBy.startsWith("type:")) {
     for (const day of net.days) {
       const m = (day.metrics || {})[colourBy];
       if (!m) continue;
@@ -2127,10 +2319,12 @@ function drawNetwork() {
       }
     }
   }
-  host.insertAdjacentHTML("beforeend", colourScale(colourBy, legendLo, legendHi));
+  host.insertAdjacentHTML("beforeend", colourBy === "type:*"
+    ? netCategoryLegend(types, markers, keep)
+    : colourScale(colourBy, legendLo, legendHi));
   if (NET_FOCUS != null)
     host.insertAdjacentHTML("beforeend",
-      `<p class="sub">Showing <b>cell ${NET_FOCUS}</b> and what it connects to on `
+      `<p class="sub">Showing <b>cell ${netTypes() ? netTypes().clusters[NET_FOCUS] : NET_FOCUS}</b> and what it connects to on `
       + "each day; the rest of the network is faded. Click it again, or the "
       + "background, to show everything.</p>");
 
@@ -2144,7 +2338,8 @@ function drawNetwork() {
     + "only drawn on the days it was actually tracked into. Edges are the "
     + "strongest tenth on each day; node size is total correlation.</p>");
 
-  for (const day of net.days) {
+  const typeMarker = colourBy.startsWith("type:") ? colourBy.slice(5) : null;
+  net.days.forEach((day, di) => {
     const present = new Set((day.present || []).filter(i => keep.has(i)));
     const fig = document.createElement("figure");
     fig.className = "trackfig netfig";
@@ -2199,7 +2394,15 @@ function drawNetwork() {
       const v = st[String(i)];
       const t = (v != null && shi > slo) ? (v - slo) / (shi - slo) : 0.5;
       let fill = themeColour("--plot-sel");
-      if (colourBy === "role" && day.role) {
+      let mecp2 = null;          // "+", "-" or "?" when drawn as the style
+      if (typeMarker === "*" && types) {
+        const get = m => netState(m, i, di);
+        fill = typeCategoryColour(typeCategory(get, markers), markers,
+                                  themeColour("--plot-off"));
+        mecp2 = mecp2Style(get, markers);
+      } else if (typeMarker && types) {
+        fill = typeFill(netState(typeMarker, i, di));
+      } else if (colourBy === "role" && day.role) {
         fill = ROLE_COLOUR[day.role[String(i)]] || themeColour("--plot-off");
       } else if (cm) {
         const cv = cm[String(i)];
@@ -2213,6 +2416,14 @@ function drawNetwork() {
         // magnify — the point of zooming here is to separate them, not enlarge
         r: ((isFocus ? 3.4 : 1.6 + 2.6 * t) / zoom.k).toFixed(2), fill,
         "fill-opacity": inFocus ? .9 : .12});
+      if (mecp2 === "-" || mecp2 === "?") {
+        // Mecp2− is a ring and unknown a faint fill with one. The fill stays
+        // set (at zero opacity) so the whole disc is still clickable.
+        dot.setAttribute("fill-opacity", mecp2 === "-" ? 0 : (inFocus ? .3 : .06));
+        dot.setAttribute("stroke", fill);
+        dot.setAttribute("stroke-opacity", inFocus ? .95 : .15);
+        dot.setAttribute("stroke-width", (1.3 / zoom.k).toFixed(2));
+      }
       if (isFocus) {
         dot.setAttribute("stroke", themeColour("--fg"));
         dot.setAttribute("stroke-width", (1.4 / zoom.k).toFixed(2));
@@ -2230,9 +2441,17 @@ function drawNetwork() {
       let shown = null;
       if (colourBy === "role" && day.role) shown = ROLE_LABEL[day.role[String(i)]] || "?";
       else if (cm) shown = cm[String(i)] == null ? "n/a" : cm[String(i)].toFixed(3);
-      attachTip(dot, `<b>cell ${i}</b><br>` +
+      // every marker's label on this day, and where the call across days
+      // differs from it, the call too
+      const typeLine = types ? markers.map(m => {
+        const v = types.states[m][i][di], call = types.calls[m][i], f = netFinal(m, i);
+        return `${m} ${TYPE_STATE_LABEL[v]}`
+          + (call === "~" ? ` <i>(changes across days; final ${
+              f === "+" ? "+" : f === "-" ? "−" : "undecided"})</i>` : "");
+      }).join("<br>") + "<br>" : "";
+      attachTip(dot, `<b>cell ${types ? types.clusters[i] : i}</b><br>` +
         (shown == null ? "" : `${NODE_METRIC_LABEL[colourBy]}: <b>${shown}</b><br>`) +
-        strengthLine);
+        typeLine + strengthLine);
       g.append(dot);
     }
     svg.addEventListener("click", () => {
@@ -2249,7 +2468,7 @@ function drawNetwork() {
         : `<br>${day.nModules} modules · Q ${day.modularity.toFixed(2)}`) +
       "</figcaption>");
     wrap.append(fig);
-  }
+  });
   host.append(wrap);
 
   // node measures and roles across days
@@ -2376,7 +2595,9 @@ function download(fmt) {
   $("dl-png").addEventListener("click", () => download("png"));
   $("dl-svg").addEventListener("click", () => download("svg"));
   $("dl-pdf").addEventListener("click", () => download("pdf"));
-  for (const b of document.querySelectorAll("#tabs button"))
+  // only the real tabs: the theme and export buttons share this bar, and
+  // selecting their (undefined) tab blanked whatever page was open
+  for (const b of document.querySelectorAll("#tabs button[data-tab]"))
     b.addEventListener("click", () => selectTab(b.dataset.tab));
 
   selectTab("recordings");
@@ -2385,3 +2606,9 @@ function download(fmt) {
 </body>
 </html>
 """
+
+# The cell-type category rule is shared with the per-cell tracking page, so it
+# is inlined from one place rather than kept here as a second copy.
+from meanap.catnap.celltype_colours import TYPE_CATEGORY_JS  # noqa: E402
+
+PAGE_HTML = PAGE_HTML.replace("/*__TYPE_CATEGORY_JS__*/", TYPE_CATEGORY_JS)

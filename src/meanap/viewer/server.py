@@ -135,6 +135,12 @@ class ViewerService:
                 "coverage": quality.get("coverage"),
                 "persistence": quality.get("persistence"),
                 "warnings": quality.get("warnings", []),
+                # immunostaining labels, when the run has them; the chain list
+                # filters on these without opening the multi-MB payloads
+                "cellTypes": {
+                    "markers": (meta.get("cell_types") or {}).get("markers", []),
+                    "labelledDivs": (meta.get("cell_types") or {}).get("labelled_divs", []),
+                },
             })
         chains.sort(key=lambda c: (c["separability"] is None,
                                    -(c["separability"] or 0)))
@@ -205,13 +211,88 @@ class ViewerService:
                 "divs": meta.get("divs", []),
                 "network": meta.get("network") or {},
                 "stability": meta.get("network_stability") or [],
-                "metricStability": meta.get("network_metric_stability") or []}
+                "metricStability": meta.get("network_metric_stability") or [],
+                "cellTypes": meta.get("cell_types") or {},
+                "overrides": self.tracking_overrides(chain)}
 
     def tracking_page(self, chain: str) -> str:
-        """The per-cell page, rebuilt from the payload the bundle carries."""
+        """The per-cell page, rebuilt from the payload the bundle carries.
+
+        Served pages can save cell-type decisions back through
+        :meth:`set_tracking_override`; a page opened as a file cannot.
+        """
         from meanap.catnap.tracking.viewer import render_page
 
-        return render_page(self.tracking_payload(chain))
+        return render_page(self.tracking_payload(chain), editable=True)
+
+    # ── cell-type decisions ──────────────────────────────────────────────────
+
+    def _overrides_path(self) -> Path | None:
+        """Where manual cell-type decisions are kept.
+
+        In the run's ``CellTracking`` folder for a folder; beside the file for a
+        bundle, which is opened read-only and must not be rewritten.
+        """
+        from meanap.catnap.tracking.celltypes import OVERRIDES_FILE
+
+        if self._bundle is not None:
+            src = Path(self.source)
+            return src.with_name(src.stem + "." + OVERRIDES_FILE)
+        root = self._tracking_dir()
+        return None if root is None else root / OVERRIDES_FILE
+
+    def _final_csv_path(self) -> Path | None:
+        from meanap.catnap.tracking.celltypes import FINAL_CSV
+
+        if self._bundle is not None:
+            src = Path(self.source)
+            return src.with_name(src.stem + "." + FINAL_CSV)
+        root = self._tracking_dir()
+        return None if root is None else root / FINAL_CSV
+
+    def tracking_overrides(self, chain: str) -> dict:
+        from meanap.catnap.tracking.celltypes import load_overrides
+
+        path = self._overrides_path()
+        return load_overrides(path).get(chain, {}) if path else {}
+
+    def set_tracking_override(self, body: dict) -> dict:
+        """Record one decision: ``{chain, cluster, marker, value}``.
+
+        Every field is checked against the run before anything is written, since
+        the request comes from a page and the file is a research record.
+        """
+        from meanap.catnap.tracking.celltypes import (
+            CELLS_CSV, OVERRIDE_VALUES, load_overrides, set_override, write_final_csv)
+
+        root = self._tracking_dir()
+        if root is None:
+            raise FileNotFoundError("this run has no cell-tracking results")
+        chain = str(body.get("chain") or "")
+        meta_path = (root / "chains" / f"{chain}.json").resolve()
+        if not chain or (root / "chains").resolve() not in meta_path.parents \
+                or not meta_path.is_file():
+            raise ValueError(f"no chain named {chain!r}")
+        markers = ((json.loads(meta_path.read_text()).get("cell_types") or {})
+                   .get("markers") or [])
+        marker = body.get("marker")
+        if marker not in markers:
+            raise ValueError(f"{chain} has no marker {marker!r}; it has {markers}")
+        try:
+            cluster = int(body.get("cluster"))
+        except (TypeError, ValueError):
+            raise ValueError("cluster must be an integer") from None
+        value = body.get("value")
+        if value is not None and value not in OVERRIDE_VALUES:
+            raise ValueError(f"value must be one of {OVERRIDE_VALUES} or null")
+        note = str(body.get("note") or "")[:500]
+
+        path = self._overrides_path()
+        saved = set_override(path, chain, cluster, marker, value, note=note)
+        final = self._final_csv_path()
+        if final is not None:
+            write_final_csv(root / CELLS_CSV, load_overrides(path), final)
+        return {"chain": chain, "overrides": saved, "file": str(path)}
 
     def tracking_payload(self, chain: str) -> dict:
         root = self._tracking_dir()
@@ -221,7 +302,9 @@ class ViewerService:
         # the chain name arrives from a query string, so confine it to the folder
         if not path.is_file() or (root / "payload").resolve() not in path.parents:
             raise FileNotFoundError(f"no tracking payload for {chain!r}")
-        return json.loads(path.read_text())
+        payload = json.loads(path.read_text())
+        payload["overrides"] = self.tracking_overrides(chain)
+        return payload
 
     def close(self) -> None:
         self.cache.close()
@@ -627,6 +710,37 @@ class _Handler(BaseHTTPRequestHandler):
             self._json({"error": f"not found: {e}"}, status=404)
         except ValueError as e:
             # Bad input from the page: report it verbatim, it is actionable.
+            self._json({"error": str(e)}, status=400)
+        except Exception as e:
+            self._json({"error": f"{type(e).__name__}: {e}",
+                        "traceback": traceback.format_exc()}, status=500)
+
+    def do_POST(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler API
+        """The one write the viewer makes: a cell-type decision.
+
+        Requiring a JSON content type is deliberate. Another site open in the
+        same browser cannot send one to this loopback server without a CORS
+        preflight, which is never answered, so only this page can write.
+        """
+        parsed = urlparse(self.path)
+        try:
+            if parsed.path != "/api/trackingoverride":
+                self._json({"error": "not found"}, status=404)
+                return
+            if (self.headers.get("Content-Type") or "").split(";")[0].strip() \
+                    != "application/json":
+                self._json({"error": "expected application/json"}, status=415)
+                return
+            length = int(self.headers.get("Content-Length") or 0)
+            if length <= 0 or length > 10_000:
+                raise ValueError("request body missing or too large")
+            body = json.loads(self.rfile.read(length))
+            if not isinstance(body, dict):
+                raise ValueError("expected a JSON object")
+            self._json(self.service.set_tracking_override(body))
+        except FileNotFoundError as e:
+            self._json({"error": f"not found: {e}"}, status=404)
+        except (ValueError, json.JSONDecodeError) as e:
             self._json({"error": str(e)}, status=400)
         except Exception as e:
             self._json({"error": f"{type(e).__name__}: {e}",

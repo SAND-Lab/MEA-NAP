@@ -36,6 +36,8 @@ from pathlib import Path
 
 import numpy as np
 
+from meanap.catnap.celltype_colours import TYPE_CATEGORY_JS
+
 #: Mean images are downsampled to this before embedding. 384 px keeps cell-scale
 #: structure visible while holding a four-day chain to ~0.7 MB.
 FOV_PREVIEW_PX = 384
@@ -67,6 +69,13 @@ class SessionView:
     #: here too rather than being ignored on this background.
     masks_tracked_png: str = ""
     masks_other_png: str = ""
+    #: Which recording this day is, and the raw suite2p index of each ROI.
+    #: Tracking only sees iscell ROIs, while cell-type files and CAT-NAP's
+    #: ``channels`` use raw indices, so labels cannot be placed without this.
+    recording: str = ""
+    roi_index: np.ndarray | None = None
+    #: :func:`roi_id_png`, so masks can be coloured by cell type in the page.
+    masks_id_png: str = ""
 
 
 @dataclass
@@ -195,6 +204,42 @@ def masks_image_png(stat, frame_px: int, cluster_of, *, tracked: bool,
     return base64.b64encode(buf.getvalue()).decode()
 
 
+def roi_id_png(stat, frame_px: int, *, size: int = MASK_PREVIEW_PX) -> str:
+    """Which ROI covers each pixel, as a PNG the page can recolour itself.
+
+    The coloured mask layers above are fixed at render time. Colouring by a
+    cell-type marker has to follow whichever marker and filter the viewer picks,
+    so this ships the footprints once as an index image instead: ROI position
+    + 1 in red*256 + green (0 = no ROI), and the footprint weight in blue.
+    Alpha stays opaque, because a browser premultiplies alpha when it decodes an
+    image, which would corrupt the IDs.
+    """
+    from PIL import Image
+
+    ids = np.zeros((frame_px, frame_px), dtype=np.int32)
+    weight = np.zeros((frame_px, frame_px), dtype=np.float32)
+    for i, roi in enumerate(stat):
+        ypix = np.asarray(roi["ypix"])
+        xpix = np.asarray(roi["xpix"])
+        lam = np.asarray(roi["lam"], dtype=np.float32)
+        keep = (ypix >= 0) & (xpix >= 0) & (ypix < frame_px) & (xpix < frame_px)
+        if not keep.any():
+            continue
+        w = lam[keep] / (lam[keep].max() or 1.0)
+        yy, xx = ypix[keep], xpix[keep]
+        take = w > weight[yy, xx]      # brightest wins, as in masks_image_png
+        ids[yy[take], xx[take]] = i + 1
+        weight[yy[take], xx[take]] = w[take]
+    rgb = np.stack([(ids >> 8) & 255, ids & 255,
+                    np.clip(weight * 255, 0, 255).astype(np.int32)], axis=-1)
+    im = Image.fromarray(rgb.astype(np.uint8), mode="RGB")
+    if im.size != (size, size):
+        im = im.resize((size, size), Image.NEAREST)   # never blend two IDs
+    buf = io.BytesIO()
+    im.save(buf, format="PNG", optimize=True)
+    return base64.b64encode(buf.getvalue()).decode()
+
+
 def crop_footprint(roi, frame_px: int, pad: int = 6) -> np.ndarray:
     """Tight, lam-weighted crop of one ROI, normalised to its own peak."""
     ypix = np.asarray(roi["ypix"])
@@ -279,6 +324,10 @@ def build_payload(chain: str, subtitle: str, cards: list[CellCard], fs: float,
             "cy": _f32(view.centroids[:, 0]) if len(view.centroids) else "",
             "cx": _f32(view.centroids[:, 1]) if len(view.centroids) else "",
             "cluster": [int(c) for c in view.cluster_of],
+            **({"recording": view.recording} if view.recording else {}),
+            **({"masksIdPng": view.masks_id_png} if view.masks_id_png else {}),
+            **({"roi": [int(r) for r in view.roi_index]}
+               if view.roi_index is not None else {}),
         })
     for card in cards:
         payload["cells"].append({
@@ -318,12 +367,18 @@ def build_payload(chain: str, subtitle: str, cards: list[CellCard], fs: float,
 
 _CSS = """
 :root{--bg:#fbfbfa;--panel:#fff;--fg:#1f2328;--mut:#5b6570;--line:#e3e5e8;
-  --hi:#1a7f37;--lo:#b35900;--sel:#d62728;--match:#2c7fb8;--null:#98a0a8}
-@media (prefers-color-scheme:dark){:root:not([data-theme=light]){
+  --hi:#1a7f37;--lo:#b35900;--sel:#d62728;--match:#2c7fb8;--null:#98a0a8;
+  --pos:#f59e0b;--neg:#2563eb;--flip:#9333ea}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]):not([data-theme=neutral]){
   --bg:#16181c;--panel:#1d2026;--fg:#e8eaed;--mut:#9aa4af;--line:#2b2f36;
-  --hi:#4ac26b;--lo:#e8a13a;--sel:#ff6b6b;--match:#5aa9dd;--null:#6b747d}}
+  --hi:#4ac26b;--lo:#e8a13a;--sel:#ff6b6b;--match:#5aa9dd;--null:#6b747d;
+  --pos:#fbbf24;--neg:#60a5fa;--flip:#c084fc}}
 :root[data-theme=dark]{--bg:#16181c;--panel:#1d2026;--fg:#e8eaed;--mut:#9aa4af;
-  --line:#2b2f36;--hi:#4ac26b;--lo:#e8a13a;--sel:#ff6b6b;--match:#5aa9dd;--null:#6b747d}
+  --line:#2b2f36;--hi:#4ac26b;--lo:#e8a13a;--sel:#ff6b6b;--match:#5aa9dd;--null:#6b747d;
+  --pos:#fbbf24;--neg:#60a5fa;--flip:#c084fc}
+:root[data-theme=neutral]{--bg:#f4f2ee;--panel:#faf9f6;--fg:#2b2a27;--mut:#78746c;
+  --line:#e2ded6;--hi:#3c7d4a;--lo:#b8651f;--sel:#c2413b;--match:#4f6d8f;--null:#aaa59b;
+  --pos:#e59a0b;--neg:#2f64c8;--flip:#8a5cc7}
 *{box-sizing:border-box}
 body{background:var(--bg);color:var(--fg);font:14px/1.5 system-ui,-apple-system,sans-serif;
   margin:0;padding-block:16px;padding-left:16px;padding-right:16px}
@@ -384,7 +439,32 @@ h2.hashelp,span.hashelp{text-decoration:underline dotted;text-underline-offset:2
 button{font:inherit;font-size:12px;padding:3px 9px;border:1px solid var(--line);
   border-radius:5px;background:var(--bg);color:var(--fg);cursor:pointer}
 button:hover{background:var(--line)}
+button.on{background:var(--match);color:#fff;border-color:var(--match)}
 #zoom{font-variant-numeric:tabular-nums;min-width:38px;display:inline-block}
+.hidden{display:none!important}
+.types{display:inline-flex;gap:2px;margin-left:6px;vertical-align:0}
+.types i{display:inline-block;width:7px;height:10px;border-radius:2px;background:var(--line)}
+#list li[aria-selected=true] .types i{box-shadow:0 0 0 1px rgba(255,255,255,.55)}
+.typerow{display:flex;justify-content:space-between;align-items:center;gap:6px;
+  font-size:12.5px;margin:3px 0}
+.typerow select{font:inherit;font-size:12px;padding:1px 3px;border:1px solid var(--line);
+  border-radius:4px;background:var(--bg);color:var(--fg)}
+.tchip{font-size:11.5px;border-radius:3px;padding:0 5px;margin-right:4px;
+  border:1px solid var(--line);white-space:nowrap}
+.tchip.p{color:var(--pos);border-color:var(--pos)} .tchip.n{color:var(--neg);border-color:var(--neg)}
+.tchip.x{color:var(--flip);border-color:var(--flip);font-weight:600} .tchip.u{color:var(--mut)}
+.dtypes{font-size:10.5px;line-height:1.35}
+.dtypes .p{color:var(--pos)} .dtypes .n{color:var(--neg)} .dtypes .u{color:var(--mut)}
+#typecount{margin-top:4px}
+.ttab{border-collapse:collapse;font-size:12px;margin-top:10px}
+.ttab th,.ttab td{padding:2px 8px;text-align:center;border-bottom:1px solid var(--line)}
+.ttab tbody th{text-align:left;font-weight:600}
+.ttab td.p,.ttab b.p{color:var(--pos)} .ttab td.n,.ttab b.n{color:var(--neg)}
+.ttab td.u,.ttab span.u{color:var(--mut)}
+.ttab tr.flip th{box-shadow:inset 3px 0 0 var(--flip)}
+.ttab select{font:inherit;font-size:12px;padding:1px 3px;border:1px solid var(--line);
+  border-radius:4px;background:var(--bg);color:var(--fg)}
+.ttab .why{font-size:10.5px}
 """
 
 _JS = r"""
@@ -493,7 +573,8 @@ const HELP = {
     "<b>Field of view</b><br>Each day's projection with every ROI drawn. The "
     + "selected cell is ringed and crosshaired on <i>all</i> days at once, so "
     + "you can see whether the match landed in the same place.<br><br>Scroll to "
-    + "zoom, drag to pan — every day moves together, because they are only "
+    + "zoom, drag to pan, <b>shift-drag</b> (or <b>box zoom</b>) to draw a rectangle "
+    + "and zoom to it — every day moves together, because they are only "
     + "comparable at the same magnification.<br><br>Click a <b>solid blue</b> dot "
     + "to select that cell. <b>Hollow orange</b> dots are tracked cells with no "
     + "card on the left (the page carries at most 40), so they cannot be "
@@ -504,6 +585,123 @@ const HELP = {
     + "tracked cell is coloured by its <b>cluster</b>, so the same cell is the "
     + "same colour on every day; untracked cells are grey.",
 };
+
+HELP.types =
+  "<b>Cell types</b><br>Immunostaining labels, per day, from each recording's "
+  + "cell-type file. <b>+</b> positive, <b>−</b> negative, <b>?</b> not labelled "
+  + "that day (e.g. the stain lifted there) — unlabelled is not negative.<br><br>"
+  + "A cell's call is <b>+</b> or <b>−</b> when every labelled day agrees, and "
+  + "<b>changes</b> when they disagree: either the match or a label is wrong.<br><br>"
+  + "In <b>Het</b> cultures Mecp2 is mosaic — a Mecp2+ cell expresses the WT "
+  + "allele, a Mecp2− one the null allele — so Mecp2 is each cell's own genotype.";
+
+// ── cell types ───────────────────────────────────────────────────────────────
+const MARKERS = D.markers || [];
+const hasTypes = MARKERS.length > 0 && D.sessions.some(s => s.labels);
+const typeFilter = {};      // marker -> "" | "+" | "-" | "~" | "?"
+let flipOnly = false;       // cells whose label changes across days, any marker
+let colourBy = "";          // "" = by tracking; otherwise a marker
+const STATE = {"1": "+", "-1": "−", "0": "?"};
+const stateClass = v => v === 1 ? "p" : v === -1 ? "n" : "u";
+const callColour = c => c === "+" ? css("--pos") : c === "-" ? css("--neg")
+                      : c === "~" ? css("--flip") : css("--line");
+// ── what each cell is taken to be ───────────────────────────────────────────
+// Raw: ``typeCall`` (+, −, ~ when days disagree). Recommended: ``typeRec`` —
+// the genotype rule for Mecp2 in WT/KO, else a vote across days with
+// fallback-matched days at half weight; a tie is left undecided. Final: a
+// person's decision if there is one, else the recommendation.
+const EDITABLE = !!window.__TRACK_EDIT__ && location.protocol.startsWith("http");
+D.overrides = D.overrides || {};
+let labelMode = "day";      // "day" = each day's own label · "final" = per cell
+let needsReview = false;    // cells with a flip nobody has resolved
+const override = (c, m) => (D.overrides[String(c.cluster)] || {})[m];
+function recCall(c, m){
+  const r = (c.typeRec || {})[m];
+  if (r) return r.call;
+  const k = (c.typeCall || {})[m];         // payloads from before recommendations
+  return k === "~" ? null : (k || null);
+}
+function finalCall(c, m){
+  const ov = override(c, m);
+  if (ov !== undefined) return ov === "?" ? null : ov;
+  return recCall(c, m);
+}
+const isFlip = (c, m) => (c.typeCall || {})[m] === "~";
+const unresolved = c => MARKERS.some(m => isFlip(c, m) && override(c, m) === undefined
+                                          && recCall(c, m) == null);
+const byCluster = new Map(D.cells.map(c => [c.cluster, c]));
+function passesTypes(c){
+  if (!hasTypes) return true;
+  if (flipOnly && !MARKERS.some(m => isFlip(c, m))) return false;
+  if (needsReview && !unresolved(c)) return false;
+  for (const m of MARKERS){
+    const want = typeFilter[m];
+    if (!want) continue;
+    if (want === "~") { if (!isFlip(c, m)) return false; continue; }
+    const f = finalCall(c, m);
+    if (want === "?" ? f != null : f !== want) return false;
+  }
+  return true;
+}
+const typeFilterActive = () => hasTypes
+  && (flipOnly || needsReview || MARKERS.some(m => typeFilter[m]));
+/** Counts for each marker's filter menu, on the final calls. */
+function typeCounts(m){
+  const n = {"+": 0, "-": 0, "~": 0};
+  for (const c of cells){
+    const f = finalCall(c, m); if (f) n[f]++;
+    if (isFlip(c, m)) n["~"]++;
+  }
+  return n;
+}
+function refreshTypeCounts(){
+  for (const sel of document.querySelectorAll("#typefilters select")){
+    const n = typeCounts(sel.dataset.marker);
+    for (const o of sel.options){
+      if (o.value === "+") o.textContent = `+ (${n["+"]})`;
+      if (o.value === "-") o.textContent = `− (${n["-"]})`;
+      if (o.value === "~") o.textContent = `changes (${n["~"]})`;
+    }
+  }
+  const nr = cells.filter(unresolved).length;
+  const lab = $("#reviewcount"); if (lab) lab.textContent = `(${nr})`;
+}
+function buildTypeBox(){
+  const box = $("#typebox");
+  if (!hasTypes){ box.classList.add("hidden"); return; }
+  box.classList.remove("hidden");
+  const labelled = D.sessions.filter(s => s.labels).map(s => "DIV" + s.div);
+  const missing = D.sessions.filter(s => !s.labels).map(s => "DIV" + s.div);
+  $("#typegeno").innerHTML = (D.genotype ? `<b>${D.genotype}</b> culture · ` : "")
+    + `labelled ${labelled.join(", ")}`
+    + (missing.length ? ` · <span class="lo">no labels ${missing.join(", ")}</span>` : "");
+  const host = $("#typefilters"); host.innerHTML = "";
+  for (const m of MARKERS){
+    const row = document.createElement("div"); row.className = "typerow";
+    const n = typeCounts(m);
+    row.innerHTML = `<span>${m}</span>`;
+    const sel = document.createElement("select");
+    sel.dataset.marker = m;
+    sel.setAttribute("aria-label", m + " filter");
+    for (const [v, t] of [["", "any"], ["+", `+ (${n["+"]})`], ["-", `− (${n["-"]})`],
+                          ["~", `changes (${n["~"]})`], ["?", "unlabelled"]]){
+      const o = document.createElement("option"); o.value = v; o.textContent = t;
+      sel.append(o);
+    }
+    sel.addEventListener("change", () => { typeFilter[m] = sel.value; applyFilter(); });
+    row.append(sel); host.append(row);
+  }
+  const cb = $("#colourby");
+  if (MARKERS.length > 1){
+    const o = document.createElement("option");
+    o.value = "*"; o.textContent = "cell type (all markers)"; cb.append(o);
+  }
+  for (const m of MARKERS){
+    const o = document.createElement("option"); o.value = m; o.textContent = m; cb.append(o);
+  }
+  cb.closest("label").classList.remove("hidden");
+  $("#labelmodewrap").classList.remove("hidden");
+}
 
 let cells = D.cells.slice(), order = cells.map((_, i) => i), sel = 0, showAll = true;
 let showNoCard = true;     // tracked cells that have no card, and so cannot be picked
@@ -526,7 +724,7 @@ function buildFov(){
     cv.width = size * dpr; cv.height = size * dpr;
     cv.style.width = size + "px"; cv.style.height = size + "px";
     const cap = document.createElement("figcaption");
-    cap.textContent = "DIV" + s.div;
+    cap.textContent = "DIV" + s.div + (hasTypes && !s.labels ? " · no labels" : "");
     fig.append(cv, cap); host.append(fig);
     s._cy = b64f32(s.cy); s._cx = b64f32(s.cx);
     cv.style.cursor = "crosshair";
@@ -535,7 +733,7 @@ function buildFov(){
       const r = cv.getBoundingClientRect();
       const before = toFrame(ev.clientX - r.left, ev.clientY - r.top, size);
       const k = Math.exp(-ev.deltaY * 0.0016);
-      view.scale = Math.max(1, Math.min(20, view.scale * k));
+      view.scale = Math.max(1, Math.min(MAX_ZOOM, view.scale * k));
       const after = toFrame(ev.clientX - r.left, ev.clientY - r.top, size);
       // keep the point under the cursor fixed while zooming
       view.cx += before.x - after.x; view.cy += before.y - after.y;
@@ -545,12 +743,22 @@ function buildFov(){
     // the browser's click fire after a pan jumped the selection every time
     // the view was dragged.
     let drag = null;
+    const local = ev => { const r = cv.getBoundingClientRect();
+                          return toFrame(ev.clientX - r.left, ev.clientY - r.top, size); };
     cv.addEventListener("pointerdown", ev => {
-      drag = {x: ev.clientX, y: ev.clientY, x0: ev.clientX, y0: ev.clientY, moved: false};
+      // shift, or the box-zoom toggle, turns a drag into a rectangle to zoom to
+      const box = boxMode || ev.shiftKey;
+      drag = {x: ev.clientX, y: ev.clientY, x0: ev.clientX, y0: ev.clientY, moved: false, box};
+      if (box) { const f = local(ev); boxSel = {x0: f.x, y0: f.y, x1: f.x, y1: f.y}; }
       cv.setPointerCapture(ev.pointerId); });
     cv.addEventListener("pointermove", ev => {
       if (!drag) return;
       if (Math.hypot(ev.clientX - drag.x0, ev.clientY - drag.y0) > 4) drag.moved = true;
+      if (drag.box) {
+        if (!boxSel) return;             // cancelled with Escape mid-drag
+        const f = local(ev); boxSel.x1 = f.x; boxSel.y1 = f.y;
+        redrawFov(); return;
+      }
       const span = D.frame / view.scale;
       view.cx -= (ev.clientX - drag.x) / size * span;
       view.cy -= (ev.clientY - drag.y) / size * span;
@@ -558,10 +766,15 @@ function buildFov(){
       clampView(); redrawFov(); });
     cv.addEventListener("pointerup", ev => {
       const wasPick = drag && !drag.moved;
+      const wasBox = drag && drag.box && drag.moved && boxSel;
       drag = null;
+      if (wasBox) zoomToBox(boxSel);
+      boxSel = null;
+      if (wasBox) return;
       if (wasPick) pickFromFov(si, ev, size);
+      else redrawFov();                  // clear a box too small to zoom to
     });
-    cv.addEventListener("pointercancel", () => { drag = null; });
+    cv.addEventListener("pointercancel", () => { drag = null; boxSel = null; redrawFov(); });
     cv.addEventListener("dblclick", () => { resetView(); });
     // register the canvas before the image can call back: a cached or
     // synchronously-decoded data URL fires onload immediately, and drawFov
@@ -571,13 +784,33 @@ function buildFov(){
     // mask layer as well as the grey dots, so the control means one thing
     for (const [key, field] of [["_img", "meanPng"],
                                 ["_mTracked", "masksTrackedPng"],
-                                ["_mOther", "masksOtherPng"]]) {
+                                ["_mOther", "masksOtherPng"],
+                                ["_mId", "masksIdPng"]]) {
       if (!s[field]) continue;
       const im = new Image();
       im.onload = () => { s[key] = im; drawFov(si); };
       im.src = "data:image/png;base64," + s[field];
     }
   });
+}
+// ── box zoom ─────────────────────────────────────────────────────────────────
+// A rectangle, in frame pixels, drawn on every day at once while dragging. The
+// view is square, so the box is fitted by its longer side and nothing of what
+// was selected falls outside.
+const MAX_ZOOM = 40;
+let boxMode = false, boxSel = null;
+function zoomToBox(b){
+  const w = Math.abs(b.x1 - b.x0), h = Math.abs(b.y1 - b.y0);
+  if (Math.max(w, h) < 2) return;
+  view.scale = Math.max(1, Math.min(MAX_ZOOM, D.frame / Math.max(w, h)));
+  view.cx = (b.x0 + b.x1) / 2; view.cy = (b.y0 + b.y1) / 2;
+  clampView(); redrawFov();
+}
+function setBoxMode(on){
+  boxMode = on;
+  const b = $("#boxzoom");
+  if (b) { b.setAttribute("aria-pressed", on); b.classList.toggle("on", on); }
+  for (const {cv} of fovCanvases) cv.style.cursor = on ? "cell" : "crosshair";
 }
 function span(){ return D.frame / view.scale; }
 function clampView(){
@@ -591,6 +824,12 @@ function toFrame(px, py, size){   // canvas px -> full-frame coordinates
   return {x: view.cx - sp/2 + px / size * sp, y: view.cy - sp/2 + py / size * sp};
 }
 function redrawFov(){
+  const sw = document.getElementById("typelegendsw");
+  if (sw && colourBy) sw.innerHTML = typeLegend();
+  const note = document.getElementById("typelegendnote");
+  if (note) note.innerHTML = background === "masks"
+    ? "each footprint in its cell&rsquo;s colour &middot; fainter = untracked &middot; faded = filtered out"
+    : "large = tracked &middot; small = untracked &middot; faded = filtered out";
   D.sessions.forEach((_, si) => drawFov(si));
   const z = $("#zoom"); if (z) z.textContent = view.scale.toFixed(1) + "×";
 }
@@ -615,8 +854,13 @@ function drawFov(si){
   if (background === "mean") paint(s._img, D.fovPreviewPx);
   else if (background === "masks") {
     const mp = D.maskPreviewPx || D.fovPreviewPx;
-    if (showAll) paint(s._mOther, mp);
-    paint(s._mTracked, mp);
+    if (colourBy && s.masksIdPng) {
+      const typed = typeMasks(s);
+      if (typed) paint(typed, mp);
+    } else {
+      if (showAll) paint(s._mOther, mp);
+      paint(s._mTracked, mp);
+    }
   }
   const k = size / sp;
   const px = v => (v - x0) * k, py = v => (v - y0) * k;
@@ -628,7 +872,11 @@ function drawFov(si){
   // marker on the cell rather than becoming the cell: 2.2 px at 1x, ~5 px at
   // 5x, capped at 6 px
   const rDot = Math.max(2.2, Math.min(6, 2.2 * Math.sqrt(view.scale)));
-  for (let i = 0; background !== "masks" && i < s._cy.length; i++){
+  const filtering = typeFilterActive();
+  const shown = filtering ? new Set(order.map(o => cells[o].cluster)) : null;
+  if (colourBy){ drawTypeDots(g, s, px, py, rDot, size, cell, shown,
+                              background === "masks" && !!s.masksIdPng); }
+  for (let i = 0; !colourBy && background !== "masks" && i < s._cy.length; i++){
     const tracked = s.cluster[i] >= 0;
     const pickable = tracked && selectable.has(s.cluster[i]);
     if (!tracked && !showAll) continue;
@@ -642,7 +890,9 @@ function drawFov(si){
       g.strokeStyle = css("--sel"); g.lineWidth = 2; g.stroke();
     } else if (pickable){            // solid blue: click to select
       g.arc(X, Y, rDot, 0, 6.284);
-      g.fillStyle = css("--match"); g.globalAlpha = .85; g.fill(); g.globalAlpha = 1;
+      g.fillStyle = css("--match");
+      g.globalAlpha = shown && !shown.has(s.cluster[i]) ? .15 : .85;
+      g.fill(); g.globalAlpha = 1;
     } else if (tracked){             // hollow orange: tracked, but no card
       g.arc(X, Y, rDot, 0, 6.284);
       g.strokeStyle = css("--lo"); g.lineWidth = 1.5; g.globalAlpha = .8; g.stroke(); g.globalAlpha = 1;
@@ -651,7 +901,7 @@ function drawFov(si){
       g.fillStyle = css("--null"); g.globalAlpha = .4; g.fill(); g.globalAlpha = 1;
     }
   }
-  if (background === "masks" && cell){
+  if (background === "masks" && cell && !colourBy){
     for (let i = 0; i < s._cy.length; i++){
       if (s.cluster[i] !== cell.cluster) continue;
       g.beginPath();
@@ -666,6 +916,165 @@ function drawFov(si){
     g.moveTo(0, py(here[1])); g.lineTo(size, py(here[1]));
     g.stroke(); g.globalAlpha = 1;
   }
+  if (boxSel){  // the rectangle being drawn, on every day
+    const x = px(Math.min(boxSel.x0, boxSel.x1)), y = py(Math.min(boxSel.y0, boxSel.y1));
+    const w = Math.abs(boxSel.x1 - boxSel.x0) * k, h = Math.abs(boxSel.y1 - boxSel.y0) * k;
+    g.fillStyle = css("--match"); g.globalAlpha = .12; g.fillRect(x, y, w, h);
+    g.globalAlpha = 1; g.setLineDash([4, 3]); g.lineWidth = 1.5;
+    g.strokeStyle = css("--match"); g.strokeRect(x, y, w, h); g.setLineDash([]);
+  }
+}
+/** Every ROI coloured by its label for one marker, on this day.
+ *
+ * Untracked ROIs are coloured too: the stain is on every cell, and the mosaic
+ * of a Het culture is only visible when all of them are drawn. Tracked cells
+ * are larger; ones the filter leaves out are faded rather than removed, so the
+ * field keeps its shape. */
+/** What colours the ROIs: one marker's +/−, or every marker's category.
+ *  Returns ``colour(i) -> [hex, known]`` for one day; theme colours are read
+ *  once here, not per ROI. */
+/** One ROI's state for a marker on this day: its own label, or in "final"
+ *  mode, its tracked cell's final call (which also fills unlabelled days). */
+function stateGetter(s, i){
+  const c = labelMode === "final" && s.cluster[i] >= 0 ? byCluster.get(s.cluster[i]) : null;
+  if (c) return m => { const f = finalCall(c, m); return f === "+" ? 1 : f === "-" ? -1 : 0; };
+  return m => s.labels && s.labels[m] ? s.labels[m][i] : 0;
+}
+function roiColourer(s){
+  const pos = css("--pos"), neg = css("--neg"), nul = css("--null");
+  if (!s.labels && labelMode !== "final") return () => [nul, false, null];
+  if (colourBy === "*") {
+    return i => {
+      const get = stateGetter(s, i);
+      const cat = typeCategory(get, MARKERS);
+      return [typeCategoryColour(cat, MARKERS, nul), cat !== "unlabelled",
+              mecp2Style(get, MARKERS)];
+    };
+  }
+  return i => {
+    const v = stateGetter(s, i)(colourBy);
+    return [v === 1 ? pos : v === -1 ? neg : nul, v !== 0, null];
+  };
+}
+/** Swatches for the current colouring; for all markers, only the categories
+ *  that occur on some day of this chain. */
+function typeLegend(){
+  const item = (c, t) => `<span><i class="sw dot" style="background:${c}"></i>${t}</span> `;
+  if (colourBy !== "*")
+    return item(css("--pos"), colourBy + "+") + item(css("--neg"), colourBy + "−")
+         + item(css("--null"), "not labelled");
+  const present = new Set();
+  for (const s of D.sessions){
+    if (!s.labels) continue;
+    for (let i = 0; i < s.cluster.length; i++)
+      present.add(typeCategory(m => s.labels[m] ? s.labels[m][i] : 0, MARKERS));
+  }
+  return typeCategoryOrder(present, MARKERS)
+    .map(c => item(typeCategoryColour(c, MARKERS, css("--null")), c)).join("")
+    + (MARKERS.includes("Mecp2")
+       ? '<br>' + mecp2Legend(css("--fg"), background === "masks") : "");
+}
+function drawTypeDots(g, s, px, py, rDot, size, cell, shown, ringOnly){
+  const colour = roiColourer(s);
+  for (let i = 0; !ringOnly && i < s._cy.length; i++){
+    const tracked = s.cluster[i] >= 0;
+    const pickable = tracked && selectable.has(s.cluster[i]);
+    if (!tracked && !showAll) continue;
+    if (tracked && !pickable && !showNoCard) continue;
+    const X = px(s._cx[i]), Y = py(s._cy[i]);
+    if (X < -12 || Y < -12 || X > size + 12 || Y > size + 12) continue;
+    const [c, known, style] = colour(i);
+    const r = tracked ? rDot : Math.max(1.6, rDot * .6);
+    g.beginPath();
+    g.arc(X, Y, style === "-" || style === "?" ? Math.max(1.4, r - .7) : r, 0, 6.284);
+    let a = !known ? .45 : (tracked ? .95 : .6);
+    if (shown && tracked && !shown.has(s.cluster[i])) a = .12;
+    // Mecp2 as the style: filled +, ring −, faint fill and ring when unknown
+    if (style !== "-") {
+      g.fillStyle = c; g.globalAlpha = style === "?" ? a * .35 : a; g.fill();
+    }
+    if (style === "-" || style === "?") {
+      g.strokeStyle = c; g.lineWidth = tracked ? 1.5 : 1.1;
+      g.globalAlpha = a; g.stroke();
+    }
+    g.globalAlpha = 1;
+  }
+  if (cell){
+    for (let i = 0; i < s._cy.length; i++){
+      if (s.cluster[i] !== cell.cluster) continue;
+      g.beginPath(); g.arc(px(s._cx[i]), py(s._cy[i]), rDot + 3, 0, 6.284);
+      g.strokeStyle = css("--sel"); g.lineWidth = 2; g.stroke();
+    }
+  }
+}
+/** The cell masks, each footprint coloured by its label for one marker.
+ *
+ * Built from the ROI index image (see ``roi_id_png``): decoded once per day,
+ * then recoloured whenever the marker, the filter or a visibility toggle
+ * changes. Untracked cells are drawn fainter rather than grey, since their
+ * label is as real as a tracked cell's. */
+let typeMaskGen = 0;        // bumped whenever what the masks show changes
+const hexRgb = h => {
+  const m = h.replace("#", "");
+  const v = m.length === 3 ? m.split("").map(c => c + c).join("") : m;
+  return [0, 2, 4].map(k => parseInt(v.slice(k, k + 2), 16));
+};
+function typeMasks(s){
+  if (!s._mId) return null;
+  if (!s._idData){
+    const c = document.createElement("canvas");
+    c.width = s._mId.width; c.height = s._mId.height;
+    const g = c.getContext("2d", {willReadFrequently: true});
+    g.drawImage(s._mId, 0, 0);
+    s._idData = g.getImageData(0, 0, c.width, c.height);
+  }
+  const key = [colourBy, showAll, showNoCard, typeMaskGen, labelMode].join("|");
+  if (s._typed && s._typedKey === key) return s._typed;
+  const src = s._idData, W = src.width, H = src.height;
+  const out = new ImageData(W, H);
+  const colour = roiColourer(s);
+  const shown = typeFilterActive() ? new Set(order.map(o => cells[o].cluster)) : null;
+  // per-ROI colour and opacity, then one pass over the pixels
+  const n = s.cluster.length, rgb = new Array(n), alpha = new Float32Array(n);
+  const outline = new Uint8Array(n);     // Mecp2−: draw the footprint's edge only
+  for (let i = 0; i < n; i++){
+    const tracked = s.cluster[i] >= 0;
+    const pickable = tracked && selectable.has(s.cluster[i]);
+    const [c, known, style] = colour(i);
+    rgb[i] = hexRgb(c);
+    if (style === "-") outline[i] = 1;
+    let a = tracked ? 1 : .5;
+    if (!tracked && !showAll) a = 0;
+    if (tracked && !pickable && !showNoCard) a = 0;
+    if (shown && tracked && !shown.has(s.cluster[i])) a = .12;
+    if (!known) a *= .7;
+    if (style === "?") a *= .4;
+    alpha[i] = a;
+  }
+  const d = src.data, o = out.data;
+  for (let p = 0; p < d.length; p += 4){
+    const id = d[p] * 256 + d[p + 1];
+    if (!id || id > n) continue;
+    const i = id - 1, a = alpha[i];
+    if (!a) continue;
+    if (outline[i]) {
+      // interior pixel: all four neighbours belong to the same ROI
+      const x = (p >> 2) % W, y = ((p >> 2) - x) / W;
+      const same = q => d[q] * 256 + d[q + 1] === id;
+      if (x > 0 && x < W - 1 && y > 0 && y < H - 1 && same(p - 4) && same(p + 4)
+          && same(p - 4 * W) && same(p + 4 * W)) continue;
+    }
+    const c = rgb[i];
+    o[p] = c[0]; o[p + 1] = c[1]; o[p + 2] = c[2];
+    // floor on the weight, so a footprint's faint rim still reads as its
+    // colour; an outline is drawn at full strength or it vanishes
+    o[p + 3] = Math.round(255 * a * (outline[i] ? 1 : 0.35 + 0.65 * d[p + 2] / 255));
+  }
+  const cv = document.createElement("canvas");
+  cv.width = W; cv.height = H;
+  cv.getContext("2d").putImageData(out, 0, 0);
+  s._typed = cv; s._typedKey = key;
+  return cv;
 }
 // how far (in screen px) a click may land from a cell and still pick it. In
 // frame px this shrinks as the view zooms in, which is what a pointer wants:
@@ -698,7 +1107,18 @@ function buildList(){
       ? "No fingerprint: this cell has too few other tracked cells to compare against."
       : `Fingerprint r = ${r.toFixed(3)} — correlation of this cell's relationship to `
         + "every other tracked cell, compared across days. Higher means more like the same cell.";
-    li.innerHTML = `<span>cell ${c.cluster} <span style="opacity:.6">· ${c.divs.length}d</span></span>` +
+    // squares show the final call; a flip nobody resolved stays violet, and a
+    // resolved one keeps a violet underline so it can still be found
+    const squares = hasTypes ? '<span class="types">' + MARKERS.map(m => {
+      const f = finalCall(c, m), flip = isFlip(c, m), ov = override(c, m);
+      const colour = f ? callColour(f) : flip ? callColour("~") : callColour(null);
+      const tip = `${m}: ${f === "+" ? "+" : f === "-" ? "−" : flip ? "undecided" : "unlabelled"}`
+        + (flip ? " (changes across days)" : "") + (ov !== undefined ? " — set by hand" : "");
+      return `<i style="background:${colour}${flip && f ? ";box-shadow:inset 0 -2px 0 var(--flip)" : ""}" title="${tip}"></i>`;
+    }).join("") + "</span>"
+      + (MARKERS.some(m => override(c, m) !== undefined) ? ' <span title="edited by hand">✎</span>' : "")
+      : "";
+    li.innerHTML = `<span>cell ${c.cluster} <span style="opacity:.6">· ${c.divs.length}d</span>${squares}</span>` +
       `<span class="r ${r === null ? "" : (r >= .5 ? "hi" : "lo")}">` +
       `${r === null ? "n/a" : (r >= 0 ? "+" : "") + r.toFixed(2)}</span>`;
     li.addEventListener("click", () => select(i));
@@ -722,7 +1142,8 @@ function drawDetail(){
   $("#hdr").innerHTML = `<b>cell ${c.cluster}</b> · ${c.divs.length} days · ` +
     `<span class="pill ${r === null ? "" : (r >= .5 ? "hi" : "lo")}">` +
     `r = ${r === null ? "n/a" : (r >= 0 ? "+" : "") + r.toFixed(2)}</span>` +
-    (p === null ? "" : ` · beats <b>${p.toFixed(0)}%</b> of the null`);
+    (p === null ? "" : ` · beats <b>${p.toFixed(0)}%</b> of the null`) +
+    typeChips(c);
 
   const host = $("#days"); host.innerHTML = "";
   c.crops.forEach((cr, k) => {
@@ -761,10 +1182,101 @@ function drawDetail(){
     }
     cap.append(dayEl, document.createElement("br"), rateEl,
                document.createElement("br"), popEl);
+    if (hasTypes && c.types){
+      const t = document.createElement("div"); t.className = "dtypes";
+      t.innerHTML = MARKERS.map(m => {
+        const v = c.types[m][k];
+        return `<span class="${stateClass(v)}">${m}${STATE[v]}</span>`;
+      }).join(" ");
+      cap.append(t);
+    }
     wrap.append(cv, cap); host.append(wrap);
   });
+  drawTypeTable(c);
   drawTraces(c);
   drawStrips(c);
+}
+
+function typeChips(c){
+  if (!hasTypes || !c.typeCall) return "";
+  const chips = MARKERS.map(m => {
+    const k = finalCall(c, m), flip = isFlip(c, m);
+    const cls = k === "+" ? "p" : k === "-" ? "n" : flip ? "x" : "u";
+    const txt = `${m}${k === "+" ? "+" : k === "-" ? "−" : flip ? " undecided" : "?"}`;
+    return `<span class="tchip ${cls}"${flip ? ' style="border-style:dashed"' : ""}>${txt}</span>`;
+  }).join("");
+  return `<div id="h-types" style="margin-top:5px">${chips}</div>`;
+}
+
+/** Every marker's day labels, the recommendation and its reason, and — when
+ *  the page is served — a control to decide by hand. */
+const REC_REASON = {
+  genotype: g => `fixed by genotype: every cell in a ${g} culture is Mecp2${g === "WT" ? "+" : "−"}`,
+  unanimous: () => "every labelled day agrees",
+  majority: () => "majority of labelled days (days matched by fallback count half)",
+  tie: () => "tie — the labelled days split evenly, so there is no basis to choose",
+  unlabelled: () => "never labelled",
+};
+function drawTypeTable(c){
+  const host = $("#typetable");
+  if (!host) return;
+  if (!hasTypes || !c.types){ host.innerHTML = ""; host.classList.add("hidden"); return; }
+  host.classList.remove("hidden");
+  const sym = v => v === 1 ? "+" : v === -1 ? "−" : "?";
+  const call = k => k === "+" ? '<b class="p">+</b>' : k === "-" ? '<b class="n">−</b>'
+                  : '<span class="u">undecided</span>';
+  let html = '<table class="ttab"><thead><tr><th></th>'
+    + c.divs.map(d => `<th>DIV${d}</th>`).join("")
+    + "<th>recommended</th><th>" + (EDITABLE ? "your call" : "final") + "</th></tr></thead><tbody>";
+  for (const m of MARKERS){
+    const r = (c.typeRec || {})[m] || {reason: "unlabelled", call: null};
+    const flip = isFlip(c, m), ov = override(c, m);
+    const days = c.types[m].map((v, k) => {
+      const fb = (c.rescuedDivs || []).includes(c.divs[k]) || (c.mergedDivs || []).includes(c.divs[k]);
+      return `<td class="${stateClass(v)}"${fb ? ' title="matched by fallback on this day — counts half"' : ""}>`
+        + sym(v) + (fb ? "<sup>·</sup>" : "") + "</td>";
+    }).join("");
+    const conf = r.conf != null && r.reason === "majority" ? ` ${Math.round(r.conf * 100)}%` : "";
+    const why = (REC_REASON[r.reason] || (() => r.reason))(D.genotype || "");
+    let decide;
+    if (EDITABLE) {
+      decide = `<select data-marker="${m}" aria-label="${m} decision">`
+        + [["", `auto (${r.call === "+" ? "+" : r.call === "-" ? "−" : "undecided"})`],
+           ["+", "+"], ["-", "−"], ["?", "can't tell"]]
+          .map(([v, t]) => `<option value="${v}"${(ov ?? "") === v ? " selected" : ""}>${t}</option>`)
+          .join("") + "</select>";
+    } else {
+      decide = call(finalCall(c, m)) + (ov !== undefined ? " ✎" : "");
+    }
+    html += `<tr class="${flip ? "flip" : ""}"><th>${m}</th>${days}`
+      + `<td title="${why}">${call(r.call)}<span class="sub">${conf}</span>`
+      + ` <span class="sub why">${r.reason}</span></td><td>${decide}</td></tr>`;
+  }
+  html += "</tbody></table>";
+  if (!EDITABLE)
+    html += '<div class="sub">Open this chain through <code>meanap-viewer</code> '
+          + "to record decisions.</div>";
+  host.innerHTML = html;
+  for (const sel of host.querySelectorAll("select"))
+    sel.addEventListener("change", () => saveOverride(c, sel.dataset.marker, sel.value || null, sel));
+}
+async function saveOverride(c, m, value, el){
+  el.disabled = true;
+  try {
+    const res = await fetch("/api/trackingoverride", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({chain: D.chainKey, cluster: c.cluster, marker: m, value})});
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error || res.statusText);
+    D.overrides = body.overrides || {};
+  } catch (e) {
+    alertLine("Could not save: " + (e.message || e));
+  } finally { el.disabled = false; }
+  applyFilter(true);
+}
+function alertLine(text){
+  const host = $("#typetable");
+  host.insertAdjacentHTML("beforeend", `<div class="lo">${text}</div>`);
 }
 
 function drawTraces(c){
@@ -874,16 +1386,42 @@ function drawStrips(c){
 }
 
 // ── wiring ───────────────────────────────────────────────────────────────────
-function applyFilter(){
+function applyFilter(keepSelection){
+  const was = keepSelection && order.length ? cells[order[sel]].cluster : null;
   const q = $("#search").value.trim().toLowerCase();
-  order = cells.map((_, i) => i).filter(i => !q || String(cells[i].cluster).includes(q));
+  order = cells.map((_, i) => i).filter(i =>
+    (!q || String(cells[i].cluster).includes(q)) && passesTypes(cells[i]));
   order.sort((a, b) => {
     const A = cells[a].fingerprint, B = cells[b].fingerprint;
     return (A === null ? -Infinity : A) - (B === null ? -Infinity : B);
   });
-  buildList(); select(0);
+  typeMaskGen++;
+  if (hasTypes){
+    $("#typecount").textContent = `${order.length} of ${cells.length} cells shown`;
+    refreshTypeCounts();
+  }
+  buildList();
+  const keep = was == null ? -1 : order.findIndex(o => cells[o].cluster === was);
+  if (order.length) select(keep >= 0 ? keep : 0);
+  else { $("#hdr").textContent = "No cell matches the filter."; redrawFov();
+         for (const id of ["#days", "#traces", "#strips"]) $(id).innerHTML = ""; }
 }
+/** Called by the run viewer when its theme changes, so the page restyles in
+ *  place instead of being reloaded (which lost the selection and the zoom).
+ *  Colours are read from CSS at draw time, so everything drawn is redrawn. */
+window.__setTheme = t => {
+  const root = document.documentElement;
+  if (t === "light" || t === "dark" || t === "neutral") root.setAttribute("data-theme", t);
+  else root.removeAttribute("data-theme");
+  typeMaskGen++;
+  buildList();
+  if (order.length) select(sel); else redrawFov();
+};
 document.addEventListener("keydown", e => {
+  if (e.key === "Escape"){
+    if (boxSel){ boxSel = null; redrawFov(); }
+    else if (boxMode) setBoxMode(false);
+  }
   if (e.target.tagName === "INPUT") return;
   if (e.key === "ArrowDown" || e.key === "j"){ select(sel + 1); e.preventDefault(); }
   if (e.key === "ArrowUp" || e.key === "k"){ select(sel - 1); e.preventDefault(); }
@@ -899,22 +1437,34 @@ window.addEventListener("DOMContentLoaded", () => {
   $("#bg").addEventListener("change", e => {
     background = e.target.value; redrawFov();
   });
+  $("#colourby").addEventListener("change", e => {
+    colourBy = e.target.value;
+    $("#fovlegend").classList.toggle("hidden", !!colourBy);
+    $("#typelegend").classList.toggle("hidden", !colourBy);
+    redrawFov();
+  });
+  $("#typeflip").addEventListener("change", e => { flipOnly = e.target.checked; applyFilter(); });
+  $("#typereview").addEventListener("change", e => { needsReview = e.target.checked; applyFilter(); });
+  $("#labelmode").addEventListener("change", e => { labelMode = e.target.value; redrawFov(); });
+  attachTip($("#h-typebox"), HELP.types);
+  buildTypeBox();
   attachTip($("#h-fov"), HELP.fov);
   attachTip($("#h-listr"), HELP.listR);
   attachTip($("#h-strips"), HELP.fingerprint);
   attachTip($("#bg"), HELP.masks);
   $("#reset").addEventListener("click", resetView);
+  $("#boxzoom").addEventListener("click", () => setBoxMode(!boxMode));
   buildFov(); applyFilter();
 });
 """
 
 #: The page is usually shown inside the run viewer, which owns the theme. It
-#: arrives as ``?theme=light|dark``; with no parameter the page falls back to
+#: arrives as ``?theme=light|neutral|dark``; with no parameter the page falls back to
 #: the browser's own preference, which is what it does when opened directly.
 _THEME_JS = """
 (function () {
   var t = new URLSearchParams(location.search).get("theme");
-  if (t === "light" || t === "dark")
+  if (t === "light" || t === "dark" || t === "neutral")
     document.documentElement.setAttribute("data-theme", t);
 })();
 """
@@ -930,7 +1480,7 @@ one. Move with <span class="kbd">&uarr;</span> <span class="kbd">&darr;</span>
 or <span class="kbd">j</span> <span class="kbd">k</span>."""
 
 
-def render_page(payload: dict, *, note: str = _NOTE) -> str:
+def render_page(payload: dict, *, note: str = _NOTE, editable: bool = False) -> str:
     """Turn a stored payload back into the page.
 
     Split from :func:`build_page` so a bundle can carry the payload alone and
@@ -951,9 +1501,16 @@ def render_page(payload: dict, *, note: str = _NOTE) -> str:
         <option value="masks">cell masks</option>
         <option value="none">none</option>
       </select></label>
+    <label class="hidden">colour by
+      <select id="colourby"><option value="">tracking</option></select></label>
+    <label class="hidden" id="labelmodewrap" title="Each ROI's label on that day, or each tracked cell's final call on every day it appears">labels
+      <select id="labelmode"><option value="day">each day's own</option>
+        <option value="final">final call per cell</option></select></label>
     <label><input type="checkbox" id="shownocard" checked> tracked, no card</label>
     <label><input type="checkbox" id="showall" checked> untracked</label>
-    <span>scroll to zoom &middot; drag to pan &middot; all days move together</span>
+    <button id="boxzoom" type="button" aria-pressed="false"
+            title="Drag a rectangle to zoom to it (or hold Shift while dragging)">&#9645; box zoom</button>
+    <span>scroll to zoom &middot; drag to pan &middot; shift-drag to zoom to a box &middot; all days move together</span>
     <span id="zoom">1.0&times;</span>
     <button id="reset" type="button">reset view</button>
   </div>
@@ -962,22 +1519,46 @@ def render_page(payload: dict, *, note: str = _NOTE) -> str:
     <span><i class="sw ring" style="border-color:var(--lo)"></i>tracked, no card &mdash; not selectable</span>
     <span><i class="sw dot small" style="background:var(--null)"></i>untracked</span>
     <span><i class="sw ring" style="border-color:var(--sel);border-width:2px"></i>selected</span>
+  </div>
+  <div class="legend hidden" id="typelegend" style="margin:6px 0 0">
+    <span id="typelegendsw"></span>
+    <span id="typelegendnote">large = tracked &middot; small = untracked &middot; faded = filtered out</span>
+    <span><i class="sw ring" style="border-color:var(--sel);border-width:2px"></i>selected</span>
   </div></div>
 <div class="wrap">
-  <div class="side box"><h2>cells &middot; worst first</h2>
+  <div class="side">
+  <div class="box hidden" id="typebox"><h2 id="h-typebox">cell types</h2>
+    <div class="sub" id="typegeno" style="margin-bottom:6px"></div>
+    <div id="typefilters"></div>
+    <label class="typerow" style="justify-content:flex-start;cursor:pointer">
+      <input type="checkbox" id="typeflip"> label changes across days</label>
+    <label class="typerow" style="justify-content:flex-start;cursor:pointer"
+           title="A label changes across days and neither the recommendation nor a person has decided it">
+      <input type="checkbox" id="typereview"> needs a decision <span class="sub" id="reviewcount"></span></label>
+    <div class="sub" id="typecount"></div>
+    <div class="sub">Each cell in the list has one square per marker, in the
+      order above:
+      <span style="color:var(--pos)">&#9632;</span>&nbsp;+
+      <span style="color:var(--neg)">&#9632;</span>&nbsp;&minus;
+      <span style="color:var(--flip)">&#9632;</span>&nbsp;changes across days,
+      blank&nbsp;unlabelled.</div></div>
+  <div class="box"><h2>cells &middot; worst first</h2>
     <div class="ctl"><input type="search" id="search" placeholder="filter by cell id"></div>
     <div class="listhead"><span>cell &middot; days</span><span id="h-listr">fingerprint r</span></div>
-    <ul id="list" role="listbox"></ul></div>
+    <ul id="list" role="listbox"></ul></div></div>
   <div class="main">
     <div class="box"><h2>selected cell</h2><div id="hdr" class="sub"></div>
-      <div class="days" id="days"></div></div>
+      <div class="days" id="days"></div>
+      <div id="typetable" class="hidden"></div></div>
     <div class="box"><h2>fluorescence</h2><div id="traces"></div></div>
     <div class="box"><h2 id="h-strips">where this cell sits</h2><div id="strips"></div></div>
   </div>
 </div>
 <div class="note">{note}</div>
-<script>window.__TRACK__ = {json.dumps(payload)};</script>
+<script>window.__TRACK__ = {json.dumps(payload)};
+window.__TRACK_EDIT__ = {"true" if editable else "false"};</script>
 <script>{_THEME_JS}</script>
+<script>{TYPE_CATEGORY_JS}</script>
 <script>{_JS}</script>
 """
 

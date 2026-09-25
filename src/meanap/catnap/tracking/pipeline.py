@@ -78,6 +78,7 @@ from meanap.catnap.tracking.viewer import (
     crop_footprint,
     masks_image_png,
     mean_image_png,
+    roi_id_png,
     select_cards,
     write_page,
 )
@@ -508,7 +509,11 @@ def _validate_and_render(
             masks_other_png=masks_image_png(stats[k], frame_px, labels[k],
                                             tracked=False),
             centroids=sessions[k].centroids,
-            cluster_of=labels[k]))
+            cluster_of=labels[k],
+            recording=name,
+            masks_id_png=roi_id_png(stats[k], frame_px),
+            roi_index=(source.roi_index(name) if hasattr(source, "roi_index")
+                       else None)))
 
     chosen = select_cards(cards, viewer_cells)
     good = sum(1 for c in chosen if np.isfinite(c.fingerprint) and c.fingerprint >= 0.5)
@@ -553,6 +558,7 @@ def track_dataset(
     reuse_runs: Path | None = None,
     workers: int = 1,
     threads_per_worker: int = 4,
+    cell_type_folders=(),
     progress: ProgressFn | None = None,
 ) -> dict:
     """Track every multi-DIV chain and write results under ``out_dir``.
@@ -564,7 +570,9 @@ def track_dataset(
     disk is skipped, so an interrupted run continues where it stopped.
     ``reuse_runs`` points at an earlier run's ``work/runs`` so that chains whose
     gate decision has not changed reuse their ROICaT clusters (see
-    :func:`track_chain`).
+    :func:`track_chain`). ``cell_type_folders`` are searched for each
+    recording's cell-type file, and the tracked cells labelled from them
+    (:mod:`meanap.catnap.tracking.celltypes`).
     """
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -624,6 +632,16 @@ def track_dataset(
         summary["median_merged_fingerprint_auc"] = float(np.median(merged_aucs))
     (out_dir / "summary.json").write_text(json.dumps(summary, indent=1))
     _write_csv(out_dir, results)
+    if any(cell_type_folders):
+        from meanap.catnap.tracking.celltypes import annotate_tracking_dir
+
+        # payloads from before cell types carry no raw ROI index, so a chain
+        # skipped as already done still needs iscell.npy to be labelled
+        roots = [getattr(source, "raw_data", None)]
+        report = annotate_tracking_dir(out_dir, cell_type_folders,
+                                       suite2p_roots=[r for r in roots if r],
+                                       log=progress or (lambda _m: None))
+        summary["cell_types"] = report.summary()
     return summary
 
 
@@ -893,6 +911,8 @@ def _network_summary(result: ChainResult, sessions, labels: list[np.ndarray]) ->
         "nCells": len(cells),
         "nSessions": len(sessions),
         "xy": [[round(float(y), 1), round(float(x), 1)] for y, x in xy],
+        # which tracked cell each node is, so labels can be joined to nodes
+        "clusters": [int(c) for c in cells],
         # how many days each cell was tracked into — the span filter
         "span": [len(spans[c]) for c in cells],
         "days": days,
