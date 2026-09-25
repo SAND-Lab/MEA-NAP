@@ -737,6 +737,8 @@ def _run_cell_tracking(params: Params, recordings, output_root: Path,
             viewer_cells=params.track_viewer_cells,
             neucoeff=params.track_neuropil_coeff,
             completion_radius_px=params.track_completion_radius_px,
+            # the same places the rest of the run reads cell types from
+            cell_type_folders=[params.twop_cell_type_file, params.raw_data],
             progress=lambda msg: log(f"    {msg}"),
         )
     except Exception as e:
@@ -1134,8 +1136,12 @@ def _resolve_cell_types(params, rec, channels, log):
     from meanap.catnap import subnetwork as sn
 
     try:
-        path = (Path(params.twop_cell_type_file) if params.twop_cell_type_file
-                else sn.find_cell_type_file(params.raw_data, rec.filename))
+        # the setting may name one file for every recording, or a folder of
+        # ``<recording>.csv`` files, one per recording
+        from meanap.catnap.tracking.celltypes import find_label_file
+
+        path = find_label_file(rec.filename,
+                               [params.twop_cell_type_file, params.raw_data])
         if path is None or not Path(path).exists():
             return None, None
         table = sn.load_cell_type_table(path)

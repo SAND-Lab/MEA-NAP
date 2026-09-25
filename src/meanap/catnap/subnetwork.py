@@ -100,6 +100,10 @@ def load_cell_type_table(path: str | Path) -> pd.DataFrame:
 
     keep: dict[str, pd.Series] = {}
     for col in df.columns:
+        # free-text notes, which are sometimes bare numbers ("11") and would
+        # otherwise pass for a column of ROI ids
+        if str(col).strip().lower().startswith("comment"):
+            continue
         ids = pd.to_numeric(df[col], errors="coerce").dropna()
         if len(ids):
             keep[str(col).strip()] = ids.reset_index(drop=True)

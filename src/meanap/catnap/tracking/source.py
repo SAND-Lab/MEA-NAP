@@ -62,6 +62,14 @@ class LocalSessionSource:
     def _iscell(self, recording: str) -> np.ndarray:
         return np.load(self.plane0(recording) / "iscell.npy")[:, 0].astype(bool)
 
+    def roi_index(self, recording: str) -> np.ndarray:
+        """Raw suite2p index of each iscell ROI, in the order :meth:`stat` returns.
+
+        Tracking positions are among the iscell ROIs only; this maps them back
+        to the raw indices that cell-type files and CAT-NAP's ``channels`` use.
+        """
+        return np.flatnonzero(self._iscell(recording))
+
     def stat(self, recording: str) -> np.ndarray:
         """ROIs, **filtered to iscell**.
 
