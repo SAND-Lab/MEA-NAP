@@ -94,6 +94,23 @@ class FrDiffConfig:
     #: when False any one of them alongside the baseline will do.
     require_all_patterns: bool = True
 
+    @classmethod
+    def from_params(cls, params) -> "FrDiffConfig":
+        """The protocol a :class:`~meanap.params.Params` describes.
+
+        Params holds one list of stimulating channels, left out of every
+        pattern; a per-pattern mapping needs the config built directly.
+        """
+        patterns = dict(params.fr_diff_patterns or {})
+        stimulating = frozenset(int(c) for c in params.fr_diff_stimulating_channels or ())
+        return cls(
+            baseline=params.fr_diff_baseline,
+            stim_labels=patterns,
+            grounded=frozenset(int(c) for c in params.fr_diff_grounded_channels or ()),
+            stimulated={t: stimulating for t in patterns} if stimulating else {},
+            require_all_patterns=bool(params.fr_diff_require_all_patterns),
+        )
+
     @property
     def stims(self) -> tuple[str, ...]:
         return tuple(self.stim_labels)

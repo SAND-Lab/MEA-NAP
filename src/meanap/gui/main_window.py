@@ -21,8 +21,8 @@ from meanap.gui.branding import CORNER_LOGO_HEIGHT, logo_icon, logo_pixmap
 from meanap.gui.dialogs import ask_yes_no
 from meanap.gui import advanced
 from meanap.gui.modes import (
-    DEFAULT_MODE, MODES, TAB_CATNAP, TAB_CONNECTIVITY, TAB_DATA, TAB_RESULTS,
-    TAB_RUN, TAB_SPIKE, TAB_STATS, TAB_STIM,
+    DEFAULT_MODE, MODES, TAB_CATNAP, TAB_CONNECTIVITY, TAB_DATA, TAB_FR_DIFF,
+    TAB_RESULTS, TAB_RUN, TAB_SPIKE, TAB_STATS, TAB_STIM,
     TAB_STIM_PREVIEW,
     apply_mode_to_params, mode_for_params,
 )
@@ -43,6 +43,7 @@ from meanap.gui.panels.stim_preview import StimPreviewPanel
 from meanap.gui.panels.run import QUEUE, SHARED, RunPanel
 from meanap.gui.panels.catnap import CatNapPanel
 from meanap.gui.panels.results import ResultsPanel
+from meanap.gui.panels.fr_diff import FrDiffPanel
 from meanap.gui.panels.stats import StatsPanel
 from meanap.gui.tooltip import install_tooltip_style, wrap_tooltips
 from meanap.gui.tutorial import TutorialOverlay, TutorialStep, tabbar_target
@@ -103,6 +104,8 @@ class MainWindow(QMainWindow):
         #: True once the user has picked a run for the Stats tab by hand, after
         #: which this session's own run no longer overrides their choice.
         self._stats_source_chosen = False
+        #: The same, for the Stim FR Δ tab.
+        self._fr_diff_source_chosen = False
         self._worker: PipelineWorker | None = None
         self._queue_worker: QueueWorker | None = None
         self._shared_worker: SharedMainWorker | SharedHelperWorker | None = None
@@ -313,6 +316,8 @@ class MainWindow(QMainWindow):
         self._stats_panel.run_requested.connect(self._on_run_stats)
         self._stats_panel.open_folder_requested.connect(self._on_open_stats_folder)
         self._stats_panel.choose_source_requested.connect(self._on_choose_stats_source)
+        self._fr_diff_panel = FrDiffPanel()
+        self._fr_diff_panel.choose_source_requested.connect(self._on_choose_fr_diff_source)
 
         # Every tab is built once and kept alive here; the current mode decides
         # which of them are actually in the QTabWidget (see _apply_mode). Order
@@ -330,6 +335,9 @@ class MainWindow(QMainWindow):
             (TAB_STIM_PREVIEW, self._stim_preview_panel, "  Stim Preview  "),
             (TAB_RUN, self._run_panel, "  Run  "),
             (TAB_RESULTS, self._results_panel, "  Results  "),
+            # Beside Results: it reads a finished run too, and is the first
+            # thing to look at after a stim run — did stimulating do anything?
+            (TAB_FR_DIFF, self._fr_diff_panel, "  Stim FR Δ  "),
             # Last, because it acts on a run that has already finished — it is
             # the only tab whose input is another tab's output.
             # "&&" because Qt reads a single "&" in a tab label as the marker
@@ -579,6 +587,8 @@ class MainWindow(QMainWindow):
             self._refresh_results_target()
         elif key == TAB_STATS:
             self._refresh_stats_target()
+        elif key == TAB_FR_DIFF:
+            self._refresh_fr_diff_target()
 
     def _refresh_results_target(self) -> None:
         root = self._candidate_output_root()
@@ -1374,6 +1384,33 @@ class MainWindow(QMainWindow):
         self._run_panel.append_log(f"ERROR: {message}")
         self._reset_run_buttons()
         QMessageBox.critical(self, "Pipeline error", message)
+
+    # ── Stim FR Δ ─────────────────────────────────────────────────────────────
+
+    def _refresh_fr_diff_target(self) -> None:
+        """Hand the Stim FR Δ tab the protocol on screen, and this session's run.
+
+        The protocol is read from the Stimulation tab on every visit, so a
+        condition corrected there redraws here without a new run. The run
+        follows the Stats tab's rule: a source the user chose stays chosen.
+        """
+        from meanap.stim.fr_diff import FrDiffConfig
+
+        self._fr_diff_panel.set_config(FrDiffConfig.from_params(self._collect_params()))
+        if self._fr_diff_source_chosen:
+            return
+        bundle = self._last_bundle
+        root = self._last_output_root or self._candidate_output_root()
+        source = bundle if bundle is not None else root
+        self._fr_diff_panel.set_source(
+            Path(source) if source is not None and Path(source).exists() else None)
+
+    def _on_choose_fr_diff_source(self) -> None:
+        source = self._fr_diff_panel.choose_source_dialog()
+        if source is None:
+            return
+        self._fr_diff_source_chosen = True
+        self._fr_diff_panel.set_source(source)
 
     # ── Stats & ML ────────────────────────────────────────────────────────────
 
