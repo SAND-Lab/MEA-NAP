@@ -12,8 +12,8 @@ from taste:
 * ``meanap`` — the ephys pipeline: raw traces → spike detection → connectivity
   → network metrics.
 * ``meastim`` — the same ephys pipeline plus the stimulation analysis that runs
-  after it (see ``runner.py``), so it needs everything ``meanap`` does, the
-  two stimulation tabs on top, and the Stim FR Δ tab that reads what it wrote.
+  after it (see ``runner.py``), so it needs everything ``meanap`` does and the
+  two stimulation tabs on top.
 * ``catnap`` — suite2p calcium imaging. ``run_catnap_pipeline`` returns before
   the ephys steps, so sampling rate, electrode layout and spike detection never
   apply. It *does* read the connectivity settings (``func_con_lag_val`` and the
@@ -37,7 +37,6 @@ TAB_SPIKE = "spike"
 TAB_CONNECTIVITY = "connectivity"
 TAB_STIM = "stim"
 TAB_STIM_PREVIEW = "stim_preview"
-TAB_FR_DIFF = "fr_diff"
 TAB_CATNAP = "catnap"
 TAB_RESULTS = "results"
 TAB_RUN = "run"
@@ -80,7 +79,7 @@ MODES: dict[str, Mode] = {
         key="meastim",
         label="MEA-Stim  ·  Stimulation",
         blurb="The ephys pipeline plus detection and analysis of electrical stimulation.",
-        tabs=frozenset(_EPHYS_TABS + (TAB_STIM, TAB_STIM_PREVIEW, TAB_FR_DIFF)),
+        tabs=frozenset(_EPHYS_TABS + (TAB_STIM, TAB_STIM_PREVIEW)),
         stimulation_mode=True,
     ),
     "catnap": Mode(

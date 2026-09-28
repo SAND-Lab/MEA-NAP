@@ -25,7 +25,8 @@ from matplotlib.ticker import FuncFormatter
 from .fr_diff import Diff, FrDiffResult, Panel, multi_run, panel_title
 
 __all__ = [
-    "PALETTE", "SAVE_DPI", "MEASURES", "DrawnPoints", "stim_colors", "default_columns",
+    "PALETTE", "SAVE_DPI", "MEASURES", "DrawnPoints", "Drawing", "stim_colors",
+    "default_columns",
     "figure_size", "draw_fr_diff", "save_fr_diff_figure", "y_label",
 ]
 
@@ -41,16 +42,18 @@ SAVE_DPI = 300
 
 MEASURES = ("pct", "log2")
 
-# Panel geometry in inches, from the viewer's pixels at 100 px/in. Rows have a
-# fixed height rather than sharing the figure's, so a tall grid keeps readable
-# panels and scrolls instead of squeezing every row onto one screen.
+# Figure heights in inches. Rows have a fixed height rather than sharing the
+# figure's, so a tall grid keeps readable panels and scrolls instead of
+# squeezing every row onto one screen. Where the labels go inside that height
+# is left to matplotlib's constrained layout, which measures them: hand-set
+# margins clip the y label as soon as the fonts or the screen differ from the
+# ones they were tuned on.
 ROW_H = 3.0
 ROW_GAP = 0.64                 # room beneath a row for its tick labels
 SINGLE_H = 4.6
-MARGIN_T = 0.64                # the legend, and the top row's panel titles
-MARGIN_B = 0.56
-MARGIN_L = 0.88
-MARGIN_R = 0.2
+TOP_H = 0.3                    # the top row's panel titles
+LEGEND_H = 0.35
+BOTTOM_H = 0.56                # the bottom row's tick labels and "Channel"
 CAPTION_H = 0.3
 
 JITTER = 0.18                  # half-width of the sideways jitter, in channel slots
@@ -66,6 +69,14 @@ class DrawnPoints:
     silent: bool               # drawn at the panel's foot: 0 Hz under stim, log2 view
 
 
+@dataclass
+class Drawing:
+    """What :func:`draw_fr_diff` drew: its scatters, and which slice each axes is."""
+
+    points: list[DrawnPoints]
+    panels: dict                # matplotlib Axes -> Panel
+
+
 def stim_colors(result: FrDiffResult) -> dict[str, str]:
     return {t: PALETTE[i % len(PALETTE)] for i, t in enumerate(result.config.stims)}
 
@@ -75,15 +86,15 @@ def default_columns(n_panels: int) -> int:
     return 1 if n_panels <= 1 else (2 if n_panels <= 6 else 3)
 
 
-def figure_size(n_panels: int, ncols: int, width: float, caption: bool = False
-                ) -> tuple[float, float]:
+def figure_size(n_panels: int, ncols: int, width: float, *, caption: bool = False,
+                legend: bool = True) -> tuple[float, float]:
     """(width, height) in inches for ``n_panels`` laid out in ``ncols`` columns."""
     if n_panels <= 1:
         height = SINGLE_H
     else:
         rows = math.ceil(n_panels / ncols)
-        height = MARGIN_T + rows * ROW_H + (rows - 1) * ROW_GAP + MARGIN_B
-    return width, height + (CAPTION_H if caption else 0.0)
+        height = TOP_H + rows * ROW_H + (rows - 1) * ROW_GAP + BOTTOM_H
+    return width, height + (LEGEND_H if legend else 0.0) + (CAPTION_H if caption else 0.0)
 
 
 def y_label(measure: str, baseline: str) -> str:
@@ -150,15 +161,18 @@ def draw_fr_diff(
     hidden: frozenset[str] | set[str] = frozenset(),
     ncols: int | None = None,
     caption: bool = False,
-) -> list[DrawnPoints]:
+    legend: bool = True,
+) -> Drawing:
     """Draw ``result`` onto ``fig``, clearing it first.
 
     ``selected`` is a panel id (``R250929/CT1A``) to show on its own, or None
     for the grid of every slice. ``hidden`` names patterns left undrawn; the y
     axes are still scaled to them, so hiding a pattern never rescales the view.
-    ``ncols`` defaults to :func:`default_columns`. ``caption`` adds a line at
-    the foot explaining the red channel numbers and the triangles, for a figure
-    saved without the GUI around it to say so.
+    ``ncols`` defaults to :func:`default_columns`. ``legend`` names the pattern
+    colours above the grid; a view with its own coloured pattern switches has
+    no need of it. ``caption`` adds a line at the foot explaining the red
+    channel numbers and the triangles, for a figure saved without the GUI
+    around it to say so.
 
     The figure's size is the caller's: :func:`figure_size` gives the one the
     layout is designed for.
@@ -171,23 +185,19 @@ def draw_fr_diff(
     panels = [p for p in result.panels if selected in (None, p.id)]
     n = len(panels)
     if not n:
+        fig.set_layout_engine("none")
         fig.text(0.5, 0.5, "No slice has a baseline and its stimulation patterns to "
                  "compare.", ha="center", va="center", color=INK_COLOR)
-        return []
+        return Drawing([], {})
 
     single = n == 1
     ncols = 1 if single else max(1, min(ncols or default_columns(n), n))
     nrows = math.ceil(n / ncols)
-    width, height = fig.get_size_inches()
-    cap = CAPTION_H if caption else 0.0
-    top = 1 - MARGIN_T / height
-    bottom = (MARGIN_B + cap) / height
-    col_gap = 0.07 if ncols <= 2 else 0.05            # fraction of the width, as the viewer
-    panel_w = (1 - col_gap * (ncols - 1)) / ncols
-    grid = fig.add_gridspec(
-        nrows, ncols, left=MARGIN_L / width, right=1 - MARGIN_R / width,
-        top=top, bottom=bottom,
-        hspace=0.0 if single else ROW_GAP / ROW_H, wspace=col_gap / panel_w)
+    # Pads in inches around each panel's labels; spaces as a fraction of the
+    # panels, on top of what the labels themselves take.
+    fig.set_layout_engine("constrained", w_pad=0.08, h_pad=0.08,
+                          wspace=0.03, hspace=0.04)
+    grid = fig.add_gridspec(nrows, ncols)
 
     colors = stim_colors(result)
     multi = multi_run(result.panels)
@@ -200,12 +210,14 @@ def draw_fr_diff(
     budget = 10**9 if single else (16 if ncols <= 2 else 10)
 
     drawn: list[DrawnPoints] = []
+    axes_panels = {}
     shown_stims: set[str] = set()
     silent_shown = False
     excluded_shown = False
     for i, panel in enumerate(panels):
         row, col = divmod(i, ncols)
         ax = fig.add_subplot(grid[row, col])
+        axes_panels[ax] = panel
         _style(ax)
         channels = panel.channels
         pos = {c: j for j, c in enumerate(channels)}
@@ -267,10 +279,9 @@ def draw_fr_diff(
                       markerfacecolor=colors[t], markeredgewidth=0,
                       label=result.config.label(t))
                for t in result.config.stims if t in shown_stims]
-    if handles:
-        fig.legend(handles=handles, loc="lower center", ncols=len(handles),
-                   bbox_to_anchor=(0.5, top + 0.12 / height), frameon=False, fontsize=11,
-                   handletextpad=0.3, columnspacing=1.4)
+    if legend and handles:
+        fig.legend(handles=handles, loc="outside upper center", ncols=len(handles),
+                   frameon=False, fontsize=11, handletextpad=0.3, columnspacing=1.4)
 
     if caption:
         parts = []
@@ -281,9 +292,10 @@ def draw_fr_diff(
             parts.append("▼ at a panel's foot: 0 Hz under that pattern "
                          "(log₂ = −∞).")
         if parts:
-            fig.text(MARGIN_L / width, 0.12 / height, "   ".join(parts), fontsize=9,
-                     color=INK_COLOR, ha="left", va="bottom")
-    return drawn
+            # A figure-level label rather than free text, so the layout keeps
+            # room for it below the bottom row's "Channel".
+            fig.supxlabel("   ".join(parts), fontsize=9, color=INK_COLOR)
+    return Drawing(drawn, axes_panels)
 
 
 def save_fr_diff_figure(result: FrDiffResult, out_path: Path | str, *,

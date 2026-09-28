@@ -434,20 +434,6 @@ class Params:
     stim_n_shuffles: int = 500
     stim_shuffle_alpha: float = 0.05
     axion_stim_csv: str = ""                   # for the axionStimEvents method
-    # Firing-rate change from baseline (meanap.stim.fr_diff), run after step 2:
-    # each slice's stim recordings against its own baseline recording, paired
-    # on the run ID and slice in the file name, e.g. R250929CT1A_DIV250_stim1
-    # with R250929CT1A_DIV250_prestim. The defaults are the SAND Lab protocol,
-    # the same as FrDiffConfig's.
-    fr_diff_baseline: str = "prestim"          # condition token of the baseline recording
-    fr_diff_patterns: dict[str, str] = field(default_factory=lambda: {
-        "stim1": "Spatial 1", "stim3": "Spatial 3",
-        "stimLR": "Temporal LR", "stimRL": "Temporal RL",
-    })                                         # condition token -> legend name
-    fr_diff_grounded_channels: list[int] = field(default_factory=lambda: [15])
-    fr_diff_stimulating_channels: list[int] = field(
-        default_factory=lambda: [21, 31, 41, 51, 61, 71])
-    fr_diff_require_all_patterns: bool = True  # a slice needs every pattern to be plotted
 
     def to_stim_params_dict(self) -> dict:
         """Map the stim fields to the camelCase dict the ``meanap.stim`` ports use.

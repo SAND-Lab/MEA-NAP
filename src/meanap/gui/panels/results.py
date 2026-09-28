@@ -48,6 +48,7 @@ class ResultsPanel(QWidget):
     view_report_requested = pyqtSignal()
     make_bundle_requested = pyqtSignal()
     open_bundle_requested = pyqtSignal()
+    open_fr_diff_requested = pyqtSignal()
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -107,6 +108,7 @@ class ResultsPanel(QWidget):
         self.bundle_btn.clicked.connect(self.open_bundle_requested)
         row.addWidget(self.bundle_btn)
         outer.addLayout(row)
+        outer.addWidget(self._build_stim_row())
 
         # What the buttons above would act on. Written out because "View report"
         # acts on a folder the user never named — the dated default — as often
@@ -118,6 +120,34 @@ class ResultsPanel(QWidget):
         self.target_label.setStyleSheet("font-size: 11px; color: gray;")
         outer.addWidget(self.target_label)
         return box
+
+    def _build_stim_row(self) -> QWidget:
+        """MEA-Stim's own look at a finished run; hidden in the other modes.
+
+        A row of its own so it can move without disturbing the buttons every
+        mode shares. Live even with no run to point at, like Make bundle: the
+        window it opens can choose one.
+        """
+        self.stim_row = QWidget()
+        row = QHBoxLayout(self.stim_row)
+        row.setContentsMargins(0, 0, 0, 0)
+        self.fr_diff_btn = QPushButton("\U0001f4c8  Firing-rate change\u2026")
+        self.fr_diff_btn.setFixedHeight(40)
+        self.fr_diff_btn.setObjectName("secondary")
+        self.fr_diff_btn.setToolTip(
+            "Did stimulating change how each slice fired? Opens a viewer "
+            "comparing every slice's firing rate under each stimulation pattern "
+            "with its own baseline recording, channel by channel. Needs step 2 "
+            "(its NeuronalActivity_NodeLevel.csv) of this run, or of any run or "
+            "bundle you choose in it.")
+        self.fr_diff_btn.clicked.connect(self.open_fr_diff_requested)
+        row.addWidget(self.fr_diff_btn)
+        row.addStretch(1)
+        return self.stim_row
+
+    def set_stim_tools_visible(self, visible: bool) -> None:
+        """Show the MEA-Stim row only in the pipeline that produces what it reads."""
+        self.stim_row.setVisible(visible)
 
     def _build_viewer_box(self) -> QWidget:
         box = QGroupBox("Network viewer")

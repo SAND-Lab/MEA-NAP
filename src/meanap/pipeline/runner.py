@@ -339,8 +339,7 @@ def run_pipeline(
     if params.stimulation_mode and start <= 2 <= stop:
         check_cancel(should_cancel)
         from meanap.pipeline.stim_step import run_fr_diff
-        from meanap.stim.fr_diff import FrDiffConfig
-        run_fr_diff(output_root, log, FrDiffConfig.from_params(params))
+        run_fr_diff(output_root, log)
 
     if start <= 3 <= stop:
         check_cancel(should_cancel)

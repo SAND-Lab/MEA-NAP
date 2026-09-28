@@ -8,8 +8,6 @@ ported ``meanap.stim`` subsystem (``python/MEASTIM_PORT_PLAN.md``).
 
 from __future__ import annotations
 
-import re
-
 from PyQt6.QtWidgets import (
     QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QGroupBox, QLineEdit,
     QSpinBox, QVBoxLayout, QWidget,
@@ -98,44 +96,7 @@ class StimPanel(QWidget):
         sform.addRow("Number of shuffles", self.n_shuffles)
         sform.addRow("Alpha", self.shuffle_alpha)
 
-        # ── Firing-rate change from baseline ─────────────────────────────────
-        # Which recordings are compared with which, read from the file names,
-        # and which channels say nothing about the tissue. The Stim FR Δ tab
-        # redraws with whatever is set here, so a mistyped condition can be
-        # corrected without running the pipeline again.
-        fr_box = QGroupBox("Firing-rate change from baseline")
-        fform = QFormLayout(fr_box)
-        self.fr_baseline = QLineEdit()
-        self.fr_baseline.setToolTip(
-            "The condition of the baseline recording: the token after DIV<n>_ in "
-            "its file name, e.g. prestim in R250929CT1A_DIV250_prestim. Each "
-            "slice's stimulated recordings are compared with its own baseline, "
-            "matched on the run ID and slice (R250929 and CT1A).")
-        self.fr_patterns = QLineEdit()
-        self.fr_patterns.setPlaceholderText("stim1=Spatial 1, stim3=Spatial 3")
-        self.fr_patterns.setToolTip(
-            "The stimulation conditions, comma-separated, each as token=legend "
-            "name (or just the token). Recordings of any other condition are "
-            "ignored.")
-        self.fr_require_all = QCheckBox("Only slices recorded under every pattern")
-        self.fr_require_all.setToolTip(
-            "When ticked a slice needs its baseline and every pattern above to "
-            "be plotted; when not, its baseline and any one of them will do.")
-        self.fr_grounded = QLineEdit()
-        self.fr_grounded.setToolTip(
-            "Channels left out of every comparison, e.g. a grounded reference "
-            "electrode. Comma-separated channel IDs.")
-        self.fr_stimulating = QLineEdit()
-        self.fr_stimulating.setToolTip(
-            "The stimulating electrodes, left out of every pattern: they read "
-            "0 Hz by design. Comma-separated channel IDs.")
-        fform.addRow("Baseline condition", self.fr_baseline)
-        fform.addRow("Stimulation patterns", self.fr_patterns)
-        fform.addRow("", self.fr_require_all)
-        fform.addRow("Grounded channels", self.fr_grounded)
-        fform.addRow("Stimulating channels", self.fr_stimulating)
-
-        for box in (mode_box, det_box, an_box, sig_box, fr_box):
+        for box in (mode_box, det_box, an_box, sig_box):
             layout.addWidget(box)
         layout.addStretch()
 
@@ -164,11 +125,6 @@ class StimPanel(QWidget):
         self.stim_dur_plot.setValue(params.stim_duration_for_plotting)
         self.n_shuffles.setValue(params.stim_n_shuffles)
         self.shuffle_alpha.setValue(params.stim_shuffle_alpha)
-        self.fr_baseline.setText(params.fr_diff_baseline)
-        self.fr_patterns.setText(format_patterns(params.fr_diff_patterns))
-        self.fr_require_all.setChecked(params.fr_diff_require_all_patterns)
-        self.fr_grounded.setText(format_channels(params.fr_diff_grounded_channels))
-        self.fr_stimulating.setText(format_channels(params.fr_diff_stimulating_channels))
         self._on_method_changed(self.method.currentText())
 
     def save(self, params: Params) -> None:
@@ -187,37 +143,6 @@ class StimPanel(QWidget):
         params.stim_duration_for_plotting = self.stim_dur_plot.value()
         params.stim_n_shuffles = self.n_shuffles.value()
         params.stim_shuffle_alpha = self.shuffle_alpha.value()
-        params.fr_diff_baseline = self.fr_baseline.text().strip()
-        params.fr_diff_patterns = parse_patterns(self.fr_patterns.text())
-        params.fr_diff_require_all_patterns = self.fr_require_all.isChecked()
-        params.fr_diff_grounded_channels = parse_channels(self.fr_grounded.text())
-        params.fr_diff_stimulating_channels = parse_channels(self.fr_stimulating.text())
-
-
-def format_patterns(patterns: dict[str, str]) -> str:
-    """``{"stim1": "Spatial 1"}`` as ``stim1=Spatial 1``; a bare token when unlabelled."""
-    return ", ".join(t if not label or label == t else f"{t}={label}"
-                     for t, label in (patterns or {}).items())
-
-
-def parse_patterns(text: str) -> dict[str, str]:
-    """``stim1=Spatial 1, stim3`` as ``{"stim1": "Spatial 1", "stim3": "stim3"}``."""
-    patterns = {}
-    for item in text.split(","):
-        token, _, label = item.partition("=")
-        token, label = token.strip(), label.strip()
-        if token:
-            patterns[token] = label or token
-    return patterns
-
-
-def format_channels(channels) -> str:
-    return ", ".join(str(int(c)) for c in channels or ())
-
-
-def parse_channels(text: str) -> list[int]:
-    """Every whole number in ``text``, in order, once: ``"21, 31 41"`` -> [21, 31, 41]."""
-    return list(dict.fromkeys(int(n) for n in re.findall(r"\d+", text)))
 
 
 def _dspin(lo: float, hi: float, decimals: int, val: float, suffix: str = "") -> QDoubleSpinBox:
