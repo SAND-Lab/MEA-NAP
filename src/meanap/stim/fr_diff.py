@@ -50,7 +50,8 @@ from natsort import natsort_keygen
 
 __all__ = [
     "FrDiffConfig", "Record", "Diff", "Excluded", "Panel", "Unpaired", "Note",
-    "FrDiffResult", "compute_fr_diff", "compute_fr_diff_csv", "load_records",
+    "FrDiffResult", "compute_fr_diff", "compute_fr_diff_csv", "fr_diff_table",
+    "TABLE_COLUMNS", "load_records",
     "build_panels", "describe", "format_note", "parse_run", "parse_slice",
     "parse_condition", "pct_diff", "log2_ratio", "multi_run", "panel_title",
     "EXCLUDED_GROUNDED", "EXCLUDED_STIMULATING", "EXCLUDED_ZERO_BASE",
@@ -516,6 +517,44 @@ def compute_fr_diff(table: pd.DataFrame, config: FrDiffConfig | None = None) -> 
 def compute_fr_diff_csv(path: Path | str, config: FrDiffConfig | None = None) -> FrDiffResult:
     """:func:`compute_fr_diff` on a ``NeuronalActivity_NodeLevel.csv`` on disk."""
     return compute_fr_diff(pd.read_csv(path, encoding="utf-8-sig"), config)
+
+
+TABLE_COLUMNS = [
+    "Run", "Slice", "Organoid", "Grp", "Channel", "Pattern", "PatternLabel",
+    "BaseFile", "StimFile", "BaseFR", "StimFR", "PctChange", "Log2Ratio", "Excluded",
+]
+
+
+def fr_diff_table(result: FrDiffResult) -> pd.DataFrame:
+    """Every paired reading as one row per slice x channel x pattern.
+
+    Excluded readings are kept, with ``Excluded`` saying why and no change
+    computed; plotted ones have an empty ``Excluded``. ``Log2Ratio`` is NaN
+    where the stim reading is 0 Hz (its log is -inf; ``PctChange`` is -100).
+    """
+    config = result.config
+    rows = []
+    for i, p in enumerate(result.panels):
+        base = dict(_i=i, Run=p.run, Slice=p.slice, Organoid=p.organoid, Grp=p.grp,
+                    BaseFile=p.base_file)
+        for d in p.diffs:
+            rows.append(dict(base, Channel=d.channel, Pattern=d.stim,
+                             PatternLabel=config.label(d.stim), StimFile=p.stim_files[d.stim],
+                             BaseFR=d.base_fr, StimFR=d.stim_fr, PctChange=d.pct,
+                             Log2Ratio=math.nan if d.log2 is None else d.log2, Excluded=""))
+        for e in p.excluded:
+            for token, stim_fr in e.readings:
+                rows.append(dict(base, Channel=e.channel, Pattern=token,
+                                 PatternLabel=config.label(token), StimFile=p.stim_files[token],
+                                 BaseFR=e.base_fr, StimFR=stim_fr, PctChange=math.nan,
+                                 Log2Ratio=math.nan, Excluded=e.reason))
+    # Panel order is already natural (CT2A before CT10A); within a panel, by
+    # channel and then in legend order.
+    table = pd.DataFrame(rows, columns=["_i", *TABLE_COLUMNS])
+    order = {t: i for i, t in enumerate(config.stims)}
+    return (table.assign(_p=table["Pattern"].map(order))
+            .sort_values(["_i", "Channel", "_p"], kind="stable")
+            .drop(columns=["_i", "_p"]).reset_index(drop=True))
 
 
 # ── description ──────────────────────────────────────────────────────────────
