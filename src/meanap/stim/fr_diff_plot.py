@@ -20,7 +20,7 @@ from pathlib import Path
 import numpy as np
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
-from matplotlib.ticker import FuncFormatter
+from matplotlib.ticker import FuncFormatter, ScalarFormatter
 
 from .fr_diff import Diff, FrDiffResult, Panel, multi_run, panel_title
 
@@ -140,6 +140,20 @@ def _ticks(channels: list[int], excluded: set[int], budget: int) -> list[int]:
     return [c for c in channels if c in keep]
 
 
+def _y_formatter(log: bool):
+    """Plain ticks for log2; for %, short ticks under one ×10ⁿ for the axis.
+
+    Percentages under stimulation run to the hundreds and thousands, so the
+    exponent is factored out rather than repeated on every tick; the % stays
+    in the axis title.
+    """
+    if log:
+        return FuncFormatter(lambda v, _: f"{v:g}")
+    fmt = ScalarFormatter(useMathText=True)
+    fmt.set_powerlimits((0, 0))
+    return fmt
+
+
 def _style(ax) -> None:
     ax.set_facecolor("white")
     for side in ("top", "right"):
@@ -205,7 +219,6 @@ def draw_fr_diff(
     finite = lambda ds: [v for v in (_y(d, log) for d in ds) if v is not None]  # noqa: E731
     any_silent = lambda ds: log and any(d.log2 is None for d in ds)            # noqa: E731
     shared = _y_range(finite(all_points), log, any_silent(all_points)) if same_y else None
-    fmt = FuncFormatter(lambda v, _: f"{v:g}" if log else f"{v:g}%")
     tick_size = 10 if single else 9
     budget = 10**9 if single else (16 if ncols <= 2 else 10)
 
@@ -261,7 +274,7 @@ def draw_fr_diff(
                 label.set_color(EXCLUDED_COLOR)
         ax.set_xlim(-0.7, len(channels) - 0.3)
         ax.set_ylim(lo, hi)
-        ax.yaxis.set_major_formatter(fmt)
+        ax.yaxis.set_major_formatter(_y_formatter(log))
         ax.tick_params(axis="y", labelsize=tick_size)
 
         if i + ncols >= n:
@@ -272,7 +285,8 @@ def draw_fr_diff(
         # With one panel the slice is already named wherever it was chosen, so
         # a title on top of it is noise.
         if not single:
-            ax.set_title(panel_title(panel, multi), loc="left", fontsize=12,
+            # Centred: the % axis's ×10ⁿ sits at the top left of the panel.
+            ax.set_title(panel_title(panel, multi), loc="center", fontsize=12,
                          color=TITLE_COLOR, pad=6)
 
     handles = [Line2D([], [], linestyle="", marker="o", markersize=6, alpha=0.8,

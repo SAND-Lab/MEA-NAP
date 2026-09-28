@@ -1,26 +1,25 @@
-"""Did stimulation change how each slice fired?
+"""Did stimulation change how each ALI-CO fired?
 
 A window for browsing a finished MEA-Stim run's firing-rate change from
-baseline. Each slice's firing rate under every stimulation pattern is compared,
-channel by channel, with that slice's own baseline recording (see
-:mod:`meanap.stim.fr_diff`), and drawn as one panel per slice by the same code
-that draws the pipeline's saved ``StimFRDiff`` figures
-(:mod:`meanap.stim.fr_diff_plot`).
+baseline. Each ALI-CO's (air-liquid interface cerebral organoid slice) firing
+rate under every stimulation pattern is compared, channel by channel, with its
+own baseline recording (see :mod:`meanap.stim.fr_diff`, which calls them
+slices), and drawn as one panel per ALI-CO by the same code that draws the
+pipeline's saved ``StimFRDiff`` figures (:mod:`meanap.stim.fr_diff_plot`).
 
 Port of the lab's browser viewer, ``fr_diff_viewer.html``, with the room a
-window gives it: the slices are a list to step through rather than a
-drop-down, clicking a panel in the grid opens that slice, the pattern
+window gives it: clicking a panel in the grid opens that ALI-CO, the pattern
 checkboxes are the legend, and hovering a dot says what it came from.
 
-Which slices did *not* pair, and why, is as much the answer as the plot, so
+Which ALI-COs did *not* pair, and why, is as much the answer as the plot, so
 the pairing details sit in the side column rather than in a log, and unpaired
-slices are listed — greyed, with their reason — among the ones that did.
+ALI-COs are listed, disabled and with their reason, among the ones that did.
 
-The protocol (which condition is the baseline, which are patterns, which
-channels to leave out) defaults to the lab's and is editable here, for this
-window only: a run whose files are named differently can be looked at without
-changing anything the pipeline reads. The pipeline's own ``StimFRDiff`` files
-always use the defaults.
+The parameters (which condition is the baseline, which are patterns, which
+channels to leave out) default to the lab's and are editable here, for this
+window only and only once applied: a run whose files are named differently can
+be looked at without changing anything the pipeline reads. The pipeline's own
+``StimFRDiff`` files always use the defaults.
 """
 
 from __future__ import annotations
@@ -31,11 +30,11 @@ from pathlib import Path
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal
-from PyQt6.QtGui import QCursor
+from PyQt6.QtGui import QCursor, QStandardItem, QStandardItemModel
 from PyQt6.QtWidgets import (
     QAbstractScrollArea, QApplication, QCheckBox, QComboBox, QDialog, QFileDialog, QFormLayout, QGroupBox,
-    QHBoxLayout, QLabel, QLineEdit, QListWidget, QListWidgetItem, QPlainTextEdit,
-    QPushButton, QScrollArea, QSplitter, QToolTip, QVBoxLayout, QWidget,
+    QHBoxLayout, QLabel, QLineEdit, QPlainTextEdit,
+    QPushButton, QScrollArea, QSizePolicy, QSplitter, QToolTip, QVBoxLayout, QWidget,
 )
 
 from meanap.gui.advanced import AdvancedSection
@@ -55,12 +54,12 @@ __all__ = [
 ]
 
 NODE_CSV = "NeuronalActivity_NodeLevel.csv"
-ALL_SLICES = "All slices"
+ALL_ALICOS = "All ALI-COs"
 #: Below these plot widths (px) the grid drops to two columns, then one, so
 #: panels stay readable instead of shrinking to fit.
 _TWO_COLUMNS_BELOW = 1100
 _ONE_COLUMN_BELOW = 700
-_SINGLE_MIN_H = 460          # px: the single-slice view fills the plot area, but no less
+_SINGLE_MIN_H = 460          # px: the single-ALI-CO view fills the plot area, but no less
 _UNBOUNDED = 16777215        # QWIDGETSIZE_MAX
 _MINUS = "−"
 
@@ -100,6 +99,25 @@ def format_channels(channels) -> str:
 def parse_channels(text: str) -> list[int]:
     """Every whole number in ``text``, in order, once: ``"21, 31 41"`` -> [21, 31, 41]."""
     return list(dict.fromkeys(int(n) for n in re.findall(r"\d+", text)))
+
+
+def _checkbox(text: str) -> QCheckBox:
+    """A checkbox as wide as its own box and text.
+
+    Stretched across a form row, its focus and hover highlight would run the
+    whole width of the column instead of marking the box.
+    """
+    box = QCheckBox(text)
+    box.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
+    return box
+
+
+def _entry(text: str, panel_id: str | None, tooltip: str = "") -> QStandardItem:
+    item = QStandardItem(text)
+    item.setData(panel_id, Qt.ItemDataRole.UserRole)
+    if tooltip:
+        item.setToolTip(tooltip)
+    return item
 
 
 def _fmt_pct(v: float) -> str:
@@ -144,7 +162,7 @@ class _Canvas(FigureCanvasQTAgg):
 
 
 class FrDiffViewerWindow(QDialog):
-    """Browse each slice's per-channel firing-rate change from its own baseline.
+    """Browse each ALI-CO's per-channel firing-rate change from its own baseline.
 
     Non-modal, and reopened rather than rebuilt, like the spike and burst
     viewer: it is a workspace kept beside the main window.
@@ -172,7 +190,9 @@ class FrDiffViewerWindow(QDialog):
         splitter.addWidget(scrollable(self._build_controls()))
         splitter.addWidget(self._build_plot())
         splitter.setStretchFactor(1, 1)
-        splitter.setSizes([340, 1060])
+        # Wide enough for the Parameters form, whose longest row is the checkbox
+        # sitting in its field column.
+        splitter.setSizes([420, 980])
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(8, 8, 8, 8)
@@ -189,7 +209,7 @@ class FrDiffViewerWindow(QDialog):
         self.canvas.mpl_connect("motion_notify_event", self._on_hover)
         self.canvas.mpl_connect("button_press_event", self._on_click)
 
-        self._load_protocol(self._config)
+        self._load_parameters(self._config)
         self.set_source(None)
         # Closing the window only hides it (it is reopened, not rebuilt), and
         # the plot may still re-read the bundle's CSV after that, so its
@@ -205,9 +225,9 @@ class FrDiffViewerWindow(QDialog):
         layout = QVBoxLayout(column)
         layout.setContentsMargins(4, 4, 8, 4)
         layout.addWidget(self._build_run_box())
-        layout.addWidget(self._build_slices_box(), stretch=2)
         layout.addWidget(self._build_view_box())
-        layout.addWidget(self._build_protocol())
+        layout.addWidget(self._build_alico_box())
+        layout.addWidget(self._build_parameters())
         layout.addWidget(self._build_details_box(), stretch=1)
         return column
 
@@ -234,18 +254,6 @@ class FrDiffViewerWindow(QDialog):
         layout.addWidget(self.summary_label)
         return box
 
-    def _build_slices_box(self) -> QWidget:
-        box = QGroupBox("Slices")
-        layout = QVBoxLayout(box)
-        self.slice_list = QListWidget()
-        self.slice_list.setToolTip(
-            "Choose a slice to see it on its own, or All slices for the grid. "
-            "The arrow keys step through them; clicking a panel in the grid "
-            "opens that slice too. Greyed slices did not pair — hover for why.")
-        self.slice_list.currentRowChanged.connect(self._on_view_changed)
-        layout.addWidget(self.slice_list)
-        return box
-
     def _build_view_box(self) -> QWidget:
         box = QGroupBox("View")
         form = QFormLayout(box)
@@ -260,10 +268,10 @@ class FrDiffViewerWindow(QDialog):
         self.measure_combo.currentIndexChanged.connect(self._on_view_changed)
         form.addRow("Measure", self.measure_combo)
 
-        self.same_y = QCheckBox("Same y-axis for all panels")
+        self.same_y = _checkbox("Same y-axis for all panels")
         self.same_y.setChecked(True)
         self.same_y.setToolTip(
-            "One shared range keeps a +10% slice from looking like a +900% one. "
+            "One shared range keeps a +10% ALI-CO from looking like a +900% one. "
             "Untick to scale each panel to its own data.")
         self.same_y.toggled.connect(self._on_view_changed)
         form.addRow(self.same_y)
@@ -279,35 +287,48 @@ class FrDiffViewerWindow(QDialog):
         self.export_btn = QPushButton("Export…")
         self.export_btn.setObjectName("secondary")
         self.export_btn.setToolTip(
-            f"Save the view as it is now — the slices, measure and patterns "
+            f"Save the view as it is now — the ALI-COs, measure and patterns "
             f"shown — as PNG ({SAVE_DPI} dpi), SVG or PDF, with a legend.")
         self.export_btn.clicked.connect(self._on_export)
         form.addRow(self.export_btn)
         return box
 
-    def _build_protocol(self) -> QWidget:
-        section = AdvancedSection("Protocol")
+    def _build_alico_box(self) -> QWidget:
+        box = QGroupBox("ALI-CO")
+        layout = QVBoxLayout(box)
+        self.alico_combo = QComboBox()
+        self.alico_combo.setModel(QStandardItemModel(self.alico_combo))
+        self.alico_combo.setToolTip(
+            "Choose an ALI-CO to see it on its own, or All ALI-COs for the grid; "
+            "clicking a panel in the grid opens that ALI-CO too. Entries marked "
+            "not paired have no panel: hover them for why.")
+        self.alico_combo.currentIndexChanged.connect(self._on_view_changed)
+        layout.addWidget(self.alico_combo)
+        return box
+
+    def _build_parameters(self) -> QWidget:
+        section = AdvancedSection("Parameters")
         section.header.setToolTip(
             "Which recordings are compared with which, read from the file "
             "names, and which channels say nothing about the tissue. Changes "
-            "here re-pair at once and last while this window is open; the "
+            "take effect when applied and last while this window is open; the "
             "pipeline's own StimFRDiff files use the lab defaults.")
         form = section.form()
         self.baseline_edit = QLineEdit()
         self.baseline_edit.setToolTip(
             "The condition of the baseline recording: the token after DIV<n>_ in "
             "its file name, e.g. prestim in R250929CT1A_DIV250_prestim. Each "
-            "slice's stimulated recordings are compared with its own baseline, "
-            "matched on the run ID and slice (R250929 and CT1A).")
+            "ALI-CO's stimulated recordings are compared with its own baseline, "
+            "matched on the run ID and the ALI-CO (R250929 and CT1A).")
         self.patterns_edit = QLineEdit()
         self.patterns_edit.setPlaceholderText("stim1=Spatial 1, stim3=Spatial 3")
         self.patterns_edit.setToolTip(
             "The stimulation conditions, comma-separated, each as token=legend "
             "name (or just the token). Recordings of any other condition are "
             "ignored.")
-        self.require_all = QCheckBox("Only slices recorded under every pattern")
+        self.require_all = _checkbox("Only ALI-COs recorded under every pattern")
         self.require_all.setToolTip(
-            "When ticked a slice needs its baseline and every pattern above to "
+            "When ticked an ALI-CO needs its baseline and every pattern above to "
             "be plotted; when not, its baseline and any one of them will do.")
         self.grounded_edit = QLineEdit()
         self.grounded_edit.setToolTip(
@@ -317,22 +338,41 @@ class FrDiffViewerWindow(QDialog):
         self.stimulating_edit.setToolTip(
             "The stimulating electrodes, left out of every pattern: they read "
             "0 Hz by design. Comma-separated channel IDs.")
-        self.reset_protocol_btn = QPushButton("Reset to lab defaults")
-        self.reset_protocol_btn.clicked.connect(
-            lambda: (self._load_protocol(FrDiffConfig()), self._on_protocol_edited()))
+
+        # Nothing re-pairs until Apply: otherwise a half-typed baseline empties
+        # the plot the moment the field loses focus.
+        self.apply_btn = QPushButton("Apply")
+        self.apply_btn.setObjectName("primary")
+        self.apply_btn.setToolTip("Re-pair the run with these parameters.")
+        self.apply_btn.clicked.connect(self._on_apply_parameters)
+        self.reset_parameters_btn = QPushButton("Reset to lab defaults")
+        self.reset_parameters_btn.setObjectName("secondary")
+        self.reset_parameters_btn.setToolTip(
+            "Put the lab's parameters back in the fields; Apply to use them.")
+        self.reset_parameters_btn.clicked.connect(
+            lambda: self._load_parameters(FrDiffConfig()))
+        buttons = QHBoxLayout()
+        buttons.addWidget(self.apply_btn)
+        buttons.addWidget(self.reset_parameters_btn)
+        buttons.addStretch(1)
+        self.pending_label = QLabel("Unapplied changes")
+        self.pending_label.setStyleSheet("color: gray; font-size: 11px;")
 
         form.addRow("Baseline", self.baseline_edit)
         form.addRow("Patterns", self.patterns_edit)
-        form.addRow(self.require_all)
+        # In the field column, under the Patterns box it qualifies.
+        form.addRow("", self.require_all)
         form.addRow("Grounded", self.grounded_edit)
         form.addRow("Stimulating", self.stimulating_edit)
-        form.addRow(self.reset_protocol_btn)
+        form.addRow(buttons)
+        form.addRow(self.pending_label)
 
         for edit in (self.baseline_edit, self.patterns_edit, self.grounded_edit,
                      self.stimulating_edit):
-            edit.editingFinished.connect(self._on_protocol_edited)
-        self.require_all.toggled.connect(self._on_protocol_edited)
-        self.protocol_section = section
+            edit.textChanged.connect(self._on_parameters_edited)
+        self.require_all.toggled.connect(self._on_parameters_edited)
+        self.parameters_section = section
+        self.parameters_form = form
         return section
 
     def _build_details_box(self) -> QWidget:
@@ -341,12 +381,12 @@ class FrDiffViewerWindow(QDialog):
         self.details = QPlainTextEdit()
         self.details.setReadOnly(True)
         self.details.setObjectName("log")
-        # One slice per line, as in the pipeline's pairing file: wrapped, a
-        # slice's exclusions run into the next slice's name.
+        # One ALI-CO per line, as in the pipeline's pairing file: wrapped, one
+        # ALI-CO's exclusions run into the next one's name.
         self.details.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
         self.details.setMinimumHeight(120)
         self.details.setToolTip(
-            "Which slices were plotted, which were not and why, and anything "
+            "Which ALI-COs were plotted, which were not and why, and anything "
             "else worth knowing about the recordings — the same text the "
             "pipeline writes to StimFRDiff_pairing.txt.")
         layout.addWidget(self.details)
@@ -397,7 +437,7 @@ class FrDiffViewerWindow(QDialog):
 
     def set_config(self, config: FrDiffConfig) -> None:
         """Use ``config`` from now on, showing it and re-pairing if it changed."""
-        self._load_protocol(config)
+        self._load_parameters(config)
         self._apply_config(config)
 
     def set_source(self, source: Path | None) -> None:
@@ -478,10 +518,10 @@ class FrDiffViewerWindow(QDialog):
         self.summary_label.setText(self._summary(result))
         self._show_result(result)
 
-    # ── protocol ─────────────────────────────────────────────────────────────
+    # ── parameters ───────────────────────────────────────────────────────────
 
-    def _load_protocol(self, config: FrDiffConfig) -> None:
-        """Show ``config`` in the Protocol fields, without re-pairing."""
+    def _load_parameters(self, config: FrDiffConfig) -> None:
+        """Show ``config`` in the Parameters fields, without re-pairing."""
         widgets = (self.baseline_edit, self.patterns_edit, self.require_all,
                    self.grounded_edit, self.stimulating_edit)
         for w in widgets:
@@ -496,6 +536,7 @@ class FrDiffViewerWindow(QDialog):
         self.stimulating_edit.setText(format_channels(driven))
         for w in widgets:
             w.blockSignals(False)
+        self._on_parameters_edited()
 
     def _config_from_fields(self) -> FrDiffConfig:
         patterns = parse_patterns(self.patterns_edit.text())
@@ -508,8 +549,18 @@ class FrDiffViewerWindow(QDialog):
             require_all_patterns=self.require_all.isChecked(),
         )
 
-    def _on_protocol_edited(self, *_args) -> None:
+    def has_unapplied_parameters(self) -> bool:
+        return self._config_from_fields() != self._config
+
+    def _on_parameters_edited(self, *_args) -> None:
+        """Offer Apply only while the fields say something other than what is in use."""
+        pending = self.has_unapplied_parameters()
+        self.apply_btn.setEnabled(pending)
+        self.pending_label.setVisible(pending)
+
+    def _on_apply_parameters(self) -> None:
         self._apply_config(self._config_from_fields())
+        self._on_parameters_edited()
 
     def _apply_config(self, config: FrDiffConfig) -> None:
         if config == self._config:
@@ -531,7 +582,7 @@ class FrDiffViewerWindow(QDialog):
             notes = [line for note in result.notes for line in format_note(note, 20)]
             self.details.setPlainText("\n".join(describe(result) + ([""] + notes
                                                                    if notes else [])))
-        self._fill_slices(result)
+        self._fill_alicos(result)
         self._fill_patterns(result)
         self._redraw()
 
@@ -539,49 +590,48 @@ class FrDiffViewerWindow(QDialog):
         cfg = result.config
         total = len(result.panels) + len(result.unpaired)
         patterns = ", ".join(cfg.label(t) for t in cfg.stims) or "no patterns set"
-        text = (f"<b>{len(result.panels)} of {total} slice(s) plotted</b> — each "
+        text = (f"<b>{len(result.panels)} of {total} ALI-CO(s) plotted</b> — each "
                 f"compared with its own <i>{cfg.baseline or '(no baseline set)'}</i> "
                 f"recording under {patterns}.")
         if not result.panels:
-            text += (f"<br>Nothing paired. A slice needs a <i>{cfg.baseline}</i> recording "
+            text += (f"<br>Nothing paired. An ALI-CO needs a <i>{cfg.baseline}</i> recording "
                      f"and {'every one' if cfg.require_all_patterns else 'at least one'} of "
-                     f"its patterns with the same run ID and slice, e.g. "
-                     f"R250929CT1A_DIV250_{cfg.baseline}. Check the Protocol section "
+                     f"its patterns with the same run ID and ALI-CO, e.g. "
+                     f"R250929CT1A_DIV250_{cfg.baseline}. Check the Parameters section "
                      f"against the file names.")
         if result.notes:
             text += f" {len(result.notes)} note(s) under Pairing details."
         return text
 
-    def _fill_slices(self, result: FrDiffResult | None) -> None:
+    def _fill_alicos(self, result: FrDiffResult | None) -> None:
         keep = self._selected()
-        self.slice_list.blockSignals(True)
-        self.slice_list.clear()
+        combo = self.alico_combo
+        model = combo.model()
+        combo.blockSignals(True)
+        model.clear()
         if result is not None and result.panels:
             multi = multi_run(result.panels)
-            all_item = QListWidgetItem(ALL_SLICES)
-            all_item.setData(Qt.ItemDataRole.UserRole, None)
-            self.slice_list.addItem(all_item)
+            model.appendRow(_entry(ALL_ALICOS, None))
             for p in result.panels:
-                item = QListWidgetItem(panel_title(p, multi))
-                item.setData(Qt.ItemDataRole.UserRole, p.id)
-                item.setToolTip(f"{p.run} {p.slice} ({p.grp}): {p.base_file} and "
-                                f"{len(p.stim_files)} stimulated recording(s)")
-                self.slice_list.addItem(item)
-            # Listed where they would be browsed, so a missing slice is noticed
+                model.appendRow(_entry(
+                    panel_title(p, multi), p.id,
+                    f"{p.run} {p.slice} ({p.grp}): {p.base_file} and "
+                    f"{len(p.stim_files)} stimulated recording(s)"))
+            # Listed where they would be chosen, so a missing ALI-CO is noticed
             # rather than silently absent from the grid.
             for u in sorted(result.unpaired, key=lambda u: (u.run, u.slice)):
                 label = f"{u.run} {u.slice}" if multi or not u.slice else u.slice
-                item = QListWidgetItem(f"{label}  — not paired")
-                item.setFlags(Qt.ItemFlag.NoItemFlags)
                 reason = (f"incomplete: no {', '.join(u.missing)}" if u.missing
                           else u.reason)
-                item.setToolTip(f"{u.run} {u.slice}: {', '.join(u.conditions)} ({reason})")
-                self.slice_list.addItem(item)
-            row = next((i for i in range(self.slice_list.count())
-                        if self.slice_list.item(i).data(Qt.ItemDataRole.UserRole) == keep
-                        and self.slice_list.item(i).flags() & Qt.ItemFlag.ItemIsEnabled), 0)
-            self.slice_list.setCurrentRow(row)
-        self.slice_list.blockSignals(False)
+                item = _entry(f"{label}  — not paired", None,
+                              f"{u.run} {u.slice}: {', '.join(u.conditions)} ({reason})")
+                item.setEnabled(False)
+                model.appendRow(item)
+            row = next((i for i in range(model.rowCount())
+                        if model.item(i).isEnabled()
+                        and model.item(i).data(Qt.ItemDataRole.UserRole) == keep), 0)
+            combo.setCurrentIndex(row)
+        combo.blockSignals(False)
 
     def _fill_patterns(self, result: FrDiffResult | None) -> None:
         hidden = self._hidden()
@@ -597,7 +647,7 @@ class FrDiffViewerWindow(QDialog):
         for token in result.config.stims:
             if token not in present:
                 continue
-            box = QCheckBox(result.config.label(token))
+            box = _checkbox(result.config.label(token))
             box.setChecked(token not in hidden)
             box.setToolTip(f"Show {token} in every panel.")
             box.setStyleSheet(f"QCheckBox {{ color: {colors[token]}; font-weight: 600; }}")
@@ -609,14 +659,12 @@ class FrDiffViewerWindow(QDialog):
         return {t for t, box in self._pattern_boxes.items() if not box.isChecked()}
 
     def _selected(self) -> str | None:
-        item = self.slice_list.currentItem()
-        return item.data(Qt.ItemDataRole.UserRole) if item is not None else None
+        return self.alico_combo.currentData(Qt.ItemDataRole.UserRole)
 
-    def select_slice(self, panel_id: str | None) -> None:
-        for i in range(self.slice_list.count()):
-            if self.slice_list.item(i).data(Qt.ItemDataRole.UserRole) == panel_id:
-                self.slice_list.setCurrentRow(i)
-                return
+    def select_alico(self, panel_id: str | None) -> None:
+        index = self.alico_combo.findData(panel_id, Qt.ItemDataRole.UserRole)
+        if index >= 0:
+            self.alico_combo.setCurrentIndex(index)
 
     def _measure(self) -> str:
         return self.measure_combo.currentData() or "pct"
@@ -655,7 +703,7 @@ class FrDiffViewerWindow(QDialog):
             return
 
         # The grid's height is set by its rows, not the window: the canvas asks
-        # for exactly that and the scroll area scrolls. One slice fills the view.
+        # for exactly that and the scroll area scrolls. One ALI-CO fills the view.
         ncols = self._columns()
         if n > 1:
             px_per_in = fig.dpi / self.canvas.device_pixel_ratio
@@ -680,7 +728,7 @@ class FrDiffViewerWindow(QDialog):
         result = self._result
         panels = [p for p in result.panels if self._selected() in (None, p.id)]
         log = self._measure() == "log2"
-        parts = [f"{len(panels)} slice{'' if len(panels) == 1 else 's'}"]
+        parts = [f"{len(panels)} ALI-CO{'' if len(panels) == 1 else 's'}"]
         stim_only = sum(len(p.missing_base) for p in panels)
         if stim_only:
             parts.append(f"{stim_only} stim-only channel(s)")
@@ -724,12 +772,12 @@ class FrDiffViewerWindow(QDialog):
                 f"{cfg.baseline} {d.base_fr:.4g} Hz → stim {d.stim_fr:.4g} Hz")
 
     def _on_click(self, event) -> None:
-        """A click on a panel in the grid opens that slice on its own."""
+        """A click on a panel in the grid opens that ALI-CO on its own."""
         if self._selected() is not None or event.inaxes is None:
             return
         panel = self._drawing.panels.get(event.inaxes)
         if panel is not None:
-            self.select_slice(panel.id)
+            self.select_alico(panel.id)
 
     def _on_export(self) -> None:
         if self._result is None or not self._result.panels:
