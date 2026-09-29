@@ -18,6 +18,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
+from matplotlib.collections import PolyCollection
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 from matplotlib.ticker import FuncFormatter, ScalarFormatter
@@ -33,7 +34,9 @@ __all__ = [
 #: Pattern colours, in pattern order (the lab scripts' categorical palette).
 PALETTE = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100",
            "#e87ba4", "#008300", "#4a3aa7", "#e34948"]
-EXCLUDED_COLOR = "#e34948"     # excluded channel numbers on the x axis, nothing else
+EXCLUDED_COLOR = "#e34948"     # excluded channel numbers on the x axis
+EXCLUDED_BAND_COLOR = "#fbe4e3"  # an excluded channel's column: a tint of EXCLUDED_COLOR
+BAND_COLOR = "#f3f2ef"         # every other channel's column, so a dot's column is plain
 GRID_COLOR = "#e4e3df"
 INK_COLOR = "#52514e"
 TITLE_COLOR = "#0b0b0b"
@@ -138,6 +141,25 @@ def _ticks(channels: list[int], excluded: set[int], budget: int) -> list[int]:
             continue
         keep.add(c)
     return [c for c in channels if c in keep]
+
+
+def _column_bands(ax, channels: list[int], excluded: set[int]) -> None:
+    """Shade every other channel's column, and every excluded one in light red.
+
+    The jitter spreads a channel's dots sideways, so on a dense panel which
+    channel a dot belongs to is not obvious; alternating bands give each
+    channel its own strip. One collection per panel, spanning the axes'
+    full height whatever the y range, beneath the grid lines and the dots.
+    """
+    verts, colors = [], []
+    for j, c in enumerate(channels):
+        if c in excluded or j % 2:
+            verts.append([(j - 0.5, 0), (j - 0.5, 1), (j + 0.5, 1), (j + 0.5, 0)])
+            colors.append(EXCLUDED_BAND_COLOR if c in excluded else BAND_COLOR)
+    if verts:
+        ax.add_collection(PolyCollection(
+            verts, facecolors=colors, linewidths=0, zorder=0,
+            transform=ax.get_xaxis_transform()), autolim=False)
 
 
 def _y_formatter(log: bool):
@@ -265,6 +287,7 @@ def draw_fr_diff(
 
         excluded = set(panel.unplotted)
         excluded_shown |= bool(excluded)
+        _column_bands(ax, channels, excluded)
         shown = _ticks(channels, excluded, budget)
         ax.set_xticks([pos[c] for c in shown])
         ax.set_xticklabels([str(c) for c in shown], fontsize=tick_size,
@@ -272,7 +295,8 @@ def draw_fr_diff(
         for label, c in zip(ax.get_xticklabels(), shown):
             if c in excluded:
                 label.set_color(EXCLUDED_COLOR)
-        ax.set_xlim(-0.7, len(channels) - 0.3)
+        # Edge to edge on the outer columns' bands.
+        ax.set_xlim(-0.5, len(channels) - 0.5)
         ax.set_ylim(lo, hi)
         ax.yaxis.set_major_formatter(_y_formatter(log))
         ax.tick_params(axis="y", labelsize=tick_size)
@@ -300,8 +324,8 @@ def draw_fr_diff(
     if caption:
         parts = []
         if excluded_shown:
-            parts.append("Channel numbers in red were excluded (grounded, stimulating, "
-                         "or 0 Hz at baseline).")
+            parts.append("Channel numbers in red are excluded "
+                         "(grounded/stimulating/0 Hz baseline).")
         if silent_shown:
             parts.append("▼ at a panel's foot: 0 Hz under that pattern "
                          "(log₂ = −∞).")

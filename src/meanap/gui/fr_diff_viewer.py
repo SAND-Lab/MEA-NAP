@@ -12,8 +12,9 @@ window gives it: clicking a panel in the grid opens that ALI-CO, the pattern
 checkboxes are the legend, and hovering a dot says what it came from.
 
 Which ALI-COs did *not* pair, and why, is as much the answer as the plot, so
-the pairing details sit in the side column rather than in a log, and unpaired
-ALI-COs are listed, disabled and with their reason, among the ones that did.
+the Pairing Details sit under the plot, full width, rather than in a log, and
+unpaired ALI-COs are listed, disabled and with their reason, among the ones
+that did.
 
 The parameters (which condition is the baseline, which are patterns, which
 channels to leave out) default to the lab's and are editable here, for this
@@ -37,7 +38,6 @@ from PyQt6.QtWidgets import (
     QPushButton, QScrollArea, QSizePolicy, QSplitter, QToolTip, QVBoxLayout, QWidget,
 )
 
-from meanap.gui.advanced import AdvancedSection
 from meanap.gui.widgets import scrollable
 from meanap.stim.fr_diff import (
     FrDiffConfig, FrDiffResult, compute_fr_diff_csv, describe, format_note,
@@ -54,13 +54,25 @@ __all__ = [
 ]
 
 NODE_CSV = "NeuronalActivity_NodeLevel.csv"
-ALL_ALICOS = "All ALI-COs"
+ALL_ALICOS = "All"
 #: Below these plot widths (px) the grid drops to two columns, then one, so
 #: panels stay readable instead of shrinking to fit.
 _TWO_COLUMNS_BELOW = 1100
 _ONE_COLUMN_BELOW = 700
 _SINGLE_MIN_H = 460          # px: the single-ALI-CO view fills the plot area, but no less
 _UNBOUNDED = 16777215        # QWIDGETSIZE_MAX
+#: px: the window's margin, and the clear space either side of the line
+#: between the controls and the plot, and above the one over Pairing Details.
+_GAP = 8
+#: px: the theme's gap from a group box's title to its frame. The line over
+#: Pairing Details sits the same distance above that title.
+_TITLE_GAP = 3
+#: Clear px (before, after) the 1 px line in each splitter's handle: centred
+#: between the controls and the plot; over Pairing Details, _GAP below the
+#: plot and _TITLE_GAP above the title, as far as the title is from its box.
+_HANDLES = {"horizontal": (_GAP, _GAP), "vertical": (_GAP, _TITLE_GAP)}
+_HAIRLINE = "rgb(218, 220, 224)"          # the theme's box borders
+_HAIRLINE_HOVER = "rgb(26, 115, 232)"     # the theme's handle hover
 _MINUS = "−"
 
 
@@ -120,9 +132,33 @@ def _entry(text: str, panel_id: str | None, tooltip: str = "") -> QStandardItem:
     return item
 
 
+def _hairline(across_x: bool, before: int, after: int, color: str) -> str:
+    """A 1 px ``color`` line with ``before`` and ``after`` clear px either side of it.
+
+    For a splitter handle ``before + 1 + after`` px wide, the gradient running
+    across it (along x for a handle between side-by-side widgets).
+    """
+    n = before + 1 + after
+    a, b = before / n, (before + 1) / n
+    x2, y2 = (1, 0) if across_x else (0, 1)
+    return (f"qlineargradient(x1:0, y1:0, x2:{x2}, y2:{y2}, stop:0 transparent, "
+            f"stop:{a:.4f} transparent, stop:{a + 0.0001:.4f} {color}, "
+            f"stop:{b - 0.0001:.4f} {color}, stop:{b:.4f} transparent, stop:1 transparent)")
+
+
+def _run_id_text(result: FrDiffResult | None) -> str:
+    """**Run ID: R250929**, from the file names of every ALI-CO, paired or not."""
+    runs = sorted({x.run for x in (result.panels + result.unpaired) if x.run}
+                  if result is not None else ())
+    if not runs:
+        return "<b>Run ID: unknown</b>"
+    return f"<b>Run ID{'s' if len(runs) > 1 else ''}: {', '.join(runs)}</b>"
+
+
 def _fmt_pct(v: float) -> str:
+    """A percentage without its ``%``: the status line puts the unit after the range."""
     sign = "+" if v >= 0 else _MINUS
-    return f"{sign}{abs(v):.{1 if abs(v) < 10 else 0}f}%"
+    return f"{sign}{abs(v):.{1 if abs(v) < 10 else 0}f}"
 
 
 def _fmt_log(v: float) -> str:
@@ -175,6 +211,29 @@ class FrDiffViewerWindow(QDialog):
         # keep beside the main window, minimised and resized.
         self.setWindowFlags(Qt.WindowType.Window)
         self.setMinimumSize(1000, 640)
+        # Panel titles 2 px in from their boxes' left edges; the theme indents
+        # them further, but a window of stacked panels reads better as one column.
+        #
+        # The theme also spaces things out unseen: a 1 px frame on every
+        # splitter, a 1 px margin on every scroll area (and a clear 1 px
+        # border on a frameless one), and margins on splitter handles. Left
+        # in, they put the edges and the handles' lines a few px off from
+        # where the margins here say. So they go, and the only spacing is
+        # this window's: _GAP at every outer edge, and the handles (see
+        # _handle), each a 1 px line in a handle wide enough to grab, blue
+        # on hover. Pairing Details' text box, without its 1 px, is the 5 px
+        # its layout gives it from the panel's frame.
+        self.setStyleSheet(
+            "QGroupBox::title { left: 2px; margin: 0px; padding: 0px; } "
+            "QSplitter { border: none; } "
+            "QSplitter::handle { margin: 0px; image: none; } "
+            "QScrollArea { margin: 0px; } "
+            "QScrollArea#controls { border: none; } "
+            "QPlainTextEdit#log { margin: 0px; } "
+            + "".join(f"QSplitter::handle:{o}{state} {{ background: "
+                      f"{_hairline(o == 'horizontal', *_HANDLES[o], color)}; }} "
+                      for o in _HANDLES
+                      for state, color in (("", _HAIRLINE), (":hover", _HAIRLINE_HOVER))))
         self.resize(1400, 900)
 
         self._source: Path | None = None
@@ -186,17 +245,31 @@ class FrDiffViewerWindow(QDialog):
         self._drawing = Drawing([], {})
         self._pattern_boxes: dict[str, QCheckBox] = {}
 
+        controls = scrollable(self._build_controls())
+        controls.setObjectName("controls")
         splitter = QSplitter(Qt.Orientation.Horizontal)
-        splitter.addWidget(scrollable(self._build_controls()))
+        splitter.addWidget(controls)
         splitter.addWidget(self._build_plot())
         splitter.setStretchFactor(1, 1)
+        splitter.setHandleWidth(sum(_HANDLES["horizontal"]) + 1)
         # Wide enough for the Parameters form, whose longest row is the checkbox
         # sitting in its field column.
         splitter.setSizes([420, 980])
 
+        # The pairing text runs one ALI-CO to a line, wider than the plot, so
+        # it spans the window under both the controls and the plot, edge to
+        # edge with them.
+        body = QSplitter(Qt.Orientation.Vertical)
+        body.addWidget(splitter)
+        body.addWidget(self._build_details_box())
+        body.setStretchFactor(0, 1)
+        body.setChildrenCollapsible(False)
+        body.setHandleWidth(sum(_HANDLES["vertical"]) + 1)
+        body.setSizes([720, 150])
+
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(8, 8, 8, 8)
-        layout.addWidget(splitter, 1)
+        layout.setContentsMargins(_GAP, _GAP, _GAP, _GAP)
+        layout.addWidget(body, 1)
         layout.addLayout(self._build_status_bar(), 0)
 
         # Resizing re-flows the grid; debounced so dragging the window edge
@@ -209,6 +282,7 @@ class FrDiffViewerWindow(QDialog):
         self.canvas.mpl_connect("motion_notify_event", self._on_hover)
         self.canvas.mpl_connect("button_press_event", self._on_click)
 
+        self._fit_parameter_fields()
         self._load_parameters(self._config)
         self.set_source(None)
         # Closing the window only hides it (it is reopened, not rebuilt), and
@@ -223,18 +297,23 @@ class FrDiffViewerWindow(QDialog):
     def _build_controls(self) -> QWidget:
         column = QWidget()
         layout = QVBoxLayout(column)
-        layout.setContentsMargins(4, 4, 8, 4)
+        # No margins: the boxes' edges are the column's, level with the plot's
+        # top and with Pairing Details on the left; the handle beside it
+        # holds the gap to the plot.
+        layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(self._build_run_box())
         layout.addWidget(self._build_view_box())
-        layout.addWidget(self._build_alico_box())
         layout.addWidget(self._build_parameters())
-        layout.addWidget(self._build_details_box(), stretch=1)
+        layout.addStretch(1)
         return column
 
     def _build_run_box(self) -> QWidget:
-        box = QGroupBox("Run")
+        # Untitled: the button and the run ID say what it is. Without a title
+        # the theme's room for one above the box is only a gap.
+        box = QGroupBox()
+        box.setStyleSheet("QGroupBox { margin-top: 0px; }")
         layout = QVBoxLayout(box)
-        self.choose_btn = QPushButton("\U0001f4c2  Choose run…")
+        self.choose_btn = QPushButton("\U0001f4c2  Choose Run…")
         self.choose_btn.setObjectName("secondary")
         self.choose_btn.setToolTip(
             "Pick a finished run's output folder, a .meanap bundle, or a "
@@ -246,20 +325,31 @@ class FrDiffViewerWindow(QDialog):
         self.source_label = QLabel()
         self.source_label.setWordWrap(True)
         self.source_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        self.source_label.setStyleSheet("font-size: 11px; color: gray;")
         layout.addWidget(self.source_label)
 
+        # Hidden while empty (see _set_summary): the box fits what it says,
+        # only the button and a line until a run is chosen.
         self.summary_label = QLabel()
         self.summary_label.setWordWrap(True)
+        self.summary_label.hide()
         layout.addWidget(self.summary_label)
         return box
 
     def _build_view_box(self) -> QWidget:
         box = QGroupBox("View")
         form = QFormLayout(box)
+        self.alico_combo = QComboBox()
+        self.alico_combo.setModel(QStandardItemModel(self.alico_combo))
+        self.alico_combo.setToolTip(
+            "Choose an ALI-CO to see it on its own, or All for the grid; "
+            "clicking a panel in the grid opens that ALI-CO too. Entries marked "
+            "not paired have no panel: hover them for why.")
+        self.alico_combo.currentIndexChanged.connect(self._on_view_changed)
+        form.addRow("ALI-CO", self.alico_combo)
+
         self.measure_combo = QComboBox()
-        self.measure_combo.addItem("% change", "pct")
-        self.measure_combo.addItem("log₂ ratio", "log2")
+        self.measure_combo.addItem("% Change", "pct")
+        self.measure_combo.addItem("log₂ Ratio", "log2")
         self.measure_combo.setToolTip(
             "The percentage runs from −100% to unbounded above; log₂ "
             "(stim / baseline) is symmetric, halving −1 and doubling +1. "
@@ -268,7 +358,7 @@ class FrDiffViewerWindow(QDialog):
         self.measure_combo.currentIndexChanged.connect(self._on_view_changed)
         form.addRow("Measure", self.measure_combo)
 
-        self.same_y = _checkbox("Same y-axis for all panels")
+        self.same_y = _checkbox("Same Y-axis for all panels")
         self.same_y.setChecked(True)
         self.same_y.setToolTip(
             "One shared range keeps a +10% ALI-CO from looking like a +900% one. "
@@ -293,27 +383,21 @@ class FrDiffViewerWindow(QDialog):
         form.addRow(self.export_btn)
         return box
 
-    def _build_alico_box(self) -> QWidget:
-        box = QGroupBox("ALI-CO")
-        layout = QVBoxLayout(box)
-        self.alico_combo = QComboBox()
-        self.alico_combo.setModel(QStandardItemModel(self.alico_combo))
-        self.alico_combo.setToolTip(
-            "Choose an ALI-CO to see it on its own, or All ALI-COs for the grid; "
-            "clicking a panel in the grid opens that ALI-CO too. Entries marked "
-            "not paired have no panel: hover them for why.")
-        self.alico_combo.currentIndexChanged.connect(self._on_view_changed)
-        layout.addWidget(self.alico_combo)
-        return box
-
     def _build_parameters(self) -> QWidget:
-        section = AdvancedSection("Parameters")
-        section.header.setToolTip(
+        box = QGroupBox("Parameters")
+        box.setToolTip(
             "Which recordings are compared with which, read from the file "
             "names, and which channels say nothing about the tissue. Changes "
             "take effect when applied and last while this window is open; the "
             "pipeline's own StimFRDiff files use the lab defaults.")
-        form = section.form()
+        # Apply and Reset as a matched pair: the theme's primary button is
+        # larger and bolder than its secondary one. A widget's own style sheet
+        # outranks the application's, so this evens them out here only, and
+        # Apply keeps its colour (and its dimmed look while there is nothing
+        # to apply).
+        box.setStyleSheet("QPushButton { font-size: 12px; font-weight: 600; "
+                          "padding: 5px 14px; border-radius: 6px; }")
+        form = QFormLayout(box)
         self.baseline_edit = QLineEdit()
         self.baseline_edit.setToolTip(
             "The condition of the baseline recording: the token after DIV<n>_ in "
@@ -345,17 +429,19 @@ class FrDiffViewerWindow(QDialog):
         self.apply_btn.setObjectName("primary")
         self.apply_btn.setToolTip("Re-pair the run with these parameters.")
         self.apply_btn.clicked.connect(self._on_apply_parameters)
-        self.reset_parameters_btn = QPushButton("Reset to lab defaults")
+        self.reset_parameters_btn = QPushButton("Reset to Defaults")
         self.reset_parameters_btn.setObjectName("secondary")
         self.reset_parameters_btn.setToolTip(
             "Put the lab's parameters back in the fields; Apply to use them.")
         self.reset_parameters_btn.clicked.connect(
             lambda: self._load_parameters(FrDiffConfig()))
+        # Equal halves of the row, each as tall as the row: the themes differ
+        # on which of the two has a border, so their own heights may not agree.
         buttons = QHBoxLayout()
-        buttons.addWidget(self.apply_btn)
-        buttons.addWidget(self.reset_parameters_btn)
-        buttons.addStretch(1)
-        self.pending_label = QLabel("Unapplied changes")
+        for btn in (self.apply_btn, self.reset_parameters_btn):
+            btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+            buttons.addWidget(btn, 1)
+        self.pending_label = QLabel("*Unapplied changes*")
         self.pending_label.setStyleSheet("color: gray; font-size: 11px;")
 
         form.addRow("Baseline", self.baseline_edit)
@@ -364,6 +450,11 @@ class FrDiffViewerWindow(QDialog):
         form.addRow("", self.require_all)
         form.addRow("Grounded", self.grounded_edit)
         form.addRow("Stimulating", self.stimulating_edit)
+        # Fields as wide as the checkbox between them (see
+        # _fit_parameter_fields): grown to it, where macOS would leave them
+        # at their own width, and kept to the left rather than centred.
+        form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
+        form.setFormAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
         form.addRow(buttons)
         form.addRow(self.pending_label)
 
@@ -371,13 +462,17 @@ class FrDiffViewerWindow(QDialog):
                      self.stimulating_edit):
             edit.textChanged.connect(self._on_parameters_edited)
         self.require_all.toggled.connect(self._on_parameters_edited)
-        self.parameters_section = section
+        self.parameters_box = box
         self.parameters_form = form
-        return section
+        return box
 
     def _build_details_box(self) -> QWidget:
-        box = QGroupBox("Pairing details")
+        box = QGroupBox("Pairing Details")
+        # The same 5 px all round the text box: the theme pads a group box's
+        # top more than its sides, so its padding is left to the layout here.
+        box.setStyleSheet("QGroupBox { padding: 0px; }")
         layout = QVBoxLayout(box)
+        layout.setContentsMargins(5, 5, 5, 5)
         self.details = QPlainTextEdit()
         self.details.setReadOnly(True)
         self.details.setObjectName("log")
@@ -404,21 +499,28 @@ class FrDiffViewerWindow(QDialog):
         return self.scroll
 
     def _build_status_bar(self) -> QHBoxLayout:
+        # One line at the bottom right: what the plot's marks mean, then what
+        # it shows. Filled by _update_status.
         row = QHBoxLayout()
+        row.addStretch(1)
         self.status_label = QLabel()
         self.status_label.setStyleSheet("color: gray; font-size: 12px;")
+        self.status_label.setAlignment(Qt.AlignmentFlag.AlignRight
+                                       | Qt.AlignmentFlag.AlignVCenter)
         row.addWidget(self.status_label)
-        row.addStretch(1)
-        self.excluded_note = QLabel(
-            f"Channel numbers in <b style='color:{EXCLUDED_COLOR}'>red</b> were "
-            f"excluded (grounded, stimulating, or 0 Hz at baseline)")
-        self.silent_note = QLabel(
-            "▼ at a panel's foot: 0 Hz under that pattern "
-            "(log₂ = −∞)")
-        for note in (self.excluded_note, self.silent_note):
-            note.setStyleSheet("color: gray; font-size: 12px;")
-            row.addWidget(note)
         return row
+
+    def _fit_parameter_fields(self) -> None:
+        """End the Parameters fields where the require-all checkbox's text ends.
+
+        The checkbox sits in the same field column, so a field no wider than
+        it lines up with it on the right.
+        """
+        self.require_all.ensurePolished()
+        width = self.require_all.sizeHint().width()
+        for edit in (self.baseline_edit, self.patterns_edit, self.grounded_edit,
+                     self.stimulating_edit):
+            edit.setMaximumWidth(width)
 
     # ── public ───────────────────────────────────────────────────────────────
 
@@ -448,27 +550,30 @@ class FrDiffViewerWindow(QDialog):
         self._close_bundle()
         self._source = source
         self._csv = None
+        self.source_label.setToolTip("")
         if source is None:
             self.source_label.setText(
                 "No run yet. Run the pipeline in MEA-Stim mode through step 2, "
                 "or choose a finished run.")
-            self.summary_label.setText("")
+            self._set_summary("")
             self._show_result(None)
             return
         try:
             self._csv = self._resolve_csv(source)
         except Exception as e:                        # a corrupt bundle, say
             self.source_label.setText(f"{source}\nCould not open it: {e}")
-            self.summary_label.setText("")
+            self._set_summary("")
             self._show_result(None)
             return
         if self._csv is None:
             self.source_label.setText(f"{source}\nNo {NODE_CSV} here — step 2 has not run on it.")
-            self.summary_label.setText("")
+            self._set_summary("")
             self._show_result(None)
             return
-        self.source_label.setText(str(source) if self._csv == source
-                                  else f"{source}\n→ {self._csv.name}")
+        # The run ID is what identifies a run at a glance; the path is there
+        # on hover, for when it does not.
+        self.source_label.setToolTip(str(source) if self._csv == source
+                                     else f"{source}\n→ {self._csv.name}")
         self._load()
 
     def choose_source_dialog(self) -> Path | None:
@@ -486,10 +591,19 @@ class FrDiffViewerWindow(QDialog):
             "MEA-NAP bundle or CSV (*.meanap *.csv)")
         return Path(path) if path else None
 
+    def _set_summary(self, text: str) -> None:
+        """Show ``text`` under the run ID, taking no room when there is none."""
+        self.summary_label.setText(text)
+        self.summary_label.setVisible(bool(text))
+
     # ── loading ──────────────────────────────────────────────────────────────
 
     def _on_choose(self) -> None:
         source = self.choose_source_dialog()
+        # On macOS a native file dialog hands focus back to the application's
+        # main window when it closes, leaving this one behind it.
+        self.raise_()
+        self.activateWindow()
         if source is None:
             return
         self._source_chosen = True
@@ -512,10 +626,12 @@ class FrDiffViewerWindow(QDialog):
         try:
             result = compute_fr_diff_csv(self._csv, self._config)
         except Exception as e:
-            self.summary_label.setText(f"Could not read {self._csv.name}: {e}")
+            self.source_label.setText(_run_id_text(None))
+            self._set_summary(f"Could not read {self._csv.name}: {e}")
             self._show_result(None)
             return
-        self.summary_label.setText(self._summary(result))
+        self.source_label.setText(_run_id_text(result))
+        self._set_summary(self._summary(result))
         self._show_result(result)
 
     # ── parameters ───────────────────────────────────────────────────────────
@@ -592,15 +708,15 @@ class FrDiffViewerWindow(QDialog):
         patterns = ", ".join(cfg.label(t) for t in cfg.stims) or "no patterns set"
         text = (f"<b>{len(result.panels)} of {total} ALI-CO(s) plotted</b> — each "
                 f"compared with its own <i>{cfg.baseline or '(no baseline set)'}</i> "
-                f"recording under {patterns}.")
+                f"recording under '{patterns}'.")
         if not result.panels:
             text += (f"<br>Nothing paired. An ALI-CO needs a <i>{cfg.baseline}</i> recording "
                      f"and {'every one' if cfg.require_all_patterns else 'at least one'} of "
                      f"its patterns with the same run ID and ALI-CO, e.g. "
-                     f"R250929CT1A_DIV250_{cfg.baseline}. Check the Parameters section "
+                     f"R250929CT1A_DIV250_{cfg.baseline}. Check the Parameters panel "
                      f"against the file names.")
         if result.notes:
-            text += f" {len(result.notes)} note(s) under Pairing details."
+            text += f" {len(result.notes)} note(s) under Pairing Details."
         return text
 
     def _fill_alicos(self, result: FrDiffResult | None) -> None:
@@ -696,8 +812,6 @@ class FrDiffViewerWindow(QDialog):
             fig.clear()
             self._drawing = Drawing([], {})
             self.status_label.setText("")
-            self.excluded_note.hide()
-            self.silent_note.hide()
             self._set_canvas_height(0, _UNBOUNDED)
             self.canvas.draw_idle()
             return
@@ -728,20 +842,23 @@ class FrDiffViewerWindow(QDialog):
         result = self._result
         panels = [p for p in result.panels if self._selected() in (None, p.id)]
         log = self._measure() == "log2"
-        parts = [f"{len(panels)} ALI-CO{'' if len(panels) == 1 else 's'}"]
+        parts = []
+        if any(p.unplotted for p in panels):
+            parts.append(f"Channel numbers in <b style='color:{EXCLUDED_COLOR}'>red</b> "
+                         f"are excluded (grounded/stimulating/0 Hz baseline)")
+        if any(dp.silent for dp in self._drawing.points):
+            parts.append("▼ at a panel's foot: 0 Hz under that pattern (log₂ = −∞)")
+        parts.append(f"{len(panels)} ALI-CO{'' if len(panels) == 1 else 's'}")
         stim_only = sum(len(p.missing_base) for p in panels)
         if stim_only:
             parts.append(f"{stim_only} stim-only channel(s)")
         values = [v for p in panels for d in p.diffs
                   if (v := (d.log2 if log else d.pct)) is not None]
-        text = " · ".join(parts)
         if values:
             fmt = _fmt_log if log else _fmt_pct
-            text += (f"   |   range {fmt(min(values))} … {fmt(max(values))}"
-                     + (" (log₂)" if log else ""))
-        self.status_label.setText(text)
-        self.excluded_note.setVisible(any(p.unplotted for p in panels))
-        self.silent_note.setVisible(any(dp.silent for dp in self._drawing.points))
+            parts.append(f"Range: {fmt(min(values))} – {fmt(max(values))} "
+                         f"({'log₂' if log else '%'})")
+        self.status_label.setText("&nbsp;&nbsp;|&nbsp;&nbsp;".join(parts))
 
     # ── hover, click and export ──────────────────────────────────────────────
 
