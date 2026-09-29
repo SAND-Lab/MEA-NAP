@@ -75,9 +75,9 @@ class ResultsPanel(QWidget):
         self.fr_diff_btn.setFixedHeight(40)
         self.fr_diff_btn.setObjectName("secondary")
         self.fr_diff_btn.setToolTip(
-            "Opens viewer comparing every ALI-COs firing rate at baseline and under "
-            "stimulation, channel by channel. Requires output from step 2 "
-            "(NeuronalActivity_NodeLevel.csv)."
+            "Opens a viewer comparing each ALI-CO's firing rate at baseline and under "
+            "stimulation, channel by channel. Needs step 2's "
+            "NeuronalActivity_NodeLevel.csv."
         )
         self.fr_diff_btn.clicked.connect(self.open_fr_diff_requested)
         row.addWidget(self.fr_diff_btn)

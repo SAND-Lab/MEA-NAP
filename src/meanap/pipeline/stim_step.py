@@ -167,7 +167,8 @@ def run_fr_diff(output_root: Path, log=print, config=None) -> None:
 
     Runs after step 2 rather than with the rest of the stim analysis, which
     comes before it: this reads step 2's output, not the raw voltage. It is a
-    diagnostic, so nothing here stops the run.
+    diagnostic: :func:`~meanap.pipeline.runner.run_pipeline` logs any failure
+    here and carries on.
     """
     from meanap.pipeline.verbosity import as_run_log
     from meanap.stim.fr_diff import (

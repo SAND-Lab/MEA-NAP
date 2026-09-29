@@ -23,6 +23,8 @@ from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 from matplotlib.ticker import FuncFormatter, ScalarFormatter
 
+from meanap.pipeline.figure_output import savefig
+
 from .fr_diff import Diff, FrDiffResult, Panel, multi_run, panel_title
 
 __all__ = [
@@ -36,7 +38,7 @@ PALETTE = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100",
            "#e87ba4", "#008300", "#4a3aa7", "#e34948"]
 EXCLUDED_COLOR = "#e34948"     # excluded channel numbers on the x axis
 EXCLUDED_BAND_COLOR = "#fbe4e3"  # an excluded channel's column: a tint of EXCLUDED_COLOR
-BAND_COLOR = "#f3f2ef"         # every other channel's column, so a dot's column is plain
+BAND_COLOR = "#f3f2ef"         # alternate channels' columns (see _column_bands)
 GRID_COLOR = "#e4e3df"
 INK_COLOR = "#52514e"
 TITLE_COLOR = "#0b0b0b"
@@ -45,12 +47,9 @@ SAVE_DPI = 300
 
 MEASURES = ("pct", "log2")
 
-# Figure heights in inches. Rows have a fixed height rather than sharing the
-# figure's, so a tall grid keeps readable panels and scrolls instead of
-# squeezing every row onto one screen. Where the labels go inside that height
-# is left to matplotlib's constrained layout, which measures them: hand-set
-# margins clip the y label as soon as the fonts or the screen differ from the
-# ones they were tuned on.
+# Figure heights in inches. Rows have a fixed height so a tall grid scrolls
+# rather than squeezing; label placement is left to constrained layout, since
+# hand-set margins clip the y label when fonts or screens differ.
 ROW_H = 3.0
 ROW_GAP = 0.64                 # room beneath a row for its tick labels
 SINGLE_H = 4.6
@@ -81,6 +80,7 @@ class Drawing:
 
 
 def stim_colors(result: FrDiffResult) -> dict[str, str]:
+    """Pattern token -> colour, in the config's pattern order."""
     return {t: PALETTE[i % len(PALETTE)] for i, t in enumerate(result.config.stims)}
 
 
@@ -101,8 +101,11 @@ def figure_size(n_panels: int, ncols: int, width: float, *, caption: bool = Fals
 
 
 def y_label(measure: str, baseline: str) -> str:
-    # Two lines for log2: on one it is taller than a grid row and runs into
-    # the label of the panel beneath.
+    """The y-axis title for ``measure``.
+
+    Two lines for log2: on one it is taller than a grid row and runs into the
+    label of the panel beneath.
+    """
     if measure == "log2":
         return f"Firing rate change from baseline\n(log₂ stim / {baseline})"
     return "Firing rate difference from baseline (%)"
@@ -211,7 +214,7 @@ def draw_fr_diff(
     around it to say so.
 
     The figure's size is the caller's: :func:`figure_size` gives the one the
-    layout is designed for.
+    layout is designed for. Returns a :class:`Drawing` of what was drawn.
     """
     if measure not in MEASURES:
         raise ValueError(f"measure must be one of {MEASURES}, not {measure!r}")
@@ -338,13 +341,12 @@ def draw_fr_diff(
 
 def save_fr_diff_figure(result: FrDiffResult, out_path: Path | str, *,
                         measure: str = "pct", dpi: int = SAVE_DPI) -> Path:
-    """Save every slice's panel, grid-laid, to ``out_path`` (a .png/.svg/.pdf)."""
+    """Save every slice's panel, grid-laid, to ``out_path`` (a .png/.svg/.pdf); returns it."""
     n = len(result.panels)
     ncols = default_columns(n)
     fig = Figure(figsize=figure_size(n, ncols, 6.5 if ncols == 1 else 5.5 * ncols + 1.2,
                                      caption=True))
     draw_fr_diff(fig, result, measure=measure, ncols=ncols, caption=True)
     out_path = Path(out_path)
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(out_path, dpi=dpi, facecolor="white")
+    savefig(fig, out_path, default_dpi=dpi, facecolor="white")
     return out_path

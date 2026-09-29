@@ -111,8 +111,8 @@ class MainWindow(QMainWindow):
         #: The spike and burst viewer, built the first time it is asked for and
         #: kept afterwards so it holds on to whatever recording it loaded.
         self._spike_viewer = None
-        #: The firing-rate change viewer, built on first use and kept like the
-        #: spike viewer, holding whatever run and protocol it was left on.
+        #: The firing-rate change viewer, built on first use and reopened rather
+        #: than rebuilt; it lets go of its run when closed.
         self._fr_diff_viewer = None
         #: The machine report, built on first use and kept so a benchmark
         #: already run is still on screen when it is reopened.
@@ -1281,7 +1281,12 @@ class MainWindow(QMainWindow):
         self._announce_bundle(output_root)
         self._reset_run_buttons()
         self._refresh_results_target()
-        self._refresh_fr_diff_source()
+        # A display only: a failure redrawing it must not stop the hand-off to
+        # step 5 (an uncaught error in a Qt slot aborts the app).
+        try:
+            self._refresh_fr_diff_source()
+        except Exception as e:
+            self._run_panel.append_log(f"Warning: could not refresh the ΔFR viewer: {e}")
         if self._start_optional_stats(output_root):
             return
         # The log is what someone is looking at when a run ends, and the thing
@@ -1658,7 +1663,7 @@ class MainWindow(QMainWindow):
                 or viewer.source_chosen()):
             return
         bundle = self._last_bundle
-        root = self._last_output_root or self._candidate_output_root()
+        root = self._candidate_output_root()
         source = bundle if bundle is not None else root
         viewer.set_source(Path(source) if source is not None and Path(source).exists()
                           else None)

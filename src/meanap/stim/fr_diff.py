@@ -65,8 +65,7 @@ UNKNOWN = "unknown"
 
 # Channels 21, 31, 41, 51, 61 and 71 were the stimulating electrodes in the
 # experiments this was written for, and were left out of spike counting, so
-# they read 0 Hz by design. Listed under every pattern until a pattern that
-# drives only some of them says otherwise.
+# they read 0 Hz by design. The default lists all six under every pattern.
 _LAB_STIM_ELECTRODES = frozenset({21, 31, 41, 51, 61, 71})
 
 
@@ -96,9 +95,11 @@ class FrDiffConfig:
 
     @property
     def stims(self) -> tuple[str, ...]:
+        """The pattern tokens, in legend order."""
         return tuple(self.stim_labels)
 
     def label(self, token: str) -> str:
+        """The legend name for ``token``, or the token itself when it has none."""
         return self.stim_labels.get(token, token)
 
 
@@ -165,14 +166,17 @@ class Panel:
 
     @property
     def id(self) -> str:
+        """``run/slice``, unique across a table: ``R250929/CT1A``."""
         return f"{self.run}/{self.slice}"
 
     @property
     def stims(self) -> list[str]:
+        """The patterns this slice was recorded under, in natural order."""
         return sorted(self.stim_files, key=_natural_key)
 
     @property
     def channels(self) -> list[int]:
+        """Every channel on the panel's x axis: plotted and excluded alike."""
         return sorted({d.channel for d in self.diffs} | {e.channel for e in self.excluded})
 
     @property
@@ -210,6 +214,8 @@ class Note:
 
 @dataclass
 class FrDiffResult:
+    """Every slice that paired, every one that did not, notes on the input, and the config used."""
+
     panels: list[Panel]
     unpaired: list[Unpaired]
     notes: list[Note]
@@ -273,7 +279,8 @@ _REQUIRED_COLUMNS = ("filename", "grp", "channel", "fr")
 def load_records(table: pd.DataFrame) -> tuple[list[Record], list[Note]]:
     """Parse the node-level table's rows, skipping those without a usable FR/Channel.
 
-    Column names are matched case-insensitively.
+    Column names are matched case-insensitively. Returns the records and a
+    note for each kind of row skipped.
     """
     lookup = {str(c).strip().lstrip("﻿").lower(): c for c in table.columns}
     missing = [c for c in _REQUIRED_COLUMNS if c not in lookup]
@@ -286,12 +293,11 @@ def load_records(table: pd.DataFrame) -> tuple[list[Record], list[Note]]:
     channel = pd.to_numeric(table[cols["channel"]], errors="coerce")
     bad_fr = fr.isna()
     bad_channel = channel.isna() & ~bad_fr
+    ok = ~(bad_fr | bad_channel)
 
     records = []
-    for name, grp, ch, rate in zip(table[cols["filename"]][~(bad_fr | bad_channel)],
-                                   table[cols["grp"]][~(bad_fr | bad_channel)],
-                                   channel[~(bad_fr | bad_channel)],
-                                   fr[~(bad_fr | bad_channel)]):
+    for name, grp, ch, rate in zip(table[cols["filename"]][ok], table[cols["grp"]][ok],
+                                   channel[ok], fr[ok]):
         name = "" if pd.isna(name) else str(name).strip()
         organoid, slc = parse_slice(name)
         records.append(Record(
@@ -336,8 +342,10 @@ def _bucket(records: list[Record], config: FrDiffConfig,
             no_run.add(r.filename)
             continue
         if r.condition is None:
+            # One Unpaired per recording, not one per row.
+            if r.filename not in no_condition:
+                unpaired.append(Unpaired(r.run, r.slice, (r.filename,), REASON_UNPARSED))
             no_condition.add(r.filename)
-            unpaired.append(Unpaired(r.run, r.slice, (r.filename,), REASON_UNPARSED))
             continue
         if r.condition not in wanted:
             ignored[r.condition].add(r.filename)
@@ -372,16 +380,7 @@ def _bucket(records: list[Record], config: FrDiffConfig,
     if duplicates:
         notes.append(Note(f"{len(duplicates)} recording(s) list a channel on more than "
                           f"one row; the first value was kept:", tuple(sorted(duplicates))))
-
-    # One Unpaired per recording, not one per row.
-    seen: set[tuple[str, str, str]] = set()
-    deduped = []
-    for u in unpaired:
-        key = (u.run, u.slice, u.conditions[0])
-        if key not in seen:
-            seen.add(key)
-            deduped.append(u)
-    return by_key, files_of, deduped
+    return by_key, files_of, unpaired
 
 
 def _classify(panel: Panel, channel: int, base_fr: float,
@@ -457,8 +456,7 @@ def build_panels(records: list[Record], config: FrDiffConfig | None = None,
         base_file = next(iter(files_of[(run, slc, config.baseline)]))
         stim_files = {t: next(iter(files_of[(run, slc, t)])) for t in present}
 
-        # The pairing rule is run + slice, so a pair whose DIV tokens differ is
-        # still a pair -- but it is worth saying out loud.
+        # Pairing is by run + slice, so a pair may span two DIVs; that is noted.
         base_div = _div(base_file)
         for token, name in stim_files.items():
             if base_div and _div(name) and _div(name) != base_div:
@@ -560,6 +558,7 @@ def fr_diff_table(result: FrDiffResult) -> pd.DataFrame:
 # ── description ──────────────────────────────────────────────────────────────
 
 def multi_run(panels: list[Panel]) -> bool:
+    """Whether ``panels`` span more than one run, so titles must name the run."""
     return len({p.run for p in panels}) > 1
 
 

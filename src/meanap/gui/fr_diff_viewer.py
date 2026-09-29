@@ -1,25 +1,14 @@
-"""Did stimulation change how each ALI-CO fired?
+"""Viewer for a finished MEA-Stim run's firing-rate change from baseline.
 
-A window for browsing a finished MEA-Stim run's firing-rate change from
-baseline. Each ALI-CO's (air-liquid interface cerebral organoid slice) firing
-rate under every stimulation pattern is compared, channel by channel, with its
-own baseline recording (see :mod:`meanap.stim.fr_diff`, which calls them
-slices), and drawn as one panel per ALI-CO by the same code that draws the
-pipeline's saved ``StimFRDiff`` figures (:mod:`meanap.stim.fr_diff_plot`).
+Each ALI-CO's (air-liquid interface cerebral organoid slice) firing rate under
+every stimulation pattern is compared, channel by channel, with its own
+baseline recording (see :mod:`meanap.stim.fr_diff`, which calls them slices),
+and drawn one panel per ALI-CO by the same code that draws the pipeline's
+``StimFRDiff`` figures (:mod:`meanap.stim.fr_diff_plot`).
 
-Port of the lab's browser viewer, ``fr_diff_viewer.html``, with the room a
-window gives it: clicking a panel in the grid opens that ALI-CO, the pattern
-checkboxes are the legend, and hovering a dot says what it came from.
-
-Which ALI-COs did *not* pair, and why, is as much the answer as the plot, so
-the Pairing Details sit under the plot, full width, rather than in a log, and
-unpaired ALI-COs are listed, disabled and with their reason, among the ones
-that did.
-
-The parameters (which condition is the baseline, which are patterns, which
-channels to leave out) default to the lab's and are editable here, for this
-window only and only once applied: a run whose files are named differently can
-be looked at without changing anything the pipeline reads. The pipeline's own
+The parameters default to the lab's and can be changed here, for this window
+only and only once applied, so a run with differently named files can be
+viewed without changing anything the pipeline reads. The pipeline's own
 ``StimFRDiff`` files always use the defaults.
 """
 
@@ -30,7 +19,7 @@ from pathlib import Path
 
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
-from PyQt6.QtCore import Qt, QTimer, pyqtSignal
+from PyQt6.QtCore import QSignalBlocker, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QCursor, QStandardItem, QStandardItemModel
 from PyQt6.QtWidgets import (
     QAbstractScrollArea, QApplication, QCheckBox, QComboBox, QDialog, QFileDialog, QFormLayout, QGroupBox,
@@ -61,15 +50,9 @@ _TWO_COLUMNS_BELOW = 1100
 _ONE_COLUMN_BELOW = 700
 _SINGLE_MIN_H = 460          # px: the single-ALI-CO view fills the plot area, but no less
 _UNBOUNDED = 16777215        # QWIDGETSIZE_MAX
-#: px: the window's margin, and the clear space either side of the line
-#: between the controls and the plot, and above the one over Pairing Details.
-_GAP = 8
-#: px: the theme's gap from a group box's title to its frame. The line over
-#: Pairing Details sits the same distance above that title.
-_TITLE_GAP = 3
-#: Clear px (before, after) the 1 px line in each splitter's handle: centred
-#: between the controls and the plot; over Pairing Details, _GAP below the
-#: plot and _TITLE_GAP above the title, as far as the title is from its box.
+_GAP = 8                     # px: window margin, and space around the splitter lines
+_TITLE_GAP = 3               # px: the theme's gap between a group title and its frame
+#: Clear px (before, after) each splitter handle's 1 px line.
 _HANDLES = {"horizontal": (_GAP, _GAP), "vertical": (_GAP, _TITLE_GAP)}
 _HAIRLINE = "rgb(218, 220, 224)"          # the theme's box borders
 _HAIRLINE_HOVER = "rgb(26, 115, 232)"     # the theme's handle hover
@@ -105,6 +88,7 @@ def parse_patterns(text: str) -> dict[str, str]:
 
 
 def format_channels(channels) -> str:
+    """Channel IDs as a sorted, comma-separated list: ``{31, 21}`` -> ``21, 31``."""
     return ", ".join(str(int(c)) for c in sorted(channels or ()))
 
 
@@ -234,18 +218,9 @@ class FrDiffViewerWindow(QDialog):
         # keep beside the main window, minimised and resized.
         self.setWindowFlags(Qt.WindowType.Window)
         self.setMinimumSize(1000, 640)
-        # Panel titles 2 px in from their boxes' left edges; the theme indents
-        # them further, but a window of stacked panels reads better as one column.
-        #
-        # The theme also spaces things out unseen: a 1 px frame on every
-        # splitter, a 1 px margin on every scroll area (and a clear 1 px
-        # border on a frameless one), and margins on splitter handles. Left
-        # in, they put the edges and the handles' lines a few px off from
-        # where the margins here say. So they go, and the only spacing is
-        # this window's: _GAP at every outer edge, and the handles (see
-        # _handle), each a 1 px line in a handle wide enough to grab, blue
-        # on hover. Pairing Details' text box, without its 1 px, is the 5 px
-        # its layout gives it from the panel's frame.
+        # The theme adds unseen 1 px frames and margins to splitters, scroll
+        # areas and handles; they are removed so _GAP and the handles' hairlines
+        # are the only spacing. Group titles sit 2 px in, as one column.
         self.setStyleSheet(
             "QGroupBox::title { left: 2px; margin: 0px; padding: 0px; } "
             "QSplitter { border: none; } "
@@ -309,9 +284,8 @@ class FrDiffViewerWindow(QDialog):
         self._fit_parameter_fields()
         self._clear_parameters()
         self.set_source(None)
-        # Closing the window only hides it (it is reopened, not rebuilt), and
-        # the plot may still re-read the bundle's CSV after that, so its
-        # extraction is let go when the source changes or the app quits.
+        # A bundle's extraction is let go on close (see _unload); this covers
+        # quitting with the window still open.
         app = QApplication.instance()
         if app is not None:
             app.aboutToQuit.connect(self._close_bundle)
@@ -414,11 +388,8 @@ class FrDiffViewerWindow(QDialog):
             "names, and which channels say nothing about the tissue. Changes "
             "take effect when applied and last while this window is open; the "
             "pipeline's own StimFRDiff files use the lab defaults.")
-        # Apply and Reset as a matched pair: the theme's primary button is
-        # larger and bolder than its secondary one. A widget's own style sheet
-        # outranks the application's, so this evens them out here only, and
-        # Apply keeps its colour (and its dimmed look while there is nothing
-        # to apply).
+        # The theme's primary button is larger than its secondary one; this
+        # matches Apply and Reset in size here only, keeping Apply's colour.
         box.setStyleSheet("QPushButton { font-size: 12px; font-weight: 600; "
                           "padding: 5px 14px; border-radius: 6px; }")
         form = QFormLayout(box)
@@ -445,6 +416,8 @@ class FrDiffViewerWindow(QDialog):
         self.stimulating_edit.setToolTip(
             "The stimulating electrodes, left out of every pattern: they read "
             "0 Hz by design. Comma-separated channel IDs.")
+        self._edits = (self.baseline_edit, self.patterns_edit, self.grounded_edit,
+                       self.stimulating_edit)
         # Before a run is loaded the fields are empty, showing the lab's values
         # in grey: the format to follow, and what an untouched field means
         # (see _config_from_fields). Loading a run takes the fields as they
@@ -494,8 +467,7 @@ class FrDiffViewerWindow(QDialog):
         form.addRow(buttons)
         form.addRow(self.pending_label)
 
-        for edit in (self.baseline_edit, self.patterns_edit, self.grounded_edit,
-                     self.stimulating_edit):
+        for edit in self._edits:
             edit.textChanged.connect(self._on_parameters_edited)
         self.require_all.toggled.connect(self._on_parameters_edited)
         self.parameters_box = box
@@ -554,13 +526,13 @@ class FrDiffViewerWindow(QDialog):
         """
         self.require_all.ensurePolished()
         width = self.require_all.sizeHint().width()
-        for edit in (self.baseline_edit, self.patterns_edit, self.grounded_edit,
-                     self.stimulating_edit):
+        for edit in self._edits:
             edit.setMaximumWidth(width)
 
     # ── public ───────────────────────────────────────────────────────────────
 
     def source(self) -> Path | None:
+        """The folder, bundle or CSV being shown, or None."""
         return self._source
 
     def source_chosen(self) -> bool:
@@ -568,15 +540,12 @@ class FrDiffViewerWindow(QDialog):
         return self._source_chosen
 
     def result(self) -> FrDiffResult | None:
+        """The pairing on screen, or None when nothing is loaded."""
         return self._result
 
     def config(self) -> FrDiffConfig:
+        """The parameters in use, which are not necessarily what the fields say."""
         return self._config
-
-    def set_config(self, config: FrDiffConfig) -> None:
-        """Use ``config`` from now on, showing it and re-pairing if it changed."""
-        self._load_parameters(config)
-        self._apply_config(config)
 
     def set_source(self, source: Path | None) -> None:
         """Read ``source`` (folder, bundle or CSV); None clears the window."""
@@ -591,21 +560,16 @@ class FrDiffViewerWindow(QDialog):
         self._csv = None
         self.source_label.setToolTip("")
         if source is None:
-            self.source_label.setText(
-                "No run yet. Run MEA-Stim through step 2, or choose a finished run."
-            )
-            self._set_summary("")
-            self._show_result(None)
-            return
-        try:
-            self._csv = self._resolve_csv(source)
-        except Exception as e:                        # a corrupt bundle, say
-            self.source_label.setText(f"{source}\nCould not open it: {e}")
-            self._set_summary("")
-            self._show_result(None)
-            return
-        if self._csv is None:
-            self.source_label.setText(f"{source}\nNo {NODE_CSV} here — step 2 has not run on it.")
+            empty = "No run yet. Run MEA-Stim through step 2, or choose a finished run."
+        else:
+            try:
+                self._csv = self._resolve_csv(source)
+                empty = (None if self._csv is not None
+                         else f"{source}\nNo {NODE_CSV} here — step 2 has not run on it.")
+            except Exception as e:                        # a corrupt bundle, say
+                empty = f"{source}\nCould not open it: {e}"
+        if empty is not None:
+            self.source_label.setText(empty)
             self._set_summary("")
             self._show_result(None)
             return
@@ -666,12 +630,9 @@ class FrDiffViewerWindow(QDialog):
         """
         self._source_chosen = False
         self._config = FrDiffConfig()
-        for widget in (self.measure_combo, self.same_y):
-            widget.blockSignals(True)
-        self.measure_combo.setCurrentIndex(0)
-        self.same_y.setChecked(True)
-        for widget in (self.measure_combo, self.same_y):
-            widget.blockSignals(False)
+        with QSignalBlocker(self.measure_combo), QSignalBlocker(self.same_y):
+            self.measure_combo.setCurrentIndex(0)
+            self.same_y.setChecked(True)
         self.set_source(None)
         self._clear_parameters()
 
@@ -703,8 +664,7 @@ class FrDiffViewerWindow(QDialog):
     # ── parameters ───────────────────────────────────────────────────────────
 
     def _parameter_widgets(self) -> tuple:
-        return (self.baseline_edit, self.patterns_edit, self.require_all,
-                self.grounded_edit, self.stimulating_edit)
+        return (*self._edits, self.require_all)
 
     def _load_parameters(self, config: FrDiffConfig) -> None:
         """Write ``config`` into the Parameters fields, without re-pairing.
@@ -712,8 +672,7 @@ class FrDiffViewerWindow(QDialog):
         An empty channel list is written as ``none``: an empty field means the
         lab's channels.
         """
-        for w in self._parameter_widgets():
-            w.blockSignals(True)
+        blockers = [QSignalBlocker(w) for w in self._parameter_widgets()]
         self.baseline_edit.setText(config.baseline)
         self.patterns_edit.setText(format_patterns(config.stim_labels))
         self.require_all.setChecked(config.require_all_patterns)
@@ -722,20 +681,18 @@ class FrDiffViewerWindow(QDialog):
         for edit, channels in ((self.grounded_edit, config.grounded),
                                (self.stimulating_edit, _driven(config))):
             edit.setText(format_channels(channels) or "none")
-        for w in self._parameter_widgets():
-            w.blockSignals(False)
+        for b in blockers:
+            b.unblock()
         self._on_parameters_edited()
 
     def _clear_parameters(self) -> None:
         """Empty the fields, so they show the lab's values in grey and mean them."""
-        for w in self._parameter_widgets():
-            w.blockSignals(True)
-        for edit in (self.baseline_edit, self.patterns_edit, self.grounded_edit,
-                     self.stimulating_edit):
+        blockers = [QSignalBlocker(w) for w in self._parameter_widgets()]
+        for edit in self._edits:
             edit.clear()
         self.require_all.setChecked(FrDiffConfig().require_all_patterns)
-        for w in self._parameter_widgets():
-            w.blockSignals(False)
+        for b in blockers:
+            b.unblock()
         self._on_parameters_edited()
 
     def _on_reset_parameters(self) -> None:
@@ -762,6 +719,7 @@ class FrDiffViewerWindow(QDialog):
         )
 
     def has_unapplied_parameters(self) -> bool:
+        """Whether the Parameters fields differ from the config in use."""
         return self._config_from_fields() != self._config
 
     def _on_parameters_edited(self, *_args) -> None:
@@ -879,6 +837,7 @@ class FrDiffViewerWindow(QDialog):
         return self.alico_combo.currentData(Qt.ItemDataRole.UserRole)
 
     def select_alico(self, panel_id: str | None) -> None:
+        """Show ``panel_id`` on its own, or the grid for None; an unknown id is ignored."""
         index = self.alico_combo.findData(panel_id, Qt.ItemDataRole.UserRole)
         if index >= 0:
             self.alico_combo.setCurrentIndex(index)
