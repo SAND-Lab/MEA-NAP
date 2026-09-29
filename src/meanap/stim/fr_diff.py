@@ -25,6 +25,10 @@ or ``R250930CT1A_…`` (another run). The slice is the token fused onto the run
 ID (``CT1A``); ``Grp`` plays no part in pairing, since its spelling varies
 between exports of the same organoid (``CTL``, ``BCTL``).
 
+The baselines may come from another table, when the unstimulated recordings
+were analysed in a run of their own: :func:`merge_baseline` adds that table's
+baseline recordings to the stim run's before pairing.
+
 By default only complete experiments become panels: a slice needs its baseline
 and every pattern. A slice with a condition recorded twice (e.g. at two DIVs)
 never does, since there is no telling which recording a reading belongs with.
@@ -51,7 +55,7 @@ from natsort import natsort_keygen
 __all__ = [
     "FrDiffConfig", "Record", "Diff", "Excluded", "Panel", "Unpaired", "Note",
     "FrDiffResult", "compute_fr_diff", "compute_fr_diff_csv", "fr_diff_table",
-    "TABLE_COLUMNS", "load_records",
+    "TABLE_COLUMNS", "load_records", "merge_baseline", "read_node_csv",
     "build_panels", "describe", "format_note", "parse_run", "parse_slice",
     "parse_condition", "pct_diff", "log2_ratio", "multi_run", "panel_title",
     "EXCLUDED_GROUNDED", "EXCLUDED_STIMULATING", "EXCLUDED_ZERO_BASE",
@@ -276,13 +280,18 @@ def log2_ratio(base_fr: float, stim_fr: float) -> float | None:
 _REQUIRED_COLUMNS = ("filename", "grp", "channel", "fr")
 
 
+def _column_lookup(table: pd.DataFrame) -> dict[str, str]:
+    """Each column by its normalized name: ``{"filename": "FileName", ...}``."""
+    return {str(c).strip().lstrip("﻿").lower(): c for c in table.columns}
+
+
 def load_records(table: pd.DataFrame) -> tuple[list[Record], list[Note]]:
     """Parse the node-level table's rows, skipping those without a usable FR/Channel.
 
     Column names are matched case-insensitively. Returns the records and a
     note for each kind of row skipped.
     """
-    lookup = {str(c).strip().lstrip("﻿").lower(): c for c in table.columns}
+    lookup = _column_lookup(table)
     missing = [c for c in _REQUIRED_COLUMNS if c not in lookup]
     if missing:
         raise ValueError(f"The table is missing column(s) {', '.join(missing)} "
@@ -504,17 +513,76 @@ def build_panels(records: list[Record], config: FrDiffConfig | None = None,
     return panels, unpaired
 
 
-def compute_fr_diff(table: pd.DataFrame, config: FrDiffConfig | None = None) -> FrDiffResult:
-    """Pair every slice in a node-level table and compute its per-channel changes."""
+def _names(table: pd.DataFrame, column: str) -> pd.Series:
+    """``column`` of ``table`` as stripped strings, a missing value as ``""``."""
+    return table[column].map(lambda v: "" if pd.isna(v) else str(v).strip())
+
+
+def merge_baseline(table: pd.DataFrame, baseline: pd.DataFrame,
+                   config: FrDiffConfig | None = None) -> tuple[pd.DataFrame, list[Note]]:
+    """``table`` with ``baseline``'s baseline recordings added below it.
+
+    For unstimulated recordings analysed in a run of their own. Only the
+    recordings whose condition is ``config.baseline`` are taken from
+    ``baseline``, and none whose FileName ``table`` already holds: the stim
+    run's own copy is kept. ``baseline``'s columns are renamed to ``table``'s
+    spelling, matched case-insensitively. Rows are otherwise passed through
+    untouched. Returns the merged table and a note for anything left out, or
+    for a baseline table that shares no run ID with ``table``.
+    """
     config = config or FrDiffConfig()
+    ours, theirs = _column_lookup(table), _column_lookup(baseline)
+    for name, t in (("stim", ours), ("baseline", theirs)):
+        if "filename" not in t:
+            raise ValueError(f"The {name} table has no FileName column.")
+    baseline = baseline.rename(columns={c: ours[k] for k, c in theirs.items() if k in ours})
+    col = ours["filename"]
+    names, own = _names(baseline, col), set(_names(table, col))
+
+    notes = []
+    is_base = names.map(parse_condition) == config.baseline
+    if other := sorted(set(names[~is_base]) - {""}, key=_natural_key):
+        notes.append(Note(f"{len(other)} recording(s) in the baseline file are not "
+                          f"{config.baseline} and were not used:", tuple(other)))
+    repeated = is_base & names.isin(own)
+    if shared := sorted(set(names[repeated]), key=_natural_key):
+        notes.append(Note(f"{len(shared)} baseline recording(s) are in both files; the "
+                          f"stim run's copy was kept:", tuple(shared)))
+    kept = baseline[is_base & ~repeated]
+
+    runs = {r for n in own if (r := parse_run(n))}
+    theirs_runs = {r for n in _names(kept, col) if (r := parse_run(n))}
+    if theirs_runs and not theirs_runs & runs:
+        notes.append(Note(f"no baseline recording shares a run ID with the stim run "
+                          f"({', '.join(sorted(theirs_runs))} against "
+                          f"{', '.join(sorted(runs)) or 'none'}), so none can pair."))
+    return pd.concat([table, kept], ignore_index=True), notes
+
+
+def compute_fr_diff(table: pd.DataFrame, config: FrDiffConfig | None = None,
+                    baseline: pd.DataFrame | None = None) -> FrDiffResult:
+    """Pair every slice in a node-level table and compute its per-channel changes.
+
+    ``baseline``, when given, is another run's table to take the baseline
+    recordings from (see :func:`merge_baseline`).
+    """
+    config = config or FrDiffConfig()
+    merge_notes: list[Note] = []
+    if baseline is not None:
+        table, merge_notes = merge_baseline(table, baseline, config)
     records, notes = load_records(table)
     panels, unpaired = build_panels(records, config, notes)
-    return FrDiffResult(panels, unpaired, notes, config)
+    return FrDiffResult(panels, unpaired, merge_notes + notes, config)
+
+
+def read_node_csv(path: Path | str) -> pd.DataFrame:
+    """A ``NeuronalActivity_NodeLevel.csv`` on disk, as a table."""
+    return pd.read_csv(path, encoding="utf-8-sig")
 
 
 def compute_fr_diff_csv(path: Path | str, config: FrDiffConfig | None = None) -> FrDiffResult:
     """:func:`compute_fr_diff` on a ``NeuronalActivity_NodeLevel.csv`` on disk."""
-    return compute_fr_diff(pd.read_csv(path, encoding="utf-8-sig"), config)
+    return compute_fr_diff(read_node_csv(path), config)
 
 
 TABLE_COLUMNS = [

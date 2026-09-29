@@ -10,6 +10,10 @@ The parameters default to the lab's and can be changed here, for this window
 only and only once applied, so a run with differently named files can be
 viewed without changing anything the pipeline reads. The pipeline's own
 ``StimFRDiff`` files always use the defaults.
+
+The baselines may come from another run, for unstimulated recordings analysed
+on their own: they are added to the stim run's table in memory (see
+:func:`meanap.stim.fr_diff.merge_baseline`), and written out only on request.
 """
 
 from __future__ import annotations
@@ -23,14 +27,14 @@ from PyQt6.QtCore import QSignalBlocker, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QCursor, QStandardItem, QStandardItemModel
 from PyQt6.QtWidgets import (
     QAbstractScrollArea, QApplication, QCheckBox, QComboBox, QDialog, QFileDialog, QFormLayout, QGroupBox,
-    QHBoxLayout, QLabel, QLineEdit, QPlainTextEdit,
-    QPushButton, QScrollArea, QSizePolicy, QSplitter, QToolTip, QVBoxLayout, QWidget,
+    QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPlainTextEdit,
+    QPushButton, QScrollArea, QSizePolicy, QSplitter, QToolButton, QToolTip, QVBoxLayout, QWidget,
 )
 
 from meanap.gui.widgets import scrollable
 from meanap.stim.fr_diff import (
-    FrDiffConfig, FrDiffResult, compute_fr_diff_csv, describe, format_note,
-    multi_run, panel_title,
+    FrDiffConfig, FrDiffResult, compute_fr_diff, describe, format_note,
+    merge_baseline, multi_run, panel_title, read_node_csv,
 )
 from meanap.stim.fr_diff_plot import (
     EXCLUDED_COLOR, SAVE_DPI, Drawing, default_columns, draw_fr_diff, figure_size,
@@ -43,7 +47,10 @@ __all__ = [
 ]
 
 NODE_CSV = "NeuronalActivity_NodeLevel.csv"
+#: The name scripts/merge_csv.py gives a stitched baseline + stim table.
+MERGED_CSV = "NeuronalActivity_NodeLevel_base_stim_merged.csv"
 ALL_ALICOS = "All"
+_NO_BASELINE = "Not needed if all runs were analyzed together in MEA-STIM."
 #: Below these plot widths (px) the grid drops to two columns, then one, so
 #: panels stay readable instead of shrinking to fit.
 _TWO_COLUMNS_BELOW = 1100
@@ -108,6 +115,16 @@ def _checkbox(text: str) -> QCheckBox:
     return box
 
 
+def _remove_button(tooltip: str, slot) -> QToolButton:
+    """The small ✕ that lets go of a run or a baseline."""
+    btn = QToolButton()
+    btn.setText("✕")
+    btn.setAutoRaise(True)
+    btn.setToolTip(tooltip)
+    btn.clicked.connect(slot)
+    return btn
+
+
 def _entry(text: str, panel_id: str | None, tooltip: str = "") -> QStandardItem:
     item = QStandardItem(text)
     item.setData(panel_id, Qt.ItemDataRole.UserRole)
@@ -148,6 +165,28 @@ def _change_stamp(source: Path) -> int | None:
         return path.stat().st_mtime_ns if path is not None else None
     except OSError:
         return None
+
+
+def _open_source(source: Path):
+    """``(bundle, csv)`` for a folder, bundle or CSV: the bundle, when it is
+    one, must stay open while its extracted CSV is read. Either may be None.
+    """
+    from meanap.pipeline.bundle import is_bundle, open_bundle
+
+    if is_bundle(source):
+        bundle = open_bundle(source)
+        return bundle, find_node_csv(bundle.root)
+    return None, find_node_csv(source)
+
+
+def _source_name(source: Path) -> str:
+    """What to call a run: its folder's name for its node-level CSV, which
+    every run's is named alike; the bundle's, folder's or CSV's name otherwise.
+    """
+    if source.name != NODE_CSV:
+        return source.name
+    folder = source.parent
+    return (folder.parent if folder.name == "2_NeuronalActivity" else folder).name
 
 
 def _run_id_text(result: FrDiffResult | None) -> str:
@@ -239,6 +278,10 @@ class FrDiffViewerWindow(QDialog):
         self._bundle = None                 # an open RunBundle keeps its extraction alive
         self._csv: Path | None = None
         self._stamp: int | None = None      # _change_stamp of the source as last read
+        # Baselines from another run (see set_baseline), read once.
+        self._baseline_source: Path | None = None
+        self._baseline_stamp: int | None = None
+        self._baseline_table = None         # a DataFrame, or None
         self._config = FrDiffConfig()
         self._result: FrDiffResult | None = None
         self._drawing = Drawing([], {})
@@ -309,21 +352,26 @@ class FrDiffViewerWindow(QDialog):
         # Untitled: the button and the run ID say what it is. Without a title
         # the theme's room for one above the box is only a gap.
         box = QGroupBox()
-        box.setStyleSheet("QGroupBox { margin-top: 0px; }")
+        # The button's text is set as a panel title is (theme.py's QGroupBox).
+        box.setStyleSheet("QGroupBox { margin-top: 0px; } "
+                          "QPushButton { font-size: 12px; font-weight: 600; }")
         layout = QVBoxLayout(box)
-        self.choose_btn = QPushButton("\U0001f4c2  Choose Run…")
+        self.choose_btn = QPushButton("\U0001f4c2  Choose Run")
         self.choose_btn.setObjectName("secondary")
         self.choose_btn.setToolTip(
-            "Pick a finished run's output folder, a .meanap bundle, or a "
-            "NeuronalActivity_NodeLevel.csv. Opens on this session's run when "
-            "there is one.")
+            "Pick a .meanap bundle or a NeuronalActivity_NodeLevel.csv. Opens "
+            "on this session's run when there is one.")
         self.choose_btn.clicked.connect(self._on_choose)
         layout.addWidget(self.choose_btn)
 
+        row = QHBoxLayout()
         self.source_label = QLabel()
         self.source_label.setWordWrap(True)
         self.source_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        layout.addWidget(self.source_label)
+        row.addWidget(self.source_label, 1)
+        self.clear_source_btn = _remove_button("Remove run", self._on_clear_source)
+        row.addWidget(self.clear_source_btn, 0, Qt.AlignmentFlag.AlignTop)
+        layout.addLayout(row)
 
         # Hidden while empty (see _set_summary): the box fits what it says,
         # only the button and a line until a run is chosen.
@@ -331,6 +379,36 @@ class FrDiffViewerWindow(QDialog):
         self.summary_label.setWordWrap(True)
         self.summary_label.hide()
         layout.addWidget(self.summary_label)
+
+        self.baseline_btn = QPushButton("\U0001f4c2  Choose Baseline")
+        self.baseline_btn.setObjectName("secondary")
+        self.baseline_btn.setToolTip("Baseline recordings from another MEA-NAP run.")
+        self.baseline_btn.clicked.connect(self._on_choose_baseline)
+        layout.addWidget(self.baseline_btn)
+
+        # The baseline file and the way to let go of it; a note without one.
+        self._baseline_row = QWidget()
+        row = QHBoxLayout(self._baseline_row)
+        row.setContentsMargins(0, 0, 0, 0)
+        self.baseline_label = QLabel()
+        self.baseline_label.setWordWrap(True)
+        self.baseline_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        row.addWidget(self.baseline_label, 1)
+        self.clear_baseline_btn = _remove_button("Remove baseline",
+                                                 lambda: self.set_baseline(None))
+        row.addWidget(self.clear_baseline_btn, 0, Qt.AlignmentFlag.AlignTop)
+        self.baseline_label.setText(_NO_BASELINE)
+        self.clear_baseline_btn.hide()
+        layout.addWidget(self._baseline_row)
+
+        self.save_merged_btn = QPushButton("Save Merged CSV")
+        self.save_merged_btn.setObjectName("secondary")
+        self.save_merged_btn.setToolTip(
+            "Write the stim run's table with the baseline recordings added, as "
+            "used here, to a CSV.")
+        self.save_merged_btn.clicked.connect(self._on_save_merged)
+        self.save_merged_btn.hide()
+        layout.addWidget(self.save_merged_btn)
         return box
 
     def _build_view_box(self) -> QWidget:
@@ -372,7 +450,7 @@ class FrDiffViewerWindow(QDialog):
         self._patterns_layout.setSpacing(2)
         form.addRow("Patterns", self._patterns_widget)
 
-        self.export_btn = QPushButton("Export…")
+        self.export_btn = QPushButton("Export")
         self.export_btn.setObjectName("secondary")
         self.export_btn.setToolTip(
             f"Save the view as it is now — the ALI-COs, measure and patterns "
@@ -389,8 +467,9 @@ class FrDiffViewerWindow(QDialog):
             "take effect when applied and last while this window is open; the "
             "pipeline's own StimFRDiff files use the lab defaults.")
         # The theme's primary button is larger than its secondary one; this
-        # matches Apply and Reset in size here only, keeping Apply's colour.
-        box.setStyleSheet("QPushButton { font-size: 12px; font-weight: 600; "
+        # matches Apply and Reset in size here only, keeping Apply's colour,
+        # with their text the size of the form's (the app font, theme.py).
+        box.setStyleSheet("QPushButton { font-size: 10pt; font-weight: 600; "
                           "padding: 5px 14px; border-radius: 6px; }")
         form = QFormLayout(box)
         self.baseline_edit = QLineEdit()
@@ -535,6 +614,10 @@ class FrDiffViewerWindow(QDialog):
         """The folder, bundle or CSV being shown, or None."""
         return self._source
 
+    def baseline_source(self) -> Path | None:
+        """The other run the baselines come from, or None."""
+        return self._baseline_source
+
     def source_chosen(self) -> bool:
         """Whether the user picked the source here, so a new run should not replace it."""
         return self._source_chosen
@@ -558,12 +641,13 @@ class FrDiffViewerWindow(QDialog):
         self._close_bundle()
         self._source = source
         self._csv = None
+        self.clear_source_btn.setVisible(source is not None)
         self.source_label.setToolTip("")
         if source is None:
-            empty = "No run yet. Run MEA-Stim through step 2, or choose a finished run."
+            empty = "Choose a .meanap bundle or a NeuronalActivity_NodeLevel.csv (step 2 output)."
         else:
             try:
-                self._csv = self._resolve_csv(source)
+                self._bundle, self._csv = _open_source(source)
                 empty = (None if self._csv is not None
                          else f"{source}\nNo {NODE_CSV} here — step 2 has not run on it.")
             except Exception as e:                        # a corrupt bundle, say
@@ -585,15 +669,7 @@ class FrDiffViewerWindow(QDialog):
         self._load_parameters(self._config)
 
     def choose_source_dialog(self) -> Path | None:
-        """Ask for a folder, or failing that a bundle or CSV.
-
-        Two dialogs, as on the Stats tab: Qt's cannot offer folders and files
-        together, and a run folder is the common case.
-        """
-        folder = QFileDialog.getExistingDirectory(
-            self, "Choose a run output folder (cancel to pick a bundle or CSV)")
-        if folder:
-            return Path(folder)
+        """Ask for a .meanap bundle or a node-level CSV."""
         path, _ = QFileDialog.getOpenFileName(
             self, "Choose a .meanap bundle or a node-level CSV", "",
             "MEA-NAP bundle or CSV (*.meanap *.csv)")
@@ -617,6 +693,11 @@ class FrDiffViewerWindow(QDialog):
         self._source_chosen = True
         self.set_source(source)
 
+    def _on_clear_source(self) -> None:
+        """Let go of the run; the baseline and the parameters stay."""
+        self._source_chosen = False
+        self.set_source(None)
+
     def done(self, result: int) -> None:
         """Closing (the window's close button, or Esc) lets go of the run."""
         super().done(result)
@@ -633,25 +714,98 @@ class FrDiffViewerWindow(QDialog):
         with QSignalBlocker(self.measure_combo), QSignalBlocker(self.same_y):
             self.measure_combo.setCurrentIndex(0)
             self.same_y.setChecked(True)
+        self.set_baseline(None)
         self.set_source(None)
         self._clear_parameters()
-
-    def _resolve_csv(self, source: Path) -> Path | None:
-        from meanap.pipeline.bundle import is_bundle, open_bundle
-
-        if is_bundle(source):
-            self._bundle = open_bundle(source)
-            return find_node_csv(self._bundle.root)
-        return find_node_csv(source)
 
     def _close_bundle(self) -> None:
         if self._bundle is not None:
             self._bundle.close()
             self._bundle = None
 
+    def set_baseline(self, source: Path | None) -> None:
+        """Take the baseline recordings from ``source`` too; None stops.
+
+        ``source`` is another run's folder, bundle or CSV. Its table is read
+        here, once, and kept whole: which of its recordings are baselines
+        depends on the Baseline parameter, so they are picked out at each
+        pairing. A bundle is let go of once its table is read. It stays when
+        the run changes, until removed or the window is closed.
+        """
+        source = Path(source) if source is not None else None
+        if (source is not None and source == self._baseline_source
+                and self._baseline_table is not None
+                and _change_stamp(source) == self._baseline_stamp):
+            return
+        self._baseline_source, self._baseline_table = source, None
+        if source is not None:
+            bundle = None
+            try:
+                bundle, csv = _open_source(source)
+                if csv is None:
+                    error = f"No {NODE_CSV} here — step 2 has not run on it."
+                else:
+                    self._baseline_stamp = _change_stamp(source)
+                    self._baseline_table = read_node_csv(csv)
+                    error = None
+            except Exception as e:                        # a corrupt bundle, say
+                error = f"Could not open it: {e}"
+            finally:
+                if bundle is not None:
+                    bundle.close()
+            self.baseline_label.setText(f"Baseline: <b>{_source_name(source)}</b>"
+                                        + (f"<br>{error}" if error else ""))
+            self.baseline_label.setToolTip(str(source))
+        else:
+            self.baseline_label.setText(_NO_BASELINE)
+            self.baseline_label.setToolTip("")
+        has = self._baseline_table is not None
+        self.clear_baseline_btn.setVisible(source is not None)
+        self.save_merged_btn.setVisible(has)
+        self.save_merged_btn.setEnabled(has and self._csv is not None)
+        if self._csv is not None:
+            self._load()
+
+    def _on_choose_baseline(self) -> None:
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Choose the baseline run: a .meanap bundle or a node-level CSV", "",
+            "MEA-NAP bundle or CSV (*.meanap *.csv)")
+        # See _on_choose.
+        self.raise_()
+        self.activateWindow()
+        if path:
+            self.set_baseline(Path(path))
+
+    def _merged_table(self):
+        """The stim run's table with the baselines added, as paired now."""
+        return merge_baseline(read_node_csv(self._csv), self._baseline_table,
+                              self._config)[0]
+
+    def _on_save_merged(self) -> None:
+        if self._csv is None or self._baseline_table is None:
+            return
+        start = self._source.parent if self._source.is_file() else self._source
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Save merged CSV", str(start / MERGED_CSV), "CSV (*.csv)")
+        self.raise_()
+        self.activateWindow()
+        if not path:
+            return
+        path = Path(path)
+        inputs = [p for p in (self._csv, self._source, self._baseline_source) if p]
+        if any(path.resolve() == p.resolve() for p in inputs):
+            QMessageBox.warning(self, "Save merged CSV",
+                                f"{path.name} is one of the inputs; choose another name.")
+            return
+        try:
+            self._merged_table().to_csv(path, index=False)
+        except Exception as e:
+            QMessageBox.critical(self, "Save merged CSV", f"Could not write {path}: {e}")
+
     def _load(self) -> None:
         try:
-            result = compute_fr_diff_csv(self._csv, self._config)
+            result = compute_fr_diff(read_node_csv(self._csv), self._config,
+                                     self._baseline_table)
         except Exception as e:
             self.source_label.setText(_run_id_text(None))
             self._set_summary(f"Could not read {self._csv.name}: {e}")
@@ -750,6 +904,8 @@ class FrDiffViewerWindow(QDialog):
         has = result is not None and bool(result.panels)
         for widget in (self.measure_combo, self.same_y, self.export_btn):
             widget.setEnabled(has)
+        self.save_merged_btn.setEnabled(self._csv is not None
+                                        and self._baseline_table is not None)
         if result is None:
             self.details.setPlainText("")
         else:
@@ -769,7 +925,7 @@ class FrDiffViewerWindow(QDialog):
                 f"compared with its own <i>{cfg.baseline or '(no baseline set)'}</i> "
                 f"recording under '{patterns}'.")
         if not result.panels:
-            text += (f"<br>Nothing paired. An ALI-CO needs a <i>{cfg.baseline}</i> recording "
+            text += (f"<br><br>Nothing paired. An ALI-CO needs a <i>{cfg.baseline}</i> recording "
                      f"and {'every one' if cfg.require_all_patterns else 'at least one'} of "
                      f"its patterns with the same run ID and ALI-CO, e.g. "
                      f"R250929CT1A_DIV250_{cfg.baseline}. Check the Parameters panel "
