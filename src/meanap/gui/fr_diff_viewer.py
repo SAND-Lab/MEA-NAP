@@ -3,13 +3,13 @@
 Each ALI-CO's (air-liquid interface cerebral organoid slice) firing rate under
 every stimulation pattern is compared, channel by channel, with its own
 baseline recording (see :mod:`meanap.stim.fr_diff`, which calls them slices),
-and drawn one panel per ALI-CO by the same code that draws the pipeline's
-``StimFRDiff`` figures (:mod:`meanap.stim.fr_diff_plot`).
+and drawn one panel per ALI-CO (:mod:`meanap.stim.fr_diff_plot`). Nothing here
+is part of a pipeline run: the window reads step 2's node-level CSV and writes
+only what the user saves from it.
 
 The parameters default to the lab's and can be changed here, for this window
 only and only once applied, so a run with differently named files can be
-viewed without changing anything the pipeline reads. The pipeline's own
-``StimFRDiff`` files always use the defaults.
+viewed without changing anything the pipeline reads.
 
 The baselines may come from another run, for unstimulated recordings analysed
 on their own: they are added to the stim run's table in memory (see
@@ -26,11 +26,12 @@ from matplotlib.figure import Figure
 from PyQt6.QtCore import QSignalBlocker, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QCursor, QStandardItem, QStandardItemModel
 from PyQt6.QtWidgets import (
-    QAbstractScrollArea, QApplication, QCheckBox, QComboBox, QDialog, QFileDialog, QFormLayout, QGroupBox,
-    QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPlainTextEdit,
+    QWIDGETSIZE_MAX, QApplication, QCheckBox, QComboBox, QDialog, QFileDialog, QFormLayout,
+    QGroupBox, QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPlainTextEdit,
     QPushButton, QScrollArea, QSizePolicy, QSplitter, QToolButton, QToolTip, QVBoxLayout, QWidget,
 )
 
+from meanap.gui.wheel import _scrolling_ancestor
 from meanap.gui.widgets import scrollable
 from meanap.stim.fr_diff import (
     FrDiffConfig, FrDiffResult, compute_fr_diff, describe, format_note,
@@ -38,7 +39,7 @@ from meanap.stim.fr_diff import (
 )
 from meanap.stim.fr_diff_plot import (
     EXCLUDED_COLOR, SAVE_DPI, Drawing, default_columns, draw_fr_diff, figure_size,
-    stim_colors,
+    save_fr_diff_figure, stim_colors,
 )
 
 __all__ = [
@@ -47,7 +48,7 @@ __all__ = [
 ]
 
 NODE_CSV = "NeuronalActivity_NodeLevel.csv"
-#: The name scripts/merge_csv.py gives a stitched baseline + stim table.
+#: Default name for the stim run's table with the baselines merged in.
 MERGED_CSV = "NeuronalActivity_NodeLevel_base_stim_merged.csv"
 ALL_ALICOS = "All"
 _NO_BASELINE = "Not needed if all runs were analyzed together in MEA-STIM."
@@ -56,7 +57,6 @@ _NO_BASELINE = "Not needed if all runs were analyzed together in MEA-STIM."
 _TWO_COLUMNS_BELOW = 1100
 _ONE_COLUMN_BELOW = 700
 _SINGLE_MIN_H = 460          # px: the single-ALI-CO view fills the plot area, but no less
-_UNBOUNDED = 16777215        # QWIDGETSIZE_MAX
 _GAP = 8                     # px: window margin, and space around the splitter lines
 _TITLE_GAP = 3               # px: the theme's gap between a group title and its frame
 #: Clear px (before, after) each splitter handle's 1 px line.
@@ -80,7 +80,7 @@ def find_node_csv(source: Path) -> Path | None:
 def format_patterns(patterns: dict[str, str]) -> str:
     """``{"stim1": "Spatial 1"}`` as ``stim1=Spatial 1``; a bare token when unlabelled."""
     return ", ".join(t if not label or label == t else f"{t}={label}"
-                     for t, label in (patterns or {}).items())
+                     for t, label in patterns.items())
 
 
 def parse_patterns(text: str) -> dict[str, str]:
@@ -96,7 +96,7 @@ def parse_patterns(text: str) -> dict[str, str]:
 
 def format_channels(channels) -> str:
     """Channel IDs as a sorted, comma-separated list: ``{31, 21}`` -> ``21, 31``."""
-    return ", ".join(str(int(c)) for c in sorted(channels or ()))
+    return ", ".join(str(int(c)) for c in sorted(channels))
 
 
 def parse_channels(text: str) -> list[int]:
@@ -116,7 +116,7 @@ def _checkbox(text: str) -> QCheckBox:
 
 
 def _remove_button(tooltip: str, slot) -> QToolButton:
-    """The small ✕ that lets go of a run or a baseline."""
+    """The small ✕ that removes a run or a baseline."""
     btn = QToolButton()
     btn.setText("✕")
     btn.setAutoRaise(True)
@@ -149,7 +149,7 @@ def _hairline(across_x: bool, before: int, after: int, color: str) -> str:
 
 def _driven(config: FrDiffConfig) -> set[int]:
     """Every channel any pattern drove: the Stimulating field's one list."""
-    return set().union(*config.stimulated.values()) if config.stimulated else set()
+    return set().union(*config.stimulated.values())
 
 
 def _change_stamp(source: Path) -> int | None:
@@ -189,6 +189,15 @@ def _source_name(source: Path) -> str:
     return (folder.parent if folder.name == "2_NeuronalActivity" else folder).name
 
 
+def _save_dir(source: Path) -> Path:
+    """Where a file saved from ``source`` goes by default: beside the run, not in it.
+
+    A file left inside a run folder would travel in any bundle later made from it.
+    """
+    folder = source.parent
+    return folder.parent.parent if folder.name == "2_NeuronalActivity" else folder
+
+
 def _run_id_text(result: FrDiffResult | None) -> str:
     """**Run ID: R250929**, from the file names of every ALI-CO, paired or not."""
     runs = sorted({x.run for x in (result.panels + result.unpaired) if x.run}
@@ -198,15 +207,10 @@ def _run_id_text(result: FrDiffResult | None) -> str:
     return f"<b>Run ID{'s' if len(runs) > 1 else ''}: {', '.join(runs)}</b>"
 
 
-def _fmt_pct(v: float) -> str:
-    """A percentage without its ``%``: the status line puts the unit after the range."""
-    sign = "+" if v >= 0 else _MINUS
-    return f"{sign}{abs(v):.{1 if abs(v) < 10 else 0}f}"
-
-
-def _fmt_log(v: float) -> str:
-    sign = "+" if v >= 0 else _MINUS
-    return f"{sign}{abs(v):.2f}"
+def _fmt(v: float, log: bool) -> str:
+    """A signed value without its unit: the status line puts it after the range."""
+    digits = 2 if log else (1 if abs(v) < 10 else 0)
+    return f"{'+' if v >= 0 else _MINUS}{abs(v):.{digits}f}"
 
 
 class _Canvas(FigureCanvasQTAgg):
@@ -230,13 +234,11 @@ class _Canvas(FigureCanvasQTAgg):
         self.resized.emit()
 
     def wheelEvent(self, event) -> None:  # noqa: N802 — Qt override
-        parent = self.parentWidget()
-        while parent is not None and not isinstance(parent, QAbstractScrollArea):
-            parent = parent.parentWidget()
-        if parent is None:
+        area = _scrolling_ancestor(self)
+        if area is None:
             event.ignore()
             return
-        QApplication.sendEvent(parent.viewport(), event)
+        QApplication.sendEvent(area.viewport(), event)
         event.accept()
 
 
@@ -245,7 +247,7 @@ class FrDiffViewerWindow(QDialog):
 
     Non-modal, and reopened rather than rebuilt, like the spike and burst
     viewer: it is a workspace kept beside the main window. What it shows is
-    not kept, though: closing it lets go of the run and puts the parameters
+    not kept, though: closing it unloads the run and puts the parameters
     and view back to the lab's defaults (see _unload), so reopening reads the
     CSV afresh rather than showing numbers a later run has replaced.
     """
@@ -327,7 +329,7 @@ class FrDiffViewerWindow(QDialog):
         self._fit_parameter_fields()
         self._clear_parameters()
         self.set_source(None)
-        # A bundle's extraction is let go on close (see _unload); this covers
+        # A bundle's extraction is closed on close (see _unload); this covers
         # quitting with the window still open.
         app = QApplication.instance()
         if app is not None:
@@ -386,7 +388,7 @@ class FrDiffViewerWindow(QDialog):
         self.baseline_btn.clicked.connect(self._on_choose_baseline)
         layout.addWidget(self.baseline_btn)
 
-        # The baseline file and the way to let go of it; a note without one.
+        # The baseline file and the way to remove it; a note without one.
         self._baseline_row = QWidget()
         row = QHBoxLayout(self._baseline_row)
         row.setContentsMargins(0, 0, 0, 0)
@@ -465,7 +467,7 @@ class FrDiffViewerWindow(QDialog):
             "Which recordings are compared with which, read from the file "
             "names, and which channels say nothing about the tissue. Changes "
             "take effect when applied and last while this window is open; the "
-            "pipeline's own StimFRDiff files use the lab defaults.")
+            "pipeline's settings are not touched.")
         # The theme's primary button is larger than its secondary one; this
         # matches Apply and Reset in size here only, keeping Apply's colour,
         # with their text the size of the form's (the app font, theme.py).
@@ -563,14 +565,13 @@ class FrDiffViewerWindow(QDialog):
         self.details = QPlainTextEdit()
         self.details.setReadOnly(True)
         self.details.setObjectName("log")
-        # One ALI-CO per line, as in the pipeline's pairing file: wrapped, one
-        # ALI-CO's exclusions run into the next one's name.
+        # One ALI-CO per line: wrapped, one ALI-CO's exclusions run into the
+        # next one's name.
         self.details.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
         self.details.setMinimumHeight(120)
         self.details.setToolTip(
             "Which ALI-COs were plotted, which were not and why, and anything "
-            "else worth knowing about the recordings — the same text the "
-            "pipeline writes to StimFRDiff_pairing.txt.")
+            "else worth knowing about the recordings.")
         layout.addWidget(self.details)
         return box
 
@@ -699,7 +700,7 @@ class FrDiffViewerWindow(QDialog):
         self.set_source(None)
 
     def done(self, result: int) -> None:
-        """Closing (the window's close button, or Esc) lets go of the run."""
+        """Closing (the window's close button, or Esc) unloads the run."""
         super().done(result)
         self._unload()
 
@@ -729,7 +730,7 @@ class FrDiffViewerWindow(QDialog):
         ``source`` is another run's folder, bundle or CSV. Its table is read
         here, once, and kept whole: which of its recordings are baselines
         depends on the Baseline parameter, so they are picked out at each
-        pairing. A bundle is let go of once its table is read. It stays when
+        pairing. A bundle is closed once its table is read. It stays when
         the run changes, until removed or the window is closed.
         """
         source = Path(source) if source is not None else None
@@ -782,11 +783,8 @@ class FrDiffViewerWindow(QDialog):
                               self._config)[0]
 
     def _on_save_merged(self) -> None:
-        if self._csv is None or self._baseline_table is None:
-            return
-        start = self._source.parent if self._source.is_file() else self._source
         path, _ = QFileDialog.getSaveFileName(
-            self, "Save merged CSV", str(start / MERGED_CSV), "CSV (*.csv)")
+            self, "Save merged CSV", str(_save_dir(self._source) / MERGED_CSV), "CSV (*.csv)")
         self.raise_()
         self.activateWindow()
         if not path:
@@ -861,8 +859,11 @@ class FrDiffViewerWindow(QDialog):
         lab = FrDiffConfig()
         patterns = (parse_patterns(self.patterns_edit.text())
                     if self.patterns_edit.text().strip() else dict(lab.stim_labels))
-        channels = lambda edit, default: (frozenset(parse_channels(edit.text()))  # noqa: E731
-                                          if edit.text().strip() else frozenset(default))
+
+        def channels(edit: QLineEdit, default) -> frozenset[int]:
+            text = edit.text()
+            return frozenset(parse_channels(text) if text.strip() else default)
+
         stimulating = channels(self.stimulating_edit, _driven(lab))
         return FrDiffConfig(
             baseline=self.baseline_edit.text().strip() or lab.baseline,
@@ -1028,7 +1029,7 @@ class FrDiffViewerWindow(QDialog):
             fig.clear()
             self._drawing = Drawing([], {})
             self.status_label.setText("")
-            self._set_canvas_height(0, _UNBOUNDED)
+            self._set_canvas_height(0, QWIDGETSIZE_MAX)
             self.canvas.draw_idle()
             return
 
@@ -1040,7 +1041,7 @@ class FrDiffViewerWindow(QDialog):
             height = int(figure_size(n, ncols, 1.0, legend=False)[1] * px_per_in)
             self._set_canvas_height(height, height)
         else:
-            self._set_canvas_height(_SINGLE_MIN_H, _UNBOUNDED)
+            self._set_canvas_height(_SINGLE_MIN_H, QWIDGETSIZE_MAX)
         self._drawing = draw_fr_diff(
             fig, result, measure=self._measure(), same_y=self.same_y.isChecked(),
             selected=self._selected(), hidden=self._hidden(), ncols=ncols, legend=False)
@@ -1071,8 +1072,7 @@ class FrDiffViewerWindow(QDialog):
         values = [v for p in panels for d in p.diffs
                   if (v := (d.log2 if log else d.pct)) is not None]
         if values:
-            fmt = _fmt_log if log else _fmt_pct
-            parts.append(f"Range: {fmt(min(values))} – {fmt(max(values))} "
+            parts.append(f"Range: {_fmt(min(values), log)} – {_fmt(max(values), log)} "
                          f"({'log₂' if log else '%'})")
         self.status_label.setText("&nbsp;&nbsp;|&nbsp;&nbsp;".join(parts))
 
@@ -1113,24 +1113,18 @@ class FrDiffViewerWindow(QDialog):
             self.select_alico(panel.id)
 
     def _on_export(self) -> None:
-        if self._result is None or not self._result.panels:
-            return
         sel = self._selected()
         name = ("fr_diff_" + (sel.replace("/", "_") if sel else "all")
                 + ("_log2" if self._measure() == "log2" else ""))
-        start = str((self._source.parent if self._source else Path.home()) / f"{name}.png")
         path, _ = QFileDialog.getSaveFileName(
-            self, "Export figure", start, "PNG (*.png);;SVG (*.svg);;PDF (*.pdf)")
+            self, "Export figure", str(_save_dir(self._source) / f"{name}.png"),
+            "PNG (*.png);;SVG (*.svg);;PDF (*.pdf)")
         if not path:
             return
-        # The view as it is on screen, at its on-screen width, plus the legend
-        # and the line explaining the red numbers and triangles, which the
-        # window says beside the plot and a saved file has to say itself.
-        n, ncols = self._n_shown(), self._columns()
+        # At the on-screen width, so the file matches the view; the saved
+        # figure adds the legend and caption the window shows beside the plot.
         px_per_in = self.canvas.figure.dpi / self.canvas.device_pixel_ratio
-        width = self.canvas.width() / px_per_in
-        fig = Figure(figsize=figure_size(n, ncols, width, caption=True))
-        draw_fr_diff(fig, self._result, measure=self._measure(),
-                     same_y=self.same_y.isChecked(), selected=sel, hidden=self._hidden(),
-                     ncols=ncols, caption=True)
-        fig.savefig(path, dpi=SAVE_DPI, facecolor="white")
+        save_fr_diff_figure(self._result, path, measure=self._measure(),
+                            same_y=self.same_y.isChecked(), selected=sel,
+                            hidden=self._hidden(), ncols=self._columns(),
+                            width=self.canvas.width() / px_per_in)

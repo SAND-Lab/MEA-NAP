@@ -112,7 +112,7 @@ class MainWindow(QMainWindow):
         #: kept afterwards so it holds on to whatever recording it loaded.
         self._spike_viewer = None
         #: The firing-rate change viewer, built on first use and reopened rather
-        #: than rebuilt; it lets go of its run when closed.
+        #: than rebuilt; it unloads its run when closed.
         self._fr_diff_viewer = None
         #: The machine report, built on first use and kept so a benchmark
         #: already run is still on screen when it is reopened.
@@ -1639,7 +1639,7 @@ class MainWindow(QMainWindow):
         """Open the firing-rate change viewer on this session's run.
 
         One window, reopened rather than replaced, like the spike viewer. It
-        lets go of its run when closed, so it opens afresh: this session's
+        unloads its run when closed, so it opens afresh: this session's
         run, read now, with the lab's parameters.
         """
         from meanap.gui.fr_diff_viewer import FrDiffViewerWindow

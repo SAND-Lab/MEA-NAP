@@ -1,7 +1,7 @@
 """The firing-rate-change figure: one panel per slice, change per channel.
 
-Port of the lab viewer ``fr_diff_viewer.html`` to matplotlib, so the pipeline's
-saved figure and the GUI's interactive view are drawn by the same code. Each
+Port of the lab viewer ``fr_diff_viewer.html`` to matplotlib, so the GUI's
+interactive view and the figures exported from it are drawn by the same code. Each
 panel plots the change from baseline (y) against channel (x), one colour per
 stimulation pattern, with the dots jittered sideways so a channel's patterns do
 not overprint.
@@ -241,8 +241,13 @@ def draw_fr_diff(
     colors = stim_colors(result)
     multi = multi_run(result.panels)
     all_points = [d for p in panels for d in p.diffs]
-    finite = lambda ds: [v for v in (_y(d, log) for d in ds) if v is not None]  # noqa: E731
-    any_silent = lambda ds: log and any(d.log2 is None for d in ds)            # noqa: E731
+
+    def finite(ds: list[Diff]) -> list[float]:
+        return [v for v in (_y(d, log) for d in ds) if v is not None]
+
+    def any_silent(ds: list[Diff]) -> bool:
+        return log and any(d.log2 is None for d in ds)
+
     shared = _y_range(finite(all_points), log, any_silent(all_points)) if same_y else None
     tick_size = 10 if single else 9
     budget = 10**9 if single else (16 if ncols <= 2 else 10)
@@ -310,7 +315,7 @@ def draw_fr_diff(
             ax.set_ylabel(y_label(measure, result.config.baseline), fontsize=11,
                           color=INK_COLOR)
         # With one panel the slice is already named wherever it was chosen, so
-        # a title on top of it is noise.
+        # a title on top of it is redundant.
         if not single:
             # Centred: the % axis's ×10ⁿ sits at the top left of the panel.
             ax.set_title(panel_title(panel, multi), loc="center", fontsize=12,
@@ -339,14 +344,30 @@ def draw_fr_diff(
     return Drawing(drawn, axes_panels)
 
 
-def save_fr_diff_figure(result: FrDiffResult, out_path: Path | str, *,
-                        measure: str = "pct", dpi: int = SAVE_DPI) -> Path:
-    """Save every slice's panel, grid-laid, to ``out_path`` (a .png/.svg/.pdf); returns it."""
-    n = len(result.panels)
-    ncols = default_columns(n)
-    fig = Figure(figsize=figure_size(n, ncols, 6.5 if ncols == 1 else 5.5 * ncols + 1.2,
-                                     caption=True))
-    draw_fr_diff(fig, result, measure=measure, ncols=ncols, caption=True)
+def save_fr_diff_figure(
+    result: FrDiffResult,
+    out_path: Path | str,
+    *,
+    measure: str = "pct",
+    same_y: bool = True,
+    selected: str | None = None,
+    hidden: frozenset[str] | set[str] = frozenset(),
+    ncols: int | None = None,
+    width: float | None = None,
+    dpi: int = SAVE_DPI,
+) -> Path:
+    """Save what :func:`draw_fr_diff` draws, with legend and caption, to ``out_path``.
+
+    ``out_path`` is a .png, .svg or .pdf. The view arguments are
+    :func:`draw_fr_diff`'s; ``ncols`` and ``width`` (inches) default to the
+    layout for the panels shown. Returns ``out_path``.
+    """
+    n = 1 if selected else len(result.panels)
+    ncols = ncols or default_columns(n)
+    width = width or (6.5 if ncols == 1 else 5.5 * ncols + 1.2)
+    fig = Figure(figsize=figure_size(n, ncols, width, caption=True))
+    draw_fr_diff(fig, result, measure=measure, same_y=same_y, selected=selected,
+                 hidden=hidden, ncols=ncols, caption=True)
     out_path = Path(out_path)
     savefig(fig, out_path, default_dpi=dpi, facecolor="white")
     return out_path

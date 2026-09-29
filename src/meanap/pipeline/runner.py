@@ -332,19 +332,6 @@ def run_pipeline(
     else:
         log("Skipping step 2 (neuronal activity) — outside the selected step range.")
 
-    # The one part of the stim analysis that reads step 2's output rather than
-    # the raw voltage: each slice's firing rate under stimulation against its
-    # own baseline recording. Only when step 2 ran, so it is never drawn from a
-    # previous run's CSV sitting in this folder. Steps 3-4 do not depend on
-    # it, so a failure is logged and the run goes on.
-    if params.stimulation_mode and start <= 2 <= stop:
-        check_cancel(should_cancel)
-        try:
-            from meanap.pipeline.stim_step import run_fr_diff
-            run_fr_diff(output_root, log)
-        except Exception as e:
-            log(f"  Warning: firing-rate change from baseline failed: {e}")
-
     if start <= 3 <= stop:
         check_cancel(should_cancel)
         _run_timed_step(3, lambda: _run_step3_functional_connectivity(
