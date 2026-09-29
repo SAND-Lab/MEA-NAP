@@ -146,6 +146,26 @@ def _hairline(across_x: bool, before: int, after: int, color: str) -> str:
             f"stop:{b - 0.0001:.4f} {color}, stop:{b:.4f} transparent, stop:1 transparent)")
 
 
+def _driven(config: FrDiffConfig) -> set[int]:
+    """Every channel any pattern drove: the Stimulating field's one list."""
+    return set().union(*config.stimulated.values()) if config.stimulated else set()
+
+
+def _change_stamp(source: Path) -> int | None:
+    """When ``source``'s node-level CSV last changed, or None if it cannot be told.
+
+    A bundle's own file for a bundle, whose extracted CSV never changes; the
+    CSV itself otherwise. Cheap: a bundle is not opened to find it.
+    """
+    from meanap.pipeline.bundle import is_bundle
+
+    try:
+        path = source if is_bundle(source) else find_node_csv(source)
+        return path.stat().st_mtime_ns if path is not None else None
+    except OSError:
+        return None
+
+
 def _run_id_text(result: FrDiffResult | None) -> str:
     """**Run ID: R250929**, from the file names of every ALI-CO, paired or not."""
     runs = sorted({x.run for x in (result.panels + result.unpaired) if x.run}
@@ -201,7 +221,10 @@ class FrDiffViewerWindow(QDialog):
     """Browse each ALI-CO's per-channel firing-rate change from its own baseline.
 
     Non-modal, and reopened rather than rebuilt, like the spike and burst
-    viewer: it is a workspace kept beside the main window.
+    viewer: it is a workspace kept beside the main window. What it shows is
+    not kept, though: closing it lets go of the run and puts the parameters
+    and view back to the lab's defaults (see _unload), so reopening reads the
+    CSV afresh rather than showing numbers a later run has replaced.
     """
 
     def __init__(self, parent: QWidget | None = None) -> None:
@@ -240,6 +263,7 @@ class FrDiffViewerWindow(QDialog):
         self._source_chosen = False
         self._bundle = None                 # an open RunBundle keeps its extraction alive
         self._csv: Path | None = None
+        self._stamp: int | None = None      # _change_stamp of the source as last read
         self._config = FrDiffConfig()
         self._result: FrDiffResult | None = None
         self._drawing = Drawing([], {})
@@ -283,7 +307,7 @@ class FrDiffViewerWindow(QDialog):
         self.canvas.mpl_connect("button_press_event", self._on_click)
 
         self._fit_parameter_fields()
-        self._load_parameters(self._config)
+        self._clear_parameters()
         self.set_source(None)
         # Closing the window only hides it (it is reopened, not rebuilt), and
         # the plot may still re-read the bundle's CSV after that, so its
@@ -405,7 +429,6 @@ class FrDiffViewerWindow(QDialog):
             "ALI-CO's stimulated recordings are compared with its own baseline, "
             "matched on the run ID and the ALI-CO (R250929 and CT1A).")
         self.patterns_edit = QLineEdit()
-        self.patterns_edit.setPlaceholderText("stim1=Spatial 1, stim3=Spatial 3")
         self.patterns_edit.setToolTip(
             "The stimulation conditions, comma-separated, each as token=legend "
             "name (or just the token). Recordings of any other condition are "
@@ -422,6 +445,20 @@ class FrDiffViewerWindow(QDialog):
         self.stimulating_edit.setToolTip(
             "The stimulating electrodes, left out of every pattern: they read "
             "0 Hz by design. Comma-separated channel IDs.")
+        # Before a run is loaded the fields are empty, showing the lab's values
+        # in grey: the format to follow, and what an untouched field means
+        # (see _config_from_fields). Loading a run takes the fields as they
+        # are and writes the values it used in (see set_source).
+        lab = FrDiffConfig()
+        for edit, text in ((self.baseline_edit, lab.baseline),
+                           (self.patterns_edit, format_patterns(lab.stim_labels)),
+                           (self.grounded_edit, format_channels(lab.grounded)),
+                           (self.stimulating_edit, format_channels(_driven(lab)))):
+            edit.setPlaceholderText(text)
+            edit.setToolTip(edit.toolTip() + " Left empty, the lab's value (in grey) "
+                            "is used" + ("; to leave none out, write none."
+                                         if edit in (self.grounded_edit,
+                                                     self.stimulating_edit) else "."))
 
         # Nothing re-pairs until Apply: otherwise a half-typed baseline empties
         # the plot the moment the field loses focus.
@@ -433,8 +470,7 @@ class FrDiffViewerWindow(QDialog):
         self.reset_parameters_btn.setObjectName("secondary")
         self.reset_parameters_btn.setToolTip(
             "Put the lab's parameters back in the fields; Apply to use them.")
-        self.reset_parameters_btn.clicked.connect(
-            lambda: self._load_parameters(FrDiffConfig()))
+        self.reset_parameters_btn.clicked.connect(self._on_reset_parameters)
         # Equal halves of the row, each as tall as the row: the themes differ
         # on which of the two has a border, so their own heights may not agree.
         buttons = QHBoxLayout()
@@ -545,7 +581,10 @@ class FrDiffViewerWindow(QDialog):
     def set_source(self, source: Path | None) -> None:
         """Read ``source`` (folder, bundle or CSV); None clears the window."""
         source = Path(source) if source is not None else None
-        if source is not None and source == self._source and self._result is not None:
+        # The same run is not read twice, unless its CSV has been rewritten
+        # since (a re-run into the same folder, say).
+        if (source is not None and source == self._source and self._result is not None
+                and _change_stamp(source) == self._stamp):
             return
         self._close_bundle()
         self._source = source
@@ -553,8 +592,8 @@ class FrDiffViewerWindow(QDialog):
         self.source_label.setToolTip("")
         if source is None:
             self.source_label.setText(
-                "No run yet. Run the pipeline in MEA-Stim mode through step 2, "
-                "or choose a finished run.")
+                "No run yet. Run MEA-Stim through step 2, or choose a finished run."
+            )
             self._set_summary("")
             self._show_result(None)
             return
@@ -574,7 +613,12 @@ class FrDiffViewerWindow(QDialog):
         # on hover, for when it does not.
         self.source_label.setToolTip(str(source) if self._csv == source
                                      else f"{source}\n→ {self._csv.name}")
+        self._stamp = _change_stamp(source)
+        # A run is read with the fields as they stand, applied or not, and
+        # the values it was read with are then written in, the lab's included.
+        self._config = self._config_from_fields()
         self._load()
+        self._load_parameters(self._config)
 
     def choose_source_dialog(self) -> Path | None:
         """Ask for a folder, or failing that a bundle or CSV.
@@ -609,6 +653,28 @@ class FrDiffViewerWindow(QDialog):
         self._source_chosen = True
         self.set_source(source)
 
+    def done(self, result: int) -> None:
+        """Closing (the window's close button, or Esc) lets go of the run."""
+        super().done(result)
+        self._unload()
+
+    def _unload(self) -> None:
+        """Back to the window as first built: no run, lab parameters, default view.
+
+        The window itself is kept for reopening; a later run, or the same
+        folder rewritten, is then read afresh rather than shown as it was.
+        """
+        self._source_chosen = False
+        self._config = FrDiffConfig()
+        for widget in (self.measure_combo, self.same_y):
+            widget.blockSignals(True)
+        self.measure_combo.setCurrentIndex(0)
+        self.same_y.setChecked(True)
+        for widget in (self.measure_combo, self.same_y):
+            widget.blockSignals(False)
+        self.set_source(None)
+        self._clear_parameters()
+
     def _resolve_csv(self, source: Path) -> Path | None:
         from meanap.pipeline.bundle import is_bundle, open_bundle
 
@@ -636,31 +702,61 @@ class FrDiffViewerWindow(QDialog):
 
     # ── parameters ───────────────────────────────────────────────────────────
 
+    def _parameter_widgets(self) -> tuple:
+        return (self.baseline_edit, self.patterns_edit, self.require_all,
+                self.grounded_edit, self.stimulating_edit)
+
     def _load_parameters(self, config: FrDiffConfig) -> None:
-        """Show ``config`` in the Parameters fields, without re-pairing."""
-        widgets = (self.baseline_edit, self.patterns_edit, self.require_all,
-                   self.grounded_edit, self.stimulating_edit)
-        for w in widgets:
+        """Write ``config`` into the Parameters fields, without re-pairing.
+
+        An empty channel list is written as ``none``: an empty field means the
+        lab's channels.
+        """
+        for w in self._parameter_widgets():
             w.blockSignals(True)
         self.baseline_edit.setText(config.baseline)
         self.patterns_edit.setText(format_patterns(config.stim_labels))
         self.require_all.setChecked(config.require_all_patterns)
-        self.grounded_edit.setText(format_channels(config.grounded))
         # The fields hold one list of stimulating channels; a config driving
         # different channels per pattern shows them all.
-        driven = set().union(*config.stimulated.values()) if config.stimulated else set()
-        self.stimulating_edit.setText(format_channels(driven))
-        for w in widgets:
+        for edit, channels in ((self.grounded_edit, config.grounded),
+                               (self.stimulating_edit, _driven(config))):
+            edit.setText(format_channels(channels) or "none")
+        for w in self._parameter_widgets():
             w.blockSignals(False)
         self._on_parameters_edited()
 
+    def _clear_parameters(self) -> None:
+        """Empty the fields, so they show the lab's values in grey and mean them."""
+        for w in self._parameter_widgets():
+            w.blockSignals(True)
+        for edit in (self.baseline_edit, self.patterns_edit, self.grounded_edit,
+                     self.stimulating_edit):
+            edit.clear()
+        self.require_all.setChecked(FrDiffConfig().require_all_patterns)
+        for w in self._parameter_widgets():
+            w.blockSignals(False)
+        self._on_parameters_edited()
+
+    def _on_reset_parameters(self) -> None:
+        """The lab's values: in grey before a run is loaded, written in after."""
+        if self._csv is None:
+            self._clear_parameters()
+        else:
+            self._load_parameters(FrDiffConfig())
+
     def _config_from_fields(self) -> FrDiffConfig:
-        patterns = parse_patterns(self.patterns_edit.text())
-        stimulating = frozenset(parse_channels(self.stimulating_edit.text()))
+        """The fields as a config; an empty one is the lab's value (its grey text)."""
+        lab = FrDiffConfig()
+        patterns = (parse_patterns(self.patterns_edit.text())
+                    if self.patterns_edit.text().strip() else dict(lab.stim_labels))
+        channels = lambda edit, default: (frozenset(parse_channels(edit.text()))  # noqa: E731
+                                          if edit.text().strip() else frozenset(default))
+        stimulating = channels(self.stimulating_edit, _driven(lab))
         return FrDiffConfig(
-            baseline=self.baseline_edit.text().strip(),
+            baseline=self.baseline_edit.text().strip() or lab.baseline,
             stim_labels=patterns,
-            grounded=frozenset(parse_channels(self.grounded_edit.text())),
+            grounded=channels(self.grounded_edit, lab.grounded),
             stimulated={t: stimulating for t in patterns} if stimulating else {},
             require_all_patterns=self.require_all.isChecked(),
         )
@@ -669,8 +765,12 @@ class FrDiffViewerWindow(QDialog):
         return self._config_from_fields() != self._config
 
     def _on_parameters_edited(self, *_args) -> None:
-        """Offer Apply only while the fields say something other than what is in use."""
-        pending = self.has_unapplied_parameters()
+        """Offer Apply only while the fields say something other than what is in use.
+
+        Before a run is loaded there is nothing to apply to: loading one takes
+        the fields as they are.
+        """
+        pending = self._csv is not None and self.has_unapplied_parameters()
         self.apply_btn.setEnabled(pending)
         self.pending_label.setVisible(pending)
 
@@ -700,6 +800,7 @@ class FrDiffViewerWindow(QDialog):
                                                                    if notes else [])))
         self._fill_alicos(result)
         self._fill_patterns(result)
+        self._on_parameters_edited()            # Apply only with a run to apply to
         self._redraw()
 
     def _summary(self, result: FrDiffResult) -> str:

@@ -1633,26 +1633,29 @@ class MainWindow(QMainWindow):
     def _on_open_fr_diff_viewer(self) -> None:
         """Open the firing-rate change viewer on this session's run.
 
-        One window, reopened rather than replaced, like the spike viewer: it
-        keeps the slice, protocol and run it was left on.
+        One window, reopened rather than replaced, like the spike viewer. It
+        lets go of its run when closed, so it opens afresh: this session's
+        run, read now, with the lab's parameters.
         """
         from meanap.gui.fr_diff_viewer import FrDiffViewerWindow
 
         if self._fr_diff_viewer is None:
             self._fr_diff_viewer = FrDiffViewerWindow(self)
-        self._refresh_fr_diff_source()
+        self._refresh_fr_diff_source(opening=True)
         self._fr_diff_viewer.show()
         self._fr_diff_viewer.raise_()
         self._fr_diff_viewer.activateWindow()
 
-    def _refresh_fr_diff_source(self) -> None:
+    def _refresh_fr_diff_source(self, *, opening: bool = False) -> None:
         """Point an open viewer at this session's run, unless it chose its own.
 
         The same rule as the Stats tab: the bundle an express run left, else
-        the run's folder, else the folder the settings name.
+        the run's folder, else the folder the settings name. A closed viewer
+        is left empty — it reads the run when next opened (``opening``).
         """
         viewer = self._fr_diff_viewer
-        if viewer is None or viewer.source_chosen():
+        if (viewer is None or (not opening and not viewer.isVisible())
+                or viewer.source_chosen()):
             return
         bundle = self._last_bundle
         root = self._last_output_root or self._candidate_output_root()
