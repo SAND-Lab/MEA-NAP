@@ -31,6 +31,7 @@ from PyQt6.QtWidgets import (
     QPushButton, QScrollArea, QSizePolicy, QSplitter, QToolButton, QToolTip, QVBoxLayout, QWidget,
 )
 
+from meanap.gui.theme import ACCENT
 from meanap.gui.wheel import _scrolling_ancestor
 from meanap.gui.widgets import scrollable
 from meanap.stim.fr_diff import (
@@ -59,10 +60,13 @@ _ONE_COLUMN_BELOW = 700
 _SINGLE_MIN_H = 460          # px: the single-ALI-CO view fills the plot area, but no less
 _GAP = 8                     # px: window margin, and space around the splitter lines
 _TITLE_GAP = 3               # px: the theme's gap between a group title and its frame
-#: Clear px (before, after) each splitter handle's 1 px line.
-_HANDLES = {"horizontal": (_GAP, _GAP), "vertical": (_GAP, _TITLE_GAP)}
+_HOVER_GROW = 1              # px a hovered handle's line grows either side: 1 px -> 3 px
+#: Clear px (before, after) each splitter handle's 1 px line. Pairing Details'
+#: title sits under the vertical one, so it is kept _TITLE_GAP clear of the
+#: line even while hovered.
+_HANDLES = {"horizontal": (_GAP, _GAP), "vertical": (_GAP, _TITLE_GAP + _HOVER_GROW)}
 _HAIRLINE = "rgb(218, 220, 224)"          # the theme's box borders
-_HAIRLINE_HOVER = "rgb(26, 115, 232)"     # the theme's handle hover
+_HAIRLINE_HOVER = ACCENT                  # the theme's primary: the checkboxes' hover underline
 _MINUS = "−"
 
 
@@ -133,14 +137,16 @@ def _entry(text: str, panel_id: str | None, tooltip: str = "") -> QStandardItem:
     return item
 
 
-def _hairline(across_x: bool, before: int, after: int, color: str) -> str:
+def _hairline(across_x: bool, before: int, after: int, color: str, grow: int = 0) -> str:
     """A 1 px ``color`` line with ``before`` and ``after`` clear px either side of it.
 
     For a splitter handle ``before + 1 + after`` px wide, the gradient running
-    across it (along x for a handle between side-by-side widgets).
+    across it (along x for a handle between side-by-side widgets). ``grow``
+    widens the line by that many px either side, into the clear px, so the
+    handle itself keeps its width.
     """
     n = before + 1 + after
-    a, b = before / n, (before + 1) / n
+    a, b = (before - grow) / n, (before + 1 + grow) / n
     x2, y2 = (1, 0) if across_x else (0, 1)
     return (f"qlineargradient(x1:0, y1:0, x2:{x2}, y2:{y2}, stop:0 transparent, "
             f"stop:{a:.4f} transparent, stop:{a + 0.0001:.4f} {color}, "
@@ -270,9 +276,10 @@ class FrDiffViewerWindow(QDialog):
             "QScrollArea#controls { border: none; } "
             "QPlainTextEdit#log { margin: 0px; } "
             + "".join(f"QSplitter::handle:{o}{state} {{ background: "
-                      f"{_hairline(o == 'horizontal', *_HANDLES[o], color)}; }} "
+                      f"{_hairline(o == 'horizontal', *_HANDLES[o], color, grow)}; }} "
                       for o in _HANDLES
-                      for state, color in (("", _HAIRLINE), (":hover", _HAIRLINE_HOVER))))
+                      for state, color, grow in (("", _HAIRLINE, 0),
+                                                 (":hover", _HAIRLINE_HOVER, _HOVER_GROW))))
         self.resize(1400, 900)
 
         self._source: Path | None = None
