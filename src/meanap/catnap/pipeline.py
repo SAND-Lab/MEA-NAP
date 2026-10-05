@@ -864,6 +864,7 @@ def _compute_recording(
             remove_nodes_with_no_peaks=params.remove_nodes_with_no_peaks,
             prob_thresh_tail=params.prob_thresh_tail,
             prob_thresh_rep_num=params.prob_thresh_rep_num,
+            corr_prob_threshold=params.twop_corr_prob_thresh,
             rng=make_rng(params.random_seed, "catnap", rec.filename),
         )
         _log_bin_rounding(res, log, rec.filename)

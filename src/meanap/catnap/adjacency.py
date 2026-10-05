@@ -9,9 +9,12 @@ list, per-unit activity matrices, peak spike times, and event properties that
 the rest of the pipeline consumes.
 
 Determinism: ``coords``, ``channels``, ``activity_properties``, ``spike_times``
-and the ``corr``-based adjacency (``F`` / ``spks`` / ``denoised F``) are exact
-— though the correlation paths now bin first, which MATLAB does not do (see
-``suite2p_to_adjm``), so they match MATLAB only at a one-frame bin.
+and the unthresholded ``corr``-based adjacency (``F`` / ``spks`` /
+``denoised F``) are exact — though the correlation paths now bin first, which
+MATLAB does not do (see ``suite2p_to_adjm``), so they match MATLAB only at a
+one-frame bin, and only with ``corr_prob_threshold`` off: the circular-shift
+threshold on those paths (:func:`threshold_correlation`) is Python-only and,
+like the STTC one, RNG-driven.
 The ``peaks`` adjacency reuses :func:`meanap.pipeline.probabilistic_threshold.adjm_thr`
 (STTC + circular-shift thresholding), whose thresholding step is RNG-driven and
 therefore only reproducible against MATLAB within tolerance — see that module
@@ -118,6 +121,74 @@ def _bin_columns(x: np.ndarray, n_frames: int) -> np.ndarray:
     return x[: n_bins * n_frames].reshape(n_bins, n_frames, x.shape[1]).mean(axis=1)
 
 
+def threshold_correlation(
+    x: np.ndarray,
+    tail: float,
+    rep_num: int,
+    rng: np.random.Generator,
+) -> np.ndarray:
+    """Pearson adjacency of the columns of *x*, keeping only significant edges.
+
+    The correlation counterpart of
+    :func:`~meanap.pipeline.probabilistic_threshold.adjm_thr`: each repetition
+    circularly shifts every unit's trace by its own random offset, which keeps
+    each trace's own statistics (its values, and its autocorrelation apart
+    from the one wrap-around point) while breaking the timing between units.
+    An edge survives only if its real correlation is at least the
+    ``ceil((1 - tail) * rep_num)``-th smallest of its ``rep_num`` surrogate
+    correlations — the same one-sided, upper-tail cutoff the STTC path uses,
+    so ``prob_thresh_tail`` means the same thing on both. Being one-sided, it
+    zeroes every negative correlation along with the weak positive ones.
+
+    *x* is the already-binned ``(n_bins, n_units)`` activity: it is the binned
+    series that gets correlated, so it is the binned series that is shifted.
+    Offsets are drawn from ``1 .. n_bins - 1``, so no surrogate is the real
+    data unshifted.
+
+    Rather than holding every surrogate matrix (``n² × rep_num`` floats — over
+    a gigabyte for a thousand cells at 200 repetitions), this counts per edge
+    how many surrogates fall at or below the real value. The edge's cutoff
+    surrogate is at or below the real value exactly when at least
+    ``cutoff + 1`` of them are, so the result is the one sorting would give.
+
+    NaN edges (a unit whose binned trace is constant) are left NaN, as the
+    unthresholded path leaves them: that is handled downstream.
+    """
+    real = _corr_columns(x)
+    n_bins, n_units = x.shape
+    if n_units < 2 or n_bins < 2:
+        return real
+
+    # Correlation is a dot product of z-scores, and a circular shift permutes
+    # a column without changing its mean or spread — so standardise once and
+    # each repetition is a single matrix product. A constant column (std 0)
+    # contributes zeros; its real edges are NaN and stay NaN.
+    sd = x.std(axis=0)
+    z = np.divide(x - x.mean(axis=0), sd, out=np.zeros(x.shape), where=sd > 0)
+
+    cutoff = math.ceil((1 - tail) * rep_num) - 1  # 0-indexed, as adjm_thr
+    cutoff = min(max(cutoff, 0), rep_num - 1)
+
+    rows = np.arange(n_bins)[:, None]
+    cols = np.arange(n_units)[None, :]
+    at_or_below = np.zeros((n_units, n_units), dtype=np.int32)
+    for _ in range(rep_num):
+        k = rng.integers(1, n_bins, size=n_units)  # 1 .. n_bins-1
+        shifted = z[(rows - k[None, :]) % n_bins, cols]
+        at_or_below += (shifted.T @ shifted / n_bins) <= real
+
+    # Decide each edge once, from the upper triangle, and mirror it. The two
+    # halves are compared separately against floating-point surrogates, so on
+    # a near-tie (highly correlated cells) they could otherwise disagree — and
+    # an asymmetric matrix breaks the undirected metrics downstream.
+    drop = np.triu(at_or_below <= cutoff, k=1)
+    drop |= drop.T
+    out = real.copy()
+    out[drop & ~np.isnan(real)] = 0.0
+    np.fill_diagonal(out, 0.0)
+    return out
+
+
 def suite2p_to_adjm(
     data: Suite2pData,
     twop_activity: str,
@@ -126,6 +197,7 @@ def suite2p_to_adjm(
     remove_nodes_with_no_peaks: bool = False,
     prob_thresh_tail: float = 0.05,
     prob_thresh_rep_num: int = 200,
+    corr_prob_threshold: bool = False,
     rng: np.random.Generator | None = None,
 ) -> Suite2pAdjmResult:
     """Port of ``suite2pToAdjm.m``.
@@ -146,6 +218,13 @@ def suite2p_to_adjm(
         bins that long and correlated between bins. Empty falls back to one bin
         of ``round(1000 / fs)`` ms, i.e. a single frame, which is the un-binned
         correlation this path used to be fixed at.
+    corr_prob_threshold
+        On the correlation paths, keep only edges that beat circular-shift
+        surrogates of the binned traces (:func:`threshold_correlation`, using
+        ``prob_thresh_tail`` / ``prob_thresh_rep_num``). Off here so a direct
+        call returns the plain correlation matrix; a pipeline run takes it
+        from ``Params.twop_corr_prob_thresh``, which is on by default. The
+        ``peaks`` path is always thresholded and ignores this.
     """
     fs = float(data.fs)
     cell_mask = data.cell_mask  # iscell[:, 0] as bool, shape (n_rois,)
@@ -230,11 +309,16 @@ def suite2p_to_adjm(
         # too long for the recording is clamped to half its length instead, and
         # ``bin_frames`` records what it became so the caller can say so.
         max_frames = max(1, src.shape[0] // 2)
+        if corr_prob_threshold and rng is None:
+            rng = np.random.default_rng()
         for bin_ms in used_lags:
             n_frames = min(frames_per_bin(bin_ms, fs), max_frames)
             bin_frames[int(bin_ms)] = n_frames
-            adjMs[f"adjM{int(bin_ms)}mslag"] = _corr_columns(
-                _bin_columns(src, n_frames))
+            binned = _bin_columns(src, n_frames)
+            adjMs[f"adjM{int(bin_ms)}mslag"] = (
+                threshold_correlation(binned, prob_thresh_tail,
+                                      prob_thresh_rep_num, rng)
+                if corr_prob_threshold else _corr_columns(binned))
 
     elif twop_activity == "peaks":
         used_lags = list(func_con_lag_val)
