@@ -123,6 +123,7 @@ RECONSTRUCTABLE_FAMILIES = (
     "2B_activity_comparisons",      # activity by group and age (both pipelines)
     "cell_type_activity",           # CAT-NAP: activity split by cell type
     "cell_type_subnetwork_groups",  # CAT-NAP: subnetwork *group* comparisons
+    "cell_type_comparisons",        # CAT-NAP: activity + network, one type per series
     "2A_individual_activity",       # ephys: rasters, heatmaps, burst detail
     "1B_spike_detection_checks",    # ephys: example traces, frequencies, waveforms
     "3_edge_threshold_checks",      # ephys: probabilistic-thresholding stability

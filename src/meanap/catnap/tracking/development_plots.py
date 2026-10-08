@@ -192,17 +192,20 @@ def typed(df: pd.DataFrame, definition: TypeDefinition) -> pd.DataFrame:
     return pd.concat(parts, ignore_index=True)
 
 
-def memberships(df: pd.DataFrame, definition: TypeDefinition) -> dict[str, np.ndarray]:
+def memberships(df: pd.DataFrame, definition: TypeDefinition,
+                unit: tuple[str, ...] = ("chain", "cluster")) -> dict[str, np.ndarray]:
     """``{type: row mask}`` for the types with :data:`MIN_TYPE_CELLS` cells or more.
 
-    Shared by the figures and the viewer, so the two cannot disagree on who is
-    which type or on which types are large enough to show.
+    Shared by the tracked figures, the viewer and the cross-sectional figures,
+    so none of them can disagree on who is which type or on which types are
+    large enough to show. *unit* is what counts as one cell: a tracked cell
+    (chain, cluster), or a cell on one day (``("FileName", "Channel")``).
     """
     markers = markers_in(df)
     out = {}
     for name, expr in definition.types.items():
         member = evaluate(expr, df, markers) == 1.0
-        if df.loc[member, ["chain", "cluster"]].drop_duplicates().shape[0] >= MIN_TYPE_CELLS:
+        if df.loc[member, list(unit)].drop_duplicates().shape[0] >= MIN_TYPE_CELLS:
             out[name] = member
     return out
 

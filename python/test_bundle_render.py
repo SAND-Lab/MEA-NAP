@@ -1396,6 +1396,7 @@ def _manifest_honesty_checks() -> list[Check]:
         "ephys_activity": "2B_activity_comparisons",
         "cell_type": "cell_type_activity",
         "subnetwork": "cell_type_subnetwork_groups",
+        "cell_type_comparisons": "cell_type_comparisons",
     }
     checks.append(("every implemented family has a manifest name",
                    implemented <= set(expected),

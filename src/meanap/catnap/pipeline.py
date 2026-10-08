@@ -688,6 +688,7 @@ def run_catnap_pipeline(
             states[activity], root_act, log,
         )
     _run_cell_tracking(params, recordings, output_root, log, source)
+    _run_cell_type_comparisons(params, output_root, log)
 
     progress.phase_done()
     log("  CAT-NAP pipeline complete.")
@@ -801,6 +802,28 @@ def _run_cell_tracking(params: Params, recordings, output_root: Path,
                      log=lambda m: log(f"    {m}"))
     except Exception as e:
         log(f"    Development by cell type failed ({type(e).__name__}: {e}).")
+
+
+def _run_cell_type_comparisons(params: Params, output_root: Path, log) -> None:
+    """Activity and network metrics by cell type, across groups and ages.
+
+    Runs after tracking, so tracked cells are counted under their final call
+    rather than one day's label. Figures only, so express mode skips it; the
+    calls table it writes can be rebuilt from the bundle later.
+    """
+    if params.express_mode:
+        return
+    try:
+        from meanap.catnap.celltype_comparisons import plot_cell_type_comparisons
+
+        plot_cell_type_comparisons(
+            output_root, label_folders=[params.twop_cell_type_file, params.raw_data],
+            group_spec=params.twop_subnetwork_groups,
+            group_order=params.custom_grp_order or None,
+            timescale=timescale_kind(params), activity=params.twop_activity,
+            log=lambda m: log(f"  {m}"))
+    except Exception as e:
+        log(f"  Cell-type comparisons failed ({type(e).__name__}: {e}).")
 
 
 def _compute_recording(

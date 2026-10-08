@@ -156,8 +156,41 @@ Design points:
   click-through. The layout was checked in headless-Chrome screenshots, in
   light and dark.
 
+## Phase B as built (`catnap/celltype_comparisons.py`)
+* **Calls for every cell-day**, not only tracked cells:
+  * read from label files, found the way the pipeline finds them (explicit
+    folder → `twop_cell_type_file` → `rawData/<rec>/`), token-matched when a
+    file carries the raw name;
+  * read three-state with `celltypes.read_marker_labels` / `place_labels`, so
+    files belonging to another recording are rejected;
+  * tracked cells then take their final call, and a blank final call makes
+    the marker unknown.
+  * Written to `2_NeuronalActivity/CellTypeCalls.csv` (with `callSource`).
+* **Figures, per split definition (same definitions and memberships as
+  C/D):**
+  * `2B_GroupComparisons/6_CellTypeComparisons/<def>/` and
+    `4B_GroupComparisons/9_CellTypeComparisons/<Lag>/<def>/`;
+  * each with `{Node,Recordings}{ByGroup,ByAge}`, cell type as the series;
+  * Recordings = mean per (recording, type), so n = recordings;
+  * `NDnorm` added, as in A.
+* **Rebuildable:** bundles drop 2B/4B, so this is the render family
+  `cell_type_comparisons`. It re-plots from the saved calls (a bundle has no
+  label files) and re-applies the current final calls. Checked through
+  `render_group_family` on Yin.
+* **When it runs:** in the pipeline after tracking, so final calls exist;
+  not in express mode. Or `python -m meanap.catnap.celltype_comparisons <run>
+  --labels <folder>`.
+* **Yin:** 129 recordings labelled; the known-bad OPME240517_17 DIV44 file was
+  rejected; 5564 cell-days take tracked final calls. 420 figures in about
+  2.5 min. Plotting is pinned to one BLAS thread; unpinned, it cost
+  43 CPU-minutes.
+* **Left as is:** the older `1_NodeByGroup/ByCellType`,
+  `2_NodeByAge/ByCellType` and `5_CellTypeComposition` folders. They come
+  from the pipeline's binary positive-only groups. They are kept for
+  compatibility, so the user can decide whether to retire them.
+
 ## Status
 - [x] A
 - [x] C
 - [x] D
-- [ ] B
+- [x] B

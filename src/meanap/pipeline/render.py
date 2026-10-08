@@ -531,6 +531,9 @@ GROUP_FAMILIES: tuple[GroupFamily, ...] = (
     GroupFamily("subnetwork", "Cell-type subnetworks by group and age", "4_NetworkActivity"),
     GroupFamily("ephys_activity", "Activity metrics by group and age",
                 "2_NeuronalActivity"),
+    # Writes into both 2B and 4B, so its root is the run itself.
+    GroupFamily("cell_type_comparisons",
+                "Activity and network metrics by cell type", ""),
 )
 
 
@@ -566,6 +569,9 @@ def available_group_families(ctx: RenderContext) -> list[GroupFamily]:
         elif fam.key == "subnetwork" and _subnetwork_rows(ctx)[0]:
             out.append(fam)
         elif fam.key == "ephys_activity" and _ephys_stats(ctx):
+            out.append(fam)
+        elif fam.key == "cell_type_comparisons" and \
+                (ctx.root / "2_NeuronalActivity" / "CellTypeCalls.csv").exists():
             out.append(fam)
     return out
 
@@ -676,6 +682,13 @@ def render_group_family(
             from meanap.pipeline.plotting_step2 import plot_step2_group_comparisons
             plot_step2_group_comparisons(
                 recordings, _ephys_stats(ctx), out_dir, order, fmt=fmt, colors=scheme)
+        elif fam.key == "cell_type_comparisons":
+            from meanap.catnap.celltype_comparisons import plot_cell_type_comparisons
+            # from the calls the bundle carries: it has no raw label files
+            plot_cell_type_comparisons(
+                ctx.root, out_dir=out_dir, group_spec=params.twop_subnetwork_groups,
+                group_order=order, timescale=timescale_kind(params),
+                activity=params.twop_activity, fmt=fmt)
         else:  # subnetwork
             summary, node = _subnetwork_rows(ctx)
             gp.plot_subnetwork_group_comparisons(
