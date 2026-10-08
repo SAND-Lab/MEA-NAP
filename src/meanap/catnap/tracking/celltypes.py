@@ -801,6 +801,10 @@ def main(argv=None) -> int:
         ap.error(f"{args.tracking_dir} has no payload/ folder")
     report = annotate_tracking_dir(root, args.labels, suite2p_roots=args.suite2p,
                                    rerender=not args.no_render, log=print)
+    from meanap.catnap.tracking.development import build_for_run
+
+    # new labels change the cell-type columns of the joined table
+    build_for_run(root, log=print)
     for marker, by_geno in report.summary()["label_agreement"].items():
         for geno, v in by_geno.items():
             print(f"  {marker:6s} {geno:4s} tracked pairs agree {v['agreement']:.3f} "

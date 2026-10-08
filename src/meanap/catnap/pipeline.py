@@ -777,6 +777,31 @@ def _run_cell_tracking(params: Params, recordings, output_root: Path,
             "with prep, so prefer within-prep comparisons")
     log(f"    results and per-cell pages: {out_dir}")
 
+    # The run's node tables were written before tracking started, so every
+    # tracked cell-day can now be given its activity and network metrics.
+    try:
+        from meanap.catnap.tracking.development import build_for_run
+
+        build_for_run(out_dir, output_root, log=lambda m: log(f"    {m}"))
+    except Exception as e:
+        log(f"    Tracked cell metrics failed ({type(e).__name__}: {e}).")
+        return
+
+    # Cell types compared across development, on the cells tracked through it.
+    # The statistics are tables, so express mode keeps them and skips figures.
+    try:
+        from meanap.catnap.tracking.development_plots import plot_for_run
+
+        plot_for_run(out_dir, output_root,
+                     group_spec=params.twop_subnetwork_groups,
+                     group_order=params.custom_grp_order or None,
+                     timescale=timescale_kind(params),
+                     figures=not params.express_mode,
+                     max_workers=params.recording_workers,
+                     log=lambda m: log(f"    {m}"))
+    except Exception as e:
+        log(f"    Development by cell type failed ({type(e).__name__}: {e}).")
+
 
 def _compute_recording(
     params: Params, rec: RecordingInfo, plane0: Path, log,

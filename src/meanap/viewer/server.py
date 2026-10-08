@@ -292,6 +292,10 @@ class ViewerService:
         final = self._final_csv_path()
         if final is not None:
             write_final_csv(root / CELLS_CSV, load_overrides(path), final)
+            if self._bundle is None:
+                from meanap.catnap.tracking.development import refresh_cell_types
+
+                refresh_cell_types(root, final)
         return {"chain": chain, "overrides": saved, "file": str(path)}
 
     def tracking_payload(self, chain: str) -> dict:
