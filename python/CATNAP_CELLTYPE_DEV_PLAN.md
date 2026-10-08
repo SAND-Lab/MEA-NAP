@@ -132,8 +132,32 @@ Design points:
   through `parallel.map_recordings` with BLAS pinned to one thread.
   Unpinned, the same run cost 95 CPU-minutes.
 
+## Phase D as built (viewer → Cell tracking → "Development by cell type")
+* **`/api/trackingdevelopment`:** with no parameters it returns the
+  cell-days, the metrics, and every definition's member rows. The members
+  come from `development_plots.memberships`, the same function the figures
+  use. With `?metric=&lag=&measure=` it returns that metric's values aligned
+  to the cell-days, plus its rows from the saved stats tables.
+* **Live decisions:** the final calls are re-applied on every visit (sidecar
+  for bundles), so a decision saved in the cells view shows on return.
+  `statsStale` flags when decisions are newer than the saved stats, which
+  are not recomputed in the viewer.
+* **Controls:** the split, metric, lag, measure, minimum days tracked, and
+  whether to include days added by position.
+* **Panels:**
+  * per-group trajectories, with means of chain means and a t CI over chains;
+  * change per cell, where clicking a chain ring opens that chain's network;
+  * the stats tables, with q < 0.05 in bold.
+* **Defaults and links:** the view opens on the split whose smallest type is
+  largest. Links may carry `?tab=tracking&view=development&def=…&metric=…`.
+* **Palette:** `TYPE_COLOURS` slots 4–6 were re-stepped so the palette passes
+  the validator on the dark background too.
+* **Not yet exercised in a live browser:** hover tooltips and the
+  click-through. The layout was checked in headless-Chrome screenshots, in
+  light and dark.
+
 ## Status
 - [x] A
 - [x] C
-- [ ] D
+- [x] D
 - [ ] B

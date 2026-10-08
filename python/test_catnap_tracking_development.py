@@ -13,6 +13,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from meanap.catnap.tracking.development import (
     TRACKED_METRICS_CSV, BuildReport, FileNameIndex, build_for_run, name_key,
@@ -188,3 +189,68 @@ def test_no_tracking_table_without_run_tables(tmp_path):
     (root / "payload").mkdir(parents=True)
     assert build_for_run(root).empty
     assert not refresh_cell_types(root)
+
+
+def _service(run: Path):
+    """The viewer service on a run folder, without loading a full run context."""
+    from meanap.viewer.server import ViewerService
+
+    svc = ViewerService.__new__(ViewerService)
+    svc._bundle, svc.source = None, run
+    return svc
+
+
+def _many_cells_payload(n: int = 12) -> dict:
+    """One chain, two days, *n* cells tracked across both (raw id = position)."""
+    sessions = [{"div": d, "cluster": list(range(n)), "roi": list(range(n)),
+                 "recording": REC[d]} for d in (10, 20)]
+    return {"chainKey": CHAIN, "sessions": sessions, "cells": []}
+
+
+def test_viewer_endpoint_follows_saved_decisions(tmp_path):
+    import os
+    import time
+
+    n = 12
+    root = _run_folder(tmp_path)
+    run = root.parent
+    act = pd.DataFrame([{"FileName": REC[d], "Grp": "WT", "DIV": float(d), "Channel": c + 1,
+                         "FR": d + c / 100} for d in (10, 20) for c in range(n)])
+    act.to_csv(run / "2_NeuronalActivity" / "TwoPhotonActivity_NodeLevel.csv", index=False)
+    (root / "payload" / f"{CHAIN}.json").write_text(json.dumps(_many_cells_payload(n)))
+    final = "chain,cluster,marker,final\n" + "".join(
+        f"{CHAIN},{c},M,{'+' if c < 6 else '-'}\n" for c in range(n))
+    (root / "cell_types_final.csv").write_text(final)
+    build_for_run(root)
+    svc = _service(run)
+
+    meta = svc.tracking_development()
+    assert meta["available"] and meta["groups"] == ["WT"]
+    (d,) = meta["definitions"]
+    rows = {t["name"]: t["rows"] for t in d["types"]}
+    assert len(rows["M+"]) == 12 and len(rows["M-"]) == 12      # 6 cells x 2 days each
+
+    # values line up with the cell-days the meta listed
+    vals = svc.tracking_development("FR")["values"]
+    r = meta["rows"]
+    for i in range(len(vals)):
+        assert vals[i] == pytest.approx(r["divRecorded"][i] + r["cluster"][i] / 100)
+
+    # stats saved, then a decision: the view follows it and flags the tables as stale
+    stats = root / "DevelopmentByCellType"
+    stats.mkdir()
+    (stats / "Stats_MixedModel.csv").write_text("metric,term,p\nFR,age,0.5\n")
+    past = time.time() - 60
+    os.utime(stats / "Stats_MixedModel.csv", (past, past))
+    (root / "cell_types_final.csv").write_text(final.replace(f"{CHAIN},0,M,+", f"{CHAIN},0,M,-"))
+    meta = svc.tracking_development()
+    rows = {t["name"]: t["rows"] for t in meta["definitions"][0]["types"]}
+    assert len(rows["M+"]) == 10 and len(rows["M-"]) == 14
+    assert meta["statsStale"]
+    assert svc.tracking_development("FR")["mixed"][0]["term"] == "age"
+
+
+def test_viewer_endpoint_without_a_table(tmp_path):
+    root = tmp_path / "run" / "CellTracking"
+    (root / "payload").mkdir(parents=True)
+    assert _service(root.parent).tracking_development() == {"available": False}

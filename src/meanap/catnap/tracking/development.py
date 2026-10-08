@@ -329,21 +329,47 @@ def refresh_cell_types(tracking_dir: str | Path, final_csv: str | Path | None = 
     path = root / TRACKED_METRICS_CSV
     if not path.is_file():
         return False
-    df = pd.read_csv(path, dtype={c: str for c in _celltype_columns(path)},
-                     keep_default_na=False, na_values=[""])
+    df = read_table(path)
     calls = read_final_calls(final_csv if final_csv is not None else root / FINAL_CSV)
+    df = apply_final_calls(df, calls)
+    tmp = path.with_suffix(".csv.tmp")
+    df.to_csv(tmp, index=False)
+    tmp.replace(path)
+    return True
+
+
+def read_table(path: str | Path) -> pd.DataFrame:
+    """Read ``TrackedCellMetrics.csv`` with its text columns kept as text.
+
+    A blank cell-type call has to stay ``""`` (unknown) rather than turn into
+    NaN, and a lag like ``1000mslag`` must not be parsed as anything else.
+    """
+    path = Path(path)
+    text = {c: str for c in _celltype_columns(path)}
+    text.update({"Lag": str, "ActivityType": str, "chain": str, "FileName": str,
+                 "dayVia": str})
+    df = pd.read_csv(path, dtype=text, keep_default_na=False, na_values=[""])
+    for c in _celltype_columns(path):
+        df[c] = df[c].fillna("")
+    return df
+
+
+def apply_final_calls(df: pd.DataFrame, calls: dict) -> pd.DataFrame:
+    """Replace the ``celltype_*`` columns with *calls* (:func:`read_final_calls`).
+
+    The viewer uses this to show decisions saved since the table was written,
+    which on a bundle is the only way they can appear, since a bundle is never
+    rewritten.
+    """
+    df = df.drop(columns=[c for c in df.columns if c.startswith(CELLTYPE_PREFIX)])
     markers = sorted({m for c in calls.values() for m in c})
-    df = df.drop(columns=_celltype_columns(path))
     # straight after the key columns, where the build puts them
     pos = max(df.columns.get_loc(c) for c in _LEAD if c in df.columns) + 1
     keys = list(zip(df["chain"], df["cluster"].astype(int)))
     for k, m in enumerate(markers):
         df.insert(pos + k, CELLTYPE_PREFIX + m,
                   [calls.get(key, {}).get(m, "") or "" for key in keys])
-    tmp = path.with_suffix(".csv.tmp")
-    df.to_csv(tmp, index=False)
-    tmp.replace(path)
-    return True
+    return df
 
 
 def _celltype_columns(path: Path) -> list[str]:

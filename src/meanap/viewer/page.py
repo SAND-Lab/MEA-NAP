@@ -301,10 +301,13 @@ does not have MEA-NAP installed.">Export output folder</button>
       <option value="overview">Overview &mdash; all chains</option>
       <option value="cells">Cells &mdash; one chain</option>
       <option value="network">Network &mdash; one chain</option>
+      <option value="development">Development by cell type &mdash; all chains</option>
     </select>
-    <h2>Chain</h2>
-    <p class="sub">Ordered by how well matches separate from a co-located
-    different cell &mdash; not by match rate. The two disagree.</p>
+    <div id="track-chain-head">
+      <h2>Chain</h2>
+      <p class="sub">Ordered by how well matches separate from a co-located
+      different cell &mdash; not by match rate. The two disagree.</p>
+    </div>
     <div id="track-filter" class="row" style="gap:8px;flex-wrap:wrap;margin-bottom:6px">
       <select id="track-geno" aria-label="genotype">
         <option value="">all genotypes</option></select>
@@ -1819,6 +1822,465 @@ function usablePanel(D2) {
   return fig;
 }
 
+// ── development by cell type ─────────────────────────────────────────────────
+//
+// Tracked cells across age, split by cell type: the live counterpart of
+// CellTracking/DevelopmentByCellType/. The cell-days and each type's members
+// come once per visit, so a decision saved in the cells view shows on return;
+// a metric's values come per metric. Everything summarised here is a mean of
+// chain means, as in the static figures: cells in one field of view are not
+// independent samples.
+
+let TRACK_DEV = null;
+const DEV_METRIC_CACHE = {};
+const DEV = {def: null, metric: null, lag: null, measure: null, minDays: 2, byPosition: true};
+
+/** Two-sided 95% t quantiles by degrees of freedom (1..30). */
+const T975 = [NaN, 12.706, 4.303, 3.182, 2.776, 2.571, 2.447, 2.365, 2.306, 2.262,
+  2.228, 2.201, 2.179, 2.160, 2.145, 2.131, 2.120, 2.110, 2.101, 2.093, 2.086, 2.080,
+  2.074, 2.069, 2.064, 2.060, 2.056, 2.052, 2.048, 2.045, 2.042];
+const t975 = df => df < 1 ? NaN : df <= 30 ? T975[df] : df <= 60 ? 2.0 : df <= 120 ? 1.98 : 1.96;
+
+function quantile(sorted, q) {
+  if (!sorted.length) return NaN;
+  const i = (sorted.length - 1) * q, lo = Math.floor(i), hi = Math.ceil(i);
+  return sorted[lo] + (sorted[hi] - sorted[lo]) * (i - lo);
+}
+function niceTicksDev(lo, hi, n) {
+  const span = hi - lo || 1, raw = span / n;
+  const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const step = [1, 2, 2.5, 5, 10].map(m => m * mag).find(s => span / s <= n) || mag * 10;
+  const out = [];
+  for (let v = Math.ceil(lo / step) * step; v <= hi + step * 1e-9; v += step)
+    out.push(Math.abs(v) < step * 1e-9 ? 0 : v);
+  return out;
+}
+const fmtNum = v => v == null || !isFinite(v) ? "n/a"
+  : Math.abs(v) >= 1000 || (Math.abs(v) < 0.01 && v !== 0) ? v.toExponential(2)
+  : v.toPrecision(3);
+const fmtP = v => v == null || !isFinite(v) ? "" : v === 0 ? "< 1e-16"
+  : v < 0.001 ? v.toExponential(1) : v.toFixed(3);
+/** Opacity for one of *n* overlapping faint marks: dense sets fade further, so
+ *  900 cells read as a spread rather than a solid block. */
+const faint = (n, k) => Math.min(0.3, Math.max(0.03, k / Math.sqrt(Math.max(n, 1))));
+
+async function showTrackingDevelopment() {
+  const host = $("tracking");
+  host.innerHTML = '<p class="sub">Loading…</p>';
+  // refetched on every visit: memberships follow the latest cell-type decisions
+  try { TRACK_DEV = await getJSON("/api/trackingdevelopment"); }
+  catch (e) { host.innerHTML = '<p class="err">' + String(e.message || e) + "</p>"; return; }
+  const D = TRACK_DEV;
+  if (!D.available) {
+    host.innerHTML = '<p class="sub">This run has no tracked-cell table. Build it with '
+      + "<code>python -m meanap.catnap.tracking.development &lt;run&gt;</code>.</p>";
+    return;
+  }
+  if (!D.definitions.length) {
+    host.innerHTML = '<p class="sub">No cell-type split has two types with enough '
+      + "tracked cells to compare. Tracked cells need cell-type labels "
+      + "(see the cells view).</p>";
+    return;
+  }
+  // a link may name the split and metric (?view=development&def=…&metric=…)
+  const want = new URLSearchParams(location.search);
+  if (DEV.def === null && want.get("def")) DEV.def = want.get("def");
+  if (DEV.metric === null && want.get("metric")) DEV.metric = want.get("metric");
+  if (!D.definitions.some(d => d.name === DEV.def)) {
+    // open on the split with the most to compare: the largest smallest type
+    const smallest = d => Math.min(...d.types.map(t =>
+      new Set(t.rows.map(i => D.rows.chain[i] + ":" + D.rows.cluster[i])).size));
+    DEV.def = D.definitions.reduce((a, b) => smallest(b) > smallest(a) ? b : a).name;
+  }
+  if (!D.metrics.some(m => m.key === DEV.metric)) DEV.metric = D.metrics[0].key;
+  if (!D.lags.includes(DEV.lag)) DEV.lag = D.lags[0] || null;
+  if (!D.measures.includes(DEV.measure)) DEV.measure = D.measures[0] || null;
+
+  const opt = (v, t, sel) => `<option value="${v}"${v === sel ? " selected" : ""}>${t}</option>`;
+  const metricOpts = ["Activity", "Network"].map(b => {
+    const ms = D.metrics.filter(m => m.block === b);
+    return ms.length ? `<optgroup label="${b}">`
+      + ms.map(m => opt(m.key, m.label, DEV.metric)).join("") + "</optgroup>" : "";
+  }).join("");
+  // the longest span any cell has, for the "tracked on at least" choice
+  const spans = devSpans(D, () => true);
+  const maxDays = Math.max(2, ...Object.values(spans));
+  host.innerHTML =
+    '<div class="ctl" style="margin-bottom:8px">'
+    + '<label>cell types <select id="dev-def">'
+    + D.definitions.map(d => opt(d.name, d.name, DEV.def)).join("") + "</select></label>"
+    + `<label>metric <select id="dev-metric">${metricOpts}</select></label>`
+    + (D.lags.length > 1 ? '<label>lag <select id="dev-lag">'
+       + D.lags.map(l => opt(l, l, DEV.lag)).join("") + "</select></label>" : "")
+    + (D.measures.length > 1 ? '<label>measure <select id="dev-measure">'
+       + D.measures.map(m => opt(m, m, DEV.measure)).join("") + "</select></label>" : "")
+    + '<label>tracked on at least <select id="dev-days">'
+    + Array.from({length: maxDays - 1}, (_, i) => i + 2)
+        .map(k => opt(String(k), k + " days", String(DEV.minDays))).join("")
+    + "</select></label>"
+    + `<label title="Days a cell was matched by position after ROICaT, or joined from a split cluster">`
+    + `<input type="checkbox" id="dev-pos" style="width:auto;margin:0"${DEV.byPosition ? " checked" : ""}>`
+    + " include days added by position</label></div>"
+    + '<div id="dev-types" class="sub" style="margin-bottom:8px"></div>'
+    + '<div id="dev-body" class="trackgrid"></div>';
+  const bind = (id, key, conv) => { const el = $(id); if (!el) return;
+    el.addEventListener("change", () => { DEV[key] = conv(el); renderDevelopment(); }); };
+  bind("dev-def", "def", el => el.value);
+  bind("dev-metric", "metric", el => el.value);
+  bind("dev-lag", "lag", el => el.value);
+  bind("dev-measure", "measure", el => el.value);
+  bind("dev-days", "minDays", el => Number(el.value));
+  bind("dev-pos", "byPosition", el => el.checked);
+  renderDevelopment();
+}
+
+/** Days each cell is present on, among the rows *keep* accepts. */
+function devSpans(D, keep) {
+  const spans = {};
+  const R = D.rows;
+  for (let i = 0; i < R.chain.length; i++) {
+    if (!keep(i)) continue;
+    const k = R.chain[i] + ":" + R.cluster[i];
+    spans[k] = (spans[k] || 0) + 1;
+  }
+  return spans;
+}
+
+async function renderDevelopment() {
+  const D = TRACK_DEV, body = $("dev-body");
+  if (!body) return;
+  const key = [DEV.metric, DEV.lag, DEV.measure].join("|");
+  if (!DEV_METRIC_CACHE[key]) {
+    body.innerHTML = '<p class="sub">Loading…</p>';
+    const q = new URLSearchParams({metric: DEV.metric});
+    if (DEV.lag) q.set("lag", DEV.lag);
+    if (DEV.measure) q.set("measure", DEV.measure);
+    try { DEV_METRIC_CACHE[key] = await getJSON("/api/trackingdevelopment?" + q); }
+    catch (e) { body.innerHTML = '<p class="err">' + String(e.message || e) + "</p>"; return; }
+  }
+  const M = DEV_METRIC_CACHE[key];
+  const def = D.definitions.find(d => d.name === DEV.def);
+  const metric = D.metrics.find(m => m.key === DEV.metric);
+  const R = D.rows, vals = M.values;
+
+  // which cell-days count: the position filter first, then the span over what is left
+  const posOk = i => DEV.byPosition || !R.byPosition[i];
+  const spans = devSpans(D, posOk);
+  const keep = i => posOk(i) && vals[i] != null
+    && spans[R.chain[i] + ":" + R.cluster[i]] >= DEV.minDays;
+
+  const types = def.types.map(t => ({...t, rows: t.rows.filter(keep)}));
+  $("dev-types").innerHTML = types.map(t => {
+    const cells = new Set(t.rows.map(i => R.chain[i] + ":" + R.cluster[i])).size;
+    return `<span style="margin-right:14px"><i class="sw" style="display:inline-block;width:10px;`
+      + `height:10px;border-radius:2px;background:${t.colour};margin-right:4px"></i>`
+      + `<b>${t.name}</b>${t.expr !== t.name ? ` <code>${t.expr}</code>` : ""} · ${cells} cells</span>`;
+  }).join("") + '<br>Unknown labels are left out, never counted as negative.';
+
+  body.innerHTML = "";
+  const yr = devYRange(types, vals, R);
+  D.groups.forEach((g, gi) => body.append(devTrajectory(D, types, vals, gi, metric, yr)));
+  body.append(devChange(D, types, vals, metric));
+  body.append(devStats(D, M, def, metric));
+}
+
+/** Mean of chain means per (type, age) within one group, with a 95% t interval. */
+function devMeans(D, t, vals, gi) {
+  const R = D.rows, byAge = {};
+  for (const i of t.rows) {
+    if (R.grp[i] !== gi) continue;
+    const a = R.div[i], c = R.chain[i];
+    ((byAge[a] = byAge[a] || {})[c] = byAge[a][c] || []).push(vals[i]);
+  }
+  return Object.entries(byAge).map(([age, chains]) => {
+    const m = Object.values(chains).map(v => v.reduce((s, x) => s + x, 0) / v.length);
+    const n = m.length, mean = m.reduce((s, x) => s + x, 0) / n;
+    const sd = n > 1 ? Math.sqrt(m.reduce((s, x) => s + (x - mean) ** 2, 0) / (n - 1)) : NaN;
+    const cells = Object.values(chains).reduce((s, v) => s + v.length, 0);
+    return {age: Number(age), mean, ci: t975(n - 1) * sd / Math.sqrt(n), nChains: n, nCells: cells};
+  }).sort((a, b) => a.age - b.age);
+}
+
+/** One y-range for every group's panel, from the cells and the means but not
+ *  the intervals: an interval over two or three chains can dwarf the data. */
+function devYRange(types, vals, R) {
+  const all = [];
+  for (const t of types) for (const i of t.rows) all.push(vals[i]);
+  all.sort((a, b) => a - b);
+  let lo = quantile(all, 0.01), hi = quantile(all, 0.99);
+  if (!(hi > lo)) { lo = (all[0] || 0) - 1; hi = (all[all.length - 1] || 0) + 1; }
+  const pad = (hi - lo) * 0.06;
+  return [lo - pad, hi + pad];
+}
+
+function devAxes(svg, box, xr, yr, xLabel, yLabel, xTicks) {
+  const {L, R: Rt, T, B, W, H} = box;
+  const sx = v => L + (v - xr[0]) / ((xr[1] - xr[0]) || 1) * (W - L - Rt);
+  const sy = v => H - B - (v - yr[0]) / ((yr[1] - yr[0]) || 1) * (H - B - T);
+  const ticks = niceTicksDev(yr[0], yr[1], 5);
+  // as many decimals as the step needs, so 0.08 is not printed as 0.0800
+  const step = ticks.length > 1 ? ticks[1] - ticks[0] : 1;
+  let dec = 0;
+  while (dec < 6 && Math.abs(Math.round(step * 10 ** dec) - step * 10 ** dec) > 1e-6) dec++;
+  for (const v of ticks) {
+    svg.append(svgEl("line", {x1: L, x2: W - Rt, y1: sy(v), y2: sy(v),
+      stroke: "var(--line)", "stroke-width": 0.6}));
+    const t = svgEl("text", {x: L - 6, y: sy(v) + 3, "font-size": 10,
+      fill: "var(--muted)", "text-anchor": "end"});
+    t.textContent = Math.abs(v) >= 1e4 ? v.toExponential(1) : v.toFixed(dec); svg.append(t);
+  }
+  svg.append(svgEl("line", {x1: L, y1: H - B, x2: W - Rt, y2: H - B,
+    stroke: "var(--muted)", "stroke-width": 1}));
+  for (const [v, lab] of xTicks) {
+    const t = svgEl("text", {x: sx(v), y: H - B + 14, "font-size": 10,
+      fill: "var(--muted)", "text-anchor": "middle"});
+    t.textContent = lab; svg.append(t);
+  }
+  const xl = svgEl("text", {x: (L + W - Rt) / 2, y: H - 6, "font-size": 10,
+    fill: "var(--muted)", "text-anchor": "middle"});
+  xl.textContent = xLabel; svg.append(xl);
+  const yl = svgEl("text", {x: 12, y: (T + H - B) / 2, "font-size": 10, fill: "var(--muted)",
+    "text-anchor": "middle", transform: `rotate(-90 12 ${(T + H - B) / 2})`});
+  yl.textContent = yLabel; svg.append(yl);
+  return {sx, sy};
+}
+
+function devTrajectory(D, types, vals, gi, metric, yr) {
+  const R = D.rows, group = D.groups[gi];
+  const box = {W: 470, H: 280, L: 56, R: 60, T: 12, B: 40};
+  const fig = document.createElement("figure");
+  fig.className = "trackfig";
+  const svg = svgEl("svg", {viewBox: `0 0 ${box.W} ${box.H}`, class: "trackplot"});
+  const ages = [...new Set(types.flatMap(t => t.rows.filter(i => R.grp[i] === gi)
+    .map(i => R.div[i])))].sort((a, b) => a - b);
+  const counts = types.map(t => {
+    const rows = t.rows.filter(i => R.grp[i] === gi);
+    return {cells: new Set(rows.map(i => R.chain[i] + ":" + R.cluster[i])).size,
+            chains: new Set(rows.map(i => R.chain[i])).size};
+  });
+  fig.innerHTML = `<figcaption><b>${group}</b> · ${metric.label}<br><span class="sub">`
+    + types.map((t, k) => `${t.name}: ${counts[k].cells} cells in ${counts[k].chains} chains`)
+        .join(" · ") + "</span></figcaption>";
+  if (!ages.length) {
+    fig.insertAdjacentHTML("beforeend", `<p class="sub">No ${types.map(t => t.name)
+      .join(" or ")} cells in ${group} pass the filters.</p>`);
+    return fig;
+  }
+  const xr = [ages[0] - 2, ages[ages.length - 1] + 2];
+  const {sx, sy} = devAxes(svg, box, xr, yr, "age (DIV)", metric.label,
+                           ages.map(a => [a, String(a)]));
+  // the intervals may run past the axis on purpose; the clip keeps them in the plot
+  const clipId = "devclip" + gi;
+  const cp = svgEl("clipPath", {id: clipId});
+  cp.append(svgEl("rect", {x: box.L, y: box.T, width: box.W - box.L - box.R,
+                           height: box.H - box.T - box.B}));
+  svg.append(cp);
+  const plot = svgEl("g", {"clip-path": `url(#${clipId})`});
+  svg.append(plot);
+
+  // each cell, faint: one path per type, one subpath per cell
+  types.forEach(t => {
+    const byCell = {};
+    for (const i of t.rows) if (R.grp[i] === gi)
+      (byCell[R.chain[i] + ":" + R.cluster[i]] = byCell[R.chain[i] + ":" + R.cluster[i]] || [])
+        .push([R.div[i], vals[i]]);
+    let d = "";
+    for (const pts of Object.values(byCell)) {
+      if (pts.length < 2) continue;
+      pts.sort((a, b) => a[0] - b[0]);
+      d += pts.map((p, k) => (k ? "L" : "M") + sx(p[0]).toFixed(1) + " " + sy(p[1]).toFixed(1)).join("");
+    }
+    if (d) plot.append(svgEl("path", {d, fill: "none", stroke: t.colour,
+      "stroke-width": 0.6, "stroke-opacity": faint(Object.keys(byCell).length, 1.6)}));
+  });
+
+  const ends = [];
+  types.forEach((t, k) => {
+    const m = devMeans(D, t, vals, gi);
+    if (!m.length) return;
+    const dodge = (k - (types.length - 1) / 2) * 0.7;
+    const x = a => sx(a + dodge);
+    plot.append(svgEl("path", {d: m.map((p, j) => (j ? "L" : "M") + x(p.age) + " " + sy(p.mean)).join(""),
+      fill: "none", stroke: t.colour, "stroke-width": 2}));
+    for (const p of m) {
+      if (isFinite(p.ci))
+        plot.append(svgEl("line", {x1: x(p.age), x2: x(p.age), y1: sy(p.mean - p.ci),
+          y2: sy(p.mean + p.ci), stroke: t.colour, "stroke-width": 1.5}));
+      const c = svgEl("circle", {cx: x(p.age), cy: sy(p.mean), r: 4.5, fill: t.colour,
+        stroke: "var(--bg)", "stroke-width": 1.5, class: "hotdot"});
+      attachTip(c, `<b>${t.name}</b> · ${group} · DIV ${p.age}<hr>`
+        + `mean of chain means <b>${fmtNum(p.mean)}</b><br>`
+        + (isFinite(p.ci) ? `95% CI ${fmtNum(p.mean - p.ci)} to ${fmtNum(p.mean + p.ci)}<br>`
+                          : "one chain: no interval<br>")
+        + `${p.nChains} chain${p.nChains > 1 ? "s" : ""}, ${p.nCells} cell-days`);
+      svg.append(c);
+    }
+    const last = m[m.length - 1];
+    ends.push({y: sy(last.mean), x: x(last.age), name: t.name});
+  });
+  // direct labels, spread in the order the lines end so close ones stay legible
+  ends.sort((a, b) => a.y - b.y).forEach((e, r) => {
+    const lab = svgEl("text", {x: e.x + 8, y: e.y + 3 + (r - (ends.length - 1) / 2) * 11,
+      "font-size": 10, fill: "var(--fg)"});
+    lab.textContent = e.name; svg.append(lab);
+  });
+  fig.append(svg);
+  return fig;
+}
+
+/** Each cell's slope over its own days, per week: the paired view. */
+function devSlopes(D, types, vals) {
+  const R = D.rows, out = [];
+  types.forEach((t, k) => {
+    const byCell = {};
+    for (const i of t.rows)
+      (byCell[R.chain[i] + ":" + R.cluster[i]] = byCell[R.chain[i] + ":" + R.cluster[i]] || [])
+        .push(i);
+    for (const rows of Object.values(byCell)) {
+      const xs = rows.map(i => R.divRecorded[i]), ys = rows.map(i => vals[i]);
+      if (new Set(xs).size < 2) continue;
+      const mx = xs.reduce((s, v) => s + v, 0) / xs.length;
+      const my = ys.reduce((s, v) => s + v, 0) / ys.length;
+      let sxy = 0, sxx = 0;
+      xs.forEach((x, j) => { sxy += (x - mx) * (ys[j] - my); sxx += (x - mx) ** 2; });
+      out.push({type: k, grp: R.grp[rows[0]], chain: R.chain[rows[0]], slope: sxy / sxx * 7});
+    }
+  });
+  return out;
+}
+
+function devChange(D, types, vals, metric) {
+  const slopes = devSlopes(D, types, vals);
+  const fig = document.createElement("figure");
+  fig.className = "trackfig";
+  fig.style.gridColumn = "1 / -1";
+  fig.innerHTML = `<figcaption><b>Change per cell</b> · ${metric.label} per week<br>`
+    + '<span class="sub">Dots: one tracked cell\'s least-squares slope over its own days. '
+    + "Rings: chain means (hover for the chain, click to open its network). Bars: median "
+    + "of chains. Axis shows the 1st–99th percentile of cells.</span></figcaption>";
+  if (!slopes.length) {
+    fig.insertAdjacentHTML("beforeend", '<p class="sub">No cell has two or more days left '
+      + "after the filters.</p>");
+    return fig;
+  }
+  const nG = D.groups.length, nT = types.length;
+  const box = {W: Math.max(470, 150 * nG * nT), H: 260, L: 56, R: 16, T: 12, B: 40};
+  const svg = svgEl("svg", {viewBox: `0 0 ${box.W} ${box.H}`, class: "trackplot"});
+  const sorted = slopes.map(s => s.slope).sort((a, b) => a - b);
+  let lo = Math.min(0, quantile(sorted, 0.01)), hi = Math.max(0, quantile(sorted, 0.99));
+  if (!(hi > lo)) hi = lo + 1;
+  const pad = (hi - lo) * 0.08;
+  const xr = [-0.5, nG - 0.5];
+  const {sx, sy} = devAxes(svg, box, xr, [lo - pad, hi + pad], "",
+    `change in ${metric.label} / week`, D.groups.map((g, i) => [i, g]));
+  svg.append(svgEl("line", {x1: box.L, x2: box.W - box.R, y1: sy(0), y2: sy(0),
+    stroke: "var(--muted)", "stroke-dasharray": "4 3", "stroke-width": 1}));
+  const clip = svgEl("clipPath", {id: "devchclip"});
+  clip.append(svgEl("rect", {x: box.L, y: box.T, width: box.W - box.L - box.R,
+                             height: box.H - box.T - box.B}));
+  svg.append(clip);
+  const g = svgEl("g", {"clip-path": "url(#devchclip)"});
+  svg.append(g);
+  const width = 0.8 / nT;
+  // a fixed jitter per cell, so the dots do not move on every redraw
+  let seed = 7;
+  const rand = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  D.groups.forEach((grp, gi) => types.forEach((t, k) => {
+    const sub = slopes.filter(s => s.grp === gi && s.type === k);
+    if (!sub.length) return;
+    const x0 = gi + (k - (nT - 1) / 2) * width;
+    const op = faint(sub.length, 4);
+    for (const s of sub)
+      g.append(svgEl("circle", {cx: sx(x0 + (rand() - 0.5) * width * 0.6), cy: sy(s.slope),
+        r: 1.8, fill: t.colour, "fill-opacity": op}));
+    const byChain = {};
+    for (const s of sub) (byChain[s.chain] = byChain[s.chain] || []).push(s.slope);
+    const means = Object.entries(byChain).map(([c, v]) =>
+      ({chain: Number(c), n: v.length, mean: v.reduce((a, b) => a + b, 0) / v.length}));
+    const med = quantile(means.map(m => m.mean).sort((a, b) => a - b), 0.5);
+    g.append(svgEl("line", {x1: sx(x0 - width * 0.35), x2: sx(x0 + width * 0.35),
+      y1: sy(med), y2: sy(med), stroke: t.colour, "stroke-width": 3}));
+    for (const m of means) {
+      const c = svgEl("circle", {cx: sx(x0), cy: sy(m.mean), r: 5, fill: "var(--bg)",
+        stroke: t.colour, "stroke-width": 1.8, class: "hotdot", style: "cursor:pointer"});
+      const name = D.chains[m.chain];
+      attachTip(c, `<b>${name}</b><br>${t.name} · ${grp}<hr>mean slope <b>${fmtNum(m.mean)}`
+        + `</b> per week<br>${m.n} cell${m.n > 1 ? "s" : ""}<br><i>click to open its network</i>`);
+      c.addEventListener("click", () => openChainView(name, "network"));
+      svg.append(c);
+    }
+  }));
+  // legend: identity is never colour alone
+  fig.insertAdjacentHTML("beforeend", legendRow(types.map(t => [t.colour, t.name])));
+  fig.append(svg);
+  return fig;
+}
+
+/** Jump to one chain in a per-chain view, clearing filters that would hide it. */
+function openChainView(chain, view) {
+  tipHost().style.display = "none";
+  if ($("track-geno")) $("track-geno").value = "";
+  if ($("track-typed")) $("track-typed").checked = false;
+  $("track-view").value = view;
+  fillChainPicker();
+  const sel = $("track-chain");
+  if ([...sel.options].some(o => o.value === chain)) sel.value = chain;
+  showTracking();
+}
+
+function devStats(D, M, def, metric) {
+  const fig = document.createElement("figure");
+  fig.className = "trackfig";
+  fig.style.gridColumn = "1 / -1";
+  const head = `<figcaption><b>Statistics</b> · ${metric.label} · ${def.name}<br><span class="sub">`
+    + "Saved with the run, not recomputed here. Mixed model: <code>metric ~ age × type × group"
+    + "</code>, with each chain's own intercept and age slope, and each cell's intercept "
+    + "within its chain. Within-chain: the type difference inside each field of view, "
+    + "Wilcoxon signed-rank across chains. <i>q</i> is the Benjamini–Hochberg p across "
+    + "metrics, for one question.</span></figcaption>";
+  if (!D.stats) {
+    fig.innerHTML = head + '<p class="sub">No statistics in this run. Compute them with '
+      + "<code>python -m meanap.catnap.tracking.development_plots &lt;run&gt;</code>.</p>";
+    return fig;
+  }
+  const stale = D.statsStale ? '<p class="warn">Cell-type decisions were saved after these '
+    + "statistics were computed. The plots above use the decisions; the tables do not.</p>" : "";
+  const sig = r => r.q != null && r.q < 0.05 ? ' style="font-weight:600"' : "";
+  const mixed = M.mixed.filter(r => r.definition === def.name);
+  const fitted = mixed.find(r => r.term);
+  const notes = [...new Set(mixed.map(r => r.note).filter(Boolean))];
+  const mixedTab = mixed.some(r => r.term)
+    ? '<table class="tracktab"><thead><tr><th>term</th><th class="num">estimate</th>'
+      + '<th class="num">95% CI</th><th class="num">p</th><th class="num">q</th></tr></thead><tbody>'
+      + mixed.filter(r => r.term).map(r => `<tr${sig(r)}><td>${r.term}</td>`
+        + `<td class="num">${fmtNum(r.estimate)}</td>`
+        + `<td class="num">${fmtNum(r.ciLow)} to ${fmtNum(r.ciHigh)}</td>`
+        + `<td class="num">${fmtP(r.p)}</td><td class="num">${fmtP(r.q)}</td></tr>`).join("")
+      + "</tbody></table>"
+    : '<p class="sub">Not fitted.</p>';
+  const within = M.within.filter(r => r.definition === def.name);
+  const withinTab = within.length
+    ? '<table class="tracktab"><thead><tr><th>comparison</th><th>measure</th><th>group</th>'
+      + '<th class="num">chains</th><th class="num">median diff</th><th class="num">p</th>'
+      + '<th class="num">q</th></tr></thead><tbody>'
+      + within.map(r => `<tr${sig(r)}><td>${r.comparison}</td><td>${r.measure}</td>`
+        + `<td>${r.Grp}</td><td class="num">${r.nChains}</td>`
+        + `<td class="num">${fmtNum(r.medianDiff)}</td><td class="num">${r.p == null
+            ? '<span class="sub" title="fewer than 5 chains: too few to test">n &lt; 5</span>'
+            : fmtP(r.p)}</td>`
+        + `<td class="num">${fmtP(r.q)}</td></tr>`).join("") + "</tbody></table>"
+    : '<p class="sub">No chain holds both types often enough to compare within it.</p>';
+  fig.innerHTML = head + stale
+    + (fitted ? `<p class="sub">Fitted on ${fitted.groupsFitted} · ${fitted.nCells} cells in `
+       + `${fitted.nChains} chains · reference type ${fitted.referenceType} · age in weeks, `
+       + `centred${fitted.converged ? "" : ' · <span class="warn">did not converge</span>'}</p>` : "")
+    + notes.map(n => `<p class="sub">${n}</p>`).join("")
+    + '<div class="twocol" style="align-items:flex-start">'
+    + `<div><b>Mixed model</b>${mixedTab}</div><div><b>Within chain</b>${withinTab}</div></div>`
+    + '<p class="sub">Rows in bold have q &lt; 0.05.</p>';
+  return fig;
+}
+
 async function initTracking() {
   try { TRACKING = await getJSON("/api/tracking"); }
   catch (e) { TRACKING = {available: false, chains: []}; }
@@ -1847,6 +2309,9 @@ async function initTracking() {
       sel.value = chain;
       // a chain was asked for, so show its cells, not the dataset overview
       $("track-view").value = want.get("view") || "cells";
+    } else if (["overview", "development"].includes(want.get("view"))) {
+      // the dataset-wide views need no chain
+      $("track-view").value = want.get("view");
     }
     selectTab("tracking");
   }
@@ -1855,12 +2320,13 @@ async function initTracking() {
 async function showTracking() {
   const view = $("track-view") ? $("track-view").value : "cells";
   // Both the per-cell and the network views are of one chain, so the chain
-  // picker belongs to both. Only the overview spans the dataset.
-  const perChain = view !== "overview";
+  // picker belongs to both. The overview and development views span the dataset.
+  const perChain = view !== "overview" && view !== "development";
   for (const id of ["track-chain", "track-meta", "track-chain-head", "track-filter"])
     if ($(id)) $(id).classList.toggle("hidden", !perChain);
   if (perChain) fillChainPicker();
   if (view === "overview") return showTrackingOverview();
+  if (view === "development") return showTrackingDevelopment();
   const sel = $("track-chain");
   if (!sel || !sel.value) {
     $("tracking").innerHTML = '<p class="sub">No chain matches the filter.</p>';

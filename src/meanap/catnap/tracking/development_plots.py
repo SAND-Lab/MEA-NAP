@@ -41,13 +41,17 @@ import numpy as np
 import pandas as pd
 
 from meanap.catnap.tracking.development import (
-    ACTIVITY_CSV, CELLTYPE_PREFIX, TRACKED_METRICS_CSV,
+    ACTIVITY_CSV, CELLTYPE_PREFIX, TRACKED_METRICS_CSV, read_table,
 )
 
 OUT_DIR = "DevelopmentByCellType"
 
-#: Okabe–Ito, in a fixed order: a type keeps its colour whatever else is shown.
-TYPE_COLOURS = ("#0072B2", "#D55E00", "#009E73", "#CC79A7", "#E69F00", "#56B4E9")
+#: Okabe–Ito hues, in a fixed order: a type keeps its colour whatever else is
+#: shown. Slots 4–6 are darker steps than the standard set, so the palette also
+#: passes the lightness band on the viewer's dark background (#14161a). The
+#: order keeps pink away from green, a pair deuteranopes confuse. Checked with
+#: the dataviz palette validator in both themes.
+TYPE_COLOURS = ("#0072B2", "#D55E00", "#009E73", "#BF8500", "#4892C8", "#B5649A")
 
 #: A type needs this many tracked cells in the whole run to be compared at all.
 MIN_TYPE_CELLS = 5
@@ -181,16 +185,26 @@ def typed(df: pd.DataFrame, definition: TypeDefinition) -> pd.DataFrame:
     Types with fewer than :data:`MIN_TYPE_CELLS` cells are dropped. Fewer than
     two types left means there is nothing to compare, and the frame is empty.
     """
-    markers = markers_in(df)
-    parts = []
-    for name, expr in definition.types.items():
-        member = evaluate(expr, df, markers) == 1.0
-        sub = df[member]
-        if sub[["chain", "cluster"]].drop_duplicates().shape[0] >= MIN_TYPE_CELLS:
-            parts.append(sub.assign(CellType=name))
+    parts = [df[member].assign(CellType=name)
+             for name, member in memberships(df, definition).items()]
     if len(parts) < 2:
         return pd.DataFrame()
     return pd.concat(parts, ignore_index=True)
+
+
+def memberships(df: pd.DataFrame, definition: TypeDefinition) -> dict[str, np.ndarray]:
+    """``{type: row mask}`` for the types with :data:`MIN_TYPE_CELLS` cells or more.
+
+    Shared by the figures and the viewer, so the two cannot disagree on who is
+    which type or on which types are large enough to show.
+    """
+    markers = markers_in(df)
+    out = {}
+    for name, expr in definition.types.items():
+        member = evaluate(expr, df, markers) == 1.0
+        if df.loc[member, ["chain", "cluster"]].drop_duplicates().shape[0] >= MIN_TYPE_CELLS:
+            out[name] = member
+    return out
 
 
 # ── summaries ─────────────────────────────────────────────────────────────────
@@ -605,6 +619,11 @@ def metric_columns(df: pd.DataFrame, activity_metrics: list[str]) -> tuple[list,
                if c not in _KEYS and not c.startswith(CELLTYPE_PREFIX)
                and c != ROLE_COLUMN and pd.api.types.is_numeric_dtype(df[c])
                and df[c].notna().any()]
+    if not activity_metrics:
+        # no activity table to read the split from (a trimmed bundle): fall back
+        # to the names CAT-NAP's activity step writes
+        from meanap.catnap.group_plots import TWOP_NODE_METRICS
+        activity_metrics = list(TWOP_NODE_METRICS)
     activity = [c for c in numeric if c in set(activity_metrics)]
     network = [c for c in numeric if c not in set(activity_metrics)]
     return activity, network
@@ -750,8 +769,7 @@ def plot_for_run(
     if not path.is_file():
         log(f"Development by cell type: no {TRACKED_METRICS_CSV}; skipped.")
         return {}
-    df = pd.read_csv(path, keep_default_na=False, na_values=[""],
-                     dtype={"Lag": str, "ActivityType": str, "chain": str})
+    df = read_table(path)
     activity_metrics = (list(pd.read_csv(run / ACTIVITY_CSV, nrows=0).columns)
                         if (run / ACTIVITY_CSV).is_file() else [])
     log("Development by cell type:")
