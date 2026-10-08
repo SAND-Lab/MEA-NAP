@@ -215,6 +215,153 @@ class ViewerService:
                 "cellTypes": meta.get("cell_types") or {},
                 "overrides": self.tracking_overrides(chain)}
 
+    def _development_table(self):
+        """``TrackedCellMetrics.csv`` with today's cell-type decisions applied.
+
+        The table is cached on its modification time. The calls are re-read
+        on every request, because a decision saved a moment ago must show,
+        and on a bundle the table itself is never rewritten.
+        """
+        from meanap.catnap.tracking.development import (
+            TRACKED_METRICS_CSV, apply_final_calls, read_final_calls, read_table)
+
+        root = self._tracking_dir()
+        path = root / TRACKED_METRICS_CSV if root is not None else None
+        if path is None or not path.is_file():
+            return None
+        stamp = path.stat().st_mtime
+        cached = getattr(self, "_dev_cache", None)
+        if cached is None or cached[0] != stamp:
+            self._dev_cache = (stamp, read_table(path))
+        final = self._final_csv_path()
+        if final is None or not final.is_file():
+            return self._dev_cache[1]
+        return apply_final_calls(self._dev_cache[1], read_final_calls(final))
+
+    def tracking_development(self, metric: str | None = None, lag: str | None = None,
+                             measure: str | None = None) -> dict:
+        """Tracked cells and their cell types, for the development view.
+
+        Without *metric*: the cell-days (one per tracked cell and day), the
+        metrics on offer, and each type's member rows, for every cell-type
+        definition. With *metric*: that metric's value on each of those
+        cell-days, for one lag and measure, plus the run's saved statistics
+        for it.
+
+        Membership comes from the same functions the static figures use, so
+        the two cannot disagree on who is which type.
+        """
+        import numpy as np
+        import pandas as pd
+
+        from meanap.catnap.tracking import development_plots as dp
+
+        df = self._development_table()
+        if df is None:
+            return {"available": False}
+        lags = list(dict.fromkeys(df["Lag"].dropna())) if "Lag" in df else []
+        measures = (list(dict.fromkeys(df["ActivityType"].dropna()))
+                    if "ActivityType" in df else [])
+        base = df
+        if lags:
+            base = base[base["Lag"] == lags[0]]
+        if measures:
+            base = base[base["ActivityType"] == measures[0]]
+        base = base.reset_index(drop=True)
+
+        if metric is not None:
+            return self._development_metric(df, base, metric, lag or (lags[0] if lags else None),
+                                            measure or (measures[0] if measures else None))
+
+        params = self.ctx.params if getattr(self, "ctx", None) is not None else None
+        group_spec = getattr(params, "twop_subnetwork_groups", None)
+        order = list(getattr(params, "custom_grp_order", None) or [])
+        present = list(dict.fromkeys(base["Grp"].astype(str)))
+        groups = [g for g in order if g in present] + sorted(g for g in present if g not in order)
+
+        root = self._tracking_dir()
+        activity_cols = []
+        act_csv = root.parent / "2_NeuronalActivity" / "TwoPhotonActivity_NodeLevel.csv"
+        if act_csv.is_file():
+            activity_cols = list(pd.read_csv(act_csv, nrows=0).columns)
+        act, net = dp.metric_columns(base, activity_cols)
+        labels = dp._labels(measures[0] if measures else None)
+
+        chains = list(dict.fromkeys(base["chain"]))
+        chain_ix = {c: i for i, c in enumerate(chains)}
+        grp_ix = {g: i for i, g in enumerate(groups)}
+        definitions = []
+        for d in dp.type_definitions(dp.markers_in(base), group_spec):
+            members = dp.memberships(base, d)
+            if len(members) < 2:
+                continue
+            definitions.append({"name": d.name, "types": [
+                {"name": t, "expr": d.types[t],
+                 "colour": dp.TYPE_COLOURS[i % len(dp.TYPE_COLOURS)],
+                 "rows": np.flatnonzero(mask).tolist()}
+                for i, (t, mask) in enumerate(members.items())]})
+
+        stats_dir = root / dp.OUT_DIR
+        stats_file = stats_dir / "Stats_MixedModel.csv"
+        final = self._final_csv_path()
+        return {
+            "available": True,
+            "groups": groups, "lags": lags, "measures": measures,
+            "metrics": ([{"key": k, "label": labels.get(k, k), "block": "Activity"} for k in act]
+                        + [{"key": k, "label": labels.get(k, k), "block": "Network"}
+                           for k in net]),
+            "chains": chains,
+            "rows": {
+                "chain": [chain_ix[c] for c in base["chain"]],
+                "cluster": base["cluster"].astype(int).tolist(),
+                "grp": [grp_ix[str(g)] for g in base["Grp"]],
+                "div": base["DIV"].astype(float).tolist(),
+                "divRecorded": base["DIVrecorded"].astype(int).tolist(),
+                "byPosition": (base["dayVia"] != "roicat").astype(int).tolist()
+                if "dayVia" in base else [0] * len(base),
+            },
+            "definitions": definitions,
+            "stats": stats_file.is_file(),
+            # decisions saved after the statistics were computed are in the plots
+            # but not in the saved tables
+            "statsStale": bool(stats_file.is_file() and final is not None and final.is_file()
+                               and final.stat().st_mtime > stats_file.stat().st_mtime),
+        }
+
+    def _development_metric(self, df, base, metric: str, lag, measure) -> dict:
+        import numpy as np
+        import pandas as pd
+
+        from meanap.catnap.tracking import development_plots as dp
+
+        if metric not in df.columns or metric.startswith("celltype_"):
+            raise ValueError(f"no metric {metric!r} in the tracked-cell table")
+        sel = df
+        if lag is not None and "Lag" in df:
+            sel = sel[sel["Lag"] == lag]
+        if measure is not None and "ActivityType" in df:
+            sel = sel[sel["ActivityType"] == measure]
+        keys = ["chain", "cluster", "DIVrecorded"]
+        values = base[keys].merge(sel[keys + [metric]], on=keys, how="left")[metric]
+        out = {"metric": metric, "lag": lag, "measure": measure,
+               "values": [None if not np.isfinite(v) else float(v)
+                          for v in values.to_numpy(dtype=float)],
+               "mixed": [], "within": []}
+        root = self._tracking_dir()
+        for key, name in (("mixed", "Stats_MixedModel.csv"), ("within", "Stats_WithinChain.csv")):
+            path = root / dp.OUT_DIR / name
+            if not path.is_file():
+                continue
+            t = pd.read_csv(path, dtype={"Lag": str, "ActivityType": str})
+            t = t[t["metric"] == metric]
+            if measure is not None and "ActivityType" in t:
+                t = t[t["ActivityType"] == measure]
+            # activity rows carry no lag; network rows only the one asked for
+            if "Lag" in t and "block" in t:
+                t = t[(t["block"] == "Activity") | (t["Lag"] == lag)]
+            out[key] = json.loads(t.to_json(orient="records"))
+        return out
+
     def tracking_page(self, chain: str) -> str:
         """The per-cell page, rebuilt from the payload the bundle carries.
 
@@ -292,6 +439,10 @@ class ViewerService:
         final = self._final_csv_path()
         if final is not None:
             write_final_csv(root / CELLS_CSV, load_overrides(path), final)
+            if self._bundle is None:
+                from meanap.catnap.tracking.development import refresh_cell_types
+
+                refresh_cell_types(root, final)
         return {"chain": chain, "overrides": saved, "file": str(path)}
 
     def tracking_payload(self, chain: str) -> dict:
@@ -693,6 +844,11 @@ class _Handler(BaseHTTPRequestHandler):
                 self._json(self.service.tracking_payload(_one(query, "chain")))
             elif parsed.path == "/api/trackingoverview":
                 self._json(self.service.tracking_overview())
+            elif parsed.path == "/api/trackingdevelopment":
+                # every parameter optional: none at all asks for the cell-days
+                opt = {k: (query.get(k) or [None])[0] or None
+                       for k in ("metric", "lag", "measure")}
+                self._json(self.service.tracking_development(**opt))
             elif parsed.path == "/api/trackingnetwork":
                 self._json(self.service.tracking_network(_one(query, "chain")))
             elif parsed.path == "/api/trackingpage":
