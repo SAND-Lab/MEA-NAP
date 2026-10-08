@@ -48,6 +48,7 @@ class ResultsPanel(QWidget):
     view_report_requested = pyqtSignal()
     make_bundle_requested = pyqtSignal()
     open_bundle_requested = pyqtSignal()
+    open_fr_diff_requested = pyqtSignal()
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -67,6 +68,20 @@ class ResultsPanel(QWidget):
         outer = QVBoxLayout(box)
 
         row = QHBoxLayout()
+        # MEA-Stim's own look at a finished run, first in the row; hidden in
+        # the other modes (see set_stim_tools_visible). Live even with no run
+        # to point at, like Make bundle: the window it opens can choose one.
+        self.fr_diff_btn = QPushButton("\U0001f4c8  View ΔFR")
+        self.fr_diff_btn.setFixedHeight(40)
+        self.fr_diff_btn.setObjectName("secondary")
+        self.fr_diff_btn.setToolTip(
+            "Opens a viewer comparing each ALI-CO's firing rate at baseline and under "
+            "stimulation, channel by channel. Needs step 2's "
+            "NeuronalActivity_NodeLevel.csv."
+        )
+        self.fr_diff_btn.clicked.connect(self.open_fr_diff_requested)
+        row.addWidget(self.fr_diff_btn)
+
         self.view_report_btn = QPushButton("🌐  View report")
         self.view_report_btn.setFixedHeight(40)
         self.view_report_btn.setObjectName("secondary")
@@ -118,6 +133,10 @@ class ResultsPanel(QWidget):
         self.target_label.setStyleSheet("font-size: 11px; color: gray;")
         outer.addWidget(self.target_label)
         return box
+
+    def set_stim_tools_visible(self, visible: bool) -> None:
+        """Show View ΔFR only in the pipeline that produces what it reads."""
+        self.fr_diff_btn.setVisible(visible)
 
     def _build_viewer_box(self) -> QWidget:
         box = QGroupBox("Network viewer")

@@ -111,6 +111,9 @@ class MainWindow(QMainWindow):
         #: The spike and burst viewer, built the first time it is asked for and
         #: kept afterwards so it holds on to whatever recording it loaded.
         self._spike_viewer = None
+        #: The firing-rate change viewer, built on first use and reopened rather
+        #: than rebuilt; it unloads its run when closed.
+        self._fr_diff_viewer = None
         #: The machine report, built on first use and kept so a benchmark
         #: already run is still on screen when it is reopened.
         self._system_report = None
@@ -308,6 +311,7 @@ class MainWindow(QMainWindow):
         self._results_panel.view_report_requested.connect(self._on_view_report)
         self._results_panel.make_bundle_requested.connect(self._on_make_bundle)
         self._results_panel.open_bundle_requested.connect(self._on_open_bundle)
+        self._results_panel.open_fr_diff_requested.connect(self._on_open_fr_diff_viewer)
         self._network_viewer_panel = self._results_panel.viewer
         self._stats_panel = StatsPanel()
         self._stats_panel.run_requested.connect(self._on_run_stats)
@@ -439,6 +443,7 @@ class MainWindow(QMainWindow):
         # The Data tab is shown in every mode but does not mean the same thing
         # in each — CAT-NAP has no electrodes and no sampling rate to set.
         self._data_panel.set_mode(mode_key)
+        self._results_panel.set_stim_tools_visible(mode_key == "meastim")
 
         keep = self._current_tab_key()
         self._tabs.blockSignals(True)
@@ -1276,6 +1281,12 @@ class MainWindow(QMainWindow):
         self._announce_bundle(output_root)
         self._reset_run_buttons()
         self._refresh_results_target()
+        # A display only: a failure redrawing it must not stop the hand-off to
+        # step 5 (an uncaught error in a Qt slot aborts the app).
+        try:
+            self._refresh_fr_diff_source()
+        except Exception as e:
+            self._run_panel.append_log(f"Warning: could not refresh the ΔFR viewer: {e}")
         if self._start_optional_stats(output_root):
             return
         # The log is what someone is looking at when a run ends, and the thing
@@ -1623,6 +1634,39 @@ class MainWindow(QMainWindow):
         self._spike_viewer.show()
         self._spike_viewer.raise_()
         self._spike_viewer.activateWindow()
+
+    def _on_open_fr_diff_viewer(self) -> None:
+        """Open the firing-rate change viewer on this session's run.
+
+        One window, reopened rather than replaced, like the spike viewer. It
+        unloads its run when closed, so it opens afresh: this session's
+        run, read now, with the lab's parameters.
+        """
+        from meanap.gui.fr_diff_viewer import FrDiffViewerWindow
+
+        if self._fr_diff_viewer is None:
+            self._fr_diff_viewer = FrDiffViewerWindow(self)
+        self._refresh_fr_diff_source(opening=True)
+        self._fr_diff_viewer.show()
+        self._fr_diff_viewer.raise_()
+        self._fr_diff_viewer.activateWindow()
+
+    def _refresh_fr_diff_source(self, *, opening: bool = False) -> None:
+        """Point an open viewer at this session's run, unless it chose its own.
+
+        The same rule as the Stats tab: the bundle an express run left, else
+        the run's folder, else the folder the settings name. A closed viewer
+        is left empty — it reads the run when next opened (``opening``).
+        """
+        viewer = self._fr_diff_viewer
+        if (viewer is None or (not opening and not viewer.isVisible())
+                or viewer.source_chosen()):
+            return
+        bundle = self._last_bundle
+        root = self._candidate_output_root()
+        source = bundle if bundle is not None else root
+        viewer.set_source(Path(source) if source is not None and Path(source).exists()
+                          else None)
 
     def _on_open_tracking_viewer(self, chain: str) -> None:
         """Serve the last run's folder and open the browser on its tracking tab.
