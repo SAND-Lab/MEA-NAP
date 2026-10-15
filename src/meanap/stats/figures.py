@@ -49,6 +49,7 @@ FIGURE_GROUPS: tuple[tuple[str, str, str], ...] = (
     ("regression", "Variance attribution", "5D"),
     ("density", "Topology at matched density", "5E"),
     ("measures", "Measure of activity", "5F"),
+    ("celltype", "Cell type: mosaic", "5G"),
 )
 
 
@@ -111,6 +112,11 @@ class StatsResults:
     #: measure of it, so it is filled on a results object of its own rather
     #: than on any single measure's.
     measures: object = None
+    #: The cell-level analysis of an X-linked mosaic
+    #: (:class:`meanap.stats.celltypes.MosaicResults`): marker- and marker+
+    #: cells of the heterozygous cultures against each other and against the
+    #: reference genotypes.
+    mosaic: object = None
     #: How many metrics the trajectory figure draws. Carried on the results
     #: rather than passed to every call, because the figure catalogue has to
     #: know whether that figure exists at all before anyone asks to draw it.
@@ -344,6 +350,69 @@ _PROSE: dict[str, tuple[str, str]] = {
         "Out-of-fold predictions against the truth for the best model, jittered "
         "along the observed axis because ages are a handful of discrete values.",
     ),
+    "celltype_inventory": (
+        "Cell-type labels by culture and age",
+        "How many cells carry a call for each marker, per culture (rows, "
+        "coloured by group) and age. The dot's colour is the share called "
+        "positive, so a mosaic culture is one with dots between the two ends. "
+        "Read this first: it is what every cell-type analysis can and cannot "
+        "draw on.",
+    ),
+    "cell_autonomy": (
+        "Is the genotype difference the cell's own?",
+        "Each point is a feature. Horizontal: the difference between cells of "
+        "the mutant and the healthy cultures. Vertical: the difference between "
+        "marker- and marker+ cells sharing one mosaic culture, and so one "
+        "network. On the diagonal the difference travels with the cell "
+        "(cell-autonomous); on the horizontal axis neighbours are alike and the "
+        "difference belongs to the network. Mixed models with recordings nested "
+        "in cultures, and cells too in the tracked version; bars are 95% CIs.",
+    ),
+    "mosaic_effects": (
+        "Mosaic contrasts per feature",
+        "The four contrasts the mosaic allows, plus how the cell-autonomous gap "
+        "changes per week of age, in pooled-SD units of each (log-scaled where "
+        "skewed) feature. The two environment columns ask how a cell of a given "
+        "marker state changes when its network does; together they add up to "
+        "the genotype column less the cell-autonomous one.",
+    ),
+    "mosaic_paired": (
+        "Within-recording differences",
+        "Marker- minus marker+ mean in each mosaic recording, for the features "
+        "with the strongest pooled cell-autonomous effect. One dot per "
+        "recording, coloured by culture, so the consistency of the sign across "
+        "dishes is visible rather than taken on trust from a pooled estimate.",
+    ),
+    "mosaic_ko_scores": (
+        "Where mosaic cells fall between the genotypes",
+        "A logistic model learns to tell cells of the mutant culture from those "
+        "of the healthy one (held-out cultures give its AUC), then scores every "
+        "mosaic cell. Left: the score per class. Right: each mosaic recording's "
+        "marker+ and marker- means, joined. If the genotype difference were "
+        "cell-autonomous, marker- cells would sit with the mutant culture and "
+        "marker+ with the healthy one.",
+    ),
+    "mosaic_by_age": (
+        "Cell-autonomous difference by age",
+        "Marker- minus marker+ within the mosaic cultures, fitted separately at "
+        "each age, with the number of mosaic cultures under each column. Stars "
+        "are FDR-corrected across features within an age.",
+    ),
+    "mosaic_decoding": (
+        "Decoding marker state within the mosaic",
+        "Can a cell's marker state be read from its activity and network role, "
+        "relative to the other cells of its own recording? Features are z-scored "
+        "within each recording, whole cultures are held out, and the null "
+        "shuffles labels within each recording. Right: which features the "
+        "decoder leans on.",
+    ),
+    "mosaic_trajectories": (
+        "Trajectories by cell class",
+        "The four classes of cell across age for the features with the "
+        "strongest cell-autonomous effect: culture means, then mean ± SEM across "
+        "cultures. The mosaic group's two classes share its colour; marker- is "
+        "dashed with open markers.",
+    ),
 }
 
 #: ``key -> filename stem``. Separate from :data:`_PROSE` because the effect
@@ -384,6 +453,14 @@ _FILENAMES: dict[str, str] = {
     "measure_differences": "5F2_measure_differences",
     "measure_concordance": "5F3_measure_concordance",
     "measure_decoding": "5F4_measure_decoding",
+    "celltype_inventory": "5G1_celltype_inventory",
+    "cell_autonomy": "5G2_mosaic_cell_autonomy",
+    "mosaic_effects": "5G3_mosaic_contrasts",
+    "mosaic_paired": "5G4_mosaic_within_recording",
+    "mosaic_ko_scores": "5G5_mosaic_ko_scores",
+    "mosaic_by_age": "5G6_mosaic_cell_autonomy_by_age",
+    "mosaic_decoding": "5G7_mosaic_decoding",
+    "mosaic_trajectories": "5G8_mosaic_trajectories",
 }
 
 #: Filename stems for the effect heatmaps: the pooled mixed model first, then
@@ -422,6 +499,14 @@ _GROUPS: dict[str, str] = {
     "measure_differences": "measures",
     "measure_concordance": "measures",
     "measure_decoding": "measures",
+    "celltype_inventory": "celltype",
+    "cell_autonomy": "celltype",
+    "mosaic_effects": "celltype",
+    "mosaic_paired": "celltype",
+    "mosaic_ko_scores": "celltype",
+    "mosaic_by_age": "celltype",
+    "mosaic_decoding": "celltype",
+    "mosaic_trajectories": "celltype",
 }
 
 _EFFECTS_POOLED = (
@@ -547,6 +632,26 @@ def stats_figures(results: StatsResults) -> list[StatsFigure]:
         if reg.decomposition is not None and not reg.decomposition.empty:
             out.append(_fixed("variance_decomposition"))
         out.append(_fixed("observed_vs_predicted"))
+
+    mosaic = results.mosaic
+    if mosaic is not None:
+        if not mosaic.inventory.empty:
+            out.append(_fixed("celltype_inventory"))
+        if mosaic.ran:
+            contrasts = set(mosaic.effects["Contrast"])
+            if "genotype" in contrasts:
+                out.append(_fixed("cell_autonomy"))
+            out.append(_fixed("mosaic_effects"))
+            if not mosaic.paired.empty:
+                out.append(_fixed("mosaic_paired"))
+            if not mosaic.scores.empty:
+                out.append(_fixed("mosaic_ko_scores"))
+            if mosaic.effects["Scope"].str.startswith("DIV").any():
+                out.append(_fixed("mosaic_by_age"))
+            if not mosaic.decoding.empty:
+                out.append(_fixed("mosaic_decoding"))
+            if not mosaic.trajectories.empty:
+                out.append(_fixed("mosaic_trajectories"))
     return out
 
 
@@ -599,6 +704,21 @@ def _trajectory_metrics(results: StatsResults, limit: int | None = None) -> list
 
 
 # ── drawing ──────────────────────────────────────────────────────────────────
+
+#: Mosaic figure key -> drawing function in :mod:`meanap.stats.celltype_plots`.
+_MOSAIC_DRAW = {
+    "celltype_inventory": "plot_celltype_inventory",
+    "cell_autonomy": "plot_cell_autonomy",
+    "mosaic_effects": "plot_mosaic_effects",
+    "mosaic_paired": "plot_paired_differences",
+    "mosaic_ko_scores": "plot_ko_scores",
+    "mosaic_by_age": "plot_mosaic_by_age",
+    "mosaic_decoding": "plot_mosaic_decoding",
+    "mosaic_trajectories": "plot_mosaic_trajectories",
+}
+#: The ones that colour by group and so take the run's colour scheme.
+_MOSAIC_SCHEMED = frozenset({"celltype_inventory", "mosaic_ko_scores",
+                             "mosaic_trajectories"})
 
 def draw_stats_figure(
     results: StatsResults, key: str, out_path: Path | str, *, scheme=None,
@@ -686,6 +806,12 @@ def draw_stats_figure(
     if key == "metric_values":
         return plots.plot_metric_values(results.control_values, out_path,
                                         scheme=scheme)
+    if key in _MOSAIC_DRAW:
+        from meanap.stats import celltype_plots
+
+        draw = getattr(celltype_plots, _MOSAIC_DRAW[key])
+        kwargs = {"scheme": scheme} if key in _MOSAIC_SCHEMED else {}
+        return draw(results.mosaic, out_path, **kwargs)
     if key in ("sweep_by_group", "sweep_by_age", "sweep_context"):
         sweep = results.sweep
         if key == "sweep_context":
@@ -772,7 +898,21 @@ def load_results(folder: Path | str, dataset: StatsDataset, *, lag=None,
     reg_scores = _read(folder, "regression_scores.csv")
     if reg_scores is not None:
         results.regression = _load_regression(folder, reg_scores, dataset, lag)
+    results.mosaic = _load_mosaic(folder)
     return results
+
+
+def _load_mosaic(folder: Path):
+    """The mosaic analysis, read back from its CSVs; ``None`` if it never ran."""
+    from meanap.stats.celltypes import MosaicResults
+
+    design = _read(folder, MosaicResults.FILES["design"])
+    if design is None:
+        return None
+    res = MosaicResults()
+    for attr, name in MosaicResults.FILES.items():
+        setattr(res, attr, _frame(folder, name))
+    return res
 
 
 def _load_measures(folder: Path):

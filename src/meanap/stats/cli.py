@@ -41,6 +41,14 @@ def build_parser() -> argparse.ArgumentParser:
                             "multiplied by both the density grid and "
                             "--sweep-subsamples.")
 
+    which.add_argument("--no-mosaic", dest="mosaic", action="store_false",
+                       help="Skip the cell-level analysis of an X-linked mosaic "
+                            "(marker- vs marker+ cells of heterozygous cultures), "
+                            "which otherwise runs whenever the run has cell-type "
+                            "calls")
+    which.add_argument("--mosaic-marker", default="Mecp2",
+                       help="Marker whose mosaic is analysed (default: Mecp2)")
+
     targets = parser.add_argument_group("targets")
     targets.add_argument("--decode", dest="decoding_target", default=None,
                          help="Column to classify (default: genotype, or age "
@@ -143,6 +151,9 @@ def main(argv: list[str] | None = None) -> int:
         decoding="decoding" in enabled,
         regression="regression" in enabled,
         density_sweep=args.density_sweep,
+        celltype_mosaic=args.mosaic,
+        mosaic_marker=args.mosaic_marker,
+        mosaic_permutations=min(args.permutations, 100),
         sweep_n_nodes=_sweep_nodes(args.sweep_nodes)[0],
         sweep_n_nodes_high=_sweep_nodes(args.sweep_nodes)[1],
         sweep_subsamples=args.sweep_subsamples,

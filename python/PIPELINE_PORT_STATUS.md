@@ -693,6 +693,52 @@ catalogue offered a figure that could not be drawn; the test that caught it is
 the catalogue-vs-files check above.
 
 
+### Cell types: the X-linked mosaic (`stats/celltypes.py`, 2026-10-14)
+
+The first step-5 analysis whose observation is a **cell**, not a recording. A
+heterozygous culture of an X-linked gene (Mecp2) is a mosaic, and staining says
+which cells express it, so marker- and marker+ cells share one network. Four
+classes — WT, Het+, Het-, KO — give four contrasts from one mixed model per
+feature: cell-autonomous (Het- vs Het+), environment on a + cell (Het+ vs WT),
+environment on a - cell (KO vs Het-), genotype (KO vs WT), plus the change in
+the cell-autonomous gap per week. Also a WT-vs-KO "KO-likeness" classifier
+applied to Het cells, a Het-/Het+ decoder on within-recording-normalised
+features, and per-class trajectories. Figures `5G1`-`5G8`, CSVs `mosaic_*.csv`
+and `celltype_inventory.csv`, in each lag folder; on by default
+(`StatsSettings.celltype_mosaic`, `--no-mosaic`), skipped when the run has no
+`2_NeuronalActivity/CellTypeCalls.csv` or no group mixing + and - cells.
+
+Decisions worth keeping:
+
+- **Groups are found from the calls, not their names** — mosaic = 10-90% +,
+  references = >=95% + / <=5% +. In the references the marker follows from the
+  genotype, so *all* their cells are used, labelled or not: on the Yin tracked
+  run only 3 WT cultures have Mecp2 calls, against 37 with cells.
+- **Two versions, as the user asked**: `all` (every labelled cell-day, recording
+  nested in culture) and `tracked` (cells from `TrackedCellMetrics.csv`, with a
+  cell random effect too). Labels always come from `CellTypeCalls.csv`; tracking
+  supplies only identity (`chain#cluster`).
+- Features are log-scaled when non-negative with skew > 1, then standardised
+  per version, so every estimate is in pooled-SD units. Network node metrics
+  are *not* normalised within recording for the effects — that would force the
+  environment contrasts to zero by construction — so between-culture contrasts
+  of topology inherit the density/size confound of 5E. The decoder, which asks
+  only about within-recording position, does normalise.
+- **BLAS is pinned to one thread** for the whole analysis (`threadpoolctl`).
+  With the venv's OpenBLAS each small mixed-model fit spread across 16 cores ran
+  ~7x slower (20 s vs 3 s per tracked feature), and the permutation workers
+  oversubscribed 16x16; the step went from ~4 minutes to most of an hour.
+
+First result on `local/yin-tracked-final-oct-8.meanap`: 17-18/20 features
+differ KO vs WT, but the Het- vs Het+ difference is ~0 for every network
+feature and the event rate; only event amplitude / area / duration show small
+cell-autonomous effects (~-0.1 SD, `all` version only). In activity the Het
+cultures sit with WT (the KO-vs-Het- environment contrast carries it); in
+topology both Het classes sit with KO (Het+ vs WT carries it). Marker state is
+barely decodable within a recording (0.53 balanced accuracy). Tests:
+`python/test_stats_mosaic.py` (planted cell-autonomous vs network effects plus
+a negative control), and the 5G figures go through `test_stats_report.py`.
+
 ### Gotchas
 
 - **`statsmodels`' default `lbfgs` optimiser fails on these mixed models.** It
@@ -721,7 +767,8 @@ the catalogue-vs-files check above.
 
 ```
 uv run python python/test_stats.py          # 47 checks, ~2 min — the analyses
-uv run python python/test_stats_report.py   # 28 checks, ~1 min — report + viewer
+uv run python python/test_stats_report.py   # 31 checks, ~1 min — report + viewer
+uv run python python/test_stats_mosaic.py   # 22 checks, ~1 min — cell-type mosaic
 uv run meanap-stats local/YinThesisRun.meanap --quick -o /tmp/statscheck
 ```
 

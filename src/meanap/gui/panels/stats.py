@@ -33,15 +33,15 @@ PRESETS = {
     "Quick look": dict(n_repeats=1, n_permutations=0, n_orderings=40,
                        importance_repeats=3, per_age_decoding=False,
                        shapley_orderings=20, shapley_max_features=10,
-                       sweep_subsamples=5),
+                       sweep_subsamples=5, mosaic_permutations=0),
     "Standard": dict(n_repeats=5, n_permutations=200, n_orderings=200,
                      importance_repeats=10, per_age_decoding=True,
                      shapley_orderings=100, shapley_max_features=15,
-                     sweep_subsamples=20),
+                     sweep_subsamples=20, mosaic_permutations=100),
     "Thorough": dict(n_repeats=10, n_permutations=1000, n_orderings=500,
                      importance_repeats=20, per_age_decoding=True,
                      shapley_orderings=300, shapley_max_features=20,
-                     sweep_subsamples=40),
+                     sweep_subsamples=40, mosaic_permutations=500),
 }
 
 
@@ -224,6 +224,20 @@ class StatsPanel(QWidget):
             "produced. A run with one measure has nothing to compare and skips "
             "it.")
         outer.addWidget(self.measures_cb)
+
+        self.mosaic_cb = QCheckBox(
+            "Cell types: Mecp2 mosaic  (is a deficit the cell's own, or the network's?)")
+        self.mosaic_cb.setChecked(True)
+        self.mosaic_cb.setToolTip(
+            "For a CAT-NAP run with cell-type calls: in heterozygous cultures, "
+            "compare Mecp2- cells with their Mecp2+ neighbours in the same "
+            "network, and both with cells of the WT and KO cultures. A "
+            "difference that survives between neighbours is cell-autonomous; "
+            "one that does not belongs to the network.\n\n"
+            "Run twice, on every labelled cell and on tracked cells only. "
+            "Skipped automatically when the run has no calls or no mosaic "
+            "group. A few minutes.")
+        outer.addWidget(self.mosaic_cb)
 
         self.sweep_note = QLabel()
         self.sweep_note.setWordWrap(True)
@@ -443,6 +457,7 @@ class StatsPanel(QWidget):
             feature_families=self.families_cb.isChecked(),
             density_sweep=self.sweep_cb.isChecked() and self.sweep_cb.isEnabled(),
             measure_comparison=self.measures_cb.isChecked(),
+            celltype_mosaic=self.mosaic_cb.isChecked(),
             sweep_n_nodes=self.sweep_size.currentData(),
             decoding_target=self.decode_target.currentData(),
             regression_target=self.regress_target.currentData(),
