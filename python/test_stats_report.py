@@ -102,6 +102,11 @@ def _make_run(root: Path) -> Path:
         json.dump({}, fh)
     with open(root / "params.json", "w") as fh:
         json.dump({"custom_grp_order": ["WT", "KO"], "suite2p_mode": True}, fh)
+    # Cell-level tables with a Mecp2 mosaic, so the 5G figures go through the
+    # catalogue, the redraw, the bundle and the viewer like every other one.
+    from test_stats_mosaic import write_mosaic_tables
+
+    write_mosaic_tables(root, n_cultures=4, n_cells=30, lag="25mslag")
     return root
 
 
@@ -111,7 +116,7 @@ def _run_stats(root: Path) -> object:
     settings = StatsSettings(
         n_repeats=1, n_permutations=0, n_orderings=20, importance_repeats=2,
         per_age_decoding=True, models=("logistic", "lda"),
-        regression_models=("ridge",))
+        regression_models=("ridge",), mosaic_permutations=9)
     return run_stats(root, dest=root / "5_StatsAndML", settings=settings,
                      log=lambda _m: None)
 
@@ -347,10 +352,12 @@ def _viewer_checks(root: Path, lag: str) -> list[Check]:
             "the viewer manifest carries a statistics section",
             len(stats) == 1 and stats[0]["lag"] == lag, str(stats)[:120]))
         groups = stats[0]["groups"] if stats else []
+        from meanap.stats.figures import FIGURE_GROUPS
+
         checks.append((
             "grouped by analysis, in the catalogue's order",
             [g["key"] for g in groups] == [
-                k for k in ("comparisons", "correlation", "decoding", "regression")
+                k for k, _label, _prefix in FIGURE_GROUPS
                 if any(g["key"] == k for g in groups)],
             str([g["key"] for g in groups])))
         checks.append((

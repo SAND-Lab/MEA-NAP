@@ -135,6 +135,67 @@ Three things to read it with:
   can show a *shorter* path length. Where the largest component is well below
   1, read global efficiency instead of path length.
 
+## Cell types — the X-linked mosaic (CAT-NAP)
+
+On by default; it runs whenever the run has cell-type calls
+(`2_NeuronalActivity/CellTypeCalls.csv`) and is skipped otherwise. Untick
+**Cell types: Mecp2 mosaic** in the GUI or pass `--no-mosaic` to turn it off.
+
+This is the one analysis in step 5 whose sample is a **cell**, not a
+recording. In a culture heterozygous for an X-linked gene such as *Mecp2*,
+X-inactivation makes each cell either express the gene or not, and staining
+says which. Marker− and marker+ neighbours share one network, so comparing
+them separates what the gene does **inside the cell** from what it does
+**through the network**:
+
+| | marker+ cell | marker− cell |
+|---|---|---|
+| WT culture | WT | — |
+| Het culture | Het+ | Het− |
+| KO culture | — | KO |
+
+Five contrasts per feature, from a mixed model with culture and recording as
+random effects:
+
+| contrast | compares | reads as |
+|---|---|---|
+| cell-autonomous | Het− vs Het+ | the gene's effect inside the cell, network held fixed |
+| environment (+) | Het+ vs WT | a marker+ cell in a mutant network |
+| environment (−) | KO vs Het− | a marker− cell in a fully mutant network |
+| genotype | KO vs WT | the total difference |
+| per week | change in Het− vs Het+ with age | when a cell-autonomous gap opens |
+
+Groups are recognised from the calls themselves: a group with 10–90 %
+marker+ cells is the mosaic, and groups at ≥95 % or ≤5 % are the references.
+In the references the marker state follows from the genotype, so **every** cell
+in a WT or KO culture is used, not only the stained ones.
+
+Alongside the contrasts:
+
+- **KO-score**: a classifier trained on WT against KO cells, applied to Het
+  cells. If marker− cells score more KO-like than their marker+ neighbours, the
+  KO phenotype is partly cell-autonomous.
+- **Decoder**: can a cell's marker state be read from its features alone?
+  Features are z-scored within each recording and the null shuffles labels
+  within each recording, so it cannot succeed from differences between
+  networks.
+- **Trajectories** of each class across age.
+
+Everything is computed twice: on **all labelled cells**, and on **tracked
+cells only**, where the same cell seen on several days adds a random effect.
+`--mosaic-marker` picks a marker other than Mecp2.
+
+Two cautions:
+
+- Network features are **not** normalised within each recording for the
+  environment and genotype contrasts, since that would force those contrasts to
+  zero. Those contrasts therefore carry the network size and density confound
+  that the density sweep addresses. The cell-autonomous contrast does not,
+  because neighbours share a network.
+- When a mixed model does not converge it falls back to ordinary regression
+  with errors clustered by culture; the `Fit` column of `mosaic_effects.csv`
+  records which.
+
 ## Effort and runtime
 
 The **Effort** preset scales the cross-validation repeats, permutation counts
@@ -158,6 +219,7 @@ The density sweep sits outside this and is the slowest thing by a wide margin.
     ├── 5C…  decoding — performance, confusion, importance, attributions
     ├── 5D…  variance attribution
     ├── 5E…  density sweep (when run)
+    ├── 5G…  cell-type mosaic (when the run has cell-type calls)
     └── *.csv  every table the figures were drawn from
 ```
 

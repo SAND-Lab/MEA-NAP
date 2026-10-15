@@ -506,7 +506,19 @@ _DATA_FILE_DESCRIPTIONS: list[tuple[re.Pattern, str]] = [
     (re.compile(r"^regression_feature_importance\.csv$"), "Step 5. Held-out permutation importance per (model, feature): mean drop in R²."),
     (re.compile(r"^variance_decomposition\.csv$"), "Step 5. Per feature: its marginal R² (what it explains alone), its unique R² (the drop if it is removed), and its Shapley value — the share of explained variance genuinely attributable to it. The Shapley column sums to the full model's R²."),
     (re.compile(r"^regression_coefficients\.csv$"), "Step 5. Standardised ridge coefficients of the full model — the sign the variance shares do not carry."),
-    (re.compile(r"^stats_summary\.json$"), "Step 5. The settings the step ran with and a digest of what each analysis found, plus the list of tables and figures written."),
+    # Step 5, cell-level mosaic analysis. Only written by a CAT-NAP run with
+    # cell-type calls; ``Version`` is ``all`` (every labelled cell-day) or
+    # ``tracked`` (cells followed across days).
+    (re.compile(r"^celltype_inventory\.csv$"), "Step 5. One row per (marker, culture, age): how many cells were called positive and negative, and how many of those are tracked across days. What every cell-type analysis can draw on."),
+    (re.compile(r"^mosaic_design\.csv$"), "Step 5. Which group was taken as the mosaic (a real mix of marker+ and marker- cells) and which as the positive and negative references, all identified from the calls, plus the reason when the analysis could not run."),
+    (re.compile(r"^mosaic_effects\.csv$"), "Step 5. One row per (version, scope, feature, contrast): the difference in pooled-SD units of the (log-scaled where skewed) feature, its SE, 95% CI, p-value and FDR q (corrected across features within version x scope x contrast). Contrasts: cell-autonomous (marker- vs marker+ within the mosaic), the two environment contrasts (same marker state, different culture), the reference genotypes, and the change in the cell-autonomous gap per week. Mixed models with recordings nested in cultures, plus cells in the tracked version; ``Fit`` says when a model fell back to culture-clustered OLS."),
+    (re.compile(r"^mosaic_paired_differences\.csv$"), "Step 5. One row per (version, mosaic recording, feature): the marker+ and marker- means and counts and their difference — the model-free version of the cell-autonomous contrast."),
+    (re.compile(r"^mosaic_ko_scores\.csv$"), "Step 5. One row per cell-day: its log-odds on the healthy-to-mutant axis a logistic model learned from the reference cultures. Reference cells are scored out of fold (``OutOfFold``), mosaic cells by the model fitted on all references."),
+    (re.compile(r"^mosaic_ko_score_summary\.csv$"), "Step 5. Headline numbers for the mutant-likeness score per version: the references' held-out AUC, the within-recording marker- minus marker+ gap (mean, share of recordings, Wilcoxon p, and as a mixed-model estimate) and the median per class."),
+    (re.compile(r"^mosaic_decoding\.csv$"), "Step 5. Held-out balanced accuracy of decoding marker state within the mosaic from within-recording-normalised features, pooled and per age, with cultures held out whole and a null that shuffles labels within each recording."),
+    (re.compile(r"^mosaic_decoding_importance\.csv$"), "Step 5. Held-out permutation importance per (version, scope, feature) for the marker-state decoder."),
+    (re.compile(r"^mosaic_trajectories\.csv$"), "Step 5. One row per (version, feature, class, age): mean of culture means and its SEM across cultures, in the same standardised units as the effects."),
+    (re.compile(r"^stats_summary\.json$"),"Step 5. The settings the step ran with and a digest of what each analysis found, plus the list of tables and figures written."),
 ]
 
 

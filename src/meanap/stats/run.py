@@ -40,6 +40,7 @@ from meanap.stats.density_sweep import (
 )
 from meanap.stats.figures import StatsResults, draw_stats_figure, stats_figures
 from meanap.stats.measures import compare_measures, summary_lines
+from meanap.stats import celltypes
 from meanap.stats.regression import regress
 
 __all__ = ["StatsRunResult", "StatsSettings", "run_stats", "OUTPUT_DIRNAME"]
@@ -76,6 +77,20 @@ class StatsSettings:
     #: run with one measure — every ephys run, and every CAT-NAP run that did
     #: not set ``Params.twop_activities`` — has nothing to compare and skips it.
     measure_comparison: bool = True
+    #: Cell-level analysis of an X-linked mosaic (:mod:`meanap.stats.celltypes`):
+    #: in a heterozygous culture stained for the gene, compare marker- cells
+    #: with their marker+ neighbours and with cells of the reference genotypes,
+    #: to tell a cell-autonomous difference from a network one. On by default;
+    #: a run without cell-type calls, or without a group mixing + and - cells,
+    #: skips it (writing only the label inventory when there are calls).
+    celltype_mosaic: bool = True
+    #: The marker whose mosaic is analysed — a ``celltype_<marker>`` column of
+    #: ``CellTypeCalls.csv``.
+    mosaic_marker: str = "Mecp2"
+    #: Within-recording label shuffles for the marker decoder's null. Each one
+    #: re-runs the cross-validation at every age, so this, not the mixed models,
+    #: is what to lower for a quick look.
+    mosaic_permutations: int = 100
 
     #: Restrict to these metrics; empty means every metric the run computed.
     metrics: tuple[str, ...] = ()
@@ -241,6 +256,16 @@ def run_stats(
             "cross-sectional, or the recording names do not encode the culture "
             "in a way this can read. Repeated-measures handling is inert.")
 
+    # The mosaic analysis works on cells rather than recordings, so it reads
+    # its own tables — once, here, rather than once per lag and measure.
+    cells = None
+    if settings.celltype_mosaic:
+        try:
+            cells = celltypes.load_cell_table(source, marker=settings.mosaic_marker)
+        except Exception as exc:
+            result.skipped.append(f"mosaic: {exc}")
+            log(f"  ! could not read the cell-type tables: {exc}")
+
     lags = ds.lags or [None]
     # A CAT-NAP run that analysed several measures of activity is analysed once
     # per measure, exactly as it is analysed once per lag and for the same
@@ -291,6 +316,15 @@ def run_stats(
                 except Exception as exc:  # one analysis failing must not stop the rest
                     result.skipped.append(f"{name}/{fn_name}: {exc}")
                     log(f"  ! {fn_name} failed: {exc}")
+                    log(traceback.format_exc(limit=3))
+
+            if cells is not None:
+                try:
+                    _run_mosaic(cells, folder, settings, result, lag, activity,
+                                log, computed)
+                except Exception as exc:
+                    result.skipped.append(f"{name}/mosaic: {exc}")
+                    log(f"  ! mosaic failed: {exc}")
                     log(traceback.format_exc(limit=3))
 
             _draw_all(computed, folder, settings, scheme, result, log)
@@ -1124,6 +1158,30 @@ def _run_regression(ds: StatsDataset, folder: Path, settings,
     log(f"    best: {best['Model']} at R2 = {best['R2']:.3f}; largest share of "
         f"variance: {top['FeatureLabel'] if top is not None else 'n/a'} "
         f"({top['ShapleyShare'] * 100:.0f}%)" if top is not None else "")
+
+
+def _run_mosaic(cells, folder: Path, settings, result: StatsRunResult, lag,
+                activity, log, computed: StatsResults) -> None:
+    """Marker- against marker+ cells of a mosaic, and both against the references."""
+    log(f"  cell types: {settings.mosaic_marker} mosaic")
+    res = celltypes.run_mosaic(
+        cells, lag=lag, activity=activity, n_splits=settings.n_splits,
+        n_repeats=settings.n_repeats, n_permutations=settings.mosaic_permutations,
+        seed=settings.seed, log=log)
+    for attr, name in celltypes.MosaicResults.FILES.items():
+        _write_table(getattr(res, attr), folder / name, result)
+    for line in celltypes.summary_lines(res):
+        log(line)
+    if res.ran:
+        pooled = res.effects[res.effects["Scope"] == "pooled"]
+        result.summary.setdefault("mosaic", {})[str(lag)] = {
+            "groups": {"mosaic": cells.mosaic_group, "positive": cells.pos_group,
+                       "negative": cells.neg_group},
+            "cell_autonomous_fdr05": int(
+                ((pooled["Contrast"] == "cell-autonomous")
+                 & (pooled["PValueFDR"] < 0.05)).sum()),
+        }
+    computed.mosaic = res
 
 
 def _write_summary(dest: Path, result: StatsRunResult, settings: StatsSettings) -> None:
