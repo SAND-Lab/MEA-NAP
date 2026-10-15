@@ -353,14 +353,19 @@ _PROSE: dict[str, tuple[str, str]] = {
     "celltype_inventory": (
         "Cell-type labels by culture and age",
         "How many cells carry a call for each marker, per culture (rows, "
-        "coloured by group) and age. The dot's colour is the share called "
-        "positive, so a mosaic culture is one with dots between the two ends. "
+        "coloured by group) and age. A dot's area is the number of labelled "
+        "cells and its colour the percentage called positive, so a mosaic "
+        "culture is one with pale dots between the two ends. "
         "Read this first: it is what every cell-type analysis can and cannot "
         "draw on.",
     ),
     "cell_autonomy": (
         "Is the genotype difference the cell's own?",
-        "Each point is a feature. Horizontal: the difference between cells of "
+        "The cartoons above the panels show the two comparisons. "
+        "Each point is a feature, numbered as in the key and coloured by "
+        "family (activity, correlation strength, topology); filled points have "
+        "a cell-autonomous difference at FDR < 0.05. "
+        "Horizontal: the difference between cells of "
         "the mutant and the healthy cultures. Vertical: the difference between "
         "marker- and marker+ cells sharing one mosaic culture, and so one "
         "network. On the diagonal the difference travels with the cell "
@@ -717,8 +722,8 @@ _MOSAIC_DRAW = {
     "mosaic_trajectories": "plot_mosaic_trajectories",
 }
 #: The ones that colour by group and so take the run's colour scheme.
-_MOSAIC_SCHEMED = frozenset({"celltype_inventory", "mosaic_ko_scores",
-                             "mosaic_trajectories"})
+_MOSAIC_SCHEMED = frozenset({"celltype_inventory", "cell_autonomy",
+                             "mosaic_ko_scores", "mosaic_trajectories"})
 
 def draw_stats_figure(
     results: StatsResults, key: str, out_path: Path | str, *, scheme=None,
@@ -728,7 +733,18 @@ def draw_stats_figure(
     ``None`` rather than an exception for an empty figure: a metric that is
     all-missing, or an analysis that found nothing to plot, is an ordinary
     outcome and the caller's other figures should still be drawn.
+
+    Every step-5 figure is drawn in :func:`meanap.stats.style.stats_style`.
     """
+    from meanap.stats.style import stats_style
+
+    with stats_style():
+        return _draw_stats_figure(results, key, out_path, scheme=scheme)
+
+
+def _draw_stats_figure(
+    results: StatsResults, key: str, out_path: Path | str, *, scheme=None,
+) -> Path | None:
     from meanap.pipeline.palette import DEFAULT_SCHEME
     from meanap.stats import plots
 

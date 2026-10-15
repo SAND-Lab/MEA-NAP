@@ -73,13 +73,31 @@ MUTED = "#8a8a8a"
 
 
 def _bare(ax) -> None:
-    """MATLAB ``aesthetics.m``: no top/right spines, ticks pointing out."""
+    """No top/right spines, ticks pointing out.
+
+    Under :func:`meanap.stats.style.stats_style` there are no spines or tick
+    marks at all, so this matters only to a figure drawn outside it.
+    """
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
     ax.tick_params(direction="out")
 
 
+def _ungrid_images(fig) -> None:
+    """Take the style's gridlines off heatmaps and colour bars.
+
+    The gridlines carry the y-scale of a plot; across a heatmap's cells, or a
+    colour bar, they only cut through the colour.
+    """
+    from matplotlib.collections import QuadMesh
+
+    for ax in fig.axes:
+        if ax.images or any(isinstance(c, QuadMesh) for c in ax.collections):
+            ax.grid(False)
+
+
 def _save(fig, path: Path, *, dpi: int = 200) -> Path:
+    _ungrid_images(fig)
     savefig(fig, Path(path), default_dpi=dpi, bbox_inches="tight",
             facecolor="white")
     plt.close(fig)
