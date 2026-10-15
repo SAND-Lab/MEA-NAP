@@ -51,6 +51,19 @@ UNIT = ("FileName", "Channel")
 _SIGN = {1: "+", -1: "-", 0: ""}
 
 
+def comparison_group_spec(params) -> dict[str, str] | str | None:
+    """Cell-ID comparison definitions selected for a run.
+
+    A comparison split is deliberately independent of induced-subnetwork
+    groups: the former can require an explicit negative call (for example,
+    ``Mecp2- & PV+``), while a subnetwork spreadsheet can be positive-only.
+    Existing parameter files keep their old behaviour until a user defines a
+    dedicated comparison split.
+    """
+    dedicated = getattr(params, "twop_celltype_comparison_groups", None)
+    return dedicated if dedicated else getattr(params, "twop_subnetwork_groups", None)
+
+
 def _label_files(folders: list[Path]) -> FileNameIndex:
     """Every flat label file in *folders*, findable by token-matched name."""
     names = []

@@ -488,6 +488,33 @@ uninterpretable. Comparing *the same* cell type across experimental groups or
 ages — which is what these figures are for — is not affected.
 :::
 
+### Comparing combinations of cell IDs
+
+The **Multi-ID comparison splits** field in the CAT-NAP GUI defines named,
+three-state cell-ID combinations for the developmental and cross-sectional
+comparison figures. It is independent of cell-type subnetwork analysis, so it
+can be used without producing induced-subnetwork metrics. Write one definition
+per line, for example:
+
+```text
+Mecp2+ / PV+ = Mecp2+ & PV+
+Mecp2- / PV+ = Mecp2- & PV+
+```
+
+Both marker calls must be known. A cell with an unlabelled Mecp2 or PV call is
+excluded rather than silently treated as negative. The same setting in code is
+`Params.twop_celltype_comparison_groups`:
+
+```python
+Params(twop_celltype_comparison_groups={
+    "Mecp2+ / PV+": "Mecp2+ & PV+",
+    "Mecp2- / PV+": "Mecp2- & PV+",
+})
+```
+
+When left empty, existing runs continue to reuse `twop_subnetwork_groups` for
+their cell-type comparisons.
+
 ### Using it directly
 
 ```python

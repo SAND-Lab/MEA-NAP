@@ -791,10 +791,11 @@ def _run_cell_tracking(params: Params, recordings, output_root: Path,
     # Cell types compared across development, on the cells tracked through it.
     # The statistics are tables, so express mode keeps them and skips figures.
     try:
+        from meanap.catnap.celltype_comparisons import comparison_group_spec
         from meanap.catnap.tracking.development_plots import plot_for_run
 
         plot_for_run(out_dir, output_root,
-                     group_spec=params.twop_subnetwork_groups,
+                     group_spec=comparison_group_spec(params),
                      group_order=params.custom_grp_order or None,
                      timescale=timescale_kind(params),
                      figures=not params.express_mode,
@@ -814,11 +815,13 @@ def _run_cell_type_comparisons(params: Params, output_root: Path, log) -> None:
     if params.express_mode:
         return
     try:
-        from meanap.catnap.celltype_comparisons import plot_cell_type_comparisons
+        from meanap.catnap.celltype_comparisons import (
+            comparison_group_spec, plot_cell_type_comparisons,
+        )
 
         plot_cell_type_comparisons(
             output_root, label_folders=[params.twop_cell_type_file, params.raw_data],
-            group_spec=params.twop_subnetwork_groups,
+            group_spec=comparison_group_spec(params),
             group_order=params.custom_grp_order or None,
             timescale=timescale_kind(params), activity=params.twop_activity,
             log=lambda m: log(f"  {m}"))
