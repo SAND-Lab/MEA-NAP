@@ -274,7 +274,8 @@ class ViewerService:
                                             measure or (measures[0] if measures else None))
 
         params = self.ctx.params if getattr(self, "ctx", None) is not None else None
-        group_spec = getattr(params, "twop_subnetwork_groups", None)
+        from meanap.catnap.celltype_comparisons import comparison_group_spec
+        group_spec = comparison_group_spec(params)
         order = list(getattr(params, "custom_grp_order", None) or [])
         present = list(dict.fromkeys(base["Grp"].astype(str)))
         groups = [g for g in order if g in present] + sorted(g for g in present if g not in order)

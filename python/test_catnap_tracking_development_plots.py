@@ -45,6 +45,24 @@ def test_definitions_per_marker_and_from_the_run():
     assert custom.name == "CellTypeGroups" and custom.types == {"A": "NeuN+", "B": "NeuN-"}
 
 
+def test_multi_marker_signed_comparison_excludes_unknown_calls():
+    n = dp.MIN_TYPE_CELLS
+    df = pd.DataFrame({
+        "chain": ["c"] * (2 * n + 1),
+        "cluster": range(2 * n + 1),
+        "celltype_Mecp2": ["+"] * n + ["-"] * n + [""],
+        "celltype_PV": ["+"] * (2 * n + 1),
+    })
+    definition = dp.type_definitions(
+        ["Mecp2", "PV"],
+        {"Mecp2+ PV+": "Mecp2+ & PV+", "Mecp2- PV+": "Mecp2- & PV+"},
+    )[-1]
+    members = dp.memberships(df, definition)
+    assert set(members) == {"Mecp2+ PV+", "Mecp2- PV+"}
+    assert members["Mecp2+ PV+"].sum() == n
+    assert members["Mecp2- PV+"].sum() == n
+
+
 def test_types_too_small_to_compare_are_dropped():
     n = dp.MIN_TYPE_CELLS
     df = pd.DataFrame({"chain": "c", "cluster": range(n + 1),
