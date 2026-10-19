@@ -124,6 +124,13 @@ This creates a `.venv/` and installs all dependencies. No manual environment act
 ```bash
 powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
 ```
+Then follow the instructions above starting with either downloading MEA-NAP from this Github, or, if you already have downloaded it, changing the directory until you are in the MEA-NAP folder.  In the terminal at the command prompt you can type "cd [folder name or path]" for change directory or "dir" to list folders (if needed). 
+
+Now install the dependencies by typing this command in the terminal at the command prompt (this step takes a few minutes):
+
+```bash
+uv sync
+```
 
 ## GUI (`meanap-gui`)
 
