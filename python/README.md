@@ -119,6 +119,12 @@ This creates a `.venv/` and installs all dependencies. No manual environment act
 > `pyproject.toml` alongside the `src/`, `python/` and `docs/` folders. If you
 > are inside `python/`, `cd ..` first.
 
+**On Windows**, open the terminal (aka at the command prompt) and type the following (requires internet connection, takes a few seconds to install uV):
+
+```bash
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
 ## GUI (`meanap-gui`)
 
 Launch the graphical interface from the `MEA-NAP` folder (the same one you ran `uv sync` in):
