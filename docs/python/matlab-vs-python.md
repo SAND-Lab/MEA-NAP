@@ -150,6 +150,14 @@ behaviour and exact parity with MATLAB's `bior1.5` output.
 them per electrode, making each neuron a node — see [Spike
 sorting](spike-sorting.md). Not available in the MATLAB pipeline.
 
+**Importing sorted data and light stimulation.** Step 1 can instead read units
+sorted elsewhere (SpyKING CIRCUS, Kilosort/phy, SpikeInterface), take
+electrode positions from each recording (MaxWell HD-MEAs), and MEA-Stim can
+analyse event-driven stimuli such as light flashes from TTL markers or an
+event CSV, including evoked-vs-baseline networks and noise correlations — see
+[Importing spike-sorted data](sorted-import.md). Not available in the MATLAB
+pipeline.
+
 ## Known gaps
 
 - **No group-level statistical comparisons yet.** MATLAB's step 5 (comparing

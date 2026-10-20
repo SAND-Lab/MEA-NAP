@@ -95,7 +95,22 @@ class Params:
     # separates them — so every later step works on neurons rather than
     # electrodes. Needs the ``sorting`` extra (``pip install meanap[sorting]``).
     # See python/SPIKE_SORTING_PLAN.md and pipeline/spike_sorting.py.
+    # ``import`` reads units an external sorter already found (SpyKING CIRCUS,
+    # Kilosort/phy, a SpikeInterface folder) from ``sorted_data_folder`` and
+    # makes them the nodes exactly as ``sort`` would. See
+    # python/SORTED_IMPORT_PLAN.md and pipeline/sorted_import.py.
     spike_source: str = "detect"
+    # Where an ``import`` finds each recording's sorter output, matched by
+    # recording name. Empty: look in ``raw_data``. The raw recording (when
+    # it is in ``raw_data``) still supplies sampling rate, exact duration,
+    # electrode positions and TTL events; only its metadata is read.
+    sorted_data_folder: str = ""
+    # "auto", "spykingcircus", "phy" or "spikeinterface". Auto tries them in
+    # that order for each recording.
+    sorted_data_format: str = "auto"
+    # Curation labels whose units are left out of the network. ``noise`` is
+    # phy's and Kilosort's word for a cluster that is not a neuron.
+    sorted_drop_labels: list[str] = field(default_factory=lambda: ["noise"])
     # Which sorter, by its SpikeInterface name. ``tridesclous2`` is the
     # default: on the synthetic low-density ground truth
     # (python/benchmark_spike_sorting.py) it recovered more neurons with no
@@ -447,6 +462,31 @@ class Params:
     stim_n_shuffles: int = 500
     stim_shuffle_alpha: float = 0.05
     axion_stim_csv: str = ""                   # for the axionStimEvents method
+    # Event-driven stimulation (light, sound…): stim_detection_method
+    # "maxwellTTL" reads the raw MaxWell file's TTL log, "eventsCSV" reads
+    # <recording>_events.csv (time_s[,condition]) from stim_events_folder
+    # (else the raw data folder). No node is stimulating and nothing is
+    # blanked. See stim/events.py and python/SORTED_IMPORT_PLAN.md.
+    stim_events_folder: str = ""
+    stim_event_ttl_rule: str = "auto"          # auto | rise:<bit> | fall:<bit> | value:<v>
+    stim_event_min_interval: float = 0.05      # s — closer markers merge
+    # How TTL events become conditions (the "patterns" of an event run):
+    # "single" — all one; "alternate" — cycle through the labels below in
+    # event order (e.g. ON, OFF for a flash marked at each transition).
+    stim_event_condition_mode: str = "single"
+    stim_event_condition_labels: list[str] = field(default_factory=list)
+    # Stimulus-triggered networks (stim/evoked_network.py), per condition and
+    # per lag in func_con_lag_val: STTC over the windows after each event
+    # (evoked) and the equally long windows before it (baseline), plus noise
+    # correlations of trial-by-trial counts. "trial_shuffle" keeps an edge
+    # only if it beats each node's own stimulus-locked response reordered
+    # across trials — co-variation beyond shared drive; "circular" is step
+    # 3's circular-shift test (total co-activity, stimulus drive included).
+    stim_network: bool = True
+    stim_network_window: list[float] = field(default_factory=lambda: [0.0, 0.5])  # s
+    stim_network_null: str = "trial_shuffle"
+    stim_network_rep_num: int = 200
+    stim_network_alpha: float = 0.05
 
     def to_stim_params_dict(self) -> dict:
         """Map the stim fields to the camelCase dict the ``meanap.stim`` ports use.
@@ -465,7 +505,9 @@ class Params:
             "postStimWindowDur": self.post_stim_window_dur,
             "stimRawDataProcessing": self.stim_raw_data_processing,
             "rasterBinWidth": self.stim_raster_bin_width,
-            "SpikesMethod": self.spikes_method,
+            # The method the spike file holds: "sorted" for a sorted or
+            # imported run, whose trains are stored under no detector's name.
+            "SpikesMethod": active_spike_method(self),
             "Nshuffles": self.stim_n_shuffles,
             "shuffleAlpha": self.stim_shuffle_alpha,
             "axionStimCSV": self.axion_stim_csv,
@@ -483,11 +525,12 @@ def active_spike_method(params: "Params") -> str:
     """The method steps 2–4 read from the spike file.
 
     ``spikes_method`` names a detector; when the run sorts spikes instead there
-    is exactly one train per node, stored as :data:`SORTED_METHOD`, so that is
+    (or imports sorted units) there is exactly one train per node, stored as
+    :data:`SORTED_METHOD`, so that is
     what every later step must read whatever ``spikes_method`` says — the
     field keeps its value so switching back to detection restores it.
     """
-    return SORTED_METHOD if params.spike_source == "sort" else params.spikes_method
+    return SORTED_METHOD if params.spike_source in ("sort", "import") else params.spikes_method
 
 
 PARAMS_FILENAME = "params.json"

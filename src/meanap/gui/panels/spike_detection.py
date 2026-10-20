@@ -18,6 +18,7 @@ from PyQt6.QtWidgets import (
 )
 
 from meanap.gui.advanced import AdvancedSection
+from meanap.gui.panels.paths import PathRow
 from meanap.gui.widgets import show_auto_or_value
 from meanap.params import Params
 from meanap.pipeline.spike_sorting import (
@@ -57,6 +58,8 @@ class SpikeDetectionPanel(QWidget):
         self.spike_source = QComboBox()
         self.spike_source.addItem("Detect spikes on each electrode", "detect")
         self.spike_source.addItem("Sort spikes into units (each unit becomes a node)", "sort")
+        self.spike_source.addItem(
+            "Import units sorted elsewhere (SpyKING CIRCUS, Kilosort/phy…)", "import")
         self.spike_source.setToolTip(
             "What the nodes of the network are.\n\n"
             "Detect: one node per electrode, its spikes found by the threshold "
@@ -64,7 +67,12 @@ class SpikeDetectionPanel(QWidget):
             "Sort: a spike sorter separates the neurons an electrode hears "
             "by waveform, and each becomes its own node. Several nodes per "
             "electrode where the sorter finds several neurons. Needs the "
-            "'sorting' extra (pip install meanap[sorting]).")
+            "'sorting' extra (pip install meanap[sorting]).\n\n"
+            "Import: read units an external sorter already found — SpyKING "
+            "CIRCUS output, a Kilosort/phy folder, or a saved SpikeInterface "
+            "analyzer — and make each a node, as Sort would. No voltage is "
+            "loaded; a MaxWell raw file beside the data supplies the sampling "
+            "rate, exact duration, electrode positions and TTL events.")
         self.sorter_name = QComboBox()
         for name in installed_sorters() or SUPPORTED_SORTERS:
             self.sorter_name.addItem(name)
@@ -294,6 +302,33 @@ class SpikeDetectionPanel(QWidget):
                      self.single_burst_isi_auto)
         form5.addRow("Single-channel burst: ISI threshold", self.single_burst_isi)
 
+        # ── Importing sorted units ────────────────────────────────────────────
+        # Only meaningful when the source is "import". See
+        # pipeline/sorted_import.py and python/SORTED_IMPORT_PLAN.md.
+        self.import_box = AdvancedSection("Importing sorted units")
+        form_imp = self.import_box.form()
+        self.sorted_data_folder = PathRow(self)
+        self.sorted_data_folder.setToolTip(
+            "Where each recording's sorter output is, found by recording name: "
+            "<name>.result[-merged].hdf5 for SpyKING CIRCUS, a folder named "
+            "for the recording (e.g. <name>_kilosort4) holding spike_times.npy "
+            "for phy/Kilosort. Empty: look in the raw data folder.")
+        self.sorted_data_format = QComboBox()
+        for label, value in (("Automatic", "auto"), ("SpyKING CIRCUS", "spykingcircus"),
+                             ("phy / Kilosort", "phy"), ("SpikeInterface folder", "spikeinterface")):
+            self.sorted_data_format.addItem(label, value)
+        self.sorted_data_format.setToolTip(
+            "Automatic tries SpyKING CIRCUS, then phy, then SpikeInterface for "
+            "each recording.")
+        self.sorted_drop_labels = QLineEdit()
+        self.sorted_drop_labels.setToolTip(
+            "Comma-separated curation labels whose units are left out — "
+            "'noise' is phy's and Kilosort's word for a cluster that is not a "
+            "neuron. Clear it to keep every unit.")
+        form_imp.addRow("Sorted data folder", self.sorted_data_folder)
+        form_imp.addRow("Format", self.sorted_data_format)
+        form_imp.addRow("Leave out labels", self.sorted_drop_labels)
+
         # ── Spike sorting ─────────────────────────────────────────────────────
         # Only meaningful when the source is "sort"; folded away otherwise so
         # a detection run's tab looks as it always did.
@@ -431,6 +466,7 @@ class SpikeDetectionPanel(QWidget):
 
         layout.addWidget(ctrl_box)
         layout.addWidget(self.sort_box)
+        layout.addWidget(self.import_box)
         layout.addWidget(thr_box)
         layout.addWidget(wav_box)
         layout.addWidget(filt_box)
@@ -441,9 +477,16 @@ class SpikeDetectionPanel(QWidget):
 
     def _on_spike_source_changed(self) -> None:
         sorting = self.spike_source.currentData() == "sort"
+        importing = self.spike_source.currentData() == "import"
         self.sorter_name.setEnabled(sorting)
         self.sort_box.setVisible(sorting)
-        if sorting_available():
+        self.import_box.setVisible(importing)
+        if importing:
+            self.sorting_hint.setText(
+                "The detector settings below are not used; every later step "
+                "reads the imported units. For an array with no fixed layout "
+                "(MaxWell), set the channel layout to FromFile.")
+        elif sorting_available():
             self.sorting_hint.setText(
                 "The detector settings below are not used; every later step "
                 "reads the sorted units." if sorting else "")
@@ -457,6 +500,10 @@ class SpikeDetectionPanel(QWidget):
             self.sorter_name.addItem(params.sorter_name)
             idx = self.sorter_name.count() - 1
         self.sorter_name.setCurrentIndex(idx)
+        self.sorted_data_folder.set_value(params.sorted_data_folder)
+        idx = self.sorted_data_format.findData(params.sorted_data_format)
+        self.sorted_data_format.setCurrentIndex(max(idx, 0))
+        self.sorted_drop_labels.setText(", ".join(params.sorted_drop_labels))
         self.sort_freq_min.setValue(params.sort_freq_min)
         self.sort_freq_max.setValue(params.sort_freq_max)
         idx = self.sort_common_reference.findData(params.sort_common_reference)
@@ -506,6 +553,10 @@ class SpikeDetectionPanel(QWidget):
         params.detect_spikes = self.detect_spikes.isChecked()
         params.spike_source = self.spike_source.currentData()
         params.sorter_name = self.sorter_name.currentText()
+        params.sorted_data_folder = self.sorted_data_folder.value
+        params.sorted_data_format = self.sorted_data_format.currentData()
+        params.sorted_drop_labels = [s.strip() for s in self.sorted_drop_labels.text().split(",")
+                                     if s.strip()]
         params.sort_freq_min = self.sort_freq_min.value()
         params.sort_freq_max = self.sort_freq_max.value()
         params.sort_common_reference = self.sort_common_reference.currentData()
