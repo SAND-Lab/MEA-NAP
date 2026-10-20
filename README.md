@@ -3,6 +3,12 @@
 
 # MEA Network Analysis Pipeline (MEA-NAP)
 
+> [!IMPORTANT]
+> **MEA-NAP is now available in Python (beta).** You can run the full pipeline without a MATLAB licence. The Python version also adds calcium imaging (CAT-NAP), stimulation analysis (MEA-Stim) and direct loading of raw recordings.
+> The MATLAB version is still supported.
+>
+> [**Read the release note**](RELEASE_LINK) · [**Install**](docs/python/installation.md) · [**Quickstart**](docs/python/quickstart.md) · [**MATLAB vs Python**](docs/python/matlab-vs-python.md) · [**Send us feedback**](FEEDBACK_LINK)
+
 ![Visitors](https://api.visitorbadge.io/api/visitors?path=https%3A%2F%2Fgithub.com%2FSAND-Lab%2FAnalysisPipeline&label=Visitors&countColor=%23263759)
 [![Documentation Status](https://readthedocs.org/projects/analysis-pipeline/badge/?version=latest)](https://analysis-pipeline.readthedocs.io/en/latest/?badge=latest)
 
