@@ -683,10 +683,12 @@ def render_group_family(
             plot_step2_group_comparisons(
                 recordings, _ephys_stats(ctx), out_dir, order, fmt=fmt, colors=scheme)
         elif fam.key == "cell_type_comparisons":
-            from meanap.catnap.celltype_comparisons import plot_cell_type_comparisons
+            from meanap.catnap.celltype_comparisons import (
+                comparison_group_spec, plot_cell_type_comparisons,
+            )
             # from the calls the bundle carries: it has no raw label files
             plot_cell_type_comparisons(
-                ctx.root, out_dir=out_dir, group_spec=params.twop_subnetwork_groups,
+                ctx.root, out_dir=out_dir, group_spec=comparison_group_spec(params),
                 group_order=order, timescale=timescale_kind(params),
                 activity=params.twop_activity, fmt=fmt)
         else:  # subnetwork

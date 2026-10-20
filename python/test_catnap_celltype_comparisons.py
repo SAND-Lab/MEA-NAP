@@ -16,6 +16,7 @@ import numpy as np
 import pandas as pd
 
 from meanap.catnap import celltype_comparisons as cc
+from meanap.params import Params
 
 REC = "PREP1_7_P1_pupA_WT_DIV10"          # the pipeline's name
 RAW = "20240101_7_PREP1_P1_pupA_WT_DIV10"  # the label file's name
@@ -69,6 +70,14 @@ def test_recording_means_make_n_recordings():
                        "CellType": "T", "FR": [1.0, 2.0, 3.0, 10.0]})
     m = cc.recording_means(df, ["FR"]).set_index("FileName")
     assert m.loc["a", "FR"] == 2.0 and m.loc["a", "nCells"] == 3 and len(m) == 2
+
+
+def test_dedicated_comparison_groups_override_subnetwork_groups():
+    params = Params(
+        twop_subnetwork_groups={"Old": "NeuN+"},
+        twop_celltype_comparison_groups={"Mecp2+ PV+": "Mecp2+ & PV+"},
+    )
+    assert cc.comparison_group_spec(params) == {"Mecp2+ PV+": "Mecp2+ & PV+"}
 
 
 def _run(tmp_path: Path) -> Path:

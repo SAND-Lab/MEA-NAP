@@ -261,6 +261,23 @@ def _panel_checks(app) -> list[Check]:
                                                  "Excitatory": "NeuN+ & ~GAD+"},
                    str(p4.twop_subnetwork_groups)))
 
+    # Dedicated comparison groups use explicit +/- calls and remain separate
+    # from the subnetwork setting, so they can be used without subgraphs.
+    panel._comparison_group_text.setPlainText(
+        "Mecp2+ / PV+ = Mecp2+ & PV+\nMecp2- / PV+ = Mecp2- & PV+"
+    )
+    p_comp = Params()
+    panel.save(p_comp)
+    expected_comp = {"Mecp2+ / PV+": "Mecp2+ & PV+",
+                     "Mecp2- / PV+": "Mecp2- & PV+"}
+    checks.append(("multi-ID comparison splits save independently",
+                   p_comp.twop_celltype_comparison_groups == expected_comp,
+                   str(p_comp.twop_celltype_comparison_groups)))
+    panel.load(p_comp)
+    checks.append(("multi-ID comparison splits reload verbatim",
+                   panel._current_comparison_groups() == expected_comp,
+                   str(panel._current_comparison_groups())))
+
     # Disabling the analysis must not lose the group definitions.
     panel._subnetwork_enabled.setChecked(False)
     p5 = Params()

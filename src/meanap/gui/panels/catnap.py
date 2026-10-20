@@ -491,7 +491,7 @@ class CatNapPanel(QWidget):
 
     def _build_subnetwork_box(self) -> QWidget:
         """Cell-type subnetwork settings (see catnap/subnetwork.py)."""
-        box = QGroupBox("Cell-type subnetworks")
+        box = QGroupBox("Cell types: subnetworks and comparisons")
         layout = QVBoxLayout(box)
 
         form = QFormLayout()
@@ -534,6 +534,25 @@ class CatNapPanel(QWidget):
         self._group_text.setMaximumHeight(110)
         self._group_text.textChanged.connect(self._validate_groups)
 
+        comparison_label = QLabel("Multi-ID comparison splits (optional)")
+        comparison_label.setToolTip(
+            "These splits are used for cell-type comparisons across groups and "
+            "development. They do not create subnetworks."
+        )
+        self._comparison_group_text = QPlainTextEdit()
+        self._comparison_group_text.setPlaceholderText(
+            "One comparison per line, as  Name = expression\n"
+            "e.g.  Mecp2+ / PV+ = Mecp2+ & PV+\n"
+            "      Mecp2- / PV+ = Mecp2- & PV+\n"
+            "A cell with an unknown marker call is excluded."
+        )
+        self._comparison_group_text.setToolTip(
+            "Use explicit + and - calls for every marker to compare. These "
+            "definitions apply to developmental and cross-sectional cell-type "
+            "figures, even when subnetwork analysis is disabled."
+        )
+        self._comparison_group_text.setMaximumHeight(110)
+
         self._group_status = QLabel("")
         self._group_status.setWordWrap(True)
         self._group_status.setStyleSheet("font-size: 10px;")
@@ -541,6 +560,8 @@ class CatNapPanel(QWidget):
         layout.addWidget(self._group_editor)
         layout.addWidget(self._group_text)
         layout.addWidget(self._group_status)
+        layout.addWidget(comparison_label)
+        layout.addWidget(self._comparison_group_text)
 
         self._update_subnetwork_enabled()
         return box
@@ -909,8 +930,13 @@ class CatNapPanel(QWidget):
             return "E/I"
         if mode == MODE_CUSTOM:
             return self._group_editor.groups()
+        return self._group_lines(self._group_text.toPlainText())
+
+    @staticmethod
+    def _group_lines(text: str) -> dict[str, str]:
+        """Read ``Name = expression`` lines, ignoring blanks and comments."""
         groups: dict[str, str] = {}
-        for line in self._group_text.toPlainText().splitlines():
+        for line in text.splitlines():
             line = line.strip()
             if not line or line.startswith("#") or "=" not in line:
                 continue
@@ -918,6 +944,10 @@ class CatNapPanel(QWidget):
             if name.strip() and expr.strip():
                 groups[name.strip()] = expr.strip()
         return groups
+
+    def _current_comparison_groups(self) -> dict[str, str] | None:
+        """Dedicated signed cell-ID splits, or ``None`` for legacy behaviour."""
+        return self._group_lines(self._comparison_group_text.toPlainText()) or None
 
     def _validate_groups(self) -> None:
         """Report group sizes (or the first error) beneath the editor.
@@ -1041,6 +1071,10 @@ class CatNapPanel(QWidget):
                     "\n".join(f"{name} = {expr}" for name, expr in groups.items())
                 )
                 self._group_mode.setCurrentText(MODE_EXPRESSIONS)
+        comparison_groups = getattr(params, "twop_celltype_comparison_groups", None)
+        self._comparison_group_text.setPlainText(
+            "\n".join(f"{name} = {expr}" for name, expr in (comparison_groups or {}).items())
+        )
         self._update_subnetwork_enabled()
 
     def save(self, params: Params) -> None:
@@ -1067,6 +1101,7 @@ class CatNapPanel(QWidget):
         params.twop_subnetwork_analysis = self._subnetwork_enabled.isChecked()
         params.twop_cell_type_file = self._celltype_file.text().strip()
         params.twop_subnetwork_groups = self._current_groups()
+        params.twop_celltype_comparison_groups = self._current_comparison_groups()
 
         params.track_cells = self._track_enabled.isChecked()
         params.track_min_shift_px = self._track_min_shift.value()

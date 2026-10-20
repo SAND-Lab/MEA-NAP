@@ -417,6 +417,13 @@ class Params:
     # dict      → {group name: boolean marker expression}, e.g.
     #             {"Inhibitory": "GAD+ | PV+ | SST+"}.
     twop_subnetwork_groups: dict[str, str] | str | None = None
+    # Optional definitions for the developmental and cross-sectional cell-ID
+    # comparisons. Unlike ``twop_subnetwork_groups``, these do not create
+    # induced subnetworks, and their expressions are evaluated against the
+    # final three-state calls (``Mecp2+`` / ``Mecp2-`` / unknown). For example:
+    # {"Mecp2+ PV+": "Mecp2+ & PV+", "Mecp2- PV+": "Mecp2- & PV+"}.
+    # None preserves the historical behaviour of reusing subnetwork groups.
+    twop_celltype_comparison_groups: dict[str, str] | None = None
 
     # ── Stimulation (MEA-Stim) ───────────────────────────────────────────────
     # See src/meanap/stim/ and python/MEASTIM_PORT_PLAN.md. When

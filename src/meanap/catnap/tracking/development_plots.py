@@ -18,8 +18,8 @@ Everything here reads ``TrackedCellMetrics.csv`` (see
 
 **Cell types** come from the per-marker final calls. They are defined either
 as one marker's ``+`` against ``-`` (the default, one definition per marker)
-or by the run's group expressions (``twop_subnetwork_groups``), evaluated on
-those calls. A call is three-valued, so expressions are evaluated in Kleene
+or by dedicated cell-ID comparison expressions, evaluated on those calls. A
+call is three-valued, so expressions are evaluated in Kleene
 logic: ``PV+ | GAD+`` holds for a PV+ cell whose GAD was never stained, but
 ``NeuN+ & ~GAD+`` does not, because it might be GAD+. Unknown is never
 silently counted as negative.
