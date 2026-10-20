@@ -47,6 +47,13 @@ results.
       MaxWell HD-MEAs included — with light-stimulus and
       stimulus-triggered network analysis.
 
+   .. grid-item-card:: ⌨️ Command line
+      :link: command-line
+      :link-type: doc
+
+      Run a saved parameter file with ``meanap run`` — on a server, an HPC
+      node, or in a script — with no window needed.
+
    .. grid-item-card:: 🔬 CAT-NAP (calcium imaging)
       :link: catnap
       :link-type: doc
@@ -153,6 +160,7 @@ figure.
    installation
    quickstart
    gui-guide
+   command-line
    spike-sorting
    sorted-import
    catnap
