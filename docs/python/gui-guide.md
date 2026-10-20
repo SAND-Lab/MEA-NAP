@@ -235,11 +235,11 @@ it applies.
 
 :::{dropdown} Which spike detection method should I use?
 `bior1.5` (a biorthogonal wavelet CWT) is MEA-NAP's flagship method and the
-default `spikes_method`. The Python port's wavelet detector currently reaches
-~82–84% F1 agreement with MATLAB's native CWT implementation (PyWavelets
-approximates the wavelet via a cascade algorithm rather than MATLAB's exact
-one) — see [MATLAB vs. Python](matlab-vs-python.md). The simple threshold
-methods (`thr4`, `thr5`) match MATLAB exactly.
+default `spikes_method`. The Python port reproduces MATLAB's `bior1.5`
+detection exactly, as do the threshold methods (`thr4`, `thr5`). The one
+deliberate difference is a 0.5 ms refractory period on the wavelet detectors
+that removes double-detections of the same trough; set **Refractory period
+(wavelet detectors)** to 0 for MATLAB's output — see [MATLAB vs. Python](matlab-vs-python.md).
 :::
 
 ## Connectivity

@@ -56,7 +56,7 @@ different algorithm, not just a different random seed. Treat
 
 | Step | Status |
 |---|---|
-| **1. Spike detection** | Threshold-based methods (`thr4`, `thr5`) match MATLAB exactly. The flagship `bior1.5` wavelet method reaches ~82–84% F1 agreement with MATLAB — PyWavelets approximates the wavelet differently than MATLAB's native CWT. |
+| **1. Spike detection** | Exact ports: threshold methods (`thr4`, `thr5`) and the flagship `bior1.5` wavelet method reproduce MATLAB's spikes exactly (F1 = 1.0). Python adds a 0.5 ms wavelet refractory period by default (see below); set it to 0 for identical output. |
 | **2. Neuronal activity** (firing rates, bursts) | Exact parity confirmed field-by-field against MATLAB's own summary CSVs, when fed the same spike times. |
 | **3. Functional connectivity** (STTC) | The STTC computation itself has exact parity. Significance thresholding is inherently non-reproducible between runs (see above) — this is true of MATLAB too. |
 | **4. Network metrics** | Core graph metrics (ND, NS, density, clustering, path length, global/local efficiency, betweenness centrality) have exact parity. Modularity-dependent metrics (participation coefficient, module z-score, rich club, node cartography, hub classification, small-worldness) have exact parity *given the same community assignment* — the community assignment itself is stochastic in both MATLAB and Python. Controllability metrics are fully ported. NMF-based metrics are approximate (different algorithm, see above). |
