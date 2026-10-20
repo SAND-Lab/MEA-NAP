@@ -8,10 +8,10 @@ This is a beta version release because we would like to get more feedback on it 
 
 Full documentation on how to install and use the python version of MEA-NAP is [here](https://analysis-pipeline.readthedocs.io/en/latest/python/index.html)
 
-![The MEA-NAP Python GUI, Data tab](imgs/python-beta/gui_data_tab.png)
+![The MEA-NAP Python GUI, Data tab](imgs/python-beta/gui_data_tab_v2.png)
 *Setting up a run in the MEA-NAP Python GUI*
 
-![The MEA-NAP Python GUI, Run tab during a run](imgs/python-beta/gui_run_tab.png)
+![The MEA-NAP Python GUI, Run tab during a run](imgs/python-beta/gui_run_tab_v2.png)
 *A run in progress, with an estimate of the time left*
 
 
@@ -46,10 +46,10 @@ Data visualisation
 - Spike and burst viewer for checking spike and burst detection 
 - Since analysis and plotting is now separate processes in the python version of MEA-NAP, it is now much easier to create new visualisation from existing data without having to re-run the pipeline
 
-![The HTML report of a MEA-NAP run](imgs/python-beta/html_report.png)
+![The HTML report of a MEA-NAP run](imgs/python-beta/html_report_v2.png)
 *The HTML report: every figure of a run, organised by step and recording, with a description of each.*
 
-![The MEA-NAP network viewer](imgs/python-beta/network_viewer.png)
+![The MEA-NAP network viewer](imgs/python-beta/network_viewer_v2.png)
 *The network viewer: browse any recording's networks and figures, restyle them, and download them as PNG, SVG or PDF.*
 
 Ease of use
