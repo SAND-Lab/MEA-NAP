@@ -4,7 +4,7 @@ Aligns each pair of CSVs on their key columns, then reports per-column
 agreement (max absolute / relative difference, correlation) plus any columns
 present in only one of the two runs.
 
-    uv run python parityRun/compare_parity.py
+    uv run python python/parityRun/compare_parity.py
 """
 
 from __future__ import annotations
@@ -16,12 +16,12 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-REPO_ROOT = Path(__file__).parent.parent
-MATLAB_DIR = REPO_ROOT / "parityRun" / "OutputData_MATLAB_parity"
+REPO_ROOT = Path(__file__).resolve().parents[2]
+MATLAB_DIR = REPO_ROOT / "python" / "parityRun" / "OutputData_MATLAB_parity"
 # Which Python run to compare against MATLAB. Pass a folder name as argv[1] to
 # compare the "Python steps 2-4 on MATLAB's own spike times" run instead:
-#   uv run python parityRun/compare_parity.py OutputData_Python_fromMatlabSpikes
-PYTHON_DIR = REPO_ROOT / "parityRun" / (
+#   uv run python python/parityRun/compare_parity.py OutputData_Python_fromMatlabSpikes
+PYTHON_DIR = REPO_ROOT / "python" / "parityRun" / (
     sys.argv[1] if len(sys.argv) > 1 else "OutputData_Python_parity"
 )
 
@@ -207,7 +207,7 @@ def main() -> None:
         }
         print()
 
-    out = REPO_ROOT / "parityRun" / f"parity_comparison_{PYTHON_DIR.name}.json"
+    out = REPO_ROOT / "python" / "parityRun" / f"parity_comparison_{PYTHON_DIR.name}.json"
     with open(out, "w") as fh:
         json.dump(report, fh, indent=2, default=float)
     print(f"Wrote {out}")

@@ -412,7 +412,7 @@ def _load_cartography_diagram() -> "np.ndarray | None":
         return _CARTOGRAPHY_DIAGRAM_CACHE
     candidates = [
         Path(__file__).resolve().parent / "assets" / "NodeCartographyDiagram.jpg",
-        Path(__file__).resolve().parents[3] / "Images" / "NodeCartographyDiagram.jpg",
+        Path(__file__).resolve().parents[3] / "matlab" / "Images" / "NodeCartographyDiagram.jpg",
     ]
     for p in candidates:
         if p.exists():
@@ -1763,7 +1763,7 @@ def plot_graph_metrics_by_node(
     ``tiledlayout``:
 
     - **Row 0**: schematic PNG icons (ND / EW / NS / WMZ / Eloc / PC / BC)
-      loaded from ``images_dir`` (defaults to ``Images/`` at the repo root
+      loaded from ``images_dir`` (defaults to ``matlab/Images/`` in the repo
       relative to the package install).  Missing images are silently skipped.
     - **Rows 1–3**: half-violin plots (KDE + jitter + mean±SEM) for each metric.
 
@@ -1778,7 +1778,7 @@ def plot_graph_metrics_by_node(
     recording_name : recording filename (title only)
     out_path : where to save the PNG
     images_dir : directory containing ND.png, EW.png … BC.png; if None,
-        the function looks for ``Images/`` three levels above this file
+        the function looks for ``matlab/Images/`` three levels above this file
         (i.e. the MEA-NAP repo root).
     rng : optional seeded RNG (for reproducible jitter in tests)
     """
@@ -1788,7 +1788,7 @@ def plot_graph_metrics_by_node(
     # ── Resolve schematic images directory ───────────────────────────────────
     if images_dir is None:
         # Repo root = three levels above src/meanap/pipeline/
-        images_dir = Path(__file__).parent.parent.parent.parent / "Images"
+        images_dir = Path(__file__).parent.parent.parent.parent / "matlab" / "Images"
 
     SCHEMATICS = [
         ("ND.png",   "node degree"),

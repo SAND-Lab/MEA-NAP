@@ -112,8 +112,8 @@ extension:
 
 | Format | Equivalent MATLAB conversion | Verified against |
 |---|---|---|
-| Multi Channel Systems `.h5` | `Functions/convertMCSh5toMat.m` | the `.mat` that converter produces — traces bit-exact |
-| Axion `.raw` | `Functions/convertRawToMat/rawConvertFunc.m` | Axion's own `AxisFile` MATLAB toolbox — traces bit-exact |
+| Multi Channel Systems `.h5` | `matlab/Functions/convertMCSh5toMat.m` | the `.mat` that converter produces — traces bit-exact |
+| Axion `.raw` | `matlab/Functions/convertRawToMat/rawConvertFunc.m` | Axion's own `AxisFile` MATLAB toolbox — traces bit-exact |
 | `.mat` v7 and v7.3 | — | both read; MATLAB's own loaders |
 
 Beyond skipping a slow step, this avoids the storage duplication (a converted

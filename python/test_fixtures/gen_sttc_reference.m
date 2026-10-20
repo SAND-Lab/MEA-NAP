@@ -23,7 +23,7 @@
 %   "
 
 repo_root = fileparts(fileparts(fileparts(mfilename('fullpath'))));
-addpath(genpath(fullfile(repo_root, 'Functions', 'STTCandThresholding')));
+addpath(genpath(fullfile(repo_root, 'matlab', 'Functions', 'STTCandThresholding')));
 
 recs = {'NGN2_20230208_P1_DIV14_A2', 'NGN2_20230208_P1_DIV14_A3'};
 lags = [10, 25, 50];

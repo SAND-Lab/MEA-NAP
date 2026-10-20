@@ -1,7 +1,7 @@
 """Level-3 parity check: MATLAB vs Python network metrics on IDENTICAL graphs.
 
 Loads the adjacency matrices + MATLAB-computed metrics produced by
-parityRun/gen_step4_parity_reference.m (MATLAB's own BCT functions run on this
+python/parityRun/gen_step4_parity_reference.m (MATLAB's own BCT functions run on this
 parity run's adjacency), feeds the *same* adjMsub to the Python port's
 network_metrics functions, and reports the difference.
 
@@ -9,7 +9,7 @@ This isolates the step-4 metric arithmetic: unlike the end-to-end comparison,
 neither spike detection nor step 3's probabilistic-thresholding RNG can
 contribute any difference here, because both sides start from the same matrix.
 
-    uv run python parityRun/compare_step4_same_adjacency.py
+    uv run python python/parityRun/compare_step4_same_adjacency.py
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ from pathlib import Path
 import numpy as np
 from scipy.io import loadmat
 
-REPO_ROOT = Path(__file__).parent.parent
+REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
 from meanap.pipeline.network_metrics import (
@@ -51,7 +51,7 @@ def rel(a: float, b: float) -> float:
 def main() -> None:
     rows = []
     for rec in RECS:
-        ref = loadmat(REPO_ROOT / "parityRun" / f"{rec}_step4_parity_ref.mat",
+        ref = loadmat(REPO_ROOT / "python" / "parityRun" / f"{rec}_step4_parity_ref.mat",
                       simplify_cells=True)["results"]
         for lag in LAGS:
             r = ref[f"lag{lag}"]

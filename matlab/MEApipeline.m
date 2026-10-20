@@ -1,4 +1,4 @@
-function MEApipeline_timingBenchmark_debug(InputParamsFilePath)
+function MEApipeline(InputParamsFilePath)
 % Process data from MEA recordings of 2D and 3D neuronal cultures
 % Created: RC Feord, May 2021
 % Authors: T Sit, RC Feord, AWE Dunn, J Chabros and other members of the Synaptic and Network Development (SAND) Group
@@ -18,105 +18,75 @@ cd(MEANAPfolder)
 restoredefaultpath
 
 % Directories
-% --- MODIFIED FOR HEADLESS TIMING BENCHMARK (vs. the Python port) ---
-% All settings below mirror Parameters_OutputData26Jun2025.csv, a real
-% GUI-driven MATLAB run on this exact ExampleData/, so this is an
-% apples-to-apples config vs. the Python side rather than a guess.
-HomeDir = '/home/timsit/MEA-NAP';
-Params.outputDataFolder = '/home/timsit/MEA-NAP/matlab_timing_benchmark_out_debug';
-Params.outputDataFolderName = 'OutputDataTimingBenchmarkDebug';
-rawData = '/home/timsit/MEA-NAP/ExampleData';
-Params.priorAnalysisPath = [''];
-spikeDetectedData = '/home/timsit/MEA-NAP/matlab_timing_benchmark_out/OutputDataTimingBenchmark/1_SpikeDetection/1A_SpikeDetectedData'; % DEBUG: reuse spikes from a prior run to skip the ~7min spike detection step while iterating on config bugs
+HomeDir = '[INPUT_REQUIRED]'; % Where the MEA-NAP (MEA Network Analysis Pipeline) code is located
+Params.outputDataFolder = '';   % Where to save the output data, leave as '' if same as HomeDir 
+Params.outputDataFolderName = '';  % Name of the folder to save the output data
+rawData = '[INPUT_REQUIRED]';  % path to raw data .mat files
+Params.priorAnalysisPath = [''];  % path to prev analysis, leave as [''] if no prior anlaysis
+spikeDetectedData = ''; % path to spike-detected data, leave as '' if no previously detected spike data
 
 % Input and output filetype
 spreadsheet_file_type = 'csv'; % 'csv' or 'excel'
-spreadsheet_filename = '/home/timsit/MEA-NAP/ExampleData/exampleData.csv';
+spreadsheet_filename = '[INPUT_REQUIRED].csv'; 
 sheet = 1; % specify excel sheet
 xlRange = 'A2:C7'; % specify range on the sheet (e.g., 'A2:C7' would analyse the first 6 files)
-csvRange = [2, 3]; % 2 recordings, matching the Python benchmark's spreadsheet_range='A2:A3'
+csvRange = [2, Inf]; % read the data in the range [StartRow EndRow], e.g. [2 Inf] means start reading data from row 2
 Params.output_spreadsheet_file_type = 'csv';  % .xlsx or .csv
 
 % Analysis step settings
-Params.priorAnalysisDate = '';
-Params.priorAnalysis = 0;
-Params.startAnalysisStep = 2; % DEBUG: skip step 1 (spike files already exist from a prior run)
-Params.optionalStepsToRun = {''};
+Params.priorAnalysisDate = ''; % prior analysis date in format given in output data folder e.g., '27Sep2021'
+Params.priorAnalysis = 0; % use previously analysed data? 1 = yes, 0 = no
+Params.startAnalysisStep = 1; % if Params.priorAnalysis=0, default is to start with spike detection
+Params.optionalStepsToRun = {''}; % include 'generateCSV' to generate csv for rawData folder
+                                  % include 'Stats' to look at feature
+                                  % correlation and classification across groups
+                                  % include 'combineDIVplots' to combine plots across DIVs
 
 % Spike detection settings
-detectSpikes = 0; % DEBUG: skip re-running spike detection, reuse prior output
-Params.runSpikeCheckOnPrevSpikeData = 0;
-Params.fs = 12500; % Axion sampling rate (this dataset), matches the real reference run
-Params.dSampF = 12500;
-Params.potentialDifferenceUnit = 'V'; % Axion uses V, not uV
-Params.channelLayout = 'Axion64'; % this dataset's real layout (not the MCS60 default)
-Params.thresholds = {'3', '4', '5'};
-Params.wnameList = {'bior1.5'}; % single wavelet method, matching Python's default (not the 3-method default)
+detectSpikes = 0; % run spike detection? % 1 = yes, 0 = no
+Params.runSpikeCheckOnPrevSpikeData = 0; % whether to run spike detection check without spike detection 
+Params.fs = 25000; % Sampling frequency you selected when acquiring data, e.g., MCS: 25000, Axion: 12500;
+Params.dSampF = 25000; % down sampling factor for spike detection check, e.g., can set the same as the sampling frequency
+Params.potentialDifferenceUnit = 'uV';  % Unit for voltage signal, e.g., MCS: uV, Axion: V 
+Params.channelLayout = 'MCS60';  % 'MCS60' (for MEA2100), 'Axion64' (for 6-well plates), or 'MCS60old' (for MEA6100)
+Params.thresholds = {'3', '4', '5'}; % standard deviation multiplier threshold(s), eg. {'2.5', '3.5', '4.5'}
+Params.wnameList = {'bior1.5', 'bior1.3', 'db2'}; % wavelet methods to use e.g., {'bior1.5', 'bior1.3', 'mea'}; 
 Params.costList = -0.12;
-Params.SpikesMethod = 'bior1p5';
+Params.SpikesMethod = 'bior1p5';  % wavelet methods, e.g., 'bior1p5', or 'mergedAll', or 'mergedWavelet'
 
 % Functional connectivity inference settings
-Params.FuncConLagval = [10, 25, 50];
-Params.TruncRec = 0;
-Params.TruncLength = 120;
-Params.adjMtype = 'weighted';
+Params.FuncConLagval = [10, 25, 50]; % set the different lag values (in ms), default to [10, 15, 25]
+Params.TruncRec = 0; % truncate recording? 1 = yes, 0 = no
+Params.TruncLength = 120; % length of truncated recordings (in seconds)
+Params.adjMtype = 'weighted'; % 'weighted' or 'binary'
 
 % Connectivity matrix thresholding settings
-Params.ProbThreshRepNum = 200;
-Params.ProbThreshTail = 0.05;
-Params.ProbThreshPlotChecks = 0; % OFF: this port doesn't implement this diagnostic plot, keep the comparison fair
-Params.ProbThreshPlotChecksN = 5;
+Params.ProbThreshRepNum = 200; % probabilistic thresholding number of repeats (recommend at least 180) 
+Params.ProbThreshTail = 0.05; % probabilistic thresholding percentile threshold 
+Params.ProbThreshPlotChecks = 1; % randomly sample recordings to plot probabilistic thresholding check, 1 = yes, 0 = no
+Params.ProbThreshPlotChecksN = 5; % number of random checks to plot
 
 % Node cartography settings 
-Params.autoSetCartographyBoudariesPerLag = 1;
-Params.cartographyLagVal = [10, 25, 50];
-Params.autoSetCartographyBoundaries = 1;
+Params.autoSetCartographyBoudariesPerLag = 1;  % whether to fit separate boundaries per lag value
+Params.cartographyLagVal = [10, 25, 50]; % lag value (ms) to use to calculate PC-Z distribution (only applies if Params.autoSetCartographyBoudariesPerLag = 0)
+Params.autoSetCartographyBoundaries = 1;  % whether to automatically determine bounds for hubs or use custom ones
 
 % Statistics and machine learning settings 
-Params.classificationTarget = 'AgeDiv';
+Params.classificationTarget = 'AgeDiv';  % which property of the recordings to classify 
 Params.classification_models = {'linearSVM', 'kNN', 'fforwardNN', 'decisionTree', 'LDA'};
 Params.regression_models = {'svmRegressor', 'regressionTree', 'ridgeRegression', 'fforwardNN'};
 
 % Plot settings
-Params.figExt = {'.png'}; % PNG only, matching Python's default (not the 2-format {.png,.svg} default)
-Params.fullSVG = 0;
-Params.showOneFig = 1;
+Params.figExt = {'.png', '.svg'};  % supported options are '.fig', '.png', and '.svg'
+Params.fullSVG = 1;  % whether to insist svg even with plots with large number of elements
+Params.showOneFig = 1;  % otherwise, 0 = pipeline shows plots as it runs, 1: supress plots
 
 % Re-computation of metrics 
 Params.recomputeMetrics = 0;
-Params.metricsToRecompute = {};
+Params.metricsToRecompute = {};  % {} or {'all'} or {'metricNames'}
 
-%% GUI / Tutorial mode settings
-Params.guiMode = 0;   % headless — required for non-interactive matlab -batch execution
-Params.timeProcesses = 1; % the whole point of this script
-
-% Normally set by runPipelineApp.m/getParamsFromApp.m (the GUI), which this
-% headless script bypasses entirely — must set explicitly or the pipeline
-% errors on the first `Params.suite2pMode`/`Params.stimulationMode` read.
-Params.suite2pMode = 0;
-Params.stimulationMode = 0;
-
-% More GUI-only fields with no AdvancedSettings.m coverage, found by diffing
-% getParamsFromApp.m's Params.X assignments against what's actually
-% referenced outside getParamsFromApp.m/the GUI itself. Values below match
-% the Python port's own researched defaults (src/meanap/params.py), which
-% is as close to "the real MATLAB defaults" as available without inspecting
-% the .mlapp binary's widget defaults directly.
-% Values from Parameters_OutputData26Jun2025.csv (real GUI run), not Python
-% defaults — see MEApipeline_timingBenchmark.m for why that distinction matters.
-Params.minActivityLevel = 0.01;
-Params.singleChannelIsiThreshold = 'automatic';
-Params.use_theoretical_bounds = 0;
-Params.minNodeSize = 0.01;
-Params.maxNodeSize = 1;
-Params.nodeScalingMethod = 'Linear';
-Params.nodeScalingPower = 1.0;
-Params.networkPlotEdgeThresholdMethod = 'Absolute Value';
-Params.networkPlotEdgeThresholdPercentile = 95;
-Params.networkPlotEdgeThreshold = 0.001;
-Params.maxNumEdgesToPlot = 10000;
-Params.edgeSubsamplingMethod = 'highToLow';
-Params.nodeLayout = 'Original'; % see MEApipeline_timingBenchmark.m for why
+%% GUI / Tutorial mode settings 
+Params.guiMode = 1;   % GUI mode? 1 = on, 0 = off
 
 if (Params.guiMode == 1) && ~exist('InputParamsFilePath', 'var')
     runPipelineApp
@@ -151,6 +121,13 @@ end
 
 %% Paths 
 % add all relevant folders to path
+% The MATLAB code lives in the matlab/ subfolder of MEA-NAP. A folder setting
+% that still names the repository itself (as it did before the move) is
+% pointed there instead.
+if ~isfolder(fullfile(HomeDir, 'Functions')) && isfolder(fullfile(HomeDir, 'matlab', 'Functions'))
+    HomeDir = fullfile(HomeDir, 'matlab');
+    Params.HomeDir = HomeDir;
+end
 cd(HomeDir)
 addpath(genpath('Functions'))
 addpath('Images')
@@ -166,22 +143,7 @@ clear formatOut
 
 if Params.guiMode ~= 1
     AdvancedSettings
-end
-
-% AdvancedSettings.m unconditionally resets this — re-apply after it runs.
-Params.timeProcesses = 1;
-
-% See MEApipeline_timingBenchmark.m for why: AdvancedSettings.m's default
-% netMetToCal includes 'PC_raw', whose computation is dead code, crashing
-% Step 4. Overridden to the real GUI-driven list.
-Params.netMetToCal = {'aN', 'Dens', 'NDmean', 'NDtop25', 'sigEdgesMean', ...
-    'sigEdgesTop10', 'CC', 'nMod', 'Q', 'PL', 'Eglob', 'SW', 'SWw', ...
-    'effRank', 'num_nnmf_components', 'nComponentsRelNS', 'NSmean', ...
-    'ElocMean', 'PCmean', 'PCmeanTop10', 'PCmeanBottom10', ...
-    'percentZscoreGreaterThanZero', 'percentZscoreLessThanZero', ...
-    'NCpn1', 'NCpn2', 'NCpn3', 'NCpn4', 'NCpn5', 'NCpn6', 'ND', 'NS', ...
-    'Z', 'Eloc', 'PC', 'BC', 'MEW', 'aveControl', 'modalControl', ...
-    'aveControlMean'};
+end 
 
 if Params.runSpikeCheckOnPrevSpikeData
     fprintf(['You specified to run spike detection check on previously extracted spikes, \n', ... 
@@ -221,19 +183,6 @@ end
 
 %% setup - additional setup
 setUpSpreadSheet  % import metadata from spreadsheet
-
-% NOTE: setUpSpreadSheet.m sets Params.electrodesToGroundPerRecording = []
-% (a plain empty double) whenever the spreadsheet has no 'Ground' column —
-% exampleData.csv doesn't. MEApipeline.m's Step 2/3 loops then unconditionally
-% brace-index it (`Params.electrodesToGroundPerRecording{ExN}`), which
-% crashes on a non-cell []. This is a genuine bug in MATLAB MEA-NAP itself
-% (not specific to headless execution, but only surfaces once you actually
-% reach a recording loop — worked around here rather than in the real
-% MEApipeline.m, since fixing the shipped pipeline isn't this benchmark's job).
-if ~iscell(Params.electrodesToGroundPerRecording)
-    Params.electrodesToGroundPerRecording = repmat({''}, length(ExpName), 1);
-end
-
 [~,Params.GrpNm] = findgroups(ExpGrp);
 [~,Params.DivNm] = findgroups(ExpDIV);
 
@@ -333,14 +282,7 @@ if ((Params.priorAnalysis == 0) || (Params.runSpikeCheckOnPrevSpikeData)) && (Pa
         if Params.guiMode == 1
             batchDetectSpikes(rawData, savePath, option, ExpName, Params, app);
         else
-            % NOTE: original MEApipeline.m's non-GUI branch omits the 6th
-            % arg here, which errors under batchDetectSpikes.m's `arguments`
-            % block (MEANAPapp has no default) — a real headless-execution
-            % bug in MATLAB MEA-NAP itself, unrelated to this benchmark.
-            % Worked around here with a placeholder struct (matches what
-            % batchDetectSpikes.m falls back to internally when the app
-            % isn't supplied).
-            batchDetectSpikes(rawData, savePath, option, ExpName, Params, struct());
+            batchDetectSpikes(rawData, savePath, option, ExpName, Params);
         end
     end 
     
@@ -896,7 +838,12 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
             end 
 
             channelLayout = Params.channelLayoutPerRecording{ExN};
-            electrodesToGround = Params.electrodesToGroundPerRecording{ExN};
+
+            if isempty(Params.electrodesToGroundPerRecording)
+                electrodesToGround = [];
+            else 
+                electrodesToGround = Params.electrodesToGroundPerRecording{ExN};
+            end
             
             if Params.suite2pMode
                 if strcmp(Params.twopActivity, 'denoised F')

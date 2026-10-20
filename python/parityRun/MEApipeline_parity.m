@@ -1,4 +1,4 @@
-function MEApipeline(InputParamsFilePath)
+function MEApipeline_parity(InputParamsFilePath)
 % Process data from MEA recordings of 2D and 3D neuronal cultures
 % Created: RC Feord, May 2021
 % Authors: T Sit, RC Feord, AWE Dunn, J Chabros and other members of the Synaptic and Network Development (SAND) Group
@@ -101,6 +101,13 @@ end
 
 %% Check if ParamsFilePath is specified
 if exist('InputParamsFilePath', 'var')
+   % Parity-run only: MEApipeline.m forces guiMode=1 on this path and then
+   % writes status text to `app`, which doesn't exist headless. FakeApp is a
+   % sink for those writes. The addpath is needed because MEApipeline.m calls
+   % restoredefaultpath (above) and cd's to the repo root, so python/parityRun/ is no
+   % longer reachable by the time we get here.
+   addpath(fileparts(mfilename('fullpath')));
+   app = FakeApp();
    ParamDataFile = load(InputParamsFilePath);
    Params = ParamDataFile.Params;
    Params.guiMode = 1;
@@ -121,6 +128,13 @@ end
 
 %% Paths 
 % add all relevant folders to path
+% The MATLAB code lives in the matlab/ subfolder of MEA-NAP. A folder setting
+% that still names the repository itself (as it did before the move) is
+% pointed there instead.
+if ~isfolder(fullfile(HomeDir, 'Functions')) && isfolder(fullfile(HomeDir, 'matlab', 'Functions'))
+    HomeDir = fullfile(HomeDir, 'matlab');
+    Params.HomeDir = HomeDir;
+end
 cd(HomeDir)
 addpath(genpath('Functions'))
 addpath('Images')
@@ -176,6 +190,15 @@ end
 
 %% setup - additional setup
 setUpSpreadSheet  % import metadata from spreadsheet
+
+% PARITY-RUN WORKAROUND (known MATLAB MEA-NAP bug, see MEApipeline_timingBenchmark.m):
+% setUpSpreadSheet.m leaves Params.electrodesToGroundPerRecording as a plain
+% empty double [] when the spreadsheet has no 'Ground' column (ours doesn't),
+% but the Step 2/3/4 loops brace-index it {ExN}, which needs a cell array.
+if ~iscell(Params.electrodesToGroundPerRecording)
+    Params.electrodesToGroundPerRecording = repmat({''}, length(ExpName), 1);
+end
+
 [~,Params.GrpNm] = findgroups(ExpGrp);
 [~,Params.DivNm] = findgroups(ExpDIV);
 
@@ -831,12 +854,7 @@ if Params.priorAnalysis==0 || Params.priorAnalysis==1 && Params.startAnalysisSte
             end 
 
             channelLayout = Params.channelLayoutPerRecording{ExN};
-
-            if isempty(Params.electrodesToGroundPerRecording)
-                electrodesToGround = [];
-            else 
-                electrodesToGround = Params.electrodesToGroundPerRecording{ExN};
-            end
+            electrodesToGround = Params.electrodesToGroundPerRecording{ExN};
             
             if Params.suite2pMode
                 if strcmp(Params.twopActivity, 'denoised F')

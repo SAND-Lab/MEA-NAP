@@ -4,8 +4,7 @@
 # MEA Network Analysis Pipeline (MEA-NAP)
 
 > [!IMPORTANT]
-> **MEA-NAP is now available in Python (beta).** You can run the full pipeline without a MATLAB licence. The Python version also adds calcium imaging (CAT-NAP), stimulation analysis (MEA-Stim) and direct loading of raw recordings.
-> The MATLAB version is still supported.
+> **MEA-NAP is now available in Python (beta).** It is much faster and introduces a lot of new features. The MATLAB version is still supported.
 >
 > [**Read the release note**](release_notes/python-beta.md) · [**Install**](docs/python/installation.md) · [**Quickstart**](docs/python/quickstart.md) · [**MATLAB vs Python**](docs/python/matlab-vs-python.md) · [**Send us feedback**](https://github.com/SAND-Lab/MEA-NAP/discussions)
 
@@ -81,7 +80,7 @@ git clone https://github.com/SAND-Lab/MEA-NAP
 
 ## How to use the pipeline
 
-To quickly get started, open `MEApipeline.m` in matlab.
+To quickly get started, open `MEApipeline.m` in matlab. The MATLAB code is in the [`matlab/`](matlab/) folder of MEA-NAP.
 
 You will first need to ensure that [your data has been converted to mat files](https://analysis-pipeline.readthedocs.io/en/latest/setting-up-meanap.html#prepare-your-data-for-mea-nap) with the appropriate variables and that you have [created a spreadsheet](https://analysis-pipeline.readthedocs.io/en/latest/setting-up-meanap.html#prepare-batch-analysis-csv-file) (csv file) with the names of your mat files for each recording and their group and ages to guide the batch analysis.
 
@@ -91,7 +90,7 @@ If your data is in the right format, you can then press run in `MEApipeline.m`. 
 
 **New users can watch our video tutorial** at [https://www.youtube.com/watch?v=oxFyqRyemRM](https://www.youtube.com/watch?v=oxFyqRyemRM) or download the video at the Harvard Dataverse [https://doi.org/10.7910/DVN/Z14LWA](https://doi.org/10.7910/DVN/Z14LWA). 
 
-For advanced MATLAB users, in `MEApipeline.m` in matlab, you can read through the instructions to [customize your choice of parameters](https://analysis-pipeline.readthedocs.io/en/latest/guide-for-advanced-users.html).  Many of these parameters can also be changed in the GUI by selecting "Show Advanced Settings."
+For advanced MATLAB users, in `matlab/MEApipeline.m`, you can read through the instructions to [customize your choice of parameters](https://analysis-pipeline.readthedocs.io/en/latest/guide-for-advanced-users.html).  Many of these parameters can also be changed in the GUI by selecting "Show Advanced Settings."
 
 You can find the [full documentation on our MEA-NAP read-the-docs website](https://analysis-pipeline.readthedocs.io/en/latest/).
 

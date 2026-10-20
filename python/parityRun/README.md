@@ -1,4 +1,4 @@
-# `parityRun/` — MATLAB vs Python parity harness
+# `python/parityRun/` — MATLAB vs Python parity harness
 
 Scaffolding used to verify that the Python port reproduces MATLAB MEA-NAP's
 numbers on the Test-pipeline dataset. **Read [`PARITY_REPORT.md`](PARITY_REPORT.md)
@@ -24,28 +24,28 @@ Requires MATLAB on `PATH` (`which matlab`) and `uv` for the Python side.
 Order matters: the MATLAB run produces the reference the others compare against.
 
 ```bash
-# 1. MATLAB, steps 1-4  (~15 min; writes parityRun/OutputData_MATLAB_parity/)
-matlab -batch "addpath('$PWD/parityRun'); MEApipeline_parity('$PWD/parityRun/params_matlab_parity.mat')"
+# 1. MATLAB, steps 1-4  (~15 min; writes python/parityRun/OutputData_MATLAB_parity/)
+matlab -sd matlab -batch "addpath('$PWD/python/parityRun'); MEApipeline_parity('$PWD/python/parityRun/params_matlab_parity.mat')"
 
 # 2. Python, steps 1-4, params matched to the above  (~7 min)
-uv run python parityRun/run_python_parity.py
+uv run python python/parityRun/run_python_parity.py
 
 # 3. Compare
-uv run python parityRun/compare_spike_detection.py          # step 1
-uv run python parityRun/compare_parity.py OutputData_Python_parity   # all four CSVs
+uv run python python/parityRun/compare_spike_detection.py          # step 1
+uv run python python/parityRun/compare_parity.py OutputData_Python_parity   # all four CSVs
 ```
 
 Two extra controls, each isolating one variable:
 
 ```bash
 # Python steps 2-4 on MATLAB's OWN spike times -> removes spike detection
-uv run python parityRun/run_python_from_matlab_spikes.py
-uv run python parityRun/compare_parity.py OutputData_Python_fromMatlabSpikes
+uv run python python/parityRun/run_python_from_matlab_spikes.py
+uv run python python/parityRun/compare_parity.py OutputData_Python_fromMatlabSpikes
 
 # Both sides' step-4 metrics on the SAME adjacency -> removes step 3's RNG too.
 # This is the clean test of the metric arithmetic.
-matlab -batch "run('parityRun/gen_step4_parity_reference.m')"
-uv run python parityRun/compare_step4_same_adjacency.py
+matlab -batch "run('python/parityRun/gen_step4_parity_reference.m')"
+uv run python python/parityRun/compare_step4_same_adjacency.py
 ```
 
 The layering matters: step 3's probabilistic thresholding is RNG-driven, so even

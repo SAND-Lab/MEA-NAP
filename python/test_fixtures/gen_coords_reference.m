@@ -9,7 +9,7 @@
 %   matlab -batch "run('python/test_fixtures/gen_coords_reference.m')"
 
 repo_root = fileparts(fileparts(fileparts(mfilename('fullpath'))));
-addpath(fullfile(repo_root, 'Functions'));
+addpath(fullfile(repo_root, 'matlab', 'Functions'));
 
 layouts = {'MCS60old', 'MCS60', 'MCS59', 'Axion64', 'Axion16'};
 outdir = fullfile(repo_root, 'python', 'test_fixtures');

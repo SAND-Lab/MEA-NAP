@@ -77,7 +77,7 @@ This page is for **users who do not already have MATLAB or the required toolboxe
 
 - You will also need the Brain Connectivity Toolbox, which cannot be installed through the Add-On Explorer:
 
-  - This toolbox is found in the **MEA-NAP folder that you will download during step 1 of "Setting Up MEA-NAP."**
+  - This toolbox is found in the **MEA-NAP folder that you will download during step 1 of "Setting Up MEA-NAP"**, under ``matlab/Functions``.
 
 7. Access installed toolboxes:
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

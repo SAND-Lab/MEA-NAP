@@ -66,7 +66,7 @@ For Axion Biosystems users, please use MEA-NAP version 1.10.2 or later to conver
 - **Converting .raw and .h5 files acquired from Multichannel Systems or Axion Maestro MEA systems to .mat files for MEA-NAP:**
 
    1. Open MATLAB.
-   2. Open MEApipeline.m.
+   2. Open MEApipeline.m, in the ``matlab`` folder of MEA-NAP.
    3. Start GUI by clicking green "Run" button in the Editor submenu at the top of your screen.
    4. In the GUI, navigate to the File Conversion tab.
    

@@ -1,6 +1,6 @@
 import sys, importlib.util
 sys.path.insert(0,'src')
-spec=importlib.util.spec_from_file_location('rc','parityRun/run_step1_freshcheck.py')
+spec=importlib.util.spec_from_file_location('rc','python/parityRun/run_step1_freshcheck.py')
 m=importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
 p=m.build_params()
 p.start_analysis_step=3; p.stop_analysis_step=4

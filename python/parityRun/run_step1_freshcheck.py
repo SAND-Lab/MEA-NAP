@@ -2,14 +2,14 @@
 
 Runs current spike-detection + step-1 plotting on the bundled Axion example
 data with potential_difference_unit='V' (the correct unit for this data, which
-is stored in volts). Outputs to parityRun/OutputData_FreshCheck.
+is stored in volts). Outputs to python/parityRun/OutputData_FreshCheck.
 
-    python parityRun/run_step1_freshcheck.py
+    python python/parityRun/run_step1_freshcheck.py
 """
 import sys
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).parent.parent
+REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
 from meanap.params import Params
@@ -20,9 +20,9 @@ def build_params() -> Params:
     p = Params()
     p.home_dir = str(REPO_ROOT)
     p.raw_data = str(REPO_ROOT / "ExampleData")
-    p.spreadsheet_file_name = str(REPO_ROOT / "parityRun" / "exampleData_parity.csv")
+    p.spreadsheet_file_name = str(REPO_ROOT / "python" / "parityRun" / "exampleData_parity.csv")
     p.spreadsheet_range = "A2:A3"
-    p.output_data_folder = str(REPO_ROOT / "parityRun")
+    p.output_data_folder = str(REPO_ROOT / "python" / "parityRun")
     p.output_data_folder_name = "OutputData_FreshCheck"
 
     p.fs = 12500.0

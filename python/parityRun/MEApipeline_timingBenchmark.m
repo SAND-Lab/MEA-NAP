@@ -98,7 +98,7 @@ restoredefaultpath
 % All settings below mirror Parameters_OutputData26Jun2025.csv, a real
 % GUI-driven MATLAB run on this exact ExampleData/, so this is an
 % apples-to-apples config vs. the Python side rather than a guess.
-HomeDir = '/home/timsit/MEA-NAP';
+HomeDir = '/home/timsit/MEA-NAP/matlab';
 Params.outputDataFolder = '/home/timsit/MEA-NAP/matlab_timing_benchmark_out';
 Params.outputDataFolderName = 'OutputDataTimingBenchmark';
 rawData = '/home/timsit/MEA-NAP/ExampleData';
