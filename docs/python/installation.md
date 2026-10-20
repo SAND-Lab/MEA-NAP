@@ -113,6 +113,11 @@ meanap-gui
 
 ::::
 
+The same install gives the `meanap` command, which runs a saved parameter
+file without the GUI — see [Running from the command line](command-line.md).
+On a machine with no screen, `meanap example` is a quick check that
+everything works.
+
 :::{admonition} "No `pyproject.toml` found" / "Neither 'setup.py' nor 'pyproject.toml' found"
 :class: tip
 Both errors mean the same thing: the command ran in the wrong directory. Run

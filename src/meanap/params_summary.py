@@ -150,6 +150,14 @@ def _display(name: str, value: Any) -> tuple[Any, bool]:
     return value, False
 
 
+def _comparable(value: Any) -> Any:
+    """Tuples as lists: JSON has no tuple, so a tuple default read back from
+    ``params.json`` is a list, and would otherwise always count as changed."""
+    if isinstance(value, (list, tuple)):
+        return [_comparable(v) for v in value]
+    return value
+
+
 def summarise_params(
     params: Params | dict, *, unknown: dict[str, Any] | None = None,
 ) -> ParamsSummary:
@@ -179,7 +187,7 @@ def summarise_params(
             order.append(section)
         grouped[section].append(ParamEntry(
             name=name, value=shown, default=default,
-            changed=raw != default, redacted=redacted,
+            changed=_comparable(raw) != _comparable(default), redacted=redacted,
         ))
 
     extra = {k: v for k, v in values.items() if k not in set(known)}
