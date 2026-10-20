@@ -148,6 +148,16 @@ QSplitter::handle {{
 """
 
 
+def enable_hi_dpi() -> None:
+    """Turn on qdarktheme's hi-DPI settings.
+
+    Call before the QApplication exists: Qt ignores the rounding policy once
+    it does, and prints "setHighDpiScaleFactorRoundingPolicy must be called
+    before creating the QGuiApplication instance".
+    """
+    qdarktheme.enable_hi_dpi()
+
+
 def apply(app: QApplication, theme: str = "light") -> None:
     """Apply qdarktheme + custom overrides to *app*.
 
@@ -156,7 +166,6 @@ def apply(app: QApplication, theme: str = "light") -> None:
     screen stayed light whichever way it was set. The parameter is kept so a
     dark build is a one-line change rather than a revert.
     """
-    qdarktheme.enable_hi_dpi()
     qdarktheme.setup_theme(
         theme,
         corner_shape="rounded",
