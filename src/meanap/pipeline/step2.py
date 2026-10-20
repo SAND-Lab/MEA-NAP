@@ -7,6 +7,7 @@ import json
 
 from meanap.params import Params, active_spike_method
 from meanap.pipeline.cancellation import CancelCheck, check_cancel
+from meanap.pipeline.channel_layout import recording_layout
 from meanap.pipeline.progress import RunProgress
 from meanap.pipeline.resume import build_input_locator
 from meanap.pipeline.spreadsheet import RecordingInfo, ground_spike_times_dict, parse_ground_electrodes
@@ -238,6 +239,7 @@ def _run_step2_neuronal_activity(
             "spike_times_dict": spike_times_dict,
             "n_channels": n_channels,
             "chs": data["channels"],
+            "layout": recording_layout(params.channel_layout, data),
             "fs": fs,
             "duration_s": duration_s,
             "ephys": ephys,
@@ -280,6 +282,7 @@ def _run_step2_neuronal_activity(
             output_root=out_dir / "2A_IndividualNeuronalAnalysis",
             spike_freq_max=spike_freq_max,
             batch_max=batch_max,
+            layout=ctx["layout"],
         )
 
     if not params.express_mode:

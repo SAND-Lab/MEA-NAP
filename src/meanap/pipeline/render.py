@@ -1738,6 +1738,7 @@ def render_activity_figure(
     """
     from meanap.pipeline.figure_output import figure_dpi
     from meanap.pipeline.io import load_spike_times_npz, truncate_spike_times
+    from meanap.pipeline.channel_layout import recording_layout
     from meanap.pipeline.plotting_step2 import plot_neuronal_activity_checks
     from meanap.pipeline.spreadsheet import ground_spike_times_dict, parse_ground_electrodes
 
@@ -1765,6 +1766,7 @@ def render_activity_figure(
         raise ValueError(
             f"{spike_path.name} has no stored duration; it predates express mode "
             "and the raster cannot be scaled without it.")
+    layout = recording_layout(params.channel_layout, data)
 
     # Same spike-time selection step 2 makes, including grounding — a grounded
     # electrode must stay empty in the raster.
@@ -1785,7 +1787,7 @@ def render_activity_figure(
             n_channels=n_channels, chs=channels, fs=fs, duration_s=duration_s,
             ephys=ephys, output_root=Path(out_dir),
             spike_freq_max=batch_max.get("FR"), batch_max=batch_max,
-            fmt=fmt, only=figure,
+            fmt=fmt, only=figure, layout=layout,
         )
     if not written:
         raise ValueError(

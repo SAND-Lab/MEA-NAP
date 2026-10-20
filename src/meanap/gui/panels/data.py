@@ -38,7 +38,7 @@ from meanap.params import Params, is_remote_url
 __all__ = ["DataPanel", "CHANNEL_LAYOUTS", "POTENTIAL_UNITS",
            "RAW_DATA_LABEL", "CATNAP_DATA_LABEL"]
 
-CHANNEL_LAYOUTS = ["MCS60", "Axion64", "Mea256", "Custom"]
+CHANNEL_LAYOUTS = ["MCS60", "Axion64", "Mea256", "Custom", "FromFile"]
 POTENTIAL_UNITS = ["uV", "mV", "V"]
 
 #: What the input folder is called, per pipeline. The ephys modes read raw
@@ -174,7 +174,10 @@ class DataPanel(QWidget):
         self.channel_layout.setEditable(True)
         self.channel_layout.setToolTip(
             "Which electrode grid the recordings came off, which is what puts "
-            "each channel in the right place in the spatial plots."
+            "each channel in the right place in the spatial plots.\n\n"
+            "FromFile: each recording's own electrode positions, as an import "
+            "of sorted units writes them — for arrays with no fixed layout, "
+            "such as MaxWell HD-MEAs."
         )
 
         self.d_samp_f = QDoubleSpinBox()

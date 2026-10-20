@@ -14,6 +14,7 @@ from meanap.params import (
     default_derived_dir, is_remote_url, mode_for_params, save_params,
 )
 from meanap.pipeline.cancellation import CancelCheck, check_cancel
+from meanap.pipeline.channel_layout import FROM_FILE_LAYOUT
 from meanap.pipeline.io import (
     RAW_EXTENSIONS,
     load_raw_recording,
@@ -145,6 +146,12 @@ def run_pipeline(
         raise ValueError("Spreadsheet file must be set")
     if not params.output_data_folder:
         raise ValueError("Output data folder must be set")
+    # FromFile reads the electrode table only an import writes into each spike
+    # file; any other run would get as far as step 2 before finding none.
+    if params.channel_layout == FROM_FILE_LAYOUT and params.spike_source != "import":
+        raise ValueError(
+            f"Channel layout {FROM_FILE_LAYOUT!r} is for imported spike-sorted data "
+            "(Spike source: import). Pick the array's layout for this run.")
 
     # Optional step, before anything reads the sheet: build it from the raw
     # data folder. Ported from MEApipeline.m's ``generateCSV`` block, except
@@ -819,6 +826,12 @@ def _run_step1_spike_detection(
     should_cancel: CancelCheck = None,
     progress: RunProgress | None = None,
 ) -> None:
+    if params.spike_source == "import":
+        # Units sorted elsewhere: nothing to detect, and no voltage to load.
+        from meanap.pipeline.import_step import run_sorted_import
+        run_sorted_import(params, recordings, output_root, log,
+                          should_cancel=should_cancel, progress=progress)
+        return
     if not params.raw_data:
         raise ValueError("Raw data folder must be set to run step 1 (spike detection)")
 

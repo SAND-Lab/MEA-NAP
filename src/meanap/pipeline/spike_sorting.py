@@ -261,7 +261,9 @@ def build_recording(
     traces = dat if len(kept) == dat.shape[1] else dat[:, kept]
     rec = si.NumpyRecording(traces, sampling_frequency=float(fs),
                             channel_ids=[str(int(channels[i])) for i in kept])
-    rec = rec.set_probe(probe)
+    # SpikeInterface < 0.105 returns a new recording; 0.105+ attaches in place
+    # and returns None.
+    rec = rec.set_probe(probe) or rec
     rec.set_channel_gains(1.0)
     rec.set_channel_offsets(0.0)
     return rec, kept

@@ -339,6 +339,7 @@ def save_spike_times_npz(
     thresholds: dict[int, dict[str, float]] | None = None,
     bursts: dict[str, np.ndarray] | None = None,
     units: dict[str, np.ndarray] | None = None,
+    electrodes: dict[str, np.ndarray] | None = None,
 ) -> None:
     """Save spike detection results to a ``.npz`` file.
 
@@ -378,6 +379,13 @@ def save_spike_times_npz(
     unchanged), and ``units`` carries what distinguishes them: an ID, the
     electrode's column index, plotting coordinates, quality metrics and the
     curation label. See :mod:`meanap.pipeline.spike_sorting`.
+
+    ``electrodes`` is the recording's own electrode table, written under an
+    ``electrode_`` prefix (``ids``, ``coords`` in plot units, ``coords_um``).
+    An array with no fixed layout — a MaxWell HD-MEA, where each recording
+    routes its own electrodes — has nowhere else to keep where its channels
+    are; ``channel_layout = "FromFile"`` reads it back
+    (:func:`meanap.pipeline.channel_layout.recording_layout`).
     """
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -403,6 +411,8 @@ def save_spike_times_npz(
         arrays[f"burst_{name}"] = np.asarray(value)
     for name, value in (units or {}).items():
         arrays[f"unit_{name}"] = np.asarray(value)
+    for name, value in (electrodes or {}).items():
+        arrays[f"electrode_{name}"] = np.asarray(value)
 
     atomic_savez(path, **arrays)
 
@@ -570,6 +580,9 @@ class SpikeFile:
     #: ``coords``, ``label``, quality metrics…), aligned with ``channels``.
     #: Empty for a detected file, which is how a reader tells the two apart.
     units: dict[str, np.ndarray] = field(default_factory=dict)
+    #: The recording's own electrode table (``ids``, ``coords``,
+    #: ``coords_um``) when the array has no fixed layout. Empty otherwise.
+    electrodes: dict[str, np.ndarray] = field(default_factory=dict)
 
     @property
     def sorted(self) -> bool:
@@ -713,6 +726,8 @@ def _load_spike_file_npz(path: Path) -> SpikeFile:
               for key in data.files if key.startswith("burst_")}
     units = {key[len("unit_"):]: data[key]
              for key in data.files if key.startswith("unit_")}
+    electrodes = {key[len("electrode_"):]: data[key]
+                  for key in data.files if key.startswith("electrode_")}
     for key in data.files:
         for prefix, store in (("waveforms_", waveforms), ("threshold_", thresholds)):
             if not key.startswith(prefix):
@@ -727,5 +742,5 @@ def _load_spike_file_npz(path: Path) -> SpikeFile:
     return SpikeFile(
         path=path, spike_times=spike_times, waveforms=waveforms,
         thresholds=thresholds, channels=channels, fs=fs, duration_s=duration,
-        bursts=bursts, units=units,
+        bursts=bursts, units=units, electrodes=electrodes,
     )

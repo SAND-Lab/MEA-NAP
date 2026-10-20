@@ -96,3 +96,29 @@ def get_coords_from_layout(channel_layout: str) -> tuple[np.ndarray, np.ndarray]
         "(supported: MCS60old, MCS60, MCS59, Axion64, Axion16; "
         "MATLAB's 'Custom' layout uses random coordinates and isn't ported)"
     )
+
+
+#: The layout of an array with no fixed one — a MaxWell HD-MEA routes its own
+#: electrodes per recording — read from each recording's spike file, where an
+#: import writes its electrode table (``electrode_ids`` / ``electrode_coords``).
+FROM_FILE_LAYOUT = "FromFile"
+
+
+def recording_layout(channel_layout: str, spike_data=None
+                     ) -> tuple[np.ndarray, np.ndarray] | None:
+    """``(channels, coords)`` for one recording when its layout is its own.
+
+    Returns ``None`` for the fixed layouts, so callers keep using
+    :func:`get_coords_from_layout` and their output is unchanged. For
+    :data:`FROM_FILE_LAYOUT`, *spike_data* is the recording's ``_spikes.npz``
+    (an open ``NpzFile``, or anything with ``.files`` and item access).
+    """
+    if channel_layout != FROM_FILE_LAYOUT:
+        return None
+    files = getattr(spike_data, "files", ())
+    if "electrode_ids" not in files or "electrode_coords" not in files:
+        raise ValueError(
+            f"channel_layout {FROM_FILE_LAYOUT!r} needs the electrode table a "
+            "spike-sorted import writes, and this spike file has none")
+    return (np.asarray(spike_data["electrode_ids"]).astype(np.int64),
+            np.asarray(spike_data["electrode_coords"], dtype=float))
