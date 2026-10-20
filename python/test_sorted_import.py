@@ -195,6 +195,40 @@ def test_import_step_writes_a_sorted_spike_file():
         assert sf.methods == [SORTED_METHOD]
 
 
+def test_a_recording_with_no_units_is_skipped_not_fatal(monkeypatch):
+    import meanap.pipeline.import_step as step
+    from meanap.pipeline.sorted_import import ImportedSorting
+
+    # What a sorter that found nothing gives: the recording, and no units.
+    empty = ImportedSorting(
+        sorter="phy", sorter_unit_ids=np.array([], dtype=int), spike_trains=[],
+        peak_index=np.array([], dtype=int),
+        electrodes=ElectrodeTable(ids=np.asarray(fx.ELECTRODES), xy_um=fx.electrode_xy_um()),
+        fs=fx.FS, duration_s=fx.DURATION_S, labels=np.array([], dtype=str))
+    monkeypatch.setattr(step, "read_sorted_output", lambda *a, **k: empty)
+    with tempfile.TemporaryDirectory() as d:
+        out = _run(Path(d), stop_analysis_step=1)
+        assert not (out / "1_SpikeDetection" / "1A_SpikeDetectedData"
+                    / f"{fx.NAME}_spikes.npz").exists()
+
+
+def test_from_file_layout_is_refused_up_front_without_an_import():
+    import pytest
+
+    from meanap.pipeline.runner import run_pipeline
+
+    with tempfile.TemporaryDirectory() as d:
+        sheet = Path(d) / "batch.csv"
+        pd.DataFrame([{"Recording filename": fx.NAME, "DIV": 10, "Group": "Synth"}]).to_csv(
+            sheet, index=False)
+        p = Params(raw_data=str(fixture().folder), output_data_folder=d,
+                   spreadsheet_file_name=str(sheet), channel_layout="FromFile")
+        with pytest.raises(ValueError, match="FromFile"):
+            run_pipeline(p, log=lambda m: None)
+        # Refused before the run made anything.
+        assert list(Path(d).iterdir()) == [sheet]
+
+
 def test_light_responses_found_and_only_there():
     """End to end: import, steps 2–4 on the file's own layout, then the
     TTL-driven stim analysis with ON/OFF conditions."""

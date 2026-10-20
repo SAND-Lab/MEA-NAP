@@ -14,6 +14,7 @@ from meanap.params import (
     default_derived_dir, is_remote_url, mode_for_params, save_params,
 )
 from meanap.pipeline.cancellation import CancelCheck, check_cancel
+from meanap.pipeline.channel_layout import FROM_FILE_LAYOUT
 from meanap.pipeline.io import (
     RAW_EXTENSIONS,
     load_raw_recording,
@@ -145,6 +146,12 @@ def run_pipeline(
         raise ValueError("Spreadsheet file must be set")
     if not params.output_data_folder:
         raise ValueError("Output data folder must be set")
+    # FromFile reads the electrode table only an import writes into each spike
+    # file; any other run would get as far as step 2 before finding none.
+    if params.channel_layout == FROM_FILE_LAYOUT and params.spike_source != "import":
+        raise ValueError(
+            f"Channel layout {FROM_FILE_LAYOUT!r} is for imported spike-sorted data "
+            "(Spike source: import). Pick the array's layout for this run.")
 
     # Optional step, before anything reads the sheet: build it from the raw
     # data folder. Ported from MEApipeline.m's ``generateCSV`` block, except

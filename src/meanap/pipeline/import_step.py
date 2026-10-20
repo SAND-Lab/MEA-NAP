@@ -78,6 +78,7 @@ def run_sorted_import(
         if found is None:
             log(f"  ! [{rec.filename}] no sorter output found in {sorted_dir} "
                 f"(format {params.sorted_data_format}) — skipping")
+            progress.item_done(rec.filename)
             continue
         fmt, path = found
 
@@ -96,6 +97,13 @@ def run_sorted_import(
                                      duration_s=duration_s)
         except (ValueError, FileNotFoundError, ImportError) as e:
             log(f"  ! [{rec.filename}] could not import: {e} — skipping")
+            progress.item_done(rec.filename)
+            continue
+        if imp.n_units == 0:
+            # Nothing to make nodes of, and an empty spike file would only fail
+            # later, in a step that has no way to say why.
+            log(f"  ! [{rec.filename}] {imp.sorter} found no units in {path.name} — skipping")
+            progress.item_done(rec.filename)
             continue
 
         content = to_spike_file(imp, drop_labels=drop)
