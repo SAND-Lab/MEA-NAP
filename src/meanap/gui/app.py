@@ -66,6 +66,7 @@ def main() -> None:
     if not args.here:
         _open_default_version(sys.argv[1:])
 
+    theme.enable_hi_dpi()
     app = QApplication(sys.argv[:1])
     app.setApplicationName("MEA-NAP")
     app.setOrganizationName("SAND Lab")
