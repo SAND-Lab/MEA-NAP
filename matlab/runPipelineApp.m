@@ -8,6 +8,12 @@ app.MEANAPStatusTextArea.Value = {'Welcome! The MEA-NAP GUI is launched.'};
 
 % Default home directory 
 app.MEANAPFolderEditField.Value = pwd;
+% The MATLAB code lives in the matlab/ subfolder of MEA-NAP. A folder setting
+% that still names the repository itself (as it did before the move) is
+% pointed there instead.
+if ~isfolder(fullfile(app.MEANAPFolderEditField.Value, 'Functions')) && isfolder(fullfile(app.MEANAPFolderEditField.Value, 'matlab', 'Functions'))
+    app.MEANAPFolderEditField.Value = fullfile(app.MEANAPFolderEditField.Value, 'matlab');
+end
 
 % Check version 
 addpath(fullfile(app.MEANAPFolderEditField.Value, 'Functions', 'util'));
@@ -259,6 +265,12 @@ while isvalid(app)
     % Load HomeDir 
     if app.HomeDirSelectButton.Value == 1
         app.MEANAPFolderEditField.Value = uigetdir;
+        % The MATLAB code lives in the matlab/ subfolder of MEA-NAP. A folder setting
+        % that still names the repository itself (as it did before the move) is
+        % pointed there instead.
+        if ischar(app.MEANAPFolderEditField.Value) && ~isfolder(fullfile(app.MEANAPFolderEditField.Value, 'Functions')) && isfolder(fullfile(app.MEANAPFolderEditField.Value, 'matlab', 'Functions'))
+            app.MEANAPFolderEditField.Value = fullfile(app.MEANAPFolderEditField.Value, 'matlab');
+        end
         app.HomeDirSelectButton.Value = 0;
         figure(app.UIFigure)  % put app back to focus
     end 

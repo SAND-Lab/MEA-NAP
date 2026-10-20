@@ -11,7 +11,7 @@ function gen_stim_detection_reference()
 % blankDurMode / artifactDuration.
 
 repo = '/home/timsit/MEA-NAP';
-addpath(genpath(fullfile(repo, 'Functions')));
+addpath(genpath(fullfile(repo, 'matlab', 'Functions')));
 
 rawDir = fullfile(repo, 'local', 'testMEAstim');
 outDir = fullfile(repo, 'python', 'test_fixtures');

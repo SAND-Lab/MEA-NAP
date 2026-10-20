@@ -245,7 +245,7 @@ For all methods, edit MEApipeline.m according to this `documentation <https://an
 
   .. code-block:: bash
 
-     cd /remote/directory
+     cd /remote/directory/matlab
      pwd
 
   - ``/remote/directory``: path of the MEA-NAP directory on your remote server
@@ -280,7 +280,7 @@ For all methods, edit MEApipeline.m according to this `documentation <https://an
 
   - **Line Overview**
 
-    - ``cd /remote/directory`` allows your remote server to easily access files necessary for running MEApipeline.m. **(required)**
+    - ``cd /remote/directory/matlab`` (the ``matlab`` folder of MEA-NAP, where ``MEApipeline.m`` is) allows your remote server to easily access files necessary for running MEApipeline.m. **(required)**
     - ``#SBATCH -o MEApipeline.sh.log-%j``: include this line in your bash script to save log files that can be distinguished by their job ID. **(recommended)**
 
       - Log files are useful for viewing progress and error messages related to the MEApipeline.m.

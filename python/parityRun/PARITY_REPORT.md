@@ -66,7 +66,7 @@ Python's spike times are a constant **2 samples (0.16 ms) earlier** than MATLAB'
 
 `thr4` finds **2 extra spikes** per recording (24943 vs 24941). F1 is still 1.0000 to 4 dp. It predates this work and is unrelated to the CWT (threshold detection doesn't touch it) — most likely the refractory-period loop. `thr5` and `bior1p5` are exact.
 
-Reproduce: `uv run python parityRun/compare_spike_detection.py`
+Reproduce: `uv run python python/parityRun/compare_spike_detection.py`
 
 ---
 
@@ -127,13 +127,13 @@ Recording-level, full independent run:
 
 **Bottom line for users:** recording-level summaries are robust and now near-exact for the deterministic metrics; **per-node network values still should not be compared 1:1** across ports on this dataset, and neither should the stochastic metrics (`Q`, `nMod`, `SW`, `PC`, `Z`, `NCpn*`).
 
-Reproduce: `uv run python parityRun/compare_parity.py OutputData_Python_parity`
+Reproduce: `uv run python python/parityRun/compare_parity.py OutputData_Python_parity`
 
 ---
 
 ## 4. Same adjacency matrix — the clean test of the ported maths
 
-MATLAB's BCT functions run directly on this run's adjacency matrices (`parityRun/gen_step4_parity_reference.m`), then the *same* matrices fed to the port's `network_metrics` functions.
+MATLAB's BCT functions run directly on this run's adjacency matrices (`python/parityRun/gen_step4_parity_reference.m`), then the *same* matrices fed to the port's `network_metrics` functions.
 
 | Metric | Worst abs diff (both recordings × 3 lags) |
 |---|---|
@@ -147,7 +147,7 @@ MATLAB's BCT functions run directly on this run's adjacency matrices (`parityRun
 
 **Every step-4 metric — including average and modal controllability — is exact.**
 
-Reproduce: `matlab -batch "run('parityRun/gen_step4_parity_reference.m')"` then `uv run python parityRun/compare_step4_same_adjacency.py`
+Reproduce: `matlab -batch "run('python/parityRun/gen_step4_parity_reference.m')"` then `uv run python python/parityRun/compare_step4_same_adjacency.py`
 
 ---
 
@@ -189,16 +189,16 @@ The literal-port CWT is both exact *and* ~2× faster than the FFT version it rep
 
 | File | Purpose |
 |---|---|
-| `parityRun/params_matlab_parity.mat` | MATLAB parameter set |
-| `parityRun/MEApipeline_parity.m` | Headless copy of `MEApipeline.m` (2 additive lines, no numeric changes) |
-| `parityRun/FakeApp.m` | Headless stub for the GUI `app` status text (`MEApipeline_parity.m` re-adds `parityRun/` to the path to reach it, since `MEApipeline.m` calls `restoredefaultpath` first) |
-| `parityRun/run_python_parity.py` | Python run, params matched to the above |
-| `parityRun/run_python_from_matlab_spikes.py` | Python steps 2–4 on MATLAB's spike times |
-| `parityRun/gen_step4_parity_reference.m` | MATLAB BCT metrics on this run's adjacency |
-| `parityRun/compare_spike_detection.py` | Step-1 spike comparison |
-| `parityRun/compare_parity.py` | CSV comparison |
-| `parityRun/compare_step4_same_adjacency.py` | Same-graph step-4 comparison |
-| `parityRun/results_*.txt` | Captured output of each |
+| `python/parityRun/params_matlab_parity.mat` | MATLAB parameter set |
+| `python/parityRun/MEApipeline_parity.m` | Headless copy of `MEApipeline.m` (2 additive lines, no numeric changes) |
+| `python/parityRun/FakeApp.m` | Headless stub for the GUI `app` status text (`MEApipeline_parity.m` re-adds `python/parityRun/` to the path to reach it, since `MEApipeline.m` calls `restoredefaultpath` first) |
+| `python/parityRun/run_python_parity.py` | Python run, params matched to the above |
+| `python/parityRun/run_python_from_matlab_spikes.py` | Python steps 2–4 on MATLAB's spike times |
+| `python/parityRun/gen_step4_parity_reference.m` | MATLAB BCT metrics on this run's adjacency |
+| `python/parityRun/compare_spike_detection.py` | Step-1 spike comparison |
+| `python/parityRun/compare_parity.py` | CSV comparison |
+| `python/parityRun/compare_step4_same_adjacency.py` | Same-graph step-4 comparison |
+| `python/parityRun/results_*.txt` | Captured output of each |
 
 ### Headless MATLAB traps hit (beyond the 5 in `MEApipeline_timingBenchmark.m`)
 

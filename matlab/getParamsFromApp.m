@@ -8,6 +8,12 @@ function  Params = getParamsFromApp(app)
 %   Parameters for running MEA-NAP
 
 Params.HomeDir = app.MEANAPFolderEditField.Value;
+% The MATLAB code lives in the matlab/ subfolder of MEA-NAP. A folder setting
+% that still names the repository itself (as it did before the move) is
+% pointed there instead.
+if ~isfolder(fullfile(Params.HomeDir, 'Functions')) && isfolder(fullfile(Params.HomeDir, 'matlab', 'Functions'))
+    Params.HomeDir = fullfile(Params.HomeDir, 'matlab');
+end
 Params.outputDataFolder = app.OutputDataFolderEditField.Value;
 Params.outputDataFolderName = app.OutputFolderNameEditField.Value;
 Params.rawData = app.MEADataFolderEditField.Value;
@@ -380,6 +386,9 @@ Params.output_spreadsheet_file_type = 'csv';
 
 % Get pipeline version 
 versionFile = fullfile(Params.HomeDir, 'version.txt');
+if ~isfile(versionFile)  % version.txt is at the repository root, above matlab/
+    versionFile = fullfile(Params.HomeDir, '..', 'version.txt');
+end
 Params.version = strtrim(fileread(versionFile));
 
 %%%%%%%%%%%%%%%%%%%%%%%%%% GUI SPECIFIC SETTINGS %%%%%%%%%%%%%%%%%%%%%%%

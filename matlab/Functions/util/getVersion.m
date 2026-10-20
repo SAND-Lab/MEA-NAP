@@ -1,6 +1,10 @@
 function localVersion = getVersion(HomeDir, app)
 
-localVersion = importdata(fullfile(HomeDir, 'version.txt')); 
+versionFile = fullfile(HomeDir, 'version.txt');
+if ~isfile(versionFile)  % version.txt is at the repository root, above matlab/
+    versionFile = fullfile(HomeDir, '..', 'version.txt');
+end
+localVersion = importdata(versionFile);
 localVersion = localVersion{1};
 localVersion = strtrim(localVersion);
 

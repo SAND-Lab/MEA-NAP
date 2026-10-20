@@ -27,7 +27,7 @@
 %   "
 
 repo_root = fileparts(fileparts(fileparts(mfilename('fullpath'))));
-addpath(genpath(fullfile(repo_root, 'Functions')));
+addpath(genpath(fullfile(repo_root, 'matlab', 'Functions')));
 
 outdir = fullfile(repo_root, 'python', 'test_fixtures');
 

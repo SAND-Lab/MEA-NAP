@@ -81,7 +81,7 @@ The pipeline has the following steps:
 Starting MEA-NAP
 --------------------------------
 - Make sure all of the recordings are in the correct `*.mat` format and saved in the same folder first. 
-- To use the pipeline, open ``MEApipeline.m`` in MATLAB. 
+- To use the pipeline, open ``MEApipeline.m`` (in the ``matlab`` folder of MEA-NAP) in MATLAB. 
 
 Required user input in the first section of MEA-NAP
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -107,7 +107,7 @@ This section is also well annotated and does not require understanding of MATLAB
      - User input required
    * - 13
      - HomeDir
-     - Set the location of the folder with the AnalysisPipeline scripts. N.B. Best not to save in Program Files.
+     - Set the location of the ``matlab`` folder of MEA-NAP, which contains ``MEApipeline.m``. N.B. Best not to save in Program Files.
    * - 14
      - Params.outputDataFolder 
      - Set the location of where your output data will be saved. Leave as '' if the same as HomeDir.
@@ -387,7 +387,7 @@ Folder paths
 """"""""""""""""""""
 
  * Argument type : char 
- * The location of the folder with the AnalysisPipeline scripts
+ * The location of the ``matlab`` folder of MEA-NAP, which contains ``MEApipeline.m`` (the MEA-NAP folder itself also works)
  * This will also be the default location in which the analysis pipeline outputs will be saved
 
 .. _rawData:

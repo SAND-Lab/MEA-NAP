@@ -16,7 +16,7 @@ WELLS    = {'A1', 'B3', 'D6', 'C1', 'A6'};
 SECONDS  = [0 2];
 
 thisDir = fileparts(mfilename('fullpath'));
-addpath(genpath(fullfile(thisDir, '..', '..', 'Functions', 'AxionFileLoader')));
+addpath(genpath(fullfile(thisDir, '..', '..', 'matlab', 'Functions', 'AxionFileLoader')));
 
 if ~isfile(RAW_FILE)
     error('Axion raw file not found: %s', RAW_FILE);

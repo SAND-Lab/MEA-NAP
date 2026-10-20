@@ -1,5 +1,5 @@
 % Ground-truth network metrics computed by MATLAB's OWN BCT functions on the
-% adjacency matrices from THIS parity run (parityRun/OutputData_MATLAB_parity),
+% adjacency matrices from THIS parity run (python/parityRun/OutputData_MATLAB_parity),
 % so the Python port can be fed the identical graph.
 %
 % This isolates the step-4 metric arithmetic from step 3's probabilistic
@@ -9,22 +9,22 @@
 % Adapted from python/test_fixtures/gen_step4_reference.m (which points at the
 % no-longer-present OutputData03Mar2026 run). Adds aveControl/modalControl.
 %
-% Run: matlab -batch "run('parityRun/gen_step4_parity_reference.m')"
+% Run: matlab -batch "run('python/parityRun/gen_step4_parity_reference.m')"
 
 repo_root = '/home/timsit/MEA-NAP';
-addpath(genpath(fullfile(repo_root, 'Functions')));
+addpath(genpath(fullfile(repo_root, 'matlab', 'Functions')));
 
 recs = {'NGN2_20230208_P1_DIV14_A2', 'NGN2_20230208_P1_DIV14_A3'};
 lags = [10, 25, 50];
 minActivityLevel = 0.01;
 edge_thresh = 0.0001;
 exclude_zeros = 1;          % Params.excludeEdgesBelowThreshold = 1
-outdir = fullfile(repo_root, 'parityRun');
+outdir = fullfile(repo_root, 'python', 'parityRun');
 runName = 'OutputData_MATLAB_parity';
 
 for r = 1:numel(recs)
     rec = recs{r};
-    matFpath = fullfile(repo_root, 'parityRun', runName, 'ExperimentMatFiles', ...
+    matFpath = fullfile(repo_root, 'python', 'parityRun', runName, 'ExperimentMatFiles', ...
         [rec '_' runName '.mat']);
     d = load(matFpath);
     duration_s = d.Info.duration_s;

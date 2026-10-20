@@ -11,6 +11,7 @@ A Python implementation of MEA-NAP, living alongside the MATLAB codebase in this
 
 ```
 MEA-NAP/
+├── matlab/               # The MATLAB pipeline (MEApipeline.m, apps, Functions/)
 ├── pyproject.toml        # Python project config and dependencies
 ├── .python-version       # Pins Python 3.13
 ├── uv.lock               # Reproducible dependency lockfile

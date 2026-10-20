@@ -8,7 +8,7 @@ after the true negative peak (1-based frames + alignPeaks' off-by-one), the
 port's sit on it. See align_peaks()'s docstring / PIPELINE_PORT_STATUS.md.
 The +/-1 ms tolerance absorbs it; SHIFT_SAMPLES below removes it exactly.
 
-    uv run python parityRun/compare_spike_detection.py
+    uv run python python/parityRun/compare_spike_detection.py
 """
 
 from __future__ import annotations
@@ -18,7 +18,7 @@ from pathlib import Path
 
 import numpy as np
 
-REPO_ROOT = Path(__file__).parent.parent
+REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
 from meanap.pipeline.io import load_spike_times_mat, load_spike_times_npz
@@ -46,9 +46,9 @@ def main() -> None:
     print(f"Spike detection: MATLAB vs Python (tolerance=+/-{TOL_S*1000:g} ms)\n")
     for rec in RECS:
         ml = load_spike_times_mat(
-            REPO_ROOT / "parityRun" / "OutputData_MATLAB_parity" / "1_SpikeDetection"
+            REPO_ROOT / "python" / "parityRun" / "OutputData_MATLAB_parity" / "1_SpikeDetection"
             / "1A_SpikeDetectedData" / f"{rec}_spikes.mat")
-        py_path = (REPO_ROOT / "parityRun" / "OutputData_Python_parity"
+        py_path = (REPO_ROOT / "python" / "parityRun" / "OutputData_Python_parity"
                    / "1_SpikeDetection" / "1A_SpikeDetectedData" / f"{rec}_spikes.npz")
         py = load_spike_times_npz(py_path)
         fs = float(np.load(py_path)["fs"].ravel()[0])

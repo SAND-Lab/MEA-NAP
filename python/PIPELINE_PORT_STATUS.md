@@ -24,7 +24,7 @@ static tree `CreateOutputFolders.m` builds) is fully ported and used
 automatically whenever the pipeline runs — diffed directly against
 `OutputData03Mar2026/` (a real MATLAB run) and matches.
 
-> **End-to-end CSV parity report (2026-07-15/16): `parityRun/PARITY_REPORT.md`.**
+> **End-to-end CSV parity report (2026-07-15/16): `python/parityRun/PARITY_REPORT.md`.**
 > Ran the full Test-pipeline dataset through both ports with matched parameters
 > and compared all four CSVs. Headline: **every deterministic stage now
 > reproduces MATLAB exactly** — spike detection (`bior1p5`/`thr5` identical
@@ -46,7 +46,7 @@ automatically whenever the pipeline runs — diffed directly against
 > **NB: `OutputData03Mar2026/` no longer exists on this machine**, so
 > `test_pipeline_step1/step4.py` and the fixtures that reference it can no
 > longer run as written (step 4 skips every check and reports "No checks ran" —
-> a pass/fail that silently means *nothing was tested*). `parityRun/` contains a
+> a pass/fail that silently means *nothing was tested*). `python/parityRun/` contains a
 > fresh MATLAB reference run plus a regenerated step-4 fixture generator
 > (`gen_step4_parity_reference.m`) if these need rebasing.
 
@@ -790,11 +790,11 @@ report. Re-run after any plotting change:
 
 ```
 python python/plot_parity_report.py --matlab OutputData24Dec2025 \
-    --python parityRun/OutputData_FreshCheck --out plot_parity_report.html
+    --python python/parityRun/OutputData_FreshCheck --out plot_parity_report.html
 ```
 
 Keep the report at the repo root — it references images by path relative to
-itself. `parityRun/run_step1_freshcheck.py` + `run_steps34_freshcheck.py`
+itself. `python/parityRun/run_step1_freshcheck.py` + `run_steps34_freshcheck.py`
 regenerate a matched Python run (unit=`V`, lags 10/25/50, `recording_workers=1`
 to avoid the step-3 process-pool crash) for the Python side.
 
@@ -1759,7 +1759,7 @@ both call `svds(A, 1)`, and ARPACK draws its start vector from NumPy's *global*
 RNG — so they wobbled in the last ~2 ulps between runs on identical input, and
 no `random_seed` could have fixed it (the draw doesn't come from any generator
 this pipeline owns). `_dominant_singular_value()` now pins `v0` to a fixed
-vector. MATLAB parity is unaffected: `parityRun/compare_step4_same_adjacency.py`
+vector. MATLAB parity is unaffected: `python/parityRun/compare_step4_same_adjacency.py`
 still reports worst-diff 2.842e-14 with `aveControl` at ~2.9e-15, unchanged.
 
 With that in place, two runs at `random_seed=42` produce byte-identical

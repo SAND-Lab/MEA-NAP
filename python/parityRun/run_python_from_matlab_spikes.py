@@ -12,7 +12,7 @@ This script removes (a): it converts MATLAB's `_spikes.mat` files into the
 runs steps 2-4 only. Any remaining difference is then attributable to the
 step 2/3/4 code (plus the genuinely stochastic pieces), not to spike detection.
 
-    uv run python parityRun/run_python_from_matlab_spikes.py
+    uv run python python/parityRun/run_python_from_matlab_spikes.py
 """
 
 import shutil
@@ -21,18 +21,18 @@ from pathlib import Path
 
 import numpy as np
 
-REPO_ROOT = Path(__file__).parent.parent
+REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "src"))
-sys.path.insert(0, str(REPO_ROOT / "parityRun"))
+sys.path.insert(0, str(REPO_ROOT / "python" / "parityRun"))
 
 from meanap.pipeline.io import load_spike_times_mat, save_spike_times_npz
 from meanap.pipeline.runner import run_pipeline
 from run_python_parity import build_params
 
-MATLAB_SPIKES = (REPO_ROOT / "parityRun" / "OutputData_MATLAB_parity"
+MATLAB_SPIKES = (REPO_ROOT / "python" / "parityRun" / "OutputData_MATLAB_parity"
                  / "1_SpikeDetection" / "1A_SpikeDetectedData")
 OUT_NAME = "OutputData_Python_fromMatlabSpikes"
-OUT_ROOT = REPO_ROOT / "parityRun" / OUT_NAME
+OUT_ROOT = REPO_ROOT / "python" / "parityRun" / OUT_NAME
 DEST = OUT_ROOT / "1_SpikeDetection" / "1A_SpikeDetectedData"
 
 RECORDINGS = ["NGN2_20230208_P1_DIV14_A2", "NGN2_20230208_P1_DIV14_A3"]

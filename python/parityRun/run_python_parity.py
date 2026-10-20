@@ -1,14 +1,14 @@
 """Run the Python MEA-NAP pipeline with parameters matched to the MATLAB
-parity run (parityRun/params_matlab_parity.mat), so the two runs' CSV outputs
+parity run (python/parityRun/params_matlab_parity.mat), so the two runs' CSV outputs
 can be compared field-by-field.
 
-    uv run python parityRun/run_python_parity.py
+    uv run python python/parityRun/run_python_parity.py
 """
 
 import sys
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).parent.parent
+REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
 from meanap.params import Params
@@ -21,9 +21,9 @@ def build_params() -> Params:
 # ── Paths ────────────────────────────────────────────────────────────────────
     p.home_dir = str(REPO_ROOT)
     p.raw_data = str(REPO_ROOT / "ExampleData")
-    p.spreadsheet_file_name = str(REPO_ROOT / "parityRun" / "exampleData_parity.csv")
+    p.spreadsheet_file_name = str(REPO_ROOT / "python" / "parityRun" / "exampleData_parity.csv")
     p.spreadsheet_range = "A2:A3"
-    p.output_data_folder = str(REPO_ROOT / "parityRun")
+    p.output_data_folder = str(REPO_ROOT / "python" / "parityRun")
     p.output_data_folder_name = "OutputData_Python_parity"
 
 # ── Recording ────────────────────────────────────────────────────────────────
