@@ -214,12 +214,13 @@ it applies.
 | **Sampling frequency** | The recording's native sampling rate in Hz (e.g. `25000`). |
 | **Downsample frequency** ⚙ | Rate used for some plots/metrics that don't need full resolution (e.g. `1000`). |
 | **Potential difference unit** ⚙ | `uV`, `mV`, or `V` — must match your raw data's units. |
-| **Channel layout** | Electrode grid layout: `MCS60`, `Axion64`, `Mea256`, or `Custom`. See [MATLAB vs. Python](matlab-vs-python.md) for which layouts have confirmed coordinate parity. |
+| **Channel layout** | Electrode grid layout: `MCS60`, `Axion64`, `Mea256`, `Custom`, or `FromFile` (each recording's own electrode positions, as written by an [import of sorted data](sorted-import.md) — use it for MaxWell HD-MEAs). See [MATLAB vs. Python](matlab-vs-python.md) for which layouts have confirmed coordinate parity. |
 
 ## Spike detection
 
 | Field | Description |
 |---|---|
+| **Spike source** | *Detect spikes on each electrode* (default); *Sort spikes into units*, each unit becoming a node (see [Spike sorting](spike-sorting.md)); or *Import units sorted elsewhere* — SpyKING CIRCUS, Kilosort/phy or SpikeInterface output, set up in the **Importing sorted units** section (see [Importing spike-sorted data](sorted-import.md)). |
 | **Detect spikes** | Whether to run spike detection at all (uncheck if step 1 was already run and you only want steps 2+). |
 | **Re-check previous spike data** ⚙ | Re-run detection checks against existing spike-time output without redetecting. |
 | **Relative thresholds** | MAD-multiplier thresholds below the median, comma-separated (e.g. `3, 4, 5`). |

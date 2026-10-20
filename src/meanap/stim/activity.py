@@ -74,6 +74,10 @@ def stim_activity_analysis(
 
     stimulated = {c for c in range(n_channels)
                   if stim_info[c].pattern is not None and stim_info[c].pattern > 0}
+    # How many earlier windows estimate the baseline AUC. MATLAB's 30 suit
+    # electrical stimulation (a 30 ms window, seconds between stimuli); event
+    # runs may set fewer so the windows stay clear of the previous stimulus.
+    n_baseline = int(params.get("numBaselinePSTHs") or _NUM_BASELINE_PSTHS)
 
     # consolidated trials (all patterns, sorted) — used by d′ window bookkeeping
     poststim_window = (artifact_duration_s, window[1])
@@ -124,8 +128,8 @@ def stim_activity_analysis(
             zscore = (p_mean - b_mean) / b_std_safe
 
             # baseline-AUC distribution → auc_corrected
-            baseline_aucs = np.empty(_NUM_BASELINE_PSTHS)
-            for i in range(1, _NUM_BASELINE_PSTHS + 1):
+            baseline_aucs = np.empty(n_baseline)
+            for i in range(1, n_baseline + 1):
                 bw = (window[0] - i * baseline_duration_s,
                       window[0] - (i - 1) * baseline_duration_s)
                 _, bm = calculate_psth_metrics(
@@ -191,7 +195,12 @@ def _half_rmax_time(psth_smooth: np.ndarray, time_vector_s: np.ndarray) -> float
 
 
 def write_stim_activity_csv(rows: list[dict], path) -> None:
-    """Write ``StimActivity_NodeLevel.csv`` (port of ``saveEphysStatsStim.m``)."""
+    """Write ``StimActivity_NodeLevel.csv`` (port of ``saveEphysStatsStim.m``).
+
+    Columns beyond MATLAB's (a sorted run's ``unit_id``, an event run's
+    ``condition``) follow them, so the MATLAB columns keep their positions.
+    """
     import pandas as pd
-    df = pd.DataFrame(rows, columns=CSV_COLUMNS)
+    extra = list(dict.fromkeys(k for r in rows for k in r if k not in CSV_COLUMNS))
+    df = pd.DataFrame(rows, columns=CSV_COLUMNS + extra)
     df.to_csv(path, index=False)

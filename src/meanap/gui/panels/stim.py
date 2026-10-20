@@ -14,12 +14,18 @@ from PyQt6.QtWidgets import (
 )
 
 from meanap.gui.advanced import AdvancedSection
+from meanap.gui.panels.paths import PathRow
 from meanap.params import Params
+from meanap.stim.events import EVENT_METHODS
 
 _DETECTION_METHODS = [
     "longblank", "blanking", "absPosThreshold", "absNegThreshold",
-    "stdNeg", "axionStimEvents",
+    "stdNeg", "axionStimEvents", *EVENT_METHODS,
 ]
+_CONDITION_MODES = (("All events one condition", "single"),
+                    ("Alternate labels (e.g. ON, OFF)", "alternate"))
+_NETWORK_NULLS = (("Trial shuffle — beyond shared stimulus drive", "trial_shuffle"),
+                  ("Circular shift — total co-activity (step 3's test)", "circular"))
 _PROCESSING = ["none", "medianAbs"]
 
 
@@ -67,6 +73,41 @@ class StimPanel(QWidget):
         det_advanced.form().addRow("Axion stim CSV", self.axion_csv)
         dform.addRow(det_advanced)
 
+        # ── Event-driven stimulation ──────────────────────────────────────────
+        # Light, sound, anything logged as events rather than seen in the
+        # voltage: shown instead of the voltage detection box for those methods.
+        self.event_box = QGroupBox("Stimulus events (light, TTL, event log)")
+        eform = QFormLayout(self.event_box)
+        self.events_folder = PathRow(self)
+        self.events_folder.setToolTip(
+            "eventsCSV: where <recording>_events.csv is (columns time_s and, "
+            "optionally, condition). maxwellTTL: where the MaxWell raw file is, "
+            "if not in the raw data folder. Empty: the raw data folder.")
+        self.ttl_rule = QLineEdit("auto")
+        self.ttl_rule.setToolTip(
+            "Which TTL changes are stimuli. auto: the rarest-changing bit (a "
+            "projector frame sync toggles every frame; the stimulus marker is "
+            "the rare one) — the run log says which it picked. Or rise:<bit>, "
+            "fall:<bit>, value:<word>.")
+        self.event_min_interval = _dspin(0.0, 60.0, 4, 0.05, " s")
+        self.event_min_interval.setToolTip("Markers closer than this merge into one event.")
+        self.condition_mode = QComboBox()
+        for label, value in _CONDITION_MODES:
+            self.condition_mode.addItem(label, value)
+        self.condition_labels = QLineEdit()
+        self.condition_labels.setPlaceholderText("ON, OFF")
+        self.condition_labels.setToolTip(
+            "Comma-separated condition names, in event order for 'alternate'. "
+            "Nothing in a TTL marker says which transition is ON — check the "
+            "stimulus protocol.")
+        eform.addRow("Events folder", self.events_folder)
+        eform.addRow("TTL rule", self.ttl_rule)
+        eform.addRow("Conditions", self.condition_mode)
+        eform.addRow("Condition labels", self.condition_labels)
+        ev_advanced = AdvancedSection()
+        ev_advanced.form().addRow("Merge events closer than", self.event_min_interval)
+        eform.addRow(ev_advanced)
+
         # ── Analysis ──────────────────────────────────────────────────────────
         an_box = QGroupBox("Response analysis")
         aform = QFormLayout(an_box)
@@ -96,7 +137,32 @@ class StimPanel(QWidget):
         sform.addRow("Number of shuffles", self.n_shuffles)
         sform.addRow("Alpha", self.shuffle_alpha)
 
-        for box in (mode_box, det_box, an_box, sig_box):
+        # ── Stimulus-triggered networks ───────────────────────────────────────
+        net_box = AdvancedSection("Stimulus-triggered networks")
+        nform = net_box.form()
+        self.stim_network = QCheckBox("Evoked vs baseline networks and noise correlations")
+        self.stim_network.setToolTip(
+            "Per condition and lag: the STTC network of the windows after each "
+            "event and of equally long windows before it, plus correlations of "
+            "trial-by-trial spike counts. Event-driven methods only for now.")
+        self.net_win_start = _dspin(-10.0, 10.0, 3, 0.0, " s")
+        self.net_win_end = _dspin(0.001, 60.0, 3, 0.5, " s")
+        self.net_null = QComboBox()
+        for label, value in _NETWORK_NULLS:
+            self.net_null.addItem(label, value)
+        self.net_reps = QSpinBox()
+        self.net_reps.setRange(10, 100000)
+        self.net_reps.setValue(200)
+        self.net_alpha = _dspin(0.0001, 0.5, 4, 0.05)
+        nform.addRow("", self.stim_network)
+        nform.addRow("Evoked window start", self.net_win_start)
+        nform.addRow("Evoked window end", self.net_win_end)
+        nform.addRow("Edge test", self.net_null)
+        nform.addRow("Surrogates", self.net_reps)
+        nform.addRow("Alpha", self.net_alpha)
+
+        self._det_box = det_box
+        for box in (mode_box, det_box, self.event_box, an_box, sig_box, net_box):
             layout.addWidget(box)
         layout.addStretch()
 
@@ -104,8 +170,12 @@ class StimPanel(QWidget):
         self._on_method_changed(self.method.currentText())
 
     def _on_method_changed(self, method: str) -> None:
-        """Only the Axion method uses the CSV field."""
+        """Only the Axion method uses the CSV field; event methods have no
+        voltage to detect in and show their own settings instead."""
         self.axion_csv.setEnabled(method == "axionStimEvents")
+        events = method in EVENT_METHODS
+        self._det_box.setVisible(not events)
+        self.event_box.setVisible(events)
 
     def load(self, params: Params) -> None:
         self.stim_mode.setChecked(params.stimulation_mode)
@@ -125,6 +195,20 @@ class StimPanel(QWidget):
         self.stim_dur_plot.setValue(params.stim_duration_for_plotting)
         self.n_shuffles.setValue(params.stim_n_shuffles)
         self.shuffle_alpha.setValue(params.stim_shuffle_alpha)
+        self.events_folder.set_value(params.stim_events_folder)
+        self.ttl_rule.setText(params.stim_event_ttl_rule)
+        self.event_min_interval.setValue(params.stim_event_min_interval)
+        idx = self.condition_mode.findData(params.stim_event_condition_mode)
+        self.condition_mode.setCurrentIndex(max(idx, 0))
+        self.condition_labels.setText(", ".join(params.stim_event_condition_labels))
+        self.stim_network.setChecked(params.stim_network)
+        nwin = params.stim_network_window or [0.0, 0.5]
+        self.net_win_start.setValue(float(nwin[0]))
+        self.net_win_end.setValue(float(nwin[1]))
+        idx = self.net_null.findData(params.stim_network_null)
+        self.net_null.setCurrentIndex(max(idx, 0))
+        self.net_reps.setValue(params.stim_network_rep_num)
+        self.net_alpha.setValue(params.stim_network_alpha)
         self._on_method_changed(self.method.currentText())
 
     def save(self, params: Params) -> None:
@@ -143,6 +227,17 @@ class StimPanel(QWidget):
         params.stim_duration_for_plotting = self.stim_dur_plot.value()
         params.stim_n_shuffles = self.n_shuffles.value()
         params.stim_shuffle_alpha = self.shuffle_alpha.value()
+        params.stim_events_folder = self.events_folder.value
+        params.stim_event_ttl_rule = self.ttl_rule.text().strip() or "auto"
+        params.stim_event_min_interval = self.event_min_interval.value()
+        params.stim_event_condition_mode = self.condition_mode.currentData()
+        params.stim_event_condition_labels = [s.strip() for s in self.condition_labels.text().split(",")
+                                              if s.strip()]
+        params.stim_network = self.stim_network.isChecked()
+        params.stim_network_window = [self.net_win_start.value(), self.net_win_end.value()]
+        params.stim_network_null = self.net_null.currentData()
+        params.stim_network_rep_num = self.net_reps.value()
+        params.stim_network_alpha = self.net_alpha.value()
 
 
 def _dspin(lo: float, hi: float, decimals: int, val: float, suffix: str = "") -> QDoubleSpinBox:

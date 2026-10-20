@@ -46,16 +46,41 @@ def plot_firing_rate_distribution(ephys: dict, out_path: Path, seed: int | None 
     savefig(fig, out_path, default_dpi=300)
     plt.close(fig)
 
-def _draw_heatmap_panel(ax, xs, ys, metric, valid_mask, vmin, vmax, cmap, clabel, panel_title):
+#: Marker area (pt²) of an electrode on the built-in 8×8 layouts, whose
+#: neighbours sit 8/7 plot units apart.
+_HEATMAP_MARKER_AREA = 800
+_HEATMAP_GRID_SPACING = 8 / 7
+
+
+def _heatmap_marker_area(xs: np.ndarray, ys: np.ndarray) -> float:
+    """Marker area for electrodes as densely packed as these.
+
+    Scaled from the 8×8 grids' size by the median nearest-neighbour distance,
+    so neighbouring electrodes of an HD-MEA do not paint over each other.
+    """
+    from scipy.spatial import cKDTree
+
+    xy = np.unique(np.column_stack([xs, ys]), axis=0)
+    if len(xy) < 2:
+        return _HEATMAP_MARKER_AREA
+    d, _ = cKDTree(xy).query(xy, k=2)
+    ratio = float(np.median(d[:, 1])) / _HEATMAP_GRID_SPACING
+    return float(np.clip(_HEATMAP_MARKER_AREA * ratio ** 2, 2.0, _HEATMAP_MARKER_AREA))
+
+
+def _draw_heatmap_panel(ax, xs, ys, metric, valid_mask, vmin, vmax, cmap, clabel, panel_title,
+                        marker_area: float = _HEATMAP_MARKER_AREA):
     """Draw one electrode heatmap panel (colored circles at electrode coords)."""
+    s = marker_area
+    lw = 1 if s >= 100 else 0
     if not np.all(valid_mask):
-        ax.scatter(xs[~valid_mask], ys[~valid_mask], color="lightgray", s=800,
-                   marker="o", edgecolors="white", linewidths=1)
+        ax.scatter(xs[~valid_mask], ys[~valid_mask], color="lightgray", s=s,
+                   marker="o", edgecolors="white", linewidths=lw)
     if np.any(valid_mask):
         sc = ax.scatter(xs[valid_mask], ys[valid_mask], c=metric[valid_mask], cmap=cmap,
-                        vmin=vmin, vmax=vmax, s=800, marker="o", edgecolors="white", linewidths=1)
+                        vmin=vmin, vmax=vmax, s=s, marker="o", edgecolors="white", linewidths=lw)
     else:
-        sc = ax.scatter([], [], c=[], cmap=cmap, vmin=vmin, vmax=vmax, s=800)
+        sc = ax.scatter([], [], c=[], cmap=cmap, vmin=vmin, vmax=vmax, s=s)
     cbar = plt.colorbar(sc, ax=ax)
     cbar.set_label(clabel)
     ax.set_title(panel_title)
@@ -80,8 +105,13 @@ def plot_heatmap(
     cmap="viridis", channel_layout: str = "Axion64",
     batch_max: float | None = None,
     aggregate: str = "mean",
+    layout: tuple[np.ndarray, np.ndarray] | None = None,
 ):
     """Electrode heatmap, port of ``electrodeHeatMaps.m`` / ``plotNodeHeatmap.m``.
+
+    ``layout`` is the recording's own ``(channels, coords)`` when the array
+    has no fixed layout (see :func:`~meanap.pipeline.channel_layout.recording_layout`);
+    ``channel_layout`` is used otherwise.
 
     ``aggregate`` (``"sum"`` or ``"mean"``) only matters when several nodes
     share an electrode — a spike-sorted run — and says how they pool.
@@ -97,7 +127,8 @@ def plot_heatmap(
     if len(metric) == 0:
         return
 
-    layout_channels, layout_coords = get_coords_from_layout(channel_layout)
+    layout_channels, layout_coords = (layout if layout is not None
+                                      else get_coords_from_layout(channel_layout))
     coord_by_channel = dict(zip(layout_channels.tolist(), map(tuple, layout_coords)))
     chs = np.asarray(chs).ravel()
     metric = np.asarray(metric, dtype=float)
@@ -116,6 +147,8 @@ def plot_heatmap(
     xs = coords[:, 0]
     ys = coords[:, 1]
     valid_mask = ~np.isnan(metric)
+    marker_area = (_heatmap_marker_area(xs, ys) if layout is not None
+                   else _HEATMAP_MARKER_AREA)
 
     if np.any(valid_mask):
         valid_vals = metric[valid_mask]
@@ -128,7 +161,8 @@ def plot_heatmap(
 
     if batch_max is None:
         fig, ax = plt.subplots(figsize=(6, 5))
-        _draw_heatmap_panel(ax, xs, ys, metric, valid_mask, vmin, recording_vmax, cmap, clabel, title)
+        _draw_heatmap_panel(ax, xs, ys, metric, valid_mask, vmin, recording_vmax, cmap, clabel, title,
+                            marker_area)
         plt.tight_layout()
         savefig(fig, out_path, default_dpi=300)
         plt.close(fig)
@@ -140,9 +174,9 @@ def plot_heatmap(
 
     fig, (ax_rec, ax_batch) = plt.subplots(1, 2, figsize=(12, 5))
     _draw_heatmap_panel(ax_rec, xs, ys, metric, valid_mask, vmin, recording_vmax, cmap,
-                        clabel, f"{title}\nscaled to recording")
+                        clabel, f"{title}\nscaled to recording", marker_area)
     _draw_heatmap_panel(ax_batch, xs, ys, metric, valid_mask, vmin, batch_vmax, cmap,
-                        clabel, f"{title}\nscaled to entire dataset")
+                        clabel, f"{title}\nscaled to entire dataset", marker_area)
     plt.tight_layout()
     savefig(fig, out_path, default_dpi=300)
     plt.close(fig)
@@ -322,6 +356,7 @@ def plot_neuronal_activity_checks(
     batch_max: dict | None = None,
     fmt: str = "png",
     only: str | None = None,
+    layout: tuple[np.ndarray, np.ndarray] | None = None,
 ) -> list[Path]:
     """Draw one recording's step-2 activity figures.
 
@@ -358,7 +393,7 @@ def plot_neuronal_activity_checks(
             continue
         if (p := want(name)) is not None:
             plot_heatmap(ephys[key], chs, title, cbar, p, cmap=cmap,
-                         channel_layout=channel_layout, batch_max=bmax.get(key),
+                         channel_layout=channel_layout, batch_max=bmax.get(key), layout=layout,
                          aggregate=_POOL_BY_SUM.get(key, "mean"))
 
     if (p := want("3_Raster.png")) is not None:

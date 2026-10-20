@@ -819,6 +819,12 @@ def _run_step1_spike_detection(
     should_cancel: CancelCheck = None,
     progress: RunProgress | None = None,
 ) -> None:
+    if params.spike_source == "import":
+        # Units sorted elsewhere: nothing to detect, and no voltage to load.
+        from meanap.pipeline.import_step import run_sorted_import
+        run_sorted_import(params, recordings, output_root, log,
+                          should_cancel=should_cancel, progress=progress)
+        return
     if not params.raw_data:
         raise ValueError("Raw data folder must be set to run step 1 (spike detection)")
 

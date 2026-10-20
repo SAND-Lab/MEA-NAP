@@ -21,6 +21,10 @@ on electrodes, the CSVs gain a `Unit` column beside `Channel`, and the
 network plots draw each unit beside its electrode. Needs the `sorting` extra
 — see [Installation](installation.md#optional-spike-sorting).
 
+Already sorted your recordings with SpyKING CIRCUS, Kilosort or another
+sorter? Import the units instead — see
+[Importing spike-sorted data](sorted-import.md).
+
 ## What it does
 
 1. **Preprocess.** Bandpass 300–6000 Hz and subtract the median across
