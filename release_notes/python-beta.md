@@ -8,16 +8,11 @@ This is a beta version release because we would like to get more feedback on it 
 
 Full documentation on how to install and use the python version of MEA-NAP is [here](https://analysis-pipeline.readthedocs.io/en/latest/python/index.html)
 
-<table>
-  <tr>
-    <td width="50%" valign="top"><img src="imgs/python-beta/gui_data_tab.png" alt="The MEA-NAP Python GUI, Data tab"></td>
-    <td width="50%" valign="top"><img src="imgs/python-beta/gui_run_tab.png" alt="The MEA-NAP Python GUI, Run tab during a run"></td>
-  </tr>
-  <tr>
-    <td align="center"><em>Setting up a run in the MEA-NAP Python GUI</em></td>
-    <td align="center"><em>A run in progress, with an estimate of the time left</em></td>
-  </tr>
-</table>
+![The MEA-NAP Python GUI, Data tab](imgs/python-beta/gui_data_tab.png)
+*Setting up a run in the MEA-NAP Python GUI*
+
+![The MEA-NAP Python GUI, Run tab during a run](imgs/python-beta/gui_run_tab.png)
+*A run in progress, with an estimate of the time left*
 
 
 ## What's new in the python version?
