@@ -53,7 +53,7 @@ def main() -> None:
     img.save(OUT / "icon.png")
     img.save(OUT / "icon.ico", sizes=[(s, s) for s in (16, 24, 32, 48, 64, 128, 256)])
     img.save(OUT / "icon.icns")
-    print(f"icons → {OUT}")
+    print(f"icons -> {OUT}")
 
 
 if __name__ == "__main__":

@@ -44,6 +44,9 @@ jobs:
     defaults:
       run:
         shell: bash
+    env:
+      # Windows consoles default to cp1252; MEA-NAP prints the odd arrow.
+      PYTHONUTF8: "1"
     steps:
       - uses: actions/checkout@v4
         with:
@@ -52,6 +55,10 @@ jobs:
       - uses: astral-sh/setup-uv@v6
 
       - name: Install MEA-NAP and the build tools
+        # isosplit6 (MountainSort5) has no macOS wheel and is C++11 that
+        # doesn't say so; Apple's clang defaults to an older standard.
+        env:
+          CXXFLAGS: ${{ runner.os == 'macOS' && '-std=c++17' || '' }}
         run: uv sync --frozen --extra oasis --extra sorting --group app
 
       - name: Build
