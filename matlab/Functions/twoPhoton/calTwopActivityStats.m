@@ -1,5 +1,5 @@
 function activityStats = calTwopActivityStats(expData, Params)
-% Calculates properties related to two-photon activity
+% Calculates properties related to calcium imaging activity
 % INPUTS 
 % ------
 % expData : struct 
@@ -55,7 +55,7 @@ activityStats.ISImean = nanmean(peakISIPerUnit);
 activityStats.ISI = peakISIPerUnit;
 
 
-%% Two-photon specific metrics 
+%% Calcium-imaging-specific metrics 
 % unit level
 activityStats.unitHeightMean = nanmean(expData.activityProperties.peakHeights, 2)';  % cell by events
 activityStats.unitPeakDurMean = nanmean(expData.activityProperties.peakDurationFrames, 2)' / expData.fs;

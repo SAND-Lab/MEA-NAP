@@ -10,7 +10,7 @@ MATLAB's ``MEApipeline.m`` appends ``adjMs`` to each recording's
 of calling ``suite2pToAdjm`` again. This checks the port of that:
 
   - **round-trip** — everything phases 2/3 need survives a save/load, including
-    the ``None``-valued 2P metrics that the non-``peaks`` activity types leave
+    the ``None``-valued calcium imaging metrics that the non-``peaks`` activity types leave
     unset (``None`` is not NaN downstream);
   - **wiring** — a resumed run reads the prior file and never touches the
     suite2p folder, and a fresh run writes one file per recording;
@@ -88,7 +88,7 @@ def _stats() -> dict:
         "numActiveElec": 6,
         "ISImean": float("nan"),
         "ISI": np.full(N_UNITS, np.nan),
-        # The 2P-specific metrics are None (not NaN) for F/spks/denoised F.
+        # The calcium-imaging-specific metrics are None (not NaN) for F/spks/denoised F.
         "unitHeightMean": None,
         "unitPeakDurMean": None,
         "unitEventAreaMean": None,

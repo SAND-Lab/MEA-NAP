@@ -93,7 +93,7 @@ check("the toolbar is parameters, advanced and help — nothing about results",
 
 print("\nPicking a pipeline")
 
-for key, expected in (("catnap", "CAT-NAP (2P)"), ("meastim", "Stimulation"),
+for key, expected in (("catnap", "CAT-NAP (calcium imaging)"), ("meastim", "Stimulation"),
                       ("meanap", "Spike detection")):
     window._mode_combo.setCurrentIndex(window._mode_combo.findData(key))
     app.processEvents()

@@ -58,7 +58,7 @@ class Mode:
     stimulation_mode: bool = False
     #: Default STTC lags (ms). A calcium transient lasts on the order of a
     #: second, where a spike lasts a millisecond, so the coincidence windows
-    #: that make sense for 2P are ~100× the ephys ones: carrying the ephys
+    #: that make sense for calcium imaging are ~100× the ephys ones: carrying the ephys
     #: lags into CAT-NAP finds almost no coincidences at all. ``MainWindow``
     #: swaps these in on a mode switch, but only when the field is still on
     #: the old mode's defaults — see ``ConnectivityPanel.retune_lags_for_mode``.
@@ -84,12 +84,12 @@ MODES: dict[str, Mode] = {
     ),
     "catnap": Mode(
         key="catnap",
-        label="CAT-NAP  ·  2P imaging",
-        blurb="Network analysis of two-photon calcium imaging processed with suite2p.",
+        label="CAT-NAP  ·  Calcium imaging",
+        blurb="Network analysis of calcium imaging processed with suite2p.",
         tabs=frozenset((TAB_DATA, TAB_CONNECTIVITY, TAB_CATNAP,
                         TAB_RUN, TAB_RESULTS, TAB_STATS)),
         suite2p_mode=True,
-        # What the MATLAB 2P runs use (see python/CATNAP_PORT_PLAN.md).
+        # What the MATLAB calcium imaging runs use (see python/CATNAP_PORT_PLAN.md).
         default_lags=(1000, 2500, 5000),
     ),
 }

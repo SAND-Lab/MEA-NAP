@@ -20,7 +20,7 @@ derives nothing and cross-validates as if all rows were independent, which
 leaks. See :func:`derive_culture_ids`.
 
 **One table, both pipelines.** Network metrics and activity metrics are written
-to separate CSVs by separate steps, and the two-photon (CAT-NAP) pipeline names
+to separate CSVs by separate steps, and the calcium imaging (CAT-NAP) pipeline names
 its activity file differently from the ephys one. A question like "which
 features separate the genotypes" is not a question about one of those files, so
 they are merged on ``FileName`` into a single feature table.
@@ -63,7 +63,7 @@ _DIV_TOKEN = re.compile(r"^DIV[_-]?\d+\.?\d*$", re.IGNORECASE)
 _DATE_TOKEN = re.compile(r"^(20\d{6}|\d{6})$")
 
 #: Where the recording-level tables live in an output folder or opened bundle.
-#: The activity file has two names because the ephys and two-photon pipelines
+#: The activity file has two names because the ephys and calcium imaging pipelines
 #: each write their own; a run has one or the other, never both.
 _NETWORK_REC = "4_NetworkActivity/NetworkActivity_RecordingLevel.csv"
 _NETWORK_NODE = "4_NetworkActivity/NetworkActivity_NodeLevel.csv"

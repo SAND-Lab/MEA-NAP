@@ -2,7 +2,7 @@
 
 CAT-NAP is the calcium-imaging analysis pathway — the Python equivalent of
 MATLAB's `suite2pToAdjm` / `denoiseSuite2pData` workflow. It's triggered from
-the **CAT-NAP (2P)** tab by pointing at a folder that contains
+the **CAT-NAP (calcium imaging)** tab by pointing at a folder that contains
 [suite2p](https://github.com/MouseLand/suite2p) output, rather than raw MEA
 `.mat` recordings.
 
@@ -169,7 +169,7 @@ connectivity statistics, the five spatial network plots (plus their
 batch-scaled and side-by-side combined variants), node cartography, the two
 circular network plots, and graph-metrics-by-node. Node positions come from
 suite2p cell centroids rather than an electrode grid; everything else is the
-shared code path, so a 2P figure and an MEA figure of the same name mean the
+shared code path, so a calcium imaging figure and an MEA figure of the same name mean the
 same thing.
 
 Per cell, `2_NeuronalActivity/2A_IndividualNeuronalAnalysis/{group}/{recording}/`
@@ -245,7 +245,7 @@ within-module-z-score plane. With `auto_set_cartography_boundaries` (the
 default), CAT-NAP pools PC and Z over **every recording in the batch** and
 places the boundaries where that dataset's nodes actually cluster, exactly as
 MATLAB's `autoSetCartographyBoundaries` does — the fixed `Params` defaults are
-tuned for MEA data and put almost every 2P cell in the peripheral-node role.
+tuned for MEA data and put almost every imaged cell in the peripheral-node role.
 
 The pooled landscape those boundaries came from is saved to
 `4B_GroupComparisons/7_DensityLandscape/`, and the resulting roles feed the
@@ -264,7 +264,7 @@ sets.
 
 Once every recording has been analysed, CAT-NAP pools them and draws the same
 half-violin comparison figures the electrophysiology pipeline produces, in the
-same folders — so a 2P batch and an MEA batch have an identically-shaped output
+same folders — so a calcium imaging batch and an MEA batch have an identically-shaped output
 tree.
 
 **Calcium activity** — `2_NeuronalActivity/2B_GroupComparisons/`:
@@ -428,7 +428,7 @@ Figures land in
 | `4_SubnetworkMetrics.png` | graph-level metrics of each induced subgraph, versus the whole network |
 | `5_EdgeMixing.png` | cell type × cell type edge-density and mean-weight heatmaps |
 
-2P peak/STTC networks are often more than 80% dense, so the two graph figures
+Calcium imaging peak/STTC networks are often more than 80% dense, so the two graph figures
 draw only the strongest 3000 edges per group and say so in the panel caption.
 Metrics are always computed on the complete graph.
 

@@ -11,7 +11,7 @@ branch calls the same ``PlotEphysStats``/``PlotNetMet`` routines the ephys
 branch does — so these are structural checks:
 
   - the pooled frames carry every recording, every unit, and the real suite2p
-    ROI ids, with the 2P-specific metrics dropped rather than faked when the
+    ROI ids, with the calcium-imaging-specific metrics dropped rather than faked when the
     activity type never produced them;
   - each figure family writes the expected file names into the expected
     folders, matching the ephys layout;
@@ -80,7 +80,7 @@ def _stats(seed: int, peaks: bool = True) -> dict:
     """A ``calc_twop_activity_stats``-shaped dict.
 
     ``peaks=False`` mimics an ``F``/``spks`` run, where the routine returns
-    ``None`` for every 2P-specific field because ``activityProperties`` only
+    ``None`` for every calcium-imaging-specific field because ``activityProperties`` only
     exists on the peaks path.
     """
     rng = np.random.default_rng(seed)
@@ -201,13 +201,13 @@ def _frame_checks() -> list[Check]:
                    set(df_rec["Grp"]) == {"WT", "KO"} and set(df_rec["DIV"]) == {"14.0", "21.0"},
                    f"{sorted(set(df_rec['Grp']))} {sorted(set(df_rec['DIV']))}"))
 
-    # Non-peaks activity type: 2P-specific fields are None, not arrays.
+    # Non-peaks activity type: calcium-imaging-specific fields are None, not arrays.
     stats_f = {r.filename: _stats(i, peaks=False) for i, r in enumerate(recordings)}
     df_rec_f, df_node_f = gp.twop_stats_frames(recordings, stats_f, channels)
-    checks.append(("None-valued 2P fields are dropped, not coerced (node)",
+    checks.append(("None-valued calcium imaging fields are dropped, not coerced (node)",
                    "unitHeightMean" not in df_node_f.columns and "FR" in df_node_f.columns,
                    f"{sorted(df_node_f.columns)}"))
-    checks.append(("None-valued 2P fields are dropped, not coerced (recording)",
+    checks.append(("None-valued calcium imaging fields are dropped, not coerced (recording)",
                    "recHeightMean" not in df_rec_f.columns and "FRmean" in df_rec_f.columns,
                    f"{sorted(df_rec_f.columns)}"))
 
@@ -255,13 +255,13 @@ def _figure_checks() -> list[Check]:
             base / "2_NodeByAge": "FR_byDIV_node.png",
         }
         for directory, sample in expected_dirs.items():
-            checks.append((f"2P activity: {directory.name}/{sample}",
+            checks.append((f"Calcium imaging activity: {directory.name}/{sample}",
                            (directory / sample).exists()
                            and (directory / sample).stat().st_size > 0, ""))
 
         n_twop = len(_pngs(base))
         expected_twop = 2 * len(gp.TWOP_REC_METRICS) + 2 * len(gp.TWOP_NODE_METRICS)
-        checks.append(("2P activity: one figure per metric per axis",
+        checks.append(("Calcium imaging activity: one figure per metric per axis",
                        n_twop == expected_twop, f"{n_twop} vs {expected_twop}"))
 
         # The shared step-4 plotter, fed a CAT-NAP results dict unchanged.
@@ -534,7 +534,7 @@ def _runner_tail_checks() -> list[Check]:
                        (twop / "CellTypeComposition.csv").exists(), ""))
 
         for label, rel in (
-            ("two-photon activity", "2_NeuronalActivity/2B_GroupComparisons/"
+            ("calcium imaging activity", "2_NeuronalActivity/2B_GroupComparisons/"
                                     "3_RecordingsByGroup/HalfViolinPlots/FRmean_byGroup.png"),
             ("activity split by cell type", "2_NeuronalActivity/2B_GroupComparisons/"
                                             "1_NodeByGroup/ByCellType/FR_byGroup_node.png"),
@@ -620,7 +620,7 @@ def main() -> int:
 
     total_pass = total = 0
     for title, build in [
-        ("Section A1 — pooled two-photon activity frames:", _frame_checks),
+        ("Section A1 — pooled calcium imaging activity frames:", _frame_checks),
         ("Section A2 — figure families and folder layout:", _figure_checks),
         ("Section A3 — degenerate inputs:", _robustness_checks),
         ("Section A4 — runner save + plot tail:", _runner_tail_checks),

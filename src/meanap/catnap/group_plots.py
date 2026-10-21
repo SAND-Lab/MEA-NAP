@@ -33,7 +33,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-# ── Two-photon activity metrics (step-2 equivalent) ───────────────────────────
+# ── Calcium imaging activity metrics (step-2 equivalent) ──────────────────────
 # Keys are ``calc_twop_activity_stats`` fields; values are axis labels. Units:
 # event heights and areas come off the deconvolved relative-intensity trace, so
 # they are arbitrary units; durations and areas are converted from frames to
@@ -127,7 +127,7 @@ SUBNET_NODE_METRICS = {
 }
 
 
-# ── Two-photon activity ───────────────────────────────────────────────────────
+# ── Calcium imaging activity ──────────────────────────────────────────────────
 
 def _named(template: str, fmt: str) -> str:
     """Retarget a ``…png`` filename template at another image format.
@@ -171,7 +171,7 @@ def twop_stats_frames(
         rec_rows.append(rec_row)
 
         # Per-unit arrays. They are all length n_units, but a run using an
-        # activity type other than 'peaks' leaves the 2P-specific ones as None.
+        # activity type other than 'peaks' leaves the calcium-imaging-specific ones as None.
         arrays = {
             key: np.asarray(stats[key], dtype=float).ravel()
             for key in TWOP_NODE_METRICS
@@ -204,7 +204,7 @@ def plot_twop_group_comparisons(
     activity: str = "peaks",
     colors=None,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Draw the ``2B_GroupComparisons`` figures for two-photon activity.
+    """Draw the ``2B_GroupComparisons`` figures for calcium imaging activity.
 
     *out_dir* is the run's ``2_NeuronalActivity`` folder. Writes the same four
     sub-folders the ephys step-2 comparison uses, so the two pipelines produce
@@ -390,7 +390,7 @@ def plot_activity_by_cell_type(
     cell_type_order: list[str] | None = None,
     activity: str = "peaks",
 ) -> None:
-    """Two-photon activity and cell-type composition, split by cell type.
+    """Calcium imaging activity and cell-type composition, split by cell type.
 
     *out_dir* is the run's ``2_NeuronalActivity`` folder. Cell type becomes a
     third factor *within* each panel — paired half-violins at every age, in

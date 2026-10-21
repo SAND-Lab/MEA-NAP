@@ -361,7 +361,7 @@ def _plot_recording_lag(
     ordinary spatial plots: with a few hundred nodes and a dense edge set the
     image is completely covered, so it adds clutter without adding information.
     ``node_size_scale`` is forwarded to ``plot_network``; ``"auto"`` sizes nodes
-    from how densely they are packed, which two-photon fields need and MEA
+    from how densely they are packed, which calcium imaging fields need and MEA
     layouts are unaffected by.
     ``fmt`` is the image format — the suffix drives matplotlib, so ``"svg"`` (or
     ``"pdf"``) yields editable vector output for figures headed to a paper.

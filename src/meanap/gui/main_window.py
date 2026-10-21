@@ -324,11 +324,11 @@ class MainWindow(QMainWindow):
         self._tab_specs: list[tuple[str, QWidget, str]] = [
             (TAB_DATA, scrollable(self._data_panel), "  Data  "),
             (TAB_SPIKE, scrollable(self._spike_panel), "  Spike detection  "),
-            # CAT-NAP before Connectivity: in 2P mode this tab is where the
+            # CAT-NAP before Connectivity: in calcium imaging mode this tab is where the
             # recordings are found and prepared, so it comes before the
             # settings that act on them — the same place Spike detection holds
             # in the ephys modes.
-            (TAB_CATNAP, self._catnap_panel, "  CAT-NAP (2P)  "),
+            (TAB_CATNAP, self._catnap_panel, "  CAT-NAP (calcium imaging)  "),
             (TAB_CONNECTIVITY, scrollable(self._connectivity_panel), "  Connectivity  "),
             (TAB_STIM, scrollable(self._stim_panel), "  Stimulation  "),
             (TAB_STIM_PREVIEW, self._stim_preview_panel, "  Stim Preview  "),
@@ -766,7 +766,7 @@ class MainWindow(QMainWindow):
         pipe = self._pipeline_panel
         return [
             TutorialStep(
-                "Turn on CAT-NAP", "CAT-NAP analyses two-photon calcium imaging. On the "
+                "Turn on CAT-NAP", "CAT-NAP analyses calcium imaging. On the "
                 "CAT-NAP tab, tick this to analyse suite2p output instead of MEA data.",
                 self._tab_index(TAB_CATNAP), lambda: cat._suite2p_mode),
             TutorialStep(
@@ -808,7 +808,7 @@ class MainWindow(QMainWindow):
     def _load_params(self, params: Params) -> None:
         # A parameter file carries the pipeline it was written for, so follow
         # it — otherwise opening a CAT-NAP config would leave the window showing
-        # ephys tabs while the run does 2P.
+        # ephys tabs while the run does calcium imaging.
         wanted = mode_for_params(params)
         if wanted != self._mode:
             self._apply_mode(wanted, sync_params=False)

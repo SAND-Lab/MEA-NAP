@@ -8,7 +8,7 @@ data, so carrying the pictures around is carrying a ~90× redundant copy.
 Express mode (``Params.express_mode``) therefore skips every figure that can be
 rebuilt and writes only the data, plus the handful of quality-control figures
 that *cannot* be rebuilt because they depend on raw recordings far too large to
-carry — the 2P traces.
+carry — the calcium imaging traces.
 
 The spike-detection checks look like they belong in that category, and were
 treated as if they did. But almost none of the voltage they are drawn from is

@@ -3,7 +3,7 @@
 Mirrors the ``suite2pMode`` branches scattered through ``MEApipeline.m``: for
 each suite2p recording it denoises (if needed), builds the adjacency matrices +
 activity properties (:func:`~meanap.catnap.adjacency.suite2p_to_adjm`), computes
-the two-photon activity stats (:func:`~meanap.catnap.stats.calc_twop_activity_stats`),
+the calcium imaging activity stats (:func:`~meanap.catnap.stats.calc_twop_activity_stats`),
 and then feeds the **shared** step-4 network-metric routine
 (:func:`meanap.pipeline.step4.compute_network_metrics`) — the calcium-imaging
 counterpart of running steps 1→4 on electrophysiology data.
@@ -872,7 +872,7 @@ def _compute_recording(
 
     log = as_run_log(log, params.verbose_level)
     # Said per recording, not once per run: the rate comes from this
-    # recording's own ops.npy and a 2P batch routinely mixes rates. Everything
+    # recording's own ops.npy and a calcium imaging batch routinely mixes rates. Everything
     # below converts seconds to frames with it, so it belongs in the log
     # *before* the first thing that uses it.
     log(f"  [{rec.filename}] {data.fs:.4g} Hz, {data.n_frames} frames "
@@ -1003,7 +1003,7 @@ def _lag_independent_metrics(
 
     ``ExtractNetMet.m`` gates both on ``if e == 1`` and stores them on the
     first lag field, because both read the *activity matrix* rather than any
-    adjacency matrix. Nothing about them is 2P-specific: MEApipeline.m calls
+    adjacency matrix. Nothing about them is calcium-imaging-specific: MEApipeline.m calls
     ``ExtractNetMet`` identically in ``suite2pMode``, so a MATLAB CAT-NAP run
     produces them and this path did not until now.
 
@@ -1318,13 +1318,13 @@ def _plot_traces(params, rec, output_root, log, data=None) -> None:
         trace_dir = (output_root / "2_NeuronalActivity"
                      / "2A_IndividualNeuronalAnalysis"
                      / rec.group / rec.filename)
-        log(f"  [{rec.filename}] plotting 2P traces…")
+        log(f"  [{rec.filename}] plotting calcium imaging traces…")
         drawn = plot_2p_traces(data, trace_dir, rec.filename,
                                num_traces=params.num_2p_traces)
         if not drawn:
-            log(f"  [{rec.filename}] warning: 2P trace plots produced no figures")
+            log(f"  [{rec.filename}] warning: calcium imaging trace plots produced no figures")
     except Exception as e:
-        log(f"  [{rec.filename}] warning: 2P trace plots failed: {e}")
+        log(f"  [{rec.filename}] warning: calcium imaging trace plots failed: {e}")
 
 
 def _plot_rasters(params, rec, state, output_root, log) -> None:
@@ -1585,7 +1585,7 @@ def _plot_group_comparisons(
     Three families, each guarded independently: a plotting failure costs the
     run nothing, since every metric and CSV is already on disk by this point.
 
-    - **Two-photon activity** — event rate, amplitude, duration and area, the
+    - **Calcium imaging activity** — event rate, amplitude, duration and area, the
       calcium equivalent of step 2's firing-rate comparisons.
     - **Network metrics** — the *shared* step-4 comparison plotter, unchanged:
       CAT-NAP's per-recording results dict has the same shape as the ephys one.
@@ -1613,7 +1613,7 @@ def _plot_group_comparisons(
                 activity=params.twop_activity,
             )
     except Exception as e:
-        log(f"  Warning: two-photon activity group comparisons failed: {e}")
+        log(f"  Warning: calcium imaging activity group comparisons failed: {e}")
 
     # The same activity metrics again, split by cell type, plus how many cells
     # of each type each recording had.
@@ -1849,7 +1849,7 @@ def _activity_rows(
     recordings: list[RecordingInfo], all_stats: dict[str, dict],
     rates: dict[str, float],
 ) -> list[dict]:
-    """One measure's two-photon activity stats, one row per recording.
+    """One measure's calcium imaging activity stats, one row per recording.
 
     ``samplingRateHz`` sits next to DIV rather than among the metrics: it
     describes how the recording was acquired, not something measured in it, and

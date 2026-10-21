@@ -73,7 +73,7 @@ def group_colors(names: list[str]) -> dict[str, tuple]:
 # Above this many drawn edges a spatial plot is an unreadable hairball, so only
 # the strongest EDGE_DISPLAY_LIMIT are rendered — always annotated on the
 # figure, never silently. Metrics are computed on the full graph regardless.
-# 2P peak/STTC networks routinely exceed 80% density, so this bites often.
+# Calcium imaging peak/STTC networks routinely exceed 80% density, so this bites often.
 EDGE_DISPLAY_LIMIT = 3000
 
 
@@ -115,7 +115,7 @@ def _draw_edges(ax, segments, weights, color, w_max: float, alpha=1.0, zorder=1,
                 crowding_n: int | None = None):
     """Draw edges as a single LineCollection, width scaled by weight.
 
-    One collection rather than per-edge ``plot`` calls: a dense 2P network has
+    One collection rather than per-edge ``plot`` calls: a dense calcium imaging network has
     tens of thousands of edges, and the per-artist overhead dominates otherwise.
     Line width and opacity both taper as the collection grows, so a dense graph
     reads as a texture instead of a solid block.

@@ -299,7 +299,7 @@ class Params:
     output_spreadsheet_file_type: str = "csv"
     # Express mode: skip every figure that can be rebuilt from the run's data,
     # and write a single shareable ``.meanap`` bundle instead. Only the
-    # quality-control figures that depend on raw data too large to carry (2P
+    # quality-control figures that depend on raw data too large to carry (calcium imaging
     # traces; step-1 spike-detection checks) are still saved as images. A viewer
     # reconstructs the rest on demand — see pipeline/bundle.py.
     express_mode: bool = False
@@ -326,7 +326,7 @@ class Params:
     spike_detection_channel_workers: int | None = None
     recording_workers: int | None = None
 
-    # ── Two-photon / CAT-NAP ─────────────────────────────────────────────────
+    # ── Calcium imaging / CAT-NAP ────────────────────────────────────────────
     # Master switch (MATLAB ``Params.suite2pMode``): when True the pipeline
     # analyses suite2p calcium-imaging output instead of raw MEA recordings.
     # The CAT-NAP execution path (steps 2-4) is being ported — see
@@ -410,9 +410,9 @@ class Params:
     twop_network_background: bool = True
     # Size network-plot nodes from how densely the cells are packed. Node sizes
     # are in data units and the default was tuned for ~60 MEA electrodes, which
-    # draws each node several times the inter-cell distance on a 2P field.
+    # draws each node several times the inter-cell distance on a calcium imaging field.
     twop_auto_node_size: bool = True
-    # NMF dimensionality metrics on the 2P activity matrix. MATLAB computes
+    # NMF dimensionality metrics on the calcium imaging activity matrix. MATLAB computes
     # these in ``ExtractNetMet.m`` for suite2p runs too, but they are markedly
     # more expensive than the effective rank beside them and the factorisation
     # is far less established on calcium events than on spike trains — so on

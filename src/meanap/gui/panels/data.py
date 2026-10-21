@@ -124,7 +124,7 @@ class DataPanel(QWidget):
         self.trunc_rec.setToolTip(
             "Analyse only part of every recording, so recordings of different "
             "lengths are compared over the same window. Applies to MEA spike "
-            "times and to 2P (suite2p) traces alike.")
+            "times and to calcium imaging (suite2p) traces alike.")
         self.trunc_length = QDoubleSpinBox()
         self.trunc_length.setRange(1, 100000)
         self.trunc_length.setDecimals(0)

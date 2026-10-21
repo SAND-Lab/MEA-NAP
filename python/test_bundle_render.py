@@ -1008,7 +1008,7 @@ def _one_comparison_checks() -> list[Check]:
 def _twop_comparison_checks() -> list[Check]:
     """CAT-NAP's 2B set, one figure at a time, equals the folder render.
 
-    The two-photon activity metrics used to reach the viewer only as a gallery
+    The calcium imaging activity metrics used to reach the viewer only as a gallery
     — every small multiple at once, none selectable. They are now a comparison
     family like the network and ephys ones, and the same parity holds: each
     address drawn alone must be byte-identical to the family render.

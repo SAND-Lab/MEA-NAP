@@ -4,7 +4,7 @@ CAT-NAP takes the frame rate from each recording's own ``ops.npy`` rather than
 from a setting — which is what MATLAB does too (``suite2pToAdjm.m`` assigns
 ``Params.fs`` from the file and discards whatever the GUI held). The
 consequence is that a batch has no single sampling rate to report, and
-``params.json`` cannot carry one: a 2P dataset spanning several culture preps
+``params.json`` cannot carry one: a calcium imaging dataset spanning several culture preps
 routinely spans several rates, because rate tends to be a property of the prep.
 
 That matters to a reader in two ways. Every seconds-valued setting — the
@@ -30,7 +30,7 @@ __all__ = ["RATE_COLUMN", "read_sampling_rates", "summarise_rates"]
 #: Column name used in both recording-level CSVs.
 RATE_COLUMN = "samplingRateHz"
 
-#: Where to look, in order. The 2P activity table is preferred — the rate is an
+#: Where to look, in order. The calcium imaging activity table is preferred — the rate is an
 #: acquisition fact and sits beside the other per-recording ones — but a run
 #: stopped after step 4, or one whose activity table failed to write, still has
 #: the network table.
