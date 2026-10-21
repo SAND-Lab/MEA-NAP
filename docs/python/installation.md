@@ -31,6 +31,23 @@ The download is about 150 MB (about 700 MB once installed): it carries its own P
 and every library MEA-NAP uses, including OASIS for CAT-NAP and the spike
 sorters.
 
+**If your browser warns about the download.** Chrome in particular may say
+the file is *suspicious*, *dangerous* or *not commonly downloaded*, and hold it
+back. It says this about any program that isn't signed with a paid
+certificate and that few people have downloaded yet — and each new release
+starts that count again. To keep the file in Chrome:
+
+1. Open the downloads list: the download icon at the top right, or
+   **Ctrl+J** (Windows) / **⌘+Shift+J** (Mac).
+2. Find the MEA-NAP file and choose **Keep** (or **Download suspicious
+   file**).
+3. Confirm with **Keep anyway** (or **Download anyway**).
+
+In Edge, it's the **…** beside the download → **Keep** → **Show more** →
+**Keep anyway**. Only download MEA-NAP from the
+[GitHub releases page](https://github.com/SAND-Lab/MEA-NAP/releases) — that is
+what makes it safe to click through.
+
 :::::{tab-set}
 
 ::::{tab-item} Windows
