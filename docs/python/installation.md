@@ -13,20 +13,19 @@ same results.
 
 ## The desktop app (easiest)
 
-Click the download for your computer. It always gets the newest release.
+Click the logo for your computer. The download starts straight away, and is
+always the newest version.
 
-| Your computer | Download |
-|---|---|
-| Windows 10 or 11 (64-bit) | [**⬇ MEA-NAP for Windows**](https://github.com/SAND-Lab/MEA-NAP/releases/latest/download/MEA-NAP-Windows-x64-Setup.exe) |
-| Mac with Apple silicon (M1, M2, M3, M4 …) | [**⬇ MEA-NAP for Mac (Apple silicon)**](https://github.com/SAND-Lab/MEA-NAP/releases/latest/download/MEA-NAP-macOS-AppleSilicon.dmg) |
-| Mac with an Intel processor | [**⬇ MEA-NAP for Mac (Intel)**](https://github.com/SAND-Lab/MEA-NAP/releases/latest/download/MEA-NAP-macOS-Intel.dmg) |
-
-What changed in each version, and older versions, are on the
-[releases page](https://github.com/SAND-Lab/MEA-NAP/releases).
+| [![Download for Windows](../imgs/download-windows.svg)](https://github.com/SAND-Lab/MEA-NAP/releases/latest/download/MEA-NAP-Windows-x64-Setup.exe) | [![Download for Mac with Apple silicon](../imgs/download-mac.svg)](https://github.com/SAND-Lab/MEA-NAP/releases/latest/download/MEA-NAP-macOS-AppleSilicon.dmg) | [![Download for Mac with Intel](../imgs/download-mac.svg)](https://github.com/SAND-Lab/MEA-NAP/releases/latest/download/MEA-NAP-macOS-Intel.dmg) |
+|:---:|:---:|:---:|
+| [**Windows**](https://github.com/SAND-Lab/MEA-NAP/releases/latest/download/MEA-NAP-Windows-x64-Setup.exe)<br>Windows 10 or 11 | [**Mac – Apple silicon**](https://github.com/SAND-Lab/MEA-NAP/releases/latest/download/MEA-NAP-macOS-AppleSilicon.dmg)<br>M1, M2, M3, M4 … | [**Mac – Intel**](https://github.com/SAND-Lab/MEA-NAP/releases/latest/download/MEA-NAP-macOS-Intel.dmg)<br>older Macs |
 
 Not sure which Mac you have? Apple menu → **About This Mac**: "Chip: Apple M…"
 means Apple silicon; "Processor: … Intel …" means an Intel Mac. Either needs
 macOS 12 (Monterey) or later.
+
+What changed in each version, and older versions, are on the
+[releases page](https://github.com/SAND-Lab/MEA-NAP/releases).
 
 The download is 130–180 MB (about 700 MB once installed): it carries its own Python
 and every library MEA-NAP uses, including OASIS for CAT-NAP and the spike
