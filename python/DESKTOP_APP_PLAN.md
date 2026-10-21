@@ -37,9 +37,9 @@ the package and, on Windows, no console. Each of these breaks something today:
 5. **No console (Windows).** `sys.stdout`/`sys.stderr` are `None` in a windowed
    build; route them to a log file in the user's data folder (also what to
    attach to a bug report).
-6. **numba `cache=True`.** Three JIT functions cache beside their source, which
-   a frozen app doesn't have (and a signed/installed bundle is read-only):
-   point `NUMBA_CACHE_DIR` at a user cache folder and check it actually works.
+6. **numba `cache=True`.** Turned out to need nothing: with no source file,
+   numba caches in its own user-wide folder, keyed to the executable's stat
+   (verified on the Linux build). `NUMBA_CACHE_DIR` would be *ignored* there.
 7. **Versions dialog / update check.** In the app: show the running version,
    check GitHub releases over HTTPS, button to open the download page. Hide the
    git-only parts (update `main`, open/set-default a release, MATLAB).
@@ -63,8 +63,7 @@ the package and, on Windows, no console. Each of these breaks something today:
 
 ## Open questions / risks
 
-- **Size.** Base env is ~1.1 GB unpacked; with sorting more. Expect a
-  300–600 MB download. Trim later (exclude tests, unused Qt modules) if it hurts.
+- **Size.** ~700 MB installed; the compressed downloads are 126-159 MB. Trim later (exclude tests, unused Qt modules) if it hurts.
 - **First launch is slow** (antivirus scans, numba JIT); the GUI should come
   up before any JIT happens.
 - **Unsigned macOS + quarantine**: on recent macOS the bypass is System
@@ -73,7 +72,18 @@ the package and, on Windows, no console. Each of these breaks something today:
 
 ## Status
 
-- [ ] Phase 1 — freeze-safe code
-- [ ] Phase 2 — spec + Linux build + smoke test
-- [ ] Phase 3 — CI builds for macOS + Windows
-- [ ] Phase 4 — docs, release
+- [x] Phase 1 — freeze-safe code (`meanap.frozen`, `updates.check_app`,
+      `AppVersionDialog`, `_build_info.json`, bundled `matlab/Images`);
+      `python/test_desktop_app.py`
+- [x] Phase 2 — `packaging/` spec + `build_app.py`; Linux build (668 MB
+      unpacked) passes `--smoke-test`: workers really spawn (7 app processes
+      seen), numba caches, `--run-module` works
+- [x] Phase 3 — CI (`.github/workflows/desktop-app.yml`, PR #165) builds both
+      and their `--smoke-test` passes on macos-14 and windows-latest (4/4
+      checks each); `.dmg` 159 MB, `Setup.exe` 126 MB; ~5-7 min per job.
+      Fixes needed: `CXXFLAGS=-std=c++17` for isosplit6 on macOS, `PYTHONUTF8`
+- [ ] Phase 4 — docs written (`installation.md` "The desktop app", README
+      link); **merge only together with cutting the v1.13.0 release**, since
+      they send people to the latest release's assets
+- [ ] Try the CI-built apps on a real Mac and a real Windows PC (Gatekeeper /
+      SmartScreen steps, first-launch time, a real dataset)

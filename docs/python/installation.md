@@ -26,7 +26,7 @@ Not sure which Mac you have? Apple menu → **About This Mac**: "Chip: Apple M�
 means Apple silicon; "Processor: Intel" means an Intel Mac, which the app
 doesn't support — install from source instead.
 
-The app is a large download (several hundred MB): it carries its own Python
+The download is about 150 MB (about 700 MB once installed): it carries its own Python
 and every library MEA-NAP uses, including OASIS for CAT-NAP and the spike
 sorters.
 
