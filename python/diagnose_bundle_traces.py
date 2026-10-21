@@ -92,7 +92,7 @@ def main(argv: list[str]) -> int:
                   "against the detected events. Set it to 'peaks' and re-run.")
         else:
             print("  → The run meant to draw them and did not. The run log says why; "
-                  "look for lines\n    containing '2P trace' or 'could not re-read "
+                  "look for lines\n    containing 'calcium imaging trace' or 'could not re-read "
                   "suite2p data'.")
     return 0
 

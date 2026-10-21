@@ -226,7 +226,7 @@ def run_pipeline(
     # replaces spike detection + connectivity (steps 1 & 3) with suite2pToAdjm,
     # swaps step-2 stats for calTwopActivityStats, and feeds the shared step-4
     # network metrics. We run that whole flow here instead of the ephys steps —
-    # the raw MEA .mat files those steps expect don't exist for 2P data.
+    # the raw MEA .mat files those steps expect don't exist for calcium imaging data.
     if params.suite2p_mode:
         log("\n=== CAT-NAP (suite2p) pipeline ===")
         from meanap.catnap.pipeline import RESUME_STEP, run_catnap_pipeline

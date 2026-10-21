@@ -852,7 +852,7 @@ def effective_rank_from_activity(
 
     # MATLAB clamps rather than upsampling (ExtractNetMet.m: "if
     # Params.effRankDownsampleFreq > Params.fs"). It matters here in a way it
-    # never did for electrophysiology: a 2P frame rate of 15 Hz is *below* the
+    # never did for electrophysiology: a calcium imaging frame rate of 15 Hz is *below* the
     # 10 Hz default's nearest neighbours, so a user raising the setting would
     # silently interpolate imaging frames that were never sampled.
     eff_fs = min(float(eff_fs), float(fs))

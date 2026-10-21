@@ -24,7 +24,7 @@ network-analysis pipeline.
 | Folder scanner | `src/meanap/catnap/scanner.py` | `appCheckSuite2pData.m` |
 | Suite2p loader (`Suite2pData`) | `src/meanap/catnap/loader.py` | the NPY reads in `suite2pToAdjm.m` |
 | Denoising + peak detection | `src/meanap/catnap/denoising.py` | `denoiseSuite2pData.py` |
-| GUI panel | `src/meanap/gui/panels/catnap.py` | the CAT-NAP (2P) tab |
+| GUI panel | `src/meanap/gui/panels/catnap.py` | the CAT-NAP (calcium imaging) tab |
 | User docs | `docs/python/catnap.md` | — |
 | Params | `src/meanap/params.py` (twop_* fields) | `getParamsFromApp.m` |
 
@@ -92,7 +92,7 @@ up to 59 peaks/cell.
 ### Phase 1 — `params.suite2p_mode` + runner guard ✅ (this change)
 - `Params.suite2p_mode: bool` added.
 - `run_pipeline` raises `NotImplementedError` when it is set (fails loudly
-  instead of running ephys steps on 2P data).
+  instead of running ephys steps on calcium imaging data).
 - CAT-NAP GUI panel exposes a "Analyse suite2p data (CAT-NAP)" checkbox, wired
   through `load()`/`save()`.
 
@@ -151,9 +151,9 @@ layout) is deferred to Phase 5.
   a new `coords_override` path (`plotting_step4._prepare_network_plot_data`),
   feeding suite2p cell centroids instead of an MEA channel layout. Renders the
   `2_MEA_NetworkPlot.png` per lag. **Known gap:** node-size scaling is tuned for
-  ~60 MEA electrodes, so 175 dense 2P cells overlap; MATLAB's
+  ~60 MEA electrodes, so 175 dense imaged cells overlap; MATLAB's
   `minNodeSize`/`maxNodeSize`/`nodeScaling*` params aren't ported for the dense
-  2P case — a cosmetic refinement, metrics/coords are correct.
+  calcium imaging case — a cosmetic refinement, metrics/coords are correct.
 - **Raster** (`get2pActivityMatrix` → `rasterPlot`) — not yet ported.
 
 Both `plot_2p_traces` and the network plot are wired into `run_catnap_pipeline`
@@ -168,7 +168,7 @@ path (and MATLAB's own suite2p branch, via `PlotEphysStats`/`PlotNetMet`) does.
 
 | Family | Output | Source |
 |---|---|---|
-| Two-photon activity | `2_NeuronalActivity/2B_GroupComparisons/{1_NodeByGroup, 2_NodeByAge, 3_RecordingsByGroup, 4_RecordingsByAge}` | new `plot_twop_group_comparisons` |
+| Calcium imaging activity | `2_NeuronalActivity/2B_GroupComparisons/{1_NodeByGroup, 2_NodeByAge, 3_RecordingsByGroup, 4_RecordingsByAge}` | new `plot_twop_group_comparisons` |
 | Network metrics | `4_NetworkActivity/4B_GroupComparisons/1_`…`6_` | **shared** `plot_step4_group_comparisons`, called unchanged |
 | Cell-type subnetworks | `4_NetworkActivity/4B_GroupComparisons/8_CellTypeSubnetworks/Lag{n}ms/` | new `plot_subnetwork_group_comparisons` |
 
@@ -177,7 +177,7 @@ Every figure goes through the shared `plot_half_violin_by_x`
 structurally identical. The network family needed no new code at all — CAT-NAP's
 per-recording results dict already has the ephys shape.
 
-Two-photon metrics: recording level = active-cell count, mean/median/IQR event
+Calcium imaging metrics: recording level = active-cell count, mean/median/IQR event
 rate, mean inter-event interval, mean event amplitude/duration/area; node level
 = event rate (all + active-only), inter-event interval, amplitude, duration,
 area, total area. Rates parallel the ephys firing-rate comparisons; amplitude /
@@ -190,7 +190,7 @@ reference panel sits in the same folder. `SUBNET_GRAPH_METRICS` /
 `SUBNET_NODE_METRICS` in `group_plots.py` are now the single source of truth for
 which subnetwork metrics *both* the per-recording and the batch figures cover.
 
-**Also fixed here.** The per-unit two-photon stats (`FR`, `ISI`,
+**Also fixed here.** The per-unit calcium imaging stats (`FR`, `ISI`,
 `unitHeightMean`, `unitPeakDurMean`, `unitEventAreaMean`, `unitEventAreaSum`)
 were computed and then dropped — `_save_catnap_results` kept only scalars, so
 nothing per-cell reached disk. They now go to

@@ -601,7 +601,7 @@ def _trace_checks() -> list[Check]:
         express = _run(tmp, "Traces", express=True)
         bundle = express.with_suffix(BUNDLE_SUFFIX)
         # Append figures where a CAT-NAP run writes them. Appending rather than
-        # running the 2P path keeps this test about the viewer.
+        # running the calcium imaging path keeps this test about the viewer.
         with zipfile.ZipFile(bundle, "a", zipfile.ZIP_DEFLATED) as z:
             for unit in (1, 2, 10):
                 z.writestr(

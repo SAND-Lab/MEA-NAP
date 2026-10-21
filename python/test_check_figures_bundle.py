@@ -827,7 +827,7 @@ def main() -> int:
         total_pass += p
         total += n
 
-    # Needs the real 2P dataset: these figures are drawn from cell-type
+    # Needs the real calcium imaging dataset: these figures are drawn from cell-type
     # spreadsheets, and a synthetic stand-in would prove nothing about pixels.
     if (DATASET / CATNAP_REC).is_dir():
         p, n = _report("Subnetwork parity (real dataset):",

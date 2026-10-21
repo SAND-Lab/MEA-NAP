@@ -753,7 +753,7 @@ a negative control), and the 5G figures go through `test_stats_report.py`.
   `OLS-clustered`), and the interaction test is a joint Wald rather than a
   likelihood ratio precisely so it stays valid under the fallback.
 - `feature_matrix(dropna="rows")` is the default and is what MATLAB does. On
-  the Yin run `dropna="columns"` leaves **2 columns** — the two-photon activity
+  the Yin run `dropna="columns"` leaves **2 columns** — the calcium imaging activity
   metrics are missing for enough recordings that requiring complete columns
   destroys the feature set. Don't switch the default.
 - The decoding null is the runtime. 200 permutations × 6 models ≈ 2 minutes on
@@ -1725,7 +1725,7 @@ one step, not four — but the runner now says so in the log instead of ignoring
 it, as it does for a `start_analysis_step` of 2 or 3.
 
 Tests: `python/test_catnap_resume.py` (46 checks — round-trip including the
-`None`-vs-NaN distinction in the 2P stats, locator resolution, fail-fast,
+`None`-vs-NaN distinction in the calcium imaging stats, locator resolution, fail-fast,
 resuming with no suite2p folder on disk at all, and a determinism check that
 was confirmed to fail against the old batch-wide RNG before being kept).
 

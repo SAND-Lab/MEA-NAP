@@ -158,7 +158,7 @@ The viewer rebuilds:
 - CAT-NAP's per-recording cell-type subnetwork figures, and the whole 4A set
   repeated per subnetwork.
 
-One family still travels as pictures rather than as data: the **2P trace
+One family still travels as pictures rather than as data: the **calcium imaging trace
 figures** (CAT-NAP), which need the full fluorescence matrices. They are packed
 into the bundle as images, and only produced at all when `num_2p_traces > 0`.
 
@@ -362,7 +362,7 @@ Python that drew the original.
 default, so the panel doubles as a record of how these figures were drawn.
 Changes are opt-in on top of that, and **Reset** returns to it. This matters
 most for **Node size**, which CAT-NAP runs leave on `Auto` — nodes sized from
-how densely the cells are packed, which a two-photon field of a few hundred
+how densely the cells are packed, which a calcium imaging field of a few hundred
 cells needs and an MEA's sixty electrodes do not. Switch it to `Manual` to set
 a multiplier by hand; the scale box beside it is greyed while `Auto` is on,
 because nothing reads it then.

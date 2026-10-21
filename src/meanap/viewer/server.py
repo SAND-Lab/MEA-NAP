@@ -473,7 +473,7 @@ class ViewerService:
                 "name": name, "group": rec.group, "div": rec.div, "lags": lags,
                 # Acquisition frame rate, read from this recording's own
                 # ops.npy during the run. Per recording rather than per run:
-                # a 2P batch routinely mixes rates, and no setting records it.
+                # a calcium imaging batch routinely mixes rates, and no setting records it.
                 # None for ephys, and for bundles written before it was saved.
                 "fs": self.ctx.sampling_rates.get(name),
                 "figures": {
@@ -715,7 +715,7 @@ class ViewerService:
         return params_version_stamp(self.ctx.root / PARAMS_FILENAME)
 
     def trace_figure(self, recording: str, name: str) -> Path:
-        """One packed 2P trace figure. No cache and no format choice: the file
+        """One packed calcium imaging trace figure. No cache and no format choice: the file
         is served as it was saved, because there is nothing to re-render it
         from."""
         return trace_figure_path(self.ctx, recording, name)
@@ -917,7 +917,7 @@ class _Handler(BaseHTTPRequestHandler):
         self._file(path, download_as=path.name if download else None)
 
     def _trace(self, query) -> None:
-        """One packed 2P peak-detection trace.
+        """One packed calcium imaging peak-detection trace.
 
         A handler of its own rather than a line in ``do_GET``: served inline it
         was the only single-image route that never read ``download``, so its

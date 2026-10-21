@@ -159,7 +159,7 @@ def _ring_checks() -> list[Check]:
 
 def _node_size_checks() -> list[Check]:
     """Nodes are drawn in data units, so a scale tuned for ~60 MEA electrodes
-    draws them several times the inter-cell distance on a 2P field. The
+    draws them several times the inter-cell distance on a calcium imaging field. The
     important property of the fix is that it changes *nothing* for the
     electrophysiology path."""
     from meanap.pipeline.channel_layout import get_coords_from_layout

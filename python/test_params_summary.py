@@ -58,10 +58,10 @@ def _grouping_checks() -> list[Check]:
                    f"unmapped: {sorted(fields - set(sections))[:5]}"))
     checks.append(("the sections come from the dataclass, not a list here",
                    "Spike detection" in sections.values()
-                   and "Two-photon / CAT-NAP" in sections.values(), ""))
+                   and "Calcium imaging / CAT-NAP" in sections.values(), ""))
     checks.append(("fields land in the section they are declared under",
                    sections.get("fs") == "Recording"
-                   and sections.get("suite2p_mode") == "Two-photon / CAT-NAP"
+                   and sections.get("suite2p_mode") == "Calcium imaging / CAT-NAP"
                    and sections.get("express_mode") == "Pipeline control",
                    f"{sections.get('fs')}, {sections.get('suite2p_mode')}"))
 

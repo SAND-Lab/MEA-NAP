@@ -58,7 +58,7 @@ MEA-NAP/
 │               ├── recording.py      # Sampling rate and hardware tab
 │               ├── spike_detection.py
 │               ├── connectivity.py   # STTC and thresholding tab
-│               ├── catnap.py         # CAT-NAP (2P) tab
+│               ├── catnap.py         # CAT-NAP (calcium imaging) tab
 │               ├── network_viewer.py # the network plot, inside the Results tab
 │               └── run.py            # Run tab: this run or a queue, progress, log
 └── python/               # Scripts, notebooks, and pipeline docs (this directory)
@@ -140,7 +140,7 @@ Launch the graphical interface from the `MEA-NAP` folder (the same one you ran `
 ```bash
 uv run meanap-gui                  # MEA-NAP (ephys), the default
 uv run meanap-gui --mode meastim   # + stimulation analysis
-uv run meanap-gui --mode catnap    # two-photon imaging (suite2p)
+uv run meanap-gui --mode catnap    # calcium imaging (suite2p)
 ```
 
 The GUI is a tabbed desktop application (PyQt6) that mirrors the MATLAB App Designer interface. `--mode` picks which of the three pipelines to start in, and the window shows only that pipeline's tabs; the **Mode** selector in the toolbar switches at any time without losing what you have entered. See [Modes](../docs/python/gui-guide.md#modes).
@@ -155,7 +155,7 @@ The tabs run left to right in the order you use them:
 | **Spike detection** | Thresholds, wavelet methods, bandpass filter, template settings |
 | **Connectivity** | STTC lag values, adjacency matrix type, probabilistic thresholding |
 | **Stimulation** / **Stim Preview** | MEA-Stim mode only — stimulation detection and response analysis |
-| **CAT-NAP (2P)** | Suite2p pipeline — see below |
+| **CAT-NAP (calcium imaging)** | Suite2p pipeline — see below |
 | **Run** | This run or a queue of saved runs: step selection (1-4), run/test/stop controls, progress and status log |
 | **Results** | "🌐 View report", "📦 Open bundle…", and an interactive network plot from a MEA-NAP output `.mat` file — see below |
 
@@ -482,7 +482,7 @@ are redacted from bundled `params.json`. Works for both analysis paths — a
 suite2p folder per recording for CAT-NAP, one raw file for electrophysiology.
 See `docs/python/remote-data.md`.
 
-## CAT-NAP (2P)
+## CAT-NAP (calcium imaging)
 
 CAT-NAP is the calcium imaging analysis pathway, triggered by loading a folder that contains suite2p output. It is the Python equivalent of the MATLAB `suite2pToAdjm` / `denoiseSuite2pData` workflow.
 

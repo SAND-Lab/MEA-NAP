@@ -31,7 +31,7 @@ class ConnectivityPanel(QWidget):
 
         self.lag_vals = QLineEdit(_lag_text(MODES[DEFAULT_MODE].default_lags))
         # Label, placeholder and tooltip are all set by set_timescale(), which
-        # the window calls whenever the mode or the 2P activity type changes.
+        # the window calls whenever the mode or the calcium imaging activity type changes.
         self._sttc_box = sttc_box
         self._lag_label = QLabel()
         form.addRow(self._lag_label, self.lag_vals)

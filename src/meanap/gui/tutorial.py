@@ -174,7 +174,7 @@ class TutorialOverlay(QWidget):
             ("meastim", "MEA-Stim  ·  Stimulation pipeline",
              "Detect electrical-stimulation artefacts and analyse evoked responses."),
             ("catnap", "CAT-NAP  ·  Imaging pipeline",
-             "Analyse two-photon calcium imaging processed with suite2p."),
+             "Analyse calcium imaging processed with suite2p."),
         ):
             btn = QPushButton(f"{heading}\n{blurb}")
             btn.setObjectName("tutPrimary" if kind == "meanap" else "")

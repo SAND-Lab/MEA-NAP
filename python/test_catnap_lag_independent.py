@@ -87,7 +87,7 @@ def _maths_checks() -> list[Check]:
     checks.append(("…and gives a plausible rank (1 <= r <= n_units)",
                    1.0 <= from_times <= 25.0, f"{from_times}"))
 
-    # ExtractNetMet.m clamps rather than upsampling. At a 2P frame rate this is
+    # ExtractNetMet.m clamps rather than upsampling. At a calcium imaging frame rate this is
     # reachable with ordinary settings, unlike at 25 kHz.
     a = _spike_matrix(st, fs, dur)
     checks.append(("eff_fs above fs is clamped to fs, not upsampled",

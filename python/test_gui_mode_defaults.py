@@ -148,7 +148,7 @@ check("switching to a correlation activity relabels it as a bin",
       str(field_names(fresh)))
 
 fresh._apply_mode("meanap")
-check("the ephys pipeline is STTC whatever the 2P activity is set to",
+check("the ephys pipeline is STTC whatever the calcium imaging activity is set to",
       field_names(fresh) == ("Spike time tiling coefficient (STTC)",
                              "Lag values (ms)"), str(field_names(fresh)))
 

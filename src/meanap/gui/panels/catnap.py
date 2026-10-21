@@ -399,7 +399,7 @@ class CatNapPanel(QWidget):
 
         self._nmf = QCheckBox()
         self._nmf.setToolTip(
-            "NMF dimensionality metrics on the 2P activity matrix. "
+            "NMF dimensionality metrics on the calcium imaging activity matrix. "
             "Markedly slower than the effective rank beside it.")
 
         denoise_form.addRow("Threshold multiplier", self._denoise_threshold)

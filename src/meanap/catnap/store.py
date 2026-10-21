@@ -93,7 +93,7 @@ class RecordingState:
     duration_s: float
     plane0: Path
     #: Acquisition frame rate (Hz), read from this recording's own ``ops.npy``.
-    #: Held per recording, not per run, because a 2P batch routinely mixes
+    #: Held per recording, not per run, because a calcium imaging batch routinely mixes
     #: rates — every seconds-valued setting (denoising windows, event
     #: interval) is converted to frames with *this* number, and every rate
     #: metric is divided by a duration derived from it. 0.0 when read back
@@ -153,7 +153,7 @@ def save_recording_state(path: Path, state: RecordingState, stats: dict) -> None
     """Write one recording's step-2 products to ``path`` (an ``.npz``).
 
     ``stats`` is a :func:`~meanap.catnap.stats.calc_twop_activity_stats` dict;
-    its ``None`` values (the 2P-specific metrics, absent for the non-``peaks``
+    its ``None`` values (the calcium-imaging-specific metrics, absent for the non-``peaks``
     activity types) are recorded by name and restored as ``None``, since
     downstream code distinguishes "not applicable" from NaN.
     """

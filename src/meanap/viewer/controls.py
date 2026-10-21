@@ -121,7 +121,7 @@ CONTROLS: tuple[Control, ...] = (
     Control("node_size_mode", "Node size", "select", "Manual",
             options=list(NODE_SIZE_MODES),
             help="'Auto' sizes nodes from how densely they are packed, which "
-                 "two-photon fields need. CAT-NAP runs use it by default."),
+                 "calcium imaging fields need. CAT-NAP runs use it by default."),
     Control("node_size_scale", "Node size scale", "number", 1.0,
             minimum=0.05, maximum=20.0, step=0.05,
             help="Ignored while node size is on 'Auto'."),

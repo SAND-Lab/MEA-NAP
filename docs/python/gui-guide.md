@@ -49,7 +49,7 @@ never consult:
 |---|---|---|
 | **MEA-NAP · Ephys** | Spike detection → activity → connectivity → network analysis | Data, Spike detection, Connectivity, Run, Results |
 | **MEA-Stim · Stimulation** | The ephys pipeline plus the stimulation analysis that runs after it | the above, plus Stimulation and Stim Preview |
-| **CAT-NAP · 2P imaging** | Network analysis of suite2p calcium imaging | Data, Connectivity, CAT-NAP (2P), Run, Results |
+| **CAT-NAP · Calcium imaging** | Network analysis of suite2p calcium imaging | Data, Connectivity, CAT-NAP (calcium imaging), Run, Results |
 
 Start in a mode from the command line:
 
@@ -264,7 +264,7 @@ even two MATLAB runs of the same recording won't produce bit-identical
 thresholded matrices. See [MATLAB vs. Python](matlab-vs-python.md).
 :::
 
-## CAT-NAP (2P)
+## CAT-NAP (calcium imaging)
 
 Calcium-imaging analysis, triggered by pointing the pipeline at a folder of
 suite2p output rather than raw MEA `.mat` files. Full walkthrough:

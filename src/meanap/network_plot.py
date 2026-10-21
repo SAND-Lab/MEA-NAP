@@ -325,7 +325,7 @@ class NetworkStyle:
         """The styling this run's own figures were actually drawn with.
 
         The one thing the pipeline varies is node size: CAT-NAP sizes nodes
-        from how densely the cells are packed, because a two-photon field can
+        from how densely the cells are packed, because a calcium imaging field can
         hold hundreds of them in a space an MEA fills with sixty. Everything
         else is :meth:`pipeline_default`.
 
@@ -489,7 +489,7 @@ _CELL_TYPE_RING_STYLES = [
 #: The largest node's diameter, as a fraction of the median distance between
 #: neighbouring nodes. Calibrated so ``"auto"`` reproduces the historic fixed
 #: scale of 1.0 exactly on a standard MEA layout (whose median nearest-neighbour
-#: spacing is ~1.143 data units), while shrinking nodes on denser fields — a 2P
+#: spacing is ~1.143 data units), while shrinking nodes on denser fields — a calcium imaging
 #: field of ~250 cells packs them ~5x closer, where the fixed scale drew each
 #: node 4.6x the inter-cell distance and the network became a solid mass.
 _NODE_DIAMETER_PER_SPACING = 0.875
@@ -512,7 +512,7 @@ def auto_node_size_scale(coords: np.ndarray) -> float:
     """Node-size multiplier that keeps nodes from overlapping on dense fields.
 
     Node sizes are in data units, so a scale tuned for a 60-electrode MEA grid
-    draws hugely oversized nodes on a two-photon field of hundreds of cells
+    draws hugely oversized nodes on a calcium imaging field of hundreds of cells
     packed into the same coordinate box. Deriving the scale from the actual
     median nearest-neighbour spacing fixes that, and is a no-op on MEA layouts
     by construction (see :data:`_NODE_DIAMETER_PER_SPACING`).
@@ -646,7 +646,7 @@ def plot_network(
     node_size_scale : final multiplier applied to every node size (MATLAB's
         ``maxNodeSize``); 1.0 reproduces the original scaling, >1 enlarges
         nodes. Pass ``"auto"`` to derive it from how densely the nodes are
-        packed (:func:`auto_node_size_scale`) — necessary for two-photon fields,
+        packed (:func:`auto_node_size_scale`) — necessary for calcium imaging fields,
         and a no-op on MEA electrode layouts.
     node_scaling_method : one of Linear / Log2 / Log10 / Square / Cube / Power —
         how ``z`` maps onto node size (MATLAB ``nodeScalingMethod``).

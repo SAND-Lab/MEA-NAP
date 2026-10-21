@@ -17,7 +17,7 @@ module recovers that from the folder:
 =========================================================  ======================
 ``params.json``                                            settings → pipeline, lags
 ``4_NetworkActivity/NetworkActivity_RecordingLevel.csv``   the recordings
-``2_NeuronalActivity/2A_IndividualNeuronalAnalysis``       whether 2P traces travel
+``2_NeuronalActivity/2A_IndividualNeuronalAnalysis``       whether calcium imaging traces travel
 =========================================================  ======================
 
 That is the same set :mod:`meanap.pipeline.render` reads to draw a figure out of

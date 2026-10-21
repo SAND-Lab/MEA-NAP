@@ -95,7 +95,7 @@ def calc_twop_activity_stats(
 
     Returns a dict keyed by the MATLAB ``activityStats`` field names.
 
-    Notes / deviations: the ISI and 2P-specific (height/duration/area) metrics
+    Notes / deviations: the ISI and calcium-imaging-specific (height/duration/area) metrics
     are only defined for the ``'peaks'`` path — they are properties of detected
     events, and the other measures detect none. (MATLAB reads ``spikeTimes`` /
     ``activityProperties`` unconditionally and its non-peaks branch errors on
@@ -158,7 +158,7 @@ def calc_twop_activity_stats(
         stats["ISImean"] = _nanmean_scalar(peak_isi)
         stats["ISI"] = peak_isi
 
-    # ── Two-photon-specific metrics ───────────────────────────────────────────
+    # ── Calcium-imaging-specific metrics ──────────────────────────────────────
     # unit level, each with its recording-level mean beside it
     height_mean = _nanmean_over_events(peak_heights)
     if height_mean is not None:
