@@ -36,7 +36,7 @@ jobs:
       matrix:
         include:
           - os: macos-14          # Apple silicon
-            platform: macOS-arm64
+            platform: macOS-AppleSilicon
           - os: macos-15-intel    # Intel
             platform: macOS-Intel
           - os: windows-latest
@@ -121,7 +121,9 @@ jobs:
       - name: Package .dmg
         if: runner.os == 'macOS'
         env:
-          NAME: MEA-NAP-${{ steps.version.outputs.version }}-${{ matrix.platform }}
+          # No version in the name: the docs link to
+          # releases/latest/download/<name>, which needs the same name every release.
+          NAME: MEA-NAP-${{ matrix.platform }}
         run: |
           staging=packaging/build/dmg
           rm -rf "$staging" && mkdir -p "$staging"
@@ -143,7 +145,7 @@ jobs:
                /DSourceDir="$PWD\packaging\dist\MEA-NAP" `
                /DOutputDir="$PWD\packaging\dist" `
                packaging\windows\meanap.iss
-          $asset = "packaging/dist/MEA-NAP-${{ steps.version.outputs.version }}-${{ matrix.platform }}-Setup.exe"
+          $asset = "packaging/dist/MEA-NAP-${{ matrix.platform }}-Setup.exe"
           "ASSET=$asset" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
       - uses: actions/upload-artifact@v4

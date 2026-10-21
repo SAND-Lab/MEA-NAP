@@ -14,6 +14,7 @@ it, and gets the MEA-NAP GUI. Today's route — git clone, `uv sync`,
 | Extras inside | **OASIS** (CAT-NAP denoising; without it results silently differ) and **spike sorting** (SpikeInterface + MountainSort5 + hdbscan). |
 | Left out | CAT-NAP **cell tracking** (needs `roicat` → PyTorch, not a declared dependency); **Kilosort**; **launching MATLAB / old MATLAB-only releases**; switching between versions in place. |
 | Distribution | `.dmg` (macOS) and a setup `.exe` (Windows, Inno Setup), built by GitHub Actions on each **official** release tag (and on demand) and attached to the GitHub release. Not on every dev build: hundreds of MB per merge. |
+| Download links | Asset names carry **no version** (`MEA-NAP-Windows-x64-Setup.exe`, `MEA-NAP-macOS-AppleSilicon.dmg`, `MEA-NAP-macOS-Intel.dmg`) so the install page can link to `releases/latest/download/<name>`, one click, always the newest. README → the docs site's install page (MyST doesn't render on GitHub). |
 | Updates | The app checks GitHub's releases (public repo, no git, no login) and offers a link to download the newer one. |
 
 ## What has to change in the code

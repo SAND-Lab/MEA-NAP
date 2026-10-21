@@ -13,21 +13,22 @@ same results.
 
 ## The desktop app (easiest)
 
-Download the file for your computer from the
-[**latest release**](https://github.com/SAND-Lab/MEA-NAP/releases/latest)
-on GitHub, under **Assets**:
+Click the download for your computer. It always gets the newest release.
 
-| Computer | File |
+| Your computer | Download |
 |---|---|
-| Windows 10 or 11 (64-bit) | `MEA-NAP-<version>-Windows-x64-Setup.exe` |
-| Mac with Apple silicon (M1, M2, M3, M4 …) | `MEA-NAP-<version>-macOS-arm64.dmg` |
-| Mac with an Intel processor | `MEA-NAP-<version>-macOS-Intel.dmg` |
+| Windows 10 or 11 (64-bit) | [**⬇ MEA-NAP for Windows**](https://github.com/SAND-Lab/MEA-NAP/releases/latest/download/MEA-NAP-Windows-x64-Setup.exe) |
+| Mac with Apple silicon (M1, M2, M3, M4 …) | [**⬇ MEA-NAP for Mac (Apple silicon)**](https://github.com/SAND-Lab/MEA-NAP/releases/latest/download/MEA-NAP-macOS-AppleSilicon.dmg) |
+| Mac with an Intel processor | [**⬇ MEA-NAP for Mac (Intel)**](https://github.com/SAND-Lab/MEA-NAP/releases/latest/download/MEA-NAP-macOS-Intel.dmg) |
+
+What changed in each version, and older versions, are on the
+[releases page](https://github.com/SAND-Lab/MEA-NAP/releases).
 
 Not sure which Mac you have? Apple menu → **About This Mac**: "Chip: Apple M…"
 means Apple silicon; "Processor: … Intel …" means an Intel Mac. Either needs
 macOS 12 (Monterey) or later.
 
-The download is about 150 MB (about 700 MB once installed): it carries its own Python
+The download is 130–180 MB (about 700 MB once installed): it carries its own Python
 and every library MEA-NAP uses, including OASIS for CAT-NAP and the spike
 sorters.
 
@@ -48,11 +49,9 @@ In Edge, it's the **…** beside the download → **Keep** → **Show more** →
 [GitHub releases page](https://github.com/SAND-Lab/MEA-NAP/releases) — that is
 what makes it safe to click through.
 
-:::::{tab-set}
+### Installing on Windows
 
-::::{tab-item} Windows
-
-1. Double-click `MEA-NAP-…-Setup.exe`.
+1. Double-click `MEA-NAP-Windows-x64-Setup.exe`.
 2. Windows may show **"Windows protected your PC"**. This appears for any
    app that is not yet signed with a paid certificate. Click
    **More info**, then **Run anyway**.
@@ -64,11 +63,9 @@ To update, download the newer installer and run it: it replaces the old
 version and keeps your settings. To uninstall: **Settings → Apps → Installed
 apps → MEA-NAP → Uninstall**.
 
-::::
+### Installing on a Mac
 
-::::{tab-item} macOS
-
-1. Double-click the `MEA-NAP-…-macOS-….dmg` you downloaded, then drag **MEA-NAP** onto
+1. Double-click the `MEA-NAP-macOS-….dmg` you downloaded, then drag **MEA-NAP** onto
    the **Applications** folder in the window that opens.
 2. Open MEA-NAP from Applications (or Launchpad). The first time, macOS says
    it **"could not verify MEA-NAP is free of malware"** (older macOS: "cannot
@@ -96,9 +93,7 @@ again:
 xattr -dr com.apple.quarantine /Applications/MEA-NAP.app
 ```
 
-::::
-
-:::::
+### Good to know
 
 **The first analysis is slower than later ones.** Parts of step 4 are compiled
 for your processor the first time they run, and the result is kept for next
@@ -187,12 +182,13 @@ If a fresh install fails with `error: command 'cmake' not found`, `clang: error:
 unsupported option '-fopenmp'`, or a long `Building wheel for ... did not run
 successfully` traceback, it's almost always one of the three above missing.
 
+### Installing
+
 Install with either uv or pip — **from the `MEA-NAP` folder** you changed into
 above. If you have opened a new terminal since then, `cd` back into it first.
 
-::::{tab-set}
+#### With uv (recommended)
 
-:::{tab-item} uv (recommended)
 [uv](https://docs.astral.sh/uv/) manages the virtual environment and the
 lockfile (`uv.lock`) for you, so every contributor gets identical dependency
 versions.
@@ -215,9 +211,9 @@ don't need to activate the environment — prefix commands with `uv run`:
 ```bash
 uv run meanap-gui
 ```
-:::
 
-:::{tab-item} pip / venv
+#### With pip / venv
+
 If you'd rather manage your own virtual environment — again from the
 `MEA-NAP` folder:
 
@@ -234,22 +230,17 @@ This installs `meanap` in editable mode using the dependencies declared in
 ```bash
 meanap-gui
 ```
-:::
-
-::::
 
 The same install gives the `meanap` command, which runs a saved parameter
 file without the GUI — see [Running from the command line](command-line.md).
 On a machine with no screen, `meanap example` is a quick check that
 everything works.
 
-:::{admonition} "No `pyproject.toml` found" / "Neither 'setup.py' nor 'pyproject.toml' found"
-:class: tip
-Both errors mean the same thing: the command ran in the wrong directory. Run
-`pwd` — the path should end in `/MEA-NAP` — and `ls`, which should list
-`pyproject.toml` next to the `src/`, `python/` and `docs/` folders. If you are
-inside `python/`, run `cd ..` and try again.
-:::
+> **"No `pyproject.toml` found" / "Neither 'setup.py' nor 'pyproject.toml'
+> found"?** Both errors mean the same thing: the command ran in the wrong
+> directory. Run `pwd` — the path should end in `/MEA-NAP` — and `ls`, which
+> should list `pyproject.toml` next to the `src/`, `python/` and `docs/`
+> folders. If you are inside `python/`, run `cd ..` and try again.
 
 ### Optional: OASIS deconvolution (CAT-NAP)
 

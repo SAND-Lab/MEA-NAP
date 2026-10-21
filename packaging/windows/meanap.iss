@@ -1,6 +1,6 @@
 ; Inno Setup script for the MEA-NAP Windows installer.
 ;
-;   iscc /DAppVersion=1.12.0 /DSourceDir=packaging\dist\MEA-NAP /DOutputDir=out packaging\windows\meanap.iss
+;   iscc /DAppVersion=1.13.0 /DSourceDir=packaging\dist\MEA-NAP /DOutputDir=out packaging\windows\meanap.iss
 ;
 ; Installs for the current user only (no administrator rights, which many
 ; university-managed PCs don't give), into %LOCALAPPDATA%\Programs\MEA-NAP.
@@ -34,7 +34,8 @@ PrivilegesRequiredOverridesAllowed=dialog
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 OutputDir={#OutputDir}
-OutputBaseFilename=MEA-NAP-{#AppVersion}-Windows-x64-Setup
+; No version: the docs link to releases/latest/download/<this name>.
+OutputBaseFilename=MEA-NAP-Windows-x64-Setup
 SetupIconFile=..\build\icon.ico
 UninstallDisplayIcon={app}\MEA-NAP.exe
 Compression=lzma2/max

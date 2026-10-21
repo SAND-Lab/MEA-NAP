@@ -6,7 +6,7 @@
 > [!IMPORTANT]
 > **MEA-NAP is now available in Python (beta).** It is much faster and introduces a lot of new features. The MATLAB version is still supported.
 >
-> [**Read the release note**](release_notes/python-beta.md) · [**Download the app**](docs/python/installation.md#the-desktop-app-easiest) (Windows, Mac) · [**Install from source**](docs/python/installation.md#from-the-source-code) · [**Quickstart**](docs/python/quickstart.md) · [**MATLAB vs Python**](docs/python/matlab-vs-python.md) · [**Send us feedback**](https://github.com/SAND-Lab/MEA-NAP/discussions)
+> [**Read the release note**](release_notes/python-beta.md) · [**Download the app**](https://analysis-pipeline.readthedocs.io/en/latest/python/installation.html#the-desktop-app-easiest) (Windows, Mac) · [**Install from source**](https://analysis-pipeline.readthedocs.io/en/latest/python/installation.html#from-the-source-code) · [**Quickstart**](docs/python/quickstart.md) · [**MATLAB vs Python**](docs/python/matlab-vs-python.md) · [**Send us feedback**](https://github.com/SAND-Lab/MEA-NAP/discussions)
 
 ![Visitors](https://api.visitorbadge.io/api/visitors?path=https%3A%2F%2Fgithub.com%2FSAND-Lab%2FAnalysisPipeline&label=Visitors&countColor=%23263759)
 [![Documentation Status](https://readthedocs.org/projects/analysis-pipeline/badge/?version=latest)](https://analysis-pipeline.readthedocs.io/en/latest/?badge=latest)
