@@ -64,8 +64,17 @@ the package and, on Windows, no console. Each of these breaks something today:
 ## Open questions / risks
 
 - **Size.** ~700 MB installed; the compressed downloads are 126-159 MB. Trim later (exclude tests, unused Qt modules) if it hurts.
-- **First launch is slow** (antivirus scans, numba JIT); the GUI should come
-  up before any JIT happens.
+- **Slow start (reported on Windows, 2026-10-21).** Causes found: (a)
+  PyInstaller's matplotlib runtime hook sets a *new temporary* `MPLCONFIGDIR`
+  on every launch, so matplotlib re-scanned every system font each time the
+  app, and every worker process, started; `frozen.prepare_runtime` now keeps a
+  lasting one (Linux build: matplotlib import 1.4 s → 0.2 s). (b) The main
+  window imports the whole pipeline (~2,750 modules, 255 native libraries, incl.
+  numba's ~100 MB LLVM DLL), which Windows antivirus scans on first load; a
+  splash screen now shows before those imports. `<app> --time-startup` prints a
+  per-library breakdown, and CI runs it cold + warm on both OSes. If Windows is
+  still slow, next candidates: defer numba (`null_models`, `sttc`) and
+  spikeinterface until a run needs them.
 - **Unsigned macOS + quarantine**: on recent macOS the bypass is System
   Settings → Privacy & Security → "Open Anyway". Must be tested on a real Mac.
 - No macOS/Windows machine locally: real-device testing depends on the user.

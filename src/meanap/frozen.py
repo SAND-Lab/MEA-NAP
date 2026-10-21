@@ -14,6 +14,12 @@ clone:
 * **No console** on Windows: ``sys.stdout`` and ``sys.stderr`` are ``None``,
   and the first ``print`` to stderr would raise. :func:`prepare_runtime` sends
   both to a log file, which is also the file to attach to a bug report.
+* **A throwaway matplotlib folder.** PyInstaller's runtime hook points
+  ``MPLCONFIGDIR`` at a new temporary folder on every launch (it is written for
+  one-file builds, whose fonts move each run), so matplotlib re-scans every
+  font on the system each time the app — or any of its worker processes —
+  starts: seconds on a PC with many fonts. The app is a one-folder build whose
+  files stay put, so :func:`prepare_runtime` gives matplotlib a lasting folder.
 
 numba's ``cache=True`` needs nothing here: with no source file to cache beside,
 numba itself caches in the user's cache folder (``~/Library/Caches/numba``,
@@ -70,12 +76,42 @@ def log_file() -> Path:
     return folder / "meanap.log"
 
 
+def cache_dir() -> Path:
+    """The app's own cache folder, following each OS's habit for caches."""
+    home = Path.home()
+    if sys.platform == "darwin":
+        return home / "Library" / "Caches" / APP_NAME
+    if sys.platform == "win32":
+        base = os.environ.get("LOCALAPPDATA") or str(home / "AppData" / "Local")
+        return Path(base) / APP_NAME / "cache"
+    base = os.environ.get("XDG_CACHE_HOME") or str(home / ".cache")
+    return Path(base) / "meanap" / "app-cache"
+
+
 def prepare_runtime() -> None:
-    """Set up the frozen app's process. Does nothing outside the app."""
+    """Set up the frozen app's process. Does nothing outside the app.
+
+    Must run before anything imports matplotlib.
+    """
     if not is_frozen():
         return
     if sys.stdout is None or sys.stderr is None:
         _log_to_file()
+    _keep_matplotlib_cache()
+
+
+def _keep_matplotlib_cache() -> None:
+    """Replace the hook's per-launch MPLCONFIGDIR with one that lasts.
+
+    If the app is moved or upgraded, matplotlib notices the fonts it cached are
+    gone and rebuilds the cache once by itself.
+    """
+    folder = cache_dir() / "matplotlib"
+    try:
+        folder.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        return  # keep the hook's temporary folder: slow, but works
+    os.environ["MPLCONFIGDIR"] = str(folder)
 
 
 #: Set once the app has started its log, so the worker processes it spawns

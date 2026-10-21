@@ -4,6 +4,7 @@ One executable does several jobs, picked by its first argument:
 
 * nothing (a double-click) — the GUI, exactly as ``meanap-gui``;
 * ``--smoke-test`` — :mod:`meanap.app_smoke`, the build's self-check;
+* ``--time-startup`` — how long the GUI takes to come up, library by library;
 * ``--run-module NAME ...`` — run a module as ``python -m NAME ...`` would. The
   pipeline starts some children that way (:func:`meanap.frozen.python_command`),
   and a frozen app has no ``python`` to start them with;
@@ -33,6 +34,10 @@ def main() -> None:
         from meanap.app_smoke import main as smoke
 
         sys.exit(smoke())
+    if args[:1] == ["--time-startup"]:
+        from meanap.app_smoke import time_startup
+
+        sys.exit(time_startup())
 
     from meanap.gui.app import main as gui
 

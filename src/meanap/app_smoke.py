@@ -152,6 +152,55 @@ CHECKS: list[tuple[str, Callable[[], str]]] = [
 ]
 
 
+#: What the main window pulls in, heaviest first — timed one by one by
+#: :func:`time_startup`, so a slow start on someone's PC can be pinned on a
+#: library rather than guessed at.
+STARTUP_IMPORTS = ("numpy", "scipy.signal", "scipy.stats", "matplotlib.pyplot",
+                   "pandas", "numba", "sklearn.decomposition", "h5py",
+                   "seaborn", "spikeinterface.sorters", "meanap.pipeline.runner",
+                   "meanap.gui.main_window")
+
+
+def time_startup() -> int:
+    """``<app> --time-startup``: how long the GUI takes to come up, and why.
+
+    Run it twice: the first run after an install (or a reboot) is the one that
+    pays for disk reads and the antivirus scan of every library, the second
+    shows what is left once those are cached.
+    """
+    import importlib
+    import os
+
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    started = time.perf_counter()
+    lap = started
+
+    def report(what: str) -> None:
+        nonlocal lap
+        now = time.perf_counter()
+        print(f"  {now - lap:6.2f} s  {what}", flush=True)
+        lap = now
+
+    print("startup timing:", flush=True)
+    from PyQt6.QtWidgets import QApplication
+
+    from meanap.gui import theme
+    app = QApplication.instance() or QApplication(sys.argv[:1])
+    theme.apply(app)
+    report("Qt (the splash screen appears after this)")
+    for name in STARTUP_IMPORTS:
+        importlib.import_module(name)
+        report(f"import {name}")
+    from meanap.gui.main_window import MainWindow
+    window = MainWindow()
+    window.show()
+    app.processEvents()
+    report("build and show the main window")
+    print(f"  {time.perf_counter() - started:6.2f} s  total", flush=True)
+    window.close()
+    return 0
+
+
 def main() -> int:
     from meanap.version import all_versions, build_label
 

@@ -64,6 +64,32 @@ jobs:
       - name: Build
         run: uv run --frozen python packaging/build_app.py
 
+      # Before the smoke test, so the first run is a cold start: nothing read
+      # from disk or scanned by antivirus yet. The second shows a warm start.
+      - name: Startup time (macOS)
+        if: runner.os == 'macOS'
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          for run in cold warm; do
+            echo "== $run start"
+            packaging/dist/MEA-NAP.app/Contents/MacOS/MEA-NAP --time-startup
+          done
+
+      - name: Startup time (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          foreach ($run in "cold", "warm") {
+            "== $run start"
+            $p = Start-Process -FilePath "packaging\dist\MEA-NAP\MEA-NAP.exe" `
+                   -ArgumentList "--time-startup" -Wait -PassThru
+            Get-Content "$env:LOCALAPPDATA\MEA-NAP\logs\meanap.log"
+            if ($p.ExitCode -ne 0) { exit $p.ExitCode }
+          }
+
       - name: Smoke test (macOS)
         if: runner.os == 'macOS'
         env:

@@ -63,8 +63,10 @@ def test_entry_point_runs_a_module_like_python_dash_m(tmp_path):
 
 def test_prepare_runtime_does_nothing_from_source(monkeypatch):
     out, err = sys.stdout, sys.stderr
+    mpl = os.environ.get("MPLCONFIGDIR")
     frozen.prepare_runtime()
     assert (sys.stdout, sys.stderr) == (out, err)
+    assert os.environ.get("MPLCONFIGDIR") == mpl
 
 
 def test_prepare_runtime_frozen_logs_to_file_and_children_append(tmp_path):
@@ -92,6 +94,24 @@ def test_prepare_runtime_frozen_logs_to_file_and_children_append(tmp_path):
     subprocess.run([sys.executable, "-c", script], env={**env, "ROLE": "again"}, check=True)
     assert "hello from again" in log.read_text()
     assert "hello from parent" in log.with_suffix(".previous.log").read_text()
+
+
+def test_prepare_runtime_frozen_keeps_the_matplotlib_cache(tmp_path):
+    """PyInstaller's hook gives each launch a new MPLCONFIGDIR; the app overrides it."""
+    script = (
+        "import sys, os\n"
+        "sys.frozen = True\n"
+        "os.environ['MPLCONFIGDIR'] = 'per-launch-temp'\n"
+        "from meanap import frozen\n"
+        "frozen.prepare_runtime()\n"
+        "print(os.environ['MPLCONFIGDIR'])\n"
+    )
+    env = {**os.environ, "HOME": str(tmp_path), "XDG_CACHE_HOME": str(tmp_path / "cache"),
+           "LOCALAPPDATA": str(tmp_path / "local"), "PYTHONPATH": str(ROOT / "src")}
+    runs = [subprocess.run([sys.executable, "-c", script], env=env, check=True,
+                           capture_output=True, text=True).stdout.strip() for _ in range(2)]
+    assert runs[0] == runs[1] != 'per-launch-temp'
+    assert Path(runs[0]).is_dir() and Path(runs[0]).is_relative_to(tmp_path)
 
 
 def _log_path(home: Path) -> Path:
@@ -176,3 +196,29 @@ def test_app_version_dialog_offers_the_download(monkeypatch):
     dlg.set_status(updates.check_app("v1.12.0", fetch_json=_latest("v1.12.0")))
     assert dlg._download_button.text() == "Open download page"
     assert status_summary(dlg._status) == "This is the latest official release."
+
+
+def test_gui_entry_point_leaves_the_pipeline_for_after_the_splash():
+    # Everything gui.app imports loads before the splash screen can show, so a
+    # pipeline import creeping in there means seconds of blank screen again.
+    code = ("import sys, meanap.gui.app; "
+            "heavy = [m for m in ('meanap.pipeline.runner', 'meanap.gui.main_window', "
+            "'scipy.signal', 'numba', 'pandas') if m in sys.modules]; "
+            "print(heavy); sys.exit(1 if heavy else 0)")
+    result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_time_startup_reports_every_stage():
+    # In its own process, as the app runs it: a QApplication made here would be
+    # shared with (and alter) every later GUI test in the session.
+    from meanap.app_smoke import STARTUP_IMPORTS
+
+    result = subprocess.run(
+        [sys.executable, "-c", "import sys; from meanap.app_smoke import time_startup; "
+                               "sys.exit(time_startup())"],
+        capture_output=True, text=True, env={**os.environ, "QT_QPA_PLATFORM": "offscreen"})
+    assert result.returncode == 0, result.stdout + result.stderr
+    for name in STARTUP_IMPORTS:
+        assert f"import {name}" in result.stdout
+    assert "build and show the main window" in result.stdout and "total" in result.stdout
