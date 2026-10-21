@@ -15,7 +15,11 @@ dependencies = [
     # (randmio_und_signed), ~28x faster than the pure-Python fallback; the
     # code runs without numba too, just slower (see pipeline/null_models.py).
     "numpy>=1.26,<2.5",
-    "numba>=0.60",
+    # Intel Macs: numba 0.62 / llvmlite 0.45 are the last with Intel-Mac
+    # wheels (newer ones would compile LLVM from source), and they bring
+    # numpy<2.4 with them. Every other platform keeps the newest.
+    "numba>=0.60; sys_platform != 'darwin' or platform_machine != 'x86_64'",
+    "numba>=0.60,<0.63; sys_platform == 'darwin' and platform_machine == 'x86_64'",
     "psutil>=5.9",  # RAM/CPU-aware parallel worker sizing (pipeline/parallel.py)
     "scipy>=1.13",
     "matplotlib>=3.8",

@@ -70,8 +70,10 @@ exe = EXE(
     # Keep UPX off: it saves little on these libraries and is a common reason
     # antivirus flags an unsigned app.
     upx=False,
-    # macOS: arm64 only (see python/DESKTOP_APP_PLAN.md).
-    target_arch="arm64" if sys.platform == "darwin" else None,
+    # macOS: the architecture of the Python building it — one build on an
+    # Apple-silicon runner, one on an Intel runner (not a universal2 app:
+    # numba, scipy etc. ship separate wheels per architecture).
+    target_arch=None,
 )
 
 coll = COLLECT(exe, a.binaries, a.datas, name="MEA-NAP", upx=False)

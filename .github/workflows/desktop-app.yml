@@ -1,5 +1,5 @@
-# The desktop app: a double-clickable MEA-NAP for macOS (Apple silicon) and
-# Windows, built with PyInstaller. See python/DESKTOP_APP_PLAN.md.
+# The desktop app: a double-clickable MEA-NAP for macOS (Apple silicon and
+# Intel) and Windows, built with PyInstaller. See python/DESKTOP_APP_PLAN.md.
 #
 # When it runs:
 # - an official release is published (v1.13.0, …) → build both, smoke-test
@@ -37,6 +37,8 @@ jobs:
         include:
           - os: macos-14          # Apple silicon
             platform: macOS-arm64
+          - os: macos-15-intel    # Intel
+            platform: macOS-Intel
           - os: windows-latest
             platform: Windows-x64
     runs-on: ${{ matrix.os }}
@@ -56,9 +58,12 @@ jobs:
 
       - name: Install MEA-NAP and the build tools
         # isosplit6 (MountainSort5) has no macOS wheel and is C++11 that
-        # doesn't say so; Apple's clang defaults to an older standard.
+        # doesn't say so; Apple's clang defaults to an older standard. It (and
+        # OASIS on Intel) is compiled here, by default for the runner's own
+        # macOS only: target the app's minimum (LSMinimumSystemVersion).
         env:
           CXXFLAGS: ${{ runner.os == 'macOS' && '-std=c++17' || '' }}
+          MACOSX_DEPLOYMENT_TARGET: ${{ runner.os == 'macOS' && '12.0' || '' }}
         run: uv sync --frozen --extra oasis --extra sorting --group app
 
       - name: Build
