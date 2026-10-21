@@ -1,5 +1,130 @@
 # Installation
 
+There are two ways to get the Python version of MEA-NAP:
+
+- **The desktop app** — download one file, double-click, done. No Python, no
+  terminal. For Windows and Macs (Apple silicon or Intel).
+- **From the source code** — a clone of the repository and a few commands in a
+  terminal. For Linux, for the newest code between releases, and for anyone
+  who wants to change MEA-NAP itself.
+
+Both run the same pipeline with the same pinned libraries, so they give the
+same results.
+
+## The desktop app (easiest)
+
+Download the file for your computer from the
+[**latest release**](https://github.com/SAND-Lab/MEA-NAP/releases/latest)
+on GitHub, under **Assets**:
+
+| Computer | File |
+|---|---|
+| Windows 10 or 11 (64-bit) | `MEA-NAP-<version>-Windows-x64-Setup.exe` |
+| Mac with Apple silicon (M1, M2, M3, M4 …) | `MEA-NAP-<version>-macOS-arm64.dmg` |
+| Mac with an Intel processor | `MEA-NAP-<version>-macOS-Intel.dmg` |
+
+Not sure which Mac you have? Apple menu → **About This Mac**: "Chip: Apple M…"
+means Apple silicon; "Processor: … Intel …" means an Intel Mac. Either needs
+macOS 12 (Monterey) or later.
+
+The download is about 150 MB (about 700 MB once installed): it carries its own Python
+and every library MEA-NAP uses, including OASIS for CAT-NAP and the spike
+sorters.
+
+**If your browser warns about the download.** Chrome in particular may say
+the file is *suspicious*, *dangerous* or *not commonly downloaded*, and hold it
+back. It says this about any program that isn't signed with a paid
+certificate and that few people have downloaded yet — and each new release
+starts that count again. To keep the file in Chrome:
+
+1. Open the downloads list: the download icon at the top right, or
+   **Ctrl+J** (Windows) / **⌘+Shift+J** (Mac).
+2. Find the MEA-NAP file and choose **Keep** (or **Download suspicious
+   file**).
+3. Confirm with **Keep anyway** (or **Download anyway**).
+
+In Edge, it's the **…** beside the download → **Keep** → **Show more** →
+**Keep anyway**. Only download MEA-NAP from the
+[GitHub releases page](https://github.com/SAND-Lab/MEA-NAP/releases) — that is
+what makes it safe to click through.
+
+:::::{tab-set}
+
+::::{tab-item} Windows
+
+1. Double-click `MEA-NAP-…-Setup.exe`.
+2. Windows may show **"Windows protected your PC"**. This appears for any
+   app that is not yet signed with a paid certificate. Click
+   **More info**, then **Run anyway**.
+3. Click through the installer. It installs for your user only and doesn't
+   need administrator rights. Tick **Create a desktop shortcut** if you want one.
+4. Start MEA-NAP from the Start menu (or the desktop shortcut).
+
+To update, download the newer installer and run it: it replaces the old
+version and keeps your settings. To uninstall: **Settings → Apps → Installed
+apps → MEA-NAP → Uninstall**.
+
+::::
+
+::::{tab-item} macOS
+
+1. Double-click the `MEA-NAP-…-macOS-….dmg` you downloaded, then drag **MEA-NAP** onto
+   the **Applications** folder in the window that opens.
+2. Open MEA-NAP from Applications (or Launchpad). The first time, macOS says
+   it **"could not verify MEA-NAP is free of malware"** (older macOS: "cannot
+   be opened because the developer cannot be verified"). This appears for any
+   app that is not yet notarised by Apple. Click **Done**.
+3. Open **System Settings → Privacy & Security**, scroll down to the line
+   about MEA-NAP, and click **Open Anyway**. Enter your password if asked,
+   then **Open**.
+
+   On macOS 14 (Sonoma) or earlier you can instead right-click (or
+   Control-click) MEA-NAP in Applications and choose **Open**, then **Open**
+   again.
+4. From then on MEA-NAP opens normally.
+
+To update, download the newer `.dmg` and drag MEA-NAP into Applications
+again, replacing the old one. To uninstall, drag MEA-NAP from Applications to
+the Bin.
+
+If macOS instead says MEA-NAP **"is damaged and can't be opened"**, the
+download was quarantined in a way step 3 doesn't clear. Open **Terminal**
+(Applications → Utilities), paste this line, press Return, and open MEA-NAP
+again:
+
+```bash
+xattr -dr com.apple.quarantine /Applications/MEA-NAP.app
+```
+
+::::
+
+:::::
+
+**The first analysis is slower than later ones.** Parts of step 4 are compiled
+for your processor the first time they run, and the result is kept for next
+time. On Windows, antivirus software may also scan the app the first time it
+starts, so the window can take a minute to appear.
+
+**Updates.** The version number in the toolbar, beside the **Mode**
+selector, shows **⬆ update** when a newer release is out. Click it, then
+**Download**.
+
+**What the app doesn't include.** Running MATLAB or switching between
+MEA-NAP versions from inside the GUI, CAT-NAP's cell tracking across days
+(which needs PyTorch), and Kilosort. Use a source install for those.
+
+**Something went wrong?** The app writes everything it would have printed to
+a log file. Please attach it when you
+[report a problem](https://github.com/SAND-Lab/MEA-NAP/issues):
+
+- Windows: `%LOCALAPPDATA%\MEA-NAP\logs\meanap.log` (paste that into the
+  File Explorer address bar)
+- macOS: `~/Library/Logs/MEA-NAP/meanap.log` (Finder → Go → Go to Folder…)
+
+The log of the run before is kept beside it as `meanap.previous.log`.
+
+## From the source code
+
 The Python port requires **Python 3.11 or later** (the repository itself is
 pinned to 3.13 via `.python-version`) and is installed straight from a clone
 of the MEA-NAP repository — it isn't on PyPI yet.
@@ -14,7 +139,7 @@ That `cd` matters: every install command on this page is run from inside the
 its subfolders. If you downloaded a ZIP from GitHub instead of cloning, the
 folder is called `MEA-NAP-main` — use `cd MEA-NAP-main`.
 
-## macOS prerequisites
+### macOS prerequisites
 
 On macOS some dependencies have no pre-built wheel for your Python version or
 chip and are compiled from source during the install, which needs a C/C++
@@ -126,7 +251,7 @@ Both errors mean the same thing: the command ran in the wrong directory. Run
 inside `python/`, run `cd ..` and try again.
 :::
 
-## Optional: OASIS deconvolution (CAT-NAP)
+### Optional: OASIS deconvolution (CAT-NAP)
 
 The calcium-imaging denoising pipeline ([CAT-NAP](catnap.md)) deconvolves each
 trace with [OASIS](https://github.com/j-friedrich/OASIS). It is optional, and
@@ -156,7 +281,7 @@ Note that denoising output is cached as `Fdenoised.npy` and carries no record
 of which method produced it, so installing OASIS after a run will not
 recompute anything — tick **Redo denoising** to force it.
 
-## Optional: spike sorting
+### Optional: spike sorting
 
 Step 1 can [sort spikes into units](spike-sorting.md) instead of detecting
 them per electrode, so that each neuron — not each electrode — is a node of
@@ -180,7 +305,7 @@ uv run python -c "from meanap.pipeline.spike_sorting import installed_sorters; p
 should list `tridesclous2` and `mountainsort5`. Kilosort4 users can add
 `kilosort` (and a CUDA PyTorch) themselves; it then appears in the same list.
 
-## Verifying your install
+### Verifying your install
 
 The fastest sanity check is the GUI's own **🧪 Test pipeline** button — it
 downloads a small bundled example dataset and runs the full 4-step pipeline

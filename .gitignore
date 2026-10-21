@@ -20,3 +20,7 @@ local/
 
 # Sphinx autosummary-generated API stub pages (regenerated on every docs build)
 docs/python/api/generated/
+
+# Desktop app build output (packaging/build_app.py)
+packaging/build/
+packaging/dist/

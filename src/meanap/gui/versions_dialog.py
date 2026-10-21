@@ -111,10 +111,17 @@ class Background(QObject):
             pass
 
 
-def status_summary(status: updates.Status | None) -> str:
+def status_summary(status: updates.Status | updates.AppStatus | None) -> str:
     """One line about the running copy's freshness, for the dialog and tooltip."""
     if status is None:
         return "Checking GitHub for updates…"
+    if isinstance(status, updates.AppStatus):
+        if status.newer_version:
+            return (f"A newer release, {status.newer_version}, is available "
+                    "to download.")
+        if status.latest_release:
+            return "This is the latest official release."
+        return status.error or ""
     co = status.checkout
     if co is None:
         return status.error or "Not a git clone."
@@ -558,3 +565,92 @@ class VersionsDialog(QDialog):
                 f"folder will be created at {folder}.")
             return
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(folder)))
+
+
+class AppVersionDialog(QDialog):
+    """The versions dialog of the packaged desktop app.
+
+    The app is not a clone, so the git half of :class:`VersionsDialog` —
+    updating ``main``, opening another release beside this one — has nothing
+    to act on. What is left: what is running, whether GitHub has a newer
+    official release, and the page to download it from.
+    """
+
+    status_changed = pyqtSignal(object)
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        from meanap.version import build_label
+
+        self.setWindowTitle("MEA-NAP version")
+        self.setMinimumWidth(460)
+        self._status: updates.AppStatus | None = None
+        self._jobs: list[Background] = []
+
+        layout = QVBoxLayout(self)
+        build = build_label()
+        running = QLabel(f"<b>MEA-NAP {meanap_version()}</b> — desktop app"
+                         + (f"<br><span style='color: palette(mid)'>build {build}</span>"
+                            if build else ""))
+        running.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        layout.addWidget(running)
+        self._status_label = QLabel()
+        self._status_label.setWordWrap(True)
+        layout.addWidget(self._status_label)
+
+        row = QHBoxLayout()
+        self._check_button = QPushButton("Check again")
+        self._check_button.setAutoDefault(False)
+        self._check_button.clicked.connect(self.refresh)
+        self._download_button = QPushButton("Open download page")
+        self._download_button.setDefault(True)
+        self._download_button.setToolTip(
+            "Opens the release on GitHub in your browser. Download the file for "
+            "your computer and install it over this one; your settings are kept.")
+        self._download_button.clicked.connect(self._on_download)
+        row.addWidget(self._check_button)
+        row.addWidget(self._download_button)
+        row.addStretch(1)
+        layout.addLayout(row)
+
+        note = QLabel(
+            "Development builds and older releases run from a git clone of "
+            "MEA-NAP rather than the app — see the installation guide.")
+        note.setWordWrap(True)
+        note.setStyleSheet("color: palette(mid);")
+        layout.addWidget(note)
+
+        self._auto_check = QCheckBox("Check for updates when MEA-NAP starts")
+        self._auto_check.setChecked(check_on_start())
+        self._auto_check.toggled.connect(set_check_on_start)
+        layout.addWidget(self._auto_check)
+        self._render()
+
+    def set_status(self, status: updates.AppStatus | None) -> None:
+        self._status = status
+        self._render()
+
+    def _render(self) -> None:
+        self._status_label.setText(status_summary(self._status))
+        self._download_button.setText(
+            f"Download {self._status.newer_version}"
+            if self._status is not None and self._status.newer_version
+            else "Open download page")
+
+    def refresh(self) -> None:
+        self._check_button.setEnabled(False)
+        self._status_label.setText("Checking GitHub for updates…")
+        job = Background(updates.check_app, self)
+        job.done.connect(self._on_checked)
+        job.failed.connect(lambda _msg: self._check_button.setEnabled(True))
+        self._jobs.append(job)
+        job.start()
+
+    def _on_checked(self, status: updates.AppStatus) -> None:
+        self._check_button.setEnabled(True)
+        self.set_status(status)
+        self.status_changed.emit(status)
+
+    def _on_download(self) -> None:
+        url = self._status.url if self._status is not None else updates.RELEASES_PAGE
+        QDesktopServices.openUrl(QUrl(url))

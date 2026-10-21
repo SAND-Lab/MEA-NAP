@@ -447,6 +447,89 @@ def _explain_merge_failure(err: str, repo: Path) -> str:
     return f"Not updated: {err}"
 
 
+# ── The desktop app ──────────────────────────────────────────────────────────
+#
+# The packaged app (see packaging/) is not a clone: no git, no history, and its
+# folder may be read-only. So there is nothing to fast-forward and no release
+# to check out beside it. What it can still do is ask GitHub whether a newer
+# official release exists and send the user to download it — over HTTPS from
+# the public API, needing no git and no login.
+
+RELEASES_PAGE = f"https://github.com/{UPSTREAM}/releases"
+_LATEST_RELEASE_API = f"https://api.github.com/repos/{UPSTREAM}/releases/latest"
+
+
+@dataclass
+class AppStatus:
+    """The outcome of one :func:`check_app`."""
+
+    running: str                    # "v1.12.0"
+    latest_release: str | None = None
+    url: str = RELEASES_PAGE        # where to download it
+    error: str | None = None
+
+    @property
+    def newer_version(self) -> str | None:
+        latest = self.latest_release
+        if latest and _tag_key(latest) > _tag_key(self.running):
+            return latest
+        return None
+
+    @property
+    def update_available(self) -> bool:
+        return self.newer_version is not None
+
+
+def check_app(running: str | None = None, *, fetch_json=None) -> AppStatus:
+    """Ask GitHub for the newest official release (never a development build).
+
+    *fetch_json* is for tests: a callable from URL to the decoded JSON.
+    """
+    if running is None:
+        from meanap.version import meanap_version
+
+        running = f"v{meanap_version()}"
+    status = AppStatus(running=running)
+    try:
+        data = (fetch_json or _fetch_json)(_LATEST_RELEASE_API)
+    except Exception as exc:  # noqa: BLE001 - offline is normal, never fatal
+        status.error = f"Could not reach GitHub to check for updates ({exc})."
+        return status
+    tag = data.get("tag_name") if isinstance(data, dict) else None
+    if not is_version_tag(tag) or is_dev_tag(tag):
+        status.error = "GitHub did not say which release is the latest."
+        return status
+    status.latest_release = tag
+    status.url = data.get("html_url") or RELEASES_PAGE
+    return status
+
+
+def _fetch_json(url: str):
+    import json
+    import urllib.request
+
+    request = urllib.request.Request(url, headers={
+        "Accept": "application/vnd.github+json", "User-Agent": "MEA-NAP"})
+    with urllib.request.urlopen(request, timeout=NETWORK_TIMEOUT_S,
+                                context=_ssl_context()) as response:
+        return json.load(response)
+
+
+def _ssl_context():
+    """The system's certificates, or certifi's where Python can't find them.
+
+    A frozen app on macOS carries its own OpenSSL, which does not know where
+    the system keeps its certificates, so every HTTPS request would fail.
+    """
+    import ssl
+
+    try:
+        import certifi
+    except ImportError:
+        return ssl.create_default_context()
+    return ssl.create_default_context(cafile=certifi.where())
+
+
 # ── Running a release ────────────────────────────────────────────────────────
 
 def versions_dir() -> Path:

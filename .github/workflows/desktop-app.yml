@@ -1,0 +1,160 @@
+# The desktop app: a double-clickable MEA-NAP for macOS (Apple silicon and
+# Intel) and Windows, built with PyInstaller. See python/DESKTOP_APP_PLAN.md.
+#
+# When it runs:
+# - an official release is published (v1.13.0, …) → build both, smoke-test
+#   them, attach the .dmg and the Setup.exe to that release;
+# - by hand (Actions → Desktop app → Run workflow) → build both, keep them as
+#   downloadable workflow artifacts;
+# - a pull request that touches the packaging → build and smoke-test, so a
+#   broken build is found before the release that needs it.
+# Not on every merge: development builds are hundreds of MB each, and the
+# dev-build workflow tags with GITHUB_TOKEN, which starts no other workflow.
+
+name: Desktop app
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "packaging/**"
+      - ".github/workflows/desktop-app.yml"
+      - "src/meanap/frozen.py"
+      - "src/meanap/app_smoke.py"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    # Development builds are pre-releases; only official releases get apps.
+    if: github.event_name != 'release' || !github.event.release.prerelease
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14          # Apple silicon
+            platform: macOS-arm64
+          - os: macos-15-intel    # Intel
+            platform: macOS-Intel
+          - os: windows-latest
+            platform: Windows-x64
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    env:
+      # Windows consoles default to cp1252; MEA-NAP prints the odd arrow.
+      PYTHONUTF8: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # tags, for the build's version description
+
+      - uses: astral-sh/setup-uv@v6
+
+      - name: Install MEA-NAP and the build tools
+        # isosplit6 (MountainSort5) has no macOS wheel and is C++11 that
+        # doesn't say so; Apple's clang defaults to an older standard. It (and
+        # OASIS on Intel) is compiled here, by default for the runner's own
+        # macOS only: target the app's minimum (LSMinimumSystemVersion).
+        env:
+          CXXFLAGS: ${{ runner.os == 'macOS' && '-std=c++17' || '' }}
+          MACOSX_DEPLOYMENT_TARGET: ${{ runner.os == 'macOS' && '12.0' || '' }}
+        run: uv sync --frozen --extra oasis --extra sorting --group app
+
+      - name: Build
+        run: uv run --frozen python packaging/build_app.py
+
+      # Before the smoke test, so the first run is a cold start: nothing read
+      # from disk or scanned by antivirus yet. The second shows a warm start.
+      - name: Startup time (macOS)
+        if: runner.os == 'macOS'
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          for run in cold warm; do
+            echo "== $run start"
+            packaging/dist/MEA-NAP.app/Contents/MacOS/MEA-NAP --time-startup
+          done
+
+      - name: Startup time (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          foreach ($run in "cold", "warm") {
+            "== $run start"
+            $p = Start-Process -FilePath "packaging\dist\MEA-NAP\MEA-NAP.exe" `
+                   -ArgumentList "--time-startup" -Wait -PassThru
+            Get-Content "$env:LOCALAPPDATA\MEA-NAP\logs\meanap.log"
+            if ($p.ExitCode -ne 0) { exit $p.ExitCode }
+          }
+
+      - name: Smoke test (macOS)
+        if: runner.os == 'macOS'
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: packaging/dist/MEA-NAP.app/Contents/MacOS/MEA-NAP --smoke-test
+
+      - name: Smoke test (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+        # A windowed .exe has no console: wait for it, then show the log it
+        # wrote its output to (meanap.frozen.log_file).
+        run: |
+          $p = Start-Process -FilePath "packaging\dist\MEA-NAP\MEA-NAP.exe" `
+                 -ArgumentList "--smoke-test" -Wait -PassThru
+          Get-Content "$env:LOCALAPPDATA\MEA-NAP\logs\meanap.log"
+          exit $p.ExitCode
+
+      - name: Version
+        id: version
+        run: echo "version=$(tr -d '[:space:]' < version.txt)" >> "$GITHUB_OUTPUT"
+
+      - name: Package .dmg
+        if: runner.os == 'macOS'
+        env:
+          NAME: MEA-NAP-${{ steps.version.outputs.version }}-${{ matrix.platform }}
+        run: |
+          staging=packaging/build/dmg
+          rm -rf "$staging" && mkdir -p "$staging"
+          cp -R packaging/dist/MEA-NAP.app "$staging/"
+          ln -s /Applications "$staging/Applications"   # drag-to-install
+          hdiutil create -volname "MEA-NAP" -srcfolder "$staging" -ov \
+            -format UDZO "packaging/dist/$NAME.dmg"
+          echo "ASSET=packaging/dist/$NAME.dmg" >> "$GITHUB_ENV"
+
+      - name: Package installer
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          if (-not (Get-Command iscc -ErrorAction SilentlyContinue)) {
+            choco install innosetup -y --no-progress
+            $env:Path += ";${env:ProgramFiles(x86)}\Inno Setup 6"
+          }
+          iscc /DAppVersion=${{ steps.version.outputs.version }} `
+               /DSourceDir="$PWD\packaging\dist\MEA-NAP" `
+               /DOutputDir="$PWD\packaging\dist" `
+               packaging\windows\meanap.iss
+          $asset = "packaging/dist/MEA-NAP-${{ steps.version.outputs.version }}-${{ matrix.platform }}-Setup.exe"
+          "ASSET=$asset" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MEA-NAP-${{ matrix.platform }}
+          path: ${{ env.ASSET }}
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Attach to the release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ github.event.release.tag_name }}" "$ASSET" --clobber

@@ -397,6 +397,16 @@ _CARTOGRAPHY_LABELS = {
 }
 
 
+def _matlab_images_dir() -> Path:
+    """MATLAB's ``Images`` folder: in the repo, or bundled inside the desktop app."""
+    from meanap.frozen import bundle_dir
+
+    bundled = bundle_dir()
+    if bundled is not None:
+        return bundled / "matlab" / "Images"
+    return Path(__file__).resolve().parents[3] / "matlab" / "Images"
+
+
 _CARTOGRAPHY_DIAGRAM_CACHE: "np.ndarray | None | bool" = False  # False = not yet loaded
 
 
@@ -412,7 +422,7 @@ def _load_cartography_diagram() -> "np.ndarray | None":
         return _CARTOGRAPHY_DIAGRAM_CACHE
     candidates = [
         Path(__file__).resolve().parent / "assets" / "NodeCartographyDiagram.jpg",
-        Path(__file__).resolve().parents[3] / "matlab" / "Images" / "NodeCartographyDiagram.jpg",
+        _matlab_images_dir() / "NodeCartographyDiagram.jpg",
     ]
     for p in candidates:
         if p.exists():
@@ -1787,8 +1797,7 @@ def plot_graph_metrics_by_node(
 
     # ── Resolve schematic images directory ───────────────────────────────────
     if images_dir is None:
-        # Repo root = three levels above src/meanap/pipeline/
-        images_dir = Path(__file__).parent.parent.parent.parent / "matlab" / "Images"
+        images_dir = _matlab_images_dir()
 
     SCHEMATICS = [
         ("ND.png",   "node degree"),
