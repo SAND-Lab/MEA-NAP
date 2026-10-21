@@ -9,7 +9,7 @@ it, and gets the MEA-NAP GUI. Today's route — git clone, `uv sync`,
 | Question | Decision |
 |---|---|
 | Approach | **Frozen app** (PyInstaller, one-folder build): Python and every dependency inside. No network needed to install or run. |
-| Platforms | **Windows x64** and **macOS Apple silicon** (arm64). Not Intel Mac, not Linux (Linux users manage with uv). |
+| Platforms | **Windows x64** and **macOS Apple silicon** (arm64); **macOS Intel** added 2026-10-21 on request. Not Linux (Linux users manage with uv). |
 | Signing | **Unsigned for now.** Docs and the release page explain the Gatekeeper / SmartScreen bypass step by step. Signing can come later without changing the build. |
 | Extras inside | **OASIS** (CAT-NAP denoising; without it results silently differ) and **spike sorting** (SpikeInterface + MountainSort5 + hdbscan). |
 | Left out | CAT-NAP **cell tracking** (needs `roicat` → PyTorch, not a declared dependency); **Kilosort**; **launching MATLAB / old MATLAB-only releases**; switching between versions in place. |
@@ -77,6 +77,15 @@ the package and, on Windows, no console. Each of these breaks something today:
   spikeinterface until a run needs them.
 - **Unsigned macOS + quarantine**: on recent macOS the bypass is System
   Settings → Privacy & Security → "Open Anyway". Must be tested on a real Mac.
+- **Intel Mac pins.** numba 0.62 / llvmlite 0.45 are the last with Intel-Mac
+  wheels, so `pyproject.toml` caps numba there (a platform marker; uv locks a
+  separate numba/llvmlite/numpy for Intel Macs only). Intel Mac therefore
+  stays on numba 0.62 + numpy 2.3 for good — fine while those keep working
+  with our other pins; if a future scipy/pandas needs numpy ≥ 2.4, the Intel
+  build has to drop numba (pure-Python fallback, slower step 4) or be retired.
+  GitHub's `macos-15-intel` runner is its last Intel image (until ~2027).
+- Source-only extensions (isosplit6; OASIS on Intel) are compiled in CI with
+  `MACOSX_DEPLOYMENT_TARGET=12.0`, or they'd only load on the runner's macOS.
 - No macOS/Windows machine locally: real-device testing depends on the user.
 
 ## Status

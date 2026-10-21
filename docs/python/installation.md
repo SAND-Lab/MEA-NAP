@@ -3,10 +3,10 @@
 There are two ways to get the Python version of MEA-NAP:
 
 - **The desktop app** — download one file, double-click, done. No Python, no
-  terminal. For Windows and Apple-silicon Macs (M1 or later).
+  terminal. For Windows and Macs (Apple silicon or Intel).
 - **From the source code** — a clone of the repository and a few commands in a
-  terminal. For Linux and Intel Macs, for the newest code between releases,
-  and for anyone who wants to change MEA-NAP itself.
+  terminal. For Linux, for the newest code between releases, and for anyone
+  who wants to change MEA-NAP itself.
 
 Both run the same pipeline with the same pinned libraries, so they give the
 same results.
@@ -21,10 +21,11 @@ on GitHub, under **Assets**:
 |---|---|
 | Windows 10 or 11 (64-bit) | `MEA-NAP-<version>-Windows-x64-Setup.exe` |
 | Mac with Apple silicon (M1, M2, M3, M4 …) | `MEA-NAP-<version>-macOS-arm64.dmg` |
+| Mac with an Intel processor | `MEA-NAP-<version>-macOS-Intel.dmg` |
 
 Not sure which Mac you have? Apple menu → **About This Mac**: "Chip: Apple M…"
-means Apple silicon; "Processor: Intel" means an Intel Mac, which the app
-doesn't support — install from source instead.
+means Apple silicon; "Processor: … Intel …" means an Intel Mac. Either needs
+macOS 12 (Monterey) or later.
 
 The download is about 150 MB (about 700 MB once installed): it carries its own Python
 and every library MEA-NAP uses, including OASIS for CAT-NAP and the spike
@@ -50,7 +51,7 @@ apps → MEA-NAP → Uninstall**.
 
 ::::{tab-item} macOS
 
-1. Double-click `MEA-NAP-…-macOS-arm64.dmg`, then drag **MEA-NAP** onto
+1. Double-click the `MEA-NAP-…-macOS-….dmg` you downloaded, then drag **MEA-NAP** onto
    the **Applications** folder in the window that opens.
 2. Open MEA-NAP from Applications (or Launchpad). The first time, macOS says
    it **"could not verify MEA-NAP is free of malware"** (older macOS: "cannot
