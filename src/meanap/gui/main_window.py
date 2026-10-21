@@ -46,7 +46,10 @@ from meanap.gui.panels.results import ResultsPanel
 from meanap.gui.panels.stats import StatsPanel
 from meanap.gui.tooltip import install_tooltip_style, wrap_tooltips
 from meanap.gui.tutorial import TutorialOverlay, TutorialStep, tabbar_target
-from meanap.gui.versions_dialog import Background, VersionsDialog, status_summary
+from meanap.frozen import is_frozen
+from meanap.gui.versions_dialog import (
+    AppVersionDialog, Background, VersionsDialog, status_summary,
+)
 from meanap.gui.combo import install_combo_popup_fit
 from meanap.gui.wheel import install_wheel_guard
 
@@ -527,7 +530,8 @@ class MainWindow(QMainWindow):
                  "params.json and bundle manifest.")
         if status is not None:
             tip += "\n\n" + status_summary(status)
-        label.setToolTip(tip + "\n\nClick to update MEA-NAP or choose another version.")
+        label.setToolTip(tip + "\n\nClick to update MEA-NAP"
+                         + ("." if is_frozen() else " or choose another version."))
 
     # ── Versions and updates ──────────────────────────────────────────────────
 
@@ -541,7 +545,7 @@ class MainWindow(QMainWindow):
         """
         from meanap import updates
 
-        job = Background(updates.check, self)
+        job = Background(updates.check_app if is_frozen() else updates.check, self)
         job.done.connect(self._on_update_status)
         job.start()
         self._update_job = job
@@ -553,6 +557,13 @@ class MainWindow(QMainWindow):
             self._versions_dialog.set_status(status)
 
     def _on_show_versions(self) -> None:
+        if self._versions_dialog is None and is_frozen():
+            self._versions_dialog = AppVersionDialog(self)
+            self._versions_dialog.status_changed.connect(self._on_update_status)
+            if self._update_status is not None:
+                self._versions_dialog.set_status(self._update_status)
+            else:
+                self._versions_dialog.refresh()
         if self._versions_dialog is None:
             self._versions_dialog = VersionsDialog(
                 self,

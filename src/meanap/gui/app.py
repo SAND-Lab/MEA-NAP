@@ -5,6 +5,7 @@ import sys
 
 from PyQt6.QtWidgets import QApplication
 
+from meanap.frozen import is_frozen
 from meanap.gui import theme
 from meanap.gui.branding import logo_icon
 from meanap.gui.main_window import MainWindow
@@ -63,7 +64,8 @@ def _open_default_version(argv: list[str]) -> None:
 
 def main() -> None:
     args = _parse_args(sys.argv[1:])
-    if not args.here:
+    # The desktop app is one fixed version, with no clone to open another from.
+    if not args.here and not is_frozen():
         _open_default_version(sys.argv[1:])
 
     theme.enable_hi_dpi()

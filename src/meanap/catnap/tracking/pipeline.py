@@ -47,6 +47,7 @@ from meanap.catnap.tracking.register import (
     verify_offsets,
 )
 from meanap.catnap.tracking.roicat import match_rates, run_chain, stage_session
+from meanap.frozen import python_command
 from meanap.catnap.tracking.validate import (
     NEUCOEFF,
     auc_vs_null,
@@ -697,7 +698,6 @@ def _track_parallel(ordered, recordings, source, out_dir, *, min_shift_px,
     import os
     import shutil
     import subprocess
-    import sys
     import tempfile
     from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -778,7 +778,7 @@ def _track_parallel(ordered, recordings, source, out_dir, *, min_shift_px,
         env["TMPDIR"] = str(tmp)
         try:
             proc = subprocess.run(
-                [sys.executable, "-m", "meanap.catnap.tracking", "--spec", str(spec)],
+                python_command("meanap.catnap.tracking", "--spec", str(spec)),
                 capture_output=True, text=True, timeout=7200, env=env)
         finally:
             shutil.rmtree(tmp, ignore_errors=True)

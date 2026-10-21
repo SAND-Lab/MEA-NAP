@@ -60,6 +60,7 @@ PIPELINE_NAMES = {
 
 _VERSION_TXT = "version.txt"
 _VERSIONS_JSON = "versions.json"
+_BUILD_INFO_JSON = "_build_info.json"
 
 
 def _version_file(name: str) -> Path | None:
@@ -137,11 +138,20 @@ def build_info() -> dict[str, object]:
     ``v1.11.0-dev.23`` on a tagged build or ``v1.11.0-dev.23-2-g1a2b3c4`` two
     commits past it, with ``-dirty`` when files were edited. Empty when there
     is no git checkout (an installed wheel) or no git — the version number is
-    then all there is to say, and saying nothing is better than guessing.
+    then all there is to say, and saying nothing is better than guessing. The
+    desktop app has no git either, so its build writes the same three fields
+    into ``_build_info.json`` beside this module (``packaging/build_app.py``).
     """
     root = Path(__file__).resolve().parents[2]
     if not (root / ".git").exists():
-        return {}
+        baked = _version_file(_BUILD_INFO_JSON)
+        if baked is None:
+            return {}
+        try:
+            info = json.loads(baked.read_text())
+        except (OSError, json.JSONDecodeError):
+            return {}
+        return info if isinstance(info, dict) and info.get("describe") else {}
     env = {**os.environ, "GIT_TERMINAL_PROMPT": "0", "LC_ALL": "C"}
 
     def git(*args: str) -> str:

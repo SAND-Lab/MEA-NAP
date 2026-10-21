@@ -89,6 +89,12 @@ packages = ["src/meanap"]
 line-length = 100
 src = ["src"]
 
+# Building the desktop app (packaging/build_app.py): `uv sync --group app`.
+[dependency-groups]
+app = [
+    "pyinstaller>=6.22.3",
+]
+
 # The version files live at the repo root so MATLAB and Python read the same
 # version.txt. A wheel has no repo around it, so copy them in beside the
 # package or an installed MEA-NAP reports its version as "unknown".
