@@ -60,3 +60,12 @@ Name: "{autodesktop}\MEA-NAP"; Filename: "{app}\MEA-NAP.exe"; Tasks: desktopicon
 
 [Run]
 Filename: "{app}\MEA-NAP.exe"; Description: "{cm:LaunchProgram,MEA-NAP}"; Flags: nowait postinstall skipifsilent
+; The app updating itself runs this installer with /SILENT /RELAUNCH=1
+; (meanap.app_update), and the tick box above is skipped when silent.
+Filename: "{app}\MEA-NAP.exe"; Flags: nowait runasoriginaluser; Check: RelaunchAfterUpdate
+
+[Code]
+function RelaunchAfterUpdate: Boolean;
+begin
+  Result := WizardSilent and (ExpandConstant('{param:relaunch|0}') = '1');
+end;

@@ -451,22 +451,77 @@ def _explain_merge_failure(err: str, repo: Path) -> str:
 #
 # The packaged app (see packaging/) is not a clone: no git, no history, and its
 # folder may be read-only. So there is nothing to fast-forward and no release
-# to check out beside it. What it can still do is ask GitHub whether a newer
-# official release exists and send the user to download it — over HTTPS from
-# the public API, needing no git and no login.
+# to check out beside it. What it can do is ask GitHub whether a newer build
+# exists and which file holds it for this computer — over HTTPS from the public
+# API, needing no git and no login — and then replace itself with that file
+# (:mod:`meanap.app_update`).
+#
+# Two channels: official releases for everyone, and, for those who tick the
+# box, the development build CI makes of every merge to main as well.
 
 RELEASES_PAGE = f"https://github.com/{UPSTREAM}/releases"
 _LATEST_RELEASE_API = f"https://api.github.com/repos/{UPSTREAM}/releases/latest"
+#: The newest releases of either kind. One page is plenty: only the newest
+#: development build matters, and the newest official one is asked for apart.
+_RELEASES_API = f"https://api.github.com/repos/{UPSTREAM}/releases?per_page=30"
+
+#: The app's file on each release, per computer. No version in the names: the
+#: install page links to releases/latest/download/<name> (desktop-app.yml).
+APP_ASSETS = {
+    "windows": "MEA-NAP-Windows-x64-Setup.exe",
+    "mac-arm64": "MEA-NAP-macOS-AppleSilicon.dmg",
+    "mac-x86_64": "MEA-NAP-macOS-Intel.dmg",
+}
+
+
+def app_asset_name(platform: str | None = None, machine: str | None = None) -> str | None:
+    """The release file that installs the app on this computer, or ``None``.
+
+    An Intel build running on Apple silicon (through Rosetta) reports an Intel
+    machine; it is given the Apple-silicon file, which runs natively.
+    """
+    import platform as _platform
+
+    platform = platform or sys.platform
+    if platform == "win32":
+        return APP_ASSETS["windows"]
+    if platform != "darwin":
+        return None
+    machine = machine or _platform.machine()
+    if machine == "arm64" or _under_rosetta():
+        return APP_ASSETS["mac-arm64"]
+    return APP_ASSETS["mac-x86_64"]
+
+
+def _under_rosetta() -> bool:
+    try:
+        out = subprocess.run(["sysctl", "-n", "sysctl.proc_translated"],
+                             check=False, capture_output=True, text=True, timeout=5).stdout
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return out.strip() == "1"
+
+
+@dataclass(frozen=True)
+class AppAsset:
+    """One downloadable file of a release."""
+
+    name: str
+    url: str
+    size: int | None = None
+    sha256: str | None = None   # GitHub's digest, when it gives one
 
 
 @dataclass
 class AppStatus:
     """The outcome of one :func:`check_app`."""
 
-    running: str                    # "v1.12.0"
+    running: str                    # "v1.12.0", or "v1.13.0-dev.4" for a development build
     latest_release: str | None = None
-    url: str = RELEASES_PAGE        # where to download it
+    url: str = RELEASES_PAGE        # the release's page, to download it by hand
     error: str | None = None
+    asset: AppAsset | None = None   # the file to update from; None if not built for this computer
+    include_dev: bool = False       # whether development builds were looked at
 
     @property
     def newer_version(self) -> str | None:
@@ -480,28 +535,68 @@ class AppStatus:
         return self.newer_version is not None
 
 
-def check_app(running: str | None = None, *, fetch_json=None) -> AppStatus:
-    """Ask GitHub for the newest official release (never a development build).
+def app_running_version() -> str:
+    """The running app's tag: its development build's if it is one."""
+    from meanap.version import build_info, meanap_version
 
-    *fetch_json* is for tests: a callable from URL to the decoded JSON.
+    describe = build_info().get("describe")
+    if is_dev_tag(describe):
+        return describe
+    return f"v{meanap_version()}"
+
+
+def check_app(running: str | None = None, *, include_dev: bool = False,
+              asset_name: str | None = None, fetch_json=None) -> AppStatus:
+    """Ask GitHub for the newest official release — or, with *include_dev*,
+    the newest development build if that is newer still.
+
+    A development build is only offered once the app has been built for it
+    (CI attaches the files some 20 minutes after the merge); an official
+    release is offered at once, with the download page as the way to get it
+    until its files are there. *asset_name* defaults to this computer's
+    (:func:`app_asset_name`); *fetch_json* is for tests: a callable from URL to
+    the decoded JSON.
     """
     if running is None:
-        from meanap.version import meanap_version
-
-        running = f"v{meanap_version()}"
-    status = AppStatus(running=running)
+        running = app_running_version()
+    if asset_name is None:
+        asset_name = app_asset_name()
+    fetch = fetch_json or _fetch_json
+    status = AppStatus(running=running, include_dev=include_dev)
     try:
-        data = (fetch_json or _fetch_json)(_LATEST_RELEASE_API)
+        candidates = [fetch(_LATEST_RELEASE_API)]
+        if include_dev:
+            listed = fetch(_RELEASES_API)
+            candidates += [r for r in (listed if isinstance(listed, list) else [])
+                           if isinstance(r, dict) and is_dev_tag(r.get("tag_name"))
+                           and not r.get("draft") and _find_asset(r, asset_name)]
     except Exception as exc:  # noqa: BLE001 - offline is normal, never fatal
         status.error = f"Could not reach GitHub to check for updates ({exc})."
         return status
-    tag = data.get("tag_name") if isinstance(data, dict) else None
+    official = candidates[0]
+    tag = official.get("tag_name") if isinstance(official, dict) else None
     if not is_version_tag(tag) or is_dev_tag(tag):
         status.error = "GitHub did not say which release is the latest."
         return status
-    status.latest_release = tag
-    status.url = data.get("html_url") or RELEASES_PAGE
+    newest = max(candidates, key=lambda r: _tag_key(r.get("tag_name")))
+    status.latest_release = newest["tag_name"]
+    status.url = newest.get("html_url") or RELEASES_PAGE
+    status.asset = _find_asset(newest, asset_name)
     return status
+
+
+def _find_asset(release: dict, name: str | None) -> AppAsset | None:
+    if not name:
+        return None
+    for asset in release.get("assets") or []:
+        if isinstance(asset, dict) and asset.get("name") == name:
+            url = asset.get("browser_download_url")
+            if not url:
+                return None
+            digest = asset.get("digest") or ""
+            return AppAsset(name=name, url=url, size=asset.get("size"),
+                            sha256=digest[7:] if digest.startswith("sha256:") else None)
+    return None
 
 
 def _fetch_json(url: str):

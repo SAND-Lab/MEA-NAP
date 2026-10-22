@@ -15,7 +15,8 @@ it, and gets the MEA-NAP GUI. Today's route — git clone, `uv sync`,
 | Left out | CAT-NAP **cell tracking** (needs `roicat` → PyTorch, not a declared dependency); **Kilosort**; **launching MATLAB / old MATLAB-only releases**; switching between versions in place. |
 | Distribution | `.dmg` (macOS) and a setup `.exe` (Windows, Inno Setup), built by GitHub Actions on each **official** release tag (and on demand) and attached to the GitHub release. Not on every dev build: hundreds of MB per merge. |
 | Download links | Asset names carry **no version** (`MEA-NAP-Windows-x64-Setup.exe`, `MEA-NAP-macOS-AppleSilicon.dmg`, `MEA-NAP-macOS-Intel.dmg`) so the install page can link to `releases/latest/download/<name>`, one click, always the newest. README → the docs site's install page (MyST doesn't render on GitHub). |
-| Updates | The app checks GitHub's releases (public repo, no git, no login) and offers a link to download the newer one. |
+| Updates | The app checks GitHub's releases (public repo, no git, no login) and **updates itself in place** (1.14.0, `meanap.app_update`): downloads this computer's file (size + SHA-256 checked), quits, and the Windows installer (`/SILENT /RELAUNCH=1`) or a macOS shell script swaps it in and reopens it. Fetched by the app, not a browser, so no Chrome / Gatekeeper warnings. Falls back to the download page when it can't (Mac app not in Applications / translocated / folder not writable; files not built yet). The next start reports success or failure (`pending-update.json`). |
+| Update channels | Official releases by default; a tick box **"Also offer development builds"** adds the per-merge pre-releases. `dev-build.yml` calls `desktop-app.yml` (`workflow_call`) to attach apps to each one (~20 min after the merge; a build is only offered once its file is there), and prunes the apps of all but the newest 5 dev builds. |
 
 ## What has to change in the code
 
@@ -88,6 +89,10 @@ the package and, on Windows, no console. Each of these breaks something today:
 - Source-only extensions (isosplit6; OASIS on Intel) are compiled in CI with
   `MACOSX_DEPLOYMENT_TARGET=12.0`, or they'd only load on the runner's macOS.
 - No macOS/Windows machine locally: real-device testing depends on the user.
+- **Self-update untested on real machines.** The macOS script is tested on
+  Linux with stand-ins for hdiutil/ditto/open; the Windows silent install not
+  at all. First real test: install 1.14.0 by hand, tick development builds,
+  update to the next dev build. Users on 1.13.0 must download once by hand.
 
 ## Status
 

@@ -24,15 +24,18 @@ on:
 permissions:
   contents: write
 
-concurrency:
-  # One at a time, in order: two merges in quick succession must not race for
-  # the same number.
-  group: dev-build
-  cancel-in-progress: false
-
 jobs:
   tag:
     runs-on: ubuntu-latest
+    concurrency:
+      # One at a time, in order: two merges in quick succession must not race
+      # for the same number. (The tagging only: the app builds below take ~20
+      # minutes and need not hold up the next merge's tag.)
+      group: dev-build
+      cancel-in-progress: false
+    outputs:
+      tag: ${{ steps.name.outputs.tag }}
+      skip: ${{ steps.name.outputs.skip }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -80,3 +83,37 @@ jobs:
             --generate-notes \
             --notes-start-tag "$PREV" \
             --notes "Automatic development build of main since $BASE. Not an official release: it has not been through release testing, and its changes are listed below as pull requests rather than written up. Official releases are the ones marked Latest."
+
+  # The desktop apps, for app users who opted into development builds.
+  apps:
+    needs: tag
+    if: needs.tag.outputs.skip == 'false'
+    uses: ./.github/workflows/desktop-app.yml
+    with:
+      tag: ${{ needs.tag.outputs.tag }}
+
+  prune-apps:
+    # Each build's apps are ~500 MB, one set per merge. Only the newest are
+    # ever offered to update to, so older development builds lose theirs (the
+    # tag, notes and source stay). Official releases are never touched.
+    needs: apps
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      KEEP: 5
+    steps:
+      - name: Remove the apps of older development builds
+        run: |
+          set -euo pipefail
+          gh release list -R "$GITHUB_REPOSITORY" --limit 100 \
+              --json tagName,isPrerelease,createdAt \
+              --jq '[.[] | select(.isPrerelease and (.tagName | test("-dev\\.[0-9]+$")))]
+                    | sort_by(.createdAt) | reverse | .[env.KEEP | tonumber:] | .[].tagName' |
+          while read -r tag; do
+            gh release view "$tag" -R "$GITHUB_REPOSITORY" --json assets \
+                --jq '.assets[].name | select(startswith("MEA-NAP-"))' |
+            while read -r name; do
+              echo "$tag: removing $name"
+              gh release delete-asset "$tag" "$name" -R "$GITHUB_REPOSITORY" --yes
+            done
+          done

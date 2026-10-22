@@ -58,8 +58,9 @@ what makes it safe to click through.
    need administrator rights. Tick **Create a desktop shortcut** if you want one.
 4. Start MEA-NAP from the Start menu (or the desktop shortcut).
 
-To update, download the newer installer and run it: it replaces the old
-version and keeps your settings. To uninstall: **Settings → Apps → Installed
+To update, use **Update** in MEA-NAP itself (see [Updates](#good-to-know)
+below), or download the newer installer and run it: either way it replaces
+the old version and keeps your settings. To uninstall: **Settings → Apps → Installed
 apps → MEA-NAP → Uninstall**.
 
 ### Installing on a Mac
@@ -79,8 +80,10 @@ apps → MEA-NAP → Uninstall**.
    again.
 4. From then on MEA-NAP opens normally.
 
-To update, download the newer `.dmg` and drag MEA-NAP into Applications
-again, replacing the old one. To uninstall, drag MEA-NAP from Applications to
+To update, use **Update** in MEA-NAP itself (see [Updates](#good-to-know)
+below; this needs MEA-NAP to be in Applications), or download the newer
+`.dmg` and drag MEA-NAP into Applications again, replacing the old one. To
+uninstall, drag MEA-NAP from Applications to
 the Bin.
 
 If macOS instead says MEA-NAP **"is damaged and can't be opened"**, the
@@ -100,8 +103,16 @@ time. On Windows, antivirus software may also scan the app the first time it
 starts, so the window can take a minute to appear.
 
 **Updates.** The version number in the toolbar, beside the **Mode**
-selector, shows **⬆ update** when a newer release is out. Click it, then
-**Download**.
+selector, shows **⬆ update** when a newer version is out. Click it, then
+**Update to …**: MEA-NAP downloads the new version, closes, installs it and
+opens again, about a minute in all, with no browser and none of the warnings
+above. Your settings and results are kept. (Version 1.13.0 doesn't have this
+button yet: update from it once by downloading, as above.)
+
+Tick **Also offer development builds** in the same window to get every fix as
+soon as it is made (usually within half an hour), rather than waiting for the
+next official release. These haven't been through release testing; untick
+the box to go back to official releases from the next one on.
 
 **What the app doesn't include.** Running MATLAB or switching between
 MEA-NAP versions from inside the GUI, CAT-NAP's cell tracking across days
