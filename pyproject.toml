@@ -27,7 +27,7 @@ dependencies = [
     "networkx>=3.3",
     "h5py>=3.11",
     "sciplotlib>=0.0.7",
-    "Pillow>=10.0",
+    "Pillow>=13.0",
     "natsort>=8.4",
     "pyqt6>=6.11.0",
     # The spike viewer's trace and raster views. Qt-native and drawn from the
