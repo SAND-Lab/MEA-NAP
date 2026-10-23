@@ -634,10 +634,10 @@ def metric_columns(df: pd.DataFrame, activity_metrics: list[str]) -> tuple[list,
 
 def _labels(activity_type: str | None) -> dict[str, str]:
     from meanap.catnap.group_plots import twop_metric_labels
-    from meanap.pipeline.plotting_step4 import NETMET_NODE_METRICS
+    from meanap.pipeline.plotting_step4 import NETMET_NODE_DISPLAY_LABELS
 
     _, node = twop_metric_labels(activity_type or "peaks")
-    return {**NETMET_NODE_METRICS, "CC_raw": "Clustering Coefficient",
+    return {**NETMET_NODE_DISPLAY_LABELS, "CC_raw": "Clustering Coefficient",
             "NDnorm": "Node Degree / (Active Cells − 1)",
             "NE": "Nodal Efficiency", **node}
 

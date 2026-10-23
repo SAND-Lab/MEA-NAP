@@ -267,14 +267,16 @@ def _figure_checks() -> list[Check]:
         # The shared step-4 plotter, fed a CAT-NAP results dict unchanged.
         plot_step4_group_comparisons(recordings, results, net_dir, ["WT", "KO"])
         net_base = net_dir / "4B_GroupComparisons"
-        for rel in ("3_RecordingsByGroup/HalfViolinPlots/Lag1000ms/Dens_byGroup.png",
-                    "4_RecordingsByAge/HalfViolinPlots/Lag2500ms/Dens_byDIV.png",
-                    "1_NodeByGroup/Lag1000ms/ND_byGroup_node.png",
-                    "2_NodeByAge/Lag2500ms/ND_byDIV_node.png"):
+        # Named as MATLAB's PlotNetMet.m names them: "<lag>mslag" folders and
+        # "<n>_<label>_by<Group|Age>" files.
+        for rel in ("3_RecordingsByGroup/HalfViolinPlots/1000mslag/2_density_byGroup.png",
+                    "4_RecordingsByAge/HalfViolinPlots/2500mslag/2_density_byAge.png",
+                    "1_NodeByGroup/1000mslag/1_node degree_byGroup.png",
+                    "2_NodeByAge/2500mslag/1_node degree_byAge.png"):
             checks.append((f"network: {rel}", (net_base / rel).exists(), ""))
         checks.append(("network: per-lag folders for every lag",
                        {p.name for p in (net_base / "1_NodeByGroup").iterdir()}
-                       == {"Lag1000ms", "Lag2500ms"}, ""))
+                       == {"1000mslag", "2500mslag"}, ""))
 
         # Cell-type subnetworks.
         gp.plot_subnetwork_group_comparisons(summary, node, net_dir, ["WT", "KO"])
@@ -541,7 +543,8 @@ def _runner_tail_checks() -> list[Check]:
             ("cell-type composition", "2_NeuronalActivity/2B_GroupComparisons/"
                                       "5_CellTypeComposition/nCells_byGroup.png"),
             ("network metrics", "4_NetworkActivity/4B_GroupComparisons/"
-                                "3_RecordingsByGroup/HalfViolinPlots/Lag1000ms/Dens_byGroup.png"),
+                                "3_RecordingsByGroup/HalfViolinPlots/1000mslag/"
+                                "2_density_byGroup.png"),
             ("cell-type subnetworks", "4_NetworkActivity/4B_GroupComparisons/"
                                       "8_CellTypeSubnetworks/Lag1000ms/RecordingsByGroup/"
                                       "Dens_Whole_network_byGroup.png"),

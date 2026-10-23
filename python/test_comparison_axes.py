@@ -47,7 +47,9 @@ def _report(title: str, checks: list[Check]) -> tuple[int, int]:
 # ── A. Labels ─────────────────────────────────────────────────────────────────
 
 def _label_checks() -> list[Check]:
-    rec = p4.NETMET_REC_METRICS
+    # The violins carry MATLAB's labels; step 5 and CAT-NAP tracking read the
+    # display dict, which is where the readable wording checked here lives.
+    rec = p4.NETMET_REC_DISPLAY_LABELS
     checks: list[Check] = []
     for key in ("sigEdgesMean", "sigEdgesTop10"):
         checks.append((f"{key} is labelled as an edge *weight*",
@@ -56,6 +58,12 @@ def _label_checks() -> list[Check]:
         lab = rec[f"NCpn{i}"]
         checks.append((f"NCpn{i} is a proportion, not a percent: {lab!r}",
                        "%" not in lab and "proportion" in lab.lower(), lab))
+    checks.append(("the display labels cover every plotted network metric",
+                   set(rec) == set(p4.NETMET_REC_METRICS),
+                   f"{sorted(set(rec) ^ set(p4.NETMET_REC_METRICS))}"))
+    checks.append(("the violin labels are MATLAB's",
+                   p4.NETMET_REC_METRICS["aN"] == "network size"
+                   and p4.NETMET_REC_METRICS["NCpn1"] == "NC1PeripheralNodes", ""))
     return checks
 
 

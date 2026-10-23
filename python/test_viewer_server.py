@@ -269,9 +269,14 @@ def _comparison_checks() -> list[Check]:
 
             # The load-bearing one: what the endpoint serves must be the figure
             # the pipeline wrote, not merely something plausible.
+            from meanap.pipeline.plotting_step4 import (
+                NETMET_REC_METRICS, comparison_figure_stem, metric_number,
+            )
+            stem = comparison_figure_stem(metric_number(NETMET_REC_METRICS, metric),
+                                          NETMET_REC_METRICS[metric], "byGroup")
             original = (full / "4_NetworkActivity" / "4B_GroupComparisons"
-                        / "3_RecordingsByGroup" / "HalfViolinPlots" / f"Lag{LAG}ms"
-                        / f"{metric}_byGroup.png")
+                        / "3_RecordingsByGroup" / "HalfViolinPlots" / f"{LAG}mslag"
+                        / f"{stem}.png")
             checks.append(("…identical to the figure the full run wrote",
                            original.exists()
                            and hashlib.sha256(body).hexdigest() == _digest(original),
@@ -284,7 +289,7 @@ def _comparison_checks() -> list[Check]:
 
             _, _, headers = _get(f"{base}/api/comparison?{address}&download=1")
             checks.append(("download sets a filename",
-                           f"{metric}_byGroup.png"
+                           f"{stem}.png"
                            in headers.get("Content-Disposition", ""),
                            headers.get("Content-Disposition", "")))
 
@@ -382,8 +387,13 @@ def _lag_series_checks() -> list[Check]:
             checks.append(("a lag curve is served", status == 200, str(status)))
             checks.append(("…as a png",
                            headers.get("Content-Type") == "image/png", ""))
+            from meanap.pipeline.plotting_step4 import (
+                NETMET_REC_METRICS, comparison_figure_stem, metric_number,
+            )
+            curve_stem = comparison_figure_stem(
+                metric_number(NETMET_REC_METRICS, metric), NETMET_REC_METRICS[metric])
             original = (full / "4_NetworkActivity" / "4B_GroupComparisons"
-                        / "5_GraphMetricsByLag" / f"{metric}.png")
+                        / "5_GraphMetricsByLag" / f"{curve_stem}.png")
             checks.append(("…identical to the figure the full run wrote",
                            original.exists()
                            and hashlib.sha256(curve).hexdigest() == _digest(original),
@@ -492,8 +502,8 @@ def _color_checks() -> list[Check]:
                 f"{base}/api/comparison?{address}&group_colors=%23ff0000,%230000ff")
 
             original = (full / "4_NetworkActivity" / "4B_GroupComparisons"
-                        / "4_RecordingsByAge" / "HalfViolinPlots" / f"Lag{LAG}ms"
-                        / "Dens_byDIV.png")
+                        / "4_RecordingsByAge" / "HalfViolinPlots" / f"{LAG}mslag"
+                        / "2_density_byAge.png")
             checks.append(("an unstyled request is still the pipeline's figure",
                            original.exists()
                            and hashlib.sha256(plain).hexdigest() == _digest(original),

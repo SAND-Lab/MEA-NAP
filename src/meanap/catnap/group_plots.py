@@ -438,7 +438,7 @@ def _safe_name(name: str) -> str:
 
 
 def _lag_folder(lag, timescale: str = "lag") -> str:
-    """``'1000mslag'`` → ``'Lag1000ms'`` (the naming the ephys folders use).
+    """``'1000mslag'`` → ``'Lag1000ms'`` (the naming of CAT-NAP's own comparison folders).
 
     ``timescale`` is ``"bin"`` on a CAT-NAP correlation run, where the number
     is a correlation bin and not a lag at all — see :mod:`meanap.timescale`.

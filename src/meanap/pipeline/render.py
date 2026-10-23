@@ -143,13 +143,13 @@ ACTIVITY_FIGURES: tuple[FigureSpec, ...] = (
     FigureSpec("1_FiringRateByElectrode", "Firing rate by electrode"),
     FigureSpec("2_Heatmap", "Firing rate heatmap", "FR"),
     FigureSpec("3_Raster", "Raster"),
-    FigureSpec("3_BurstRate_heatmap", "Burst rate heatmap", "channelBurstRate"),
-    FigureSpec("4_BurstDur_heatmap", "Burst duration heatmap", "channelBurstDur"),
-    FigureSpec("5_FractSpikesInBursts_heatmap", "Fraction of spikes in bursts",
+    FigureSpec("4_BurstRate_heatmap", "Burst rate heatmap", "channelBurstRate"),
+    FigureSpec("5_BurstDur_heatmap", "Burst duration heatmap", "channelBurstDur"),
+    FigureSpec("6_FractSpikesInBursts_heatmap", "Fraction of spikes in bursts",
                "channelFracSpikesInBursts"),
-    FigureSpec("6_ISIwithinBurst_heatmap", "ISI within burst",
+    FigureSpec("7_ISIwithinBurst_heatmap", "ISI within burst",
                "channelISIwithinBurst"),
-    FigureSpec("7_ISIoutsideBurst_heatmap", "ISI outside bursts",
+    FigureSpec("8_ISIoutsideBurst_heatmap", "ISI outside bursts",
                "channeISIoutsideBurst"),
     FigureSpec("8_BurstDetectionInfo", "Burst detection detail"),
 )
@@ -736,12 +736,46 @@ COMPARISON_FAMILIES: tuple[ComparisonFamily, ...] = (
 )
 
 #: ``split`` → the ``x_kind`` passed to ``plot_half_violin_by_x`` and the
-#: filename stem the pipeline uses. ``group`` gives one panel per group with age
-#: along x; ``age`` gives one panel per age with group along x.
+#: filename suffix CAT-NAP's activity set uses. ``group`` gives one panel per
+#: group with age along x; ``age`` gives one panel per age with group along x.
+#: The ephys and network sets are named as MATLAB names them instead — see
+#: :func:`_comparison_stem`.
 COMPARISON_SPLITS: dict[str, tuple[str, str]] = {
     "group": ("group", "byGroup"),
     "age": ("DIV", "byDIV"),
 }
+
+
+def _comparison_stem(family: str, level: str, split: str, metric: str,
+                     metrics: dict[str, str]) -> str:
+    """The file stem the pipeline writes one comparison figure under.
+
+    The ephys (2B) and network (4B) sets follow MATLAB: ``<n>_<label>_byGroup``
+    and ``<n>_<label>_byAge``, except that ``PlotEphysStats.m`` writes its
+    node-by-age figures as plain ``<n>_<label>``. CAT-NAP's activity set has no
+    MATLAB counterpart and keeps ``<metric>_byGroup[_node]``.
+    """
+    from meanap.pipeline.plotting_step4 import comparison_figure_stem, metric_number
+
+    _, stem = COMPARISON_SPLITS[split]
+    if family == "activity":
+        return f"{metric}_{stem}" + ("_node" if level == "node" else "")
+    n, label = metric_number(metrics, metric), metrics[metric]
+    if split == "group":
+        return comparison_figure_stem(n, label, "byGroup")
+    if family == "ephys_activity" and level == "node":
+        return comparison_figure_stem(n, label)
+    return comparison_figure_stem(n, label, "byAge",
+                                  by_age=(family == "network" and level == "recording"))
+
+
+def plain_label(label: str) -> str:
+    """A metric label without matplotlib mathtext, for text outside a figure.
+
+    The network labels carry MATLAB's ``σ``/``ω`` as ``$\\sigma$``/``$\\omega$``
+    so they render in a figure; a viewer menu shows them as plain text.
+    """
+    return label.replace(r"$\sigma$", "σ").replace(r"$\omega$", "ω")
 
 COMPARISON_LEVELS = ("recording", "node")
 
@@ -925,7 +959,8 @@ def comparison_axes(ctx: RenderContext, family: str) -> ComparisonAxes:
     levels = tuple(
         LevelAxis(
             key=level, label=_LEVEL_LABELS[level],
-            metrics=tuple(Choice(key=k, label=v) for k, v in _metrics(level).items()),
+            metrics=tuple(Choice(key=k, label=plain_label(v))
+                          for k, v in _metrics(level).items()),
         )
         for level in COMPARISON_LEVELS if not frames[level].empty
     )
@@ -978,7 +1013,9 @@ def render_comparison_figure(
     what is available instead.
     """
     from meanap.pipeline.figure_output import figure_dpi
-    from meanap.pipeline.plotting_step4 import _lag_num, plot_half_violin_by_x
+    from meanap.pipeline.plotting_step4 import (
+        _lag_num, comparison_timescale_folder, plot_half_violin_by_x,
+    )
 
     fam = comparison_family(family)
     if split not in COMPARISON_SPLITS:
@@ -1016,7 +1053,7 @@ def render_comparison_figure(
             f"twop_activity={params.twop_activity!r}. Use comparison_axes() "
             "to list the metrics it has.")
 
-    x_kind, stem = COMPARISON_SPLITS[split]
+    x_kind, _ = COMPARISON_SPLITS[split]
     dest_dir = Path(out_dir) / fam.out_subdir / fam.comparisons_dir / _COMPARISON_DIRS[
         (level, split)]
 
@@ -1030,16 +1067,17 @@ def render_comparison_figure(
             raise ValueError(
                 f"No {family} results at {lag} ms lag; this run has {available} ms.")
         df = df[df["Lag"].map(_lag_num) == lag]
-        dest_dir = dest_dir / f"Lag{lag}ms"
+        dest_dir = dest_dir / comparison_timescale_folder(lag, timescale_kind(params))
 
-    suffix = "_node" if level == "node" else ""
-    dest = dest_dir / f"{metric}_{stem}{suffix}.{fmt}"
+    dest = dest_dir / f"{_comparison_stem(family, level, split, metric, metrics)}.{fmt}"
     dest_dir.mkdir(parents=True, exist_ok=True)
 
     with figure_dpi(dpi):
         plot_half_violin_by_x(df, metric, metrics[metric], x_kind, dest,
                               group_order=order, colors=ColorScheme.from_params(params),
-                              ylim=ylim)
+                              ylim=ylim,
+                              # PlotEphysStats.m titles its by-age panels "Age14".
+                              age_title_sep="" if family == "ephys_activity" else " ")
 
     if not dest.is_file():
         raise ValueError(
@@ -1099,7 +1137,7 @@ def available_lag_series(ctx: RenderContext) -> list[tuple[LagSeries, tuple[Choi
     out = []
     for series in LAG_SERIES:
         if series.keyed_by == "metric":
-            present = [Choice(key=k, label=v)
+            present = [Choice(key=k, label=plain_label(v))
                        for k, v in comparison_metrics("network", "recording").items()
                        if k in df_rec.columns and df_rec[k].notna().any()]
         else:

@@ -125,11 +125,13 @@ def metric_labels(activity: str | None = None) -> dict[str, str]:
     a table that pools several measures.
     """
     from meanap.catnap.group_plots import twop_metric_labels
-    from meanap.pipeline.plotting_step4 import NETMET_NODE_METRICS, NETMET_REC_METRICS
+    from meanap.pipeline.plotting_step4 import (
+        NETMET_NODE_DISPLAY_LABELS, NETMET_REC_DISPLAY_LABELS,
+    )
 
     twop_rec, twop_node = twop_metric_labels(activity or "peaks")
     labels: dict[str, str] = {}
-    for src in (NETMET_REC_METRICS, NETMET_NODE_METRICS, twop_rec, twop_node):
+    for src in (NETMET_REC_DISPLAY_LABELS, NETMET_NODE_DISPLAY_LABELS, twop_rec, twop_node):
         labels.update(src)
     labels.setdefault("CC_rawMean", "Clustering Coefficient (raw)")
     labels.setdefault("PL_raw", "Path Length (raw)")

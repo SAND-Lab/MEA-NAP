@@ -26,9 +26,10 @@ from collections import defaultdict
 from pathlib import Path
 
 # --- MATLAB readable label -> Python metric code -----------------------------
-# MATLAB names group-comparison plots "<N>_<readable label>_by<Grouping>.png";
-# Python names them "<code>_by<Grouping>[_node].png". This maps the readable
-# label to the code so the two can be paired. Derived from PlotNetMet.m /
+# Both pipelines now name group-comparison plots
+# "<N>_<readable label>_by<Grouping>.png". Python output written before that
+# change used "<code>_by<Grouping>[_node].png", so the key for pairing is the
+# metric code: this maps the readable label to it. Derived from PlotNetMet.m /
 # PlotEphysStats.m ordering and src/meanap/pipeline/plotting_step{2,4}.py.
 LABEL2CODE = {
     # step 2 - recording level (ephys)
@@ -50,6 +51,8 @@ LABEL2CODE = {
     # step 2 - node level (ephys)
     "mean_firing_rate_node": "FR",
     "mean_firing_rate_active_node": "FRactive",
+    "mean firing rate node": "FR",
+    "mean firing rate active node": "FRactive",
     "Unit burst rate (per minute)": "channelBurstRate",
     "Unit within-burst firing rate (Hz)": "channelWithinBurstFr",
     "Unit burst duration (ms)": "channelBurstDur",
@@ -108,7 +111,8 @@ LAG_PY = re.compile(r"Lag(\d+)ms")
 def canon_path(rel: str) -> str:
     """Normalise a relative path so MATLAB and Python trees line up.
 
-    Python uses 'Lag10ms' folder tokens where MATLAB uses '10mslag'.
+    Python output from before the 4B folders were renamed uses 'Lag10ms'
+    folder tokens where MATLAB uses '10mslag'.
     """
     return LAG_PY.sub(lambda m: f"{m.group(1)}mslag", rel)
 
@@ -117,20 +121,19 @@ def metric_key(stem: str, is_matlab: bool, is_group: bool) -> str:
     """Reduce a filename stem to a pipeline-agnostic key for pairing.
 
     Only group-comparison plots (those under a 2B/4B *_GroupComparisons folder)
-    get the numeric-prefix strip + MATLAB-label->code translation, because only
-    there do the two pipelines diverge: MATLAB writes "<N>_<readable>_by<Grp>",
-    Python writes "<code>_by<Grp>[_node]". MATLAB is also inconsistent — the
-    ByAge folders drop the "_by<Grp>" suffix — so we key on the folder, not the
-    suffix. Individual / spike / edge-threshold plots share identical filenames
-    across pipelines, so their stems are left untouched and pair verbatim.
+    get the numeric-prefix strip + label->code translation. Both pipelines
+    write "<N>_<readable>_by<Grp>"; older Python output wrote
+    "<code>_by<Grp>[_node]", which the same reduction leaves as the code. The
+    step-2 node-by-age figures drop the "_by<Grp>" suffix, so we key on the
+    folder, not the suffix. Individual / spike / edge-threshold plots share
+    identical filenames across pipelines, so their stems are left untouched and
+    pair verbatim. ``is_matlab`` is kept for callers; the reduction no longer
+    depends on it.
     """
     if not is_group:
         return stem
-    stem = BY_SUFFIX.sub("", stem)
-    if is_matlab:
-        readable = NUM_PREFIX.sub("", stem)
-        return LABEL2CODE.get(readable, readable)
-    return stem
+    readable = NUM_PREFIX.sub("", BY_SUFFIX.sub("", stem))
+    return LABEL2CODE.get(readable, readable)
 
 
 def pair_key(rel: str, is_matlab: bool) -> str:

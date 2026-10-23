@@ -233,9 +233,9 @@ These functions save figures but are dead code or lack a caller:
 ### Step 1: Detection and sorting checks (`<OUT>/1_SpikeDetection/1B_SpikeDetectionChecks/<G>/<R>/`)
 | Saved file | Source | Title | X label | Y label | Other |
 |---|---|---|---|---|---|
-| `1_ExampleTraces.png` | pipeline/plotting.py:442 | suptitle `rec_name`; panels 'Electrode \<ch> \| \<start> - \<end> s' | — | 'Amplitude ($\mu$V)' | |
-| `2_SpikeFrequencies.png` | :403 | `rec_name` | 'Time (minutes)' | 'Spiking frequency (Hz)' | |
-| `3_Waveforms.png` | :510 | suptitle '\<rec>\nUnique spikes by method from electrode \<ch>'; panels `<method>` | — | 'Voltage ($\mu$V)' | |
+| `1_ExampleTraces.png` | pipeline/plotting.py:447 | suptitle `<FNt>`; panels 'Electrode \<ch>' / '\<start> - \<end> s' (two lines) | — | 'Amplitude ($\mu$V)' | |
+| `2_SpikeFrequencies.png` | :403 | `<FNt>` | 'Time (minutes)' | 'Spiking frequency (Hz)' | |
+| `3_Waveforms.png` | :515 | suptitle '\<FNt>', a blank line, then 'Unique spikes by method from electrode \<ch>'; panels `<method>` | — | 'Voltage [$\mu$V]' | |
 | `1_UnitsPerElectrode.png` | pipeline/plotting_sorting.py:251 | '\<rec>\n\<n> unit(s) on \<n> of \<N> electrodes (\<sorter> \<ver>)' | — | — | colorbar 'units kept on electrode' |
 | `2_UnitTemplates.png` | :289 | suptitle '\<rec> — unit templates on each electrode (solid: good, dashed: multi-unit; ±\<amp> µV)' | — | — | |
 | `3_UnitQuality.png` | :328 | 'Where each unit fell against the curation floors'; 'Firing rate by label'; suptitle '\<rec> — \<n> unit(s) from \<sorter>' | 'ISIs shorter than the refractory period (%)' | 'SNR'; 'firing rate (Hz)' | |
@@ -243,15 +243,15 @@ These functions save figures but are dead code or lack a caller:
 ### Step 2A: Per recording (folder 2A)
 | Saved file | Source | Title | X label | Y label | Colorbar |
 |---|---|---|---|---|---|
-| `1_FiringRateByElectrode.png` | pipeline/plotting_step2.py:46 | 'Firing Rate by Electrode' | — | 'Mean firing rate per electrode (Hz)' | |
-| `2_Heatmap.png` | :181 | 'Firing Rate\nscaled to recording' / '…\nscaled to entire dataset' | — | — | 'Mean FR (Hz)' |
-| `3_BurstRate_heatmap.png` | same | 'Burst Rate\n…' | — | — | 'Burst Rate (bursts/min)' |
-| `4_BurstDur_heatmap.png` | same | 'Burst Duration\n…' | — | — | 'Duration (ms)' |
-| `5_FractSpikesInBursts_heatmap.png` | same | 'Fraction Spikes in Bursts\n…' | — | — | 'Fraction' |
-| `6_ISIwithinBurst_heatmap.png` | same | 'ISI Within Burst\n…' | — | — | 'ISI (ms)' |
-| `7_ISIoutsideBurst_heatmap.png` | same | 'ISI Outside Burst\n…' | — | — | 'ISI (ms)' |
-| `3_Raster.png` | :233 | 'raster scaled to recording' / 'raster scaled to entire data batch' | 'Time (s)' | 'Electrode' | 'Firing Rate (Hz)' |
-| `8_BurstDetectionInfo.png` | :318 | 'Raster (All spikes)'; 'Raster (Only network bursts)'; 'ISI Distribution' | 'Time (s)'; 'Inter-Spike Interval (s)' | 'Electrode'; 'Probability' | |
+| `1_FiringRateByElectrode.png` | pipeline/plotting_step2.py:66 | `<FNt>` | 'age\<DIV>' | 'mean firing rate per electrode (Hz)' | |
+| `2_Heatmap.png` | :191 | '\<FNt> scaled to recording' / '\<FNt> scaled to entire dataset' | — | — | 'mean firing rate (Hz)' |
+| `3_Raster.png` | :263 | '\<FNt> raster scaled to recording' / '\<FNt> raster scaled to entire data batch' | 'Time (min)' | 'Electrode' | 'Firing Rate (Hz)' |
+| `4_BurstRate_heatmap.png` | :191 | same as `2_Heatmap` | — | — | 'Mean burst rate (per minute)' |
+| `5_BurstDur_heatmap.png` | same | same | — | — | 'Mean burst duration (ms)' |
+| `6_FractSpikesInBursts_heatmap.png` | same | same | — | — | 'Fraction spikes in bursts' |
+| `7_ISIwithinBurst_heatmap.png` | same | same | — | — | 'ISI within bursts (ms)' |
+| `8_ISIoutsideBurst_heatmap.png` | same | same | — | — | 'ISI outside bursts (ms)' |
+| `8_BurstDetectionInfo.png` | :348 | 'Downsampled raster'; 'Raster with only bursts'; 'ISI Distribution: Within vs. Outside Bursts' | 'Time (s)'; 'Inter-Spike Interval (s)' | 'Electrodes' ×2; 'Probability' | MATLAB's 'Network mean activity' and 'Number of bursts as function of threshold' panels are not ported |
 | `3_ActivityRaster.png`, `4_ActivityRaster_zscored.png` (CAT-NAP) | catnap/rasters.py:214 | '\<rec> — \<activity>[ (z-scored per cell)]' | 'Time (s)' | 'Cell' | 'z-score (per cell)' / 'Events / s' / 'Deconvolved activity (a.u.)' / 'Denoised fluorescence (a.u.)' / 'Fluorescence (a.u.)' |
 | `unit_<roi>_2ptraces.png` (CAT-NAP) | catnap/plotting.py:95 | '\<rec>  cell \<roi>' | 'Time (s)' | 'Fluorescence'; 'Arbitrary units' ×2 | |
 | `9_FR_before_after_stimulation[_pattern_<k>].png` | stim/plotting.py:378 | `<rec>` | 'Pre-stim firing rate (spikes/s)' | 'Post-stim firing rate (spikes/s)' | |
@@ -263,15 +263,15 @@ These functions save figures but are dead code or lack a caller:
 | `Individual_PSTH_and_Raster_Pattern_<k>/Individual_PSTH_and_Raster_electrode_<id>.png` | :698 | suptitle "Pattern \<k> \| Electrode \<id> \| Corrected AUC: \<x> \| d' = \<x>"; 'Spike Raster (Response)'; 'Diagnostic: Response vs. Baselines (Z-score)' | 'Time from stimulus (ms)' | 'Trial Number'; 'Z-score' | |
 | `13_StimNetwork_<cond>_<lag>mslag.png` | pipeline/stim_step.py:468 | suptitle '\<rec> — \<cond>, lag \<lag> ms\n\<null> null, \<n> trials'; 'Baseline \<w0>–\<w1> s (significant STTC)', 'Evoked \<w0>–\<w1> s (significant STTC)', 'Evoked − baseline (raw STTC)', 'Noise correlation (\<n> trials)' | 'Node' | 'Node' | |
 
-### Step 2B: Group comparisons (folder 2B), plotting_step2 → `plot_half_violin_by_x` (plotting_step4.py:1337)
+### Step 2B: Group comparisons (folder 2B), plotting_step2 → `plot_half_violin_by_x` (plotting_step4.py:1145)
 | Saved file pattern | Panel title | X label | Y label |
 |---|---|---|---|
-| `3_RecordingsByGroup/HalfViolinPlots/<key>_byGroup.png` | `<group>` | 'Age' | label |
-| `4_RecordingsByAge/HalfViolinPlots/<key>_byDIV.png` | 'Age \<div>' | 'Group' | label |
-| `1_NodeByGroup/<key>_byGroup_node.png` | `<group>` | 'Age' | label |
-| `2_NodeByAge/<key>_byDIV_node.png` | 'Age \<div>' | 'Group' | label |
+| `3_RecordingsByGroup/HalfViolinPlots/<n>_<label>_byGroup.png` | `<group>` | 'Age' | label |
+| `4_RecordingsByAge/HalfViolinPlots/<n>_<label>_byAge.png` | 'Age\<DIV>' | 'Group' | label |
+| `1_NodeByGroup/<n>_<label>_byGroup.png` | `<group>` | 'Age' | label |
+| `2_NodeByAge/<n>_<label>.png` (no suffix, as in MATLAB) | 'Age\<DIV>' | 'Group' | label |
 
-The key/label pairs differ slightly from MATLAB.
+`n` is the metric's position in the tables below (1–15 recording level, 1–8 node level) and `label` is its label, as in MATLAB. The labels match MATLAB's `eMetl` / `cMetl`.
 
 Recording level (`EPHYS_REC_METRICS`):
 
@@ -287,18 +287,18 @@ Recording level (`EPHYS_REC_METRICS`):
 | meanISIoutsideNbursts_ms | 'mean ISI outside network bursts (ms)' |
 | CVofINBI | 'coefficient of variation of inter network burst intervals' |
 | fracInNburst | 'fraction of bursts in network bursts' |
-| channelAveBurstRate | 'Single-electrode burst rate (per min)' |
-| channelAveBurstDur | 'Single-electrode avg burst dur (ms)' |
-| channelAveISIwithinBurst | 'Single-electrode avg ISI within burst (ms)' |
-| channelAveISIoutsideBurst | 'Single-electrode avg ISI outside burst (ms)' |
+| channelAveBurstRate | 'Single-electrode burst rate (per minute)' |
+| channelAveBurstDur | 'Single-electrode average burst duration (ms)' |
+| channelAveISIwithinBurst | 'Single-electrode average ISI within burst (ms)' |
+| channelAveISIoutsideBurst | 'Single-electrode average ISI outside burst (ms)' |
 | channelAveFracSpikesInBursts | 'Mean fraction of spikes in bursts per electrode' |
 
 Node level (`EPHYS_NODE_METRICS`):
 
 | Key | Label |
 |---|---|
-| FR | 'mean_firing_rate_node' (raw identifier) |
-| FRactive | 'mean_firing_rate_active_node' (raw identifier) |
+| FR | 'mean firing rate node' |
+| FRactive | 'mean firing rate active node' |
 | channelBurstRate | 'Unit burst rate (per minute)' |
 | channelWithinBurstFr | 'Unit within-burst firing rate (Hz)' |
 | channelBurstDur | 'Unit burst duration (ms)' |
@@ -309,24 +309,24 @@ Node level (`EPHYS_NODE_METRICS`):
 ### Step 3
 | Saved file | Source | Titles | X label | Y label | Colorbar |
 |---|---|---|---|---|---|
-| `<OUT>/3_EdgeThresholdingCheck/<rec><lag>msLagProbThreshCheck.png` | pipeline/plotting_step3.py:250 | 'Change in threshold'; 'Raw Data Samples'; 'discarded (rep\<n>)' ×5 | 'Number of Repeats'; 'Electrode' | 'Average threshold value' + twin 'Coefficient of Variance'; 'Threshold value'; 'Electrode' | 'Edge weight' |
+| `<OUT>/3_EdgeThresholdingCheck/<rec><lag>msLagProbThreshCheck.png` | pipeline/plotting_step3.py:250 | 'Change in threshold'; 'Raw Data Samples'; 'discarded edges (rep\<n>)' ×5 | 'Number of Repeats'; 'Electrode' | 'Average threshold value' + twin 'Coefficient of Variance'; 'Threshold value'; 'Electrode' | 'Edge weight' |
 
 ### Step 4A: Per recording and lag (folder 4A; `<lag>msbin` for CAT-NAP correlation)
 | Saved file | Source (plotting_step4.py) | Title | X label | Y label | Colorbar / legend |
 |---|---|---|---|---|---|
-| `1_adjM<lag>msConnectivityStats.png` | :102 | suptitle '\<rec> \<lag> ms lag'; 'adjacency matrix', 'max corr. value', 'mean corr. value' | 'nodes'; 'node degree'; 'node strength'; 'edge weight' | 'nodes'; 'frequency' | 'correlation coefficient' |
-| `2_MEA_NetworkPlot.png` | :184 | '\<rec>  \<lag> ms lag' (scaled: + ' (scaled to data batch)') | — | — | text 'node degree:', 'edge weight:' |
-| `3_MEA_NetworkPlotNodedegreeBetweennesscentrality.png` | :184 | same | — | — | 'Betweenness centrality' / size 'node degree' |
-| `4_MEA_NetworkPlotNodedegreeParticipationcoefficient.png` | :184 | same | — | — | 'Participation coefficient' / 'node degree' |
-| `5_MEA_NetworkPlotNodestrengthLocalefficiency.png` | :184 | same | — | — | 'Local efficiency' / 'node strength' |
-| `10_MEA_NetworkPlotNodedegreeAveragecontrollability.png` | :184 | same | — | — | 'Average controllability' / 'node degree' |
-| `11_MEA_NetworkPlotNodedegreeModalcontrollability.png` | :184 | same | — | — | 'Modal controllability' / 'node degree' |
-| `*_scaled_MEA_NetworkPlot*.png` (the 6 above) | :184 | + ' (scaled to data batch)' | — | — | same |
-| `<n>_combined_MEA_NetworkPlot[_<Metric name>].png` | :381 | '\<rec>  \<lag> ms lag\nscaled to recording' / '…\nscaled to entire data batch' | — | — | |
-| `6_circular_NetworkPlotNodedegreeModule.png` | :864 | '\<FNt>  \<lag> ms lag' | — | — | 'Node degree:', 'edge weight:', 'Module' |
-| `7_adjM<lag>msGraphMetricsByNode.png` | :1910 | suptitle '\<FNt> \<lag> ms lag' | — | 'node degree', 'mean edge weight', 'node strength', 'within-module degree z-score', 'local efficiency', 'participation coefficient', 'betweenness centrality' | |
-| `9_adjM<lag>msNodeCartography.png` | :532 | '\<rec> \<lag> ms lag  —  node cartography' | 'participation coefficient' | 'within-module degree z-score' | |
-| `9_circular_NetworkPlotNodeCartography.png` | :1013 | '\<FNt>  \<lag> ms lag' | — | — | 6 role names, 'edge weight:' |
+| `1_adjM<lag>msConnectivityStats.png` | :111 | suptitle std; 'adjacency matrix', 'max corr. value', 'mean corr. value' | 'nodes'; 'node degree'; 'node strength'; 'edge weight' | 'nodes'; 'frequency' | 'correlation coefficient' |
+| `2_MEA_NetworkPlot.png` | :193 | std | — | — | text 'node degree:', 'edge weight:' |
+| `3_MEA_NetworkPlotNodedegreeBetweennesscentrality.png` | :193 | std | — | — | 'Betweenness centrality' / size 'Node degree:' |
+| `4_MEA_NetworkPlotNodedegreeParticipationcoefficient.png` | :193 | std | — | — | 'Participation coefficient' / 'Node degree:' |
+| `5_MEA_NetworkPlotNodestrengthLocalefficiency.png` | :193 | std | — | — | 'Local efficiency' / 'Node strength:' |
+| `10_MEA_NetworkPlotNodedegreeAveragecontrollability.png` | :193 | std | — | — | 'Average controllability' / 'Node degree:' |
+| `11_MEA_NetworkPlotNodedegreeModalcontrollability.png` | :193 | std | — | — | 'Modal controllability' / 'Node degree:' |
+| `*_scaled_MEA_NetworkPlot*.png` (the 6 above) | :193 | std (only the file name says it is scaled) | — | — | same |
+| `<n>_combined_MEA_NetworkPlot[_<Metric name>].png` | :389 | none (as MATLAB's copyobj figure) | — | — | |
+| `6_circular_NetworkPlotNodedegreeModule.png` | :874 | std | — | — | 'Node degree:', 'edge weight:', 'Module' |
+| `7_adjM<lag>msGraphMetricsByNode.png` | :1964 | suptitle std | — | 'node degree', 'mean edge weight', 'node strength', 'within-module degree z-score', 'local efficiency', 'participation coefficient', 'betweenness centrality' | |
+| `9_adjM<lag>msNodeCartography.png` | :543 | suptitle std; panel 'node cartography' | 'participation coefficient' | 'within-module degree z-score' | |
+| `9_circular_NetworkPlotNodeCartography.png` | :1022 | std | — | — | 6 role names, 'edge weight:' |
 | `12_MeanImageAndNetwork.png` (CAT-NAP) | :247 | '\<rec>\nimaged field of view' / '\<rec>  \<lag> ms lag\nnetwork' | — | — | |
 | `cellTypeSubnetworks/1_CellTypeNetwork.png` (CAT-NAP) | catnap/subnetwork_plotting.py:233 | '\<rec>  \<lag> ms lag\n\<label>: \<n> edges · …' | — | — | legend '\<type> (n=\<n>)', 'between-type edge' |
 | `cellTypeSubnetworks/2_SubnetworkGraphs.png` | :294 | suptitle '\<rec>  \<lag> ms lag'; panels '\<name>\n\<n> cells · \<edges> · density \<d>' | — | — | |
@@ -334,67 +334,71 @@ Node level (`EPHYS_NODE_METRICS`):
 | `cellTypeSubnetworks/4_SubnetworkMetrics.png` | :418 | suptitle '… — metrics of each cell-type subnetwork' | — | raw keys Dens, NDmean, NSmean, MEW_mean, Eglob, ElocMean, CC_rawMean, SW, SWw, Q, nMod | |
 | `cellTypeSubnetworks/5_EdgeMixing.png` | :472 | suptitle '… — connectivity within/between cell types'; 'edge density', 'mean weight (edges present)' | — | — | |
 
-### Step 4B: Group comparisons (folder 4B; `<L>` = `Lag<n>ms` or `Bin<n>ms`)
+### Step 4B: Group comparisons (folder 4B; `<L>` = `<lag>mslag`, or `Bin<n>ms` on a CAT-NAP correlation run)
 | Saved file pattern | Source (plotting_step4.py) | Panel title | X label | Y label |
 |---|---|---|---|---|
-| `3_RecordingsByGroup/HalfViolinPlots/<L>/<key>_byGroup.png` | :1337 | `<group>` | 'Age' | label |
-| `4_RecordingsByAge/HalfViolinPlots/<L>/<key>_byDIV.png` | :1337 | 'Age \<div>' | 'Group' | label |
-| `1_NodeByGroup/<L>/<key>_byGroup_node.png`, `2_NodeByAge/<L>/<key>_byDIV_node.png` | :1337 | same | same | node label |
-| `5_GraphMetricsByLag/<key>.png` | :1748 | `<group>` | 'STTC lag (ms)' or 'Correlation bin (ms)' | label (legend title 'DIV') |
-| `6_NodeCartographyByLag/NodeCartography<lag>mslag.png` | :1599 | `<group>` | 'Age' | 'node cartography' |
-| `6_NodeCartographyByLag/NodeCartographyProportionsByGenotype<lag>mslag.png` | :1453 | `<group>` | 'Age' (bottom) | 'Proportion of nodes' |
-| `6_NodeCartographyByLag/NodeCartographyProportionsByAge<lag>mslag.png` | :1511 | 'DIV \<div>' | — | 'Proportion of nodes' |
-| `7_DensityLandscape/ZandPC_scatter_with_kmeans_boundaries_.png` | :1642 | — | 'Participation Coefficient (PC)' | 'Within-module Z-score (Z)' |
+| `3_RecordingsByGroup/HalfViolinPlots/<L>/<n>_<label>_byGroup.png` | :1145 | `<group>` | 'Age' | label |
+| `4_RecordingsByAge/HalfViolinPlots/<L>/<n>_<label>_byAge.png` | :1145 | 'Age \<DIV>' | 'Group' | label |
+| `1_NodeByGroup/<L>/<n>_<label>_byGroup.png`, `2_NodeByAge/<L>/<n>_<label>_byAge.png` | :1145 | same | same | node label |
+| `5_GraphMetricsByLag/<n>_<label>.png` | :1803 | `<group>` | 'STTC lag (ms)' or 'Correlation bin (ms)' | label (legend title 'DIV') |
+| `6_NodeCartographyByLag/NodeCartography<lag>mslag.png` | :1654 | `<group>` | 'Age' | 'node cartography' |
+| `6_NodeCartographyByLag/NodeCartographyProportionsByGenotype<lag>mslag.png` | :1508 | `<group>` | 'Age' (bottom) | 'Proportion of nodes' |
+| `6_NodeCartographyByLag/NodeCartographyProportionsByAge<lag>mslag.png` | :1566 | 'DIV \<div>' | — | 'Proportion of nodes' |
+| `7_DensityLandscape/ZandPC_scatter_with_kmeans_boundaries_.png` | :1697 | — | 'Participation Coefficient (PC)' | 'Within-module Z-score (Z)' |
 
-Recording-level labels (`NETMET_REC_METRICS`):
+File names use the `PlotNetMet.m` rules (`comparison_figure_stem`): `n` is the metric's position in the tables below and `label` its label, with backslashes and `$` dropped, `>` / `<` spelled 'greater than' / 'less than', and `/` turned into 'div' in the recording-level by-age section. The CAT-NAP cell-type subnetwork set (`8_CellTypeSubnetworks/`) keeps its own `Lag<n>ms/<key>_<type>_by…` naming.
 
-| Key | Label |
-|---|---|
-| aN | 'Active Nodes' |
-| Dens | 'Density' |
-| CC | 'Clustering Coefficient' |
-| nMod | 'Number of Modules' |
-| Q | 'Modularity (Q)' |
-| PL | 'Path Length' |
-| Eglob | 'Global Efficiency' |
-| SW | 'Small-worldness (SW)' |
-| SWw | 'Small-worldness (SWw)' |
-| effRank | 'Effective Rank' |
-| num_nnmf_components | 'Num NNMF Components' |
-| nComponentsRelNS | 'NNMF Components / NS' |
-| NDmean | 'Mean Node Degree' |
-| NDtop25 | 'Top 25% Node Degree' |
-| sigEdgesMean | 'Mean Significant Edge Weight' |
-| sigEdgesTop10 | 'Top 10% Significant Edge Weight' |
-| NSmean | 'Mean Node Strength' |
-| ElocMean | 'Mean Local Efficiency' |
-| PCmean | 'Mean Participation Coefficient' |
-| PCmeanTop10 | 'Top 10% Participation Coefficient' |
-| PCmeanBottom10 | 'Bottom 10% Participation Coefficient' |
-| percentZscoreGreaterThanZero | 'Percent Z > 0' |
-| percentZscoreLessThanZero | 'Percent Z \< 0' |
-| NCpn1 | 'Proportion Peripheral Nodes (R1)' |
-| NCpn2 | 'Proportion Non-hub Connectors (R2)' |
-| NCpn3 | 'Proportion Non-hub Kinless Nodes (R3)' |
-| NCpn4 | 'Proportion Provincial Hubs (R4)' |
-| NCpn5 | 'Proportion Connector Hubs (R5)' |
-| NCpn6 | 'Proportion Kinless Hubs (R6)' |
-| aveControlMean | 'Mean Average Controllability' |
-| modalControlMean | 'Mean Modal Controllability' |
+Recording-level labels (`NETMET_REC_METRICS`), n = 1–31. These are MATLAB's labels; `aveControlMean` and `modalControlMean` (MATLAB GUI mode only) are numbered after the 29 script-mode metrics:
 
-Node-level labels (`NETMET_NODE_METRICS`):
+| n | Key | Label |
+|---|---|---|
+| 1 | aN | 'network size' |
+| 2 | Dens | 'density' |
+| 3 | CC | 'clustering coefficient' |
+| 4 | nMod | 'number of modules' |
+| 5 | Q | 'modularity score' |
+| 6 | PL | 'mean path length' |
+| 7 | Eglob | 'global efficiency' |
+| 8 | SW | 'small worldness $\sigma$' |
+| 9 | SWw | 'small worldness $\omega$' |
+| 10 | effRank | 'Effective rank' |
+| 11 | num_nnmf_components | 'Num NMF components' |
+| 12 | nComponentsRelNS | 'nNMF div network size' |
+| 13 | NDmean | 'Node degree mean' |
+| 14 | NDtop25 | 'Top 25% node degree' |
+| 15 | sigEdgesMean | 'Significant edge weight mean' |
+| 16 | sigEdgesTop10 | 'Top 10% edge weight mean' |
+| 17 | NSmean | 'Node strength mean' |
+| 18 | ElocMean | 'Local efficiency mean' |
+| 19 | PCmean | 'Participant coefficient (PC) mean' |
+| 20 | PCmeanTop10 | 'Top 10% PC' |
+| 21 | PCmeanBottom10 | 'Bottom 10% PC' |
+| 22 | percentZscoreGreaterThanZero | 'Percentage within-module z-score > 0' |
+| 23 | percentZscoreLessThanZero | 'Percentage within-module z-score \< 0' |
+| 24 | NCpn1 | 'NC1PeripheralNodes' |
+| 25 | NCpn2 | 'NC2NonhubConnectors' |
+| 26 | NCpn3 | 'NC3NonhubKinless' |
+| 27 | NCpn4 | 'NC4ProvincialHubs' |
+| 28 | NCpn5 | 'NC5ConnectorHubs' |
+| 29 | NCpn6 | 'NC6KinlessHubs' |
+| 30 | aveControlMean | 'Mean average controllability' |
+| 31 | modalControlMean | 'Mean modal controllability' |
 
-| Key | Label |
-|---|---|
-| ND | 'Node Degree' |
-| MEW | 'Mean Edge Weight' |
-| NS | 'Node Strength' |
-| Z | 'Within-Module Degree Z-Score' |
-| Eloc | 'Local Efficiency' |
-| PC | 'Participation Coefficient' |
-| BC | 'Betweenness Centrality' |
-| aveControl | 'Average Controllability' |
-| modalControl | 'Modal Controllability' |
+Node-level labels (`NETMET_NODE_METRICS`), n = 1–9:
+
+| n | Key | Label |
+|---|---|---|
+| 1 | ND | 'node degree' |
+| 2 | MEW | 'edge weight' |
+| 3 | NS | 'node strength' |
+| 4 | Z | 'within-module degree z-score' |
+| 5 | Eloc | 'local efficiency' |
+| 6 | PC | 'participation coefficient' |
+| 7 | BC | 'betweenness centrality' |
+| 8 | aveControl | 'Average Controllability' |
+| 9 | modalControl | 'Modal Controllability' |
+
+Step 5 and CAT-NAP cell tracking label the same metrics with `NETMET_REC_DISPLAY_LABELS` / `NETMET_NODE_DISPLAY_LABELS` ('Active Nodes', 'Density', 'Small-worldness (SW)', 'Proportion Peripheral Nodes (R1)', …), the wording the 4B figures used before they took MATLAB's.
 
 ### CAT-NAP cell tracking (`<OUT>/CellTracking/DevelopmentByCellType/[<measure>/]<definition>/…`)
 | Saved file | Source (catnap/tracking/development_plots.py) | Title | X label | Y label |
@@ -485,4 +489,4 @@ Cell-type mosaic figures (stats/celltype_plots.py). `<v>` is 'All labelled cells
 - **Bad save path:** `find_best_spike_result.m:389` is missing a path separator.
 - **Overwritten every lag:** `ZandPC_scatter_with_kmeans_boundaries_` in both MATLAB and Python.
 - **Wrong axis label:** `2_SpikeFrequencies` is labelled 'Hz' in both MATLAB and Python, but it plots raw spikes per bin.
-- **Prefix clash:** Python step 2A has both `3_Raster.png` and `3_BurstRate_heatmap.png`.
+- **Shared prefix:** step 2A has both `8_ISIoutsideBurst_heatmap` and `8_BurstDetectionInfo`, in MATLAB and Python alike.

@@ -396,7 +396,7 @@ def _draw_frequencies(data: SpikeCheckData, path: Path, colors) -> None:
     ax.set_xlabel("Time (minutes)")
     ax.set_ylabel("Spiking frequency (Hz)")  # raw spikes/bin, as in MATLAB
     ax.legend(bbox_to_anchor=(1.01, 1), loc="upper left")
-    ax.set_title(data.rec_name)
+    ax.set_title(_fnt(data.rec_name))
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
     plt.tight_layout()
@@ -404,9 +404,14 @@ def _draw_frequencies(data: SpikeCheckData, path: Path, colors) -> None:
     plt.close(fig)
 
 
+def _fnt(rec_name: str) -> str:
+    """MATLAB's ``FNt``: the recording name with its underscores removed."""
+    return rec_name.replace("_", "")
+
+
 def _draw_example_traces(data: SpikeCheckData, path: Path, colors) -> None:
     fig, axes = plt.subplots(5, 2, figsize=(14, 8), constrained_layout=True)
-    fig.suptitle(data.rec_name)
+    fig.suptitle(_fnt(data.rec_name))
     axes = axes.flatten()
 
     for i in range(data.n_panels):
@@ -434,7 +439,7 @@ def _draw_example_traces(data: SpikeCheckData, path: Path, colors) -> None:
         ax.spines["bottom"].set_visible(False)
         ax.set_xticks([])
         ax.set_ylabel("Amplitude ($\\mu$V)")
-        ax.set_title(f"Electrode {int(data.trace_channels[i])} | "
+        ax.set_title(f"Electrode {int(data.trace_channels[i])}\n"
                      f"{start_f / data.fs:.3f} - {end_f / data.fs:.3f} s")
 
     for i in range(data.n_panels, len(axes)):
@@ -450,7 +455,7 @@ def _draw_waveforms(data: SpikeCheckData, path: Path) -> None:
 
     fig, axes = plt.subplots(n_rows, n_cols, figsize=(n_cols * 3, 6),
                              squeeze=False, constrained_layout=True)
-    fig.suptitle(f"{data.rec_name}\nUnique spikes by method from "
+    fig.suptitle(f"{_fnt(data.rec_name)}\n\nUnique spikes by method from "
                  f"electrode {data.wave_channel}")
 
     ymin, ymax = -6 * data.wave_std, 5 * data.wave_std
@@ -498,7 +503,7 @@ def _draw_waveforms(data: SpikeCheckData, path: Path) -> None:
 
         ax.set_title(method.replace("p", "."))
         ax.set_ylim(ymin, ymax)
-        ax.set_ylabel("Voltage ($\\mu$V)")
+        ax.set_ylabel("Voltage [$\\mu$V]")
         ax.spines["top"].set_visible(False)
         ax.spines["right"].set_visible(False)
         ax.spines["bottom"].set_visible(False)
