@@ -123,6 +123,7 @@ def main() -> None:
         splash.finish(window)
     print(f"MEA-NAP: window ready {time.perf_counter() - started:.1f} s after start",
           file=sys.stderr)
+    window.report_app_update()
     if check_on_start():
         window.start_update_check()
     sys.exit(app.exec())

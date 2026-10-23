@@ -48,7 +48,7 @@ from meanap.gui.tooltip import install_tooltip_style, wrap_tooltips
 from meanap.gui.tutorial import TutorialOverlay, TutorialStep, tabbar_target
 from meanap.frozen import is_frozen
 from meanap.gui.versions_dialog import (
-    AppVersionDialog, Background, VersionsDialog, status_summary,
+    AppVersionDialog, Background, VersionsDialog, dev_builds_wanted, status_summary,
 )
 from meanap.gui.combo import install_combo_popup_fit
 from meanap.gui.wheel import install_wheel_guard
@@ -545,10 +545,28 @@ class MainWindow(QMainWindow):
         """
         from meanap import updates
 
-        job = Background(updates.check_app if is_frozen() else updates.check, self)
+        if is_frozen():
+            include_dev = dev_builds_wanted()
+            job = Background(lambda: updates.check_app(include_dev=include_dev), self)
+        else:
+            job = Background(updates.check, self)
         job.done.connect(self._on_update_status)
         job.start()
         self._update_job = job
+
+    def report_app_update(self) -> None:
+        """Say how the update the app installed before this start went."""
+        if not is_frozen():
+            return
+        from meanap import app_update
+
+        outcome = app_update.take_outcome()
+        if outcome is None:
+            return
+        if outcome.ok:
+            self.statusBar().showMessage(outcome.message, 15000)
+        else:
+            QMessageBox.warning(self, "MEA-NAP update", outcome.message)
 
     def _on_update_status(self, status) -> None:
         self._update_status = status
@@ -558,7 +576,8 @@ class MainWindow(QMainWindow):
 
     def _on_show_versions(self) -> None:
         if self._versions_dialog is None and is_frozen():
-            self._versions_dialog = AppVersionDialog(self)
+            self._versions_dialog = AppVersionDialog(
+                self, is_busy=self._busy, on_quit=self.close)
             self._versions_dialog.status_changed.connect(self._on_update_status)
             if self._update_status is not None:
                 self._versions_dialog.set_status(self._update_status)

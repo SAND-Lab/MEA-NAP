@@ -4,12 +4,16 @@
 # When it runs:
 # - an official release is published (v1.13.0, …) → build both, smoke-test
 #   them, attach the .dmg and the Setup.exe to that release;
+# - a development build is tagged (dev-build.yml calls this with its tag) →
+#   the same, attached to that pre-release, for app users who opted into
+#   development builds (the app's update check only offers a build once its
+#   files are attached);
 # - by hand (Actions → Desktop app → Run workflow) → build both, keep them as
 #   downloadable workflow artifacts;
 # - a pull request that touches the packaging → build and smoke-test, so a
 #   broken build is found before the release that needs it.
-# Not on every merge: development builds are hundreds of MB each, and the
-# dev-build workflow tags with GITHUB_TOKEN, which starts no other workflow.
+# The dev-build workflow is a caller rather than a trigger because it tags with
+# GITHUB_TOKEN, whose releases start no other workflow.
 
 name: Desktop app
 
@@ -17,6 +21,12 @@ on:
   release:
     types: [published]
   workflow_dispatch:
+  workflow_call:
+    inputs:
+      tag:
+        description: The development build's tag, to attach the apps to
+        required: true
+        type: string
   pull_request:
     paths:
       - "packaging/**"
@@ -156,7 +166,8 @@ jobs:
           retention-days: 14
 
       - name: Attach to the release
-        if: github.event_name == 'release'
+        if: github.event_name == 'release' || inputs.tag != ''
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "${{ github.event.release.tag_name }}" "$ASSET" --clobber
+          TAG: ${{ inputs.tag || github.event.release.tag_name }}
+        run: gh release upload "$TAG" "$ASSET" --clobber

@@ -26,17 +26,20 @@ from pathlib import Path
 from PyQt6.QtCore import QObject, QSettings, Qt, QUrl, pyqtSignal
 from PyQt6.QtGui import QDesktopServices
 from PyQt6.QtWidgets import (
-    QCheckBox, QDialog, QGroupBox, QHBoxLayout, QLabel, QListWidget,
-    QListWidgetItem, QMessageBox, QPushButton, QVBoxLayout, QWidget,
+    QApplication, QCheckBox, QDialog, QGroupBox, QHBoxLayout, QLabel, QListWidget,
+    QListWidgetItem, QMessageBox, QProgressBar, QPushButton, QVBoxLayout, QWidget,
 )
 
-from meanap import updates
+from meanap import app_update, updates
 from meanap.version import meanap_version
 
 __all__ = ["VersionsDialog", "Background", "check_on_start", "set_check_on_start",
+           "dev_builds_wanted", "set_dev_builds_wanted",
            "default_version", "set_default_version"]
 
 _SETTINGS_KEY = "updates/check_on_start"
+
+_DEV_BUILDS_KEY = "updates/app_dev_builds"
 
 _DEFAULT_KEY = "versions/default"
 
@@ -57,6 +60,15 @@ def check_on_start() -> bool:
 
 def set_check_on_start(on: bool) -> None:
     QSettings("SAND Lab", "MEA-NAP").setValue(_SETTINGS_KEY, bool(on))
+
+
+def dev_builds_wanted() -> bool:
+    """Whether the desktop app also offers development builds (off by default)."""
+    return QSettings("SAND Lab", "MEA-NAP").value(_DEV_BUILDS_KEY, False, type=bool)
+
+
+def set_dev_builds_wanted(on: bool) -> None:
+    QSettings("SAND Lab", "MEA-NAP").setValue(_DEV_BUILDS_KEY, bool(on))
 
 
 def default_version() -> str | None:
@@ -116,11 +128,16 @@ def status_summary(status: updates.Status | updates.AppStatus | None) -> str:
     if status is None:
         return "Checking GitHub for updates…"
     if isinstance(status, updates.AppStatus):
-        if status.newer_version:
-            return (f"A newer release, {status.newer_version}, is available "
-                    "to download.")
+        newer = status.newer_version
+        if newer:
+            kind = "development build" if updates.is_dev_tag(newer) else "release"
+            return f"A newer {kind}, {newer}, is available."
         if status.latest_release:
-            return "This is the latest official release."
+            if updates.is_dev_tag(status.running) and not status.include_dev:
+                return ("This development build is newer than the latest "
+                        f"official release, {status.latest_release}.")
+            return ("This is the latest build." if status.include_dev
+                    else "This is the latest official release.")
         return status.error or ""
     co = status.checkout
     if co is None:
@@ -572,24 +589,33 @@ class AppVersionDialog(QDialog):
 
     The app is not a clone, so the git half of :class:`VersionsDialog` —
     updating ``main``, opening another release beside this one — has nothing
-    to act on. What is left: what is running, whether GitHub has a newer
-    official release, and the page to download it from.
+    to act on. What is left: what is running, whether GitHub has something
+    newer, and updating to it in place (:mod:`meanap.app_update`) — or, where
+    the app cannot replace itself, the page to download it from.
     """
 
     status_changed = pyqtSignal(object)
+    #: (bytes so far, total or 0), from the download thread.
+    _progress = pyqtSignal(int, int)
 
-    def __init__(self, parent: QWidget | None = None) -> None:
+    def __init__(self, parent: QWidget | None = None, *,
+                 is_busy: Callable[[], bool] = lambda: False,
+                 on_quit: Callable[[], None] | None = None) -> None:
         super().__init__(parent)
         from meanap.version import build_label
 
         self.setWindowTitle("MEA-NAP version")
-        self.setMinimumWidth(460)
+        self.setMinimumWidth(480)
         self._status: updates.AppStatus | None = None
         self._jobs: list[Background] = []
+        self._is_busy = is_busy
+        self._on_quit = on_quit
+        self._cancel = threading.Event()
+        self._downloading = False
 
         layout = QVBoxLayout(self)
         build = build_label()
-        running = QLabel(f"<b>MEA-NAP {meanap_version()}</b> — desktop app"
+        running = QLabel(f"<b>MEA-NAP {updates.app_running_version()}</b> — desktop app"
                          + (f"<br><span style='color: palette(mid)'>build {build}</span>"
                             if build else ""))
         running.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
@@ -597,50 +623,101 @@ class AppVersionDialog(QDialog):
         self._status_label = QLabel()
         self._status_label.setWordWrap(True)
         layout.addWidget(self._status_label)
+        # Why "Update" became "Download", when the app can't replace itself.
+        self._blocked_label = QLabel()
+        self._blocked_label.setWordWrap(True)
+        self._blocked_label.setStyleSheet("color: palette(mid);")
+        layout.addWidget(self._blocked_label)
 
         row = QHBoxLayout()
         self._check_button = QPushButton("Check again")
         self._check_button.setAutoDefault(False)
         self._check_button.clicked.connect(self.refresh)
-        self._download_button = QPushButton("Open download page")
-        self._download_button.setDefault(True)
-        self._download_button.setToolTip(
-            "Opens the release on GitHub in your browser. Download the file for "
-            "your computer and install it over this one; your settings are kept.")
-        self._download_button.clicked.connect(self._on_download)
+        self._update_button = QPushButton("Open download page")
+        self._update_button.setDefault(True)
+        self._update_button.clicked.connect(self._on_update)
         row.addWidget(self._check_button)
-        row.addWidget(self._download_button)
+        row.addWidget(self._update_button)
         row.addStretch(1)
         layout.addLayout(row)
 
-        note = QLabel(
-            "Development builds and older releases run from a git clone of "
-            "MEA-NAP rather than the app — see the installation guide.")
-        note.setWordWrap(True)
-        note.setStyleSheet("color: palette(mid);")
-        layout.addWidget(note)
+        progress_row = QHBoxLayout()
+        progress_row.setContentsMargins(0, 0, 0, 0)
+        self._progress_bar = QProgressBar()
+        self._cancel_button = QPushButton("Cancel")
+        self._cancel_button.setAutoDefault(False)
+        self._cancel_button.clicked.connect(self._cancel.set)
+        progress_row.addWidget(self._progress_bar, 1)
+        progress_row.addWidget(self._cancel_button)
+        self._progress_box = QWidget()
+        self._progress_box.setLayout(progress_row)
+        self._progress_box.hide()
+        layout.addWidget(self._progress_box)
+        self._progress.connect(self._on_progress)
 
         self._auto_check = QCheckBox("Check for updates when MEA-NAP starts")
         self._auto_check.setChecked(check_on_start())
         self._auto_check.toggled.connect(set_check_on_start)
         layout.addWidget(self._auto_check)
+        self._dev_check = QCheckBox("Also offer development builds")
+        self._dev_check.setToolTip(
+            "A development build is made of every change to MEA-NAP, usually "
+            "within half an hour of it: fixes reach you sooner, but they have "
+            "not been through release testing. Untick to wait for official "
+            "releases again (you stay on this build until the next one).")
+        self._dev_check.setChecked(dev_builds_wanted())
+        self._dev_check.toggled.connect(self._on_dev_toggled)
+        layout.addWidget(self._dev_check)
+
+        note = QLabel(
+            "Older releases run from a git clone of MEA-NAP rather than the "
+            "app — see the installation guide.")
+        note.setWordWrap(True)
+        note.setStyleSheet("color: palette(mid);")
+        layout.addWidget(note)
         self._render()
 
     def set_status(self, status: updates.AppStatus | None) -> None:
         self._status = status
         self._render()
 
+    def _can_install(self) -> bool:
+        return (self._status is not None and self._status.update_available
+                and self._status.asset is not None
+                and app_update.why_not_self_update() is None)
+
     def _render(self) -> None:
         self._status_label.setText(status_summary(self._status))
-        self._download_button.setText(
-            f"Download {self._status.newer_version}"
-            if self._status is not None and self._status.newer_version
-            else "Open download page")
+        newer = self._status.newer_version if self._status is not None else None
+        if newer and self._can_install():
+            self._update_button.setText(f"Update to {newer}")
+            self._update_button.setToolTip(
+                "Downloads it, closes MEA-NAP, installs it and opens it again. "
+                "Your settings and results are kept.")
+            self._blocked_label.hide()
+        else:
+            self._update_button.setText(f"Download {newer}" if newer else "Open download page")
+            self._update_button.setToolTip(
+                "Opens the release on GitHub in your browser. Download the file "
+                "for your computer and install it over this one; your settings "
+                "are kept.")
+            reason = None
+            if newer and self._status.asset is None:
+                reason = ("The app for this computer is not attached to that "
+                          "release yet; it is built within about half an hour "
+                          "of the release.")
+            elif newer:
+                reason = app_update.why_not_self_update()
+            self._blocked_label.setText(reason or "")
+            self._blocked_label.setVisible(bool(reason))
+        self._update_button.setEnabled(not self._downloading)
+        self._check_button.setEnabled(not self._downloading)
 
     def refresh(self) -> None:
         self._check_button.setEnabled(False)
         self._status_label.setText("Checking GitHub for updates…")
-        job = Background(updates.check_app, self)
+        include_dev = self._dev_check.isChecked()
+        job = Background(lambda: updates.check_app(include_dev=include_dev), self)
         job.done.connect(self._on_checked)
         job.failed.connect(lambda _msg: self._check_button.setEnabled(True))
         self._jobs.append(job)
@@ -651,6 +728,78 @@ class AppVersionDialog(QDialog):
         self.set_status(status)
         self.status_changed.emit(status)
 
-    def _on_download(self) -> None:
-        url = self._status.url if self._status is not None else updates.RELEASES_PAGE
-        QDesktopServices.openUrl(QUrl(url))
+    def _on_dev_toggled(self, on: bool) -> None:
+        set_dev_builds_wanted(on)
+        self.refresh()
+
+    def _on_update(self) -> None:
+        if not self._can_install():
+            url = self._status.url if self._status is not None else updates.RELEASES_PAGE
+            QDesktopServices.openUrl(QUrl(url))
+            return
+        if self._is_busy():
+            QMessageBox.information(
+                self, "MEA-NAP update",
+                "A run is in progress. Update once it has finished — "
+                "installing closes MEA-NAP.")
+            return
+        asset, version = self._status.asset, self._status.newer_version
+        self._downloading = True
+        self._cancel.clear()
+        self._progress_bar.setRange(0, 0)
+        self._progress_box.show()
+        self._render()
+        self._status_label.setText(f"Downloading {version}…")
+        report = self._progress.emit
+        job = Background(lambda: app_update.download(
+            asset, progress=lambda done, total: report(done, total or 0),
+            cancelled=self._cancel.is_set), self)
+        job.done.connect(lambda path: self._on_downloaded(path, version))
+        job.failed.connect(self._on_download_failed)
+        self._jobs.append(job)
+        job.start()
+
+    def _on_progress(self, done: int, total: int) -> None:
+        if total:
+            self._progress_bar.setRange(0, 1000)
+            self._progress_bar.setValue(int(1000 * done / total))
+            self._progress_bar.setFormat(f"{done / 1e6:.0f} of {total / 1e6:.0f} MB")
+        else:
+            self._progress_bar.setFormat(f"{done / 1e6:.0f} MB")
+
+    def _finish_download(self) -> None:
+        self._downloading = False
+        self._progress_box.hide()
+        self._render()
+
+    def _on_download_failed(self, message: str) -> None:
+        self._finish_download()
+        if self._cancel.is_set():
+            return
+        QMessageBox.warning(self, "MEA-NAP update", message or "The download failed.")
+
+    def _on_downloaded(self, path, version: str) -> None:
+        self._finish_download()
+        if self._is_busy():
+            QMessageBox.information(
+                self, "MEA-NAP update",
+                f"{version} is downloaded, but a run has started since. Update "
+                "again once it has finished.")
+            return
+        answer = QMessageBox.question(
+            self, "MEA-NAP update",
+            f"MEA-NAP will close, install {version} and open again. This takes "
+            "about a minute.\n\nInstall now?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Yes)
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            app_update.install(Path(path), version=version,
+                               running=updates.app_running_version())
+        except app_update.UpdateFailed as exc:
+            QMessageBox.warning(self, "MEA-NAP update", str(exc))
+            return
+        if self._on_quit is not None:
+            self._on_quit()
+        QApplication.quit()
