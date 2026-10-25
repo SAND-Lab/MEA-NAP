@@ -37,6 +37,9 @@ hiddenimports = (
     + collect_submodules("spikeinterface.postprocessing")
     + collect_submodules("spikeinterface.qualitymetrics")
     + ["mountainsort5", "hdbscan", "oasis", "oasis.functions", "certifi"]
+    # numba loads its parallel threading layer (omppool / workqueue / tbbpool)
+    # by name the first time a ``parallel=True`` function runs.
+    + collect_submodules("numba.np.ufunc")
 )
 
 excludes = [

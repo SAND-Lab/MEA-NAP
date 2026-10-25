@@ -237,6 +237,14 @@ class Params:
     eff_rank_downsample_freq: float = 10.0
     nmf_downsample_freq: float = 10.0
     include_nmf_components: bool = False
+    # NMF's per-rank sweep (the variance-explained curve) fits every rank up to
+    # the number of active nodes in calNMF.m, and the highest ranks cost the
+    # most. With this above 0 the sweep stops once variance explained passes
+    # 95% or rises by less than this over 10 ranks; the ranks it skips are NaN
+    # in nnmf_residuals / nnmf_var_explained. num_nnmf_components and
+    # nComponentsRelNS do not depend on it. 0 fits every rank, as MATLAB does.
+    # Read by both pipelines.
+    nmf_plateau_gain: float = 0.005
 
     # ── Plotting ─────────────────────────────────────────────────────────────
     fig_ext: list[str] = field(default_factory=lambda: [".png"])

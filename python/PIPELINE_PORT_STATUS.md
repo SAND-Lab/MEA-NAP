@@ -763,7 +763,59 @@ a negative control), and the 5G figures go through `test_stats_report.py`.
 - CAT-NAP runs name their columns `Grp`/`DIV`; MATLAB's `doStats` expects
   `eGrp`/`AgeDiv`. `dataset.META_COLUMNS` knows both.
 
-### How to verify changes
+#### Hundreds of sorted units — 7x end to end (2026-10-24)
+
+Spike-sorted recordings make every node-count-dependent cost bite. Measured on
+the MaxOne retinal organoid in `local/test-spike-sorted-data/` (306 units,
+919k spikes, 126 s; steps 1-4, lags 10/15/25 ms, 200 shuffles, full figures,
+one recording, 16-core box):
+
+| | Before | After |
+|---|---|---|
+| Step 3 | 1494s | **121s** |
+| Step 4 | 1749s | **332s** |
+| **Total** | **3258s** | **463s** |
+
+(The "before" run was under cProfile; its step 3 is ~2.2s x 603 STTC matrices
+unprofiled, so the comparison holds.) Adjacency matrices and both network CSVs
+are identical before and after; the NMF arrays agree to 1e-14 (see below).
+
+Where it went, and what changed:
+
+| Cost (before) | Change | After |
+|---|---|---|
+| STTC pair sweep, 1489s | `get_sttc`'s pair loop is one numba call, rows across cores (`prange`, rows paired from both ends to balance). The work is O(units x total spikes) per matrix, so compiling alone gained nothing; the cores did. | 2.2s -> 0.22s per matrix |
+| NMF, 933s | fits run on threads (sklearn's CD update releases the GIL), each with a seed drawn up front in the old order; the per-rank sweep stops at 95% variance explained or a plateau (`nmf_plateau_gain`, default 0.005 per 10 ranks; 0 = every rank, as MATLAB). Here it stops at rank 228 of 306. | 26s |
+| `participation_coef_norm`, 379s | its 100 null models are built on threads. Each model's random numbers depend only on the original network's edge count, so they are all drawn first, in the sequential order (`_draw_null_plan`), then the rewiring (`randmio_und_signed`, now `nogil`) runs in parallel. Same models and same generator state as the loop — this is what the 2026-08-26 note above said could not be done without changing results. | 33s |
+| `randmio_und_v2`/`latmio_und_v2`, <1s | compiled, fed batches from the caller's generator so the draws keep their order; identical output. Negligible here (they were cheap at 306 nodes), done for completeness. | ~0s |
+
+What is left in step 4 is **figures** (~250s, of which `plot_network` is
+~190s for 72 network plots at 306 nodes); its computation is 86s. Express mode
+skips them.
+
+**Results.** Everything above is exact except one thing: NMF now holds BLAS
+to one thread for every fit (threadpoolctl). Before, it ran with whatever BLAS
+share the machine gave it, and a multi-threaded BLAS sums in a
+thread-count-dependent order, so NMF already differed between machines and
+worker counts in the last bits. It no longer does; against an old run its
+arrays move by ~1e-14. `num_nnmf_components` did not move here, but on another
+recording such noise could flip it by one, as it could have between machines
+before.
+
+**Threads.** `parallel.compute_threads()` gives a process its share: a
+`map_recordings` worker's pinned BLAS share, otherwise every physical core.
+STTC sets numba's thread count from it; NMF and the null models size their
+thread pools from it. If numba cannot load a threading layer (a frozen build
+missing one), `get_sttc` warns once and runs the same kernel serially; the
+app smoke test now exercises the parallel kernel, and the PyInstaller spec
+collects `numba.np.ufunc`.
+
+Checked by `python/test_pipeline_fast_paths.py` [3]-[6] (each rewrite against
+the form it replaced, at one thread and several, including generator state
+afterwards), plus the step-3/step-4 MATLAB parity tests, CAT-NAP, sorted import
+and stim-network tests.
+
+## How to verify changes
 
 ```
 uv run python python/test_stats.py          # 47 checks, ~2 min — the analyses

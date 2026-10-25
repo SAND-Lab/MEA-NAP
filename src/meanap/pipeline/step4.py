@@ -673,6 +673,7 @@ def _step4_compute_one(
                 params.nmf_downsample_freq, fs,
                 include_nmf_components=params.include_nmf_components,
                 rng=dimensionality_rng,
+                plateau_gain=params.nmf_plateau_gain,
             )
         except Exception as e:
             logs.append(f"  [{rec.filename}] WARNING: could not compute NMF components: {e}")

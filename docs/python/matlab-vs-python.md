@@ -48,6 +48,11 @@ Non-negative matrix factorization (NMF) uses `scikit-learn`'s coordinate
 descent solver rather than MATLAB's Alternating Least Squares — a genuinely
 different algorithm, not just a different random seed. Treat
 `num_nnmf_components` and related outputs as approximate.
+
+The variance-explained curve (`nnmf_var_explained`, `nnmf_residuals`) also
+stops early by default: once it passes 95%, or rises by less than
+`nmf_plateau_gain` (0.005) over 10 ranks. MATLAB fits every rank up to the
+number of active nodes; set `nmf_plateau_gain` to 0 to do the same.
 :::
 
 ::::
