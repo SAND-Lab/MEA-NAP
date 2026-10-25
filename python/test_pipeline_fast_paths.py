@@ -37,6 +37,17 @@ slower form it replaced:
    against null models that draw straight from the generator as they go (the
    pre-threading path, still used without numba): same networks, same
    generator state afterwards.
+7. ``io._read_deflate_parallel`` — MATLAB v7.3 ``dat`` inflated chunk by
+   chunk on threads. Checked against h5py's own read, including edge chunks,
+   integer data, and the layouts it must decline (shuffle, no compression,
+   unwritten chunks).
+8. ``plotting._frequency_curves`` — per-bin spike counts by ``bincount``
+   rather than a full-length 0/1 vector per channel.
+9. ``spike_detection.detect_spikes_wavelet`` — the thresholding keeps
+   ``c > DTh`` instead of building the matrix of kept coefficients. Checked
+   against the matrix version on the same coefficients. (The CWT itself moved
+   from FFT to direct convolution, which agrees to rounding, not exactly;
+   that is checked to a tolerance.)
 """
 
 from __future__ import annotations
@@ -480,6 +491,207 @@ finally:
     nm.compute_threads = _threads
 check("participation_coef_norm: 1 thread vs 8",
       all(np.array_equal(a, b) for a, b in zip(serial, threaded)))
+
+
+
+# ── 7. Parallel inflate of MATLAB v7.3 chunks ─────────────────────────────────
+
+import tempfile  # noqa: E402
+
+import h5py  # noqa: E402
+
+from meanap.pipeline import io as mio  # noqa: E402
+from meanap.pipeline import parallel as mpar  # noqa: E402
+
+_compute_threads = mpar.compute_threads
+with tempfile.TemporaryDirectory() as tmp:
+    rng = np.random.default_rng(8)
+    cases = [
+        # (label, data, create_dataset kwargs, should take the parallel path)
+        ("64 x 127 chunks, edge chunk", rng.standard_normal((64, 1000)),
+         dict(chunks=(64, 127), compression="gzip", compression_opts=3), True),
+        ("row and column edge chunks", rng.standard_normal((13, 1000)),
+         dict(chunks=(5, 127), compression="gzip"), True),
+        ("int16 data", rng.integers(-3000, 3000, (8, 999)).astype(np.int16),
+         dict(chunks=(8, 100), compression="gzip"), True),
+        ("shuffle + gzip", rng.standard_normal((8, 500)),
+         dict(chunks=(8, 64), compression="gzip", shuffle=True), False),
+        ("chunked, uncompressed", rng.standard_normal((8, 500)),
+         dict(chunks=(8, 64)), False),
+        ("contiguous", rng.standard_normal((8, 500)), dict(), False),
+    ]
+    try:
+        mpar.compute_threads = lambda: 8
+        for label, data, kwargs, parallel in cases:
+            path = Path(tmp) / f"{len(list(Path(tmp).iterdir()))}.mat"
+            with h5py.File(path, "w") as f:
+                f.create_dataset("dat", data=data, **kwargs)
+            with h5py.File(path, "r") as f:
+                got = mio._read_deflate_parallel(f["dat"], path)
+                want = f["dat"][()].astype(np.float32)
+            if parallel:
+                check(f"parallel inflate: {label}",
+                      got is not None and got.dtype == np.float32
+                      and np.array_equal(got, want), "differs from h5py")
+            else:
+                check(f"parallel inflate declines: {label}", got is None)
+
+        # Chunks never written read as the fill value; that is h5py's to do.
+        path = Path(tmp) / "sparse.mat"
+        with h5py.File(path, "w") as f:
+            d = f.create_dataset("dat", shape=(8, 1000), dtype="f8",
+                                 chunks=(8, 100), compression="gzip")
+            d[:, :300] = 1.0
+        with h5py.File(path, "r") as f:
+            check("parallel inflate declines: unwritten chunks",
+                  mio._read_deflate_parallel(f["dat"], path) is None)
+
+        # End to end through load_raw_recording, as MATLAB lays out a v7.3
+        # recording, against the plain read it replaced, at 1 and 8 threads.
+        path = Path(tmp) / "recording.mat"
+        dat = rng.standard_normal((16, 2000))
+        with h5py.File(path, "w") as f:
+            f.create_dataset("dat", data=dat, chunks=(16, 127),
+                             compression="gzip", compression_opts=3)
+            f.create_dataset("channels", data=np.arange(16)[None, :] + 11.0)
+            f.create_dataset("fs", data=np.array([[12500.0]]))
+        want = dat.T.astype(np.float32)
+        for threads in (1, 8):
+            mpar.compute_threads = lambda t=threads: t
+            got, channels, fs = mio.load_raw_recording(path)
+            check(f"load_raw_recording v7.3, threads={threads}",
+                  np.array_equal(got, want) and got.dtype == want.dtype
+                  and got.flags["F_CONTIGUOUS"] == want.flags["F_CONTIGUOUS"]
+                  and np.array_equal(channels, np.arange(16) + 11) and fs == 12500.0)
+    finally:
+        mpar.compute_threads = _compute_threads
+
+
+# ── 8. Spike-check frequency curves ───────────────────────────────────────────
+
+from types import SimpleNamespace  # noqa: E402
+
+from meanap.pipeline.plotting import _frequency_curves  # noqa: E402
+from meanap.pipeline.spike_detection import SpikeDetectionResult  # noqa: E402
+
+
+def ref_frequency_curves(result, methods, d_samp_f, n_samples, n_channels):
+    n_bins = int(np.ceil(n_samples / d_samp_f))
+    curves = np.zeros((len(methods), n_bins))
+    for i, method in enumerate(methods):
+        spk_matrix = np.zeros((n_channels, n_bins))
+        for ch_idx in result.spike_times:
+            frames = np.round(result.spike_times[ch_idx].get(method, np.array([]))
+                              * result.fs).astype(int)
+            frames = frames[frames < n_samples]
+            spk_vec = np.zeros(n_samples)
+            spk_vec[frames] = 1
+            pad_len = (d_samp_f - (n_samples % d_samp_f)) % d_samp_f
+            if pad_len > 0:
+                spk_vec = np.pad(spk_vec, (0, pad_len), constant_values=np.nan)
+            spk_matrix[ch_idx, :] = np.nansum(spk_vec.reshape(-1, d_samp_f), axis=1)
+        if result.spike_times:
+            curves[i] = np.mean(spk_matrix[list(result.spike_times), :], axis=0)
+    return curves
+
+
+rng = np.random.default_rng(9)
+fs = 1000.0
+for n_samples, d_samp_f in ((10_000, 1000), (10_007, 1000), (999, 1000)):
+    times = {}
+    for ch in (0, 2, 3, 5):
+        t = np.sort(rng.integers(0, n_samples + 50, 300)) / fs   # some past the end
+        t = np.concatenate([t, t[:20]])                            # duplicate frames
+        times[ch] = {"thr4": t, "bior1p5": t[::3], "empty": np.array([])}
+    result = SpikeDetectionResult(times, {}, {}, np.arange(6), fs)
+    methods = ["bior1p5", "empty", "thr4"]
+    got = _frequency_curves(result, methods, SimpleNamespace(d_samp_f=d_samp_f),
+                            n_samples, 6)
+    want = ref_frequency_curves(result, methods, d_samp_f, n_samples, 6)
+    check(f"frequency curves n={n_samples} bin={d_samp_f}", np.array_equal(got, want))
+
+
+# ── 9. Wavelet thresholding ───────────────────────────────────────────────────
+
+from meanap.pipeline import spike_detection as sd  # noqa: E402
+
+
+def ref_detect_spikes_wavelet(signal, fs_hz, wid_ms=(0.4, 0.8), ns=5, option="l",
+                              L=-0.12, wname="bior1.5"):
+    """The thresholding as it was, building the kept-coefficient matrix."""
+    signal = signal - signal.mean()
+    Nt = len(signal)
+    W = sd._determine_scales(wname, wid_ms, fs_hz, ns)
+    c = sd._cwt_bior15(signal, W.astype(float))
+    L_scaled = L * 36.7368
+    Io = np.zeros(Nt, dtype=bool)
+    ct = np.zeros((ns, Nt), dtype=float)
+    for i in range(ns):
+        stride = max(1, int(round(W[i])))
+        Sigmaj = np.median(np.abs(c[i, ::stride] - c[i, :].mean())) / 0.6745
+        if Sigmaj == 0:
+            continue
+        Thj = Sigmaj * np.sqrt(2 * np.log(Nt))
+        index = np.where(np.abs(c[i, :]) > Thj)[0]
+        if len(index) == 0:
+            if option == "c":
+                pass
+            else:
+                Mj = Thj
+                PS = 1.0 / Nt
+                PN = 1.0 - PS
+                DTh = Mj / 2 + Sigmaj**2 / Mj * (L_scaled + np.log(PN / PS))
+                DTh = abs(DTh) * (DTh >= 0)
+                ind = np.where(np.abs(c[i, :]) > DTh)[0]
+                if len(ind) > 0:
+                    ct[i, ind] = c[i, ind]
+        else:
+            Mj = np.mean(np.abs(c[i, index]))
+            PS = len(index) / Nt
+            PN = 1.0 - PS
+            DTh = Mj / 2 + Sigmaj**2 / Mj * (L_scaled + np.log(PN / PS))
+            DTh = abs(DTh) * (DTh >= 0)
+            ind = np.where(np.abs(c[i, :]) > DTh)[0]
+            if len(ind) > 0:
+                ct[i, ind] = c[i, ind]
+        ct[i, ct[i, :] < 0] = 0
+        Io = Io | (ct[i, :] != 0)
+    return sd._parse_spike_index(Io.astype(int), fs_hz, wid_ms)
+
+
+rng = np.random.default_rng(10)
+fs = 12500.0
+noise = rng.standard_normal(200_000)
+spiky = noise.copy()
+for t in rng.integers(100, 199_900, 400):
+    spiky[t:t + 8] -= np.hanning(8) * 12
+signals = {
+    "noise (nothing above Thj at any scale)": noise,
+    "noise + spikes": spiky,
+    "slow sine (a few edge coefficients only)": np.sin(np.arange(200_000) / 2000.0),
+    "constant (Sigmaj = 0)": np.ones(50_000),
+}
+for label, x in signals.items():
+    for option, L in (("l", -0.12), ("c", -0.12), ("l", 0.5), ("l", -2.0)):
+        got = sd.detect_spikes_wavelet(x, fs, option=option, L=L)
+        want = ref_detect_spikes_wavelet(x, fs, option=option, L=L)
+        check(f"wavelet {label}, option={option} L={L}", np.array_equal(got, want),
+              f"{len(got)} vs {len(want)} spikes")
+
+# Direct convolution against the FFT convolution it replaced: rounding only.
+from scipy.signal import oaconvolve  # noqa: E402
+
+W = sd._determine_scales("bior1.5", (0.4, 0.8), fs, 5).astype(float)
+got = sd._cwt_bior15(spiky, W)
+int_psi, xval = sd._get_bior15_intwave()
+for i, a in enumerate(W):
+    k = np.arange(0, np.floor(a * (xval[-1] - xval[0])) + 1)
+    f = int_psi[np.floor(k / (a * (xval[1] - xval[0]))).astype(np.intp)][::-1]
+    want = -np.sqrt(a) * sd._wkeep1_centre(np.diff(oaconvolve(spiky, f, mode="full")),
+                                           len(spiky))
+    err = np.max(np.abs(got[i] - want)) / np.max(np.abs(want))
+    check(f"CWT scale {a:g}: direct vs FFT convolution within 1e-12", err < 1e-12,
+          f"max relative difference {err:.1e}")
 
 
 print()

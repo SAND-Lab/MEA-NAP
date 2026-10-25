@@ -143,10 +143,92 @@ def load_raw_recording(path: str | Path) -> tuple[np.ndarray, np.ndarray, float]
                 f"{path.name}: HDF5 file is neither a MEA-NAP .mat (no 'dat' variable) "
                 f"nor a Multi Channel Systems recording (no AnalogStream)."
             )
-        dat = f["dat"][()].T.astype(np.float32)   # (n_channels, n_samples) → (n_samples, n_channels)
+        dat = _read_deflate_parallel(f["dat"], path)
+        if dat is None:
+            dat = f["dat"][()].astype(np.float32)
+        dat = dat.T   # (n_channels, n_samples) → (n_samples, n_channels)
         channels = f["channels"][()].flatten().astype(int)
         fs = float(f["fs"][()].flatten()[0])
     return dat, channels, fs
+
+
+#: Below this many threads h5py's own reader wins: its per-chunk decompression
+#: is faster than zlib driven from Python, so splitting only pays when it buys
+#: real parallelism.
+_PARALLEL_READ_MIN_THREADS = 3
+
+
+def _read_deflate_parallel(dset: "h5py.Dataset", path: Path) -> np.ndarray | None:
+    """Read a gzip-chunked dataset as float32, decompressing chunks on threads.
+
+    MATLAB writes v7.3 ``.mat`` variables in very small gzip chunks (64 x 127
+    samples for a 64-channel recording: ~59,000 chunks for ten minutes), and
+    h5py inflates them one at a time on one core: about 6 s per recording, as
+    long as detecting its spikes. ``zlib`` releases the GIL, so the raw chunk
+    bytes are read through one file handle per thread and inflated in
+    parallel, into a float32 array cast the same way ``astype`` would cast
+    it. The result is identical; peak memory is lower too, since the float64
+    copy the plain read needed is never made.
+
+    Returns None whenever the dataset is not plain deflate-only chunked data
+    (no shuffle, no other filter, no chunk with a filter skipped) or there
+    are too few cores for it to pay; the caller then reads it as before.
+    """
+    from meanap.pipeline.parallel import compute_threads
+
+    workers = compute_threads()
+    if (workers < _PARALLEL_READ_MIN_THREADS or dset.chunks is None
+            or dset.ndim != 2 or dset.dtype.kind not in "iuf"):
+        return None
+    try:
+        dcpl = dset.id.get_create_plist()
+        filters = [dcpl.get_filter(i)[0] for i in range(dcpl.get_nfilters())]
+        if filters != [h5py.h5z.FILTER_DEFLATE]:
+            return None
+        chunks: list[tuple[tuple[int, ...], int, int]] = []
+
+        def visit(info) -> None:
+            if info.filter_mask:
+                raise _ChunkLayoutUnsupported
+            chunks.append((info.chunk_offset, info.byte_offset, info.size))
+
+        dset.id.chunk_iter(visit)
+    except (_ChunkLayoutUnsupported, AttributeError):
+        # AttributeError: an HDF5 too old for chunk_iter.
+        return None
+    n_chunks = int(np.prod([-(-n // c) for n, c in zip(dset.shape, dset.chunks)]))
+    if len(chunks) != n_chunks:
+        # Unwritten chunks read as the fill value; leave that to h5py.
+        return None
+
+    import zlib
+    from concurrent.futures import ThreadPoolExecutor
+
+    out = np.empty(dset.shape, dtype=np.float32)
+    rows, cols = dset.chunks
+    n_rows, n_cols = dset.shape
+    dtype = dset.dtype
+
+    def read(part: list[tuple[tuple[int, ...], int, int]]) -> None:
+        with open(path, "rb") as fh:
+            for (r0, c0), byte_offset, size in part:
+                fh.seek(byte_offset)
+                block = np.frombuffer(zlib.decompress(fh.read(size)),
+                                      dtype=dtype).reshape(rows, cols)
+                # HDF5 stores edge chunks at full size; keep the part inside.
+                r1, c1 = min(n_rows, r0 + rows), min(n_cols, c0 + cols)
+                out[r0:r1, c0:c1] = block[:r1 - r0, :c1 - c0]
+
+    # Contiguous runs of chunks, several per thread so a slow one balances out.
+    step = max(1, -(-len(chunks) // (workers * 8)))
+    parts = [chunks[i:i + step] for i in range(0, len(chunks), step)]
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        list(pool.map(read, parts))
+    return out
+
+
+class _ChunkLayoutUnsupported(Exception):
+    pass
 
 
 def _load_raw_mat_v7(path: Path) -> tuple[np.ndarray, np.ndarray, float]:

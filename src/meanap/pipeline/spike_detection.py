@@ -24,7 +24,7 @@ from typing import Callable, NamedTuple
 
 import numpy as np
 import pywt
-from scipy.signal import butter, filtfilt, find_peaks, oaconvolve
+from scipy.signal import butter, filtfilt, find_peaks
 
 from meanap.pipeline.parallel import suggest_thread_count
 
@@ -249,9 +249,14 @@ def _cwt_bior15(signal: np.ndarray, scales: np.ndarray) -> np.ndarray:
         if j.size == 1:
             j = np.zeros(2, dtype=np.intp)
         f = int_psi[j][::-1]
-        # oaconvolve == MATLAB's conv(x, f, 'full') to float rounding, but is
-        # O(n log m) rather than O(n*m) for these long traces / short filters.
-        conv_full = oaconvolve(sig, f, mode="full")
+        # Direct summation, like MATLAB's conv(x, f, 'full'). The filters are
+        # short (18-63 taps at 12.5 kHz), and at that length a direct pass
+        # beats overlap-add FFT convolution: 1.3x on one thread and 2.5x on
+        # sixteen, because it streams the trace instead of building blocks of
+        # complex spectra and so does not run out of memory bandwidth when
+        # every core is filtering a channel. The two agree to ~1e-16 relative;
+        # spike times on both ExampleData recordings are identical either way.
+        conv_full = np.convolve(sig, f, mode="full")
         coeffs[i, :] = -np.sqrt(a) * _wkeep1_centre(np.diff(conv_full), n)
 
     return coeffs
@@ -498,49 +503,40 @@ def detect_spikes_wavelet(
     L_scaled = L * Lmax
 
     Io = np.zeros(Nt, dtype=bool)
-    ct = np.zeros((ns, Nt), dtype=float)
 
     for i in range(ns):
+        row = c[i]
         w_i = W[i]
         # Take independent samples for MAD (W(i) apart).
         # MATLAB: median(abs(c(i,1:round(W(i)):end) - mean(c(i,:))))/0.6745 —
         # the subsampled coefficients are centred on the mean of the FULL row,
         # not on their own mean.
         stride = max(1, int(round(w_i)))
-        c_sub = c[i, ::stride]
-        Sigmaj = np.median(np.abs(c_sub - c[i, :].mean())) / 0.6745
+        Sigmaj = np.median(np.abs(row[::stride] - row.mean())) / 0.6745
         if Sigmaj == 0:
             continue
         Thj = Sigmaj * np.sqrt(2 * np.log(Nt))     # hard threshold
 
-        index = np.where(np.abs(c[i, :]) > Thj)[0]
+        abs_row = np.abs(row)
+        index = np.flatnonzero(abs_row > Thj)
 
         if len(index) == 0:
             if option == "c":
-                pass  # do nothing
-            else:  # "l"
-                Mj = Thj
-                PS = 1.0 / Nt
-                PN = 1.0 - PS
-                DTh = Mj / 2 + Sigmaj**2 / Mj * (L_scaled + np.log(PN / PS))
-                DTh = abs(DTh) * (DTh >= 0)
-                ind = np.where(np.abs(c[i, :]) > DTh)[0]
-                if len(ind) > 0:
-                    ct[i, ind] = c[i, ind]
+                continue
+            Mj = Thj
+            PS = 1.0 / Nt
         else:
-            Mj = np.mean(np.abs(c[i, index]))
+            Mj = np.mean(abs_row[index])
             PS = len(index) / Nt
-            PN = 1.0 - PS
-            DTh = Mj / 2 + Sigmaj**2 / Mj * (L_scaled + np.log(PN / PS))
-            DTh = abs(DTh) * (DTh >= 0)
-            ind = np.where(np.abs(c[i, :]) > DTh)[0]
-            if len(ind) > 0:
-                ct[i, ind] = c[i, ind]
+        PN = 1.0 - PS
+        DTh = Mj / 2 + Sigmaj**2 / Mj * (L_scaled + np.log(PN / PS))
+        DTh = abs(DTh) * (DTh >= 0)
 
-        # Delete negative coefficients (MATLAB: ct(ct<0)=0)
-        ct[i, ct[i, :] < 0] = 0
-        Index_i = ct[i, :] != 0
-        Io = Io | Index_i
+        # MATLAB keeps the coefficients with |c| > DTh, zeroes the negative
+        # ones and marks what is left non-zero. DTh is never negative, so that
+        # is exactly c > DTh (a NaN DTh selects nothing either way), without
+        # building the scales x samples matrix of kept coefficients.
+        Io |= row > DTh
 
     return _parse_spike_index(Io.astype(int), fs_hz, wid_ms)
 
