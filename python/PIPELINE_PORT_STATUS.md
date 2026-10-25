@@ -2158,7 +2158,45 @@ path, `Params.stimulationMode == 1`, out of this port's scope);
 .prob_thresh_plot_checks` already exists in `params.py` unwired to match
 that same off-by-default state, not silently dropped).
 
-## MATLAB vs Python speed comparison (2026-07-09)
+## MATLAB vs Python speed comparison
+
+### Current: Python ~7x faster (re-measured 2026-10-25, MEA-NAP 1.15.0)
+
+Same dataset and settings as the original comparison below (2 Axion64
+recordings, lags `[10, 25, 50]`ms, 200 shuffles, every figure drawn). MATLAB
+ran `python/parityRun/MEApipeline_timingBenchmark.m` (R2025b, 16-worker
+parpool), then Python ran `python/benchmark_express.py`'s full-run settings
+immediately afterwards on the same machine:
+
+| Step | MATLAB | Python | Ratio |
+|---|---|---|---|
+| 1. Spike detection | 445s | 39.6s | **11x** |
+| 2. Neuronal activity | 62s | 7.6s | **8x** |
+| 3. Functional connectivity | 9s | 1.8s | **5x** |
+| 4. Network activity | 377s | 76.6s | **5x** |
+| **Total** | **893s (~15 min)** | **125.6s (~2 min)** | **~7x** |
+
+An earlier Python run that day on the same box took 105.6s (step 4 56.5s),
+which would make the ratio 8.5x. Step 4 is the step that varies with load on
+this shared machine, so "7-8x" is the honest range. MATLAB's own total is in
+line with July's 931s.
+
+Express mode, which MATLAB has no equivalent of, finishes the same analysis
+in 53.3s (step 4 12.7s, about 17x MATLAB's full run), and every value it
+computes is byte-identical to the full run's.
+
+What changed since the 2.66x below: step 1 got faster as the spike-detection
+channel threading matured, and steps 3/4 gained the sorted-scale work
+("Hundreds of sorted units" above): STTC across cores, threaded NMF with an
+early stop, and threaded exact null models. Against the code just before
+that work (`356fc0f`), the same benchmark went 236.1s -> 105.6s full and
+168.7s -> 53.3s express, with all CSVs, adjacency matrices and spike files
+byte-identical to the older code in both modes.
+
+Figures are now most of what is left in a full run's step 4 (about 44s of
+56.5s), and step 1 is most of an express run.
+
+### Original comparison (2026-07-09)
 
 Full steps-1-4 run on the Test Pipeline dataset (`ExampleData/`, recordings
 `NGN2_20230208_P1_DIV14_A2`/`_A3`, `Axion64` layout, `ProbThreshRepNum=200`,
