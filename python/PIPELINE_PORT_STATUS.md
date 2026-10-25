@@ -815,6 +815,79 @@ the form it replaced, at one thread and several, including generator state
 afterwards), plus the step-3/step-4 MATLAB parity tests, CAT-NAP, sorted import
 and stim-network tests.
 
+#### Spike detection — 2.5x on step 1 (2026-10-25, 1.15.1)
+
+Step 1 on the ExampleData benchmark (2 recordings, 64 channels, 10 min at
+12.5 kHz) went from 39.2s to **16.0s**; the whole full run from 105.3s to
+80.8s and express from 53.2s to 29.3s. Every output file, spike-check data
+included, is byte-identical to the run before.
+
+Per recording it had been: 6.3s loading, 9.6s detecting (57s on one thread,
+so 15 threads bought only 6x), 2.7s summarising the check figures.
+
+| Change | Where | Effect |
+|---|---|---|
+| Inflate the v7.3 `.mat` chunks on threads | `io._read_deflate_parallel` | 6.3s -> 1.0s per recording; identical array |
+| CWT by direct convolution instead of `oaconvolve` | `spike_detection._cwt_bior15` | detection 8.8s -> 5.8s per recording |
+| Thresholding keeps `c > DTh` instead of a scales x samples matrix | `detect_spikes_wavelet` | ~60 ms per channel; identical |
+| Spike counts per bin by `bincount` | `plotting._frequency_curves` | 1.6s -> ~0 per recording; identical |
+| Pre-draw the example-trace panels, filter their channels on threads | `plotting.compute_spike_check_data` | ~0.7s per recording; identical draws |
+
+**Loading.** MATLAB writes v7.3 variables in tiny gzip chunks (64 x 127
+samples: ~59,000 for one ten-minute recording) and h5py inflates them one at a
+time. `zlib` releases the GIL, so the raw chunk bytes are read through a file
+handle per thread and inflated in parallel, straight into the float32 array.
+That also skips the float64 copy the plain read made (~1.9 GB less peak RAM
+per recording). Only deflate-only, fully written chunked data takes this path,
+and only with 3+ threads (below that h5py's own inflate is faster); anything
+else reads as before.
+
+**CWT.** The bior1.5 filters are 18-63 taps at 12.5 kHz. At that length
+overlap-add FFT convolution loses to a direct pass: 1.3x on one thread, and
+2.5x with every core busy, since the FFT version's block spectra saturate
+memory bandwidth (the reason detection scaled so poorly). This is the one
+change that is not bit-exact: coefficients move by ~1e-16 relative, the same
+order by which `oaconvolve` already differed from MATLAB's `conv`. Spike
+times on all 128 channels of both recordings are identical, and the MATLAB
+step-1 parity report is unchanged line for line. Across the seven further
+recordings below, the only channel it changes is one whose noise floor is
+itself at rounding level.
+
+**More recordings.** Step 1 alone, before vs after, on seven more files:
+
+| Recording | Rate, channels, format | Before | After | Outputs |
+|---|---|---|---|---|
+| `HP_tc043_DIV21` (hippocampal) | 25 kHz, 60, v7.3 | 42.2s | 14.6s | identical |
+| `HCNT26_DIV58_E2` | 12.5 kHz, 16, v7.3 | 8.2s | 4.7s | identical |
+| `20230208_P1_DIV21(000)_A1` (paper example set) | 12.5 kHz, 64, v7.3 | 19.7s | 8.1s | identical |
+| MCS `N103262_..._div4` | 25 kHz, 60, v7.3 | 25.0s | 8.0s | 1 channel differs (below) |
+| MCS `N103262_..._div14` | 25 kHz, 60, v7.3 | 26.0s | 10.3s | identical |
+| MCS `N102512_..._div6` | 10 kHz, 60, v7 | 13.5s | 10.5s | identical |
+| MCS `N102512_..._div14` | 10 kHz, 60, v7 | 13.6s | 10.8s | identical |
+
+The v7 files gain least: scipy inflates a v7 variable as one zlib stream,
+which cannot be split, so their loading is unchanged.
+
+The one difference is channel 32 of `div4`, a channel that sits at exactly
+one value for 94% of the recording. Its filtered trace is zero up to
+rounding there, so the wavelet's robust noise estimate is ~1e-19 and the
+detection threshold is rounding error: ~450,000 samples per scale clear it,
+and which ones do depends on the last bit of each coefficient. Its wavelet
+spikes went 14,315 -> 14,311, and only the frequency curve in the check data
+moved with them. Every channel with a real noise floor is identical. The
+detections on such a channel are rounding noise in either version (and in
+MATLAB's), which `Sigmaj == 0` was meant to catch but only does for an
+exactly flat channel. Treating a sigma that small as zero would be a
+behaviour change and is not part of this work.
+
+Left: detection is now ~5.8s per recording, of which per channel the CWT is
+~300 ms, `trace_noise`'s two medians ~120 ms and `filtfilt` ~85 ms.
+
+Checked by `python/test_pipeline_fast_paths.py` [7]-[9], plus
+`test_pipeline_step1` (MATLAB parity), the spike-detection scale/noise tests,
+`test_raw_io_mcs`, `test_check_figures_bundle`, `test_bundle_render`, step 2
+and the stim tests.
+
 ## How to verify changes
 
 ```
@@ -2195,6 +2268,11 @@ byte-identical to the older code in both modes.
 
 Figures are now most of what is left in a full run's step 4 (about 44s of
 56.5s), and step 1 is most of an express run.
+
+Since then (1.15.1) step 1 is 2.5x faster ("Spike detection — 2.5x on step 1"
+above): the same full run takes 80.8s on this machine (express 29.3s). That
+was not measured back to back with MATLAB, but against the 893s above it
+would be ~11x.
 
 ### Original comparison (2026-07-09)
 

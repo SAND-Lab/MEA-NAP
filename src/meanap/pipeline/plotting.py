@@ -19,6 +19,7 @@ function, from the same numbers.
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -27,6 +28,7 @@ import numpy as np
 
 from meanap.params import Params
 from meanap.pipeline.figure_output import savefig
+from meanap.pipeline.parallel import compute_threads
 from meanap.pipeline.rng import make_rng
 from meanap.pipeline.spike_detection import SpikeDetectionResult, bandpass_filter
 from meanap.pipeline.atomic import atomic_savez
@@ -150,14 +152,13 @@ def compute_spike_check_data(
     frames_per_panel: list[list[np.ndarray]] = []
 
     last_channel = active_channels[0] if active_channels else 0
-    last_trace = None
 
+    # Every draw depends on spike times only, never on a filtered trace, so
+    # they are all made first, in the order they always were, and the
+    # channels are then filtered on threads (filtfilt releases the GIL).
+    panels: list[tuple[int, int, int, int, int]] = []
     for _ in range(N_TRACE_PANELS if active_channels else 0):
         ch = int(rng.choice(active_channels))
-        last_channel = ch
-        trace = filtered(ch)
-        last_trace = trace
-
         times_s = result.spike_times[ch].get(methods[0], np.array([]))
         centre = (int(round(rng.choice(times_s) * fs)) if len(times_s)
                   else n_samples // 2)
@@ -166,12 +167,29 @@ def compute_spike_check_data(
         # One sample of overhang each side — see SpikeCheckData.trace_views.
         cut_from = max(0, start_f - 1)
         cut_to = min(n_samples, end_f + 1)
+        panels.append((ch, start_f, end_f, cut_from, cut_to))
 
+    def summarise(ch: int) -> tuple[float, list[np.ndarray]]:
+        """The trace's std and its window for every panel showing it."""
+        trace = filtered(ch)
+        return float(np.std(trace)), [
+            trace[cut_from:cut_to].astype(np.float32)
+            for c, _, _, cut_from, cut_to in panels if c == ch]
+
+    unique_channels = list(dict.fromkeys(p[0] for p in panels))
+    with ThreadPoolExecutor(max_workers=max(1, min(len(unique_channels),
+                                                   compute_threads()))) as pool:
+        summaries = dict(zip(unique_channels,
+                             pool.map(summarise, unique_channels)))
+    next_window = {ch: iter(summaries[ch][1]) for ch in unique_channels}
+
+    for ch, start_f, end_f, cut_from, _ in panels:
+        last_channel = ch
         channels.append(ch)
-        windows.append(trace[cut_from:cut_to].astype(np.float32))
+        windows.append(next(next_window[ch]))
         starts.append(cut_from)
         views.append((start_f, end_f))
-        stds.append(float(np.std(trace)))
+        stds.append(summaries[ch][0])
         frames_per_panel.append([
             _frames_in_window(result.spike_times[ch].get(m, np.array([])),
                               fs, start_f, end_f)
@@ -206,7 +224,8 @@ def compute_spike_check_data(
         trace_stds=np.asarray(stds, dtype=np.float64),
         trace_spike_frames=frames_per_panel,
         wave_channel=int(last_channel),
-        wave_std=float(np.std(last_trace)) if last_trace is not None else 0.0,
+        # The waveform channel is the last panel's, whose std is already known.
+        wave_std=stds[-1] if stds else 0.0,
         waveforms=waveforms,
     )
 
@@ -245,12 +264,14 @@ def _frequency_curves(
             frames = np.round(times_s * result.fs).astype(int)
             frames = frames[frames < n_samples]
 
-            spk_vec = np.zeros(n_samples)
-            spk_vec[frames] = 1
-            pad_len = (d_samp_f - (n_samples % d_samp_f)) % d_samp_f
-            if pad_len > 0:
-                spk_vec = np.pad(spk_vec, (0, pad_len), constant_values=np.nan)
-            spk_matrix[ch_idx, :] = np.nansum(spk_vec.reshape(-1, d_samp_f), axis=1)
+            # Spikes per bin, each sample counted once however many spikes
+            # land on it: what marking a full-length 0/1 vector and summing it
+            # per bin gave, without building millions of samples per channel
+            # per method. The modulo keeps that indexing's wrap-around for a
+            # negative frame.
+            occupied = np.unique(frames % n_samples)
+            spk_matrix[ch_idx, :] = np.bincount(occupied // d_samp_f,
+                                                minlength=n_bins)
 
         if active_channels:
             curves[i] = np.mean(spk_matrix[active_channels, :], axis=0)
