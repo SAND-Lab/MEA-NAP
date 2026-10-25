@@ -25,7 +25,10 @@ function MEApipeline_timingBenchmark(InputParamsFilePath)
 %   Step 2 duration (seconds): 53
 %   Step 3 duration (seconds): 15
 %   Step 4 duration (seconds): 283
-%   (total 931s) — see python/PIPELINE_PORT_STATUS.md's "MATLAB vs Python
+%   (total 931s). Re-run 2026-10-25 (R2025b, 16-worker parpool):
+%   445 / 62 / 9 / 377, total 893s. Run as
+%   matlab -batch "addpath('<repo>/matlab'); addpath('<repo>/python/parityRun'); MEApipeline_timingBenchmark"
+%   — see python/PIPELINE_PORT_STATUS.md's "MATLAB vs Python
 %   speed comparison" section for the full writeup incl. the Python side.
 %
 % Getting here required finding and working around 5 bugs/config traps in
