@@ -1033,7 +1033,8 @@ def _lag_independent_metrics(
             out.update(cal_nmf(
                 spike_times, np.asarray(_spike_counts(res, params.twop_activity)),
                 duration_s, params.nmf_downsample_freq, res.fs,
-                include_nmf_components=params.include_nmf_components, rng=rng))
+                include_nmf_components=params.include_nmf_components, rng=rng,
+                plateau_gain=params.nmf_plateau_gain))
         except Exception as e:
             log(f"  [{name}] WARNING: could not compute NMF components: {e}")
 

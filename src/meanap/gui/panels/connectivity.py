@@ -163,8 +163,30 @@ class ConnectivityPanel(QWidget):
                     "NMF, but the same kind of measure, so it can be left out "
                     "the same way.")
 
+        self.nmf_plateau_gain = QDoubleSpinBox()
+        self.nmf_plateau_gain.setRange(0.0, 1.0)
+        self.nmf_plateau_gain.setDecimals(3)
+        self.nmf_plateau_gain.setSingleStep(0.001)
+        self.nmf_plateau_gain.setSpecialValueText("off (fit every rank)")
+        self.nmf_plateau_gain.setValue(0.005)
+        set_tooltip(self.nmf_plateau_gain,
+                    "Where NMF's variance-explained curve stops.\n\n"
+                    "The curve fits one factorisation per rank, up to the "
+                    "number of active nodes, and the highest ranks cost the "
+                    "most: with hundreds of sorted units they are most of "
+                    "step 4. The sweep stops once variance explained passes "
+                    "95%, or rises by less than this over 10 ranks. Ranks it "
+                    "skips are left empty in the curve; num_nnmf_components "
+                    "and nComponentsRelNS do not depend on it.\n\n"
+                    "0 fits every rank, as MATLAB does. Applies to CAT-NAP's "
+                    "NMF too.")
+
         form3.addRow("NMF dimensionality", self.compute_nmf)
         form3.addRow("Effective rank", self.compute_eff_rank)
+        metrics_advanced = AdvancedSection()
+        metrics_advanced.form().addRow("Stop NMF sweep below gain",
+                                       self.nmf_plateau_gain)
+        form3.addRow(metrics_advanced)
 
         self._thr_box = thr_box
         self._metrics_box = metrics_box
@@ -262,14 +284,18 @@ class ConnectivityPanel(QWidget):
                     "Measured in spikes/s over the whole recording. 0 keeps "
                     "every electrode that has at least one edge, which is the "
                     "default; MEApipeline.m's own example runs use 0.01.")
-        self._metrics_box.setEnabled(not catnap)
+        # The two switches are ephys-only; the NMF sweep setting is read by
+        # both pipelines, so it stays live.
+        self.compute_nmf.setEnabled(not catnap)
+        self.compute_eff_rank.setEnabled(not catnap)
         self._metrics_box.setTitle(
-            "Network metrics  ·  set on the CAT-NAP tab" if catnap
+            "Network metrics  ·  NMF is switched on the CAT-NAP tab" if catnap
             else "Network metrics")
         set_tooltip(self._metrics_box,
-                    "A CAT-NAP run takes its NMF setting from the CAT-NAP "
-                    "tab, and always computes effective rank, so nothing here "
-                    "is read." if catnap else "")
+                    "A CAT-NAP run takes its NMF switch from the CAT-NAP tab "
+                    "and always computes effective rank, so the two switches "
+                    "here are not read. The NMF sweep setting under Advanced "
+                    "is." if catnap else "")
 
     def retune_lags_for_mode(self, from_mode: str, to_mode: str) -> tuple[int, ...] | None:
         """Move the lags onto *to_mode*'s defaults, unless they were edited.
@@ -315,6 +341,7 @@ class ConnectivityPanel(QWidget):
             params.exclude_edges_below_threshold)
         self.compute_nmf.setChecked(params.compute_nmf)
         self.compute_eff_rank.setChecked(params.compute_eff_rank)
+        self.nmf_plateau_gain.setValue(params.nmf_plateau_gain)
 
     def save(self, params: Params) -> None:
         params.func_con_lag_val = self._parse_lags()
@@ -329,3 +356,4 @@ class ConnectivityPanel(QWidget):
             self.exclude_edges_below_threshold.isChecked())
         params.compute_nmf = self.compute_nmf.isChecked()
         params.compute_eff_rank = self.compute_eff_rank.isChecked()
+        params.nmf_plateau_gain = self.nmf_plateau_gain.value()

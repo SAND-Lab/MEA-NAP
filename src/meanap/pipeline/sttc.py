@@ -7,7 +7,11 @@ Retinal Waves", https://www.ncbi.nlm.nih.gov/pubmed/25339742
 
 from __future__ import annotations
 
+import warnings
+
 import numpy as np
+
+from meanap.pipeline.parallel import numba_threads
 
 # ``run_P`` (below) is a monotonic two-pointer whose result is *order-dependent*
 # on the input spike trains — it does not sort. For spike-detection data the
@@ -17,7 +21,7 @@ import numpy as np
 # with numba when available (same optional pattern as ``null_models.py``); the
 # pure-Python fallback is identical, just slower.
 try:
-    from numba import njit
+    from numba import njit, prange, set_num_threads
 
     _HAVE_NUMBA = True
 except Exception:  # pragma: no cover - numba optional / version-gated
@@ -45,6 +49,69 @@ def _run_p_impl(t1: np.ndarray, t2: np.ndarray, dt: float) -> int:
 
 
 _run_p_jit = njit(cache=True)(_run_p_impl) if _HAVE_NUMBA else _run_p_impl
+
+
+def _sttc_row_impl(flat: np.ndarray, starts: np.ndarray, tiled: np.ndarray,
+                   dt: float, out: np.ndarray, i: int) -> None:
+    """Fill ``out[i, i+1:]`` with the STTC of train ``i`` against each later one.
+
+    Train ``i`` is ``flat[starts[i]:starts[i + 1]]`` and ``tiled[i]`` its
+    normalised ``run_T``. The arithmetic is :func:`_sttc_from_tiled`'s,
+    written out so a whole sweep is one compiled call. Pairs with an empty
+    train are left as they are (NaN, which ``get_sttc`` zeroes).
+    """
+    n = starts.shape[0] - 1
+    n1 = starts[i + 1] - starts[i]
+    if n1 == 0:
+        return
+    t1 = flat[starts[i]:starts[i + 1]]
+    ta = tiled[i]
+    for j in range(i + 1, n):
+        n2 = starts[j + 1] - starts[j]
+        if n2 == 0:
+            continue
+        t2 = flat[starts[j]:starts[j + 1]]
+        tb = tiled[j]
+        pa = _run_p_jit(t1, t2, dt) / n1
+        pb = _run_p_jit(t2, t1, dt) / n2
+        out[i, j] = 0.5 * (pa - tb) / (1 - tb * pa) + 0.5 * (pb - ta) / (1 - ta * pb)
+
+
+def _sttc_upper_impl(flat: np.ndarray, starts: np.ndarray, tiled: np.ndarray,
+                     dt: float, out: np.ndarray) -> None:
+    """Fill the upper triangle of ``out``, rows in parallel.
+
+    Row ``i`` has ``n - 1 - i`` pairs, so rows are taken in pairs from both
+    ends (``f`` and ``n - 1 - f``), giving every parallel step the same
+    ``n - 1`` pairs. Each pair is computed exactly as in the serial loop and
+    written to its own cell, so the result does not depend on the thread
+    count.
+    """
+    n = starts.shape[0] - 1
+    for f in _prange((n + 1) // 2):
+        _sttc_row(flat, starts, tiled, dt, out, f)
+        g = n - 1 - f
+        if g != f:
+            _sttc_row(flat, starts, tiled, dt, out, g)
+
+
+# ``error_model="numpy"``: a zero denominator gives inf/NaN, as it does for
+# the NumPy scalars in :func:`_sttc_from_tiled`, instead of raising.
+if _HAVE_NUMBA:
+    _prange = prange
+    _sttc_row = njit(cache=True, error_model="numpy")(_sttc_row_impl)
+    _sttc_upper = njit(cache=True, error_model="numpy", parallel=True)(_sttc_upper_impl)
+    # The same loop compiled without ``parallel``, where ``prange`` is a plain
+    # range: what runs if no threading layer can be loaded (see ``get_sttc``).
+    _sttc_upper_serial = njit(cache=True, error_model="numpy")(_sttc_upper_impl)
+else:  # pragma: no cover - numba optional
+    _prange = range
+    _sttc_row = _sttc_row_impl
+    _sttc_upper = _sttc_upper_serial = _sttc_upper_impl
+
+#: Set once the parallel kernel has failed to start, so later calls go straight
+#: to the serial one.
+_PARALLEL_BROKEN = False
 
 
 def _run_t(dt: float, t_start: float, t_end: float, times: np.ndarray) -> float:
@@ -152,14 +219,36 @@ def get_sttc(
     tiled = [(_run_t(dt, 0.0, duration_s, tr) / t_span) if tr.size else 0.0
              for tr in times]
 
-    for i in range(n_channels):
-        ti = times[i]
-        if ti.size == 0:
-            continue
-        for j in range(i + 1, n_channels):
-            coef = _sttc_from_tiled(ti, times[j], dt, tiled[i], tiled[j])
-            adj_m[i, j] = coef
-            adj_m[j, i] = coef
+    # The pair sweep itself costs O(n_channels x total spikes): every pair walks
+    # both trains. That is negligible on a 64-electrode MEA and ~2s per matrix
+    # for 300 sorted units (so ~20 min of step 3 at 201 matrices x 3 lags),
+    # which is why it runs as one compiled call, rows across cores. Trains go
+    # in as one flat float64 array; spike times are float64 everywhere in the
+    # pipeline, so this is the arithmetic the per-pair path did.
+    starts = np.zeros(n_channels + 1, dtype=np.int64)
+    np.cumsum([tr.size for tr in times], out=starts[1:])
+    flat = (np.concatenate(times).astype(np.float64, copy=False) if n_channels
+            else np.empty(0))
+    args = (flat, starts, np.asarray(tiled, dtype=np.float64), float(dt), adj_m)
+    global _PARALLEL_BROKEN
+    if _HAVE_NUMBA and not _PARALLEL_BROKEN:
+        try:
+            set_num_threads(numba_threads())
+            _sttc_upper(*args)
+        except Exception as e:
+            # numba loads its threading layer on the first parallel call, and
+            # a build that is missing one (a frozen app, an unusual install)
+            # fails here rather than at import. The serial kernel gives the
+            # same matrix, just on one core.
+            if "threading layer" not in str(e).lower():
+                raise
+            _PARALLEL_BROKEN = True
+            warnings.warn(f"STTC runs on one core: numba could not start threads ({e})")
+            _sttc_upper_serial(*args)
+    else:
+        _sttc_upper_serial(*args)
+    lower = np.tril_indices(n_channels, -1)
+    adj_m[lower] = adj_m.T[lower]
 
     adj_m[adj_m < 0] = 0.0
     adj_m[np.isnan(adj_m)] = 0.0

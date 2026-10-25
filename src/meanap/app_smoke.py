@@ -81,7 +81,16 @@ def check_numba() -> str:
     adj = np.random.default_rng(0).random((20, 20))
     adj = np.triu(adj, 1) + np.triu(adj, 1).T
     null_models.randmio_und_signed(adj, 2, rng=np.random.default_rng(1))
-    return f"numba {numba.__version__}"
+
+    # STTC's sweep is the one ``parallel=True`` kernel: it needs a threading
+    # layer, which numba loads by name and a frozen build can leave out.
+    from meanap.pipeline import sttc
+
+    trains = {i: np.sort(np.random.default_rng(i).uniform(0, 10, 50)) for i in range(8)}
+    sttc.get_sttc(trains, 8, 10.0, 10.0)
+    if sttc._PARALLEL_BROKEN:
+        raise RuntimeError("numba has no threading layer; STTC fell back to one core")
+    return f"numba {numba.__version__}, threading layer {numba.threading_layer()}"
 
 
 def check_pipeline() -> str:

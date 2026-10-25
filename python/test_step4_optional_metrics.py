@@ -258,17 +258,29 @@ def _gui_checks() -> list[Check]:
     checks.append(("and writes back what was ticked",
                    out.compute_nmf and not out.compute_eff_rank, ""))
 
-    # CAT-NAP reads its own NMF switch, so these must not look live there.
+    # CAT-NAP reads its own NMF switch, so these must not look live there. The
+    # NMF sweep setting is read by both pipelines, so it must stay live.
     panel.set_pipeline("catnap")
-    checks.append(("in CAT-NAP mode the box is disabled, not silently ignored",
-                   not panel._metrics_box.isEnabled()
+    checks.append(("in CAT-NAP mode the switches are disabled, not silently ignored",
+                   not panel.compute_nmf.isEnabled()
+                   and not panel.compute_eff_rank.isEnabled()
                    and "CAT-NAP tab" in panel._metrics_box.title(),
                    panel._metrics_box.title()))
+    checks.append(("but the NMF sweep setting, which CAT-NAP reads, stays live",
+                   panel.nmf_plateau_gain.isEnabled(), ""))
     panel.set_pipeline("meanap")
     checks.append(("and live again for an ephys run",
-                   panel._metrics_box.isEnabled()
+                   panel.compute_nmf.isEnabled() and panel.compute_eff_rank.isEnabled()
                    and panel._metrics_box.title() == "Network metrics",
                    panel._metrics_box.title()))
+
+    # The sweep setting round-trips, including 0 (the "off" special value).
+    for gain in (0.0, 0.02):
+        panel.load(Params(nmf_plateau_gain=gain))
+        out = Params()
+        panel.save(out)
+        checks.append((f"nmf_plateau_gain={gain} survives load and save",
+                       out.nmf_plateau_gain == gain, str(out.nmf_plateau_gain)))
     return checks
 
 

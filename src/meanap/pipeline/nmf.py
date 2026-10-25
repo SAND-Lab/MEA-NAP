@@ -30,10 +30,18 @@ intermediate array.
 from __future__ import annotations
 
 import warnings
+from collections import deque
+from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import ExitStack
+from itertools import islice
 
 import numpy as np
 from sklearn.decomposition import NMF
 from sklearn.exceptions import ConvergenceWarning
+from threadpoolctl import threadpool_limits
+
+from meanap.pipeline.parallel import compute_threads
 
 
 def randomise_spike_train(
@@ -68,7 +76,17 @@ def _bin_spike_times(spike_times_list: list[np.ndarray], duration_s: float, n_bi
     return out
 
 
-def _nnmf(x: np.ndarray, k: int, rng: np.random.Generator) -> tuple[np.ndarray, np.ndarray, float]:
+def _draw_seed(rng: np.random.Generator) -> int:
+    """One fit's ``random_state``, drawn exactly as ``_nnmf`` always drew it.
+
+    Seeds are drawn one call at a time and in rank order, never as an array:
+    an array draw takes a different path through the generator, so the seeds
+    (and every fit) would change.
+    """
+    return int(rng.integers(0, 2**31 - 1))
+
+
+def _nnmf_seeded(x: np.ndarray, k: int, seed: int) -> tuple[np.ndarray, np.ndarray, float]:
     """Rank-``k`` NNMF of ``x``, matching MATLAB's ``[W,H,D] = nnmf(A,k)``
     output convention: ``D`` is the root-mean-square residual
     ``norm(A - W*H, 'fro') / sqrt(m*n)``, not sklearn's raw Frobenius error.
@@ -87,16 +105,9 @@ def _nnmf(x: np.ndarray, k: int, rng: np.random.Generator) -> tuple[np.ndarray, 
     """
     m, n = x.shape
     k = max(1, min(k, m, n))
-    seed = int(rng.integers(0, 2**31 - 1))
     try:
         model = NMF(n_components=k, init="random", solver="cd", max_iter=100, random_state=seed)
-        with warnings.catch_warnings():
-            # Not reaching full convergence within a bounded iteration count
-            # is expected/tolerated here, same as MATLAB's own ALS default
-            # — this metric is inherently approximate, not exactly
-            # reproducible even between two MATLAB runs on the same data.
-            warnings.simplefilter("ignore", category=ConvergenceWarning)
-            w = model.fit_transform(x)
+        w = model.fit_transform(x)
         h = model.components_
         d = model.reconstruction_err_ / np.sqrt(m * n)
     except Exception:
@@ -104,6 +115,116 @@ def _nnmf(x: np.ndarray, k: int, rng: np.random.Generator) -> tuple[np.ndarray, 
         h = np.zeros((k, n))
         d = float("inf")
     return w, h, float(d)
+
+
+def _nnmf(x: np.ndarray, k: int, rng: np.random.Generator) -> tuple[np.ndarray, np.ndarray, float]:
+    """:func:`_nnmf_seeded` with the next seed from ``rng``."""
+    return _fit_all([(x, k, _draw_seed(rng))], 1)[0]
+
+
+def _quiet_single_blas():
+    """Context for running fits: BLAS on one thread, ConvergenceWarning off.
+
+    BLAS is held to one thread for every fit, threaded or not. A multi-threaded
+    BLAS splits its sums differently for different thread counts, which moves
+    the factors in the last bits, and the fits amplify that. With one BLAS
+    thread a fit no longer depends on how many cores the machine has or on how
+    many fits run at once.
+
+    Not reaching full convergence within the bounded iteration count is
+    expected and tolerated, as with MATLAB's own ALS default, so sklearn's
+    ConvergenceWarning is silenced. That has to happen in the calling thread,
+    once: ``warnings.catch_warnings`` swaps process-wide state, so entering it
+    from several fit threads at once can leak warnings or leave the filter
+    changed.
+    """
+    stack = ExitStack()
+    stack.enter_context(warnings.catch_warnings())
+    stack.enter_context(threadpool_limits(limits=1, user_api="blas"))
+    warnings.simplefilter("ignore", category=ConvergenceWarning)
+    return stack
+
+
+def _fit_all(jobs: list[tuple[np.ndarray, int, int]], workers: int) -> list:
+    """Run ``_nnmf_seeded`` on each ``(x, k, seed)``; results in job order.
+
+    Every fit has its own seed, so running them on threads changes nothing but
+    the wall time. sklearn's coordinate-descent update releases the GIL, so the
+    threads do run in parallel.
+    """
+    with _quiet_single_blas():
+        if workers <= 1 or len(jobs) <= 1:
+            return [_nnmf_seeded(*job) for job in jobs]
+        with ThreadPoolExecutor(max_workers=min(workers, len(jobs))) as ex:
+            return list(ex.map(lambda job: _nnmf_seeded(*job), jobs))
+
+
+def _sweep_fit(x: np.ndarray, k: int, seed: int) -> tuple[int, np.ndarray, np.ndarray, float, float]:
+    """One rank of the per-rank sweep: the rank, its fit and variance explained."""
+    w, h, res = _nnmf_seeded(x, k, seed)
+    return k, w, h, res, _variance_explained(x, w, h)
+
+
+def _fit_in_order(jobs: list[tuple[np.ndarray, int, int]], workers: int,
+                  consume: Callable[[tuple], bool]) -> None:
+    """Run ``_sweep_fit`` on each job, handing results to ``consume`` in order.
+
+    Up to ``workers`` fits run at once, and a new one starts as soon as the
+    oldest is consumed, so a slow fit does not hold up a whole batch. When
+    ``consume`` returns False the remaining jobs are dropped (fits already
+    running finish and are discarded).
+    """
+    with _quiet_single_blas():
+        if workers <= 1:
+            for job in jobs:
+                if not consume(_sweep_fit(*job)):
+                    return
+            return
+        with ThreadPoolExecutor(max_workers=workers) as ex:
+            queued = iter(jobs)
+            running = deque(ex.submit(_sweep_fit, *job) for job in islice(queued, workers))
+            try:
+                while running:
+                    result = running.popleft().result()
+                    nxt = next(queued, None)
+                    if nxt is not None:
+                        running.append(ex.submit(_sweep_fit, *nxt))
+                    if not consume(result):
+                        return
+            finally:
+                for fut in running:
+                    fut.cancel()
+
+
+def _variance_explained(x: np.ndarray, w: np.ndarray, h: np.ndarray) -> float:
+    """``calNMF.m``'s variance explained: 1 - SS_res / SS_tot about the grand mean."""
+    ss_res = np.sum((w @ h - x) ** 2)
+    ss_tot = np.sum((x - x.mean()) ** 2)
+    return (1.0 - ss_res / ss_tot) if ss_tot > 0 else 0.0
+
+
+#: Ranks over which ``cal_nmf``'s early stop judges that variance explained
+#: has levelled off.
+PLATEAU_WINDOW = 10
+
+
+def _levelled_off(var_explained: np.ndarray, gain: float, threshold_reached: bool) -> bool:
+    """Whether the per-rank sweep can stop after the ranks fitted so far.
+
+    True once the curve has passed the 95% threshold, or once the best value
+    over the last ``PLATEAU_WINDOW`` ranks beats the best before them by less
+    than ``gain``. The maxima, not the last values, are compared because the
+    curve is not monotonic: each rank is an independent fit from a random
+    start, and a high rank that fails to converge can drop well below a lower
+    one.
+    """
+    if threshold_reached:
+        return True
+    r = var_explained.shape[0]
+    if r <= PLATEAU_WINDOW:
+        return False
+    return (np.max(var_explained[r - PLATEAU_WINDOW:])
+            - np.max(var_explained[:r - PLATEAU_WINDOW])) < gain
 
 
 def cal_nmf(
@@ -115,6 +236,8 @@ def cal_nmf(
     min_spike_count: int = 1,
     include_nmf_components: bool = False,
     rng: np.random.Generator | None = None,
+    plateau_gain: float = 0.0,
+    max_workers: int | None = None,
 ) -> dict:
     """Non-negative matrix factorization dimensionality metrics for one
     recording (lag-independent — call once per recording, not once per lag,
@@ -127,9 +250,19 @@ def cal_nmf(
     matching MATLAB's ``Params.includeNMFcomponents``), ``nmfFactors``,
     ``nmfWeights``, ``downSampleSpikeMatrix``, ``nmfFactorsVarThreshold``,
     ``nmfWeightsVarThreshold``.
+
+    ``plateau_gain`` > 0 ends the per-rank sweep early, once variance
+    explained has risen by less than that over the last
+    ``PLATEAU_WINDOW`` ranks (or has passed 95%); the ranks not fitted are
+    NaN in ``nnmf_residuals``/``nnmf_var_explained``, and if 95% was never
+    reached the ``*VarThreshold`` factors come from the last rank fitted
+    rather than the last rank. 0 fits every rank, as ``calNMF.m`` does. ``max_workers`` caps the threads the fits run on
+    (default: :func:`~meanap.pipeline.parallel.compute_threads`); the result
+    is the same for any value.
     """
     if rng is None:
         rng = np.random.default_rng()
+    workers = compute_threads() if max_workers is None else max(1, max_workers)
 
     downsample_freq = min(downsample_freq, fs)
     n_bins = max(int(round(downsample_freq * duration_s)), 1)
@@ -146,15 +279,39 @@ def cal_nmf(
     # rather than fitting noise as readily as they'd fit shuffled data. ──
     nmf_factors: np.ndarray | None = None
     nmf_weights: np.ndarray | None = None
-    residual = 0.0
-    rand_residual = 1.0
-    k = 1
     rand_residual_per_component: list[float] = []
-    while residual < rand_residual and k <= n_channels:
-        nmf_factors, nmf_weights, residual = _nnmf(down_sample_spike_matrix, k, rng)
-        _, _, rand_residual = _nnmf(rand_spike_matrix, k, rng)
-        rand_residual_per_component.append(rand_residual)
-        k += 1
+    k = 1
+    block = 1
+    searching = n_channels >= 1
+    while searching:
+        # Fit ranks k..k+block-1 at once, real and shuffled side by side. The
+        # loop stops at the first rank whose residual no longer beats the
+        # shuffled one, so fits past it are wasted: the block starts at one
+        # rank and doubles while the search continues, up to the thread
+        # count, so a search that ends at rank 1 or 2 costs what it did serially.
+        ranks = list(range(k, min(k + block, n_channels + 1)))
+        state = rng.bit_generator.state
+        seeds = [(_draw_seed(rng), _draw_seed(rng)) for _ in ranks]
+        fits = _fit_all([job for kk, (s_real, s_rand) in zip(ranks, seeds)
+                         for job in ((down_sample_spike_matrix, kk, s_real),
+                                     (rand_spike_matrix, kk, s_rand))], workers)
+        used = 0
+        for idx, kk in enumerate(ranks):
+            nmf_factors, nmf_weights, residual = fits[2 * idx]
+            rand_residual = fits[2 * idx + 1][2]
+            rand_residual_per_component.append(rand_residual)
+            used += 1
+            k = kk + 1
+            if not (residual < rand_residual and k <= n_channels):
+                searching = False
+                break
+        if used < len(ranks):
+            # Put the generator back as if only the ranks used had drawn
+            # seeds, so everything after sees the stream the serial loop left.
+            rng.bit_generator.state = state
+            for _ in range(2 * used):
+                _draw_seed(rng)
+        block = min(2 * block, max(1, workers))
     num_nnmf_components = k - 1
 
     active_electrodes = spike_counts > min_spike_count
@@ -169,28 +326,35 @@ def cal_nmf(
     # ── Per-rank sweep over active electrodes only, for the "how many
     # components until we explain 95% of variance" curve. ──
     down_sample_active = down_sample_spike_matrix[:, active_electrodes]
-    nnmf_residuals = np.zeros(network_size)
-    nnmf_var_explained = np.zeros(network_size)
+    # NaN until fitted: an early stop leaves the ranks it skipped as NaN.
+    nnmf_residuals = np.full(network_size, np.nan)
+    nnmf_var_explained = np.full(network_size, np.nan)
     var_explained_threshold = 0.95
     threshold_reached = False
     nmf_factors_var_threshold: np.ndarray | None = None
     nmf_weights_var_threshold: np.ndarray | None = None
 
-    for kk in range(1, network_size + 1):
-        w, h, res = _nnmf(down_sample_active, kk, rng)
-        nnmf_residuals[kk - 1] = res
+    # Every rank's seed is drawn up front, in rank order, so a rank's fit is the
+    # same however many threads run the sweep and wherever it stops.
+    sweep_seeds = [_draw_seed(rng) for _ in range(network_size)]
+    last: list = [None, None]
 
-        predicted = w @ h
-        ss_res = np.sum((predicted - down_sample_active) ** 2)
-        grand_mean = down_sample_active.mean()
-        ss_tot = np.sum((down_sample_active - grand_mean) ** 2)
-        var_explained = (1.0 - ss_res / ss_tot) if ss_tot > 0 else 0.0
-        nnmf_var_explained[kk - 1] = var_explained
-
+    def take(fit: tuple) -> bool:
+        nonlocal threshold_reached, nmf_factors_var_threshold, nmf_weights_var_threshold
+        rank, w_r, h_r, res, var_explained = fit
+        last[:] = [w_r, h_r]
+        nnmf_residuals[rank - 1] = res
+        nnmf_var_explained[rank - 1] = var_explained
         if var_explained > var_explained_threshold and not threshold_reached:
             threshold_reached = True
-            nmf_factors_var_threshold = w
-            nmf_weights_var_threshold = h
+            nmf_factors_var_threshold = w_r
+            nmf_weights_var_threshold = h_r
+        return not (plateau_gain > 0 and _levelled_off(
+            nnmf_var_explained[:rank], plateau_gain, threshold_reached))
+
+    _fit_in_order([(down_sample_active, r, sweep_seeds[r - 1]) for r in range(1, network_size + 1)],
+                  workers, take)
+    w, h = last
 
     if network_size > 0 and not threshold_reached:
         nmf_factors_var_threshold = w

@@ -155,6 +155,30 @@ def pin_blas_threads(threads: str = "1") -> None:
     os.environ.update(worker_env(threads))
 
 
+def compute_threads() -> int:
+    """Threads this process may use for its own parallel loops (numba
+    ``prange``, NMF fits).
+
+    Inside a :func:`map_recordings` worker that is the BLAS share the worker
+    was pinned to, so N workers x their threads still adds up to the machine.
+    Outside a pool it is every physical core, unless ``OMP_NUM_THREADS`` says
+    otherwise.
+    """
+    pinned = os.environ.get("OMP_NUM_THREADS", "")
+    if pinned.isdigit() and int(pinned) > 0:
+        return int(pinned)
+    return physical_cores()
+
+
+def numba_threads() -> int:
+    """:func:`compute_threads`, capped at the size of numba's thread pool."""
+    try:
+        import numba
+    except Exception:  # pragma: no cover - numba optional
+        return 1
+    return max(1, min(compute_threads(), numba.config.NUMBA_NUM_THREADS))
+
+
 #: Cached across the session — whether ``__main__`` is guarded cannot change.
 _SPAWN_USABLE: Optional[bool] = None
 

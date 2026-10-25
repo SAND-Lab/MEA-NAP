@@ -55,7 +55,8 @@ import numpy as np
 from scipy.linalg import schur
 from scipy.sparse.linalg import svds
 
-from meanap.pipeline.null_models import null_model_und_sign
+from meanap.pipeline.null_models import map_null_models_und_sign
+from meanap.pipeline.parallel import compute_threads
 
 # Same optional-numba pattern as ``null_models.py`` / ``sttc.py``: numba is a
 # declared dependency, but the import is guarded so a build without it still
@@ -426,16 +427,22 @@ def participation_coef_norm(
         within_mod_k[mask] = w[np.ix_(mask, mask)].sum(axis=1)
     between_mod_k = ko - within_mod_k
 
-    kc2_rnd = np.zeros((n, n_iter))
-    for it in range(n_iter):
-        w_rnd = null_model_und_sign(w, bin_swaps=5, rng=rng)
+    def kc2_column(w_rnd: np.ndarray) -> np.ndarray:
         gc_rnd = (w_rnd != 0) @ np.diag(ci)
         kc2_rnd_loop = np.zeros(n)
         with np.errstate(divide="ignore", invalid="ignore"):
             for i in range(1, ci.max() + 1):
                 term = (w * (gc == i)).sum(axis=1) / ko - (w_rnd * (gc_rnd == i)).sum(axis=1) / ko
                 kc2_rnd_loop += term**2
-        kc2_rnd[:, it] = np.sqrt(0.5 * kc2_rnd_loop)
+        return np.sqrt(0.5 * kc2_rnd_loop)
+
+    # The null models are the cost here (each rewiring grows as n^3), and
+    # they are independent, so they are built on threads; the result and the
+    # generator state afterwards are those of a sequential loop (see
+    # map_null_models_und_sign).
+    columns = map_null_models_und_sign(w, n_iter, kc2_column, bin_swaps=5, rng=rng,
+                                       workers=compute_threads())
+    kc2_rnd = np.column_stack(columns) if columns else np.zeros((n, 0))
 
     with np.errstate(invalid="ignore"):
         pc_norm = 1.0 - np.median(kc2_rnd, axis=1)
