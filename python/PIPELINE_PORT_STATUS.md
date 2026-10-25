@@ -2166,7 +2166,12 @@ Same dataset and settings as the original comparison below (2 Axion64
 recordings, lags `[10, 25, 50]`ms, 200 shuffles, every figure drawn). MATLAB
 ran `python/parityRun/MEApipeline_timingBenchmark.m` (R2025b, 16-worker
 parpool), then Python ran `python/benchmark_express.py`'s full-run settings
-immediately afterwards on the same machine:
+immediately afterwards on the same machine.
+
+**Machine:** AMD Ryzen AI Max+ 395, 16 physical cores / 32 threads, 109 GB
+RAM, Linux; shared with other work (one unrelated process held a core
+throughout). **These numbers are specific to this machine; see "Core count"
+below before quoting the ratio for a laptop.**
 
 | Step | MATLAB | Python | Ratio |
 |---|---|---|---|
@@ -2195,6 +2200,33 @@ byte-identical to the older code in both modes.
 
 Figures are now most of what is left in a full run's step 4 (about 44s of
 56.5s), and step 1 is most of an express run.
+
+**Core count.** Both sides scale with cores, so neither the absolute times
+nor the ratio carry over to a different machine:
+
+- Python sizes its parallelism to physical cores: step 1 threads over
+  channels (also capped by free RAM, ~3.8 GB per recording), step 3's STTC
+  runs on numba threads, and step 4 threads the NMF fits and the 100 null
+  models (`parallel.compute_threads()`). Steps 3 and 4 also map recordings
+  across processes. Setting `OMP_NUM_THREADS` caps the step 3/4 thread
+  count.
+- MATLAB's parpool defaults to one worker per physical core (16 here) and
+  is used at least for step 3's shuffles. How much of its steps 1 and 4,
+  where most of its time goes, runs in parallel has not been checked.
+
+Most of Python's gain since July comes from using more cores at once, so
+the ratio is expected to be smaller on an 8-core laptop than the 7-8x
+here. Not yet measured.
+
+**Re-running on another machine.** Python:
+`uv run python python/benchmark_express.py --out <dir>` (full + express;
+prints per-step times). MATLAB: the paths at the top of
+`python/parityRun/MEApipeline_timingBenchmark.m` (`HomeDir`,
+`Params.outputDataFolder`, `rawData`, `spreadsheet_filename`) are
+hard-coded to this machine and must be edited first, then
+`matlab -batch "addpath('<repo>/matlab'); addpath('<repo>/python/parityRun'); MEApipeline_timingBenchmark"`.
+Run the two back to back with nothing else heavy running, and record the
+CPU model, physical cores, RAM and parpool size alongside the times.
 
 ### Original comparison (2026-07-09)
 
