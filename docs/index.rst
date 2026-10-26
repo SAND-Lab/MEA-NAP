@@ -72,6 +72,7 @@ Timothy PH Sit, Rachael C Feord, Alexander WE Dunn, Jeremi Chabros, David Oluigb
    running-MEANAP-on-HPC
    meanap-methods
    meanap-outputs
+   plot-inventory
    system-requirements
    frequently-asked-questions
    how-to-contribute

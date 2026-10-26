@@ -32,6 +32,15 @@ from meanap.pipeline.channel_layout import get_coords_from_layout
 from meanap.pipeline.network_metrics import classify_node_cartography
 
 
+def _std_title(recording_name: str, lag_ms) -> str:
+    """MATLAB's standard 4A title, ``"<FNt> <lag> ms lag"``.
+
+    ``FNt`` is the recording name with its underscores removed, which is how
+    MATLAB titles every per-recording network figure.
+    """
+    return f"{recording_name.replace('_', '')} {lag_ms} ms lag"
+
+
 def plot_connectivity_stats(
     adj_m: np.ndarray,
     nd: np.ndarray,
@@ -60,7 +69,7 @@ def plot_connectivity_stats(
 
     fig = plt.figure(figsize=(11, 6))
     gs = fig.add_gridspec(6, 6)
-    fig.suptitle(f"{recording_name} {lag_ms} ms lag")
+    fig.suptitle(_std_title(recording_name, lag_ms))
 
     ax_adj = fig.add_subplot(gs[0:3, 0:2])
     im = ax_adj.imshow(adj_m, aspect="auto")
@@ -161,12 +170,12 @@ def plot_spatial_network(
     else:
         sub, coords, edge_thresh = style.prepare(sub, coords)
 
-    scaled = z_scale_override is not None
-    title_suffix = " (scaled to data batch)" if scaled else ""
+    # MATLAB titles the batch-scaled variant exactly like the plain one; only
+    # the file name ("<n>_scaled_…") tells them apart.
     fig, ax = plt.subplots(figsize=(8, 8))
     plot_network(
         ax, sub, coords, edge_thresh, z_sub, z2_sub, z2_name,
-        title=f"{recording_name}  {lag_ms} ms lag{title_suffix}", z_name=z_name,
+        title=_std_title(recording_name, lag_ms), z_name=z_name,
         z_scale_override=z_scale_override,
         z2_bounds_override=z2_bounds_override,
         edge_bounds_override=edge_bounds_override,
@@ -361,15 +370,14 @@ def plot_spatial_network_combined(
         colormap=style.colormap,
     )
 
+    # No titles: MATLAB builds this figure with copyobj, which drops them.
     fig, (ax_ind, ax_batch) = plt.subplots(1, 2, figsize=(16, 8))
     plot_network(
         ax_ind, sub, coords, edge_thresh, z_sub, z2_sub, z2_name,
-        title=f"{recording_name}  {lag_ms} ms lag\nscaled to recording",
         z_name=z_name, **styling,
     )
     plot_network(
         ax_batch, sub, coords, edge_thresh, z_sub, z2_sub, z2_name,
-        title=f"{recording_name}  {lag_ms} ms lag\nscaled to entire data batch",
         z_name=z_name,
         z_scale_override=z_scale_override,
         z2_bounds_override=z2_bounds_override,
@@ -519,7 +527,10 @@ def plot_node_cartography(
     ax.set_ylim(*wm_deg_range)
     ax.set_xlabel("participation coefficient")
     ax.set_ylabel("within-module degree z-score")
-    ax.set_title(f"{recording_name} {lag_ms} ms lag  —  node cartography")
+    # As NodeCartography.m: the standard title over the figure, and the
+    # scatter panel titled on its own.
+    fig.suptitle(_std_title(recording_name, lag_ms))
+    ax.set_title("node cartography")
 
     if ax_diag is not None:
         ax_diag.imshow(diagram)
@@ -713,8 +724,7 @@ def plot_circular_module_network(
     ax.set_aspect("equal")
     ax.axis("off")
 
-    title_str = recording_name.replace("_", "") + f"  {lag_ms} ms lag"
-    ax.set_title(title_str, fontweight="bold", fontsize=11)
+    ax.set_title(_std_title(recording_name, lag_ms), fontweight="bold", fontsize=11)
 
     # Draw edges (weakest drawn first so strongest appear on top)
     for xc, yc, lw, col in zip(edge_xs, edge_ys, edge_lws, edge_cols):
@@ -934,8 +944,7 @@ def plot_circular_cartography_network(
     ax.set_aspect("equal")
     ax.axis("off")
 
-    title_str = recording_name.replace("_", "") + f"  {lag_ms} ms lag"
-    ax.set_title(title_str, fontweight="bold", fontsize=11)
+    ax.set_title(_std_title(recording_name, lag_ms), fontweight="bold", fontsize=11)
 
     # Draw edges
     for xc, yc, lw, col in zip(edge_xs, edge_ys, edge_lws, edge_cols):
@@ -1147,6 +1156,7 @@ def plot_half_violin_by_x(
     series_colors: list | None = None,
     colors=None,
     ylim: tuple[float | None, float | None] | None = None,
+    age_title_sep: str = " ",
 ) -> None:
     """Group-comparison half-violin plot, port of ``plotHalfViolinByX.m``.
 
@@ -1181,6 +1191,13 @@ def plot_half_violin_by_x(
     ``None`` on either side leaves that end to the data, so ``(0, None)`` is
     "from zero, up to whatever this batch reaches". The axes share y, so this
     is one range for every panel. See :func:`netmet_bounds`.
+
+    ``age_title_sep`` goes between "Age" and the DIV in the by-age panel
+    titles. ``plotHalfViolinByX.m`` (step 4B) writes "Age 14";
+    ``PlotEphysStats.m`` (step 2B) writes "Age14", so step 2 passes ``""``.
+
+    The file name is the caller's; :func:`comparison_figure_stem` builds the
+    MATLAB one.
     """
     if df.empty:
         return
@@ -1221,7 +1238,7 @@ def plot_half_violin_by_x(
         xlabel = "Group"
         # _tick_label so the title reads "Age 14", matching the tick labels on
         # the other layout rather than the raw float DIV ("Age 14.0").
-        titles = [f"Age {_tick_label(d)}" for d in divs]
+        titles = [f"Age{age_title_sep}{_tick_label(d)}" for d in divs]
     else:
         raise ValueError(f"x_kind must be 'group' or 'DIV', got {x_kind!r}")
 
@@ -1339,12 +1356,50 @@ def plot_half_violin_by_x(
 
 
 def _timescale_group_folder(value, timescale: str = "lag") -> str:
-    """``('1000mslag', 'bin')`` → ``'Bin1000ms'``; the 4B folders' naming.
+    """``('1000mslag', 'bin')`` → ``'Bin1000ms'``; the CAT-NAP group folders' naming.
+
+    Used by the Python-only CAT-NAP comparison sets (cell-type subnetworks,
+    cell tracking). The 4B folders MATLAB also writes use
+    :func:`comparison_timescale_folder` instead.
 
     Accepts the value with or without a unit or suffix, which is what lets it
     read a ``Lag`` column written by any version.
     """
     return f"{timescale.capitalize()}{_lag_num(value)}ms"
+
+
+def comparison_timescale_folder(value, timescale: str = "lag") -> str:
+    """The per-lag sub-folder of the 4B comparison sets.
+
+    ``'<lag>mslag'`` as ``PlotNetMet.m`` names it. A CAT-NAP correlation run
+    (``timescale="bin"``) has no MATLAB counterpart and keeps ``'Bin<n>ms'``.
+    """
+    if timescale == "bin":
+        return _timescale_group_folder(value, timescale)
+    return f"{_lag_num(value)}mslag"
+
+
+def comparison_figure_stem(n: int, label: str, suffix: str = "",
+                           by_age: bool = False) -> str:
+    """MATLAB's file stem for one group-comparison figure: ``<n>_<label>[_<suffix>]``.
+
+    *n* is the metric's 1-based position in its list and *label* its display
+    label, as in ``PlotEphysStats.m`` and ``PlotNetMet.m``. The label is
+    cleaned the way ``PlotNetMet.m`` cleans it: TeX backslashes (here also the
+    ``$`` of their matplotlib form) are dropped, ``>`` and ``<`` are spelled
+    out, and in the by-age sections ``/`` becomes ``div``. None of these
+    characters occur in the step-2 labels, so the same rule serves both steps.
+    """
+    name = label.replace("$", "").replace("\\", "")
+    if by_age:
+        name = name.replace("/", "div")
+    name = name.replace(">", "greater than").replace("<", "less than")
+    return f"{n}_{name}_{suffix}" if suffix else f"{n}_{name}"
+
+
+def metric_number(metrics: dict, key: str) -> int:
+    """1-based position of *key* in a metric dict, MATLAB's ``n``."""
+    return list(metrics).index(key) + 1
 
 
 def _lag_num(lag) -> int:
@@ -1663,8 +1718,8 @@ def plot_graph_metrics_by_lag(
     CAT-NAP correlation bin), and only decides how the x axis is labelled — see
     :mod:`meanap.timescale`.
     Requires ``df`` with ``Grp``/``DIV``/``Lag`` columns plus the metric columns.
-    Files are named ``<metric>.<fmt>`` so they pair with MATLAB's
-    ``<n>_<label>.png`` via the report's label→code map.
+    Files are named ``<n>_<label>.<fmt>`` as MATLAB names them (see
+    :func:`comparison_figure_stem`).
 
     ``only`` restricts the run to a single metric, for a viewer redrawing the
     one figure it is showing rather than all 31. Returns the files written.
@@ -1687,7 +1742,7 @@ def plot_graph_metrics_by_lag(
     div_colors = _div_colors(len(divs), colors)
     xt = np.arange(1, len(lags) + 1)
 
-    for metric, label in NETMET_REC_METRICS.items():
+    for n, (metric, label) in enumerate(NETMET_REC_METRICS.items(), start=1):
         if metric not in df.columns or (only is not None and metric != only):
             continue
 
@@ -1744,7 +1799,7 @@ def plot_graph_metrics_by_lag(
             plt.close(fig)
             continue
         fig.tight_layout()
-        dest = out_dir / f"{metric}.{fmt}"
+        dest = out_dir / f"{comparison_figure_stem(n, label)}.{fmt}"
         savefig(fig, dest, default_dpi=300, bbox_inches="tight")
         plt.close(fig)
         written.append(dest)
@@ -1867,8 +1922,7 @@ def plot_graph_metrics_by_node(
     fig = plt.figure(figsize=(18.7, 7.3))   # ~1400×550 pt at 75 dpi (MATLAB p=[100 100 1400 550])
     gs = fig.add_gridspec(4, 7, hspace=0.05, wspace=0.35)
 
-    title_str = recording_name.replace("_", "") + f" {lag_ms} ms lag"
-    fig.suptitle(title_str, fontsize=11)
+    fig.suptitle(_std_title(recording_name, lag_ms), fontsize=11)
 
     # ── Row 0: schematic images ───────────────────────────────────────────────
     for col, (fname, label) in enumerate(SCHEMATICS):
@@ -1913,7 +1967,64 @@ def plot_graph_metrics_by_node(
 import pandas as pd
 import seaborn as sns
 
+#: Recording-level network metrics and their labels, in MATLAB's order and
+#: wording (``networkLevelNetMetLabels`` in ``AdvancedSettings.m``; the last two
+#: from the GUI's ``NetMetLabelDict``). The label is the y label and, through
+#: :func:`comparison_figure_stem`, the file name; the position is the file's
+#: ``<n>``. MATLAB's TeX ``\sigma``/``\omega`` are written in matplotlib's form.
 NETMET_REC_METRICS = {
+    "aN": "network size",
+    "Dens": "density",
+    "CC": "clustering coefficient",
+    "nMod": "number of modules",
+    "Q": "modularity score",
+    "PL": "mean path length",
+    "Eglob": "global efficiency",
+    "SW": r"small worldness $\sigma$",
+    "SWw": r"small worldness $\omega$",
+    "effRank": "Effective rank",
+    "num_nnmf_components": "Num NMF components",
+    "nComponentsRelNS": "nNMF div network size",
+    "NDmean": "Node degree mean",
+    "NDtop25": "Top 25% node degree",
+    "sigEdgesMean": "Significant edge weight mean",
+    "sigEdgesTop10": "Top 10% edge weight mean",
+    "NSmean": "Node strength mean",
+    "ElocMean": "Local efficiency mean",
+    "PCmean": "Participant coefficient (PC) mean",  # sic, as MATLAB
+    "PCmeanTop10": "Top 10% PC",
+    "PCmeanBottom10": "Bottom 10% PC",
+    "percentZscoreGreaterThanZero": "Percentage within-module z-score > 0",
+    "percentZscoreLessThanZero": "Percentage within-module z-score < 0",
+    "NCpn1": "NC1PeripheralNodes",
+    "NCpn2": "NC2NonhubConnectors",
+    "NCpn3": "NC3NonhubKinless",
+    "NCpn4": "NC4ProvincialHubs",
+    "NCpn5": "NC5ConnectorHubs",
+    "NCpn6": "NC6KinlessHubs",
+    "aveControlMean": "Mean average controllability",
+    "modalControlMean": "Mean modal controllability",
+}
+
+#: Node-level network metrics, as ``unitLevelNetMetLabels`` (the last two from
+#: the GUI's ``NetMetLabelDict``).
+NETMET_NODE_METRICS = {
+    "ND": "node degree",
+    "MEW": "edge weight",
+    "NS": "node strength",
+    "Z": "within-module degree z-score",
+    "Eloc": "local efficiency",
+    "PC": "participation coefficient",
+    "BC": "betweenness centrality",
+    "aveControl": "Average Controllability",
+    "modalControl": "Modal Controllability",
+}
+
+#: Display names for the Python-only figures that label network metrics —
+#: step 5 and CAT-NAP cell tracking. Kept apart from the MATLAB labels above,
+#: which are file names as much as labels, so those figures keep their
+#: readable wording without one dict carrying two meanings.
+NETMET_REC_DISPLAY_LABELS = {
     "aN": "Active Nodes",
     "Dens": "Density",
     "CC": "Clustering Coefficient",
@@ -1949,7 +2060,7 @@ NETMET_REC_METRICS = {
     "modalControlMean": "Mean Modal Controllability"
 }
 
-NETMET_NODE_METRICS = {
+NETMET_NODE_DISPLAY_LABELS = {
     "ND": "Node Degree",
     "MEW": "Mean Edge Weight",
     "NS": "Node Strength",
@@ -2175,51 +2286,54 @@ def plot_step4_group_comparisons(
     grp_dir = out_dir / "4B_GroupComparisons" / "3_RecordingsByGroup" / "HalfViolinPlots"
     node_grp_dir = out_dir / "4B_GroupComparisons" / "1_NodeByGroup"
     
-    # Loop over lags
+    # Loop over lags. File names follow PlotNetMet.m: "<n>_<label>_byGroup"
+    # and "<n>_<label>_byAge", recording and node level alike.
     for lag in df_rec["Lag"].unique():
-        lag_grp_dir = grp_dir / _timescale_group_folder(lag, timescale)
+        lag_grp_dir = grp_dir / comparison_timescale_folder(lag, timescale)
         lag_grp_dir.mkdir(parents=True, exist_ok=True)
-        
+
         df_rec_lag = df_rec[df_rec["Lag"] == lag]
-        for k, name in NETMET_REC_METRICS.items():
+        for n, (k, name) in enumerate(NETMET_REC_METRICS.items(), start=1):
             plot_half_violin_by_x(df_rec_lag, k, name, "group",
-                                  lag_grp_dir / f"{k}_byGroup.{fmt}",
+                                  lag_grp_dir / f"{comparison_figure_stem(n, name, 'byGroup')}.{fmt}",
                                   group_order=custom_grp_order, colors=colors,
                                   ylim=netmet_bounds(k, n_nodes))
 
-        lag_node_grp_dir = node_grp_dir / _timescale_group_folder(lag, timescale)
+        lag_node_grp_dir = node_grp_dir / comparison_timescale_folder(lag, timescale)
         lag_node_grp_dir.mkdir(parents=True, exist_ok=True)
 
         df_node_lag = df_node[df_node["Lag"] == lag]
-        for k, name in NETMET_NODE_METRICS.items():
+        for n, (k, name) in enumerate(NETMET_NODE_METRICS.items(), start=1):
             plot_half_violin_by_x(df_node_lag, k, name, "group",
-                                  lag_node_grp_dir / f"{k}_byGroup_node.{fmt}",
+                                  lag_node_grp_dir / f"{comparison_figure_stem(n, name, 'byGroup')}.{fmt}",
                                   group_order=custom_grp_order, colors=colors,
                                   ylim=netmet_bounds(k, n_nodes))
-        
+
     # 4_RecordingsByAge and 2_NodeByAge
     age_dir = out_dir / "4B_GroupComparisons" / "4_RecordingsByAge" / "HalfViolinPlots"
     node_age_dir = out_dir / "4B_GroupComparisons" / "2_NodeByAge"
-    
+
     for lag in df_rec["Lag"].unique():
-        
-        lag_age_dir = age_dir / _timescale_group_folder(lag, timescale)
+
+        lag_age_dir = age_dir / comparison_timescale_folder(lag, timescale)
         lag_age_dir.mkdir(parents=True, exist_ok=True)
-        
+
         df_rec_lag = df_rec[df_rec["Lag"] == lag]
-        for k, name in NETMET_REC_METRICS.items():
+        for n, (k, name) in enumerate(NETMET_REC_METRICS.items(), start=1):
+            stem = comparison_figure_stem(n, name, "byAge", by_age=True)
             plot_half_violin_by_x(df_rec_lag, k, name, "DIV",
-                                  lag_age_dir / f"{k}_byDIV.{fmt}",
+                                  lag_age_dir / f"{stem}.{fmt}",
                                   group_order=custom_grp_order, colors=colors,
                                   ylim=netmet_bounds(k, n_nodes))
 
-        lag_node_age_dir = node_age_dir / _timescale_group_folder(lag, timescale)
+        lag_node_age_dir = node_age_dir / comparison_timescale_folder(lag, timescale)
         lag_node_age_dir.mkdir(parents=True, exist_ok=True)
 
         df_node_lag = df_node[df_node["Lag"] == lag]
-        for k, name in NETMET_NODE_METRICS.items():
+        for n, (k, name) in enumerate(NETMET_NODE_METRICS.items(), start=1):
+            # PlotNetMet.m does not apply the "/" → "div" rule at node level.
             plot_half_violin_by_x(df_node_lag, k, name, "DIV",
-                                  lag_node_age_dir / f"{k}_byDIV_node.{fmt}",
+                                  lag_node_age_dir / f"{comparison_figure_stem(n, name, 'byAge')}.{fmt}",
                                   group_order=custom_grp_order, colors=colors,
                                   ylim=netmet_bounds(k, n_nodes))
 

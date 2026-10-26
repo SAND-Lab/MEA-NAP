@@ -115,32 +115,32 @@ _PLOT_PATTERNS: list[tuple[re.Pattern, str, str]] = [
         "the single recording-scaled raster.)",
     ),
     (
-        re.compile(r"^3_BurstRate_heatmap\.png$"),
+        re.compile(r"^4_BurstRate_heatmap\.png$"),
         "Burst Rate Heatmap",
         "Spatial heatmap of single-electrode burst rate (bursts per "
         "minute), using the same MEA-layout convention as the firing-rate "
         "heatmap.",
     ),
     (
-        re.compile(r"^4_BurstDur_heatmap\.png$"),
+        re.compile(r"^5_BurstDur_heatmap\.png$"),
         "Burst Duration Heatmap",
         "Spatial heatmap of mean single-electrode burst duration (ms).",
     ),
     (
-        re.compile(r"^5_FractSpikesInBursts_heatmap\.png$"),
+        re.compile(r"^6_FractSpikesInBursts_heatmap\.png$"),
         "Fraction of Spikes in Bursts",
         "Spatial heatmap of what fraction of each electrode's spikes "
         "occur inside a detected burst, versus isolated/tonic firing.",
     ),
     (
-        re.compile(r"^6_ISIwithinBurst_heatmap\.png$"),
+        re.compile(r"^7_ISIwithinBurst_heatmap\.png$"),
         "ISI Within Burst",
         "Spatial heatmap of the mean inter-spike interval (ms) between "
         "spikes within the same burst — smaller values mean tighter, "
         "more intense bursts.",
     ),
     (
-        re.compile(r"^7_ISIoutsideBurst_heatmap\.png$"),
+        re.compile(r"^8_ISIoutsideBurst_heatmap\.png$"),
         "ISI Outside Burst",
         "Spatial heatmap of the mean inter-spike interval (ms) between "
         "spikes outside of bursts (baseline/tonic firing).",
@@ -308,7 +308,25 @@ _PLOT_PATTERNS: list[tuple[re.Pattern, str, str]] = [
         "use.",
     ),
     # ── Batch comparison half-violins (both pipelines) ─────────────────────
-    # Generic: the metric name is whatever precedes the suffix. For the
+    # The ephys 2B and the 4B sets are named as MATLAB names them,
+    # "<n>_<label>_byGroup" / "<n>_<label>_byAge", recording and node level
+    # alike; the node-level ones are told apart by folder (see
+    # _FOLDER_PLOT_PATTERNS). These two are the recording-level reading.
+    (
+        re.compile(r"^\d+_(?P<metric>.+)_byGroup\.png$"),
+        "{metric} — by group",
+        "Half-violin distribution of this recording-level metric, one "
+        "subplot per experimental group with age along the x-axis. One point "
+        "per recording; the black dot and bar are the mean and its standard "
+        "error.",
+    ),
+    (
+        re.compile(r"^\d+_(?P<metric>.+)_byAge\.png$"),
+        "{metric} — by age",
+        "The same recording-level distribution transposed: one subplot per "
+        "age, experimental groups along the x-axis.",
+    ),
+    # CAT-NAP naming: the metric name is whatever precedes the suffix. For the
     # cell-type subnetwork figures that token is "<metric>_<cell type>".
     (
         re.compile(r"^(?P<metric>.+)_byGroup_node\.png$"),
@@ -409,9 +427,33 @@ _PLOT_PATTERNS: list[tuple[re.Pattern, str, str]] = [
 # Patterns that only make sense inside a particular folder — bare metric names
 # like "Dens.png" would be far too greedy as a global pattern. Keyed by the
 # containing folder's name; checked before the global patterns above.
+_NODE_BY_GROUP = (
+    re.compile(r"^\d+_(?P<metric>.+)_byGroup\.png$"),
+    "{metric} — by group (nodes)",
+    "Half-violin distribution of this node-level metric, one subplot per "
+    "experimental group with age along the x-axis. Every node of every "
+    "recording contributes a point; the black dot and bar are the mean "
+    "and its standard error.",
+)
+_NODE_BY_AGE_CAPTION = (
+    "The same node-level distribution transposed: one subplot per age, "
+    "experimental groups along the x-axis. Use this layout to read "
+    "group differences at a fixed age."
+)
+
 _FOLDER_PLOT_PATTERNS: dict[str, list[tuple[re.Pattern, str, str]]] = {
+    # Node-level comparisons: MATLAB names them like the recording-level ones,
+    # so only the folder says which level a figure is. Step 2's node-by-age
+    # figures carry no suffix at all ("<n>_<label>.png"), as PlotEphysStats.m
+    # writes them.
+    "1_NodeByGroup": [_NODE_BY_GROUP],
+    "2_NodeByAge": [(
+        re.compile(r"^\d+_(?P<metric>.+?)(?:_byAge)?\.png$"),
+        "{metric} — by age (nodes)",
+        _NODE_BY_AGE_CAPTION,
+    )],
     "5_GraphMetricsByLag": [(
-        re.compile(r"^(?P<metric>.+)\.png$"),
+        re.compile(r"^(?:\d+_)?(?P<metric>.+)\.png$"),
         "{metric} vs. {kind}",
         "This network metric plotted against the {kind} used to build the "
         "adjacency matrix, one line per experimental group. A conclusion that "
@@ -542,12 +584,16 @@ _STATS_PLOT_PATTERNS: list[tuple[re.Pattern, str, str]] | None = None
 
 
 def describe_plot(filename: str, folder: str | None = None,
-                  kind: str = "STTC lag") -> tuple[str, str] | None:
+                  kind: str = "STTC lag",
+                  parent: str | None = None) -> tuple[str, str] | None:
     """Returns (title, caption) for a known plot filename, else None.
 
     ``folder`` is the name of the directory holding the file. Some figures are
-    named only for their metric (``Dens.png``) and are identifiable solely by
-    where they sit, so those patterns are folder-scoped and take precedence.
+    identifiable solely by where they sit (``5_GraphMetricsByLag/1_network
+    size.png``, or a node-level comparison, named like a recording-level one),
+    so those patterns are folder-scoped and take precedence. ``parent`` is the
+    folder above, checked the same way: the 4B node comparisons sit one
+    per-lag folder below ``1_NodeByGroup``.
 
     ``kind`` is what the run's timescale parameter *is* — ``"STTC lag"`` for a
     spike-time-tiling run, ``"correlation bin"`` for a CAT-NAP correlation one
@@ -558,6 +604,7 @@ def describe_plot(filename: str, folder: str | None = None,
     if _STATS_PLOT_PATTERNS is None:
         _STATS_PLOT_PATTERNS = _stats_patterns()
     patterns = (_FOLDER_PLOT_PATTERNS.get(folder or "", [])
+                + _FOLDER_PLOT_PATTERNS.get(parent or "", [])
                 + _PLOT_PATTERNS + _STATS_PLOT_PATTERNS)
     for pattern, title_tmpl, caption_tmpl in patterns:
         m = pattern.match(filename)
@@ -662,7 +709,8 @@ def _build_tree(dir_path: Path, root: Path, kind: str = "STTC lag") -> dict:
             if child["children"] or FOLDER_DESCRIPTIONS.get(entry.name):
                 children.append(child)
         elif entry.suffix.lower() in IMAGE_EXTENSIONS:
-            described = describe_plot(entry.name, dir_path.name, kind)
+            described = describe_plot(entry.name, dir_path.name, kind,
+                                      parent=dir_path.parent.name)
             title, caption = described if described else (entry.stem, "")
             children.append({
                 "type": "image",
@@ -1198,7 +1246,7 @@ function selectFolder(node, path, labelEl) {
       const card = document.createElement("div");
       card.className = "card";
       const imEl = document.createElement("img");
-      imEl.src = img.path;
+      imEl.src = encodeURI(img.path);  // MATLAB-style names carry spaces and "%"
       imEl.loading = "lazy";
       imEl.addEventListener("click", () => openLightbox(img));
       card.appendChild(imEl);
@@ -1231,7 +1279,7 @@ function selectFolder(node, path, labelEl) {
     for (const f of files) {
       const li = document.createElement("li");
       const a = document.createElement("a");
-      a.href = f.path;
+      a.href = encodeURI(f.path);
       a.textContent = f.name;
       li.appendChild(a);
       if (f.caption) {
@@ -1339,7 +1387,7 @@ const lightbox = document.getElementById("lightbox");
 const lightboxImg = document.getElementById("lightbox-img");
 const lightboxCaption = document.getElementById("lightbox-caption");
 function openLightbox(img) {
-  lightboxImg.src = img.path;
+  lightboxImg.src = encodeURI(img.path);
   lightboxCaption.textContent = img.title + (img.caption ? "  —  " + img.caption : "");
   lightbox.classList.add("open");
 }

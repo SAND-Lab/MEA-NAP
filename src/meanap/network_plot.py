@@ -690,7 +690,7 @@ def plot_network(
     # it on a continuous metric like node strength (typically << 1) makes
     # every node render far smaller than intended, since node_size = z_i /
     # node_scale_f. Only apply the floor when z actually looks degree-like.
-    looks_like_degree = z_name == "node degree" or np.allclose(z, np.round(z), equal_nan=True)
+    looks_like_degree = z_name.lower() == "node degree" or np.allclose(z, np.round(z), equal_nan=True)
     if z_scale_override is not None:
         # Batch-wide scale: node sizes become comparable across recordings.
         node_scale_f = max(float(z_scale_override), 1e-9)

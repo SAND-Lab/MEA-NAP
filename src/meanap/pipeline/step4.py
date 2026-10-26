@@ -269,18 +269,21 @@ def _batch_metric_bounds(all_results: dict, metric: str) -> tuple[float, float] 
 #: present; the drawing loop's ``color_key not in metrics`` guard skips them.
 #: No batch bound is pooled for those two, so their scaled variant shares only
 #: the node-size and edge scale, not the colour scale.
+#: The size-legend names follow MATLAB: lower case on the base plot
+#: (``StandardisedNetworkPlot.m``), capitalised on the colour-mapped ones
+#: (``StandardisedNetworkPlotNodeColourMap.m``).
 SPATIAL_PLOTS = (
     ("2_MEA_NetworkPlot.png", None, "None", "ND", "node degree"),
     ("3_MEA_NetworkPlotNodedegreeBetweennesscentrality.png", "BC",
-     "Betweenness centrality", "ND", "node degree"),
+     "Betweenness centrality", "ND", "Node degree"),
     ("4_MEA_NetworkPlotNodedegreeParticipationcoefficient.png", "PC",
-     "Participation coefficient", "ND", "node degree"),
+     "Participation coefficient", "ND", "Node degree"),
     ("5_MEA_NetworkPlotNodestrengthLocalefficiency.png", "Eloc",
-     "Local efficiency", "NS", "node strength"),
+     "Local efficiency", "NS", "Node strength"),
     ("10_MEA_NetworkPlotNodedegreeAveragecontrollability.png", "aveControl",
-     "Average controllability", "ND", "node degree"),
+     "Average controllability", "ND", "Node degree"),
     ("11_MEA_NetworkPlotNodedegreeModalcontrollability.png", "modalControl",
-     "Modal controllability", "ND", "node degree"),
+     "Modal controllability", "ND", "Node degree"),
 )
 
 #: How each spatial network plot is drawn: to this recording's own range, to the

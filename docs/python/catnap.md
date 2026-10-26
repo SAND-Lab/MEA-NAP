@@ -115,7 +115,7 @@ and figure captions say which**:
 | | `peaks` (STTC) | `F` / `spks` / `denoised F` (correlation) |
 |---|---|---|
 | Per-recording folder | `4A_.../{rec}/1000mslag/` | `4A_.../{rec}/1000msbin/` |
-| Group-comparison folder | `4B_.../Lag1000ms/` | `4B_.../Bin1000ms/` |
+| Group-comparison folder | `4B_.../1000mslag/` (CAT-NAP's own sets, such as `8_CellTypeSubnetworks`, use `Lag1000ms/`) | `4B_.../Bin1000ms/` |
 | Figure titles / report captions | "1000 ms STTC lag" | "1000 ms correlation bin" |
 
 Identifiers that code reads back **deliberately keep their historical spelling**:

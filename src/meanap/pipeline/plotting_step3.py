@@ -234,7 +234,7 @@ def draw_edge_threshold_check(data: EdgeThresholdCheckData, out_path: Path) -> P
     for q, blank in enumerate(data.maps):
         ax = fig.add_subplot(gs[2, q])
         last_im = ax.imshow(blank, aspect="equal", origin="upper")
-        ax.set_title(f"discarded (rep{int(data.map_reps[q]) - 1})", fontsize=8)
+        ax.set_title(f"discarded edges (rep{int(data.map_reps[q]) - 1})", fontsize=8)
         ax.set_xlabel("Electrode", fontsize=8)
         if q == 0:
             ax.set_ylabel("Electrode", fontsize=8)

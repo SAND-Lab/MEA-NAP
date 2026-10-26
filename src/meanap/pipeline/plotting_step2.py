@@ -10,12 +10,30 @@ import seaborn as sns
 
 from meanap.pipeline.channel_layout import get_coords_from_layout
 from meanap.pipeline.parula import cm_data as parula_data
-from meanap.pipeline.plotting_step4 import plot_half_violin_by_x
+from meanap.pipeline.plotting_step4 import comparison_figure_stem, plot_half_violin_by_x
 # Create 85% parula colormap
 parula_85 = LinearSegmentedColormap.from_list('parula_85', parula_data[:int(len(parula_data)*0.85)])
 
-def plot_firing_rate_distribution(ephys: dict, out_path: Path, seed: int | None = None):
+def _fnt(rec_name: str) -> str:
+    """MATLAB's ``FNt``: the recording name with its underscores removed."""
+    return rec_name.replace("_", "")
+
+
+def _div_text(div) -> str:
+    """A DIV as MATLAB's ``num2str`` prints it: ``14``, not ``14.0``."""
+    try:
+        f = float(div)
+    except (TypeError, ValueError):
+        return str(div)
+    return str(int(f)) if f.is_integer() else str(div)
+
+
+def plot_firing_rate_distribution(ephys: dict, out_path: Path, seed: int | None = None,
+                                  rec_name: str = "", div=None):
     """Violin + jittered strip of per-electrode firing rate.
+
+    Labelled as ``firingRateElectrodeDistribution.m``: the recording's ``FNt``
+    as title and ``age<DIV>`` under the axis.
 
     ``seed`` fixes the strip plot's jitter. seaborn draws it from numpy's
     *legacy global* random state and offers no seed argument, so the state is
@@ -38,8 +56,10 @@ def plot_firing_rate_distribution(ephys: dict, out_path: Path, seed: int | None 
         if state is not None:
             np.random.set_state(state)
     
-    ax.set_ylabel("Mean firing rate per electrode (Hz)")
-    ax.set_title("Firing Rate by Electrode")
+    ax.set_ylabel("mean firing rate per electrode (Hz)")
+    ax.set_title(_fnt(rec_name))
+    if div is not None:
+        ax.set_xlabel(f"age{_div_text(div)}")
     
     ax.set_ylim(bottom=0)
     plt.tight_layout()
@@ -122,6 +142,10 @@ def plot_heatmap(
     axis = ``batch_max``, the batch-wide max of this metric = MATLAB's
     ``maxValStruct.(metric)``), so levels are comparable across recordings.
     When ``batch_max`` is None, fall back to the original single panel.
+
+    ``title`` is the recording's ``FNt``; as in MATLAB the panels read
+    "<FNt> scaled to recording" and "<FNt> scaled to entire dataset", and the
+    metric is named by the colour bar alone.
     """
     # Note: metric length could be 0 if the caller doesn't pad it.
     if len(metric) == 0:
@@ -174,9 +198,9 @@ def plot_heatmap(
 
     fig, (ax_rec, ax_batch) = plt.subplots(1, 2, figsize=(12, 5))
     _draw_heatmap_panel(ax_rec, xs, ys, metric, valid_mask, vmin, recording_vmax, cmap,
-                        clabel, f"{title}\nscaled to recording", marker_area)
+                        clabel, f"{title} scaled to recording", marker_area)
     _draw_heatmap_panel(ax_batch, xs, ys, metric, valid_mask, vmin, batch_vmax, cmap,
-                        clabel, f"{title}\nscaled to entire dataset", marker_area)
+                        clabel, f"{title} scaled to entire dataset", marker_area)
     plt.tight_layout()
     savefig(fig, out_path, default_dpi=300)
     plt.close(fig)
@@ -187,8 +211,13 @@ def plot_raster(
     out_path: Path,
     spike_freq_max: float | None = None,
     raster_upper_percentile: float = 99.0,
+    rec_name: str = "",
 ):
     """Two-panel raster, port of ``rasterPlot.m``.
+
+    The time axis is in minutes, as MATLAB's is. Only the axis is rescaled:
+    the bins stay one second wide, so each cell is still a count per second
+    (Hz) and the colour bar keeps its meaning.
 
     Top panel is scaled to this recording (color axis = the
     ``raster_upper_percentile`` of its own 1-second spike counts); bottom panel
@@ -214,20 +243,21 @@ def plot_raster(
     batch_vmax = max(1.0, spike_freq_max) if spike_freq_max is not None else recording_vmax
 
     fig, (ax_rec, ax_batch) = plt.subplots(2, 1, figsize=(10, 8))
+    fnt = _fnt(rec_name)
 
     for ax, vmax, title in (
-        (ax_rec, recording_vmax, "raster scaled to recording"),
-        (ax_batch, batch_vmax, "raster scaled to entire data batch"),
+        (ax_rec, recording_vmax, f"{fnt} raster scaled to recording"),
+        (ax_batch, batch_vmax, f"{fnt} raster scaled to entire data batch"),
     ):
         im = ax.imshow(
             raster_mat, aspect="auto", cmap=parula_85, vmin=0, vmax=vmax,
-            extent=[0, duration_s, n_channels, 0],
+            extent=[0, duration_s / 60.0, n_channels, 0],
         )
         ax.set_ylabel("Electrode")
+        ax.set_xlabel("Time (min)")
         ax.set_title(title, fontsize=10)
         cbar = fig.colorbar(im, ax=ax, fraction=0.05, pad=0.02)
         cbar.set_label("Firing Rate (Hz)")
-    ax_batch.set_xlabel("Time (s)")
 
     plt.tight_layout()
     savefig(fig, out_path, default_dpi=300)
@@ -271,13 +301,13 @@ def plot_burst_detection_info(spike_times_dict: dict, ephys: dict, duration_s: f
                 
     ax_raster_full.imshow(raster_full, aspect='auto', cmap=parula_85, extent=[0, duration_s, n_channels, 0])
     ax_raster_full.set_xlim(0, duration_s)
-    ax_raster_full.set_title("Raster (All spikes)")
-    ax_raster_full.set_ylabel("Electrode")
+    ax_raster_full.set_title("Downsampled raster")
+    ax_raster_full.set_ylabel("Electrodes")
     
     ax_raster_burst.imshow(raster_burst, aspect='auto', cmap=parula_85, extent=[0, duration_s, n_channels, 0])
     ax_raster_burst.set_xlim(0, duration_s)
-    ax_raster_burst.set_title("Raster (Only network bursts)")
-    ax_raster_burst.set_ylabel("Electrode")
+    ax_raster_burst.set_title("Raster with only bursts")
+    ax_raster_burst.set_ylabel("Electrodes")
     ax_raster_burst.set_xlabel("Time (s)")
     
     if len(all_spikes) > 0:
@@ -312,33 +342,35 @@ def plot_burst_detection_info(spike_times_dict: dict, ephys: dict, duration_s: f
                 ax_isi.set_xlabel("Inter-Spike Interval (s)")
                 ax_isi.set_ylabel("Probability")
                 ax_isi.legend()
-                ax_isi.set_title("ISI Distribution")
+                ax_isi.set_title("ISI Distribution: Within vs. Outside Bursts")
     
     plt.tight_layout()
     savefig(fig, out_path, default_dpi=300)
     plt.close(fig)
 
-#: The per-channel heatmaps, as ``(figure name, ephys key, title, colour-bar
-#: label, colormap)``. One list rather than six near-identical call sites, so
-#: the pipeline and the bundle renderer cannot disagree about which figures
-#: exist or what they are called.
+#: The per-channel heatmaps, as ``(figure name, ephys key, colour-bar label,
+#: colormap)``. One list rather than six near-identical call sites, so the
+#: pipeline and the bundle renderer cannot disagree about which figures exist
+#: or what they are called. Names and colour-bar labels are MATLAB's
+#: (``electrodeHeatMaps.m``, ``plotNodeHeatmap.m``); the burst heatmaps are
+#: numbered 4-8, after ``3_Raster``.
 #: How the units of one electrode pool onto it in a sorted run (see
 #: :func:`plot_heatmap`). Rates and burst rates add up; the rest are per-unit
 #: properties and average.
 _POOL_BY_SUM = {"FR": "sum", "channelBurstRate": "sum"}
 
 ACTIVITY_HEATMAPS = (
-    ("2_Heatmap.png", "FR", "Firing Rate", "Mean FR (Hz)", "viridis"),
-    ("3_BurstRate_heatmap.png", "channelBurstRate", "Burst Rate",
-     "Burst Rate (bursts/min)", "plasma"),
-    ("4_BurstDur_heatmap.png", "channelBurstDur", "Burst Duration",
-     "Duration (ms)", "plasma"),
-    ("5_FractSpikesInBursts_heatmap.png", "channelFracSpikesInBursts",
-     "Fraction Spikes in Bursts", "Fraction", "plasma"),
-    ("6_ISIwithinBurst_heatmap.png", "channelISIwithinBurst", "ISI Within Burst",
-     "ISI (ms)", "plasma"),
-    ("7_ISIoutsideBurst_heatmap.png", "channeISIoutsideBurst",
-     "ISI Outside Burst", "ISI (ms)", "plasma"),
+    ("2_Heatmap.png", "FR", "mean firing rate (Hz)", "viridis"),
+    ("4_BurstRate_heatmap.png", "channelBurstRate",
+     "Mean burst rate (per minute)", "plasma"),
+    ("5_BurstDur_heatmap.png", "channelBurstDur",
+     "Mean burst duration (ms)", "plasma"),
+    ("6_FractSpikesInBursts_heatmap.png", "channelFracSpikesInBursts",
+     "Fraction spikes in bursts", "plasma"),
+    ("7_ISIwithinBurst_heatmap.png", "channelISIwithinBurst",
+     "ISI within bursts (ms)", "plasma"),
+    ("8_ISIoutsideBurst_heatmap.png", "channeISIoutsideBurst",
+     "ISI outside bursts (ms)", "plasma"),
 )
 
 
@@ -386,13 +418,14 @@ def plot_neuronal_activity_checks(
     if (p := want("1_FiringRateByElectrode.png")) is not None:
         plot_firing_rate_distribution(
             ephys, p,
-            seed=derive_seed_int(params.random_seed, "step2-plots", rec.filename))
+            seed=derive_seed_int(params.random_seed, "step2-plots", rec.filename),
+            rec_name=rec.filename, div=rec.div)
 
-    for name, key, title, cbar, cmap in ACTIVITY_HEATMAPS:
+    for name, key, cbar, cmap in ACTIVITY_HEATMAPS:
         if key not in ephys:
             continue
         if (p := want(name)) is not None:
-            plot_heatmap(ephys[key], chs, title, cbar, p, cmap=cmap,
+            plot_heatmap(ephys[key], chs, _fnt(rec.filename), cbar, p, cmap=cmap,
                          channel_layout=channel_layout, batch_max=bmax.get(key), layout=layout,
                          aggregate=_POOL_BY_SUM.get(key, "mean"))
 
@@ -401,6 +434,7 @@ def plot_neuronal_activity_checks(
             spike_times_dict, duration_s, p,
             spike_freq_max=spike_freq_max,
             raster_upper_percentile=getattr(params, "raster_plot_upper_percentile", 99.0),
+            rec_name=rec.filename,
         )
 
     if (p := want("8_BurstDetectionInfo.png")) is not None:
@@ -411,6 +445,9 @@ def plot_neuronal_activity_checks(
 
 import pandas as pd
 
+#: Recording-level activity metrics and their labels, in ``PlotEphysStats.m``'s
+#: order and wording (``eMetl``). The label is the y label and the file name;
+#: the position is the file's ``<n>``.
 EPHYS_REC_METRICS = {
     "numActiveElec": "number of active electrodes",
     "FRmean": "mean firing rate (Hz)",
@@ -422,16 +459,18 @@ EPHYS_REC_METRICS = {
     "meanISIoutsideNbursts_ms": "mean ISI outside network bursts (ms)",
     "CVofINBI": "coefficient of variation of inter network burst intervals",
     "fracInNburst": "fraction of bursts in network bursts",
-    "channelAveBurstRate": "Single-electrode burst rate (per min)",
-    "channelAveBurstDur": "Single-electrode avg burst dur (ms)",
-    "channelAveISIwithinBurst": "Single-electrode avg ISI within burst (ms)",
-    "channelAveISIoutsideBurst": "Single-electrode avg ISI outside burst (ms)",
+    "channelAveBurstRate": "Single-electrode burst rate (per minute)",
+    "channelAveBurstDur": "Single-electrode average burst duration (ms)",
+    "channelAveISIwithinBurst": "Single-electrode average ISI within burst (ms)",
+    "channelAveISIoutsideBurst": "Single-electrode average ISI outside burst (ms)",
     "channelAveFracSpikesInBursts": "Mean fraction of spikes in bursts per electrode",
 }
 
+#: Node-level activity metrics (``cMetl``). MATLAB stores the first two with
+#: underscores and swaps them for spaces before using them.
 EPHYS_NODE_METRICS = {
-    "FR": "mean_firing_rate_node",
-    "FRactive": "mean_firing_rate_active_node",
+    "FR": "mean firing rate node",
+    "FRactive": "mean firing rate active node",
     "channelBurstRate": "Unit burst rate (per minute)",
     "channelWithinBurstFr": "Unit within-burst firing rate (Hz)",
     "channelBurstDur": "Unit burst duration (ms)",
@@ -579,13 +618,18 @@ def plot_step2_group_comparisons(
     if df_rec.empty:
         return
 
+    # File names follow PlotEphysStats.m: "<n>_<label>_byGroup" and
+    # "<n>_<label>_byAge", except node-by-age, which it writes as plain
+    # "<n>_<label>". Its by-age panels are titled "Age<DIV>", with no space.
+
     # 3_RecordingsByGroup
     grp_dir = out_dir / "2B_GroupComparisons" / "3_RecordingsByGroup" / "HalfViolinPlots"
     grp_dir.mkdir(parents=True, exist_ok=True)
-    
-    for k, name in EPHYS_REC_METRICS.items():
+
+    for n, (k, name) in enumerate(EPHYS_REC_METRICS.items(), start=1):
         plot_half_violin_by_x(df_rec, k, name, "group",
-                              grp_dir / f"{k}_byGroup.{fmt}", group_order=custom_grp_order,
+                              grp_dir / f"{comparison_figure_stem(n, name, 'byGroup')}.{fmt}",
+                              group_order=custom_grp_order,
                               colors=colors,
                               ylim=ephys_bounds(k))
 
@@ -593,9 +637,9 @@ def plot_step2_group_comparisons(
     node_grp_dir = out_dir / "2B_GroupComparisons" / "1_NodeByGroup"
     node_grp_dir.mkdir(parents=True, exist_ok=True)
 
-    for k, name in EPHYS_NODE_METRICS.items():
+    for n, (k, name) in enumerate(EPHYS_NODE_METRICS.items(), start=1):
         plot_half_violin_by_x(df_node, k, name, "group",
-                              node_grp_dir / f"{k}_byGroup_node.{fmt}",
+                              node_grp_dir / f"{comparison_figure_stem(n, name, 'byGroup')}.{fmt}",
                               group_order=custom_grp_order, colors=colors,
                               ylim=ephys_bounds(k))
 
@@ -603,18 +647,19 @@ def plot_step2_group_comparisons(
     age_dir = out_dir / "2B_GroupComparisons" / "4_RecordingsByAge" / "HalfViolinPlots"
     age_dir.mkdir(parents=True, exist_ok=True)
 
-    for k, name in EPHYS_REC_METRICS.items():
+    for n, (k, name) in enumerate(EPHYS_REC_METRICS.items(), start=1):
         plot_half_violin_by_x(df_rec, k, name, "DIV",
-                              age_dir / f"{k}_byDIV.{fmt}", group_order=custom_grp_order,
+                              age_dir / f"{comparison_figure_stem(n, name, 'byAge')}.{fmt}",
+                              group_order=custom_grp_order,
                               colors=colors,
-                              ylim=ephys_bounds(k))
+                              ylim=ephys_bounds(k), age_title_sep="")
 
     # 2_NodeByAge
     node_age_dir = out_dir / "2B_GroupComparisons" / "2_NodeByAge"
     node_age_dir.mkdir(parents=True, exist_ok=True)
 
-    for k, name in EPHYS_NODE_METRICS.items():
+    for n, (k, name) in enumerate(EPHYS_NODE_METRICS.items(), start=1):
         plot_half_violin_by_x(df_node, k, name, "DIV",
-                              node_age_dir / f"{k}_byDIV_node.{fmt}",
+                              node_age_dir / f"{comparison_figure_stem(n, name)}.{fmt}",
                               group_order=custom_grp_order, colors=colors,
-                              ylim=ephys_bounds(k))
+                              ylim=ephys_bounds(k), age_title_sep="")

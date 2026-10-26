@@ -2,7 +2,7 @@
 
 Every functional-connectivity measure in the pipeline has one timescale
 parameter, and every output is filed under it — ``1000mslag/``, a ``Lag``
-column, a ``Lag1000ms/`` group folder. But the parameter is not the same thing
+column, a ``1000mslag/`` group-comparison folder. But the parameter is not the same thing
 in each measure:
 
 * **STTC** (all ephys runs, and CAT-NAP with ``twop_activity='peaks'``) reads

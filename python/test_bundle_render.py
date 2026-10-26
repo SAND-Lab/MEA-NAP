@@ -892,7 +892,7 @@ def _palette_render_checks() -> list[Check]:
                 ctx, "network", tmp / "famB",
                 overrides={"group_color_scheme": "okabe-ito"})
             rel = Path("4_NetworkActivity/4B_GroupComparisons/4_RecordingsByAge"
-                       f"/HalfViolinPlots/Lag{LAG}ms/Dens_byDIV.png")
+                       f"/HalfViolinPlots/{LAG}mslag/2_density_byAge.png")
             checks.append(("the family renderer honours the scheme too",
                            bool(fam_plain) and bool(fam_okabe)
                            and _digest(tmp / "famA" / rel)
@@ -1347,7 +1347,7 @@ def _ephys_render_checks() -> list[Check]:
         checks.append(("the raster and burst detail are always offered",
                        {"3_Raster", "8_BurstDetectionInfo"} <= names, f"{sorted(names)}"))
         checks.append(("a heatmap with no metric is not offered",
-                       "6_ISIwithinBurst_heatmap" not in names, f"{sorted(names)}"))
+                       "7_ISIwithinBurst_heatmap" not in names, f"{sorted(names)}"))
 
         act_out = tmp / "activity"
         raster = render_activity_figure(ctx2, "recE", "3_Raster", act_out)
