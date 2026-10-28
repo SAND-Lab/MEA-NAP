@@ -167,11 +167,83 @@ def _drawn_axis_checks() -> list[Check]:
     return checks
 
 
+# ── D. Size limits and grounded electrodes ───────────────────────────────────
+
+def _size_limit_checks() -> list[Check]:
+    from meanap.params import Params
+    from meanap.pipeline.channel_layout import fixed_electrode_count
+    from meanap.pipeline.metric_limits import metric_limits
+
+    checks: list[Check] = []
+    for kw, want in ((dict(channel_layout="MCS60"), 60), (dict(channel_layout="Axion64"), 64),
+                     (dict(channel_layout="Axion16"), 16),
+                     (dict(channel_layout="MCS60", spike_source="import"), None),
+                     (dict(channel_layout="MCS60", spike_source="sort"), None),
+                     (dict(channel_layout="FromFile"), None),
+                     (dict(suite2p_mode=True), None)):
+        got = fixed_electrode_count(Params(**kw))
+        checks.append((f"electrode count for {kw}: {want}", got == want, repr(got)))
+
+    for m, want in (("aN", (0, 60)), ("numActiveElec", (0, 60)), ("nMod", (0, 60)),
+                    ("ND", (0, 59)), ("NDmean", (0, 59)), ("NDtop25", (0, 59)),
+                    ("NS", (0, 59)), ("NSmean", (0, 59)),
+                    ("Dens", (0, 1)), ("FR", (0, None))):
+        got = metric_limits(m, 60)
+        checks.append((f"{m} on a 60-electrode array: {want}", got == want, repr(got)))
+    checks.append(("no electrode count: size metrics unbounded above",
+                   metric_limits("NS") == (0, None) and metric_limits("aN") == (0, None), ""))
+
+    # Grounded electrodes: grey, and out of the colour range.
+    from meanap.pipeline import plotting_step2 as ps2
+    from meanap.pipeline.channel_layout import get_coords_from_layout
+    chs, coords = get_coords_from_layout("MCS60")
+    fr = np.linspace(1.0, 5.0, len(chs))
+    fr[[3, 10]] = 0.0
+    figs = []
+    real_savefig = ps2.savefig
+    ps2.savefig = lambda fig, *a, **k: figs.append(fig)
+    try:
+        ps2.plot_heatmap(fr, chs, "t", "Hz", Path("unused.png"), channel_layout="MCS60",
+                         grounded={int(chs[3]), int(chs[10])})
+    finally:
+        ps2.savefig = real_savefig
+    ax = figs[0].axes[0]
+    grey = [c for c in ax.collections if c.get_array() is None]
+    coloured = [c for c in ax.collections if c.get_array() is not None]
+    grey_xy = {tuple(np.round(xy, 6)) for c in grey for xy in c.get_offsets()}
+    checks.append(("grounded electrodes drawn grey, and only they",
+                   grey_xy == {tuple(np.round(coords[3], 6)), tuple(np.round(coords[10], 6))},
+                   str(grey_xy)))
+    checks.append(("grounded electrodes kept out of the colour range (vmin 1, not 0)",
+                   coloured and coloured[0].norm.vmin == 1.0,
+                   repr(coloured[0].norm.vmin if coloured else None)))
+
+    # No bursts detected: every electrode NaN, so no colour bar on either panel.
+    figs.clear()
+    ps2.savefig = lambda fig, *a, **k: figs.append(fig)
+    try:
+        ps2.plot_heatmap(np.full(len(chs), np.nan), chs, "t", "ms", Path("unused.png"),
+                         channel_layout="MCS60", batch_max=4000.0)
+        ps2.plot_heatmap(fr, chs, "t", "Hz", Path("unused.png"), channel_layout="MCS60",
+                         batch_max=10.0)
+    finally:
+        ps2.savefig = real_savefig
+    checks.append(("no bursts detected: two panels, no colour bars",
+                   len(figs[0].axes) == 2, f"{len(figs[0].axes)} axes"))
+    checks.append(("values present: a colour bar per panel",
+                   len(figs[1].axes) == 4, f"{len(figs[1].axes)} axes"))
+
+    import matplotlib.pyplot as plt
+    plt.close("all")
+    return checks
+
+
 def main() -> int:
     total_pass = total_n = 0
     for title, fn in (("Section A — labels:", _label_checks),
                       ("Section B — bounds lookup:", _bounds_checks),
-                      ("Section C — the drawn axis:", _drawn_axis_checks)):
+                      ("Section C — the drawn axis:", _drawn_axis_checks),
+                      ("Section D — size limits, grounded electrodes:", _size_limit_checks)):
         n_pass, n = _report(title, fn())
         total_pass += n_pass
         total_n += n

@@ -122,6 +122,27 @@ METRIC_LIMITS: dict[str, Limits] = {
 }
 
 
-def metric_limits(metric: str) -> Limits | None:
-    """The theoretical ``(lo, hi)`` of *metric*, or ``None`` if unknown."""
-    return METRIC_LIMITS.get(metric)
+#: Metrics capped by how many nodes a network can have, and the cap's offset
+#: from that count: a network of n nodes has at most n nodes and n modules, and
+#: a node at most n − 1 neighbours — and, every weight being at most 1, at most
+#: n − 1 strength.
+_SIZE_CAPPED: dict[str, int] = {
+    "aN": 0, "numActiveElec": 0, "nMod": 0,
+    "ND": 1, "NDmean": 1, "NDtop25": 1,
+    "NS": 1, "NSmean": 1,
+}
+
+
+def metric_limits(metric: str, max_nodes: int | None = None) -> Limits | None:
+    """The theoretical ``(lo, hi)`` of *metric*, or ``None`` if unknown.
+
+    ``max_nodes`` is the most nodes any network in the plot can have — the
+    array's electrode count for a detected MEA run
+    (:func:`~meanap.pipeline.channel_layout.fixed_electrode_count`), or one
+    network's own size. It caps the size-dependent metrics, which are otherwise
+    unbounded above.
+    """
+    limits = METRIC_LIMITS.get(metric)
+    if limits is None or max_nodes is None or metric not in _SIZE_CAPPED:
+        return limits
+    return (limits[0], max_nodes - _SIZE_CAPPED[metric])

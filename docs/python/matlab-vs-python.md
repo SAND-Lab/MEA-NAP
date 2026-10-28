@@ -168,7 +168,17 @@ violin's density three bandwidths past the data on either side, so it tails
 off smoothly. MATLAB lets those tails run wherever the Gaussian kernel takes
 them — a density or correlation violin above 1, a firing rate below 0. Python
 cuts them at the metric's theoretical range (`meanap.pipeline.metric_limits`),
-which is separate from the axis ranges the comparison plots are drawn on.
+which is separate from the axis ranges the comparison plots are drawn on. On a
+detected-spikes MEA run with a built-in layout, network size and the number of
+active electrodes stop at the array's electrode count, and node degree and
+node strength at one less. A spike-sorted run has no such cap, since several
+units can share an electrode.
+
+**Grounded electrodes are grey in every electrode heatmap.** MATLAB greys
+them out in the firing-rate heatmap only; its burst heatmaps are never passed
+the grounded list, so a grounded electrode shows there as a silent one. Python
+greys them out in all of them, and keeps them out of each heatmap's colour
+range.
 
 ## Known gaps
 

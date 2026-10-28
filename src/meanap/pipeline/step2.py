@@ -287,13 +287,15 @@ def _run_step2_neuronal_activity(
 
     if not params.express_mode:
         log("  Generating group comparison plots...")
+        from meanap.pipeline.channel_layout import fixed_electrode_count
         from meanap.pipeline.plotting_step2 import plot_step2_group_comparisons
         try:
             plot_step2_group_comparisons(
                 recordings,
                 all_ephys,
                 out_dir,
-                params.custom_grp_order
+                params.custom_grp_order,
+                n_electrodes=fixed_electrode_count(params),
             )
         except Exception as e:
             log(f"  Warning: failed to generate group comparison plots: {e}")

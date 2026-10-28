@@ -163,3 +163,20 @@ def node_distances_in_pitches(
         xy = np.array([by_id.get(int(c), (np.nan, np.nan))
                        for c in np.asarray(channels).ravel()], dtype=float)
     return cdist(xy, xy) / pitch
+
+
+def fixed_electrode_count(params) -> int | None:
+    """Electrodes on the array, when every node of the run is one of a fixed set.
+
+    That is a detected-spikes MEA run on a built-in layout: nodes are
+    electrodes, so no network can have more nodes than the layout has. ``None``
+    otherwise — a spike-sorted or imported run (nodes are units, several to an
+    electrode), CAT-NAP (cells), or a layout read from each file.
+    """
+    if getattr(params, "suite2p_mode", False) or getattr(params, "spike_source", "detect") != "detect":
+        return None
+    try:
+        channels, _ = get_coords_from_layout(getattr(params, "channel_layout", ""))
+    except ValueError:
+        return None
+    return len(channels)
