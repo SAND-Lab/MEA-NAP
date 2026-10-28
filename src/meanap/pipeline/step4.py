@@ -23,6 +23,7 @@ from meanap.timescale import (
 from meanap.params import Params, active_spike_method
 from meanap.pipeline import network_metrics as nm
 from meanap.pipeline.cancellation import CancelCheck, check_cancel
+from meanap.pipeline.channel_layout import node_distances_in_pitches
 from meanap.pipeline.io import (
     find_raw_file, load_spike_times_npz, resolve_duration_s, truncate_spike_times,
 )
@@ -39,6 +40,9 @@ from meanap.pipeline.plotting_step4 import (
 )
 from meanap.pipeline.resume import ADJM_SUFFIX, build_input_locator
 from meanap.pipeline.rng import make_rng
+from meanap.pipeline.spatiotemporal import (
+    bin_event_times, spatiotemporal_metrics, temporal_autocorrelation,
+)
 from meanap.pipeline.verbosity import as_run_log, format_elapsed
 from meanap.pipeline.spreadsheet import RecordingInfo, ground_spike_times_dict, parse_ground_electrodes
 
@@ -573,6 +577,36 @@ def _describe_network(metrics: dict, min_nodes: int) -> str:
     return ", ".join(parts)
 
 
+def _spatiotemporal_inputs(
+    params: Params, adj_data, spike_data, channels_arr: np.ndarray,
+    spike_times_list: list[np.ndarray], duration_s: float, filename: str,
+    logs: list[str],
+) -> dict | None:
+    """What the SA/TA metrics need beyond each lag's own matrices, or ``None``.
+
+    Computed once per recording: node distances (in electrode pitches — see
+    :func:`node_distances_in_pitches`) and each channel's TA-Δ₁, read off its
+    spike counts in ``Params.ta_bin_ms`` bins. Returns ``None``, having said
+    why, when the layout has no coordinates or the adjacency file predates the
+    unthresholded matrices being saved beside the thresholded ones.
+    """
+    if not any(k.endswith("_raw") for k in adj_data.files):
+        logs.append(f"  [{filename}] skipping spatial/temporal autocorrelation: "
+                    "the adjacency file has no unthresholded matrices (re-run step 3)")
+        return None
+    try:
+        node_coords = adj_data["coords"] if "coords" in adj_data.files else None
+        dist = node_distances_in_pitches(
+            params.channel_layout, channels_arr, spike_data, node_coords=node_coords)
+    except ValueError as e:
+        logs.append(f"  [{filename}] skipping spatial/temporal autocorrelation: {e}")
+        return None
+    bin_s = params.ta_bin_ms / 1000.0
+    counts = bin_event_times(spike_times_list, duration_s, bin_s)
+    return {"dist": dist, "ta": temporal_autocorrelation(counts),
+            "n_timepoints": counts.shape[1], "bin_s": bin_s}
+
+
 def _step4_compute_one(
     task: tuple[Params, RecordingInfo, str],
 ) -> tuple[str, dict | None, np.ndarray | None, list[str]]:
@@ -684,6 +718,15 @@ def _step4_compute_one(
     else:
         logs.append(f"  [{rec.filename}] skipping NMF components (switched off)")
 
+    st_inputs = None
+    if params.compute_spatiotemporal:
+        st_inputs = _spatiotemporal_inputs(
+            params, adj_data, spike_data, channels_arr, spike_times_list,
+            duration_s, rec.filename, logs)
+    # Its own stream, for the reason the dimensionality one has its own: the
+    # model's draws must not move Ci/Q/PC/SW when it is switched on.
+    st_rng = make_rng(params.random_seed, "step4-spatiotemporal", rec.filename)
+
     rec_results: dict = {}
     for lag_ms in lag_values:
         key = f"adjM{lag_ms}mslag"
@@ -702,6 +745,21 @@ def _step4_compute_one(
         if eff_rank is not None:
             metrics["effRank"] = eff_rank
         metrics.update(nmf_result)
+        raw_key = f"{key}_raw"
+        if st_inputs is not None and raw_key in adj_data:
+            try:
+                metrics.update(spatiotemporal_metrics(
+                    metrics, adj_data[raw_key], st_inputs["dist"], st_inputs["ta"],
+                    n_timepoints=st_inputs["n_timepoints"],
+                    sample_interval_s=st_inputs["bin_s"],
+                    null_model=params.spatiotemporal_null_model,
+                    n_reps=params.spatiotemporal_null_reps,
+                    exclude_zeros=params.exclude_edges_below_threshold,
+                    rng=st_rng,
+                ))
+            except Exception as e:
+                logs.append(f"  [{rec.filename}] WARNING: could not compute spatial/"
+                            f"temporal autocorrelation (lag={lag_ms}ms): {e}")
         rec_results[f"{lag_ms}mslag"] = metrics
 
     return rec.filename, rec_results, channels_arr, logs
@@ -1149,6 +1207,14 @@ def _run_step4_network_metrics(
             
     except Exception as e:
         log(f"  Warning: could not save network metrics results: {e}")
+
+    if params.compute_spatiotemporal and params.spatiotemporal_null_model:
+        from meanap.pipeline.plotting_step4 import write_spatiotemporal_model_outputs
+        try:
+            write_spatiotemporal_model_outputs(
+                all_results, out_dir, draw=not params.express_mode, log=log)
+        except Exception as e:
+            log(f"  Warning: could not write the spatiotemporal model comparison: {e}")
 
     progress.phase_done()
     progress.begin("batch", items=1)

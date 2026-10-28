@@ -117,6 +117,13 @@ results.
       The self-contained, deep-linkable ``report.html`` viewer generated
       after every run.
 
+   .. grid-item-card:: 🌊 Spatial & temporal autocorrelation
+      :link: spatiotemporal
+      :link-type: doc
+
+      SA-λ, SA-∞ and TA-Δ₁ (Shinn et al. 2023), and the spatiotemporal model
+      that tests how much of each graph metric they explain.
+
    .. grid-item-card:: 🔀 MATLAB vs. Python
       :link: matlab-vs-python
       :link-type: doc
@@ -171,6 +178,7 @@ figure.
    shared-run
    express-mode
    stats-and-ml
+   spatiotemporal
    remote-data
    matlab-vs-python
    api/index

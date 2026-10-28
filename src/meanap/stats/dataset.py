@@ -53,6 +53,12 @@ META_COLUMNS = frozenset({
     "cartographyBoundaries", "activeChannelIndex",
 })
 
+#: Prefixes of columns that are a *model's* prediction of another metric (the
+#: spatiotemporal model, :mod:`meanap.pipeline.spatiotemporal`), not a
+#: measurement of the culture. Analysing them as features would double-count
+#: whatever they predict.
+MODEL_PREFIXES = ("ST_", "STrho_")
+
 #: A DIV token in a recording name (``..._DIV21``). Dropped when deriving a
 #: culture ID: it is the thing that varies *within* a culture.
 _DIV_TOKEN = re.compile(r"^DIV[_-]?\d+\.?\d*$", re.IGNORECASE)
@@ -333,6 +339,8 @@ def usable_metrics(table: pd.DataFrame, candidates: list[str] | None = None) -> 
     out = []
     for col in cols:
         if col in META_COLUMNS or col not in table.columns:
+            continue
+        if col.startswith(MODEL_PREFIXES):
             continue
         series = pd.to_numeric(table[col], errors="coerce")
         if series.notna().any():

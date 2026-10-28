@@ -188,6 +188,64 @@ class ConnectivityPanel(QWidget):
                                        self.nmf_plateau_gain)
         form3.addRow(metrics_advanced)
 
+        # ── Spatial and temporal autocorrelation ─────────────────────────────
+        # Its own box, live in every mode: unlike the dimensionality switches
+        # above, both pipelines read these.
+        st_box = QGroupBox("Spatial && temporal autocorrelation")
+        form5 = QFormLayout(st_box)
+
+        self.compute_spatiotemporal = QCheckBox()
+        self.compute_spatiotemporal.setChecked(True)
+        set_tooltip(self.compute_spatiotemporal,
+                    "Shinn et al. (2023), Nature Neuroscience: SA_lambda and "
+                    "SA_inf (how correlation falls off with distance, fitted "
+                    "to the unthresholded matrix), TA_global and TA_regional "
+                    "(each node's lag-1 autocorrelation).\n\n"
+                    "SA_lambda is in electrode pitches on an MEA and in "
+                    "imaging pixels on CAT-NAP. Cheap — one curve fit per "
+                    "network.")
+
+        self.ta_bin_ms = QDoubleSpinBox()
+        self.ta_bin_ms.setRange(1.0, 10000.0)
+        self.ta_bin_ms.setDecimals(0)
+        self.ta_bin_ms.setSuffix(" ms")
+        self.ta_bin_ms.setValue(100.0)
+        set_tooltip(self.ta_bin_ms,
+                    "Spike trains and calcium events have no autocorrelation "
+                    "of their own, so TA is read off their counts in bins this "
+                    "wide. Continuous calcium traces (F, spks, denoised F) are "
+                    "not affected: they use each lag's own correlation bin.")
+
+        self.spatiotemporal_null_model = QCheckBox()
+        self.spatiotemporal_null_model.setChecked(False)
+        set_tooltip(self.spatiotemporal_null_model,
+                    "The paper's spatiotemporal model: surrogate networks "
+                    "built from nothing but SA and TA, with the data's density "
+                    "and edge weights, scored with the same graph metrics "
+                    "(ST_* columns; STrho_* for node rankings). The batch "
+                    "summary — Lin's concordance per metric — goes in "
+                    "4B_GroupComparisons/10_SpatiotemporalModel.\n\n"
+                    "A metric the model predicts well tells recordings apart "
+                    "mostly through their spatial and temporal "
+                    "autocorrelation. Each repetition recomputes modularity and "
+                    "betweenness, so it costs several times the network metrics.")
+
+        self.spatiotemporal_null_reps = QSpinBox()
+        self.spatiotemporal_null_reps.setRange(1, 100)
+        self.spatiotemporal_null_reps.setValue(3)
+        set_tooltip(self.spatiotemporal_null_reps,
+                    "Model networks drawn per data network, averaged.")
+        self.spatiotemporal_null_model.toggled.connect(
+            self.spatiotemporal_null_reps.setEnabled)
+        self.spatiotemporal_null_reps.setEnabled(False)
+
+        form5.addRow("SA / TA metrics", self.compute_spatiotemporal)
+        st_advanced = AdvancedSection()
+        st_advanced.form().addRow("TA bin for events", self.ta_bin_ms)
+        st_advanced.form().addRow("Spatiotemporal model", self.spatiotemporal_null_model)
+        st_advanced.form().addRow("Model repetitions", self.spatiotemporal_null_reps)
+        form5.addRow(st_advanced)
+
         self._thr_box = thr_box
         self._metrics_box = metrics_box
         layout.addWidget(sttc_box)
@@ -195,6 +253,7 @@ class ConnectivityPanel(QWidget):
         layout.addWidget(thr_box)
         layout.addWidget(inclusion_box)
         layout.addWidget(metrics_box)
+        layout.addWidget(st_box)
         layout.addStretch()
 
         self.set_timescale("lag")
@@ -342,6 +401,10 @@ class ConnectivityPanel(QWidget):
         self.compute_nmf.setChecked(params.compute_nmf)
         self.compute_eff_rank.setChecked(params.compute_eff_rank)
         self.nmf_plateau_gain.setValue(params.nmf_plateau_gain)
+        self.compute_spatiotemporal.setChecked(params.compute_spatiotemporal)
+        self.ta_bin_ms.setValue(params.ta_bin_ms)
+        self.spatiotemporal_null_model.setChecked(params.spatiotemporal_null_model)
+        self.spatiotemporal_null_reps.setValue(params.spatiotemporal_null_reps)
 
     def save(self, params: Params) -> None:
         params.func_con_lag_val = self._parse_lags()
@@ -357,3 +420,7 @@ class ConnectivityPanel(QWidget):
         params.compute_nmf = self.compute_nmf.isChecked()
         params.compute_eff_rank = self.compute_eff_rank.isChecked()
         params.nmf_plateau_gain = self.nmf_plateau_gain.value()
+        params.compute_spatiotemporal = self.compute_spatiotemporal.isChecked()
+        params.ta_bin_ms = self.ta_bin_ms.value()
+        params.spatiotemporal_null_model = self.spatiotemporal_null_model.isChecked()
+        params.spatiotemporal_null_reps = self.spatiotemporal_null_reps.value()

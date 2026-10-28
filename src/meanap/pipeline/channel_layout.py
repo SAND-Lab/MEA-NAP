@@ -122,3 +122,44 @@ def recording_layout(channel_layout: str, spike_data=None
             "spike-sorted import writes, and this spike file has none")
     return (np.asarray(spike_data["electrode_ids"]).astype(np.int64),
             np.asarray(spike_data["electrode_coords"], dtype=float))
+
+
+def node_distances_in_pitches(
+    channel_layout: str,
+    channels: np.ndarray,
+    spike_data=None,
+    node_coords: np.ndarray | None = None,
+) -> np.ndarray:
+    """Pairwise distances between a recording's nodes, in electrode pitches.
+
+    The coordinates every layout returns are drawing units (an 8×8 grid spans
+    ``[0, 8]``, a 4×4 one too), so a length measured in them means nothing
+    across layouts. Dividing by the layout's own electrode pitch — the median
+    distance from each electrode to its nearest neighbour — makes it one. That
+    is exact for the fixed grids and holds for a MaxWell routing too, whose
+    electrodes sit on a regular sub-grid.
+
+    *node_coords* overrides the per-channel lookup (a sorted run's units sit on
+    rings round their electrode, one row per node, already in layout units).
+    Otherwise *channels* are looked up in the layout by ID; a channel the layout
+    does not have (a grounded MCS corner) gets NaN distances, which callers drop.
+    """
+    from scipy.spatial.distance import cdist
+
+    own = recording_layout(channel_layout, spike_data)
+    layout_channels, layout_coords = own if own is not None else get_coords_from_layout(channel_layout)
+    layout_coords = np.asarray(layout_coords, dtype=float)
+    ok = np.all(np.isfinite(layout_coords), axis=1)
+    elec = layout_coords[ok]
+    d = cdist(elec, elec)
+    np.fill_diagonal(d, np.inf)
+    nn = d.min(axis=1)
+    pitch = float(np.median(nn[np.isfinite(nn) & (nn > 0)]))
+
+    if node_coords is not None:
+        xy = np.asarray(node_coords, dtype=float)
+    else:
+        by_id = dict(zip(np.asarray(layout_channels).tolist(), map(tuple, layout_coords)))
+        xy = np.array([by_id.get(int(c), (np.nan, np.nan))
+                       for c in np.asarray(channels).ravel()], dtype=float)
+    return cdist(xy, xy) / pitch

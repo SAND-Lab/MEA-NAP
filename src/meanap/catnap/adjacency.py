@@ -54,6 +54,10 @@ class Suite2pAdjmResult:
     #: paths, empty on the STTC path. Lets the caller say what a requested bin
     #: rounded to, which matters most when it rounded to 1 (no binning at all).
     bin_frames: dict[int, int] = field(default_factory=dict)
+    #: ``adjMs`` before thresholding — the plain correlation on the
+    #: correlation paths, the raw STTC on ``peaks``. What the spatial
+    #: autocorrelation fit reads.
+    adjMs_raw: dict[str, np.ndarray] = field(default_factory=dict)
 
 
 def _corr_columns(x: np.ndarray) -> np.ndarray:
@@ -292,6 +296,7 @@ def suite2p_to_adjm(
 
     # ── Adjacency ─────────────────────────────────────────────────────────────
     adjMs: dict[str, np.ndarray] = {}
+    adjMs_raw: dict[str, np.ndarray] = {}
     spike_times: list[np.ndarray] | None = None
     bin_frames: dict[int, int] = {}
 
@@ -315,10 +320,12 @@ def suite2p_to_adjm(
             n_frames = min(frames_per_bin(bin_ms, fs), max_frames)
             bin_frames[int(bin_ms)] = n_frames
             binned = _bin_columns(src, n_frames)
+            raw = _corr_columns(binned)
+            adjMs_raw[f"adjM{int(bin_ms)}mslag"] = raw
             adjMs[f"adjM{int(bin_ms)}mslag"] = (
                 threshold_correlation(binned, prob_thresh_tail,
                                       prob_thresh_rep_num, rng)
-                if corr_prob_threshold else _corr_columns(binned))
+                if corr_prob_threshold else raw)
 
     elif twop_activity == "peaks":
         used_lags = list(func_con_lag_val)
@@ -340,13 +347,14 @@ def suite2p_to_adjm(
             rng = np.random.default_rng()
         for lag in used_lags:
             if n_units >= 2:
-                _adj_raw, adj_ci = adjm_thr(
+                adj_raw, adj_ci = adjm_thr(
                     spike_times_dict, n_units, lag, prob_thresh_tail, fs,
                     duration_s, prob_thresh_rep_num, rng=rng,
                 )
             else:
-                adj_ci = np.zeros((n_units, n_units))
+                adj_raw = adj_ci = np.zeros((n_units, n_units))
             adjMs[f"adjM{lag}mslag"] = adj_ci
+            adjMs_raw[f"adjM{lag}mslag"] = adj_raw
 
     else:
         raise ValueError(f"Unknown twop_activity: {twop_activity!r}")
@@ -364,4 +372,5 @@ def suite2p_to_adjm(
         func_con_lag_val=used_lags,
         coord_norm=(min_xy, max_xy),
         bin_frames=bin_frames,
+        adjMs_raw=adjMs_raw,
     )

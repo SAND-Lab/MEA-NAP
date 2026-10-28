@@ -215,6 +215,23 @@ class Params:
     # default off) and always computes effective rank.
     compute_nmf: bool = True
     compute_eff_rank: bool = True
+    # Spatial and temporal autocorrelation (Shinn et al. 2023,
+    # ``pipeline/spatiotemporal.py``): SA_lambda / SA_inf / TA_global /
+    # TA_regional. Cheap — one curve fit and one lag-1 correlation per node —
+    # so on by default, in both pipelines.
+    compute_spatiotemporal: bool = True
+    # Bin width for the timeseries TA-Δ₁ is read off when the activity is
+    # events (spike trains, CAT-NAP ``peaks``), which have no autocorrelation of
+    # their own. Continuous CAT-NAP traces use each lag's own correlation bin
+    # instead, since that is the timeseries the network was built from. 100 ms
+    # is what MATLAB's (unfinished) TA stub in ExtractNetMet.m chose.
+    ta_bin_ms: float = 100.0
+    # The paper's spatiotemporal model: surrogate networks built from SA and
+    # TA alone, scored with the same graph metrics as the data (``ST_*`` /
+    # ``STrho_*``). Off by default — each repetition recomputes modularity and
+    # betweenness on a network the size of the data's.
+    spatiotemporal_null_model: bool = False
+    spatiotemporal_null_reps: int = 3
     recompute_metrics: bool = False
     min_number_of_nodes_to_cal_net_met: int = 3
     exclude_edges_below_threshold: bool = True

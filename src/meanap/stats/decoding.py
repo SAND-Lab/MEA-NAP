@@ -842,6 +842,9 @@ FEATURE_FAMILIES: dict[str, str] = {
     # from the activity matrix rather than from the adjacency matrix, which is
     # why they sit here rather than under coupling.
     "effRank": "activity", "num_nnmf_components": "activity",
+    # How smooth each trace is (Shinn et al. 2023): a property of one node's
+    # signal, measured before any pairwise measure exists.
+    "TA_global": "activity", "TA_regional": "activity",
     "nComponentsRelNS": "activity", "nnmf_residuals": "activity",
     "nnmf_var_explained": "activity",
 
@@ -852,6 +855,11 @@ FEATURE_FAMILIES: dict[str, str] = {
     "NSmean": "coupling", "ND": "coupling", "NS": "coupling",
     "MEW": "coupling", "MEW_mean": "coupling",
     "sigEdgesMean": "coupling", "sigEdgesTop10": "coupling",
+    # Arguable: SA-λ says how the correlation is *arranged* in space, which
+    # sounds like topology. But it is read off the unthresholded correlation
+    # against distance, before any graph exists, and SA-∞ is the floor that
+    # correlation settles to — a level, like the mean correlation itself.
+    "SA_lambda": "coupling", "SA_inf": "coupling",
 
     # ── Topology: what the graph looks like once you have it.
     "CC": "topology", "CC_raw": "topology", "CC_rawMean": "topology",

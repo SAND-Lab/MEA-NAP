@@ -2037,6 +2037,11 @@ NETMET_REC_METRICS = {
     "NCpn6": "NC6KinlessHubs",
     "aveControlMean": "Mean average controllability",
     "modalControlMean": "Mean modal controllability",
+    # Python only (spatiotemporal.py). Appended, so the MATLAB metrics above
+    # keep their figure numbers.
+    "SA_lambda": "spatial autocorrelation length",
+    "SA_inf": "spatial autocorrelation floor",
+    "TA_global": "mean temporal autocorrelation",
 }
 
 #: Node-level network metrics, as ``unitLevelNetMetLabels`` (the last two from
@@ -2051,6 +2056,7 @@ NETMET_NODE_METRICS = {
     "BC": "betweenness centrality",
     "aveControl": "Average Controllability",
     "modalControl": "Modal Controllability",
+    "TA_regional": "temporal autocorrelation",
 }
 
 #: Display names for the Python-only figures that label network metrics —
@@ -2090,7 +2096,12 @@ NETMET_REC_DISPLAY_LABELS = {
     "NCpn5": "Proportion Connector Hubs (R5)",
     "NCpn6": "Proportion Kinless Hubs (R6)",
     "aveControlMean": "Mean Average Controllability",
-    "modalControlMean": "Mean Modal Controllability"
+    "modalControlMean": "Mean Modal Controllability",
+    # Shinn et al. (2023). SA-λ is in electrode pitches on an MEA and in
+    # imaging pixels on CAT-NAP — the units each pipeline's positions are in.
+    "SA_lambda": "Spatial Autocorrelation Length (SA-λ)",
+    "SA_inf": "Spatial Autocorrelation Floor (SA-∞)",
+    "TA_global": "Mean Temporal Autocorrelation (TA-Δ₁)",
 }
 
 NETMET_NODE_DISPLAY_LABELS = {
@@ -2102,7 +2113,8 @@ NETMET_NODE_DISPLAY_LABELS = {
     "PC": "Participation Coefficient",
     "BC": "Betweenness Centrality",
     "aveControl": "Average Controllability",
-    "modalControl": "Modal Controllability"
+    "modalControl": "Modal Controllability",
+    "TA_regional": "Temporal Autocorrelation (TA-Δ₁)",
 }
 
 # ── Feasible y-axis ranges for the comparison violins ────────────────────────
@@ -2147,11 +2159,15 @@ NETMET_BOUNDS: dict[str, tuple[float | None, float | None]] = {
     "NCpn4": (0, 1),
     "NCpn5": (0, 1),
     "NCpn6": (0, 1),
+    "SA_lambda": (0, None),
+    "SA_inf": (-1, 1),
+    "TA_global": (-1, 1),
     # Node level
     "ND": (0, None),
     "MEW": (0, 1),
     "NS": (0, None),
     "Eloc": (0, 1),
+    "TA_regional": (-1, 1),
     "BC": (0, 1),
     "PC": (0, 1),
     "aveControl": (1, 1.5),
@@ -2381,3 +2397,104 @@ def plot_step4_group_comparisons(
     plot_node_cartography_proportions(df_rec, ncbl_dir, group_order=custom_grp_order, fmt=fmt)
     plot_node_cartography_proportions_by_age(
         df_rec, ncbl_dir, group_order=custom_grp_order, fmt=fmt)
+
+
+#: Display names for the raw metrics the spatiotemporal model is scored on —
+#: ``CC_rawMean``/``PL_raw`` are not in :data:`NETMET_REC_METRICS`, whose
+#: ``CC``/``PL`` are the null-normalised versions.
+_ST_MODEL_LABELS = {
+    "NDtop25": "Top 25% Node Degree",
+    "CC_rawMean": "Clustering Coefficient (raw)",
+    "PL_raw": "Path Length (raw)",
+    "Eglob": "Global Efficiency",
+    "ElocMean": "Mean Local Efficiency",
+    "Q": "Modularity (Q)",
+}
+
+
+def plot_spatiotemporal_model(all_results: dict, lag_key: str, out_path: Path) -> bool:
+    """Data against the spatiotemporal model, one panel per graph metric.
+
+    One point per recording at lag *lag_key*. On the diagonal, the metric is
+    what SA and TA alone predict; the panel title carries Lin's concordance
+    (the paper's measure). Returns ``False``, drawing nothing, when no recording
+    at this lag has model values.
+    """
+    from meanap.pipeline.spatiotemporal import MODEL_REC_METRICS, lins_concordance
+
+    per_lag = [rec[lag_key] for rec in all_results.values() if lag_key in rec]
+    panels = []
+    for k in MODEL_REC_METRICS:
+        pairs = [(m.get(k, np.nan), m[f"ST_{k}"]) for m in per_lag if f"ST_{k}" in m]
+        if pairs:
+            data, model = (np.asarray(v, dtype=float) for v in zip(*pairs))
+            panels.append((k, data, model))
+    if not panels:
+        return False
+
+    ink, muted, mark = "#222222", "#8a8a8a", "#3b6ea8"
+    ncol = 3
+    nrow = int(np.ceil(len(panels) / ncol))
+    fig, axes = plt.subplots(nrow, ncol, figsize=(3.4 * ncol, 3.3 * nrow), squeeze=False)
+    for ax in axes.ravel()[len(panels):]:
+        ax.set_visible(False)
+    for ax, (k, data, model) in zip(axes.ravel(), panels):
+        ok = np.isfinite(data) & np.isfinite(model)
+        if ok.any():
+            lo = float(min(data[ok].min(), model[ok].min()))
+            hi = float(max(data[ok].max(), model[ok].max()))
+            pad = (hi - lo) * 0.08 or 0.05 * (abs(hi) or 1.0)
+            lims = (lo - pad, hi + pad)
+            ax.plot(lims, lims, color=muted, lw=1, ls="--", zorder=1)
+            ax.set_xlim(lims)
+            ax.set_ylim(lims)
+        ax.scatter(data[ok], model[ok], s=36, color=mark, edgecolor="white",
+                   linewidth=1.0, zorder=2)
+        ccc = lins_concordance(data, model)
+        ccc_txt = "n/a" if not np.isfinite(ccc) else f"{ccc:.2f}"
+        ax.set_title(f"{_ST_MODEL_LABELS.get(k, k)}\nLin's concordance {ccc_txt}"
+                     f"  (n={int(ok.sum())})", fontsize=9, color=ink)
+        ax.set_xlabel("Data", fontsize=8, color=ink)
+        ax.set_ylabel("Spatiotemporal model", fontsize=8, color=ink)
+        ax.tick_params(labelsize=7, colors=ink)
+        ax.set_aspect("equal", adjustable="box")
+        for side in ("top", "right"):
+            ax.spines[side].set_visible(False)
+    lag_ms = str(lag_key).replace("mslag", "")
+    fig.suptitle(f"How much of each metric spatial + temporal autocorrelation "
+                 f"predict — lag {lag_ms} ms", fontsize=10, color=ink)
+    fig.tight_layout()
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    savefig(fig, out_path, default_dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    return True
+
+
+#: Where the spatiotemporal-model comparison lands, under ``4_NetworkActivity``.
+ST_MODEL_DIR = Path("4B_GroupComparisons") / "10_SpatiotemporalModel"
+ST_MODEL_CSV = "SpatiotemporalModel_Concordance.csv"
+
+
+def write_spatiotemporal_model_outputs(
+    all_results: dict, net_dir: Path, *, draw: bool, log,
+) -> None:
+    """The batch-level model comparison: a CSV always, figures unless *draw* is off.
+
+    Shared by the ephys step 4 and CAT-NAP, which hold their results in the
+    same ``{recording: {lag_key: metrics}}`` shape. Does nothing when no
+    recording carries model values (the model was off).
+    """
+    from meanap.pipeline.spatiotemporal import concordance_table
+
+    table = concordance_table(all_results)
+    if table.empty:
+        return
+    out_dir = Path(net_dir) / ST_MODEL_DIR
+    out_dir.mkdir(parents=True, exist_ok=True)
+    table.to_csv(out_dir / ST_MODEL_CSV, index=False)
+    log(f"  spatiotemporal model: concordance → {(out_dir / ST_MODEL_CSV).relative_to(Path(net_dir).parent)}")
+    if not draw:
+        return
+    for lag_key in table["Lag"].unique():
+        plot_spatiotemporal_model(
+            all_results, lag_key, out_dir / f"SpatiotemporalModel_{lag_key}.png")

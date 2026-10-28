@@ -87,9 +87,9 @@ panel.show()
 app.processEvents()
 
 sections = panel.findChildren(AdvancedSection)
-# One each under Probabilistic thresholding, Node and edge inclusion, and
-# Network metrics.
-check("connectivity has three advanced sections", len(sections) == 3, str(len(sections)))
+# One each under Probabilistic thresholding, Node and edge inclusion, Network
+# metrics, and Spatial & temporal autocorrelation.
+check("connectivity has four advanced sections", len(sections) == 4, str(len(sections)))
 
 # Loaded into a collapsed panel, read straight back out.
 loaded = Params(prob_thresh_tail=0.02,
