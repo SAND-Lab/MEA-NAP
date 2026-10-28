@@ -179,10 +179,14 @@ pipeline.
   `spikeTimes`/`Ephys`/`adjMs` together. The Python port instead writes
   `.npz`/`.json`/`.csv` per step (see the [output report](output-report.md)
   page for the full folder layout) plus a per-recording adjacency `.npz`.
-- **Spatial/temporal autocorrelation metrics are not implemented** — these
-  aren't in MATLAB's own default metric list either, and MATLAB's own code
-  path for temporal autocorrelation is an explicit unfinished stub, so
-  there's no complete reference behavior to port yet.
+- **Spatial/temporal autocorrelation metrics exist only in Python.**
+  `SA_lambda`, `SA_inf`, `TA_global` and `TA_regional` (Shinn et al. 2023),
+  plus the optional spatiotemporal null model, are computed by default in
+  both MEA-NAP and CAT-NAP. MATLAB lists them as optional metrics, but the
+  functions `ExtractNetMet.m` calls for them are not in the repository and
+  its temporal-autocorrelation path is an unfinished stub, so there is no
+  MATLAB output to compare against. See
+  [Spatial and temporal autocorrelation](spatiotemporal.md).
 - **Some diagnostic-only plots are not ported**: the null-model-iteration
   convergence plot, and log-scaling on two of the step-2 burst heatmaps
   (cosmetic axis transform, not exercisable on the bundled example data since

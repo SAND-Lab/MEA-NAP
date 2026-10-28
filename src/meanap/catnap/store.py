@@ -64,12 +64,17 @@ __all__ = [
 #:     else in the output folder recorded it.
 #: (The one-second binned activity matrix behind the raster figures was added
 #: without a bump: it is optional on read, and a file without it simply has
-#: no rasters to redraw.)
+#: no rasters to redraw. Likewise the unthresholded matrices and TA inputs
+#: behind the spatial/temporal autocorrelation metrics: a file without them
+#: has no SA/TA metrics, and nothing else about it changes.)
 FORMAT_VERSION = 5
 
 _ADJ_PREFIX = "adj__"
 _STAT_PREFIX = "stat__"
 _LAGINDEP_PREFIX = "lagindep__"
+_ADJRAW_PREFIX = "adjraw__"
+_TA_PREFIX = "ta__"
+_TAMETA_PREFIX = "tameta__"
 
 #: Suffix of the optional per-recording mean-projection file (CAT-NAP only).
 BACKGROUND_SUFFIX = "_background.npz"
@@ -128,6 +133,16 @@ class RecordingState:
     #: bundle can carry it and the viewer can redraw both rasters from it.
     #: ``None`` when read back from a file written before it was stored.
     binned_activity: np.ndarray | None = None
+    #: The coupling matrices *before* thresholding, keyed like ``adjMs``. Only
+    #: the spatial-autocorrelation fit reads them (``Params.compute_spatiotemporal``),
+    #: and it must: thresholding zeroes the weak long-range pairs it is fitted
+    #: to. Empty when that is off, or read back from a file written before.
+    adjMs_raw: dict[str, np.ndarray] = field(default_factory=dict)
+    #: ``{adjm key: {"ta", "n_timepoints", "bin_s"}}`` — each unit's TA-Δ₁ and
+    #: the length/resolution of the timeseries it was read off, for the
+    #: spatiotemporal model to imitate. Per lag because on the correlation
+    #: paths each lag is its own bin width, so its own timeseries.
+    ta_inputs: dict[str, dict] = field(default_factory=dict)
 
 
 def lag_from_adjm_key(key: str) -> int:
@@ -168,6 +183,15 @@ def save_recording_state(path: Path, state: RecordingState, stats: dict) -> None
     }
     for key, adj in state.adjMs.items():
         arrays[f"{_ADJ_PREFIX}{key}"] = np.asarray(adj, dtype=float)
+
+    for key, adj in (state.adjMs_raw or {}).items():
+        # Half precision: the one reader is a curve fit to binned means, and
+        # this doubles the adjacency's footprint in a bundle otherwise.
+        arrays[f"{_ADJRAW_PREFIX}{key}"] = np.asarray(adj, dtype=np.float16)
+    for key, ta in (state.ta_inputs or {}).items():
+        arrays[f"{_TA_PREFIX}{key}"] = np.asarray(ta["ta"], dtype=float)
+        arrays[f"{_TAMETA_PREFIX}{key}"] = np.array(
+            [float(ta["n_timepoints"]), float(ta["bin_s"])])
 
     if state.binned_activity is not None:
         # Half precision on disk: a raster is a picture, and three significant
@@ -274,6 +298,16 @@ def load_recording_state(path: Path, plane0: Path) -> tuple[RecordingState, dict
             lag_independent[k[len(_LAGINDEP_PREFIX):]] = (
                 value.item() if value.ndim == 0 else value)
 
+        adjMs_raw = {k[len(_ADJRAW_PREFIX):]: np.asarray(data[k], dtype=float)
+                     for k in data.files if k.startswith(_ADJRAW_PREFIX)}
+        ta_inputs = {}
+        for k in data.files:
+            if k.startswith(_TA_PREFIX):
+                key = k[len(_TA_PREFIX):]
+                n_timepoints, bin_s = data[f"{_TAMETA_PREFIX}{key}"]
+                ta_inputs[key] = {"ta": data[k], "n_timepoints": int(n_timepoints),
+                                  "bin_s": float(bin_s)}
+
         markers = None
         if "marker_matrix" in keys:
             markers = (data["marker_matrix"], [str(n) for n in data["marker_names"]])
@@ -312,6 +346,8 @@ def load_recording_state(path: Path, plane0: Path) -> tuple[RecordingState, dict
             lag_independent=lag_independent,
             binned_activity=(np.asarray(data["binned_activity"], dtype=np.float32)
                              if "binned_activity" in keys else None),
+            adjMs_raw=adjMs_raw,
+            ta_inputs=ta_inputs,
         )
 
     return state, stats

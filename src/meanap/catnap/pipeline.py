@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from collections import Counter
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable
 
@@ -59,6 +59,7 @@ from meanap.pipeline.resume import (
     build_input_locator,
 )
 from meanap.pipeline.rng import make_rng
+from meanap.pipeline.spatiotemporal import pairwise_distances, spatiotemporal_metrics
 from meanap.pipeline.verbosity import as_run_log
 from meanap.remote.source import stream_needing_work
 from meanap.pipeline.parallel import StreamingPool, suggest_process_count
@@ -100,6 +101,18 @@ class _MetricsTask:
     #: matched on the pair, and reading it off the task is what makes that
     #: explicit rather than implied.
     activity: str = ""
+    #: What the spatial/temporal autocorrelation metrics read: the unthresholded
+    #: matrices, per-lag TA inputs (see :func:`_ta_inputs`), and node positions
+    #: in suite2p pixels. Empty/``None`` when they are off or the state predates
+    #: them, and the metrics are then simply absent.
+    adjMs_raw: dict = field(default_factory=dict)
+    ta_inputs: dict = field(default_factory=dict)
+    pixel_coords: np.ndarray | None = None
+
+
+#: Key a metrics worker files its warnings under, beside the lag keys; the
+#: parent pops it before the results go anywhere else.
+WORKER_WARNINGS_KEY = "_warnings"
 
 
 def _metrics_worker(task: _MetricsTask) -> tuple[str, str, dict]:
@@ -112,7 +125,13 @@ def _metrics_worker(task: _MetricsTask) -> tuple[str, str, dict]:
     running them in order.
     """
     rng = make_rng(task.params.random_seed, "step4", task.filename)
+    # Its own stream, as on the ephys path: switching the model on must not
+    # move Ci/Q/PC/SW.
+    st_rng = make_rng(task.params.random_seed, "step4-spatiotemporal", task.filename)
+    dist = (pairwise_distances(task.pixel_coords)
+            if task.pixel_coords is not None else None)
     out: dict = {}
+    warnings: list[str] = []
     for lag_ms, adj in sorted_adjm_items(task.adjMs):
         metrics = compute_network_metrics(
             adj, task.spike_counts, task.duration_s,
@@ -120,11 +139,30 @@ def _metrics_worker(task: _MetricsTask) -> tuple[str, str, dict]:
             exclude_edges_below_threshold=task.params.exclude_edges_below_threshold,
             params=task.params, rng=rng,
         )
+        key = f"adjM{lag_ms}mslag"
+        ta = task.ta_inputs.get(key)
+        if dist is not None and ta is not None and key in task.adjMs_raw:
+            try:
+                metrics.update(spatiotemporal_metrics(
+                    metrics, task.adjMs_raw[key], dist, ta["ta"],
+                    n_timepoints=ta["n_timepoints"], sample_interval_s=ta["bin_s"],
+                    null_model=task.params.spatiotemporal_null_model,
+                    n_reps=task.params.spatiotemporal_null_reps,
+                    exclude_zeros=task.params.exclude_edges_below_threshold,
+                    rng=st_rng,
+                ))
+            except Exception as e:
+                # A pool worker has no log of its own; the parent pops these
+                # off and logs them (see _metrics_done).
+                warnings.append(f"  [{task.filename}] WARNING: could not compute "
+                                f"spatial/temporal autocorrelation (lag={lag_ms}ms): {e}")
         # effRank / NMF describe the recording, not the lag, so every lag
         # carries the same value — as ExtractNetMet.m does by computing them
         # under `if e == 1` and saving them on the first lag field.
         metrics.update(task.lag_independent)
         out[f"{lag_ms}mslag"] = metrics
+    if warnings:
+        out[WORKER_WARNINGS_KEY] = warnings
     return task.activity, task.filename, out
 
 
@@ -478,6 +516,8 @@ def run_catnap_pipeline(
 
     def _metrics_done(result: tuple[str, str, dict]) -> None:
         activity, name, rec_results = result
+        for line in rec_results.pop(WORKER_WARNINGS_KEY, []):
+            log(line)
         metric_results[(activity, name)] = rec_results
         outstanding[name] = outstanding.get(name, 0) - 1
         if outstanding.get(name, 0) <= 0:
@@ -573,6 +613,7 @@ def run_catnap_pipeline(
                     params=p_act,
                     min_nodes=min_nodes,
                     activity=activity,
+                    **_spatiotemporal_task_fields(p_act, state),
                 ))
 
         pool.drain()
@@ -932,6 +973,11 @@ def _compute_recording(
         state.lag_independent = _lag_independent_metrics(
             res, p_act, duration_s, log, rec.filename,
             make_rng(params.random_seed, "catnap", rec.filename))
+        if params.compute_spatiotemporal:
+            # Here, not in the metrics phase, because TA-Δ₁ is read off the
+            # activity matrices and this is the last point they are loaded.
+            state.adjMs_raw = res.adjMs_raw
+            state.ta_inputs = _ta_inputs(res, activity, params, duration_s)
         # The population at one row per second, for the raster figures. Kept on
         # the state (and so in the file and the bundle) because the full
         # matrices are not: phase 3, a resumed run and the viewer all draw the
@@ -994,6 +1040,48 @@ def _activity_matrix_for(res, twop_activity: str) -> np.ndarray | None:
     if twop_activity == "peaks":
         return None
     return {"F": res.F, "spks": res.spks, "denoised F": res.denoised_F}[twop_activity]
+
+
+def _spatiotemporal_task_fields(params: Params, state: RecordingState) -> dict:
+    """The :class:`_MetricsTask` fields the SA/TA metrics need, or none of them.
+
+    Positions go back to suite2p pixels — ``coords`` were normalised onto
+    ``[0, 8]`` by the batch-independent ``coord_norm`` range — so SA-λ is a
+    length in pixels, comparable across recordings imaged at one zoom.
+    """
+    if not params.compute_spatiotemporal or not state.adjMs_raw or not state.ta_inputs:
+        return {}
+    lo, hi = state.coord_norm
+    return {"adjMs_raw": state.adjMs_raw, "ta_inputs": state.ta_inputs,
+            "pixel_coords": np.asarray(state.coords, dtype=float) * (hi - lo) / 8.0}
+
+
+def _ta_inputs(res, activity: str, params: Params, duration_s: float) -> dict:
+    """Each unit's TA-Δ₁, per adjacency key, from the timeseries behind it.
+
+    On the correlation paths every lag is a bin width and the network was built
+    from the traces averaged into it, so TA-Δ₁ is read off those same binned
+    traces — one timeseries per lag. ``peaks`` events have no autocorrelation of
+    their own; they are counted in ``Params.ta_bin_ms`` bins, the same for every
+    lag, as the ephys path does with spikes.
+    """
+    from meanap.catnap.adjacency import _bin_columns
+    from meanap.pipeline.spatiotemporal import bin_event_times, temporal_autocorrelation
+
+    out: dict = {}
+    if activity == "peaks":
+        bin_s = params.ta_bin_ms / 1000.0
+        counts = bin_event_times(res.spike_times or [], duration_s, bin_s)
+        ta = {"ta": temporal_autocorrelation(counts), "n_timepoints": counts.shape[1],
+              "bin_s": bin_s}
+        return {key: ta for key in res.adjMs}
+    src = _activity_matrix_for(res, activity)
+    for bin_ms, n_frames in res.bin_frames.items():
+        binned = _bin_columns(np.asarray(src, dtype=float), n_frames)
+        out[f"adjM{int(bin_ms)}mslag"] = {
+            "ta": temporal_autocorrelation(binned.T),
+            "n_timepoints": binned.shape[0], "bin_s": n_frames / res.fs}
+    return out
 
 
 def _lag_independent_metrics(
@@ -1771,6 +1859,14 @@ def _save_catnap_results(
             net_dir.mkdir(parents=True, exist_ok=True)
             with open(net_dir / "netmet_results.json", "w") as fh:
                 json.dump(_convert_numpy(json_results), fh, indent=2)
+            if params.compute_spatiotemporal and params.spatiotemporal_null_model:
+                from meanap.pipeline.plotting_step4 import write_spatiotemporal_model_outputs
+                try:
+                    write_spatiotemporal_model_outputs(
+                        results_act, net_dir, draw=not params.express_mode, log=log)
+                except Exception as e:
+                    log(f"  Warning: could not write the spatiotemporal model "
+                        f"comparison ({activity}): {e}")
 
             rec_rows, node_rows = _network_rows(recordings, results_act, rates)
             act_rows = _activity_rows(recordings, stats_act, rates)

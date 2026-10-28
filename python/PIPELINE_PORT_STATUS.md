@@ -2082,12 +2082,14 @@ of this list did._
    64-channel/600s recording (measured on this environment's CPU),
    independent of lag count since it's computed once per recording, not
    once per lag.
-   ~~**Spatial/temporal autocorrelation not ported.**~~ Still true, and
-   staying that way for now: `SA_lambda`/`SA_inf`/`TA_regional`/`TA_global`
-   aren't in MATLAB's own default `netMetToCal` list either
-   (`AdvancedSettings.m` calls them out as "other optional ones"), and
-   `ExtractNetMet.m`'s own temporal-autocorrelation code path is an explicit
-   `% TODO` stub — there's no complete MATLAB reference behavior to port yet.
+   ~~**Spatial/temporal autocorrelation not ported.**~~ **Done (1.15.0), from
+   the paper rather than MATLAB.** `SA_lambda`/`SA_inf`/`TA_regional`/
+   `TA_global` and the Shinn et al. (2023) spatiotemporal null model are in
+   `src/meanap/pipeline/spatiotemporal.py`, wired into step 4 and CAT-NAP
+   (`Params.compute_spatiotemporal`, on; `spatiotemporal_null_model`, off).
+   MATLAB still has nothing to compare against: `ExtractNetMet.m` calls
+   `spatial_autocorrelation`/`temporal_autocorrelation`, which are not in the
+   repo, and its TA path is a `% TODO` stub. Tests: `python/test_spatiotemporal.py`.
    Everything else in `ExtractNetMet.m`'s own docstring list of metrics is
    done with either exact or "deterministic given a fixed stochastic input"
    parity — see the "Where things stand" table and `network_metrics.py`'s

@@ -38,12 +38,14 @@ is not just RNG-stream-different from MATLAB but algorithm-different
 ``num_nnmf_components`` itself can legitimately differ, not just the
 underlying factor matrices.
 
-Still NOT ported (out of scope): spatial/temporal autocorrelation
-(``SA_lambda``/``SA_inf``/``TA_regional``/``TA_global``) — these aren't in
-MATLAB's own default ``netMetToCal`` list either (`AdvancedSettings.m` calls
-them out as "other optional ones"), and the temporal-autocorrelation code
-path is an explicit `% TODO` stub in `ExtractNetMet.m` itself, so there's no
-complete MATLAB reference behavior to port yet. ``Cmcblty`` (communicability)
+Spatial/temporal autocorrelation (``SA_lambda``/``SA_inf``/``TA_regional``/
+``TA_global``) live in ``spatiotemporal.py``, not here: they read the
+unthresholded matrix, node positions and the activity timeseries, none of
+which this module's functions see. That module implements them from the paper
+that defined them (Shinn et al. 2023) rather than porting MATLAB, whose
+``ExtractNetMet.m`` calls ``spatial_autocorrelation``/``temporal_autocorrelation``
+functions that are not in the repository and leaves TA as a ``% TODO`` stub.
+``Cmcblty`` (communicability)
 also needs no work: not actually computed by MATLAB's current pipeline
 either, the code path that would call it (``fcn_find_hubs_wu.m``) is
 commented out in ``ExtractNetMet.m``.
