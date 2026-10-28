@@ -163,6 +163,13 @@ event CSV, including evoked-vs-baseline networks and noise correlations — see
 [Importing spike-sorted data](sorted-import.md). Not available in the MATLAB
 pipeline.
 
+**Half-violins stop at the metric's limits.** Both pipelines evaluate a
+violin's density three bandwidths past the data on either side, so it tails
+off smoothly. MATLAB lets those tails run wherever the Gaussian kernel takes
+them — a density or correlation violin above 1, a firing rate below 0. Python
+cuts them at the metric's theoretical range (`meanap.pipeline.metric_limits`),
+which is separate from the axis ranges the comparison plots are drawn on.
+
 ## Known gaps
 
 - **No group-level statistical comparisons yet.** MATLAB's step 5 (comparing
