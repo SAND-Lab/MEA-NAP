@@ -53,7 +53,8 @@ warnings.simplefilter("ignore")
 from meanap.pipeline.spatiotemporal import (  # noqa: E402
     MODEL_NODE_METRICS, MODEL_REC_METRICS, bin_event_times,
     density_matched_network, graph_summary, lins_concordance,
-    pairwise_distances, spatial_autocorrelation, spatial_exponential_floor,
+    pairwise_distances, spatial_autocorrelation, spatial_autocorrelation_nugget,
+    spatial_exponential_floor,
     spatiotemporal_metrics, spatiotemporal_model_timeseries,
     temporal_autocorrelation,
 )
@@ -158,6 +159,71 @@ def section_b() -> list[Check]:
     two = spatial_autocorrelation(np.array([[1, .5], [.5, 1]]), np.array([[0, 1], [1, 0]]))
     checks.append(("too few distance bins → NaN, not a fit to one point",
                    np.all(np.isnan(two)), str(two)))
+    return checks
+
+
+def section_b2() -> list[Check]:
+    """The free-start (nugget) SA fit."""
+    checks: list[Check] = []
+    coords = _grid(8)
+    dist = pairwise_distances(coords)
+
+    def profile(lam, amp, floor):
+        return amp * np.exp(-dist / lam) + floor
+
+    for lam, amp, floor in [(2.0, 0.3, 0.05), (1.5, 0.6, 0.1), (3.0, 0.15, -0.02)]:
+        got = spatial_autocorrelation_nugget(profile(lam, amp, floor), dist, n_bins=200)
+        checks.append((f"recovers λ={lam}, amp={amp}, floor={floor} from a noiseless profile",
+                       np.allclose(got, (lam, amp, floor), rtol=2e-2, atol=2e-3),
+                       f"got {np.round(got, 4)}"))
+
+    # The case the paper's fit gets wrong: coupling starting at 0.6, not 1.
+    corr = spatial_exponential_floor(dist, 2.0, 0.05) * 0.6
+    pinned, _ = spatial_autocorrelation(corr, dist)
+    free, amp, _ = spatial_autocorrelation_nugget(corr, dist)
+    checks.append(("coupling below 1 at d→0: free fit keeps λ=2 where the pinned one shortens it",
+                   abs(free - 2.0) < 0.1 and pinned < 1.6, f"free {free:.3f}, pinned {pinned:.3f}"))
+
+    # Strength and extent kept apart: same weak start, λ doubled.
+    rng = np.random.default_rng(0)
+    def noisy(lam):
+        c = profile(lam, 0.3, 0.05) + rng.normal(0, 0.02, dist.shape)
+        return (c + c.T) / 2
+    l2 = spatial_autocorrelation_nugget(noisy(2.0), dist)[0]
+    l4 = spatial_autocorrelation_nugget(noisy(4.0), dist)[0]
+    checks.append(("doubling the true λ (2 → 4) roughly doubles the free λ, with noise",
+                   1.6 < l4 / l2 < 2.6, f"{l2:.2f} → {l4:.2f}"))
+
+    # Where the paper's curve is right, the two fits agree.
+    corr = spatial_exponential_floor(dist, 2.0, 0.2)
+    pinned = spatial_autocorrelation(corr, dist)
+    free = spatial_autocorrelation_nugget(corr, dist)
+    checks.append(("coupling that does start at 1: same λ and floor as the pinned fit, amp = 1 − floor",
+                   np.allclose((free[0], free[2]), pinned, rtol=1e-2, atol=1e-3)
+                   and abs(free[1] + free[2] - 1) < 1e-3, f"{np.round(free, 4)} vs {np.round(pinned, 4)}"))
+
+    checks.append(("amp + floor never exceeds 1",
+                   sum(spatial_autocorrelation_nugget(profile(2.0, 1.4, 0.05), dist)[1:]) <= 1 + 1e-9, ""))
+
+    flat = spatial_autocorrelation_nugget(np.full(dist.shape, 0.1), dist)
+    checks.append(("no spatial structure → λ NaN, amp 0, floor the level",
+                   np.isnan(flat[0]) and flat[1] == 0 and abs(flat[2] - 0.1) < 1e-9, str(flat)))
+    fast = spatial_autocorrelation_nugget(profile(0.2, 0.5, 0.05), dist)
+    checks.append(("decay over before the nearest pair → λ, amp NaN; floor kept",
+                   np.isnan(fast[0]) and np.isnan(fast[1]) and abs(fast[2] - 0.05) < 1e-3, str(fast)))
+    slow = spatial_autocorrelation_nugget(profile(500.0, 0.3, 0.0), dist)
+    checks.append(("decay barely begun across the array → all NaN",
+                   np.all(np.isnan(slow)), str(slow)))
+
+    scaled = spatial_autocorrelation_nugget(0.3 * np.exp(-dist * 200 / 400.0) + 0.05, dist * 200)
+    checks.append(("λ comes back in the distances' unit (×200 → λ×200)",
+                   np.allclose(scaled, (400.0, 0.3, 0.05), rtol=2e-2, atol=2e-3),
+                   f"got {np.round(scaled, 3)}"))
+    corr = profile(2.0, 0.3, 0.05)
+    np.fill_diagonal(corr, 0.0)
+    checks.append(("zero diagonal (adjacency convention) changes nothing",
+                   np.allclose(spatial_autocorrelation_nugget(corr, dist),
+                               spatial_autocorrelation_nugget(profile(2.0, 0.3, 0.05), dist)), ""))
     return checks
 
 
@@ -289,7 +355,8 @@ def section_g() -> list[Check]:
     out = spatiotemporal_metrics(metrics, raw, dist, ta, n_timepoints=4000,
                                  sample_interval_s=0.1, null_model=True, n_reps=2,
                                  rng=np.random.default_rng(1))
-    expected = {"SA_lambda", "SA_inf", "TA_global", "TA_regional"}
+    expected = {"SA_lambda", "SA_inf", "SA_lambda_free", "SA_amp", "SA_inf_free",
+                "TA_global", "TA_regional"}
     expected |= {f"ST_{k}" for k in MODEL_REC_METRICS}
     expected |= {f"STrho_{k}" for k in MODEL_NODE_METRICS}
     checks.append(("returns every metric", expected <= set(out),
@@ -325,8 +392,9 @@ def section_g() -> list[Check]:
 
     off = spatiotemporal_metrics(metrics, raw, dist, ta, n_timepoints=4000,
                                  sample_interval_s=0.1, null_model=False)
-    checks.append(("null model off → only the four statistics",
-                   set(off) == {"SA_lambda", "SA_inf", "TA_global", "TA_regional"}, str(set(off))))
+    checks.append(("null model off → only the SA/TA statistics",
+                   set(off) == {"SA_lambda", "SA_inf", "SA_lambda_free", "SA_amp",
+                                "SA_inf_free", "TA_global", "TA_regional"}, str(set(off))))
     checks.append(("network below the node floor → nothing",
                    spatiotemporal_metrics({"aN": 2, "activeChannelIndex": np.arange(2)},
                                           raw, dist, ta, n_timepoints=10,
@@ -427,12 +495,14 @@ def section_h() -> list[Check]:
         rec_csv = pd.read_csv(on_root / "4_NetworkActivity" / "NetworkActivity_RecordingLevel.csv")
         node_csv = pd.read_csv(on_root / "4_NetworkActivity" / "NetworkActivity_NodeLevel.csv")
         checks.append(("recording-level CSV has the SA/TA columns",
-                       {"SA_lambda", "SA_inf", "TA_global"} <= set(rec_csv.columns), ""))
+                       {"SA_lambda", "SA_inf", "SA_lambda_free", "SA_amp", "SA_inf_free",
+                        "TA_global"} <= set(rec_csv.columns), ""))
         checks.append(("node-level CSV has TA_regional",
                        "TA_regional" in node_csv.columns
                        and node_csv["TA_regional"].notna().all(), ""))
 
-        sa_ta = {"SA_lambda", "SA_inf", "TA_global", "TA_regional"}
+        sa_ta = {"SA_lambda", "SA_inf", "SA_lambda_free", "SA_amp", "SA_inf_free",
+                 "TA_global", "TA_regional"}
         st_keys = {k for k in model["rec_A"]["25mslag"] if k.startswith(("ST_", "STrho_"))}
 
         def strip(res, drop):
@@ -555,7 +625,8 @@ def section_i() -> list[Check]:
         checks.append(("TA_regional: one value per active node",
                        len(m["TA_regional"]) == len(m["activeChannelIndex"]), ""))
 
-        sa_ta = {"SA_lambda", "SA_inf", "TA_global", "TA_regional"}
+        sa_ta = {"SA_lambda", "SA_inf", "SA_lambda_free", "SA_amp", "SA_inf_free",
+                 "TA_global", "TA_regional"}
         strip = lambda res, drop: json.dumps(
             {r: {k: v for k, v in res[r]["500mslag"].items() if k not in drop} for r in res},
             sort_keys=True)
@@ -631,6 +702,7 @@ def main() -> int:
     for title, fn in [
         ("A. Temporal autocorrelation (TA-Δ₁)", section_a),
         ("B. Spatial autocorrelation (SA-λ, SA-∞)", section_b),
+        ("B2. Free-start SA fit (SA_lambda_free, SA_amp, SA_inf_free)", section_b2),
         ("C. Spatiotemporal model surrogates", section_c),
         ("D. Density-matched model network", section_d),
         ("E. Lin's concordance", section_e),

@@ -64,6 +64,9 @@ METRIC_LIMITS: dict[str, Limits] = {
     "modalControlMean": _UNIT,
     "SA_lambda": _NONNEG,
     "SA_inf": _CORR,
+    "SA_lambda_free": _NONNEG,
+    "SA_amp": (0, 2),              # amp + floor <= 1, floor >= -1
+    "SA_inf_free": _CORR,
     "TA_global": _CORR,
     # ── Network, node level ──────────────────────────────────────────────────
     "ND": _NONNEG,

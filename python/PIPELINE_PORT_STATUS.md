@@ -2090,6 +2090,9 @@ of this list did._
    MATLAB still has nothing to compare against: `ExtractNetMet.m` calls
    `spatial_autocorrelation`/`temporal_autocorrelation`, which are not in the
    repo, and its TA path is a `% TODO` stub. Tests: `python/test_spatiotemporal.py`.
+   1.17.0 adds `SA_lambda_free`/`SA_amp`/`SA_inf_free`: the SA fit with its
+   start left free (a nugget), since the paper's curve reaching 1 at d → 0
+   biases SA-λ short on STTC and mixes coupling strength into length scale.
    Everything else in `ExtractNetMet.m`'s own docstring list of metrics is
    done with either exact or "deterministic given a fixed stochastic input"
    parity — see the "Where things stand" table and `network_metrics.py`'s
