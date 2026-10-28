@@ -6,7 +6,7 @@ dataset has that the import reads — and nothing it does not (no voltage):
 * ``<name>.raw.h5`` — MaxWell legacy layout: routed channels, frame numbers,
   electrode mapping, sampling rate, and a TTL ``bits`` log with a 60 Hz frame
   sync on bit 5 and a flash marker on bit 7 (word drops to 0 for one frame),
-  like the retinal-organoid recording.
+  like the real MaxOne recording it was built from.
 * ``<name>.raw.result-merged.hdf5`` / ``.templates-merged.hdf5`` — SpyKING
   CIRCUS output for the units below.
 * ``<name>_phy/`` — the same units as a phy folder, one of them labelled noise.

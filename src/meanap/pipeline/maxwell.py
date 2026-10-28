@@ -7,7 +7,7 @@ left. On a MaxOne the voltage is ``(n_routed, n_frames)`` uint16 — 4.7 GB for
 two minutes on 941 electrodes — so everything here reads small datasets only.
 
 Two file layouts exist. The *legacy* one (MaxOne, ``data_store/data0000``) is
-what the retinal-organoid test data uses and what this module is checked
+what the MaxOne test data uses and what this module is checked
 against. The newer one (MaxTwo and recent MaxOne software,
 ``recordings/rec0000/well000``) keeps the same ``groups/routed`` and
 ``settings`` datasets under a different parent; :func:`read_maxwell_meta`
