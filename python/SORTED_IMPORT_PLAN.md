@@ -5,11 +5,11 @@ Kilosort/phy, anything SpikeInterface reads) as step-1 input, and analyse
 **stimulus-triggered** activity and networks for event-driven stimulation
 (light flashes) through MEA-Stim.
 
-Test data: `local/test-spike-sorted-data/` — one 6-week retinal-organoid
+Test data: `local/test-spike-sorted-data/` — one
 recording on a **MaxWell MaxOne** (legacy-layout `.raw.h5`, 941 routed
 electrodes at 17.5 µm pitch, 20 kHz, 126.68 s), SpyKING CIRCUS output (306
 merged templates), the collaborator's own `_spikes.mat` export, and a MATLAB
-MEA-NAP run of that export (`OutputData_Retinal_SOHU_Run2/`).
+MEA-NAP run of that export (kept locally).
 
 ## What the test data told us
 

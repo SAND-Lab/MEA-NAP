@@ -49,10 +49,10 @@ filename* column: the raw file's name without `.raw.h5`. A SpyKING CIRCUS
 folder for one MaxOne recording looks like this:
 
 ```text
-data_for_tim/
-├── Trace_20240920_15_34_23_6L_6weekSOHU_inf_OS_fullfield.raw.h5                     ← MaxWell raw (metadata + TTLs)
-├── Trace_20240920_15_34_23_6L_6weekSOHU_inf_OS_fullfield.raw.result-merged.hdf5     ← spikes
-├── Trace_20240920_15_34_23_6L_6weekSOHU_inf_OS_fullfield.raw.templates-merged.hdf5  ← templates (peak electrode)
+sorted_data/
+├── Trace_20240101_12_00_00_well1.raw.h5                     ← MaxWell raw (metadata + TTLs)
+├── Trace_20240101_12_00_00_well1.raw.result-merged.hdf5     ← spikes
+├── Trace_20240101_12_00_00_well1.raw.templates-merged.hdf5  ← templates (peak electrode)
 └── … (.clusters, .overlap, .basis: not needed)
 ```
 
@@ -60,7 +60,7 @@ and the batch spreadsheet:
 
 ```text
 Recording filename,DIV,Group
-Trace_20240920_15_34_23_6L_6weekSOHU_inf_OS_fullfield,42,SOHU
+Trace_20240101_12_00_00_well1,42,Control
 ```
 
 How each recording's output is found (the search includes subfolders):
@@ -106,14 +106,14 @@ folder** separately.
      | **Leave out labels** | Curation labels whose units are dropped. The default is `noise`, which is the label phy and Kilosort give clusters that are not neurons. Add `mua` to keep only well-isolated units. Clear the field to keep every unit. SpyKING CIRCUS's own output has no labels, so every unit is kept there. |
 
 3. **Connectivity tab**: choose the STTC lags as usual. Sorted units are more
-   numerous than electrodes (306 on the example recording), and steps 3–4
+   numerous than electrodes (several hundred is common), and steps 3–4
    scale with the number of node pairs, so start with **one lag**.
 4. **Run tab**: run steps 1–4. Step 1 takes seconds, because it reads files
    and detects nothing. The run log has one line per recording, e.g.
 
    ```text
-   [Trace_…_fullfield] importing spykingcircus output (Trace_….raw.result-merged.hdf5)…
-   [Trace_…_fullfield] 306 unit(s) from spykingcircus, 306 kept as nodes on 305 electrode(s)
+   [Trace_…_well1] importing spykingcircus output (Trace_….raw.result-merged.hdf5)…
+   [Trace_…_well1] 306 unit(s) from spykingcircus, 306 kept as nodes on 305 electrode(s)
    ```
 
    With **Verbose** logging the log also gives the raw-file metadata:
@@ -132,11 +132,11 @@ from meanap.params import Params
 from meanap.pipeline.runner import run_pipeline
 
 params = Params(
-    raw_data="data_for_tim",                  # MaxWell .raw.h5 (+ the sorter output, here)
+    raw_data="sorted_data",                  # MaxWell .raw.h5 (+ the sorter output, here)
     spreadsheet_file_name="batch.csv",
     spreadsheet_range="2:100",
     output_data_folder="runs",
-    output_data_folder_name="RetinalOrganoid",
+    output_data_folder_name="SortedRun",
     spike_source="import",
     sorted_data_folder="",                    # "" = look in raw_data
     sorted_data_format="auto",                # auto | spykingcircus | phy | spikeinterface
@@ -154,8 +154,8 @@ from meanap.pipeline.maxwell import read_maxwell_meta
 from meanap.pipeline.sorted_import import (
     ElectrodeTable, find_sorted_output, read_sorted_output)
 
-meta = read_maxwell_meta("data_for_tim/<name>.raw.h5")
-fmt, path = find_sorted_output("data_for_tim", "<name>")
+meta = read_maxwell_meta("sorted_data/<name>.raw.h5")
+fmt, path = find_sorted_output("sorted_data", "<name>")
 units = read_sorted_output(fmt, path, electrodes=ElectrodeTable.from_maxwell(meta),
                            fs=meta.fs, duration_s=meta.duration_s)
 units.n_units, units.spike_trains[0][:5], units.sorter_unit_ids[:5], units.labels[:5]
@@ -327,9 +327,10 @@ Outputs:
 
 :::{dropdown} How do I know the edge test is calibrated?
 On data with no stimulus coupling, about `alpha` of all pairs should come out
-significant in **both** epochs. On the example recording below (306 units,
-46 665 pairs), 4.9–5.3 % did at α = 0.05, and 5.0 % of noise correlations
-were significant. A clear rise in the evoked epoch over baseline is the
+significant in **both** epochs, and about `alpha` of noise correlations.
+The synthetic test fixture (`python/sorted_import_fixture.py`), in which
+known units respond to ON or OFF events, checks the other direction: those
+units, and only those, are detected. A clear rise in the evoked epoch over baseline is the
 signal to look for. A baseline well above `alpha` means something other than
 the stimulus is driving the units together.
 :::
@@ -337,34 +338,6 @@ the stimulus is driving the units together.
 Stimulus-triggered networks are built for event-driven methods only.
 Electrical stimulation would also need the stimulating electrodes and blanked
 periods taken out of the windows, and that is not wired up yet.
-
-## Worked example: a retinal organoid on a MaxOne
-
-The recording the import was developed on is a 6-week human retinal organoid
-on a MaxWell MaxOne: 941 routed electrodes at 17.5 µm pitch, 20 kHz,
-126.68 s, sorted with SpyKING CIRCUS into 306 units, with full-field light
-flashes marked in the TTL bits. What a run gave:
-
-* **Import**: identical to the collaborator's own export for MATLAB, unit for
-  unit and spike for spike, except that the import keeps the last 0.68 s
-  their export cut off. The peak electrodes were checked against MaxLab's
-  online spike detection: 28 % of its spikes fall within ±0.5 ms of a spike
-  from a unit on the same electrode, against 1 % with electrodes shuffled.
-* **Steps 2–4 vs MATLAB on the same units**: firing rates identical to
-  5 × 10⁻¹⁴. Network metrics agree within the thresholding's randomness
-  (density 0.0597 vs 0.0603, path length 0.907 vs 0.918).
-* **TTL**: bit 5 toggles at 60 Hz (projector frame sync). `auto` picks the
-  rare marker, bit 7 falling (`fall:7`), 57 times, alternating 2.0 s and
-  2.5 s apart. The run log reports the result as `57 event(s) … TTL auto → fall:7;
-  condition(s) A (29), B (28)`, and 4 events too close to a neighbour are left
-  out of the networks.
-* **Light responses**: none beyond chance. No unit had |z| > 3, and evoked
-  networks, baseline networks and noise correlations all sat at the 5 %
-  false-positive level. For this recording that is the expected result: it
-  shows that the analysis does not report responses that are not there. The
-  synthetic test fixture (`python/sorted_import_fixture.py`), in which known
-  units respond to ON or OFF events, checks the other direction: those units,
-  and only those, are detected.
 
 ## Limitations
 

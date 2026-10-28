@@ -766,7 +766,7 @@ a negative control), and the 5G figures go through `test_stats_report.py`.
 #### Hundreds of sorted units — 7x end to end (2026-10-24)
 
 Spike-sorted recordings make every node-count-dependent cost bite. Measured on
-the MaxOne retinal organoid in `local/test-spike-sorted-data/` (306 units,
+the MaxOne recording in `local/test-spike-sorted-data/` (306 units,
 919k spikes, 126 s; steps 1-4, lags 10/15/25 ms, 200 shuffles, full figures,
 one recording, 16-core box):
 
