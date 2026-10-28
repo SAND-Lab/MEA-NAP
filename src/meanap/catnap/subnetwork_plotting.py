@@ -34,6 +34,7 @@ from meanap.pipeline.figure_output import savefig
 import pandas as pd
 
 from meanap.catnap.subnetwork import CellTypeGroups, WHOLE_NETWORK
+from meanap.pipeline.metric_limits import metric_limits
 from meanap.pipeline.plotting_step4 import _half_violin
 
 # Qualitative palette for cell-type groups — distinguishable in print and for
@@ -333,7 +334,8 @@ def plot_node_metrics_by_group(
     for ax, metric in zip(axes.ravel(), metrics):
         for pos, grp in enumerate(order, start=1):
             values = node_df.loc[node_df["Group"] == grp, metric].to_numpy(dtype=float)
-            _half_violin(ax, values, pos=pos, colour=colors[grp], width=0.3, rng=rng)
+            _half_violin(ax, values, pos=pos, colour=colors[grp], width=0.3, rng=rng,
+                         limits=metric_limits(metric))
         ax.set_xticks(range(1, len(order) + 1))
         ax.set_xticklabels([f"{g}\n(n={int((node_df['Group'] == g).sum())})" for g in order],
                            fontsize=8)

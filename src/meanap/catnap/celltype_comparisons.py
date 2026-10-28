@@ -183,8 +183,13 @@ def recording_means(df: pd.DataFrame, metrics: list[str]) -> pd.DataFrame:
 
 
 def _plot_block(df: pd.DataFrame, metrics: dict[str, str], types: list[str],
-                where: Path, order, fmt: str, log) -> int:
-    """Node-level and recording-level figures for one block; returns how many."""
+                where: Path, order, fmt: str, log, activity: str | None = "peaks") -> int:
+    """Node-level and recording-level figures for one block; returns how many.
+
+    *activity* is the measure behind the block's metrics, which decides whether
+    the event-rate family's violins are cut at 0 (:func:`twop_kde_limits`).
+    """
+    from meanap.catnap.group_plots import twop_kde_limits
     from meanap.catnap.tracking.development_plots import TYPE_COLOURS
     from meanap.pipeline.plotting_step4 import plot_half_violin_by_x
 
@@ -203,7 +208,8 @@ def _plot_block(df: pd.DataFrame, metrics: dict[str, str], types: list[str],
                         data, key, label + (" (recording mean)" if level == "Recordings" else ""),
                         x_kind, folder / f"{key}_{stem}{suffix}.{fmt}",
                         group_order=order, series_col="CellType", series_order=types,
-                        series_colors=colours)
+                        series_colors=colours,
+                        kde_limits=twop_kde_limits(key, activity))
                     n += 1
                 except Exception as e:
                     log(f"  {folder.name}/{key}: {e}")
@@ -295,7 +301,7 @@ def _plot_cell_type_comparisons(run: Path, out: Path, *, label_folders, group_sp
                        and pd.api.types.is_numeric_dtype(a[k])}
             total += _plot_block(typed, metrics, types,
                                  out / ACTIVITY_DIR / sub / dp._safe(definition.name),
-                                 group_order, fmt, log)
+                                 group_order, fmt, log, activity=measure)
             if net.empty:
                 continue
             n = net if measure is None or "ActivityType" not in net else \
