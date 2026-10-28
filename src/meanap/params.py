@@ -217,7 +217,8 @@ class Params:
     compute_eff_rank: bool = True
     # Spatial and temporal autocorrelation (Shinn et al. 2023,
     # ``pipeline/spatiotemporal.py``): SA_lambda / SA_inf / TA_global /
-    # TA_regional. Cheap — one curve fit and one lag-1 correlation per node —
+    # TA_regional, plus the free-start SA fit (SA_lambda_free / SA_amp /
+    # SA_inf_free). Cheap — one curve fit and one lag-1 correlation per node —
     # so on by default, in both pipelines.
     compute_spatiotemporal: bool = True
     # Bin width for the timeseries TA-Δ₁ is read off when the activity is

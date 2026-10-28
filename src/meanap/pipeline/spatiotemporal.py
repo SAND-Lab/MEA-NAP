@@ -17,6 +17,11 @@ three summary statistics and a generative model built from nothing else:
 ``SA_lambda`` (SA-λ) / ``SA_inf`` (SA-∞)
     The length scale and floor of ``corr(d) = (1 − SA∞)·exp(−d/SA-λ) + SA∞``,
     fitted to the mean pairwise correlation at each distance.
+``SA_lambda_free`` / ``SA_amp`` / ``SA_inf_free``
+    Not the paper's: the same curve with its start left free,
+    ``amp·exp(−d/λ) + floor``. The paper's reaches 1 at d → 0, which coupling
+    between distinct electrodes or cells never does, and that biases SA-λ
+    short. See :func:`spatial_autocorrelation_nugget`.
 
 The **spatiotemporal model** draws surrogate timeseries with the observed
 SA-λ, SA-∞ and per-node TA-Δ₁ (and nothing else). Building a network from them
@@ -190,6 +195,88 @@ def spatial_autocorrelation(
     log_lam = res.x if res.fun <= sse(best) else best
     lam = float(np.exp(log_lam))
     return lam, _best_floor(np.exp(-d / lam), y)
+
+
+def _best_amp_floor(e: np.ndarray, y: np.ndarray) -> tuple[float, float]:
+    """Least-squares ``(amp, floor)`` for fixed decay ``e``, constrained.
+
+    ``y ≈ amp·e + floor`` is linear in both, so the unconstrained optimum is
+    closed form. The constraints — amp ≥ 0, floor ∈ [−1, 1], amp + floor ≤ 1
+    (coupling between distinct nodes cannot exceed a node's with itself) —
+    cut out a convex region and the SSE is a convex quadratic, so when the
+    free optimum lies outside, the constrained one is the best of the boundary
+    faces' own optima. The amp + floor = 1 face is the paper's pinned curve.
+    """
+    def sse(a: float, f: float) -> float:
+        return float(np.sum((y - (a * e + f)) ** 2))
+
+    candidates: list[tuple[float, float]] = []
+    design = np.column_stack([e, np.ones_like(e)])
+    (a, f), *_ = np.linalg.lstsq(design, y, rcond=None)
+    if a >= 0 and -1 <= f <= 1 and a + f <= 1:
+        return float(a), float(f)
+    f = _best_floor(e, y)                                   # amp + floor = 1
+    candidates.append((1.0 - f, f))
+    candidates.append((0.0, float(np.clip(np.mean(y), -1.0, 1.0))))   # amp = 0
+    ee = float(np.dot(e, e))                                # floor = −1
+    if ee > 0:
+        candidates.append((float(np.clip(np.dot(e, y + 1.0) / ee, 0.0, 2.0)), -1.0))
+    return min(candidates, key=lambda c: sse(*c))
+
+
+def spatial_autocorrelation_nugget(
+    corr: np.ndarray, dist: np.ndarray, n_bins: int = 20,
+) -> tuple[float, float, float]:
+    """SA-λ, amplitude and floor with the curve's start left free.
+
+    Fits ``corr(d) = amp·exp(−d/λ) + floor`` for d > 0, where
+    :func:`spatial_autocorrelation` fixes ``amp = 1 − floor``. The paper's
+    curve reaches 1 as d → 0, which suits fMRI, whose neighbouring voxels
+    sample one smooth field. Two electrodes, however close, record different
+    neurons with independent noise, so coupling between distinct sites starts
+    well below 1 — a jump at d = 0 that geostatistics calls the *nugget*. The
+    pinned curve can only reach that lower start by shortening λ, which mixes
+    how *strongly* neighbours couple into how *far* coupling reaches. Here
+    ``amp + floor`` is the coupling just above d = 0 and λ is the length
+    scale alone.
+
+    Returns ``(λ, amp, floor)``. NaN where the profile cannot separate them:
+
+    * fewer than three distance bins → all NaN;
+    * no spatial structure (best amp is 0) → λ NaN, amp 0;
+    * decay complete before the nearest bin (``exp(−d_min/λ) < 0.1``): only
+      the product of amp and the decay is seen, not each → λ and amp NaN;
+    * decay barely begun across the array (λ > 10 × the largest distance):
+      the curve is a straight line, and neither λ nor the floor it would
+      settle to is identifiable → all NaN.
+    """
+    nan3 = (float("nan"),) * 3
+    d, y = _binned_correlation_profile(corr, dist, n_bins)
+    if d.size < 3 or d.max() <= 0:
+        return nan3
+
+    def sse(log_lam: float) -> float:
+        e = np.exp(-d / np.exp(log_lam))
+        a, f = _best_amp_floor(e, y)
+        return float(np.sum((y - (a * e + f)) ** 2))
+
+    lo = np.log(d.max() * 1e-3)
+    hi = np.log(d.max() * 1e2)
+    grid = np.linspace(lo, hi, 61)
+    best = grid[int(np.argmin([sse(g) for g in grid]))]
+    step = grid[1] - grid[0]
+    res = minimize_scalar(sse, bounds=(max(lo, best - step), min(hi, best + step)),
+                          method="bounded")
+    lam = float(np.exp(res.x if res.fun <= sse(best) else best))
+    amp, floor = _best_amp_floor(np.exp(-d / lam), y)
+
+    if amp <= 1e-9:
+        return float("nan"), 0.0, floor
+    if lam > 10 * d.max():
+        return nan3
+    if np.exp(-d.min() / lam) < 0.1:
+        return float("nan"), float("nan"), floor
+    return lam, amp, floor
 
 
 # ── Spatiotemporal model ────────────────────────────────────────────────────
@@ -467,8 +554,9 @@ def spatiotemporal_metrics(
         averaged; their node-level ones are averaged per node before the rank
         agreement is taken.
 
-    Returns ``SA_lambda``, ``SA_inf``, ``TA_global``, ``TA_regional`` (one per
-    active node), and with *null_model*: ``ST_<metric>`` for each of
+    Returns ``SA_lambda``, ``SA_inf``, ``SA_lambda_free``, ``SA_amp``,
+    ``SA_inf_free``, ``TA_global``, ``TA_regional`` (one per active node), and
+    with *null_model*: ``ST_<metric>`` for each of
     :data:`MODEL_REC_METRICS` (the model's value) and ``STrho_<metric>`` for
     each of :data:`MODEL_NODE_METRICS` (Spearman ρ between the data's and the
     model's per-node values).
@@ -482,9 +570,13 @@ def spatiotemporal_metrics(
     ta_sub = np.asarray(ta, dtype=float)[idx]
 
     sa_lambda, sa_inf = spatial_autocorrelation(raw_sub, dist_sub, n_bins)
+    lam_free, amp, inf_free = spatial_autocorrelation_nugget(raw_sub, dist_sub, n_bins)
     out: dict = {
         "SA_lambda": sa_lambda,
         "SA_inf": sa_inf,
+        "SA_lambda_free": lam_free,
+        "SA_amp": amp,
+        "SA_inf_free": inf_free,
         "TA_global": float(np.nanmean(ta_sub)) if np.isfinite(ta_sub).any() else float("nan"),
         "TA_regional": ta_sub,
     }
