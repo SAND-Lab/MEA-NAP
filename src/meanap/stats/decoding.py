@@ -860,6 +860,7 @@ FEATURE_FAMILIES: dict[str, str] = {
     # against distance, before any graph exists, and SA-∞ is the floor that
     # correlation settles to — a level, like the mean correlation itself.
     "SA_lambda": "coupling", "SA_inf": "coupling",
+    "SA_lambda_free": "coupling", "SA_amp": "coupling", "SA_inf_free": "coupling",
 
     # ── Topology: what the graph looks like once you have it.
     "CC": "topology", "CC_raw": "topology", "CC_rawMean": "topology",

@@ -2042,6 +2042,9 @@ NETMET_REC_METRICS = {
     "SA_lambda": "spatial autocorrelation length",
     "SA_inf": "spatial autocorrelation floor",
     "TA_global": "mean temporal autocorrelation",
+    "SA_lambda_free": "spatial autocorrelation length (free start)",
+    "SA_amp": "spatial autocorrelation amplitude",
+    "SA_inf_free": "spatial autocorrelation floor (free start)",
 }
 
 #: Node-level network metrics, as ``unitLevelNetMetLabels`` (the last two from
@@ -2102,6 +2105,9 @@ NETMET_REC_DISPLAY_LABELS = {
     "SA_lambda": "Spatial Autocorrelation Length (SA-λ)",
     "SA_inf": "Spatial Autocorrelation Floor (SA-∞)",
     "TA_global": "Mean Temporal Autocorrelation (TA-Δ₁)",
+    "SA_lambda_free": "Spatial Autocorrelation Length, Free Start",
+    "SA_amp": "Spatial Autocorrelation Amplitude",
+    "SA_inf_free": "Spatial Autocorrelation Floor, Free Start",
 }
 
 NETMET_NODE_DISPLAY_LABELS = {
@@ -2162,6 +2168,9 @@ NETMET_BOUNDS: dict[str, tuple[float | None, float | None]] = {
     "SA_lambda": (0, None),
     "SA_inf": (-1, 1),
     "TA_global": (-1, 1),
+    "SA_lambda_free": (0, None),
+    "SA_amp": (0, None),
+    "SA_inf_free": (-1, 1),
     # Node level
     "ND": (0, None),
     "MEW": (0, 1),

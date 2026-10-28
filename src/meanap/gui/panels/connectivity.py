@@ -201,6 +201,10 @@ class ConnectivityPanel(QWidget):
                     "SA_inf (how correlation falls off with distance, fitted "
                     "to the unthresholded matrix), TA_global and TA_regional "
                     "(each node's lag-1 autocorrelation).\n\n"
+                    "Also SA_lambda_free, SA_amp and SA_inf_free: the same "
+                    "fit without forcing coupling to 1 at zero distance, so "
+                    "the length scale is not confused with coupling "
+                    "strength.\n\n"
                     "SA_lambda is in electrode pitches on an MEA and in "
                     "imaging pixels on CAT-NAP. Cheap — one curve fit per "
                     "network.")

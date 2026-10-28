@@ -24,6 +24,9 @@ which tests how much of each graph metric those statistics alone predict.
 | `TA_global` | recording | Mean `TA_regional` over the network's nodes. |
 | `SA_lambda` | recording | **SA-λ**: the length scale over which correlation decays with distance. |
 | `SA_inf` | recording | **SA-∞**: the floor that long-range correlation settles to. |
+| `SA_lambda_free` | recording | SA-λ from the free-start fit (below). Not in the paper. |
+| `SA_amp` | recording | How far above the floor coupling starts, just above zero distance. Not in the paper. |
+| `SA_inf_free` | recording | SA-∞ from the free-start fit. Not in the paper. |
 
 SA-λ and SA-∞ come from fitting
 
@@ -34,6 +37,43 @@ The fit uses the **unthresholded** coupling matrix: raw STTC on an MEA, plain
 correlation or raw STTC on CAT-NAP. Thresholding would zero out the weak
 long-range pairs the floor is fitted to. Like every other metric, it uses only
 the network's active nodes.
+
+### The free-start fit
+
+The paper's curve equals 1 as distance goes to 0. That is not just the
+diagonal (a node with itself, which the fit never uses). It assumes coupling
+between two *distinct* sites approaches 1 as they get closer. In fMRI that
+holds: neighbouring voxels sample one smooth signal. On an MEA or in calcium
+imaging it does not. Two electrodes, however close, record different neurons
+with independent noise, and two units sorted onto the same electrode are at
+distance 0 with STTC nowhere near 1. Coupling between distinct sites starts
+well below 1: a jump at zero distance, which geostatistics calls the *nugget*.
+
+The pinned curve can only reach that lower start by decaying faster, so SA-λ
+comes out short, and it mixes **how strongly** neighbours couple into **how
+far** coupling reaches. On an 8×8 grid, coupling starting 0.3 above a 0.05
+floor gave a pinned SA-λ of 0.71 for a true λ of 2, and 0.85 for a true λ
+of 4: doubling the real length scale barely moved it.
+
+The free-start fit leaves the start as a third parameter:
+
+    corr(d) = SA_amp · exp(−d / SA_lambda_free) + SA_inf_free,   d > 0
+
+with `SA_amp ≥ 0` and `SA_amp + SA_inf_free ≤ 1` (distinct sites never couple
+more than a node with itself). When coupling really does start at 1 the two
+fits agree. `SA_lambda_free` is the column to read as a length scale on
+electrode or calcium data; `SA_amp` is neighbour coupling strength on its own.
+The spatiotemporal model still uses the paper's `SA_lambda`/`SA_inf`.
+
+The free fit is NaN where the profile cannot separate its parameters:
+
+- **No spatial structure** (the best `SA_amp` is 0): `SA_lambda_free` is NaN,
+  `SA_amp` is 0.
+- **Decay over before the nearest pair** (less than 10 % of `SA_amp` left at
+  the closest distance bin): only the product of amplitude and decay is seen,
+  so `SA_lambda_free` and `SA_amp` are NaN. The floor is still reported.
+- **Decay barely begun across the array** (`SA_lambda_free` more than 10× the
+  largest distance): the profile is a straight line, so all three are NaN.
 
 ### Units
 
@@ -99,12 +139,14 @@ they are predictions of other metrics, not measurements of the culture.
 ## Caveats
 
 - **The SA curve is pinned to 1 at zero distance.** That is the paper's
-  definition and is kept as is. Coupling that starts lower is fitted with a
+  definition and `SA_lambda` keeps it; `SA_lambda_free` does not (see
+  [the free-start fit](#the-free-start-fit)). Coupling that starts lower is fitted with a
   shorter SA-λ: neighbouring-electrode STTC rarely approaches 1, and a curve
   that starts at 0.6 instead of 1 came back at 0.46–0.76 of its true λ on an
   MCS60 grid.
-  SA-λ is still comparable between recordings measured the same way, but it is
-  not a physical length you can compare with other papers' values.
+  So a difference in `SA_lambda` between groups can be a difference in how
+  strongly neighbours couple, with no change in spatial extent. Check
+  `SA_lambda_free` and `SA_amp` before reading it as a length.
 - **STTC is not a correlation coefficient.** The model's networks are built
   from Pearson correlations. Density and rank-matched weights keep the
   comparison fair for topology, but `ST_*` values of strength-like quantities
