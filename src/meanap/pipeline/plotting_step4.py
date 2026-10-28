@@ -1174,6 +1174,7 @@ def plot_half_violin_by_x(
     ylim: tuple[float | None, float | None] | None = None,
     age_title_sep: str = " ",
     kde_limits: tuple[float | None, float | None] | None | str = "auto",
+    max_nodes: int | None = None,
 ) -> None:
     """Group-comparison half-violin plot, port of ``plotHalfViolinByX.m``.
 
@@ -1217,6 +1218,8 @@ def plot_half_violin_by_x(
     :func:`_half_violin`. ``"auto"`` looks *metric* up in
     :func:`~meanap.pipeline.metric_limits.metric_limits`; ``None`` cuts nowhere.
     It is deliberately separate from ``ylim``, which may be a display choice.
+    ``max_nodes`` (the array's electrode count, when fixed) caps network size,
+    degree and strength in that lookup.
 
     The file name is the caller's; :func:`comparison_figure_stem` builds the
     MATLAB one.
@@ -1225,7 +1228,7 @@ def plot_half_violin_by_x(
         return
     if isinstance(kde_limits, str):
         from meanap.pipeline.metric_limits import metric_limits
-        kde_limits = metric_limits(metric)
+        kde_limits = metric_limits(metric, max_nodes)
     has_col = metric in df.columns
     data = df.dropna(subset=[metric]) if has_col else df.iloc[0:0]
     is_empty = data.empty
@@ -1987,7 +1990,7 @@ def plot_graph_metrics_by_node(
         if do_plot and data is not None:
             arr = np.asarray(data, dtype=float)
             _half_violin(ax, arr, pos=1.0, colour=grey, width=1.0, rng=rng,
-                         limits=metric_limits(_PANEL_KEYS[ylabel]))
+                         limits=metric_limits(_PANEL_KEYS[ylabel], max_nodes=len(arr)))
 
             ylim = ylim_fn(arr[np.isfinite(arr)])
             if ylim is not None:
@@ -2324,8 +2327,13 @@ def plot_step4_group_comparisons(
     fmt: str = "png",
     colors=None,
     timescale: str = "lag",
+    n_electrodes: int | None = None,
 ) -> None:
     """Generate group comparison plots for step 4.
+
+    ``n_electrodes`` is the array's electrode count when it is fixed
+    (:func:`~meanap.pipeline.channel_layout.fixed_electrode_count`); it caps
+    the violins of network size, degree and strength.
 
     ``colors`` is a :class:`~meanap.pipeline.palette.ColorScheme` for the age
     and group palettes; omitting it keeps the historical ones.
@@ -2355,7 +2363,8 @@ def plot_step4_group_comparisons(
             plot_half_violin_by_x(df_rec_lag, k, name, "group",
                                   lag_grp_dir / f"{comparison_figure_stem(n, name, 'byGroup')}.{fmt}",
                                   group_order=custom_grp_order, colors=colors,
-                                  ylim=netmet_bounds(k, n_nodes))
+                                  ylim=netmet_bounds(k, n_nodes),
+                                  max_nodes=n_electrodes)
 
         lag_node_grp_dir = node_grp_dir / comparison_timescale_folder(lag, timescale)
         lag_node_grp_dir.mkdir(parents=True, exist_ok=True)
@@ -2365,7 +2374,8 @@ def plot_step4_group_comparisons(
             plot_half_violin_by_x(df_node_lag, k, name, "group",
                                   lag_node_grp_dir / f"{comparison_figure_stem(n, name, 'byGroup')}.{fmt}",
                                   group_order=custom_grp_order, colors=colors,
-                                  ylim=netmet_bounds(k, n_nodes))
+                                  ylim=netmet_bounds(k, n_nodes),
+                                  max_nodes=n_electrodes)
 
     # 4_RecordingsByAge and 2_NodeByAge
     age_dir = out_dir / "4B_GroupComparisons" / "4_RecordingsByAge" / "HalfViolinPlots"
@@ -2382,7 +2392,8 @@ def plot_step4_group_comparisons(
             plot_half_violin_by_x(df_rec_lag, k, name, "DIV",
                                   lag_age_dir / f"{stem}.{fmt}",
                                   group_order=custom_grp_order, colors=colors,
-                                  ylim=netmet_bounds(k, n_nodes))
+                                  ylim=netmet_bounds(k, n_nodes),
+                                  max_nodes=n_electrodes)
 
         lag_node_age_dir = node_age_dir / comparison_timescale_folder(lag, timescale)
         lag_node_age_dir.mkdir(parents=True, exist_ok=True)
@@ -2393,7 +2404,8 @@ def plot_step4_group_comparisons(
             plot_half_violin_by_x(df_node_lag, k, name, "DIV",
                                   lag_node_age_dir / f"{comparison_figure_stem(n, name, 'byAge')}.{fmt}",
                                   group_order=custom_grp_order, colors=colors,
-                                  ylim=netmet_bounds(k, n_nodes))
+                                  ylim=netmet_bounds(k, n_nodes),
+                                  max_nodes=n_electrodes)
 
     # 5_GraphMetricsByLag — network metric vs. timescale, one figure per metric
     gmbl_dir = out_dir / "4B_GroupComparisons" / "5_GraphMetricsByLag"

@@ -1221,6 +1221,7 @@ def _run_step4_network_metrics(
 
     if not params.express_mode:
         log("  Generating group comparison plots...")
+        from meanap.pipeline.channel_layout import fixed_electrode_count
         from meanap.pipeline.plotting_step4 import plot_step4_group_comparisons
         try:
             plot_step4_group_comparisons(
@@ -1229,6 +1230,7 @@ def _run_step4_network_metrics(
                 out_dir,
                 params.custom_grp_order,
                 timescale=timescale_kind(params),
+                n_electrodes=fixed_electrode_count(params),
             )
         except Exception as e:
             log(f"  Warning: failed to generate group comparison plots: {e}")

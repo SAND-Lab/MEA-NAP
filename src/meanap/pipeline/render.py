@@ -42,6 +42,7 @@ from meanap.params import Params, active_spike_method
 from meanap.timescale import timescale_kind
 from meanap.catnap.rasters import RASTER_FIGURES
 from meanap.pipeline.bundle import RunBundle, is_os_metadata
+from meanap.pipeline.channel_layout import fixed_electrode_count
 from meanap.pipeline.palette import ColorScheme
 from meanap.pipeline.resume import ADJM_SUFFIX, CATNAP_SUFFIX
 from meanap.pipeline.spreadsheet import RecordingInfo
@@ -657,7 +658,8 @@ def render_group_family(
         if fam.key == "network":
             plot_step4_group_comparisons(recordings, ctx.results, out_dir, order,
                                          fmt=fmt, colors=scheme,
-                                         timescale=timescale_kind(params))
+                                         timescale=timescale_kind(params),
+                                         n_electrodes=fixed_electrode_count(params))
         elif fam.key == "activity":
             gp.plot_twop_group_comparisons(
                 recordings, _all_stats(ctx), out_dir, custom_grp_order=order,
@@ -681,7 +683,8 @@ def render_group_family(
         elif fam.key == "ephys_activity":
             from meanap.pipeline.plotting_step2 import plot_step2_group_comparisons
             plot_step2_group_comparisons(
-                recordings, _ephys_stats(ctx), out_dir, order, fmt=fmt, colors=scheme)
+                recordings, _ephys_stats(ctx), out_dir, order, fmt=fmt, colors=scheme,
+                n_electrodes=fixed_electrode_count(params))
         elif fam.key == "cell_type_comparisons":
             from meanap.catnap.celltype_comparisons import (
                 comparison_group_spec, plot_cell_type_comparisons,
@@ -1072,10 +1075,17 @@ def render_comparison_figure(
     dest = dest_dir / f"{_comparison_stem(family, level, split, metric, metrics)}.{fmt}"
     dest_dir.mkdir(parents=True, exist_ok=True)
 
+    from meanap.catnap.group_plots import twop_kde_limits
+
     with figure_dpi(dpi):
         plot_half_violin_by_x(df, metric, metrics[metric], x_kind, dest,
                               group_order=order, colors=ColorScheme.from_params(params),
                               ylim=ylim,
+                              max_nodes=fixed_electrode_count(params),
+                              # CAT-NAP's rate family is only bounded under
+                              # some measures, as its own plotter knows.
+                              kde_limits=(twop_kde_limits(metric, params.twop_activity)
+                                          if family == "activity" else "auto"),
                               # PlotEphysStats.m titles its by-age panels "Age14".
                               age_title_sep="" if family == "ephys_activity" else " ")
 

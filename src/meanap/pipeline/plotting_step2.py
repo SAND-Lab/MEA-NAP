@@ -9,6 +9,7 @@ from matplotlib.colors import LinearSegmentedColormap
 import seaborn as sns
 
 from meanap.pipeline.channel_layout import get_coords_from_layout
+from meanap.pipeline.spreadsheet import parse_ground_electrodes
 from meanap.pipeline.parula import cm_data as parula_data
 from meanap.pipeline.plotting_step4 import comparison_figure_stem, plot_half_violin_by_x
 # Create 85% parula colormap
@@ -29,39 +30,41 @@ def _div_text(div) -> str:
 
 
 def plot_firing_rate_distribution(ephys: dict, out_path: Path, seed: int | None = None,
-                                  rec_name: str = "", div=None):
-    """Violin + jittered strip of per-electrode firing rate.
+                                  rec_name: str = "", div=None, kde_height: float = 0.3):
+    """Half-violin of per-electrode firing rate, port of ``firingRateElectrodeDistribution.m``.
 
-    Labelled as ``firingRateElectrodeDistribution.m``: the recording's ``FNt``
-    as title and ``age<DIV>`` under the axis.
+    Drawn as MATLAB draws it, with ``HalfViolinPlot`` (:func:`_half_violin`):
+    grey KDE to the right, jittered electrodes to the left, black mean dot and
+    SEM bar; x from 0.5 to 1.5 without ticks, ``age<DIV>`` under it, the
+    recording's ``FNt`` as the title, and y from 0 to 15 % above the fastest
+    electrode (at least 0.1 Hz). ``kde_height`` is ``Params.kdeHeight``.
 
-    ``seed`` fixes the strip plot's jitter. seaborn draws it from numpy's
-    *legacy global* random state and offers no seed argument, so the state is
-    set and restored around the call rather than threaded through. Without
-    this the figure differs between two otherwise-identical seeded runs — and
-    between the pipeline's copy and one redrawn from a bundle.
+    ``seed`` fixes the jitter, so two identically-seeded runs — or the
+    pipeline's copy and one redrawn from a bundle — give the same figure.
     """
-    fr = ephys.get("FR", [])
+    from meanap.pipeline.metric_limits import metric_limits
+    from meanap.pipeline.plotting_step4 import _half_violin
+
+    fr = np.asarray(ephys.get("FR", []), dtype=float)
     if len(fr) == 0:
         return
 
-    state = np.random.get_state() if seed is not None else None
-    if seed is not None:
-        np.random.seed(seed)
-    try:
-        fig, ax = plt.subplots(figsize=(4, 6))
-        sns.violinplot(y=fr, ax=ax, inner=None, color="lightgray")
-        sns.stripplot(y=fr, ax=ax, color="black", size=4, jitter=True)
-    finally:
-        if state is not None:
-            np.random.set_state(state)
-    
-    ax.set_ylabel("mean firing rate per electrode (Hz)")
-    ax.set_title(_fnt(rec_name))
+    fig, ax = plt.subplots(figsize=(5.0, 6.0))   # MATLAB: [50 50 500 600] px
+    _half_violin(ax, fr, pos=1.0, colour=(0.5, 0.5, 0.5), width=kde_height,
+                 rng=np.random.default_rng(seed), limits=metric_limits("FR"))
+    ax.set_xlim(0.5, 1.5)
+    ax.set_xticks([])
     if div is not None:
         ax.set_xlabel(f"age{_div_text(div)}")
-    
-    ax.set_ylim(bottom=0)
+    ax.set_ylabel("mean firing rate per electrode (Hz)")
+    ax.set_title(_fnt(rec_name), fontsize=8)   # TitleFontSizeMultiplier 0.7
+    # MATLAB's ``aesthetics``: no box, ticks out.
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.tick_params(direction="out")
+    finite = fr[np.isfinite(fr)]
+    top = max(float(finite.max()) if finite.size else 0.0, 0.1)
+    ax.set_ylim(0, top * 1.15)
     plt.tight_layout()
     savefig(fig, out_path, default_dpi=300)
     plt.close(fig)
@@ -96,13 +99,14 @@ def _draw_heatmap_panel(ax, xs, ys, metric, valid_mask, vmin, vmax, cmap, clabel
     if not np.all(valid_mask):
         ax.scatter(xs[~valid_mask], ys[~valid_mask], color="lightgray", s=s,
                    marker="o", edgecolors="white", linewidths=lw)
+    # No electrode with a value (no bursts detected, say) leaves nothing for a
+    # colour bar to describe: it would only show the placeholder range, or the
+    # batch's maximum on the dataset-scaled panel.
     if np.any(valid_mask):
         sc = ax.scatter(xs[valid_mask], ys[valid_mask], c=metric[valid_mask], cmap=cmap,
                         vmin=vmin, vmax=vmax, s=s, marker="o", edgecolors="white", linewidths=lw)
-    else:
-        sc = ax.scatter([], [], c=[], cmap=cmap, vmin=vmin, vmax=vmax, s=s)
-    cbar = plt.colorbar(sc, ax=ax)
-    cbar.set_label(clabel)
+        cbar = plt.colorbar(sc, ax=ax)
+        cbar.set_label(clabel)
     ax.set_title(panel_title)
     ax.axis("off")
     ax.set_aspect("equal", "box")
@@ -126,8 +130,15 @@ def plot_heatmap(
     batch_max: float | None = None,
     aggregate: str = "mean",
     layout: tuple[np.ndarray, np.ndarray] | None = None,
+    grounded: set[int] | None = None,
 ):
     """Electrode heatmap, port of ``electrodeHeatMaps.m`` / ``plotNodeHeatmap.m``.
+
+    ``grounded`` is the recording's grounded electrode IDs. They are drawn
+    grey, as ``electrodeHeatMaps.m`` draws them, and kept out of the colour
+    range: grounding empties their spike trains, so left in they would read as
+    silent electrodes and set the bottom of the scale. (MATLAB's burst heatmaps,
+    ``plotNodeHeatmap.m``, are never passed the list; here every heatmap is.)
 
     ``layout`` is the recording's own ``(channels, coords)`` when the array
     has no fixed layout (see :func:`~meanap.pipeline.channel_layout.recording_layout`);
@@ -168,6 +179,8 @@ def plot_heatmap(
         return
     coords = np.array([coord_by_channel[int(c)] for c in chs[keep]])
     metric = metric[keep]
+    if grounded:
+        metric = np.where(np.isin(chs[keep].astype(int), list(grounded)), np.nan, metric)
     xs = coords[:, 0]
     ys = coords[:, 1]
     valid_mask = ~np.isnan(metric)
@@ -419,7 +432,8 @@ def plot_neuronal_activity_checks(
         plot_firing_rate_distribution(
             ephys, p,
             seed=derive_seed_int(params.random_seed, "step2-plots", rec.filename),
-            rec_name=rec.filename, div=rec.div)
+            rec_name=rec.filename, div=rec.div,
+            kde_height=getattr(params, "kde_height", 0.3))
 
     for name, key, cbar, cmap in ACTIVITY_HEATMAPS:
         if key not in ephys:
@@ -427,7 +441,8 @@ def plot_neuronal_activity_checks(
         if (p := want(name)) is not None:
             plot_heatmap(ephys[key], chs, _fnt(rec.filename), cbar, p, cmap=cmap,
                          channel_layout=channel_layout, batch_max=bmax.get(key), layout=layout,
-                         aggregate=_POOL_BY_SUM.get(key, "mean"))
+                         aggregate=_POOL_BY_SUM.get(key, "mean"),
+                         grounded=parse_ground_electrodes(rec.ground))
 
     if (p := want("3_Raster.png")) is not None:
         plot_raster(
@@ -608,11 +623,13 @@ def plot_step2_group_comparisons(
     custom_grp_order: list[str] | None = None,
     fmt: str = "png",
     colors=None,
+    n_electrodes: int | None = None,
 ) -> None:
     """Generate group comparison plots for step 2.
 
     ``colors`` is a :class:`~meanap.pipeline.palette.ColorScheme` for the age
-    and group palettes; omitting it keeps the historical ones.
+    and group palettes; omitting it keeps the historical ones. ``n_electrodes``
+    (the array's electrode count, when fixed) caps the active-electrode violins.
     """
     df_rec, df_node = ephys_comparison_frames(recordings, all_ephys, custom_grp_order)
     if df_rec.empty:
@@ -631,7 +648,7 @@ def plot_step2_group_comparisons(
                               grp_dir / f"{comparison_figure_stem(n, name, 'byGroup')}.{fmt}",
                               group_order=custom_grp_order,
                               colors=colors,
-                              ylim=ephys_bounds(k))
+                              ylim=ephys_bounds(k), max_nodes=n_electrodes)
 
     # 1_NodeByGroup
     node_grp_dir = out_dir / "2B_GroupComparisons" / "1_NodeByGroup"
@@ -641,7 +658,7 @@ def plot_step2_group_comparisons(
         plot_half_violin_by_x(df_node, k, name, "group",
                               node_grp_dir / f"{comparison_figure_stem(n, name, 'byGroup')}.{fmt}",
                               group_order=custom_grp_order, colors=colors,
-                              ylim=ephys_bounds(k))
+                              ylim=ephys_bounds(k), max_nodes=n_electrodes)
 
     # 4_RecordingsByAge
     age_dir = out_dir / "2B_GroupComparisons" / "4_RecordingsByAge" / "HalfViolinPlots"
@@ -652,7 +669,7 @@ def plot_step2_group_comparisons(
                               age_dir / f"{comparison_figure_stem(n, name, 'byAge')}.{fmt}",
                               group_order=custom_grp_order,
                               colors=colors,
-                              ylim=ephys_bounds(k), age_title_sep="")
+                              ylim=ephys_bounds(k), max_nodes=n_electrodes, age_title_sep="")
 
     # 2_NodeByAge
     node_age_dir = out_dir / "2B_GroupComparisons" / "2_NodeByAge"
@@ -662,4 +679,4 @@ def plot_step2_group_comparisons(
         plot_half_violin_by_x(df_node, k, name, "DIV",
                               node_age_dir / f"{comparison_figure_stem(n, name)}.{fmt}",
                               group_order=custom_grp_order, colors=colors,
-                              ylim=ephys_bounds(k), age_title_sep="")
+                              ylim=ephys_bounds(k), max_nodes=n_electrodes, age_title_sep="")
