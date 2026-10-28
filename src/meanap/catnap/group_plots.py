@@ -74,6 +74,21 @@ _ACTIVITY_NOUNS = {
 #: The metric keys whose label names the measure.
 _RATE_KEYS = ("FRmean", "FRmedian", "FRiqr", "FR", "FRactive")
 
+#: Measures whose traces are non-negative, so their ``FR`` family is too.
+_NONNEG_MEASURES = ("peaks", "spks")
+
+
+def twop_kde_limits(key: str, activity: str | None):
+    """``kde_limits`` for :func:`plot_half_violin_by_x` on a CAT-NAP metric.
+
+    The ``FR`` family is a summed trace per second; it is only bounded below by
+    0 when the trace is (peaks, spks). Under a fluorescence measure — or an
+    unknown one — its violin is left uncut rather than cut at a false limit.
+    """
+    if key in _RATE_KEYS and activity not in _NONNEG_MEASURES:
+        return None
+    return "auto"
+
 
 def twop_metric_labels(activity: str = "peaks") -> tuple[dict[str, str], dict[str, str]]:
     """``(recording-level, node-level)`` axis labels for *activity*.
@@ -245,6 +260,7 @@ def plot_twop_group_comparisons(
                 df, key, label, x_kind,
                 directory / _named(pattern, fmt).format(key=key),
                 group_order=custom_grp_order, colors=colors,
+                kde_limits=twop_kde_limits(key, activity),
             )
 
     return df_rec, df_node
@@ -427,6 +443,7 @@ def plot_activity_by_cell_type(
                 directory / _named(pattern, fmt).format(key=key),
                 group_order=custom_grp_order,
                 series_col="CellType", series_order=order,
+                kde_limits=twop_kde_limits(key, activity),
             )
 
 

@@ -1034,6 +1034,7 @@ def _half_violin(
     rng: np.random.Generator | None = None,
     gap: float = 0.1,
     mean_colour: tuple | str = "black",
+    limits: tuple[float | None, float | None] | None = None,
 ) -> None:
     """Draw a half-violin plot on *ax*, mirroring ``HalfViolinPlot.m``.
 
@@ -1052,6 +1053,14 @@ def _half_violin(
     the parameter. ``mean_colour`` defaults to black, as MATLAB draws it; pass a
     colour when the violins at one position are distinguished *by* colour, so
     the mean marker doesn't read as belonging to a different series.
+
+    The density is evaluated over the data range widened by three bandwidths
+    each side — MATLAB ``ksdensity``'s default grid — so it tails off rather
+    than stopping dead at the most extreme value. ``limits`` is the metric's
+    theoretical ``(lo, hi)`` (:func:`~meanap.pipeline.metric_limits.metric_limits`;
+    ``None`` on a side for unbounded): the tails are cut there, so a correlation
+    violin never runs past 1. MATLAB has no such cut. A limit the data itself
+    crosses is not a limit, and is ignored rather than allowed to hide data.
     """
     from scipy.stats import gaussian_kde
 
@@ -1070,7 +1079,14 @@ def _half_violin(
         # Enforce minimum bandwidth (same guard as MATLAB line 47-48)
         if kde.factor * np.std(data) < min_bw:
             kde = gaussian_kde(data, bw_method=min_bw / np.std(data))
-        xi = np.linspace(data.min(), data.max(), 256)
+        bw = float(np.sqrt(kde.covariance[0, 0]))
+        lo, hi = data.min() - 3 * bw, data.max() + 3 * bw
+        if limits is not None:
+            if limits[0] is not None:
+                lo = max(lo, min(limits[0], data.min()))
+            if limits[1] is not None:
+                hi = min(hi, max(limits[1], data.max()))
+        xi = np.linspace(lo, hi, 256)
         f = kde(xi)
     else:
         # Single unique value or zero variance — tiny spike
@@ -1157,6 +1173,7 @@ def plot_half_violin_by_x(
     colors=None,
     ylim: tuple[float | None, float | None] | None = None,
     age_title_sep: str = " ",
+    kde_limits: tuple[float | None, float | None] | None | str = "auto",
 ) -> None:
     """Group-comparison half-violin plot, port of ``plotHalfViolinByX.m``.
 
@@ -1196,11 +1213,19 @@ def plot_half_violin_by_x(
     titles. ``plotHalfViolinByX.m`` (step 4B) writes "Age 14";
     ``PlotEphysStats.m`` (step 2B) writes "Age14", so step 2 passes ``""``.
 
+    ``kde_limits`` is where the violins' density tails are cut — see
+    :func:`_half_violin`. ``"auto"`` looks *metric* up in
+    :func:`~meanap.pipeline.metric_limits.metric_limits`; ``None`` cuts nowhere.
+    It is deliberately separate from ``ylim``, which may be a display choice.
+
     The file name is the caller's; :func:`comparison_figure_stem` builds the
     MATLAB one.
     """
     if df.empty:
         return
+    if isinstance(kde_limits, str):
+        from meanap.pipeline.metric_limits import metric_limits
+        kde_limits = metric_limits(metric)
     has_col = metric in df.columns
     data = df.dropna(subset=[metric]) if has_col else df.iloc[0:0]
     is_empty = data.empty
@@ -1295,14 +1320,15 @@ def plot_half_violin_by_x(
                         _half_violin(ax, vals, pos=float(xt[wi]) + offsets[se],
                                      colour=series_colors[se], width=kde_height,
                                      rng=rng, gap=series_gap,
-                                     mean_colour=series_mean_colors[se])
+                                     mean_colour=series_mean_colors[se],
+                                     limits=kde_limits)
                     continue
                 vals = wdf[metric].to_numpy(float)
                 vals = vals[np.isfinite(vals)]
                 if len(vals) == 0:
                     continue
                 _half_violin(ax, vals, pos=float(xt[wi]), colour=within_colors[wi],
-                             width=kde_height, rng=rng)
+                             width=kde_height, rng=rng, limits=kde_limits)
         ax.set_xticks(xt)
         ax.set_xticklabels([_tick_label(w) for w in within_items])
         ax.set_xlabel(xlabel)
@@ -1941,6 +1967,12 @@ def plot_graph_metrics_by_node(
     # ── Rows 1–3: half-violin plots ───────────────────────────────────────────
     grey = (0.3, 0.3, 0.3)
 
+    from meanap.pipeline.metric_limits import metric_limits
+    _PANEL_KEYS = {"node degree": "ND", "mean edge weight": "MEW",
+                   "node strength": "NS", "within-module degree z-score": "Z",
+                   "local efficiency": "Eloc", "participation coefficient": "PC",
+                   "betweenness centrality": "BC"}
+
     for col, (data, ylabel, ylim_fn, do_plot) in enumerate(metrics):
         ax = fig.add_subplot(gs[1:4, col])
         ax.tick_params(direction="out")
@@ -1954,7 +1986,8 @@ def plot_graph_metrics_by_node(
 
         if do_plot and data is not None:
             arr = np.asarray(data, dtype=float)
-            _half_violin(ax, arr, pos=1.0, colour=grey, width=1.0, rng=rng)
+            _half_violin(ax, arr, pos=1.0, colour=grey, width=1.0, rng=rng,
+                         limits=metric_limits(_PANEL_KEYS[ylabel]))
 
             ylim = ylim_fn(arr[np.isfinite(arr)])
             if ylim is not None:
