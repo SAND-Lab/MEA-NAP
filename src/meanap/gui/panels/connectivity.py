@@ -195,7 +195,7 @@ class ConnectivityPanel(QWidget):
         form5 = QFormLayout(st_box)
 
         self.compute_spatiotemporal = QCheckBox()
-        self.compute_spatiotemporal.setChecked(True)
+        self.compute_spatiotemporal.setChecked(False)
         set_tooltip(self.compute_spatiotemporal,
                     "Shinn et al. (2023), Nature Neuroscience: SA_lambda and "
                     "SA_inf (how correlation falls off with distance, fitted "
@@ -207,7 +207,11 @@ class ConnectivityPanel(QWidget):
                     "strength.\n\n"
                     "SA_lambda is in electrode pitches on an MEA and in "
                     "imaging pixels on CAT-NAP. Cheap — one curve fit per "
-                    "network.")
+                    "network.\n\n"
+                    "Off by default: on spike and event data TA mostly "
+                    "measures firing rate. Check the per-network "
+                    "13_SpatialTemporalAutocorrelation figure before "
+                    "reading anything into these metrics.")
 
         self.ta_bin_ms = QDoubleSpinBox()
         self.ta_bin_ms.setRange(1.0, 10000.0)

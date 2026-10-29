@@ -1472,6 +1472,18 @@ def _plot_recording(params, rec, state, rec_results, batch_bounds, output_root, 
     if params.express_mode:
         return
 
+    st_diag = None
+    st_fields = _spatiotemporal_task_fields(params, state)
+    if st_fields and state.duration_s:
+        from meanap.catnap.group_plots import twop_metric_labels
+        st_diag = {
+            "raw": st_fields["adjMs_raw"],
+            "dist": pairwise_distances(st_fields["pixel_coords"]),
+            "rate": np.asarray(state.spike_counts, dtype=float) / state.duration_s,
+            "dist_unit": "pixels",
+            "rate_label": twop_metric_labels(params.twop_activity)[1]["FR"],
+        }
+
     for lag_key, metrics in rec_results.items():
         if "adjMsub" not in metrics:
             continue
@@ -1484,6 +1496,7 @@ def _plot_recording(params, rec, state, rec_results, batch_bounds, output_root, 
                 coords_all=state.coords, cell_types=state.markers,
                 background=background,
                 node_size_scale="auto" if params.twop_auto_node_size else 1.0,
+                st_diag=st_diag,
             )
         except Exception as e:
             log(f"  [{rec.filename}] warning: network plots (lag={lag_ms}) failed: {e}")

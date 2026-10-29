@@ -246,9 +246,12 @@ def spatial_autocorrelation_nugget(
     * no spatial structure (best amp is 0) → λ NaN, amp 0;
     * decay complete before the nearest bin (``exp(−d_min/λ) < 0.1``): only
       the product of amp and the decay is seen, not each → λ and amp NaN;
-    * decay barely begun across the array (λ > 10 × the largest distance):
-      the curve is a straight line, and neither λ nor the floor it would
-      settle to is identifiable → all NaN.
+    * decay barely begun across the array (λ > 10 × the largest distance),
+      or the floor pushed to its −1 bound: the profile is still falling at
+      the largest distance, so the floor it would settle to lies beyond the
+      data and λ with it → all NaN. On calcium recordings whose coupling
+      falls roughly linearly across the field of view, λ came out at 5–9 ×
+      the largest distance, under the first test, with the floor at −1.
     """
     nan3 = (float("nan"),) * 3
     d, y = _binned_correlation_profile(corr, dist, n_bins)
@@ -272,7 +275,7 @@ def spatial_autocorrelation_nugget(
 
     if amp <= 1e-9:
         return float("nan"), 0.0, floor
-    if lam > 10 * d.max():
+    if lam > 10 * d.max() or floor <= -1.0 + 1e-9:
         return nan3
     if np.exp(-d.min() / lam) < 0.1:
         return float("nan"), float("nan"), floor

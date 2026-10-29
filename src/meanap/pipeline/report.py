@@ -367,6 +367,18 @@ _PLOT_PATTERNS: list[tuple[re.Pattern, str, str]] = [
         "side rather than overlaid because a few hundred nodes and a dense "
         "edge set cover the image completely.",
     ),
+    (
+        re.compile(r"^13_SpatialTemporalAutocorrelation\.png$"),
+        "Spatial and Temporal Autocorrelation",
+        "Checks the SA/TA metrics against the data they summarise. Left: mean "
+        "unthresholded coupling per distance bin, with the paper's pinned "
+        "curve (SA_lambda, SA_inf) and the free-start one drawn over it — if "
+        "the pinned curve has decayed before the nearest pair, SA_lambda is "
+        "not a length scale for this network. Then TA_regional at each node, "
+        "and TA against degree and against rate. On event or spike counts TA "
+        "largely follows rate, so read the degree panel through its "
+        "'given rate' ρ: only that part is TA saying something rate does not.",
+    ),
     # ── Remaining shared step-4A figures ───────────────────────────────────
     (
         re.compile(r"^10_.*Averagecontrollability\.png$"),

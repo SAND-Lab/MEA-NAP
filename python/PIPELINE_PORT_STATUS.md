@@ -2086,7 +2086,8 @@ of this list did._
    the paper rather than MATLAB.** `SA_lambda`/`SA_inf`/`TA_regional`/
    `TA_global` and the Shinn et al. (2023) spatiotemporal null model are in
    `src/meanap/pipeline/spatiotemporal.py`, wired into step 4 and CAT-NAP
-   (`Params.compute_spatiotemporal`, on; `spatiotemporal_null_model`, off).
+   (`Params.compute_spatiotemporal`, off since 1.18.0 — on spike/event data TA
+   mostly tracks rate; `spatiotemporal_null_model`, off).
    MATLAB still has nothing to compare against: `ExtractNetMet.m` calls
    `spatial_autocorrelation`/`temporal_autocorrelation`, which are not in the
    repo, and its TA path is a `% TODO` stub. Tests: `python/test_spatiotemporal.py`.

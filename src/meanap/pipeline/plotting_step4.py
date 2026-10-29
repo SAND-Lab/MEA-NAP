@@ -2491,6 +2491,144 @@ def plot_spatiotemporal_model(all_results: dict, lag_key: str, out_path: Path) -
     return True
 
 
+def _partial_spearman(x: np.ndarray, y: np.ndarray, z: np.ndarray) -> float:
+    """Spearman ρ between *x* and *y* with *z* partialled out (rank residuals)."""
+    from scipy.stats import rankdata
+
+    rx, ry, rz = (rankdata(v) for v in (x, y, z))
+    design = np.column_stack([np.ones_like(rz), rz])
+    ex = rx - design @ np.linalg.lstsq(design, rx, rcond=None)[0]
+    ey = ry - design @ np.linalg.lstsq(design, ry, rcond=None)[0]
+    den = np.sqrt(np.dot(ex, ex) * np.dot(ey, ey))
+    return float(np.dot(ex, ey) / den) if den > 0 else float("nan")
+
+
+def plot_spatiotemporal_diagnostic(
+    raw_sub: np.ndarray,
+    dist_sub: np.ndarray,
+    coords: np.ndarray | None,
+    metrics: dict,
+    rate: np.ndarray,
+    out_path: Path,
+    *,
+    title: str = "",
+    dist_unit: str = "electrode pitches",
+    rate_label: str = "Firing rate (Hz)",
+    n_bins: int = 20,
+) -> bool:
+    """One network's SA/TA statistics against the data they summarise.
+
+    Four panels, all over the network's active nodes:
+
+    1. mean unthresholded coupling per distance bin, with the paper's pinned
+       curve (``SA_lambda``/``SA_inf``) and the free-start one
+       (``SA_lambda_free``/``SA_amp``/``SA_inf_free``) drawn over it;
+    2. ``TA_regional`` at each node's position;
+    3. TA against degree — the paper's "TA predicts the hubs" — with Spearman ρ,
+       and ρ again with rate partialled out;
+    4. TA against rate. On binned event counts TA is close to a function of
+       rate alone (sparse events in short bins give ≈ −p/(1−p), p = rate × bin),
+       so panel 3 means little unless its partial ρ survives.
+
+    *raw_sub*, *dist_sub*, *coords* and *rate* are already restricted to the
+    active nodes, in ``metrics["TA_regional"]`` order. Returns ``False``,
+    drawing nothing, when the network has no SA/TA metrics.
+    """
+    from scipy.stats import spearmanr
+
+    from meanap.pipeline.spatiotemporal import _binned_correlation_profile
+
+    ta = np.asarray(metrics.get("TA_regional", []), dtype=float)
+    if "SA_lambda" not in metrics or ta.size == 0:
+        return False
+    deg = np.asarray(metrics.get("ND", np.full(ta.size, np.nan)), dtype=float)
+    rate = np.asarray(rate, dtype=float)
+
+    ink, muted, mark = "#222222", "#8a8a8a", "#3b6ea8"
+    pinned_c, free_c = "#3b6ea8", "#c0504d"
+    fig, axes = plt.subplots(1, 4, figsize=(17, 4.2))
+
+    # 1. Coupling against distance.
+    ax = axes[0]
+    d, y = _binned_correlation_profile(np.asarray(raw_sub, float), np.asarray(dist_sub, float), n_bins)
+    ax.plot(d, y, "o", color=ink, ms=4, label="Mean coupling per distance bin")
+    lam, inf = metrics.get("SA_lambda", np.nan), metrics.get("SA_inf", np.nan)
+    lam_f, amp, inf_f = (metrics.get(k, np.nan) for k in ("SA_lambda_free", "SA_amp", "SA_inf_free"))
+    note = ""
+    if d.size:
+        x = np.linspace(0, d.max(), 300)
+        if np.isfinite(lam) and np.isfinite(inf):
+            ax.plot(x, (1 - inf) * np.exp(-x / lam) + inf, color=pinned_c, lw=1.5,
+                    label=f"Pinned: SA-λ {lam:.3g}, SA-∞ {inf:.2f}")
+            if np.exp(-d.min() / lam) < 0.1:
+                note = ("Pinned curve has decayed before the nearest pair:\n"
+                        "SA-λ is not a length scale here.")
+        if np.isfinite(lam_f) and np.isfinite(amp) and np.isfinite(inf_f):
+            xf = x[x > 0]
+            ax.plot(xf, amp * np.exp(-xf / lam_f) + inf_f, color=free_c, lw=1.5,
+                    label=f"Free start: λ {lam_f:.3g}, amp {amp:.2f}, ∞ {inf_f:.2f}")
+        elif np.isfinite(inf_f):
+            ax.axhline(inf_f, color=free_c, lw=1, ls="--",
+                       label=f"Free start: no λ (level {inf_f:.2f})")
+        else:
+            ax.plot([], [], color=free_c, lw=1.5,
+                    label="Free start: not identifiable (still falling at the edge)")
+        lo = min(0.0, float(np.nanmin(y)))
+        ax.set_ylim(lo - 0.02, 1.02)
+    if note:
+        ax.text(0.98, 0.5, note, transform=ax.transAxes, ha="right", va="center",
+                fontsize=7, color=pinned_c)
+    ax.set_xlabel(f"Distance ({dist_unit})", fontsize=8, color=ink)
+    ax.set_ylabel("Unthresholded coupling", fontsize=8, color=ink)
+    ax.set_title("Spatial autocorrelation", fontsize=9, color=ink)
+    ax.legend(fontsize=6.5, frameon=False, loc="upper right")
+
+    # 2. TA map.
+    ax = axes[1]
+    if coords is not None and len(coords) == ta.size:
+        c = np.asarray(coords, dtype=float)
+        sc = ax.scatter(c[:, 0], c[:, 1], c=ta, s=28, cmap="viridis", edgecolor="none")
+        fig.colorbar(sc, ax=ax, fraction=0.046, pad=0.04).set_label("TA-Δ₁", fontsize=8)
+        ax.set_aspect("equal", adjustable="box")
+        ax.set_xticks([])
+        ax.set_yticks([])
+    else:
+        ax.set_axis_off()
+    ax.set_title(f"Temporal autocorrelation (mean {np.nanmean(ta):.2f})", fontsize=9, color=ink)
+
+    # 3–4. TA against degree and rate.
+    def stats(xv: np.ndarray, partial: np.ndarray | None) -> str:
+        ok = np.isfinite(xv) & np.isfinite(ta)
+        if partial is not None:
+            ok &= np.isfinite(partial)
+        if ok.sum() < 5 or np.ptp(xv[ok]) == 0 or np.ptp(ta[ok]) == 0:
+            return "too few varying nodes for ρ"
+        txt = f"Spearman ρ = {spearmanr(xv[ok], ta[ok])[0]:.2f}"
+        if partial is not None and np.ptp(partial[ok]) > 0:
+            txt += f";  given rate: {_partial_spearman(ta[ok], xv[ok], partial[ok]):.2f}"
+        return txt
+
+    for ax, xv, xlabel, partial in ((axes[2], deg, "Node degree", rate),
+                                    (axes[3], rate, rate_label, None)):
+        ok = np.isfinite(xv) & np.isfinite(ta)
+        ax.scatter(xv[ok], ta[ok], s=14, color=mark, edgecolor="white", linewidth=0.5)
+        ax.set_xlabel(xlabel, fontsize=8, color=ink)
+        ax.set_ylabel("TA-Δ₁", fontsize=8, color=ink)
+        ax.set_title(stats(xv, partial), fontsize=9, color=ink)
+
+    for ax in axes:
+        ax.tick_params(labelsize=7, colors=ink)
+        for side in ("top", "right"):
+            ax.spines[side].set_visible(False)
+    if title:
+        fig.suptitle(title, fontsize=10, color=ink)
+    fig.tight_layout()
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    savefig(fig, out_path, default_dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    return True
+
+
 #: Where the spatiotemporal-model comparison lands, under ``4_NetworkActivity``.
 ST_MODEL_DIR = Path("4B_GroupComparisons") / "10_SpatiotemporalModel"
 ST_MODEL_CSV = "SpatiotemporalModel_Concordance.csv"

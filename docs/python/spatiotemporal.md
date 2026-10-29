@@ -12,9 +12,15 @@ properties, with no difference in how the network is wired.
 > spatial and temporal autocorrelation. *Nat Neurosci* **26**, 867–878 (2023).
 > <https://doi.org/10.1038/s41593-023-01299-3>
 
-The Python pipeline computes the paper's statistics for every network, in both
-MEA-NAP and CAT-NAP. It can also run the paper's **spatiotemporal model**,
+The Python pipeline can compute the paper's statistics for every network, in
+both MEA-NAP and CAT-NAP. It can also run the paper's **spatiotemporal model**,
 which tests how much of each graph metric those statistics alone predict.
+
+Both are **off by default** (`compute_spatiotemporal`, the "SA / TA metrics"
+box on the Connectivity tab). On the MEA and calcium data we tested, TA mostly
+measured firing rate rather than signal smoothness (see
+[What we found](#what-we-found-on-mea-and-calcium-data)), so these columns are
+for checking a result, not for reporting on their own.
 
 ## The metrics
 
@@ -73,7 +79,11 @@ The free fit is NaN where the profile cannot separate its parameters:
   the closest distance bin): only the product of amplitude and decay is seen,
   so `SA_lambda_free` and `SA_amp` are NaN. The floor is still reported.
 - **Decay barely begun across the array** (`SA_lambda_free` more than 10× the
-  largest distance): the profile is a straight line, so all three are NaN.
+  largest distance, or the floor pushed to its −1 limit): coupling is still
+  falling at the largest distance, so where it would level off is beyond the
+  data, and all three are NaN. On calcium recordings whose coupling falls
+  roughly linearly across the field of view, the fit otherwise returned a
+  floor of −1 and a λ several times the field's width.
 
 ### Units
 
@@ -94,6 +104,53 @@ TA-Δ₁ needs a timeseries, and spike trains and calcium events are not one. So
 - **Continuous traces (CAT-NAP `F`, `spks`, `denoised F`):** the traces
   averaged into each lag's correlation bin. That is the same timeseries the
   network was correlated from, so TA-Δ₁ is per lag.
+
+## The diagnostic figure
+
+With the metrics switched on, every network gets
+`4A_IndividualNetworkAnalysis/<group>/<recording>/<lag>/13_SpatialTemporalAutocorrelation.png`
+(not drawn in express mode). Four panels:
+
+1. **Coupling against distance**, the binned profile both SA fits are made
+   to, with the pinned and free-start curves over it. When the pinned curve has
+   decayed before the nearest pair, the panel says so: `SA_lambda` is then not
+   a length scale for that network.
+2. **`TA_regional` at each node's position.**
+3. **TA against node degree**, with Spearman ρ, and ρ again with rate
+   partialled out.
+4. **TA against firing or event rate.**
+
+Panels 3 and 4 belong together. The paper found that regional TA predicts
+degree (median ρ 0.89 in fMRI). On spike or event counts, TA is largely a
+function of rate, and rate predicts degree, so panel 3 can show a strong ρ
+that is rate alone. Only the "given rate" ρ is TA telling you something rate
+does not.
+
+## What we found on MEA and calcium data
+
+We checked the paper's main claims on the published MEA-NAP NGN2 dataset (57
+Axion recordings, DIV14–35) and on a 371-recording CAT-NAP batch (`peaks`,
+1000 ms lag):
+
+- **Spike-count TA (MEA-NAP, 100 ms bins)** is close to 0 in most recordings:
+  48 of 57 had spike trains with no correlation from one bin to the next. In
+  9, mostly DIV35 with denser networks, high-firing electrodes reached TA
+  0.5–0.9. There TA followed rate (ρ up to 0.93), and its link to node strength
+  partly survived removing rate (partial ρ 0.4–0.8 in 4 of the 9).
+- **Event-count TA (CAT-NAP `peaks`)** is set by rate. Calcium events are
+  sparse, so lag-1 autocorrelation of their counts is about −p/(1−p), with
+  p = rate × bin width. Within recordings, ρ(TA, rate) had a median of −0.98,
+  and TA's correlation with degree vanished once rate was removed.
+- **No spatial decay on the MEAs.** Raw STTC was flat across the array, so
+  pinned `SA_lambda` (about 0.15 pitch) only records the jump from 1 to the
+  floor before the nearest electrode; the free-start fit found no spatial
+  structure in 84 % of networks. On the calcium data, coupling fell roughly
+  linearly across the field of view without levelling off.
+
+So the paper's specific results (TA marking the hubs, SA-λ as a length) do
+not carry over directly. Its warning does: graph metrics can follow simple
+properties of the signal rather than wiring. On this kind of data, firing or
+event rate is the property to check first.
 
 ## The spatiotemporal model
 
@@ -147,6 +204,9 @@ they are predictions of other metrics, not measurements of the culture.
   So a difference in `SA_lambda` between groups can be a difference in how
   strongly neighbours couple, with no change in spatial extent. Check
   `SA_lambda_free` and `SA_amp` before reading it as a length.
+- **TA from spike or event counts mostly measures rate.** See
+  [what we found](#what-we-found-on-mea-and-calcium-data). Compare
+  `TA_global` between groups only alongside firing or event rate.
 - **STTC is not a correlation coefficient.** The model's networks are built
   from Pearson correlations. Density and rank-matched weights keep the
   comparison fair for topology, but `ST_*` values of strength-like quantities
