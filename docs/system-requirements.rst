@@ -87,3 +87,7 @@ The following package must also be downloaded from the Brain Connectivity Toolbo
      - 616
       
 **N.B.** Step 1: Spike detection performed for 2 thresholds & 1 wavelet. Steps 3-4: Calculated for 3 STTC lags.
+
+These timings are for the MATLAB pipeline. For the Python version's run
+times, how they scale with the number of cores, and how much memory a run
+needs, see :doc:`python/performance`.

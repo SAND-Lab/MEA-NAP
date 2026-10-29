@@ -124,6 +124,13 @@ results.
       SA-λ, SA-∞ and TA-Δ₁ (Shinn et al. 2023), and the spatiotemporal model
       that tests how much of each graph metric they explain.
 
+   .. grid-item-card:: ⏱️ Run times & memory
+      :link: performance
+      :link-type: doc
+
+      How long a run takes, how it scales with cores, how much RAM it
+      needs — and why a rewrite in C would not make it faster.
+
    .. grid-item-card:: 🔀 MATLAB vs. Python
       :link: matlab-vs-python
       :link-type: doc
@@ -180,5 +187,6 @@ figure.
    stats-and-ml
    spatiotemporal
    remote-data
+   performance
    matlab-vs-python
    api/index
