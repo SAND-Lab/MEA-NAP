@@ -214,6 +214,11 @@ def section_b2() -> list[Check]:
     slow = spatial_autocorrelation_nugget(profile(500.0, 0.3, 0.0), dist)
     checks.append(("decay barely begun across the array → all NaN",
                    np.all(np.isnan(slow)), str(slow)))
+    # Coupling falling linearly across the whole array, as on Yin's calcium
+    # data: the best floor runs to its −1 bound with λ under 10 × d_max.
+    linear = spatial_autocorrelation_nugget(0.62 - 0.02 * dist, dist)
+    checks.append(("still falling linearly at the largest distance (floor at its bound) → all NaN",
+                   np.all(np.isnan(linear)), str(linear)))
 
     scaled = spatial_autocorrelation_nugget(0.3 * np.exp(-dist * 200 / 400.0) + 0.05, dist * 200)
     checks.append(("λ comes back in the distances' unit (×200 → λ×200)",
@@ -470,14 +475,15 @@ def section_h() -> list[Check]:
                        start_analysis_step=4, stop_analysis_step=4,
                        func_con_lag_val=[25], channel_layout="MCS60",
                        random_seed=5, recording_workers=1,
-                       compute_nmf=False, compute_eff_rank=False)
+                       compute_nmf=False, compute_eff_rank=False,
+                       compute_spatiotemporal=True)
             for k, v in kw.items():
                 setattr(p, k, v)
             out = run_pipeline(p, log=lambda m: None)
             return json.load(open(out / "4_NetworkActivity" / "netmet_results.json")), out
 
         on, on_root = run("On")
-        off, _ = run("Off", compute_spatiotemporal=False)
+        off, off_root = run("Off", compute_spatiotemporal=False)
         model, model_root = run("Model", spatiotemporal_null_model=True,
                                 spatiotemporal_null_reps=2)
         stale, _ = run("Stale", seed_raw=False)
@@ -529,6 +535,13 @@ def section_h() -> list[Check]:
                        (conc.parent / "SpatiotemporalModel_25mslag.png").exists(), ""))
         checks.append(("no model → no concordance folder",
                        not (on_root / "4_NetworkActivity" / ST_MODEL_DIR).exists(), ""))
+
+        diag = "13_SpatialTemporalAutocorrelation.png"
+        drawn = sorted((on_root / "4_NetworkActivity" / "4A_IndividualNetworkAnalysis").rglob(diag))
+        checks.append(("SA/TA diagnostic drawn for every recording",
+                       len(drawn) == len(recs), f"{len(drawn)} of {len(recs)}"))
+        checks.append(("...and not when SA/TA is off",
+                       not list((off_root / "4_NetworkActivity").rglob(diag)), ""))
 
         checks.append(("adjacency without raw matrices: skipped, run still completes",
                        "SA_lambda" not in stale["rec_A"]["25mslag"]
@@ -596,7 +609,7 @@ def section_i() -> list[Check]:
                        func_con_lag_val=[500], prob_thresh_rep_num=8,
                        min_number_of_nodes_to_cal_net_met=4, num_2p_traces=0,
                        twop_network_background=False, random_seed=7,
-                       recording_workers=1)
+                       recording_workers=1, compute_spatiotemporal=True)
             for k, v in kw.items():
                 setattr(p, k, v)
             logs: list[str] = []
@@ -639,6 +652,10 @@ def section_i() -> list[Check]:
         conc = model_root / "4_NetworkActivity" / ST_MODEL_DIR / ST_MODEL_CSV
         checks.append(("concordance CSV written in the CAT-NAP output",
                        conc.exists() and len(pd.read_csv(conc)) == 11, str(conc)))
+        diag = "13_SpatialTemporalAutocorrelation.png"
+        drawn = list((f_root / "4_NetworkActivity" / "4A_IndividualNetworkAnalysis").rglob(diag))
+        checks.append(("SA/TA diagnostic drawn in CAT-NAP, one per recording",
+                       len(drawn) == len(recs), f"{len(drawn)} of {len(recs)}"))
         rec_csv = pd.read_csv(f_root / "4_NetworkActivity" / "NetworkActivity_RecordingLevel.csv")
         checks.append(("recording-level CSV carries SA/TA",
                        {"SA_lambda", "SA_inf", "TA_global"} <= set(rec_csv.columns), ""))
@@ -678,9 +695,12 @@ def section_j() -> list[Check]:
     app = QApplication.instance() or QApplication([])  # noqa: F841
     fields = ("compute_spatiotemporal", "ta_bin_ms", "spatiotemporal_null_model",
               "spatiotemporal_null_reps")
-    checks: list[Check] = []
+    fresh = ConnectivityPanel()
+    checks: list[Check] = [("SA/TA is off by default", not Params().compute_spatiotemporal, ""),
+                           ("the GUI box starts unticked",
+                            not fresh.compute_spatiotemporal.isChecked(), "")]
     for label, values in [("defaults", Params()),
-                          ("non-defaults", Params(compute_spatiotemporal=False, ta_bin_ms=250.0,
+                          ("non-defaults", Params(compute_spatiotemporal=True, ta_bin_ms=250.0,
                                                   spatiotemporal_null_model=True,
                                                   spatiotemporal_null_reps=7))]:
         panel = ConnectivityPanel()

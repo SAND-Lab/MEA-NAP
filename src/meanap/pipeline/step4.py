@@ -23,7 +23,7 @@ from meanap.timescale import (
 from meanap.params import Params, active_spike_method
 from meanap.pipeline import network_metrics as nm
 from meanap.pipeline.cancellation import CancelCheck, check_cancel
-from meanap.pipeline.channel_layout import node_distances_in_pitches
+from meanap.pipeline.channel_layout import get_coords_from_layout, node_distances_in_pitches
 from meanap.pipeline.io import (
     find_raw_file, load_spike_times_npz, resolve_duration_s, truncate_spike_times,
 )
@@ -36,7 +36,7 @@ from meanap.pipeline.plotting_step4 import (
     plot_circular_cartography_network, plot_circular_module_network,
     plot_connectivity_stats, plot_graph_metrics_by_node,
     plot_network_beside_field, plot_node_cartography, plot_spatial_network,
-    plot_spatial_network_combined,
+    plot_spatial_network_combined, plot_spatiotemporal_diagnostic,
 )
 from meanap.pipeline.resume import ADJM_SUFFIX, build_input_locator
 from meanap.pipeline.rng import make_rng
@@ -337,6 +337,7 @@ def _plot_recording_lag(
     fmt: str = "png",
     only: str | None = None,
     style: "NetworkStyle | None" = None,
+    st_diag: dict | None = None,
 ) -> list[Path]:
     """Draw every step-4A plot for one recording/lag.
 
@@ -374,6 +375,12 @@ def _plot_recording_lag(
     ``"pdf"``) yields editable vector output for figures headed to a paper.
     ``only`` restricts the call to the single figure with that base name, which
     is how the viewer renders one plot per request instead of the whole set.
+    ``st_diag`` feeds the SA/TA diagnostic (``13_SpatialTemporalAutocorrelation``),
+    drawn only when the network has SA/TA metrics: ``raw`` (unthresholded
+    matrices keyed like the adjacency file, ``adjM<lag>mslag``), ``dist``
+    (between all channels), ``rate`` (per channel), and the axis labels
+    ``dist_unit`` and ``rate_label``. Everything is per channel and indexed
+    through ``activeChannelIndex`` here.
     Returns the paths actually written.
     """
     if "adjMsub" not in metrics:
@@ -537,6 +544,29 @@ def _plot_recording_lag(
     except Exception as e:
         log(f"  [{rec.filename}] skipped graph-metrics-by-node plot: {e}")
 
+    raw = (st_diag or {}).get("raw", {}).get(f"adjM{lag_ms}mslag")
+    if raw is not None and "SA_lambda" in metrics:
+        try:
+            if (p := want("13_SpatialTemporalAutocorrelation.png")) is not None:
+                idx = np.asarray(metrics["activeChannelIndex"], dtype=int)
+                if coords_all is not None:
+                    xy = np.asarray(coords_all, dtype=float)[idx]
+                else:
+                    layout_ch, layout_xy = get_coords_from_layout(params.channel_layout)
+                    by_id = dict(zip(layout_ch.tolist(), map(tuple, layout_xy)))
+                    xy = np.array([by_id.get(int(c), (np.nan, np.nan))
+                                   for c in np.asarray(channels_arr)[idx]], dtype=float)
+                plot_spatiotemporal_diagnostic(
+                    np.asarray(raw, dtype=float)[np.ix_(idx, idx)],
+                    np.asarray(st_diag["dist"], dtype=float)[np.ix_(idx, idx)],
+                    xy, metrics, np.asarray(st_diag["rate"], dtype=float)[idx], p,
+                    title=f"{rec.filename} — {timescale_folder_display(lag_ms, params)}",
+                    dist_unit=st_diag.get("dist_unit", "electrode pitches"),
+                    rate_label=st_diag.get("rate_label", "Firing rate (Hz)"),
+                )
+        except Exception as e:
+            log(f"  [{rec.filename}] skipped spatial/temporal autocorrelation plot: {e}")
+
     # ``want`` records intent; a plot guarded by a try/except may not have
     # produced its file, so report what is actually on disk.
     return [p for p in written if p.exists()]
@@ -607,6 +637,40 @@ def _spatiotemporal_inputs(
             "n_timepoints": counts.shape[1], "bin_s": bin_s}
 
 
+def _load_recording_spikes(
+    params: Params, rec: RecordingInfo, spike_path: Path,
+) -> tuple | None:
+    """One recording's spike trains as step 4 analyses them.
+
+    The active spike method, grounded electrodes silenced, truncated to the
+    analysed span. Returns ``(spike_data, fs, channels, duration_s,
+    spike_times_list)``, or ``None`` when the duration is in neither the spike
+    file nor a readable raw recording. Shared by the compute phase and the plot
+    phase, which needs firing rates for the SA/TA diagnostic.
+    """
+    spike_data = np.load(spike_path)
+    fs = float(spike_data["fs"][0])
+    channels_arr = spike_data["channels"]
+    n_channels = len(channels_arr)
+    duration_s, _ = resolve_duration_s(
+        spike_data, find_raw_file(params.raw_data, rec.filename), fs, n_channels,
+    )
+    if duration_s is None:
+        return None
+    method = active_spike_method(params)
+    spike_times_full = load_spike_times_npz(spike_path)
+    spike_times_dict = {
+        ch: spike_times_full.get(ch, {}).get(method, np.array([]))
+        for ch in range(n_channels)
+    }
+    ground_electrodes = parse_ground_electrodes(rec.ground)
+    if ground_electrodes:
+        spike_times_dict = ground_spike_times_dict(spike_times_dict, channels_arr, ground_electrodes)
+    spike_times_dict, duration_s = truncate_spike_times(spike_times_dict, duration_s, params)
+    return (spike_data, fs, channels_arr, duration_s,
+            [spike_times_dict[ch] for ch in range(n_channels)])
+
+
 def _step4_compute_one(
     task: tuple[Params, RecordingInfo, str],
 ) -> tuple[str, dict | None, np.ndarray | None, list[str]]:
@@ -623,7 +687,6 @@ def _step4_compute_one(
     output_root = Path(output_root_str)
     locator = build_input_locator(params, output_root)
 
-    method = active_spike_method(params)
     lag_values = params.func_con_lag_val
     min_nodes = params.min_number_of_nodes_to_cal_net_met
     logs: list[str] = []
@@ -654,31 +717,14 @@ def _step4_compute_one(
     logs.append(f"  [{rec.filename}] loading adjacency matrices...")
     vlog.debug(f"      reading {adj_path}")
     adj_data = np.load(adj_path)
-    spike_data = np.load(spike_path)
-    fs = float(spike_data["fs"][0])
-    channels_arr = spike_data["channels"]
-    n_channels = len(channels_arr)
-
-    duration_s, _ = resolve_duration_s(
-        spike_data, find_raw_file(params.raw_data, rec.filename), fs, n_channels,
-    )
-    if duration_s is None:
+    loaded = _load_recording_spikes(params, rec, spike_path)
+    if loaded is None:
         logs.append(f"  [{rec.filename}] SKIP: recording duration unavailable "
                     f"(not in the spike file, and the raw recording could not be read)")
         return rec.filename, None, None, logs
-
-    spike_times_full = load_spike_times_npz(spike_path)
-    spike_times_dict = {
-        ch: spike_times_full.get(ch, {}).get(method, np.array([]))
-        for ch in range(n_channels)
-    }
-    ground_electrodes = parse_ground_electrodes(rec.ground)
-    if ground_electrodes:
-        spike_times_dict = ground_spike_times_dict(spike_times_dict, channels_arr, ground_electrodes)
-    spike_times_dict, duration_s = truncate_spike_times(spike_times_dict, duration_s, params)
-
-    spike_counts = np.array([len(spike_times_dict[ch]) for ch in range(n_channels)])
-    spike_times_list = [spike_times_dict[ch] for ch in range(n_channels)]
+    spike_data, fs, channels_arr, duration_s, spike_times_list = loaded
+    n_channels = len(channels_arr)
+    spike_counts = np.array([len(t) for t in spike_times_list])
     vlog.debug(f"      [{rec.filename}] {n_channels} channels, {duration_s:.1f}s, "
                f"{int(spike_counts.sum())} spikes; node floor {min_nodes}, "
                f"activity floor {params.min_activity_level} Hz; "
@@ -796,18 +842,39 @@ def _step4_plot_one(
     # Sorted runs store node positions with the adjacency (step 3 copies
     # them from the spike file); detected runs draw from the channel layout.
     coords_all = None
-    adj_path = build_input_locator(params, Path(output_root_str)).adjm_file(rec.filename)
+    raw: dict[str, np.ndarray] = {}
+    locator = build_input_locator(params, Path(output_root_str))
+    adj_path = locator.adjm_file(rec.filename)
     if adj_path is not None:
         with np.load(adj_path) as adj_data:
             if "coords" in adj_data.files:
                 coords_all = np.asarray(adj_data["coords"], dtype=float)
+            raw = {k[: -len("_raw")]: adj_data[k] for k in adj_data.files if k.endswith("_raw")}
+
+    st_diag = None
+    if params.compute_spatiotemporal and raw:
+        try:
+            spike_path = locator.spike_file(rec.filename)
+            loaded = _load_recording_spikes(params, rec, spike_path) if spike_path else None
+            if loaded is not None:
+                spike_data, _, _, duration_s, spike_times_list = loaded
+                st_diag = {
+                    "raw": raw,
+                    "dist": node_distances_in_pitches(
+                        params.channel_layout, channels_arr, spike_data, node_coords=coords_all),
+                    "rate": np.array([len(t) for t in spike_times_list]) / duration_s,
+                    "dist_unit": "electrode pitches",
+                    "rate_label": "Firing rate (Hz)",
+                }
+        except Exception as e:
+            _log(f"  [{rec.filename}] skipped spatial/temporal autocorrelation plot: {e}")
 
     for lag_key, metrics in rec_results.items():
         lag_ms = int(lag_key.replace("mslag", ""))
         _log(f"  [{rec.filename}] plotting network metrics (lag={lag_ms}ms)...")
         _plot_recording_lag(
             rec, lag_ms, metrics, channels_arr, params, out_dir, _log, batch_bounds,
-            coords_all=coords_all,
+            coords_all=coords_all, st_diag=st_diag,
         )
     return rec.filename, logs
 
