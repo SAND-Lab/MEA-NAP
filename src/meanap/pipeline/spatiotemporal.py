@@ -497,8 +497,7 @@ def graph_summary(
     from meanap.pipeline.modularity import mod_consensus_cluster_iterate
 
     n = sub.shape[0]
-    nd, _ = nm.find_node_deg_edge_weight(sub, edge_thresh=0.0001,
-                                         exclude_zeros=exclude_zeros)
+    nd, _ = nm.find_node_deg_edge_weight(sub, exclude_zeros=exclude_zeros)
     out: dict = {"ND": nd, "NS": nm.strengths_und(sub)}
     out["NDtop25"] = float(np.mean(nd[nd >= np.percentile(nd, 75)]))
     out["CC_raw"] = nm.clustering_coef_wu(sub)

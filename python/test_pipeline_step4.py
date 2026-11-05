@@ -76,7 +76,7 @@ def main() -> None:
                 incl = fixture[f"lag{lag_ms}_inclusionIndex"].astype(int) - 1  # MATLAB 1-based
                 sub = adj_m_full[np.ix_(incl, incl)]
 
-                nd, mew = nm.find_node_deg_edge_weight(sub, 0.0001, True)
+                nd, mew = nm.find_node_deg_edge_weight(sub, True)
                 ns = nm.strengths_und(sub)
                 dens = nm.density_und(sub)
                 cc = nm.clustering_coef_wu(sub)

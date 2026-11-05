@@ -113,7 +113,7 @@ def main() -> None:
                     NON_HUB_CONNECTOR_PART_COEF, PRO_HUB_PART_COEF, CONNECTOR_HUB_PART_COEF,
                 )
 
-                nd, _ = nm.find_node_deg_edge_weight(sub, 0.0001, True)
+                nd, _ = nm.find_node_deg_edge_weight(sub, True)
                 bc = nm.betweenness_wei(1.0 / (sub + 0.01))
                 n = sub.shape[0]
                 bc = bc / ((n - 1) * (n - 2))

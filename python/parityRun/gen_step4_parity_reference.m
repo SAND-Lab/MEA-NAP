@@ -17,7 +17,6 @@ addpath(genpath(fullfile(repo_root, 'matlab', 'Functions')));
 recs = {'NGN2_20230208_P1_DIV14_A2', 'NGN2_20230208_P1_DIV14_A3'};
 lags = [10, 25, 50];
 minActivityLevel = 0.01;
-edge_thresh = 0.0001;
 exclude_zeros = 1;          % Params.excludeEdgesBelowThreshold = 1
 outdir = fullfile(repo_root, 'python', 'parityRun');
 runName = 'OutputData_MATLAB_parity';
@@ -48,7 +47,7 @@ for r = 1:numel(recs)
 
         adjMsub = adjM(inclusionIndex, inclusionIndex);
 
-        [ND, MEW] = findNodeDegEdgeWeight(adjMsub, edge_thresh, exclude_zeros);
+        [ND, MEW] = findNodeDegEdgeWeight(adjMsub, exclude_zeros);
         NS = strengths_und(adjMsub)';
         [Dens, ~, ~] = density_und(adjMsub);
 
