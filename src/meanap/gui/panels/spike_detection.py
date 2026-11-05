@@ -19,6 +19,7 @@ from PyQt6.QtWidgets import (
 
 from meanap.gui.advanced import AdvancedSection
 from meanap.gui.panels.paths import PathRow
+from meanap.gui.tooltip import set_tooltip
 from meanap.gui.widgets import show_auto_or_value
 from meanap.params import Params
 from meanap.pipeline.spike_sorting import (
@@ -132,6 +133,32 @@ class SpikeDetectionPanel(QWidget):
         absolute = AdvancedSection()
         absolute.form().addRow("Absolute thresholds (µV)", self.abs_thresholds)
         form.addRow(absolute)
+
+        # ── Active electrodes ─────────────────────────────────────────────────
+        # A second view of the Connectivity tab's field, kept in step by
+        # MainWindow: the setting decides step 2's active electrode count, and
+        # this is where people look for it.
+        active_box = QGroupBox("Active electrodes")
+        form_active = QFormLayout(active_box)
+
+        self.min_activity_level = QDoubleSpinBox()
+        self.min_activity_level.setRange(0.0, 1000.0)
+        self.min_activity_level.setDecimals(4)
+        self.min_activity_level.setSingleStep(0.005)
+        self.min_activity_level.setValue(Params.min_activity_level)
+        set_tooltip(self.min_activity_level,
+                    "An electrode counts as active when its firing rate over "
+                    "the whole recording is at least this. Below it, the "
+                    "electrode is left out of the number of active electrodes "
+                    "and the firing rate statistics, and out of the network "
+                    "analysis.\n\n"
+                    "The default is 0.01, as in the MATLAB app. At 0 every "
+                    "electrode counts as active, even a silent one.\n\n"
+                    "This is applied after spike detection and does not change "
+                    "which spikes are found. The same setting is also on the "
+                    "Connectivity tab.")
+        form_active.addRow("Min activity level (spikes/s)",
+                           self.min_activity_level)
 
         # ── Wavelet settings ──────────────────────────────────────────────────
         wav_box = QGroupBox("Wavelet")
@@ -468,6 +495,7 @@ class SpikeDetectionPanel(QWidget):
         layout.addWidget(self.sort_box)
         layout.addWidget(self.import_box)
         layout.addWidget(thr_box)
+        layout.addWidget(active_box)
         layout.addWidget(wav_box)
         layout.addWidget(filt_box)
         layout.addWidget(tmpl_box)
@@ -492,6 +520,7 @@ class SpikeDetectionPanel(QWidget):
                 "reads the sorted units." if sorting else "")
 
     def load(self, params: Params) -> None:
+        self.min_activity_level.setValue(params.min_activity_level)
         self.detect_spikes.setChecked(params.detect_spikes)
         idx = self.spike_source.findData(params.spike_source)
         self.spike_source.setCurrentIndex(max(idx, 0))
@@ -550,6 +579,7 @@ class SpikeDetectionPanel(QWidget):
                            params.single_channel_isi_threshold)
 
     def save(self, params: Params) -> None:
+        params.min_activity_level = self.min_activity_level.value()
         params.detect_spikes = self.detect_spikes.isChecked()
         params.spike_source = self.spike_source.currentData()
         params.sorter_name = self.sorter_name.currentText()
