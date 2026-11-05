@@ -384,6 +384,8 @@ Recording-level labels (`NETMET_REC_METRICS`), n = 1–31. These are MATLAB's la
 | 30 | aveControlMean | 'Mean average controllability' |
 | 31 | modalControlMean | 'Mean modal controllability' |
 
+`CC` and `PL` keep these labels in their file names, but their y axes and viewer entries read 'clustering coefficient (normalised)' and 'mean path length (normalised)' (`netmet_axis_label`).
+
 Node-level labels (`NETMET_NODE_METRICS`), n = 1–9:
 
 | n | Key | Label |
@@ -398,7 +400,7 @@ Node-level labels (`NETMET_NODE_METRICS`), n = 1–9:
 | 8 | aveControl | 'Average Controllability' |
 | 9 | modalControl | 'Modal Controllability' |
 
-Step 5 and CAT-NAP cell tracking label the same metrics with `NETMET_REC_DISPLAY_LABELS` / `NETMET_NODE_DISPLAY_LABELS` ('Active Nodes', 'Density', 'Small-worldness (SW)', 'Proportion Peripheral Nodes (R1)', …), the wording the 4B figures used before they took MATLAB's.
+Step 5 and CAT-NAP cell tracking label the same metrics with `NETMET_REC_DISPLAY_LABELS` / `NETMET_NODE_DISPLAY_LABELS` ('Active Nodes', 'Density', 'Clustering Coefficient (normalised)', 'Small-worldness (SW)', 'Proportion Peripheral Nodes (R1)', …), the wording the 4B figures used before they took MATLAB's.
 
 ### CAT-NAP cell tracking (`<OUT>/CellTracking/DevelopmentByCellType/[<measure>/]<definition>/…`)
 | Saved file | Source (catnap/tracking/development_plots.py) | Title | X label | Y label |

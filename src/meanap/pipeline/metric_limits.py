@@ -31,7 +31,7 @@ METRIC_LIMITS: dict[str, Limits] = {
     # ── Network, recording level (step 4) ────────────────────────────────────
     "aN": _NONNEG,
     "Dens": _UNIT,
-    "CC": _NONNEG,                 # normalised by a random network: unbounded above
+    "CC": _NONNEG,                 # normalised by a lattice network: unbounded above
     "CC_rawMean": _UNIT,
     "nMod": _NONNEG,
     "Q": _UNIT,                    # the best partition scores >= 0 (one module scores 0)
