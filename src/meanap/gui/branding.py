@@ -1,16 +1,15 @@
 """Logo assets for the GUI, per pipeline.
 
 Three pipelines share one window, so the logo follows the mode — the same way
-the tab set and the version label do. Only MEA-NAP has artwork today; the other
-two fall back to it, so the GUI is complete now and gains their branding the
-moment someone drops a file in.
+the tab set and the version label do. All three have artwork now; a mode whose
+file is missing falls back to MEA-NAP's, so a missing asset never breaks the GUI.
 
-**To add one**: save it as ``assets/catnap-logo.png`` or
-``assets/meastim-logo.png`` (see :data:`LOGO_FILES`). Nothing else needs to
-change — the lookup is by mode key, and :func:`available_logos` will report it.
-A wide, short image works best: it is drawn at :data:`CORNER_LOGO_HEIGHT` in the
-tab strip's corner and 96 px in the tutorial, and the corner has room for
-roughly 4:1 before it starts competing with the tabs for width.
+**To change one**: replace its file in ``assets/`` (see :data:`LOGO_FILES`).
+Nothing else needs to change — the lookup is by mode key, and
+:func:`available_logos` reports which modes have their own. A wide, short image
+works best: it is drawn at :data:`CORNER_LOGO_HEIGHT` in the tab strip's corner
+and 96 px in the tutorial, and the corner has room for roughly 4:1 before it
+starts competing with the tabs for width.
 """
 
 from __future__ import annotations
@@ -23,9 +22,7 @@ from PyQt6.QtGui import QIcon, QPixmap
 
 ASSETS = Path(__file__).resolve().parent / "assets"
 
-#: Artwork per mode key. Absent files fall back to MEA-NAP's, which is what
-#: makes this a drop-in: the names are reserved now so adding one later is a
-#: file copy rather than a code change.
+#: Artwork per mode key. Absent files fall back to MEA-NAP's.
 LOGO_FILES = {
     "meanap": "mea-nap-logo.png",
     "catnap": "catnap-logo.png",

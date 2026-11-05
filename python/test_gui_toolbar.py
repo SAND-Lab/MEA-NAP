@@ -123,23 +123,18 @@ check("the logo sits in the tab strip, not the toolbar",
 
 # ── The logo follows the mode ─────────────────────────────────────────────────
 #
-# Only MEA-NAP has artwork today, so the other two modes fall back to it. That
-# makes the interesting question not "does it change" — it cannot yet — but
-# "would it": the lookup must be by mode key, and adding a file must be the
-# only step. So a stand-in is written, picked up, and removed again.
+# All three modes have artwork, so switching must show each one's own. A mode
+# whose file has gone missing still has to fall back to MEA-NAP's rather than
+# break the window, so that is checked by pointing one mode at a missing file.
 
 print("\nPer-mode branding")
 
-from PyQt6.QtGui import QPixmap  # noqa: E402
 from meanap.gui import branding  # noqa: E402
 
-check("every mode resolves to some artwork",
-      all(branding.logo_path(m).is_file() for m in branding.LOGO_FILES),
-      str({m: branding.logo_path(m).name for m in branding.LOGO_FILES}))
-check("a mode with no artwork of its own falls back to MEA-NAP's",
-      branding.logo_path("catnap") == branding.LOGO_PATH
-      or "catnap" in branding.available_logos(), "")
-check("an unknown mode falls back too, rather than raising",
+check("every mode has its own artwork",
+      set(branding.available_logos()) == set(branding.LOGO_FILES),
+      str(branding.available_logos()))
+check("an unknown mode falls back, rather than raising",
       branding.logo_path("nonsense") == branding.LOGO_PATH, "")
 
 # ── The logo is drawn whole ───────────────────────────────────────────────────
@@ -166,37 +161,34 @@ check("and it does not become a floor under the window's height",
       corner.minimumSizeHint().height() == 0,
       f"logo demands {corner.minimumSizeHint().height()}px of the window")
 
-stand_in = branding.ASSETS / branding.LOGO_FILES["catnap"]
-made = not stand_in.exists()
-if made:
-    px = QPixmap(240, 60)
-    px.fill(Qt.GlobalColor.blue)
-    px.save(str(stand_in))
-    branding.available_logos.cache_clear()
+seen = {}
+for mode_key in ("meanap", "catnap", "meastim"):
+    window._apply_mode(mode_key)
+    seen[mode_key] = corner.pixmap().toImage()
+    check(f"switching to {mode_key} leaves its logo at full height",
+          round(corner.pixmap().height() / corner.pixmap().devicePixelRatio())
+          == branding.CORNER_LOGO_HEIGHT, "")
+check("switching to CAT-NAP swaps the logo",
+      seen["catnap"] != seen["meanap"], "")
+check("switching to MEA-Stim swaps the logo",
+      seen["meastim"] != seen["meanap"] and seen["meastim"] != seen["catnap"], "")
+window._apply_mode("meastim")
+check("a branded mode names itself in the tooltip",
+      "MEA-Stim" in corner.toolTip(), corner.toolTip())
+
+real_file = branding.LOGO_FILES["meastim"]
+branding.LOGO_FILES["meastim"] = "no-such-logo.png"
+branding.available_logos.cache_clear()
 try:
-    check("a dropped-in logo is discovered with no code change",
-          "catnap" in branding.available_logos(),
-          str(branding.available_logos()))
-
-    seen = {}
-    for mode_key in ("meanap", "catnap", "meastim"):
-        window._apply_mode(mode_key)
-        seen[mode_key] = corner.pixmap().toImage()
-    check("switching to that mode swaps the logo",
-          seen["catnap"] != seen["meanap"], "")
-    check("…while a mode still lacking one keeps the fallback",
-          seen["meastim"] == seen["meanap"], "")
-    check("a branded mode names itself in the tooltip",
-          window._apply_mode("catnap") is None
-          and "CAT-NAP" in corner.toolTip(), corner.toolTip())
+    window._apply_mode("meastim")
+    check("a mode whose file is missing keeps the fallback",
+          corner.pixmap().toImage() == seen["meanap"], "")
+    check("and the tooltip says it is MEA-NAP's",
+          corner.toolTip().startswith("MEA-NAP"), corner.toolTip())
 finally:
-    if made:
-        stand_in.unlink()
-        branding.available_logos.cache_clear()
+    branding.LOGO_FILES["meastim"] = real_file
+    branding.available_logos.cache_clear()
     window._apply_mode("meanap")
-
-check("the stand-in left nothing behind",
-      made is False or not stand_in.exists(), "")
 
 
 print()
