@@ -67,7 +67,7 @@ for r = 1:numel(recs)
 
         % Deterministic-given-(Ci) inputs used by Hub3/Hub4: ND, BC, NE
         aNforHub = length(inclusionIndex);
-        [ND, ~] = findNodeDegEdgeWeight(adjMsub, 0.0001, 1);
+        [ND, ~] = findNodeDegEdgeWeight(adjMsub, 1);
         smallFactor = 0.01;
         pathLengthNetwork = 1 ./ (adjMsub + smallFactor);
         BC = betweenness_wei(pathLengthNetwork);

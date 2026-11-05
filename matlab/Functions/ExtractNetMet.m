@@ -69,9 +69,6 @@ function [NetMet] = ExtractNetMet(adjMs, activityMatrix, lagval, Info, Params, o
 netMetToCal = Params.netMetToCal;
 unitMetToCal = Params.unitLevelNetMetToPlot;
 
-% edge threshold for adjM
-edge_thresh = 0.0001;
-
 % Preallocate 
 meanSTTC = zeros(length(lagval), 1);
 maxSTTC = zeros(length(lagval), 1);
@@ -176,7 +173,7 @@ for e = 1:length(lagval)
         exclude_zeros = 0;
     end 
     
-    [ND,MEW] = findNodeDegEdgeWeight(adjM, edge_thresh, exclude_zeros);
+    [ND,MEW] = findNodeDegEdgeWeight(adjM, exclude_zeros);
     if isempty(adjM)
         ND = double.empty([0, 1]);
         MEW = double.empty([0, 1]);

@@ -92,21 +92,19 @@ def weight_conversion_normalize(w: np.ndarray) -> np.ndarray:
 # ── Node degree / edge weight (findNodeDegEdgeWeight.m) ────────────────────
 
 def find_node_deg_edge_weight(
-    adj_m: np.ndarray, edge_thresh: float | list[float] = 0.0001, exclude_zeros: bool = True,
+    adj_m: np.ndarray, exclude_zeros: bool = True,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Returns (ND, MEW): mean node degree and mean edge weight per node."""
+    """Returns (ND, MEW): node degree and mean edge weight per node.
+
+    An edge is any off-diagonal weight above zero, however small: deciding
+    which edges are real is the job of the thresholding that built *adj_m*.
+    """
     n = adj_m.shape[0]
     if n == 0:
         return np.zeros(0), np.zeros(0)
 
-    thresholds = np.atleast_1d(edge_thresh)
-    degree_vec = np.zeros((n, len(thresholds)))
-    for count, cutoff in enumerate(thresholds):
-        edges = adj_m - np.eye(n)
-        edges = np.nan_to_num(edges, nan=0.0)
-        edges = (edges >= cutoff).astype(float)
-        degree_vec[:, count] = edges.sum(axis=0)
-    nd = np.round(degree_vec.mean(axis=1))
+    edges = np.nan_to_num(adj_m - np.eye(n), nan=0.0)
+    nd = (edges > 0).sum(axis=0).astype(float)
 
     weights = adj_m - np.eye(n)
     weights = np.nan_to_num(weights, nan=0.0)
