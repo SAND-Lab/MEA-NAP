@@ -83,7 +83,10 @@ class Params:
     n_spikes: int = 100
     multiple_templates: bool = False
     multi_template_method: str = "PCA"
-    min_activity_level: float = 0.0
+    # Spikes/s an electrode must reach to count as active. Matches the MATLAB
+    # app's default. At 0, ``rate >= 0`` holds for a silent electrode too, so
+    # every electrode would count as active.
+    min_activity_level: float = 0.01
     remove_inactive_nodes: bool = False
     remove_artifacts: bool = False
 

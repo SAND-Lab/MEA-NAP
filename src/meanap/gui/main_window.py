@@ -6,7 +6,8 @@ from dataclasses import replace
 from pathlib import Path
 
 from PyQt6.QtWidgets import (
-    QApplication, QComboBox, QFileDialog, QLabel, QMainWindow, QMessageBox,
+    QApplication, QComboBox, QDoubleSpinBox, QFileDialog, QLabel, QMainWindow,
+    QMessageBox,
     QLineEdit, QTabWidget, QToolBar, QToolButton, QWidget,
 )
 from PyQt6.QtGui import QAction
@@ -365,6 +366,13 @@ class MainWindow(QMainWindow):
         self._bind_mirrored(
             self._data_panel.raw_data.line_edit, self._catnap_panel._folder_edit
         )
+        # Likewise Params.min_activity_level, on both the Spike detection and
+        # Connectivity tabs. CAT-NAP hides the former, so an edit made on
+        # Connectivity has to reach it or the two would disagree on a switch.
+        self._bind_mirrored_spin(
+            self._connectivity_panel.min_activity_level,
+            self._spike_panel.min_activity_level,
+        )
 
         # Mark Run / Stop with object names so QSS can style them distinctly
         self._run_panel.run_btn.setObjectName("primary")
@@ -418,6 +426,15 @@ class MainWindow(QMainWindow):
         first.textChanged.connect(sync(first, second))
         second.textChanged.connect(sync(second, first))
         second.setText(first.text())
+
+    @staticmethod
+    def _bind_mirrored_spin(first: QDoubleSpinBox,
+                            second: QDoubleSpinBox) -> None:
+        """Keep two spin boxes showing the same value, in both directions."""
+        # setValue() emits only on a real change, so the pair cannot loop.
+        first.valueChanged.connect(second.setValue)
+        second.valueChanged.connect(first.setValue)
+        second.setValue(first.value())
 
     def _on_toggle_advanced(self, show: bool) -> None:
         n = advanced.set_all_expanded(self, show)

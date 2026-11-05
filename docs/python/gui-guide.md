@@ -225,6 +225,7 @@ it applies.
 | **Re-check previous spike data** ⚙ | Re-run detection checks against existing spike-time output without redetecting. |
 | **Relative thresholds** | MAD-multiplier thresholds below the median, comma-separated (e.g. `3, 4, 5`). |
 | **Absolute thresholds (µV)** ⚙ | Fixed voltage thresholds instead of relative ones — leave blank to use relative thresholds. |
+| **Min activity level (spikes/s)** | The firing rate an electrode must reach to count as active (default `0.01`, as in the MATLAB app). Applied after detection: it decides the number of active electrodes and which electrodes enter the firing rate statistics and the network, not which spikes are found. At `0` every electrode counts as active, even a silent one. Also on the Connectivity tab; the two fields are one setting. |
 | **Wavelet methods** | One or more of `bior1.5`, `bior1.3`, `db2`, `mea` (multi-select list). |
 | **Wavelet cost** ⚙ | Cost parameter for the continuous wavelet transform (default `-0.12`). |
 | **Spike method for analysis** | Which detection method's output feeds steps 2–4: `bior1p5`, `bior1p3`, `mergedAll`, `mergedWavelet`, `thr4p5`, `thr5p0`, `thr3p5`. |
@@ -255,6 +256,7 @@ significance thresholding.
 | **Iterations** | Number of circular-shift surrogates used for significance thresholding (default `200`). |
 | **Tail percentile** ⚙ | Upper-tail cutoff for significance (default `0.05`). |
 | **Plot random checks** / **Number of checks to plot** ⚙ | Optionally save diagnostic plots for a few random thresholding surrogates. |
+| **Min activity level** | The rate an electrode or cell must reach to count as active and enter the network (default `0.01`; spikes/s for ephys, events/s in CAT-NAP). The same setting as on the Spike detection tab. |
 
 :::{dropdown} Why does step 3 take so long?
 Probabilistic thresholding runs `Iterations` circular-shift surrogates *per

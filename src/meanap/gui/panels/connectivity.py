@@ -111,7 +111,7 @@ class ConnectivityPanel(QWidget):
         self.min_activity_level.setRange(0.0, 1000.0)
         self.min_activity_level.setDecimals(4)
         self.min_activity_level.setSingleStep(0.005)
-        self.min_activity_level.setValue(0.0)
+        self.min_activity_level.setValue(Params.min_activity_level)
         # Label text is set by set_pipeline(), which names the event the
         # running pipeline actually counts.
         self._min_activity_label = QLabel()
@@ -336,21 +336,27 @@ class ConnectivityPanel(QWidget):
         unit = "events/s" if catnap else "spikes/s"
         self._min_activity_label.setText(f"Min activity level ({unit})")
         set_tooltip(self.min_activity_level,
-                    f"Cells whose activity rate falls below this are left out "
-                    f"of the network entirely: they are dropped from the "
-                    f"adjacency matrix before any metric is computed, and "
-                    f"their FRactive is NaN.\n\n"
-                    f"Measured in {unit} over the whole recording. 0 keeps "
-                    f"every cell that has at least one edge, which is the "
-                    f"default; MEApipeline.m's own example runs use 0.01."
+                    f"Cells whose activity rate falls below this do not count "
+                    f"as active: they are left out of the active-cell count "
+                    f"and the event rate statistics, their FRactive is NaN, "
+                    f"and they are dropped from the adjacency matrix before "
+                    f"any network metric is computed.\n\n"
+                    f"Measured in {unit} over the whole recording. The default "
+                    f"is 0.01. At 0 every cell counts as active, even a silent "
+                    f"one, though a cell still needs at least one edge to "
+                    f"stay in the network."
                     if catnap else
-                    "Electrodes whose firing rate falls below this are left "
-                    "out of the network entirely: they are dropped from the "
-                    "adjacency matrix before any metric is computed, and "
-                    "their FRactive is NaN.\n\n"
-                    "Measured in spikes/s over the whole recording. 0 keeps "
-                    "every electrode that has at least one edge, which is the "
-                    "default; MEApipeline.m's own example runs use 0.01.")
+                    "Electrodes whose firing rate falls below this do not "
+                    "count as active: they are left out of the number of "
+                    "active electrodes and the firing rate statistics, their "
+                    "FRactive is NaN, and they are dropped from the adjacency "
+                    "matrix before any network metric is computed.\n\n"
+                    "Measured in spikes/s over the whole recording. The "
+                    "default is 0.01, as in the MATLAB app. At 0 every "
+                    "electrode counts as active, even a silent one, though an "
+                    "electrode still needs at least one edge to stay in the "
+                    "network.\n\n"
+                    "The same setting is also on the Spike detection tab.")
         # The two switches are ephys-only; the NMF sweep setting is read by
         # both pipelines, so it stays live.
         self.compute_nmf.setEnabled(not catnap)
