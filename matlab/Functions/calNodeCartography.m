@@ -17,7 +17,6 @@ function NetMet = calNodeCartography(adjMs, Params, NetMet, Info, originalCoords
 % NetMet : struct
 
 lagval = Params.FuncConLagval;
-edge_thresh = 0.0001;
 
 %% Individual node cartography calculations 
 

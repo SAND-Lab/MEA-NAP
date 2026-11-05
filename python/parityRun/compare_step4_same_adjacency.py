@@ -58,7 +58,7 @@ def main() -> None:
             A = np.asarray(r["adjMsub"], dtype=float)
 
             # ── Python computes every metric from the SAME matrix ────────────
-            ND_py, MEW_py = find_node_deg_edge_weight(A, 0.0001, True)
+            ND_py, MEW_py = find_node_deg_edge_weight(A, True)
             NS_py = strengths_und(A)
             Dens_py = density_und(A)
             CCraw_py = clustering_coef_wu(A)

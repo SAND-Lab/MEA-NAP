@@ -92,7 +92,7 @@ def compute_network_metrics(
     result["adjMsub"] = sub  # not JSON-serialized — see _run_step4_network_metrics
 
     nd, mew = nm.find_node_deg_edge_weight(
-        sub, edge_thresh=0.0001, exclude_zeros=exclude_edges_below_threshold,
+        sub, exclude_zeros=exclude_edges_below_threshold,
     )
     result["ND"] = nd
     result["MEW"] = mew
