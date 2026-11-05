@@ -664,7 +664,7 @@ class MainWindow(QMainWindow):
             self._tutorial = TutorialOverlay(self, self._tabs)
             self._tutorial.pipeline_chosen.connect(self._on_pipeline_chosen)
             self._tutorial.finished.connect(self._on_tutorial_finished)
-        self._tutorial.start()
+        self._tutorial.start(self._mode)
 
     def _on_pipeline_chosen(self, kind: str) -> None:
         # Picking a pipeline in the tutorial is the same choice as the Mode

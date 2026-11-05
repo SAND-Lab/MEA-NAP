@@ -24,6 +24,7 @@ from PyQt6.QtWidgets import (
 )
 
 from meanap.gui.branding import logo_pixmap
+from meanap.gui.modes import DEFAULT_MODE, MODES
 
 ACCENT = "#4f8ef7"
 
@@ -76,6 +77,7 @@ class TutorialOverlay(QWidget):
         self._steps: list[TutorialStep] = []
         self._index = 0
         self._mode = "idle"  # "chooser" | "steps"
+        self._pipeline = DEFAULT_MODE  # whose branding the chooser shows
         self._highlight = QRect()
         self._busy = False
 
@@ -123,8 +125,9 @@ class TutorialOverlay(QWidget):
 
     # ── Public API ────────────────────────────────────────────────────────────
 
-    def start(self) -> None:
-        """Show the pipeline chooser and begin the tutorial."""
+    def start(self, pipeline: str = DEFAULT_MODE) -> None:
+        """Show the pipeline chooser, branded for *pipeline*, and begin the tutorial."""
+        self._pipeline = pipeline
         self._mode = "chooser"
         self._highlight = QRect()
         self.setGeometry(self._host.rect())
@@ -149,7 +152,7 @@ class TutorialOverlay(QWidget):
         lay.setContentsMargins(22, 20, 22, 18)
         lay.setSpacing(10)
 
-        logo_pix = logo_pixmap(96, self.devicePixelRatioF())
+        logo_pix = logo_pixmap(96, self.devicePixelRatioF(), self._pipeline)
         if logo_pix is not None:
             logo = QLabel()
             logo.setPixmap(logo_pix)
@@ -157,7 +160,8 @@ class TutorialOverlay(QWidget):
             lay.addWidget(logo)
             lay.addSpacing(2)
 
-        title = QLabel("Welcome to MEA-NAP")
+        name = MODES[self._pipeline].label.split("·")[0].strip()
+        title = QLabel(f"Welcome to {name}")
         title.setObjectName("tutTitle")
         subtitle = QLabel("Which analysis would you like to run? "
                           "The tutorial will guide you through the settings it needs.")
