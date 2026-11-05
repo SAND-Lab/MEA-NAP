@@ -190,6 +190,23 @@ finally:
     branding.available_logos.cache_clear()
     window._apply_mode("meanap")
 
+# The tutorial's opening screen shows the same branding as the mode it opened in.
+from PyQt6.QtWidgets import QLabel  # noqa: E402
+
+for mode_key, name in (("meanap", "MEA-NAP"), ("catnap", "CAT-NAP"), ("meastim", "MEA-Stim")):
+    window._apply_mode(mode_key)
+    window._start_tutorial()
+    labels = window._tutorial._bubble.findChildren(QLabel)
+    logos = [lab.pixmap().toImage() for lab in labels if not lab.pixmap().isNull()]
+    expected = branding.logo_pixmap(96, window._tutorial.devicePixelRatioF(), mode_key)
+    check(f"the tutorial opens with {name}'s logo in {name} mode",
+          len(logos) == 1 and logos[0] == expected.toImage(), f"{len(logos)} logos")
+    check(f"and welcomes the user to {name}",
+          any(lab.text() == f"Welcome to {name}" for lab in labels),
+          str([lab.text() for lab in labels][:3]))
+    window._tutorial.hide()
+window._apply_mode("meanap")
+
 
 print()
 if FAILURES:
