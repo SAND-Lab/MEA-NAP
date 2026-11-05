@@ -61,6 +61,14 @@ def _label_checks() -> list[Check]:
     checks.append(("the display labels cover every plotted network metric",
                    set(rec) == set(p4.NETMET_REC_METRICS),
                    f"{sorted(set(rec) ^ set(p4.NETMET_REC_METRICS))}"))
+    for key, word in (("CC", "Clustering"), ("PL", "Path Length")):
+        checks.append((f"{key} display label says normalised",
+                       word in rec[key] and "normalised" in rec[key], rec[key]))
+    checks.append(("CC/PL figure file names keep MATLAB's labels",
+                   p4.comparison_figure_stem(3, p4.NETMET_REC_METRICS["CC"], "byGroup")
+                   == "3_clustering coefficient_byGroup"
+                   and p4.comparison_figure_stem(6, p4.NETMET_REC_METRICS["PL"], "byGroup")
+                   == "6_mean path length_byGroup", ""))
     checks.append(("the violin labels are MATLAB's",
                    p4.NETMET_REC_METRICS["aN"] == "network size"
                    and p4.NETMET_REC_METRICS["NCpn1"] == "NC1PeripheralNodes", ""))
@@ -167,6 +175,45 @@ def _drawn_axis_checks() -> list[Check]:
     return checks
 
 
+def _normalised_label_checks() -> list[Check]:
+    """CC and PL must say they are normalised on both figures that plot them."""
+    checks: list[Check] = []
+    rng = np.random.default_rng(0)
+    rows = [{"FileName": f"{grp}_{lag}_{i}", "Grp": grp, "DIV": "14", "Lag": f"{lag}mslag",
+             "CC": rng.uniform(0.2, 0.8), "PL": rng.uniform(0.9, 1.1)}
+            for grp in ("WT", "KO") for lag in (10, 25) for i in range(6)]
+    df = pd.DataFrame(rows)
+
+    drawn: dict[str, str] = {}
+    real_savefig = p4.savefig
+
+    def spy(fig, path, **kw):
+        drawn[Path(path).stem] = fig.axes[0].get_ylabel()
+        real_savefig(fig, path, **kw)
+
+    p4.savefig = spy
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp)
+            for key in ("CC", "PL"):
+                p4.plot_half_violin_by_x(df, key, p4.NETMET_REC_METRICS[key], "group",
+                                         out / f"violin_{key}.png")
+                p4.plot_graph_metrics_by_lag(df, out, only=key)
+    finally:
+        p4.savefig = real_savefig
+
+    expected = {
+        "violin_CC": "clustering coefficient (normalised)",
+        "violin_PL": "mean path length (normalised)",
+        "3_clustering coefficient": "clustering coefficient (normalised)",
+        "6_mean path length": "mean path length (normalised)",
+    }
+    for stem, label in expected.items():
+        checks.append((f"{stem} y axis reads {label!r}", drawn.get(stem) == label,
+                       repr(drawn.get(stem))))
+    return checks
+
+
 # ── D. Size limits and grounded electrodes ───────────────────────────────────
 
 def _size_limit_checks() -> list[Check]:
@@ -243,6 +290,7 @@ def main() -> int:
     for title, fn in (("Section A — labels:", _label_checks),
                       ("Section B — bounds lookup:", _bounds_checks),
                       ("Section C — the drawn axis:", _drawn_axis_checks),
+                      ("Section C2 — normalised CC and PL labels:", _normalised_label_checks),
                       ("Section D — size limits, grounded electrodes:", _size_limit_checks)):
         n_pass, n = _report(title, fn())
         total_pass += n_pass

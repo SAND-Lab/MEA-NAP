@@ -947,6 +947,8 @@ def comparison_axes(ctx: RenderContext, family: str) -> ComparisonAxes:
     metrics the run computed (a ``spks`` run defines nothing event-shaped, so
     those are simply not in the table), and the list here matches that.
     """
+    from meanap.pipeline.plotting_step4 import netmet_axis_label
+
     fam = comparison_family(family)
     label = next((f.label for f in GROUP_FAMILIES if f.key == family), family)
     frames = dict(zip(COMPARISON_LEVELS, _comparison_frames(
@@ -962,7 +964,7 @@ def comparison_axes(ctx: RenderContext, family: str) -> ComparisonAxes:
     levels = tuple(
         LevelAxis(
             key=level, label=_LEVEL_LABELS[level],
-            metrics=tuple(Choice(key=k, label=plain_label(v))
+            metrics=tuple(Choice(key=k, label=plain_label(netmet_axis_label(k, v)))
                           for k, v in _metrics(level).items()),
         )
         for level in COMPARISON_LEVELS if not frames[level].empty
@@ -1140,6 +1142,8 @@ def available_lag_series(ctx: RenderContext) -> list[tuple[LagSeries, tuple[Choi
     cartography does not have. Offering either without its inputs would be a
     control that renders an empty page.
     """
+    from meanap.pipeline.plotting_step4 import netmet_axis_label
+
     lags = comparison_lags(ctx, "network")
     if len(lags) < 2:
         return []
@@ -1147,7 +1151,7 @@ def available_lag_series(ctx: RenderContext) -> list[tuple[LagSeries, tuple[Choi
     out = []
     for series in LAG_SERIES:
         if series.keyed_by == "metric":
-            present = [Choice(key=k, label=plain_label(v))
+            present = [Choice(key=k, label=plain_label(netmet_axis_label(k, v)))
                        for k, v in comparison_metrics("network", "recording").items()
                        if k in df_rec.columns and df_rec[k].notna().any()]
         else:

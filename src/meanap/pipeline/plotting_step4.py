@@ -1341,7 +1341,7 @@ def plot_half_violin_by_x(
         ax.spines["right"].set_visible(False)
         ax.tick_params(direction="out")
         if si == 0:
-            ax.set_ylabel(metric_label)
+            ax.set_ylabel(netmet_axis_label(metric, metric_label))
 
     if n_series:
         import matplotlib.patches as mpatches
@@ -1814,7 +1814,7 @@ def plot_graph_metrics_by_lag(
             ax.set_xticklabels([str(n) for n in lag_nums])
             ax.set_xlabel("STTC lag (ms)" if timescale == "lag"
                           else "Correlation bin (ms)")
-            ax.set_ylabel(label)
+            ax.set_ylabel(netmet_axis_label(metric, label))
             ax.set_title(str(g))
             ax.set_xlim(xt.min() - 0.5, xt.max() + 0.5)
             ax.spines["top"].set_visible(False)
@@ -2065,6 +2065,21 @@ NETMET_NODE_METRICS = {
     "TA_regional": "temporal autocorrelation",
 }
 
+#: Axis wording where it differs from the file-name label above. ``CC`` and
+#: ``PL`` are the null-model-normalised values (``C/C_lattice`` and
+#: ``PL/PL_random``), but their labels must stay MATLAB's because they name the
+#: figure files.
+_NETMET_AXIS_LABELS = {
+    "CC": "clustering coefficient (normalised)",
+    "PL": "mean path length (normalised)",
+}
+
+
+def netmet_axis_label(metric: str, label: str) -> str:
+    """The text to show for *metric*; *label* remains what names its file."""
+    return _NETMET_AXIS_LABELS.get(metric, label)
+
+
 #: Display names for the Python-only figures that label network metrics —
 #: step 5 and CAT-NAP cell tracking. Kept apart from the MATLAB labels above,
 #: which are file names as much as labels, so those figures keep their
@@ -2072,10 +2087,10 @@ NETMET_NODE_METRICS = {
 NETMET_REC_DISPLAY_LABELS = {
     "aN": "Active Nodes",
     "Dens": "Density",
-    "CC": "Clustering Coefficient",
+    "CC": "Clustering Coefficient (normalised)",
     "nMod": "Number of Modules",
     "Q": "Modularity (Q)",
-    "PL": "Path Length",
+    "PL": "Path Length (normalised)",
     "Eglob": "Global Efficiency",
     "SW": "Small-worldness (SW)",
     "SWw": "Small-worldness (SWw)",
