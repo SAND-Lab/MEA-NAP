@@ -41,16 +41,35 @@ one-line summary; a warning (an amber **!**) still lets you move on. Click a
 folded answer to change it. Clicking the logo switches pipeline, **Run** starts
 the run, and the page shows its progress and then **View results**.
 
+While a run is going, the elapsed time and time left update every second, not
+only when a recording finishes. If the estimate runs out first, the page says
+*should be done shortly*. The Run tab's progress does the same. **Show log**
+opens the live status log in a panel on the page.
+
+**Run on**, above the Run button, chooses what Run starts. It is the same switch
+as the Run tab's:
+
+- **This computer** (the default): one run of these settings.
+- **A queue of saved runs**: several saved settings files, one after another.
+- **Several computers (shared folder)**: the recordings shared out across
+  computers that can reach a common folder (see [Shared runs](#run)).
+
+Choosing a queue or several computers opens that page in a side panel to set
+it up. **Set up…** reopens it. The Run button then takes that page's label
+(*Run queue (3)*), and stays disabled until there is something to start. The
+progress bar follows a queue as a whole (*Run 2 of 3 · Spike detection*).
+
 The fields on the page are the same settings as the ones on the tabs, so
 switching back with **Classic view** (top right of the page) loses nothing. The
 window remembers which view you used last; the tabs are the default.
 
 ### Other settings
 
-Below the questions, an **Other settings** card is always on the page. It has
+Below the questions, an **Other settings** card is always on the page. It gets
+a green tick once every question above it is answered, changed settings or not. It has
 one row for each settings tab the pipeline uses: Recordings and output, Spike
 detection (or Calcium imaging), Connectivity and networks, Stimulation (MEA-Stim
-only), and Pipeline steps and figures. Each row shows:
+only), and Pipeline steps and output. Each row shows:
 
 - a short summary of its key values, for example *bior1.5 · thresholds 4, 5 ·
   active from 0.01 Hz*;
@@ -58,6 +77,12 @@ only), and Pipeline steps and figures. Each row shows:
   defaults. Hover over the row to see which ones, with their old and new
   values. The settings the questions ask for (folders, layout, sampling rate,
   stimulation detection, activity measure) are not counted.
+
+**Express mode** is on by default in the simple view, so a run writes the quick
+figures and a `.meanap` bundle (see [Express mode and run bundles](express-mode.md)).
+The Pipeline steps and output row says *express mode on* or *off*. Untick it
+there, and the choice is kept. A settings file you load, or ticking it either
+way yourself, also takes precedence. The classic view's default is unchanged.
 
 Click a row to unfold its sections, the same group boxes as on the tab. Click a
 section to open it in a panel on the right. The panel holds the tab's own
@@ -273,8 +298,26 @@ to bottom.
 (layout-from-the-files)=
 ### Layout from the files
 
-The simple view reads each recording's header to fill in the electrode layout,
-and shows the sampling rate beside it (`Axion64 · 12.5 kHz`):
+Both views read each recording's header to fill in the electrode layout and
+show the sampling rate, once the raw data folder is set. On the Data tab, each
+of the two settings says where its value came from:
+
+- **Sampling frequency** shows the rate read from the files, such as
+  *12.5 kHz — read from the recordings*. Without a folder it shows *Read from
+  each recording when the run starts*. It can't be edited, because no step uses
+  a single rate.
+- **Channel layout** carries a note beneath it:
+  - *✓ Detected from the recordings*, with what it was read from;
+  - an amber warning, with a **Use …** button to switch back, if you pick a
+    layout the files don't match;
+  - a reminder to check it when the files can't say, such as a Dropbox link
+    before the run.
+
+  The detected layout fills the setting the first time a folder is read.
+  After that your choice is kept. `FromFile` is never replaced.
+
+The simple view's **Recording settings** step shows the same, and folds to a
+summary (`Axion64 · 12.5 kHz`):
 
 | What the files show | Layout |
 |---|---|
@@ -383,10 +426,10 @@ it applies.
 
 | Field | Description |
 |---|---|
-| **Sampling frequency** | Kept with the run's settings for the record only. Every step reads each recording's own rate from its file, so a batch recorded at different rates is fine. |
+| **Sampling frequency** | Shown, not set: read from the recordings (see [Layout from the files](#layout-from-the-files)) and saved with the run's settings for the record. Every step reads each recording's own rate from its file, so a batch recorded at different rates is fine. |
 | **Downsample frequency** ⚙ | Rate used for some plots/metrics that don't need full resolution (e.g. `1000`). |
 | **Potential difference unit** ⚙ | `uV`, `mV`, or `V` — must match your raw data's units. |
-| **Channel layout** | Electrode grid layout: `MCS60`, `Axion64`, `Mea256`, `Custom`, or `FromFile` (each recording's own electrode positions, as written by an [import of sorted data](sorted-import.md) — use it for MaxWell HD-MEAs). See [MATLAB vs. Python](matlab-vs-python.md) for which layouts have confirmed coordinate parity. |
+| **Channel layout** | Detected from the recordings, with a note saying so (see [Layout from the files](#layout-from-the-files)). Electrode grid layout: `MCS60`, `Axion64`, `Mea256`, `Custom`, or `FromFile` (each recording's own electrode positions, as written by an [import of sorted data](sorted-import.md) — use it for MaxWell HD-MEAs). See [MATLAB vs. Python](matlab-vs-python.md) for which layouts have confirmed coordinate parity. |
 
 ## Spike detection
 

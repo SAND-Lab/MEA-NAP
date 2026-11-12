@@ -30,6 +30,7 @@ the same button again.
 
 from __future__ import annotations
 
+from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtWidgets import (
     QButtonGroup, QGroupBox, QHBoxLayout, QLabel, QProgressBar, QPushButton,
     QRadioButton, QStackedWidget, QTextEdit, QVBoxLayout, QWidget,
@@ -38,6 +39,7 @@ from PyQt6.QtWidgets import (
 from meanap.gui.panels.pipeline import PipelinePanel
 from meanap.gui.panels.queue import QueuePanel
 from meanap.gui.panels.shared import SharedRunPanel
+from meanap.gui.run_clock import RunClock
 from meanap.gui.widgets import scrollable
 from meanap.params import Params
 from meanap.pipeline.progress import Progress, format_bytes, format_duration
@@ -50,6 +52,11 @@ THIS_RUN, QUEUE, SHARED = "this_run", "queue", "shared"
 
 class RunPanel(QWidget):
     """One tab for starting work, whether that is one run or several."""
+
+    #: The Run button's label or enablement may have changed: the switch
+    #: moved, the queue grew, a shared run gained a helper. The simple view's
+    #: own Run button follows this one.
+    run_label_changed = pyqtSignal()
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -160,6 +167,12 @@ class RunPanel(QWidget):
 
         self.progress_eta = QLabel("")
         self.progress_eta.setStyleSheet("font-size: 11px; color: gray;")
+        # Reports arrive when something finishes, which can be minutes apart;
+        # the clock keeps the times moving in between so a slow step does not
+        # read as a stuck one.
+        self.clock = RunClock(self)
+        self.clock.ticked.connect(self._show_timing)
+        self._eta_suffix = ""
 
         # Transfers get their own bar: during the first recording of a remote
         # run it is the only thing moving, and the estimate depends on it.
@@ -230,6 +243,7 @@ class RunPanel(QWidget):
         else:
             self.run_btn.setText("▶  Run pipeline")
             self.run_btn.setEnabled(not self._running)
+        self.run_label_changed.emit()
 
     def refresh(self) -> None:
         """Re-read anything the switch's labels depend on (the queue's length)."""
@@ -263,12 +277,14 @@ class RunPanel(QWidget):
         self.progress_bar.setValue(0)
         self.progress_label.setText("Starting…")
         self.progress_eta.setText("")
+        self._eta_suffix = ""
+        self.clock.start()
         self.transfer_bar.setValue(0)
         self.transfer_label.setText("")
         self._set_transfer_visible(False)
 
     def show_progress(self, snapshot: Progress, prefix: str = "",
-                      fraction: float | None = None) -> None:
+                      fraction: float | None = None, eta_suffix: str = "") -> None:
         """Render one snapshot from the running pipeline.
 
         ``prefix`` and ``fraction`` are what let a queue share this display: the
@@ -285,14 +301,10 @@ class RunPanel(QWidget):
             headline += f"  ·  {snapshot.detail}"
         self.progress_label.setText(prefix + headline)
 
-        elapsed = format_duration(snapshot.elapsed_s)
-        if snapshot.eta_s is None:
-            # Saying "estimating" beats showing a number derived from a
-            # benchmark machine before this one has finished anything.
-            self.progress_eta.setText(f"{elapsed} elapsed  ·  estimating time left…")
-        else:
-            self.progress_eta.setText(
-                f"{elapsed} elapsed  ·  about {format_duration(snapshot.eta_s)} left")
+        # Saying "estimating" beats showing a number derived from a benchmark
+        # machine before this one has finished anything (see timing_text).
+        self._eta_suffix = eta_suffix
+        self.clock.report(snapshot.elapsed_s, snapshot.eta_s)
 
         self._set_transfer_visible(snapshot.transferring)
         if snapshot.transferring:
@@ -314,14 +326,21 @@ class RunPanel(QWidget):
             prefix=f"Run {index + 1} of {total} — {label}   ·   ",
             # Whole runs behind, plus this run's share of the one in flight.
             fraction=(index + snapshot.fraction) / total,
+            eta_suffix=" in this run",
         )
-        if snapshot.eta_s is not None:
-            self.progress_eta.setText(
-                self.progress_eta.text() + " in this run")
+
+    def _show_timing(self) -> None:
+        text = self.clock.text()
+        if self.clock.eta() is not None:
+            text += self._eta_suffix
+        self.progress_eta.setText(text)
 
     def finish_progress(self, message: str) -> None:
         """Leave the bar showing how the run ended rather than blanking it."""
         self.progress_label.setText(message)
+        if self.clock.running():
+            self._last_elapsed = self.clock.elapsed()  # up to now, not the last report
+        self.clock.stop()
         self.progress_eta.setText(
             f"{format_duration(self._last_elapsed)} total"
             if self._last_elapsed else "")

@@ -33,7 +33,7 @@ from PyQt6.QtGui import QColor, QPainter
 from PyQt6.QtWidgets import (
     QAbstractButton, QAbstractItemView, QAbstractSpinBox, QComboBox, QFrame,
     QGroupBox, QHBoxLayout, QLabel, QLineEdit, QPushButton, QScrollArea,
-    QSizePolicy, QSplitter, QVBoxLayout, QWidget,
+    QSizePolicy, QSplitter, QStackedWidget, QVBoxLayout, QWidget,
 )
 
 from meanap.gui.settings_search import _plain, _reachable
@@ -194,11 +194,8 @@ def summarise(key: str, p) -> str:
         return (f"denoising threshold {p.twop_denoising_threshold:g} · "
                 f"cell tracking {'on' if p.track_cells else 'off'}")
     if key == TAB_RUN:
-        parts = [f"steps {p.start_analysis_step}–{p.stop_analysis_step}",
-                 "figures " + (", ".join(e.lstrip(".") for e in p.fig_ext) or "none")]
-        if p.express_mode:
-            parts.append("express mode")
-        return " · ".join(parts)
+        return (f"steps {p.start_analysis_step}–{p.stop_analysis_step} · "
+                f"express mode {'on' if p.express_mode else 'off'}")
     return ""
 
 
@@ -300,8 +297,19 @@ class Loan:
         self._placeholder.setObjectName("loanPlaceholder")
         parent = widget.parentWidget()
         self._splitter: QSplitter | None = None
+        self._stack: QStackedWidget | None = None
         self._layout = None
-        if isinstance(parent, QSplitter):
+        if isinstance(parent, QStackedWidget):
+            # A page of a stack (the Run tab's queue and shared pages): the
+            # stack's own layout cannot swap a page in place.
+            self._stack = parent
+            self._index = parent.indexOf(widget)
+            self._was_current = parent.currentIndex() == self._index
+            parent.removeWidget(widget)
+            parent.insertWidget(self._index, self._placeholder)
+            if self._was_current:
+                parent.setCurrentIndex(self._index)
+        elif isinstance(parent, QSplitter):
             self._splitter = parent
             self._sizes = parent.sizes()
             parent.replaceWidget(parent.indexOf(widget), self._placeholder)
@@ -318,7 +326,7 @@ class Loan:
     @staticmethod
     def possible(widget: QWidget) -> bool:
         parent = widget.parentWidget()
-        if isinstance(parent, QSplitter):
+        if isinstance(parent, (QSplitter, QStackedWidget)):
             return parent.indexOf(widget) >= 0
         layout = parent.layout() if parent is not None else None
         return layout is not None and _in_layout(layout, widget)
@@ -326,7 +334,12 @@ class Loan:
     def give_back(self) -> None:
         if sip.isdeleted(self.widget) or sip.isdeleted(self._placeholder):
             return
-        if self._splitter is not None:
+        if self._stack is not None:
+            self._stack.removeWidget(self._placeholder)
+            self._stack.insertWidget(self._index, self.widget)
+            if self._was_current:
+                self._stack.setCurrentIndex(self._index)
+        elif self._splitter is not None:
             self._splitter.replaceWidget(self._splitter.indexOf(self._placeholder), self.widget)
             self._splitter.setSizes(self._sizes)
         else:
@@ -371,13 +384,14 @@ class _AreaRow(QPushButton):
         self.changed = QLabel(str(len(area.changed)))
         self.changed.setObjectName("areaChanged")
         self.changed.setFixedHeight(18)
-        self.changed.setVisible(bool(area.changed))
         for label in (self.arrow, self.title, self.summary, self.changed):
             label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         row.addWidget(self.arrow)
         row.addWidget(self.title)
         row.addWidget(self.summary, 1)
         row.addWidget(self.changed)
+        # Only once it has a parent: shown before that, it is a window of its own.
+        self.changed.setVisible(bool(area.changed))
         tip = [area.summary] if area.summary else []
         if area.changed:
             tip.append(f"{len(area.changed)} changed from the defaults:")
@@ -474,12 +488,13 @@ class SettingsCard(QFrame):
                     lambda _=False, k=area.key, i=index: self.section_requested.emit(k, i))
                 column.addWidget(link, 0, Qt.AlignmentFlag.AlignLeft)
                 links.append(link)
-            sections.setVisible(area.key in self._expanded)
             row.setChecked(area.key in self._expanded)
             row.toggled.connect(
                 lambda on, k=area.key, s=sections: self._set_expanded(k, s, on))
             self._rows_box.addWidget(row)
             self._rows_box.addWidget(sections)
+            # After it has a parent: shown before that, it is a window of its own.
+            sections.setVisible(area.key in self._expanded)
             self.rows[area.key] = row
             self.links[area.key] = links
         n = self.total_changed()
@@ -552,7 +567,7 @@ class SectionDrawer(QWidget):
         column.addWidget(self.scroll, 1)
 
         bottom = QHBoxLayout()
-        note = QLabel("Changes are kept as you make them.")
+        note = self.note = QLabel()
         note.setObjectName("stepHint")
         self.done_button = QPushButton("Done")
         self.done_button.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -576,12 +591,18 @@ class SectionDrawer(QWidget):
     def is_open(self) -> bool:
         return self._loan is not None
 
-    def open_section(self, area_title: str, section: Section) -> None:
+    def open_section(self, area_title: str, section: Section, fill: bool = False,
+                     note: str = "Changes are kept as you make them.") -> None:
+        """Borrow *section*'s box into the panel; *fill* gives it all the height."""
         self.close_section(emit=False)
+        self.note.setText(note)
         self.area_label.setText(area_title)
         self.title_label.setText(section.title)
         self._loan = Loan(section.box)
-        self._holder_layout.insertWidget(0, section.box)
+        self._holder_layout.insertWidget(0, section.box, 1 if fill else 0)
+        # The spacer below keeps a short section at the top; a filling one
+        # takes all the height instead.
+        self._holder_layout.setStretch(self._holder_layout.count() - 1, 0 if fill else 1)
         section.box.show()
         self.scroll.verticalScrollBar().setValue(0)
         self.setGeometry(self.parentWidget().rect())

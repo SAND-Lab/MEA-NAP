@@ -25,9 +25,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtWidgets import (
     QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QGroupBox, QHBoxLayout,
-    QLineEdit, QPushButton, QVBoxLayout, QWidget,
+    QLabel, QLineEdit, QPushButton, QVBoxLayout, QWidget,
 )
 
 from meanap.gui.advanced import AdvancedSection
@@ -39,6 +40,13 @@ __all__ = ["DataPanel", "CHANNEL_LAYOUTS", "POTENTIAL_UNITS",
            "RAW_DATA_LABEL", "CATNAP_DATA_LABEL"]
 
 CHANNEL_LAYOUTS = ["MCS60", "Axion64", "Mea256", "Custom", "FromFile"]
+
+#: Colours of the detection notes under the Recording settings.
+_NOTE_OK = "#15803d"
+_NOTE_WARN = "#b45309"
+_NOTE_MUTED = "#6b7280"
+#: Wait this long after the folder stops changing before reading its files.
+DETECT_DEBOUNCE_MS = 400
 POTENTIAL_UNITS = ["uV", "mV", "V"]
 
 #: What the input folder is called, per pipeline. The ephys modes read raw
@@ -70,10 +78,22 @@ class DataPanel(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(12, 12, 12, 12)
 
+        self._mode_key = "meanap"
+        #: (folder, its raw files) → what they said about layout and rate.
+        self._layout_guesses: dict = {}
+
         layout.addWidget(self._build_input())
         layout.addWidget(self._build_recording())
         layout.addWidget(self._build_output())
         layout.addStretch()
+
+        self._detect_timer = QTimer(self)
+        self._detect_timer.setSingleShot(True)
+        self._detect_timer.setInterval(DETECT_DEBOUNCE_MS)
+        self._detect_timer.timeout.connect(self.refresh_detection)
+        self.raw_data.line_edit.textChanged.connect(lambda _t: self._detect_timer.start())
+        self.channel_layout.currentTextChanged.connect(lambda _t: self._show_detection())
+        self._show_detection()
 
     # ── Input ─────────────────────────────────────────────────────────────────
 
@@ -192,10 +212,45 @@ class DataPanel(QWidget):
         self.potential_difference_unit = QComboBox()
         self.potential_difference_unit.addItems(POTENTIAL_UNITS)
 
-        # The rate and the layout differ between rigs; the other two are
-        # conventions almost every MEA file already follows.
-        form.addRow("Sampling frequency", self.fs)
-        form.addRow("Channel layout", self.channel_layout)
+        # Both are read from the recordings (see refresh_detection), so each
+        # says so beneath it — a bare "25000 Hz" read as a setting someone had
+        # to get right, and as wrong whenever the files were at another rate.
+        # The rate is not editable at all: no step reads it, each recording is
+        # analysed at its own. The spin box stays, hidden, to carry the value
+        # into the saved settings.
+        self.fs.hide()
+        self.fs_note = QLabel()
+        self.fs_note.setTextFormat(Qt.TextFormat.RichText)
+        self.fs_note.setWordWrap(True)
+        self.fs_note.setToolTip(self.fs.toolTip())
+        fs_field = QWidget()
+        fs_column = QVBoxLayout(fs_field)
+        fs_column.setContentsMargins(0, 0, 0, 0)
+        fs_column.addWidget(self.fs_note)
+        fs_column.addWidget(self.fs)
+
+        self.layout_note = QLabel()
+        self.layout_note.setWordWrap(True)
+        self.layout_use_button = QPushButton()
+        self.layout_use_button.setFlat(True)
+        self.layout_use_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.layout_use_button.setStyleSheet(
+            "QPushButton { border: none; color: #2563eb; padding: 0 4px; }")
+        self.layout_use_button.clicked.connect(self._use_detected_layout)
+        self.layout_use_button.hide()
+        note_row = QHBoxLayout()
+        note_row.setContentsMargins(0, 0, 0, 0)
+        note_row.addWidget(self.layout_note, 1)
+        note_row.addWidget(self.layout_use_button, 0, Qt.AlignmentFlag.AlignTop)
+        layout_field = QWidget()
+        layout_column = QVBoxLayout(layout_field)
+        layout_column.setContentsMargins(0, 0, 0, 0)
+        layout_column.setSpacing(3)
+        layout_column.addWidget(self.channel_layout)
+        layout_column.addLayout(note_row)
+
+        form.addRow("Sampling frequency", fs_field)
+        form.addRow("Channel layout", layout_field)
 
         advanced = AdvancedSection()
         advanced.form().addRow("Downsample frequency", self.d_samp_f)
@@ -203,6 +258,113 @@ class DataPanel(QWidget):
                                self.potential_difference_unit)
         form.addRow(advanced)
         return self.recording_box
+
+    # ── Reading layout and rate from the recordings ───────────────────────────
+
+    def layout_guess(self):
+        """What the raw data folder's files say about layout and rate; cached.
+
+        Read again only when the folder or the files in it change. The first
+        time a folder is read, its layout goes into the setting, so a run uses
+        it without anyone pressing anything; after that a layout the person
+        picks is left alone (and flagged if it disagrees). ``FromFile`` is
+        never replaced: it is a deliberate choice for imported sorted units.
+        """
+        from meanap.pipeline.io import RAW_EXTENSIONS
+        from meanap.pipeline.recording_probe import detect_layout, probe_folder
+
+        folder = self.raw_data.value.strip()
+        if (self._mode_key == "catnap" or not folder or is_remote_url(folder)
+                or not Path(folder).is_dir()):
+            return None
+        try:
+            files = tuple(sorted(p.name for p in Path(folder).iterdir()
+                                 if p.suffix.lower() in RAW_EXTENSIONS))
+        except OSError:
+            return None
+        key = (folder, files)
+        if key not in self._layout_guesses:
+            try:
+                guess = detect_layout(probe_folder(folder))
+            except Exception:  # unreadable files: say so rather than guess
+                guess = None
+            self._layout_guesses[key] = guess
+            if guess is not None and guess.layout:
+                if self.channel_layout.currentText() != "FromFile":
+                    self.channel_layout.setCurrentText(guess.layout)
+                if len(set(guess.rates)) == 1:
+                    self.fs.setValue(guess.rates[0])
+        return self._layout_guesses[key]
+
+    def refresh_detection(self) -> None:
+        """Read the folder's files if they are new, and update the notes."""
+        self._detect_timer.stop()
+        self.layout_guess()
+        self._show_detection()
+
+    def _use_detected_layout(self) -> None:
+        guess = self.layout_guess()
+        if guess is not None and guess.layout:
+            self.channel_layout.setCurrentText(guess.layout)
+
+    @staticmethod
+    def _note(label: QLabel, text: str, colour: str) -> None:
+        label.setText(text)
+        label.setStyleSheet(f"color: {colour}; font-size: 11px;")
+
+    def _show_detection(self) -> None:
+        """Say where the rate and layout come from, and whether they agree."""
+        from meanap.gui.simple_checks import describe_rates
+
+        folder = self.raw_data.value.strip()
+        remote = bool(folder) and is_remote_url(folder)
+        guess = None
+        if folder and not remote:
+            # Only what is already cached: reading files is refresh_detection's
+            # job, after typing stops, not every keystroke's.
+            guess = next((g for (f, _files), g in self._layout_guesses.items()
+                          if f == folder), None)
+        self.layout_use_button.hide()
+
+        rates = describe_rates(guess.rates) if guess is not None else ""
+        if rates and len(set(guess.rates)) > 1:
+            self.fs_note.setText(
+                f"<b>{rates}</b> <span style='color:{_NOTE_MUTED}'>— read from the "
+                "recordings; each is analysed at its own rate</span>")
+        elif rates:
+            self.fs_note.setText(
+                f"<b>{rates}</b> <span style='color:{_NOTE_MUTED}'>— read from "
+                "the recordings</span>")
+        else:
+            self.fs_note.setText(
+                f"<span style='color:{_NOTE_MUTED}'>Read from each recording "
+                "when the run starts</span>")
+
+        chosen = self.channel_layout.currentText()
+        if guess is None or not guess.layout:
+            if remote:
+                text = ("Can't be checked against a share link before the run, "
+                        "so make sure this is the array you recorded on.")
+            elif folder and Path(folder).is_dir():
+                text = "Couldn't be read from these files; choose the array you recorded on."
+            else:
+                text = "Detected from the recordings once a raw data folder is chosen."
+            self._note(self.layout_note, text, _NOTE_MUTED)
+        elif chosen == "FromFile":
+            self._note(self.layout_note, "Electrode positions come from each "
+                       "recording's own file.", _NOTE_MUTED)
+        elif chosen != guess.layout:
+            self._note(self.layout_note,
+                       f"⚠ You chose {chosen}, but the recordings look like "
+                       f"{guess.layout}. {guess.reason}", _NOTE_WARN)
+            self.layout_use_button.setText(f"Use {guess.layout}")
+            self.layout_use_button.show()
+        elif guess.sure:
+            self._note(self.layout_note, f"✓ Detected from the recordings. {guess.reason}",
+                       _NOTE_OK)
+        else:
+            self._note(self.layout_note, f"Detected from the recordings, but check "
+                       f"it: {guess.reason}", _NOTE_WARN)
 
     # ── Output ────────────────────────────────────────────────────────────────
 
@@ -265,6 +427,7 @@ class DataPanel(QWidget):
         mode, matching the CAT-NAP tab's own wording.
         """
         catnap = mode_key == "catnap"
+        self._mode_key = mode_key
         self.recording_box.setVisible(not catnap)
 
         label = self._input_form.labelForField(self.raw_data)
@@ -347,6 +510,7 @@ class DataPanel(QWidget):
             self.channel_layout.setCurrentIndex(idx)
         else:
             self.channel_layout.setCurrentText(params.channel_layout)
+        self._detect_timer.start()
 
     def save(self, params: Params) -> None:
         params.raw_data = self.raw_data.value
