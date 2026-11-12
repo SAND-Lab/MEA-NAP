@@ -566,7 +566,16 @@ while isvalid(app)
         % app.SpreadsheetFilepathEditField.Value = spreadsheetFilePath;
         % Set CSV range
         app.SpreadsheetRangeEditField.Value = '[2, 3]';
-        
+
+        % The example recordings are Axion 8x8 wells: 64 electrodes, recorded
+        % at 12.5 kHz, in volts. Without this the run kept the MCS60 defaults
+        % (25 kHz, uV), which mirrors the electrode map, drops the four corner
+        % electrodes, and doubles every burst timing computed from Params.fs.
+        app.ChannelLayoutDropDown.Value = 'Axion64';
+        app.SamplingFrequencyEditField.Value = 12500;
+        app.DownSampleFrequencyEditField.Value = 12500;
+        app.PotentialDifferenceUnitEditField.Value = 'V';
+
         % Update custom group order
         csvRange = str2num(app.SpreadsheetRangeEditField.Value);
             csv_data = pipelineReadCSV(app.SpreadsheetFilenameEditField.Value, csvRange);

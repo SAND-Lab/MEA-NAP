@@ -6,6 +6,12 @@ missing from the results. Retyping folder names into Excel is exactly how that
 happens, so the CAT-NAP scanner can hand its findings straight to this editor —
 the names then come from the data rather than from memory.
 
+A new sheet built from a folder starts with the group and DIV read out of the
+recording names (:mod:`meanap.pipeline.name_parts`), as suggestions: the
+cells are tinted until edited or saved, the suggested group values can be
+renamed in one place (``WT`` → ``Wildtype``), and any part of the names can be
+picked as the group or DIV instead.
+
 What the editor adds beyond a table widget is the check it runs after every
 keystroke: blank names, duplicates, non-numeric DIVs and empty groups are
 reported *while editing*, not discovered by a run an hour later. Saving with
@@ -23,10 +29,16 @@ from pathlib import Path
 
 import pandas as pd
 from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtGui import QBrush, QColor
 from PyQt6.QtWidgets import (
-    QAbstractItemView, QCheckBox, QDialog, QFileDialog, QHBoxLayout,
-    QHeaderView, QInputDialog, QLabel, QMessageBox, QPushButton, QTableWidget,
-    QTableWidgetItem, QVBoxLayout, QWidget,
+    QAbstractItemView, QCheckBox, QDialog, QFileDialog, QFrame, QGridLayout,
+    QHBoxLayout, QHeaderView, QInputDialog, QLabel, QLineEdit, QMenu,
+    QMessageBox, QPushButton, QTableWidget, QTableWidgetItem, QToolButton,
+    QVBoxLayout, QWidget,
+)
+
+from meanap.pipeline.name_parts import (
+    div_from_part, name_parts, part_values, suggest_name_parts,
 )
 
 from meanap.pipeline.spreadsheet import (
@@ -35,6 +47,22 @@ from meanap.pipeline.spreadsheet import (
 )
 
 _FILE_FILTER = "Spreadsheets (*.csv *.xlsx *.xls)"
+#: Columns by position, as ``read_recording_csv`` reads them.
+_DIV_COLUMN, _GROUP_COLUMN = 1, 2
+#: Cells filled from the names, until the person edits them or saves: amber
+#: italic text, since the theme's alternating row shading hides a background.
+_SUGGESTED = QBrush(QColor("#b45309"))
+_SUGGESTED_TIP = "Suggested from the recording name. Edit it if it's wrong."
+_RENAMES_PER_ROW = 3
+
+
+def _clear_layout(layout) -> None:
+    """Empty *layout* now; its widgets are detached at once and deleted later."""
+    while layout.count():
+        widget = layout.takeAt(0).widget()
+        if widget is not None:
+            widget.setParent(None)
+            widget.deleteLater()
 
 
 class SpreadsheetEditor(QDialog):
@@ -49,12 +77,16 @@ class SpreadsheetEditor(QDialog):
         table: pd.DataFrame | None = None,
         path: str = "",
         suggested_path: str = "",
+        suggest: bool = False,
     ) -> None:
         """Open on *table*, or on the file at *path*, or on an empty sheet.
 
         *suggested_path* is where **Save** will offer to write a sheet that has
         no file yet — the scanned data folder, usually, since that is where the
         recordings it names live.
+
+        *suggest*: fill the blank group and DIV cells from the recording names,
+        marked as suggestions. For a sheet just built from a folder.
         """
         super().__init__(parent)
         self.setWindowTitle("Recording spreadsheet")
@@ -68,6 +100,11 @@ class SpreadsheetEditor(QDialog):
         #: the run has a cheaper way of handling that than starting again — but
         #: only if the person editing knows it exists.
         self._opened_with: set[str] | None = None
+        #: The name part each group cell was filled from, by row; renaming a
+        #: suggested value rewrites every cell that came from it.
+        self._group_origin: list[str] | None = None
+        self._group_part: int | None = None
+        self._div_part: int | None = None
 
         layout = QVBoxLayout(self)
 
@@ -85,6 +122,7 @@ class SpreadsheetEditor(QDialog):
         self._status.setStyleSheet("font-size: 11px;")
 
         layout.addWidget(self._file_label)
+        layout.addWidget(self._build_name_parts())
         layout.addLayout(self._build_toolbar())
         layout.addWidget(self._table, stretch=1)
         layout.addWidget(self._status)
@@ -101,8 +139,239 @@ class SpreadsheetEditor(QDialog):
         self.set_table(table if table is not None else new_recording_table([]))
         if self._path:
             self._opened_with = self._recording_names()
+        if suggest:
+            self.apply_suggestions()
 
     # ── Construction ──────────────────────────────────────────────────────────
+
+    def _build_name_parts(self) -> QFrame:
+        """The strip that reads group and DIV out of the names.
+
+        One chip per part of the first recording's name; a chip's menu fills
+        the group or DIV column from that part of every name. Below it, once a
+        group has been read from the names, one field per distinct value to
+        rename it with.
+        """
+        self.name_parts_box = QFrame()
+        self.name_parts_box.setObjectName("namePartsBox")
+        self.name_parts_box.setStyleSheet(
+            "#namePartsBox { background: #f6f8fb; border: 1px solid #e3e7ee;"
+            " border-radius: 8px; }"
+            " QToolButton { border: 1px solid #cfd6e1; border-radius: 6px;"
+            " padding: 3px 8px; background: white; }"
+            " QToolButton[role=\"group\"] { background: #dce8fd; border-color: #4f8ef7; }"
+            " QToolButton[role=\"div\"] { background: #dcf3e3; border-color: #16a34a; }")
+        box = QVBoxLayout(self.name_parts_box)
+        box.setContentsMargins(10, 8, 10, 8)
+        box.setSpacing(6)
+
+        heading = QLabel("<b>From the names</b> — click a part to fill a column from it "
+                         "in every recording's name:")
+        self._chips_row = QHBoxLayout()
+        self._chips_row.setSpacing(4)
+        self.name_parts_note = QLabel()
+        self.name_parts_note.setWordWrap(True)
+        self.name_parts_note.setStyleSheet("font-size: 11px; color: #555;")
+        self._rename_box = QWidget()
+        self._rename_grid = QGridLayout(self._rename_box)
+        self._rename_grid.setContentsMargins(0, 0, 0, 0)
+        self._rename_grid.setHorizontalSpacing(8)
+        self._rename_box.setVisible(False)
+
+        box.addWidget(heading)
+        box.addLayout(self._chips_row)
+        box.addWidget(self.name_parts_note)
+        box.addWidget(self._rename_box)
+        self._chips: list[QToolButton] = []
+        return self.name_parts_box
+
+    def _refresh_name_parts(self) -> None:
+        """Rebuild the chips from the first recording name."""
+        names = [n for n in self.table().iloc[:, 0] if str(n).strip()] \
+            if self._table.rowCount() else []
+        _clear_layout(self._chips_row)
+        self._chips = []
+        self.name_parts_box.setVisible(bool(names))
+        if not names:
+            return
+        for index, part in enumerate(name_parts(names[0])):
+            chip = QToolButton()
+            chip.setText(part)
+            chip.setCursor(Qt.CursorShape.PointingHandCursor)
+            chip.setToolTip(f"Part {index + 1} of each name. Click to use it.")
+            chip.setProperty("role", "group" if index == self._group_part
+                             else "div" if index == self._div_part else "")
+            chip.clicked.connect(lambda _=False, i=index, c=chip: self._chip_menu(i, c))
+            self._chips_row.addWidget(chip)
+            self._chips.append(chip)
+        self._chips_row.addStretch(1)
+
+    def _chip_menu(self, index: int, chip: QToolButton) -> None:
+        menu = QMenu(self)
+        group = SPREADSHEET_COLUMNS[_GROUP_COLUMN]
+        div = SPREADSHEET_COLUMNS[_DIV_COLUMN]
+        as_group = menu.addAction(f"Fill {group} from this part")
+        as_group.triggered.connect(lambda: self.fill_group_from_part(index))
+        as_div = menu.addAction(f"Fill {div} from this part")
+        as_div.triggered.connect(lambda: self.fill_div_from_part(index))
+        menu.exec(chip.mapToGlobal(chip.rect().bottomLeft()))
+
+    def apply_suggestions(self) -> None:
+        """Fill blank group and DIV cells from the names, where they say."""
+        names = self._names_by_row()
+        suggestion = suggest_name_parts(names)
+        notes = []
+        if suggestion.group_part is not None and self._column_blank(_GROUP_COLUMN):
+            self.fill_group_from_part(suggestion.group_part, announce=False)
+            notes.append(suggestion.group_reason + " Check it, and rename the values "
+                         "below if your groups go by other names.")
+        if suggestion.div_part is not None and self._column_blank(_DIV_COLUMN):
+            self.fill_div_from_part(suggestion.div_part, announce=False)
+        elif self._mark_div_from_names():
+            self._div_part = suggestion.div_part
+            notes.append(f"{SPREADSHEET_COLUMNS[_DIV_COLUMN]} is read from the "
+                         "DIV in each name.")
+        if not notes and names:
+            notes.append("Nothing in the names says which group a recording is "
+                         "in. Fill the column in, or click a part of the names above.")
+        self.name_parts_note.setText(" ".join(notes))
+        self._refresh_name_parts()
+        self._refresh()
+
+    def fill_group_from_part(self, index: int, *, announce: bool = True) -> None:
+        """Set every group cell to part *index* of its recording's name."""
+        values = part_values(self._names_by_row(), index)
+        self._fill_column(_GROUP_COLUMN, values)
+        self._group_origin = values
+        self._group_part = index
+        self._build_renames()
+        self._refresh_name_parts()
+        if announce:
+            distinct = sorted({v for v in values if v}, key=str.lower)
+            self.name_parts_note.setText(
+                f"{SPREADSHEET_COLUMNS[_GROUP_COLUMN]} filled from part {index + 1}: "
+                f"{', '.join(distinct) or 'nothing'}. Rename the values below if "
+                "your groups go by other names.")
+
+    def fill_div_from_part(self, index: int, *, announce: bool = True) -> None:
+        """Set every DIV cell to the number in part *index* of its name."""
+        values = [div_from_part(v) for v in part_values(self._names_by_row(), index)]
+        self._fill_column(_DIV_COLUMN, values)
+        self._div_part = index
+        self._refresh_name_parts()
+        if announce:
+            missing = sum(1 for v in values if not v)
+            self.name_parts_note.setText(
+                f"{SPREADSHEET_COLUMNS[_DIV_COLUMN]} filled from part {index + 1}."
+                + (f" {missing} name(s) have no number there — fill those in."
+                   if missing else ""))
+
+    def _names_by_row(self) -> list[str]:
+        if not self._table.rowCount():
+            return []
+        return [str(n) for n in self.table().iloc[:, 0]]
+
+    def _column_blank(self, column: int) -> bool:
+        return column < self._table.columnCount() and all(
+            not (self._table.item(r, column) and self._table.item(r, column).text().strip())
+            for r in range(self._table.rowCount()))
+
+    def _mark_div_from_names(self) -> bool:
+        """Tint DIVs that :func:`new_recording_table` read from the names."""
+        marked = False
+        # Restyling a cell emits itemChanged, which would read as an edit.
+        self._updating = True
+        try:
+            for r in range(self._table.rowCount()):
+                item = self._table.item(r, _DIV_COLUMN)
+                if item is not None and item.text().strip():
+                    self._mark_suggested(item)
+                    marked = True
+        finally:
+            self._updating = False
+        return marked
+
+    def _fill_column(self, column: int, values: list[str]) -> None:
+        if column >= self._table.columnCount():
+            return
+        self._updating = True
+        try:
+            for r, value in enumerate(values):
+                item = QTableWidgetItem(value)
+                if value:
+                    self._mark_suggested(item)
+                self._table.setItem(r, column, item)
+        finally:
+            self._updating = False
+        self._refresh()
+
+    @staticmethod
+    def _mark_suggested(item: QTableWidgetItem) -> None:
+        item.setForeground(_SUGGESTED)
+        font = item.font()
+        font.setItalic(True)
+        item.setFont(font)
+        item.setToolTip(_SUGGESTED_TIP)
+
+    @staticmethod
+    def _unmark(item: QTableWidgetItem) -> None:
+        item.setForeground(QBrush())
+        font = item.font()
+        font.setItalic(False)
+        item.setFont(font)
+        item.setToolTip("")
+
+    def is_suggested(self, row: int, column: int) -> bool:
+        item = self._table.item(row, column)
+        return item is not None and item.foreground() == _SUGGESTED
+
+    def _clear_suggestions(self) -> None:
+        self._updating = True
+        try:
+            for r in range(self._table.rowCount()):
+                for c in range(self._table.columnCount()):
+                    if self.is_suggested(r, c):
+                        self._unmark(self._table.item(r, c))
+        finally:
+            self._updating = False
+
+    def _build_renames(self) -> None:
+        """One field per suggested group value, to give it the lab's name."""
+        _clear_layout(self._rename_grid)
+        self.rename_fields: dict[str, QLineEdit] = {}
+        distinct = sorted({v for v in self._group_origin or [] if v}, key=str.lower)
+        if not distinct:
+            self._rename_box.setVisible(False)
+            return
+        label = QLabel(f"Call each {SPREADSHEET_COLUMNS[_GROUP_COLUMN].lower()}:")
+        self._rename_grid.addWidget(label, 0, 0, 1, 2 * _RENAMES_PER_ROW)
+        for i, value in enumerate(distinct):
+            field = QLineEdit(value)
+            field.setPlaceholderText(value)
+            field.setMaximumWidth(170)
+            field.textEdited.connect(lambda text, v=value: self.rename_group(v, text))
+            row, col = 1 + i // _RENAMES_PER_ROW, 2 * (i % _RENAMES_PER_ROW)
+            self._rename_grid.addWidget(QLabel(f"{value} →"), row, col,
+                                        Qt.AlignmentFlag.AlignRight)
+            self._rename_grid.addWidget(field, row, col + 1)
+            self.rename_fields[value] = field
+        self._rename_grid.setColumnStretch(2 * _RENAMES_PER_ROW, 1)
+        self._rename_box.setVisible(True)
+
+    def rename_group(self, original: str, name: str) -> None:
+        """Rename every group cell filled from *original* to *name*."""
+        if self._group_origin is None:
+            return
+        self._updating = True
+        try:
+            for r, origin in enumerate(self._group_origin):
+                if origin == original and r < self._table.rowCount():
+                    item = QTableWidgetItem(name.strip())
+                    self._mark_suggested(item)
+                    self._table.setItem(r, _GROUP_COLUMN, item)
+        finally:
+            self._updating = False
+        self._refresh()
 
     def _build_toolbar(self) -> QHBoxLayout:
         row = QHBoxLayout()
@@ -191,6 +460,11 @@ class SpreadsheetEditor(QDialog):
             self.ground_check.setChecked(with_ground)
         finally:
             self._updating = False
+        self._group_origin = None
+        self._group_part = self._div_part = None
+        if hasattr(self, "rename_fields"):
+            self._build_renames()
+        self._refresh_name_parts()
         self._refresh()
 
     def table(self) -> pd.DataFrame:
@@ -209,6 +483,7 @@ class SpreadsheetEditor(QDialog):
     def set_recordings(self, names) -> None:
         """Fill the sheet from a list of recording names (a scan's output)."""
         self.set_table(new_recording_table(names, ground=self.ground_check.isChecked()))
+        self.apply_suggestions()
 
     # ── Saving ────────────────────────────────────────────────────────────────
 
@@ -216,6 +491,8 @@ class SpreadsheetEditor(QDialog):
         """Write to *path* and remember it. Also the seam tests save through."""
         written = write_recording_table(path, self.table())
         self._path = str(written)
+        # Saved is confirmed: what was suggested is now what the sheet says.
+        self._clear_suggestions()
         self._refresh()
         self.saved.emit(str(written))
         return written
@@ -227,9 +504,19 @@ class SpreadsheetEditor(QDialog):
 
     # ── Slots ─────────────────────────────────────────────────────────────────
 
-    def _on_item_changed(self, _item: QTableWidgetItem) -> None:
-        if not self._updating:
-            self._refresh()
+    def _on_item_changed(self, item: QTableWidgetItem) -> None:
+        if self._updating:
+            return
+        # An edited cell is the person's answer, not a suggestion any more.
+        if item.foreground() == _SUGGESTED:
+            self._updating = True
+            try:
+                self._unmark(item)
+            finally:
+                self._updating = False
+        if item.column() == 0:
+            self._refresh_name_parts()
+        self._refresh()
 
     def _on_add_row(self) -> None:
         self._updating = True
@@ -416,7 +703,15 @@ class SpreadsheetEditor(QDialog):
         else:
             n = self._table.rowCount()
             base = f"{n} recording(s), ready to use."
+            if self._has_suggestions():
+                base += (" The amber cells were suggested from the names: check "
+                         "them before saving.")
             self._set_status(f"{base}  {edits}" if edits else base)
+
+    def _has_suggestions(self) -> bool:
+        return any(self.is_suggested(r, c) for r in range(self._table.rowCount())
+                   for c in (_DIV_COLUMN, _GROUP_COLUMN)
+                   if c < self._table.columnCount())
 
     def _set_status(self, text: str, warn: bool = False) -> None:
         self._status.setText(("⚠ " if warn else "") + text)
@@ -430,6 +725,7 @@ def edit_spreadsheet(
     *,
     table: pd.DataFrame | None = None,
     suggested_path: str = "",
+    suggest: bool = False,
 ) -> str:
     """Open the editor modally; return the path saved to, or ``""``.
 
@@ -438,7 +734,7 @@ def edit_spreadsheet(
     works.
     """
     dialog = SpreadsheetEditor(parent, table=table, path=path,
-                               suggested_path=suggested_path)
+                               suggested_path=suggested_path, suggest=suggest)
     result: list[str] = []
     dialog.saved.connect(result.append)
     dialog.setWindowModality(Qt.WindowModality.WindowModal)

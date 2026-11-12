@@ -195,6 +195,8 @@ class StimPreviewPanel(QWidget):
         self._patterns = None
         self._raw_worker = None
         self._detect_worker = None
+        #: Where Browse… starts; the recordings folder, when a caller knows it.
+        self.start_dir = ""
 
         root = QHBoxLayout(self)
         root.addWidget(self._build_controls(), 0)
@@ -269,7 +271,7 @@ class StimPreviewPanel(QWidget):
 
     # --- raw loading ------------------------------------------------------------
     def _on_browse(self) -> None:
-        path, _ = QFileDialog.getOpenFileName(self, "Select raw recording", "",
+        path, _ = QFileDialog.getOpenFileName(self, "Select raw recording", self.start_dir,
                                               "Raw recordings (*.mat *.h5);;MAT files (*.mat);;"
                                               "MCS HDF5 files (*.h5);;All files (*)")
         if not path:

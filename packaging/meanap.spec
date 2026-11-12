@@ -92,5 +92,22 @@ if sys.platform == "darwin":
             "CFBundleDisplayName": "MEA-NAP",
             "NSHighResolutionCapable": True,
             "LSMinimumSystemVersion": "12.0",
+            # Double-clicking a .meanap bundle in Finder opens it here; Finder
+            # delivers it as a file-open event (meanap.gui.single_instance).
+            "CFBundleDocumentTypes": [{
+                "CFBundleTypeName": "MEA-NAP run bundle",
+                "CFBundleTypeRole": "Viewer",
+                "LSHandlerRank": "Owner",
+                "LSItemContentTypes": ["org.sandlab.meanap.bundle"],
+            }],
+            "UTExportedTypeDeclarations": [{
+                "UTTypeIdentifier": "org.sandlab.meanap.bundle",
+                "UTTypeDescription": "MEA-NAP run bundle",
+                "UTTypeConformsTo": ["public.data", "public.archive"],
+                "UTTypeTagSpecification": {
+                    "public.filename-extension": ["meanap"],
+                    "public.mime-type": ["application/x-meanap-bundle"],
+                },
+            }],
         },
     )

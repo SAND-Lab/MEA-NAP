@@ -738,7 +738,7 @@ class CatNapPanel(QWidget):
 
         path = edit_spreadsheet(
             self, table=new_recording_table(r.name for r in self._recordings),
-            suggested_path=suggested)
+            suggested_path=suggested, suggest=True)
         if path:
             self._log_msg(f"Spreadsheet saved to {path}")
             self.spreadsheet_saved.emit(path)

@@ -117,9 +117,16 @@ check("the default is light",
       theme.apply.__defaults__ == ("light",), str(theme.apply.__defaults__))
 
 corner = window._tabs.cornerWidget(Qt.Corner.TopRightCorner)
+logo = window._logo_label
 check("the logo sits in the tab strip, not the toolbar",
-      corner is not None and corner.pixmap() is not None
-      and corner.parent() is not toolbar, str(corner))
+      corner is not None and logo.pixmap() is not None
+      and corner.isAncestorOf(logo) and not toolbar.isAncestorOf(logo), str(corner))
+check("beside the settings search, which is not on the toolbar either",
+      corner.isAncestorOf(window._search_box) and not toolbar.isAncestorOf(window._search_box))
+check("and the search does not make the tab strip taller",
+      corner.minimumSizeHint().height() <= window._tabs.tabBar().sizeHint().height(),
+      f"{corner.minimumSizeHint().height()} > {window._tabs.tabBar().sizeHint().height()}")
+corner = logo  # what the rest of this file checks
 
 # ── The logo follows the mode ─────────────────────────────────────────────────
 #

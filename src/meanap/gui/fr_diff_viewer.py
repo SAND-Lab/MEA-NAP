@@ -638,8 +638,14 @@ class FrDiffViewerWindow(QDialog):
         """The parameters in use, which are not necessarily what the fields say."""
         return self._config
 
-    def set_source(self, source: Path | None) -> None:
-        """Read ``source`` (folder, bundle or CSV); None clears the window."""
+    def set_source(self, source: Path | None, *, chosen: bool = False) -> None:
+        """Read ``source`` (folder, bundle or CSV); None clears the window.
+
+        ``chosen``: the person picked it (here, or on the simple view's results
+        page), so a run finishing later does not replace it.
+        """
+        if chosen:
+            self._source_chosen = True
         source = Path(source) if source is not None else None
         # The same run is not read twice, unless its CSV has been rewritten
         # since (a re-run into the same folder, say).

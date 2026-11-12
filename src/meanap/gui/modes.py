@@ -115,3 +115,17 @@ def apply_mode_to_params(mode_key: str, params) -> None:
     mode = MODES[mode_key]
     params.suite2p_mode = mode.suite2p_mode
     params.stimulation_mode = mode.stimulation_mode
+
+
+def default_params(mode_key: str):
+    """A fresh :class:`~meanap.params.Params` with *mode_key*'s defaults.
+
+    What **Reset to defaults** loads, and what the simple view counts a
+    setting as changed against: the pipeline flags and the mode's own lags.
+    """
+    from meanap.params import Params
+
+    params = Params()
+    apply_mode_to_params(mode_key, params)
+    params.func_con_lag_val = list(MODES[mode_key].default_lags)
+    return params
