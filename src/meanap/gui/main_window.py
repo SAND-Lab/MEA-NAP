@@ -527,6 +527,8 @@ class MainWindow(QMainWindow):
         self._simple_view.mode_requested.connect(self._on_mode_requested)
         self._simple_view.view_results_requested.connect(self._on_simple_view_results)
         self._simple_view.show_log_requested.connect(self._on_show_run_log)
+        self._simple_view.versions_requested.connect(self._on_show_versions)
+        self._refresh_version_label()
         self._simple_view.search_provider = self._search_entries
         self._simple_view.settings_provider = self._settings_areas
         # Express mode is the simple view's default (see _apply_simple_defaults)
@@ -600,9 +602,12 @@ class MainWindow(QMainWindow):
                     out.append(SearchEntry(
                         title, "Toolbar", FEATURE, toolbar.widgetForAction(action),
                         lambda a=action: self._run_toolbar_action(a), action.toolTip()))
+        simple = self.is_simple_view()
         out.append(SearchEntry(
-            "Versions and updates", "Toolbar", FEATURE, self._version_label,
-            lambda: self._run_classic(self._on_show_versions),
+            "Versions and updates", "Under the logo" if simple else "Toolbar", FEATURE,
+            self._simple_view.version_button if simple else self._version_label,
+            # The dialog is a window of its own, so neither view need change.
+            self._on_show_versions,
             "version update upgrade which version release"))
         out.append(SearchEntry(
             "Pipeline mode", "Toolbar", SETTING, self._mode_combo,
@@ -950,6 +955,7 @@ class MainWindow(QMainWindow):
         fresh = status is not None and status.update_available
         text = f"v{pipeline_version(self._mode)}"
         label.setText(text + ("  ⬆ update" if fresh else ""))
+        simple = getattr(self, "_simple_view", None)
         label.setStyleSheet("" if fresh else "color: palette(mid);")
         every = all_versions()
         from meanap.version import build_label
@@ -962,8 +968,14 @@ class MainWindow(QMainWindow):
                  "params.json and bundle manifest.")
         if status is not None:
             tip += "\n\n" + status_summary(status)
-        label.setToolTip(tip + "\n\nClick to update MEA-NAP"
-                         + ("." if is_frozen() else " or choose another version."))
+        tip += ("\n\nClick to update MEA-NAP"
+                + ("." if is_frozen() else " or choose another version."))
+        label.setToolTip(tip)
+        if simple is not None:
+            newer = getattr(status, "newer_version", None) if fresh else None
+            simple.set_version(text, (
+                f"{text}  ·  {newer} available ⬆" if newer
+                else f"{text}  ·  update available ⬆" if fresh else ""), tip)
 
     # ── Versions and updates ──────────────────────────────────────────────────
 
@@ -1531,7 +1543,11 @@ class MainWindow(QMainWindow):
             f"bundle.<br><br>Save this run as <b>{fresh}</b> instead, or "
             "continue the existing one where it stopped?"
         )
-        use_new = box.addButton(f"Use {fresh}", QMessageBox.ButtonRole.AcceptRole)
+        # Not "Use <name>": QMessageBox sizes itself to its text and then
+        # squeezes the buttons into that, which cut a dated name down to its
+        # middle ("…putData12Nov…") and hid the _v2 that is the whole point.
+        # The name is in bold just above, where it has room.
+        use_new = box.addButton("Save as new folder", QMessageBox.ButtonRole.AcceptRole)
         # The third option is the one a stopped run actually wants: fill in the
         # recordings that never finished rather than redo the ones that did.
         continue_it = box.addButton("Continue it",
@@ -1539,6 +1555,8 @@ class MainWindow(QMainWindow):
         overwrite = box.addButton("Overwrite", QMessageBox.ButtonRole.DestructiveRole)
         box.addButton(QMessageBox.StandardButton.Cancel)
         box.setDefaultButton(use_new)
+        for button in box.buttons():
+            button.setMinimumWidth(button.sizeHint().width())
         box.exec()
 
         clicked = box.clickedButton()

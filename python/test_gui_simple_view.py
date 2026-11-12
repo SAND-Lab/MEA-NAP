@@ -227,6 +227,34 @@ def flow_section(d: dict[str, Path], shots: Path | None) -> None:
     if shots:
         w.grab().save(str(shots / "simple_ready.png"))
 
+    sv._steps[2].card.reopen_requested.emit()
+    pump(600)
+    check("looking back at an answered question hides nothing after it",
+          states() == ["done", "done", "active", "done"] and sv.run_area.isVisible()
+          and sv.run_button.isEnabled(), str(states()))
+    sv._confirm_current()
+    pump(1300)
+    check("and Continue folds it again", states() == ["done"] * 4, str(states()))
+
+    sv._steps[0].card.reopen_requested.emit()
+    pump(600)
+    check("the first question too: the rest stay folded",
+          states() == ["active", "done", "done", "done"] and sv.run_area.isVisible(),
+          str(states()))
+    folder.setText(str(d["raw"] / "missing"))
+    pump(500)
+    check("but an answer that stops checking out hides what follows it",
+          states() == ["active", "hidden", "hidden", "hidden"]
+          and not sv.run_area.isVisible(), str(states()))
+    folder.setText(str(d["raw"]))
+    pump(TICK_HOLD_MS + 1300)
+    check("and putting it right brings them back, the question still open",
+          states() == ["active", "done", "done", "done"] and sv.run_area.isVisible(),
+          str(states()))
+    sv._confirm_current()
+    pump(1300)
+    check("until it is confirmed", states() == ["done"] * 4, str(states()))
+
     params = w._collect_params()
     check("a run reads the answers given here",
           params.raw_data == str(d["raw"]) and params.spreadsheet_file_name == str(d["good"])
@@ -301,6 +329,67 @@ def run_section(shots: Path | None) -> None:
     w.close()
 
 
+# ── E. The version under the logo ────────────────────────────────────────────
+
+def version_section(shots: Path | None) -> None:
+    print("E. Version, and whether it is current, under the logo")
+    from meanap import updates
+    from meanap.version import pipeline_version
+
+    w = MainWindow()
+    w.resize(1100, 820)
+    w.show()
+    w._set_simple_view(True)
+    pump(50)
+    sv = w._simple_view
+    button = sv.version_button
+    own = f"v{pipeline_version(w._mode)}"
+    check("the running version shows under the logo",
+          button.isVisible() and button.text() == own, button.text())
+    check("it sits below the pipeline's name",
+          button.geometry().top() >= sv.mode_caption.geometry().bottom(), "")
+    check("plain while nothing newer is known", button.property("state") == "", "")
+
+    w._on_mode_requested("catnap")
+    pump(50)
+    check("switching pipeline shows that pipeline's version",
+          button.text() == f"v{pipeline_version('catnap')}", button.text())
+    w._on_mode_requested("meanap")
+    pump(50)
+
+    w._on_update_status(updates.AppStatus(running="v1.0.0", latest_release="v99.0.0"))
+    pump(50)
+    check("an out-of-date copy says which version is newer",
+          button.text() == f"{own}  ·  v99.0.0 available ⬆", button.text())
+    check("and is highlighted, since it asks for a click",
+          button.property("state") == "update", str(button.property("state")))
+    check("the whole line fits",
+          button.width() >= button.fontMetrics().horizontalAdvance(button.text()),
+          f"{button.width()} < text")
+    check("its tooltip says what the check found", "v99.0.0" in button.toolTip(),
+          button.toolTip())
+    if shots:
+        w.grab().save(str(shots / "simple_update_available.png"))
+
+    check("the main window listens for it",
+          sv.receivers(sv.versions_requested) >= 1, "")
+    # The dialog itself would ask GitHub, so only the request is checked here.
+    sv.versions_requested.disconnect()
+    asked: list[bool] = []
+    sv.versions_requested.connect(lambda: asked.append(True))
+    button.click()
+    check("clicking it asks for the versions dialog", asked == [True], str(asked))
+
+    w._on_update_status(updates.AppStatus(running="v99.0.0", latest_release="v99.0.0"))
+    pump(50)
+    check("an up-to-date copy goes back to the plain version",
+          button.text() == own and button.property("state") == "", button.text())
+    hits = [e for e in w._search_entries() if e.title == "Versions and updates"]
+    check("searching finds it under the logo, without leaving the simple view",
+          hits and hits[0].target is button, str(hits[:1]))
+    w.close()
+
+
 def main() -> int:
     shots = Path(sys.argv[1]) if len(sys.argv) > 1 else None
     with tempfile.TemporaryDirectory() as tmp:
@@ -309,6 +398,7 @@ def main() -> int:
         toggle_section()
         flow_section(data, shots)
         run_section(shots)
+        version_section(shots)
     if ERRORS:
         FAILURES.append("uncaught exceptions: " + "; ".join(ERRORS[:3]))
     print(f"\n{'ALL PASSED' if not FAILURES else f'{len(FAILURES)} FAILED'}")

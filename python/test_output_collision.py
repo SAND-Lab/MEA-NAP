@@ -304,6 +304,27 @@ def _gui_checks(app) -> list[Check]:
         checks.append(("a free name runs without a dialog",
                        w._confirm_output_folder(free) is free, ""))
 
+        # QMessageBox squeezes its buttons into the width its text sets, which
+        # once cut "Use <name>_v2" down to its middle. Every label must fit, and
+        # the new name must be readable in full somewhere.
+        seen: dict = {}
+
+        def inspect() -> None:
+            for widget in app.topLevelWidgets():
+                if isinstance(widget, QMessageBox) and widget.isVisible():
+                    seen["clipped"] = [
+                        b.text() for b in widget.buttons()
+                        if b.width() < b.fontMetrics().horizontalAdvance(b.text())]
+                    seen["text"] = widget.informativeText()
+                    widget.reject()
+                    return
+        QTimer.singleShot(0, inspect)
+        w._confirm_output_folder(base())
+        checks.append(("no button label is cut short",
+                       seen.get("clipped") == [], str(seen.get("clipped"))))
+        checks.append(("and the new name is spelled out in full",
+                       f"<b>{NAME}_v2</b>" in seen.get("text", ""), seen.get("text", "")))
+
         answer(QMessageBox.ButtonRole.AcceptRole)
         chosen = w._confirm_output_folder(base())
         checks.append(("accepting the suggestion renames the run",

@@ -126,6 +126,16 @@ QLabel {{ color: {_INK}; }}
 }}
 #primaryLink:hover {{ text-decoration: underline; }}
 #logoButton {{ border: none; background: transparent; }}
+#versionLink {{
+    border: none;
+    background: transparent;
+    color: {_MUTED};
+    font-size: 11px;
+    padding: 0px 6px 2px 6px;
+}}
+#versionLink:hover {{ color: {_ACCENT}; }}
+#versionLink[state="update"] {{ color: {_ACCENT}; font-weight: 600; }}
+#versionLink[state="update"]:hover {{ text-decoration: underline; }}
 #runButton {{
     color: #ffffff;
     background: {_ACCENT};
@@ -439,6 +449,8 @@ class SimpleView(QWidget):
     mode_requested = pyqtSignal(str)
     view_results_requested = pyqtSignal()
     show_log_requested = pyqtSignal()
+    #: The version line under the logo was clicked: show versions and updates.
+    versions_requested = pyqtSignal()
 
     def __init__(self, data_panel, stim_panel, catnap_panel, mode: str,
                  parent: QWidget | None = None) -> None:
@@ -560,9 +572,32 @@ class SimpleView(QWidget):
         self.mode_caption.setToolTip("Switch to another pipeline")
         self.mode_caption.clicked.connect(self._show_mode_menu)
 
+        # The running version, and the place an out-of-date copy says so. The
+        # main window fills it in, from the same update check as the toolbar.
+        self.version_button = QPushButton()
+        self.version_button.setObjectName("versionLink")
+        self.version_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.version_button.clicked.connect(lambda: self.versions_requested.emit())
+        self.version_button.hide()
+
         self._column_layout.addWidget(self.logo_button, 0, Qt.AlignmentFlag.AlignHCenter)
         self._column_layout.addWidget(self.mode_caption, 0, Qt.AlignmentFlag.AlignHCenter)
+        self._column_layout.addWidget(self.version_button, 0, Qt.AlignmentFlag.AlignHCenter)
         self._column_layout.addSpacing(12)
+
+    def set_version(self, version: str, update: str = "", tooltip: str = "") -> None:
+        """Show *version* under the logo; *update*, if given, says a newer one exists.
+
+        *update* is the line to show instead of the plain version, such as
+        "v1.21.0 · update available" — highlighted, since it asks for a click.
+        """
+        self.version_button.setText(update or version)
+        self.version_button.setProperty("state", "update" if update else "")
+        style = self.version_button.style()
+        style.unpolish(self.version_button)
+        style.polish(self.version_button)
+        self.version_button.setToolTip(tooltip)
+        self.version_button.show()
 
     def _show_mode_menu(self) -> None:
         menu = QMenu(self)
@@ -986,9 +1021,11 @@ class SimpleView(QWidget):
         Answered questions before the first unanswered one are folded, the
         first unanswered one is open, and everything after it stays hidden.
 
-        A question the person reopened stays open, with the ones after it
-        hidden, until its answer checks out and is either different from what
-        it was or *commit*-ted (Browse, Enter or Continue).
+        A question the person reopened stays open until its answer checks out
+        and is either different from what it was or *commit*-ted (Browse,
+        Enter or Continue). The questions after it stay as they were — folded
+        if answered, and Run still offered — so a look back hides nothing;
+        only an answer that stops checking out hides what follows it.
         """
         if not self._steps:
             return
@@ -1008,7 +1045,7 @@ class SimpleView(QWidget):
             card = step.card
             card.show_check(check)
             if reopened is not None:
-                state = ("active" if i == reopened else
+                state = ("active" if i in (reopened, first_open) else
                          "done" if i < first_open else "hidden")
             else:
                 state = ("done" if i < first_open else
@@ -1018,7 +1055,7 @@ class SimpleView(QWidget):
             card.set_state(state, animate=animate)
 
         self._refresh_sheet_button()
-        ready = first_open == len(self._steps) and reopened is None
+        ready = first_open == len(self._steps)
         self._ready = ready
         self._show_settings_badge()
         self.run_area.setVisible(ready or self._run_state != "idle")
@@ -1223,7 +1260,7 @@ class SimpleView(QWidget):
 
     def _on_progress(self, snapshot) -> None:
         self.progress.setValue(int(round(snapshot.fraction * 1000)))
-        headline = f"{snapshot.percent}%  ·  {snapshot.phase}"
+        headline = f"{snapshot.percent_text}  ·  {snapshot.phase}"
         self.run_headline.setText(headline)
         self._run_detail_prefix = snapshot.detail or ""
         self.clock.report(snapshot.elapsed_s, snapshot.eta_s)
