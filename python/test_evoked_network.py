@@ -15,6 +15,7 @@ import sys
 from pathlib import Path
 
 import numpy as np
+import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
@@ -108,3 +109,76 @@ def test_noise_correlations_find_only_covariation():
 if __name__ == "__main__":
     import pytest
     raise SystemExit(pytest.main([__file__, "-q"]))
+
+
+# ── STTC within each trial, averaged (stim/trial_sttc.py) ─────────────────────
+
+def _slow_state_trains(seed, n=16, timed=False, locked=False):
+    """Every node's rate swings 4-40 Hz together on a 75 s cycle: shared slow
+    state with no timing between nodes. *timed*: nodes 0-3 also share spikes
+    to within 2 ms. *locked*: every node answers each event at ~5 ms on its own."""
+    r = np.random.default_rng(seed)
+    T, ev = 302.0, np.arange(1.0, 301.0, 5.0)
+    trains = []
+    for _ in range(n):
+        c = r.uniform(0, T, r.poisson(45 * T))
+        keep = r.uniform(0, 45, c.size) < 22 + 18 * np.sin(2 * np.pi * c / 75.0)
+        trains.append(list(c[keep]))
+    for e in ev:
+        if timed:
+            for t0 in e + r.uniform(0.002, 0.05, r.poisson(2)):
+                for i in range(4):
+                    trains[i].append(t0 + r.normal(0, 0.002))
+        if locked:
+            for i in range(n):
+                if r.random() < 0.8:
+                    trains[i] += list(e + 0.005 + r.normal(0, 0.0015, r.integers(1, 4)))
+    return [np.sort(np.array(t)) for t in trains], ev
+
+
+def test_trial_mean_matches_sttc_pair_per_trial():
+    from meanap.pipeline.sttc import sttc_pair
+    from meanap.stim.evoked_network import trial_segments
+    from meanap.stim.trial_sttc import trial_mean_sttc
+
+    trains, ev = _slow_state_trains(0, n=3)
+    w = (0.002, 0.05)
+    segs = [trial_segments(t, ev, w) for t in trains]
+    obs, _, _, _ = trial_mean_sttc(segs, w[1] - w[0], 10, 5, np.random.default_rng(0),
+                                   min_valid=1)
+    ref = np.nanmean([sttc_pair(segs[0][k], segs[1][k], 0.01, 0, w[1] - w[0])
+                      for k in range(len(ev))])
+    assert obs[0, 1] == pytest.approx(ref) and obs[1, 0] == pytest.approx(ref)
+
+
+def test_trial_mean_ignores_slow_state_and_finds_timing():
+    """Joined windows count shared slow state as edges; trial means do not,
+    and still find precisely timed pairs."""
+    from meanap.stim.evoked_network import epoch_network
+
+    iu = np.triu_indices(16, 1)
+    core = np.zeros((16, 16), bool)
+    core[:4, :4] = True
+    trains, ev = _slow_state_trains(2, timed=True)
+    pooled = epoch_network(trains, ev, (0.002, 0.05), 10, rep_num=200,
+                           rng=np.random.default_rng(3))
+    trial = epoch_network(trains, ev, (0.002, 0.05), 10, rep_num=200,
+                          rng=np.random.default_rng(3), sttc_mode="trial_mean")
+    others = ~core[iu]
+    assert (pooled.sttc_thr[iu][others] > 0).mean() > 0.2      # the problem
+    assert (trial.sttc_thr[iu][others] > 0).mean() < 0.1       # gone
+    assert (trial.sttc_thr[np.triu(core, 1)] > 0).all()        # timing kept
+    assert trial.n_valid_trials is not None
+
+
+def test_trial_mean_locked_responses_are_not_edges():
+    """Each node answering every event on its own is not an edge."""
+    from meanap.stim.evoked_network import epoch_network
+
+    iu = np.triu_indices(16, 1)
+    trains, ev = _slow_state_trains(4, locked=True)
+    net = epoch_network(trains, ev, (0.002, 0.05), 10, rep_num=200,
+                        rng=np.random.default_rng(4), sttc_mode="trial_mean")
+    assert (net.sttc_thr[iu] > 0).mean() < 0.15
+    with pytest.raises(ValueError):
+        epoch_network(trains, ev, (0.002, 0.05), 10, null="circular", sttc_mode="trial_mean")

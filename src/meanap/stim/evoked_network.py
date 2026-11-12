@@ -38,6 +38,10 @@ import numpy as np
 from meanap.pipeline.sttc import get_sttc
 
 NULLS = ("trial_shuffle", "circular")
+#: How an epoch's STTC is computed: over the trials' windows laid end to end
+#: ("pooled"), or within each trial and averaged ("trial_mean",
+#: :mod:`meanap.stim.trial_sttc`).
+STTC_MODES = ("pooled", "trial_mean")
 
 
 @dataclass
@@ -56,6 +60,22 @@ class EpochNetwork:
     null_mean: np.ndarray          # (n, n) mean surrogate STTC (shift predictor)
     p: np.ndarray                  # (n, n) permutation p-value of each edge
     spike_counts: np.ndarray       # (n,) spikes inside the windows
+    sttc_mode: str = "pooled"
+    #: trial_mean only: trials in which both nodes of a pair fired
+    n_valid_trials: np.ndarray | None = None
+
+
+def post_window(window: tuple[float, float], post: list | tuple | None = None
+                ) -> tuple[float, float]:
+    """The post-stimulus window: *post* when given, else as long as *window*
+    and starting where it ends."""
+    if post:
+        w0, w1 = (float(x) for x in post)
+        if not w1 > w0:
+            raise ValueError(f"post-stimulus window {w0:g}-{w1:g} s: the end must come "
+                             f"after the start")
+        return (w0, w1)
+    return (window[1], window[1] + (window[1] - window[0]))
 
 
 def baseline_window(window: tuple[float, float]) -> tuple[float, float]:
@@ -64,17 +84,19 @@ def baseline_window(window: tuple[float, float]) -> tuple[float, float]:
     return (-length, 0.0)
 
 
-def separated_events(events: np.ndarray, window: tuple[float, float]) -> np.ndarray:
+def separated_events(events: np.ndarray, window: tuple[float, float],
+                     after: float | None = None) -> np.ndarray:
     """Which events have both windows clear of their neighbours' windows.
 
     An event's baseline must not reach back into the previous event's evoked
     window, nor its evoked window run into the next event's baseline — each
-    spike has to belong to one trial. Returns a boolean mask over *events*
-    (sorted); an event too close to a neighbour is dropped rather than the
-    whole recording refused.
+    spike has to belong to one trial. *after* is how far past the event the
+    last window reaches, when that is beyond the evoked window (a post-stimulus
+    epoch). Returns a boolean mask over *events* (sorted); an event too close
+    to a neighbour is dropped rather than the whole recording refused.
     """
     events = np.sort(np.asarray(events, float))
-    need = window[1] - baseline_window(window)[0]
+    need = max(window[1], after or window[1]) - baseline_window(window)[0]
     gaps = np.diff(events)
     ok_prev = np.r_[True, gaps >= need]
     ok_next = np.r_[gaps >= need, True]
@@ -120,7 +142,8 @@ def epoch_network(trains: list[np.ndarray], events: np.ndarray,
                   condition: str = "stim", epoch: str = "evoked",
                   null: str = "trial_shuffle", rep_num: int = 200,
                   tail: float = 0.05, fs: float = 25000.0,
-                  rng: np.random.Generator | None = None) -> EpochNetwork:
+                  rng: np.random.Generator | None = None,
+                  sttc_mode: str = "pooled") -> EpochNetwork:
     """STTC network of the concatenated *window*-after-event epochs.
 
     An edge is kept when its permutation p-value, ``(1 + #{surrogate ≥
@@ -133,6 +156,8 @@ def epoch_network(trains: list[np.ndarray], events: np.ndarray,
     """
     if null not in NULLS:
         raise ValueError(f"Unknown null {null!r} ({', '.join(NULLS)})")
+    if sttc_mode not in STTC_MODES:
+        raise ValueError(f"Unknown STTC mode {sttc_mode!r} ({', '.join(STTC_MODES)})")
     rng = rng or np.random.default_rng()
     events = np.sort(np.asarray(events, float))
     n, n_trials = len(trains), len(events)
@@ -140,6 +165,28 @@ def epoch_network(trains: list[np.ndarray], events: np.ndarray,
     duration = n_trials * length
     segs = [trial_segments(t, events, window) for t in trains]
     observed = {i: concatenate(s, length) for i, s in enumerate(segs)}
+    counts = np.array([len(v) for v in observed.values()], dtype=float)
+    if sttc_mode == "trial_mean":
+        if null != "trial_shuffle":
+            raise ValueError("trial-averaged STTC is tested against the trial shuffle "
+                             "only; the circular shift has no trials to keep apart")
+        from meanap.stim.trial_sttc import trial_mean_sttc
+
+        obs, null_mean, p, valid = trial_mean_sttc(segs, length, lag_ms, rep_num, rng)
+        # Pairs with too few shared trials stay NaN in sttc and null_mean, so
+        # means and split-half agreement skip them rather than count a zero;
+        # they are never edges.
+        sttc = obs
+        null_mean = np.where(np.isfinite(obs), null_mean, np.nan)
+        np.fill_diagonal(null_mean, 0.0)
+        sttc_thr = np.nan_to_num(obs)
+        sttc_thr[p >= tail] = 0.0
+        sttc_thr[sttc_thr < 0] = 0.0
+        return EpochNetwork(
+            condition=condition, epoch=epoch, window_s=tuple(window), lag_ms=lag_ms,
+            null=null, n_trials=n_trials, duration_s=duration, sttc=sttc,
+            sttc_thr=sttc_thr, null_mean=null_mean, p=p, spike_counts=counts,
+            sttc_mode=sttc_mode, n_valid_trials=valid)
     sttc = get_sttc(observed, n, lag_ms, duration)
     np.fill_diagonal(sttc, 0.0)
 
@@ -163,7 +210,7 @@ def epoch_network(trains: list[np.ndarray], events: np.ndarray,
         condition=condition, epoch=epoch, window_s=tuple(window), lag_ms=lag_ms,
         null=null, n_trials=n_trials, duration_s=duration, sttc=sttc,
         sttc_thr=sttc_thr, null_mean=surrogate.mean(axis=2), p=p,
-        spike_counts=np.array([len(v) for v in observed.values()], dtype=float),
+        spike_counts=counts,
     )
 
 
@@ -244,6 +291,12 @@ def network_summary(net: EpochNetwork, params, min_activity_hz: float = 0.0,
     out["meanSTTCminusNull"] = (float(np.nanmean((net.sttc - net.null_mean)[upper]))
                                 if upper[0].size else np.nan)
     out["nSigEdges"] = int(np.count_nonzero(net.sttc_thr[upper]))
+    # Pairs whose STTC is defined: all of them when pooled; under trial_mean,
+    # those with enough trials in which both nodes fired.
+    out["nPairs"] = int(upper[0].size)
+    out["nDefinedPairs"] = int(np.isfinite(net.sttc[upper]).sum())
+    out["fracSigOfDefined"] = (out["nSigEdges"] / out["nDefinedPairs"]
+                               if out["nDefinedPairs"] else np.nan)
     return out
 
 

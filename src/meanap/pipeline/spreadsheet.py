@@ -17,6 +17,11 @@ SPREADSHEET_COLUMNS = ("Recording Filename", "DIV group", "Genotype")
 #: Optional fourth column: electrodes to ground, per recording (ephys only).
 GROUND_COLUMN = "Ground"
 
+#: Optional column, found by its header wherever it is: names for each
+#: recording's stimulation conditions (MEA-Stim) — see
+#: :func:`meanap.stim.sequences.parse_condition_labels`.
+STIM_CONDITIONS_COLUMN = "StimConditions"
+
 #: ``DIV14``, ``DIV_21``, ``div 7`` — the conventions that appear in real
 #: recording names. Anchored on the letters so a bare number in a name (a date,
 #: a plate id) is never mistaken for an age.
@@ -29,6 +34,7 @@ class RecordingInfo:
     div: float
     group: str
     ground: str | None = None
+    stim_conditions: str | None = None
 
 
 def parse_spreadsheet_range(range_str: str) -> tuple[int, int]:
@@ -53,21 +59,28 @@ def _range_slice(n_rows: int, spreadsheet_range: str) -> tuple[int, int]:
 def read_recording_csv(path: str | Path, spreadsheet_range: str) -> list[RecordingInfo]:
     """Read the recording list CSV.
 
-    Expects columns: Recording Filename, DIV group, Genotype, [Ground].
+    Expects columns: Recording Filename, DIV group, Genotype, [Ground], and
+    optionally a ``StimConditions`` column anywhere after them.
     """
     df = pd.read_csv(path, header=0)
 
     start_idx, end_idx = _range_slice(len(df), spreadsheet_range)
     subset = df.iloc[start_idx:end_idx]
 
-    has_ground = subset.shape[1] >= 4
+    headers = [str(h).strip().lower() for h in subset.columns]
+    stim_col = (headers.index(STIM_CONDITIONS_COLUMN.lower())
+                if STIM_CONDITIONS_COLUMN.lower() in headers else None)
+    # Ground is the fourth column by position, unless that column is StimConditions.
+    has_ground = subset.shape[1] >= 4 and stim_col != 3
     recordings = []
     for _, row in subset.iterrows():
+        stim = row.iloc[stim_col] if stim_col is not None else None
         recordings.append(RecordingInfo(
             filename=str(row.iloc[0]),
             div=float(row.iloc[1]),
             group=str(row.iloc[2]),
             ground=str(row.iloc[3]) if has_ground else None,
+            stim_conditions=None if stim is None or pd.isna(stim) else str(stim),
         ))
     return recordings
 

@@ -77,8 +77,11 @@ if trace_branch:
     check("…and still does not pretend a format can be chosen",
           "fmt" not in body, body.strip()[:120])
 
+# The condition may name other stored-PNG kinds too (stimulation figures).
 check("the trace view hides the vector download buttons",
-      'if (kind === "trace")' in PAGE_HTML, "")
+      re.search(r'if \(kind === "trace"[^)]*\)\s*\n\s*for \(const id of '
+                r'\["dl-svg", "dl-pdf"\]\) \$\(id\)\.classList\.add\("hidden"\)',
+                PAGE_HTML) is not None, "")
 
 
 # ── The server honours it ─────────────────────────────────────────────────────

@@ -156,11 +156,22 @@ The viewer rebuilds:
 - network metrics by group and age (4B), and activity by group and age (2B),
   including the cell-type composition set;
 - CAT-NAP's per-recording cell-type subnetwork figures, and the whole 4A set
-  repeated per subnetwork.
+  repeated per subnetwork;
+- the per-recording **MEA-Stim** figures, under *Stimulation*: firing rate
+  before and after, raster and PSTH, the response and latency heatmaps, the
+  per-electrode PSTHs, the shuffle tests, and the stimulus networks (figures
+  13–16). The stim step saves what each is drawn from
+  (`ExperimentMatFiles/<recording>_stimFigures.npz` and `_stimNetwork.npz`)
+  and draws its own figures from that saved copy, so the viewer's are
+  pixel-identical. A bundle from before MEA-Stim 0.7.0 has no such files; it
+  carries the stim figures as pictures, and the viewer shows those.
 
-One family still travels as pictures rather than as data: the **calcium imaging trace
-figures** (CAT-NAP), which need the full fluorescence matrices. They are packed
-into the bundle as images, and only produced at all when `num_2p_traces > 0`.
+Two families still travel as pictures rather than as data. The **calcium
+imaging trace figures** (CAT-NAP) need the full fluorescence matrices; they are
+packed into the bundle as images, and only produced at all when
+`num_2p_traces > 0`. The **stimulation group comparisons**
+(`StimNetwork_GroupComparisons/`) are packed as images too, and the viewer
+does not show them yet: open the output folder, or export the bundle.
 
 ```{note}
 Every bundle records what it can and cannot rebuild in `manifest.json`
@@ -345,9 +356,9 @@ Every figure can be downloaded as **PNG, SVG or PDF**. SVG is real vector markup
 with editable paths, so a figure can go straight into Illustrator or Inkscape
 for a manuscript.
 
-CAT-NAP's peak-detection traces are the one exception, and only for the format:
-they are PNGs packed into the bundle rather than redrawn on request, so the
-vector buttons are hidden for them. **Download PNG** saves the file, same as
+CAT-NAP's peak-detection traces and the MEA-Stim figures are the exceptions,
+and only for the format: they are PNGs, packed or drawn as the run drew them,
+so the vector buttons are hidden for them. **Download PNG** saves the file, same as
 anywhere else. (Before v1.3.1 it opened the image in a tab instead — that route
 was the only one that never read the download flag.)
 

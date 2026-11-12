@@ -69,3 +69,42 @@ def clean_spikes_from_stim(
                 out[c][m] = sp[~remove]
 
     return out
+
+
+def artifact_windows(stim_info: list[StimChannelInfo], params: dict
+                     ) -> tuple[np.ndarray, np.ndarray, dict[int, tuple[np.ndarray, np.ndarray]]]:
+    """Where stimulation artifacts fall, as :func:`clean_spikes_from_stim` sees them.
+
+    Returns ``(starts, ends, own)``. ``starts``/``ends`` are the windows that
+    apply to every channel, ``[blankStart, blankStart + blankDurMode +
+    postStimWindowDur/1000]``; ``own`` maps each stimulating electrode to its
+    own, longer blank, ``[blankStart, blankEnd + postStimWindowDur/1000]``
+    (about 4.8 ms on the MCS test data, against 1.5 ms elsewhere).
+    """
+    ignore = float(params.get("postStimWindowDur") or 0.0) / 1000.0
+    durs, starts, own = [], [], {}
+    for c, info in enumerate(stim_info):
+        if info.non_stim_blank_starts is not None and info.non_stim_blank_ends is not None:
+            durs.append(np.asarray(info.non_stim_blank_ends, float).ravel()
+                        - np.asarray(info.non_stim_blank_starts, float).ravel())
+        if info.elec_stim_times.shape[0] > 0 and info.blank_starts is not None:
+            bs = np.asarray(info.blank_starts, float).ravel()
+            starts.append(bs)
+            be = (np.asarray(info.blank_ends, float).ravel()
+                  if info.blank_ends is not None else bs)
+            own[c] = (bs, np.maximum(be, bs) + ignore)
+    all_durs = np.concatenate(durs) if durs else np.array([])
+    blank_dur_mode = _matlab_mode(all_durs) if all_durs.size else 0.0
+    start = np.sort(np.concatenate(starts)) if starts else np.array([])
+    return start, start + blank_dur_mode + ignore, own
+
+
+def in_windows(times: np.ndarray, starts: np.ndarray, ends: np.ndarray) -> np.ndarray:
+    """Which of *times* fall in any ``[start, end]`` window (ends inclusive)."""
+    times = np.asarray(times, float)
+    if times.size == 0 or starts.size == 0:
+        return np.zeros(times.shape, bool)
+    order = np.argsort(starts)
+    starts, ends = starts[order], np.maximum.accumulate(ends[order])
+    k = np.searchsorted(starts, times, side="right") - 1
+    return (k >= 0) & (times <= ends[np.clip(k, 0, None)])

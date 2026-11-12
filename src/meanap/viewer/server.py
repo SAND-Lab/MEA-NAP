@@ -56,6 +56,7 @@ from meanap.pipeline.render import (
     cached_figure, cached_lag_series_figure, comparison_axes, gallery, load_context,
     render_activity_figure,
     available_trace_figures, trace_figure_path,
+    available_stim_figures, render_stim_figures, stim_figure_path,
 )
 from meanap.pipeline.render_cache import RenderCache
 from meanap.viewer.controls import (
@@ -504,6 +505,11 @@ class ViewerService:
                 # need fluorescence the bundle does not hold.
                 "traces": [{"name": f.name, "label": f.label}
                            for f in available_trace_figures(self.ctx, name)],
+                # MEA-Stim figures. Redrawn from the payloads the stim step
+                # saves; a bundle from before those existed shows the pictures
+                # it carries instead. Empty for a run without stimulation.
+                "stim": [{"name": f.name, "label": f.label}
+                         for f in available_stim_figures(self.ctx, name)],
                 # One per lag, and usually empty: these only exist when the run
                 # had thresholding checks switched on.
                 "edge_checks": available_edge_check_lags(self.ctx, name),
@@ -708,6 +714,21 @@ class ViewerService:
         )
         return files[0]
 
+    def stim_figure(self, recording: str, name: str) -> Path:
+        """One stimulation figure. The recording's whole set is drawn at once
+        and cached: they come from the same two payloads, and the shuffle
+        test's random draws depend on drawing them in the pipeline's order."""
+        from meanap.pipeline.render_cache import bundle_identity, cache_key
+
+        if name not in {f.name for f in available_stim_figures(self.ctx, recording)}:
+            raise FileNotFoundError(f"no stimulation figure {name!r} for {recording}")
+        key = cache_key(bundle_identity(self.ctx.root), f"stim:{recording}",
+                        fmt="png", dpi=None, overrides={})
+        root = self.cache.path_for(key)
+        files, _ = self.cache.get_or_render(
+            key, lambda dest: render_stim_figures(self.ctx, recording, dest))
+        return stim_figure_path(self.ctx, recording, name, files, root)
+
     def _produced_by(self) -> dict:
         """The run's version stamp, or ``{}`` for a run made before stamping."""
         from meanap.params import PARAMS_FILENAME, params_version_stamp
@@ -859,6 +880,8 @@ class _Handler(BaseHTTPRequestHandler):
                            self.service.tracking_page(_one(query, "chain")).encode())
             elif parsed.path == "/api/trace":
                 self._trace(query)
+            elif parsed.path == "/api/stim":
+                self._stim(query)
             elif parsed.path == "/api/asset":
                 self._file(self.service.asset(_one(query, "path")))
             else:
@@ -926,6 +949,13 @@ class _Handler(BaseHTTPRequestHandler):
         download contract is the same as every other figure's.
         """
         path = self.service.trace_figure(_one(query, "rec"), _one(query, "name"))
+        download = query.get("download", ["0"])[0] == "1"
+        self._file(path, download_as=path.name if download else None)
+
+    def _stim(self, query) -> None:
+        """One stimulation figure: PNG only, like a trace, since the packed
+        fallback has no other form and the redrawn set is drawn as the run drew it."""
+        path = self.service.stim_figure(_one(query, "rec"), _one(query, "name"))
         download = query.get("download", ["0"])[0] == "1"
         self._file(path, download_as=path.name if download else None)
 

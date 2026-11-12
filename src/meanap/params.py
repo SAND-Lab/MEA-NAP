@@ -513,11 +513,48 @@ class Params:
     # only if it beats each node's own stimulus-locked response reordered
     # across trials — co-variation beyond shared drive; "circular" is step
     # 3's circular-shift test (total co-activity, stimulus drive included).
+    # Step 1 drops detections that fall in a stimulation blank (the same
+    # windows the stim step removes), so the amplifier's blank-release step
+    # is not counted as a spike in the step-1 checks or steps 2-4.
+    # Electrical stimulation only, and only with stimulation_mode on.
+    stim_drop_artifact_spikes: bool = True
     stim_network: bool = True
     stim_network_window: list[float] = field(default_factory=lambda: [0.0, 0.5])  # s
     stim_network_null: str = "trial_shuffle"
     stim_network_rep_num: int = 200
     stim_network_alpha: float = 0.05
+    # How each epoch's STTC is computed. "trial_mean": within each trial's
+    # window, averaged over the trials in which both nodes fired (a pair needs
+    # 5 such trials, else it is undefined and never an edge) — slow shared
+    # activity states, busier on some trials than others, then no longer pass
+    # for edges. "pooled": over all the windows laid end to end (before 1.18.4).
+    # trial_mean needs the trial_shuffle null; with "circular" pooled is used.
+    stim_network_sttc: str = "trial_mean"
+    # A third epoch after the evoked one, for whether the network outlasts the
+    # stimulus. Empty: as long as the evoked window and straight after it
+    # (evoked 0.002-0.05 s gives post 0.05-0.098 s), so all three epochs are
+    # equally long — STTC depends on window length. [start, end] s after the
+    # event sets it instead. Events whose post window would reach the next
+    # stimulus's baseline are left out of every network, as for the others.
+    stim_network_post_window: list[float] = field(default_factory=list)
+    # Alongside the networks (stim/consistency.py): does the response drift
+    # over trials (per-node trend, and whether the response pattern of trials
+    # far apart is less alike than of trials close together); and do networks
+    # built from half the trials agree — odd vs even (reliability), first vs
+    # second half (change over the recording). Electrical stimulation and
+    # event-driven runs alike.
+    stim_trial_consistency: bool = True
+    stim_split_half: bool = True
+    # Group pulses, not electrodes, into conditions (stim/sequences.py): pulses
+    # on any electrodes that follow each other within stim_sequence_gap (ms)
+    # are one stimulus, identified by which electrodes were pulsed in what
+    # order. Needed for temporal patterns (a left-to-right sweep vs
+    # right-to-left), which electrode grouping mixes up. Applies to every
+    # stim output; MATLAB has no counterpart. Off: MATLAB's pattern grouping.
+    stim_group_sequences: bool = False
+    stim_sequence_gap: float = 50.0            # ms
+    # Group-level half-violins of the stimulus networks, by condition (stim/group_plots.py).
+    stim_group_plots: bool = True
 
     def to_stim_params_dict(self) -> dict:
         """Map the stim fields to the camelCase dict the ``meanap.stim`` ports use.

@@ -239,6 +239,15 @@ def _draw_everything(ctx, dest: Path, result: ExportResult, *, fmt: str,
                 lambda n=name, s=spec.name, d=activity_dir:
                     R.render_activity_figure(ctx, n, s, d, fmt=fmt)))
 
+        # Stimulation figures, back where the stim step writes them. A bundle
+        # from before their payloads were saved carries them as pictures
+        # instead, already copied by _copy_data, and this draws nothing.
+        if R._redrawable_stim_names(ctx, name):
+            jobs.append((
+                f"{name} stimulation figures",
+                lambda n=name, d=activity_dir / rec.group / name:
+                    R.render_stim_figures(ctx, n, d)))
+
         check_dir = (dest / "1_SpikeDetection" / "1B_SpikeDetectionChecks"
                      / rec.group / name)
         for spec in R.available_spike_check_figures(ctx, name):

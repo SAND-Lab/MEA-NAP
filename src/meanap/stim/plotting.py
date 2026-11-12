@@ -94,6 +94,11 @@ def values_to_colormap(value: float, cmap, vmin: float, vmax: float):
     return cmap(norm)
 
 
+def _in_patterns(info: StimChannelInfo, pattern_ids) -> bool:
+    """Whether the electrode stimulates in any of *pattern_ids*."""
+    return any(p in pattern_ids for p in (info.pattern_ids or (info.pattern,)))
+
+
 # ── plotStimHeatmap.m  (2_StimsHeatmap) ───────────────────────────────────────
 
 def plot_stim_heatmap(stim_info: list[StimChannelInfo], out_path: str | Path) -> Path:
@@ -108,7 +113,8 @@ def plot_stim_heatmap(stim_info: list[StimChannelInfo], out_path: str | Path) ->
         else:
             ax.add_patch(Circle((xc, yc), 0.5, facecolor="black",
                                 edgecolor="red", linewidth=1.5, zorder=3))
-            ax.text(xc, yc, str(info.pattern), color="white", fontsize=12,
+            ax.text(xc, yc, ",".join(str(p) for p in (info.pattern_ids or (info.pattern,))),
+                    color="white", fontsize=12 if len(info.pattern_ids) < 2 else 8,
                     ha="center", va="center", zorder=4)
     _finalize_layout_axes(ax, stim_info)
     return _save(fig, out_path)
@@ -152,7 +158,7 @@ def plot_stim_heatmap_w_metric(
     fig, ax = plt.subplots(figsize=(7, 6))
     for idx, info in enumerate(stim_info):
         xc, yc = float(info.coords[0]), float(info.coords[1])
-        is_stim = info.elec_stim_times.size > 0 and info.pattern in pattern_ids
+        is_stim = info.elec_stim_times.size > 0 and _in_patterns(info, pattern_ids)
         color = _WHITE if is_stim else values_to_colormap(
             node_metric[idx], cmap, vrange[0], vrange[1])
         ax.add_patch(Circle((xc, yc), 0.5, facecolor=color,
@@ -166,7 +172,7 @@ def plot_stim_heatmap_w_metric(
         # Note grey = missing metric. MATLAB's valuesToColormap maps NaN to the
         # darkest colour (its two-arg min/max drop NaN → norm 1), conflating
         # "no data" with the maximum; this port keeps it visually distinct.
-        n_nan = int(np.sum([np.isnan(node_metric[i]) and info.pattern not in pattern_ids
+        n_nan = int(np.sum([np.isnan(node_metric[i]) and not _in_patterns(info, pattern_ids)
                             for i, info in enumerate(stim_info)]))
         if n_nan:
             ax.plot([], [], marker="o", linestyle="", markersize=10,

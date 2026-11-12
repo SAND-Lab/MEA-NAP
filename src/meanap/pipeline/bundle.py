@@ -295,6 +295,38 @@ def _strip_activity_prefix(posix: str) -> str:
     return tail if sep else posix
 
 
+def _redrawable_stim_members(root: Path) -> set[str]:
+    """Stim figures the viewer redraws from their payloads, as bundle paths.
+
+    Per recording and per payload: a run from before the payloads existed has
+    none, and packs its stim pictures as it always did.
+    """
+    import numpy as np
+    from meanap.stim.redraw import FIGURES_SUFFIX, NETWORK_SUFFIX, _loads, network_figure_names
+
+    out: set[str] = set()
+    mats = root / "ExperimentMatFiles"
+    if not mats.is_dir():
+        return out
+    names: dict[str, list[str]] = {}
+    for path in mats.glob(f"*{FIGURES_SUFFIX}"):
+        with np.load(path) as d:
+            if "figure_names" in d.files:
+                names.setdefault(path.name[:-len(FIGURES_SUFFIX)], []).extend(
+                    str(n) for n in d["figure_names"])
+    for path in mats.glob(f"*{NETWORK_SUFFIX}"):
+        with np.load(path) as d:
+            if "figure_meta" in d.files:
+                names.setdefault(path.name[:-len(NETWORK_SUFFIX)], []).extend(
+                    network_figure_names(_loads(d["figure_meta"])))
+    base = root / "2_NeuronalActivity" / "2A_IndividualNeuronalAnalysis"
+    for recording, stems in names.items():
+        for folder in base.glob(f"*/{recording}"):
+            for stem in stems:
+                out.add((folder / f"{stem}.png").relative_to(root).as_posix())
+    return out
+
+
 def _keep_as_images(root: Path) -> tuple[str, ...]:
     """Figure dirs to pack verbatim because their payload isn't there.
 
@@ -442,13 +474,23 @@ def write_bundle(
     with open(root / MANIFEST_NAME, "w") as fh:
         json.dump(manifest, fh, indent=2, sort_keys=True)
 
+    # A bundle saved inside the folder it packs would otherwise be walked too,
+    # and zipping a file while writing it never ends: it read its own growing
+    # output until the disk filled. Other .meanap files in the folder (an
+    # earlier attempt) are left out for the same reason they would be large.
+    dest_resolved = dest.resolve()
+    stim_redrawn = _redrawable_stim_members(root)
     packed = 0
     with zipfile.ZipFile(dest, "w", zipfile.ZIP_DEFLATED) as zf:
         for path in sorted(_walk_files(root)):
             if not path.is_file():
                 continue
+            if path.resolve() == dest_resolved or path.suffix == BUNDLE_SUFFIX:
+                continue
             rel = path.relative_to(root)
             if _is_reconstructable_member(rel, keep) or is_os_metadata(rel):
+                continue
+            if rel.as_posix() in stim_redrawn:
                 continue
             if rel.as_posix() == PARAMS_FILENAME:
                 # The copy in the output folder keeps everything — it never
