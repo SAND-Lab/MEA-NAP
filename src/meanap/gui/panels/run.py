@@ -296,7 +296,7 @@ class RunPanel(QWidget):
             (snapshot.fraction if fraction is None else fraction) * 1000)))
         self._last_elapsed = snapshot.elapsed_s
 
-        headline = f"{snapshot.percent}%  ·  {snapshot.phase}"
+        headline = f"{snapshot.percent_text}  ·  {snapshot.phase}"
         if snapshot.detail:
             headline += f"  ·  {snapshot.detail}"
         self.progress_label.setText(prefix + headline)

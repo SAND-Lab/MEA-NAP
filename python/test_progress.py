@@ -340,6 +340,111 @@ def _format_checks() -> list[Check]:
     ]
 
 
+# ── Within a recording ───────────────────────────────────────────────────────
+
+def _partial_checks() -> list[Check]:
+    """A recording's own progress moves the bar before the recording is done.
+
+    Without it, step 1 of a two-recording run sat at 0% for the whole first
+    recording — minutes of loading and detecting that looked like a hang.
+    """
+    import threading
+
+    from meanap.pipeline.runner import (
+        CHANNEL_REPORTS, STEP1_DETECTED, STEP1_LOADED, _channel_progress,
+    )
+
+    checks: list[Check] = []
+    p, seen, clock = _reporter()
+    p.plan(plan_ephys(start_step=1, stop_step=1, n_recordings=2))
+    p.begin("step1", items=2)
+
+    p.item_progress(0.5, "rec_a · detecting spikes")
+    half = seen[-1].fraction
+    p.item_progress(1.0)
+    one_item = seen[-1].fraction
+    checks.append(("half a recording credits half its share",
+                   half > 0 and abs(half - one_item / 2) < 1e-9,
+                   f"{half:.4f} vs {one_item:.4f}"))
+    checks.append(("the detail says what the recording is doing",
+                   seen[-2].detail.startswith("rec_a · detecting spikes"), seen[-2].detail))
+    checks.append(("a detail-less update keeps the last detail",
+                   seen[-1].detail.startswith("rec_a · detecting spikes"), seen[-1].detail))
+
+    p.item_progress(0.2)
+    checks.append(("a late, smaller report never moves the bar back",
+                   seen[-1].fraction == one_item, f"{seen[-1].fraction:.4f}"))
+    p.item_progress(7.0)
+    checks.append(("a fraction past 1 stops at the end of the item",
+                   seen[-1].fraction == one_item, f"{seen[-1].fraction:.4f}"))
+
+    p.item_done("rec_a")
+    checks.append(("finishing the item adds nothing it already credited",
+                   abs(seen[-1].fraction - one_item) < 1e-9,
+                   f"{seen[-1].fraction:.4f} vs {one_item:.4f}"))
+    p.item_progress(0.5)
+    checks.append(("the second recording's progress builds on the first",
+                   abs(seen[-1].fraction - 1.5 * one_item) < 1e-9,
+                   f"{seen[-1].fraction:.4f}"))
+    p.item_done("rec_b")
+    p.finish()
+    checks.append(("the run still ends at 100%",
+                   seen[-1].fraction == 1.0, f"{seen[-1].fraction}"))
+
+    # Detection reports from worker threads, out of order.
+    p, seen, _ = _reporter()
+    p.plan(plan_ephys(start_step=1, stop_step=1, n_recordings=1))
+    p.begin("step1", items=1)
+    report = _channel_progress(p, "rec")
+    order = list(range(1, 241))
+    threads = [threading.Thread(target=lambda part=order[i::8]: [report(d, 240) for d in part])
+               for i in range(8)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    fractions = [s.fraction for s in seen]
+    checks.append(("reports from many threads never move the bar back",
+                   all(b >= a for a, b in zip(fractions, fractions[1:])), ""))
+    expected = STEP1_DETECTED * PHASE_WEIGHTS["step1"] / p._total
+    checks.append(("detection ends where the checks begin",
+                   abs(max(fractions) - expected) < 1e-9,
+                   f"{max(fractions):.4f} vs {expected:.4f}"))
+
+    p, seen, _ = _reporter()
+    p.plan(plan_ephys(start_step=1, stop_step=1, n_recordings=1))
+    p.begin("step1", items=1)
+    before = len(seen)
+    report = _channel_progress(p, "rec")
+    for done in range(1, 1001):
+        report(done, 1000)
+    sent = len(seen) - before
+    checks.append(("a 1000-channel array sends tens of updates, not a thousand",
+                   sent <= CHANNEL_REPORTS + 1, str(sent)))
+    checks.append(("the last channel is always reported",
+                   seen[-1].detail == "rec · detecting spikes, 1000 of 1000 channels",
+                   seen[-1].detail))
+    report(0, 0)
+    checks.append(("an empty recording reports nothing", len(seen) - before == sent, ""))
+    checks.append(("loading comes before detecting",
+                   0 < STEP1_LOADED < STEP1_DETECTED < 1, ""))
+    return checks
+
+
+def _percent_checks() -> list[Check]:
+    def text(fraction: float) -> str:
+        return Progress(fraction=fraction, phase="", detail="",
+                        elapsed_s=0.0, eta_s=None).percent_text
+
+    return [
+        ("nothing done reads 0%", text(0.0) == "0%", text(0.0)),
+        ("under 10% shows a decimal, so the start visibly moves",
+         text(0.004) == "0.4%", text(0.004)),
+        ("10% and over is whole numbers", text(0.372) == "37%", text(0.372)),
+        ("done reads 100%", text(1.0) == "100%", text(1.0)),
+    ]
+
+
 # ── The panel ─────────────────────────────────────────────────────────────────
 
 def _panel_checks(app) -> list[Check]:
@@ -440,6 +545,8 @@ def main() -> int:
                          ("Progress model:", _model_checks),
                          ("Calibration:", _calibration_checks),
                          ("Transfers:", _transfer_checks),
+                         ("Within a recording:", _partial_checks),
+                         ("Percentages:", _percent_checks),
                          ("Formatting:", _format_checks)]:
         p, n = _report(title, build())
         total_pass += p

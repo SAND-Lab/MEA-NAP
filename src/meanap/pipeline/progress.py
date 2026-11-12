@@ -28,6 +28,7 @@ the first recording, before any compute has started.
 
 from __future__ import annotations
 
+import threading
 import time
 from dataclasses import dataclass
 from typing import Callable
@@ -123,12 +124,24 @@ class Progress:
         return int(round(100 * self.fraction))
 
     @property
+    def percent_text(self) -> str:
+        """"0.4%" early on, "37%" later.
+
+        Whole percents are too coarse at the start of a long batch: one
+        recording's spike detection can be under a percent of the run, and a
+        bar reading 0% for minutes looks stuck however hard it is working.
+        """
+        if 0 < self.fraction < 0.1:
+            return f"{100 * self.fraction:.1f}%"
+        return f"{self.percent}%"
+
+    @property
     def transferring(self) -> bool:
         return self.bytes_total > 0
 
     def describe(self) -> str:
         """One line, for a log or a terminal."""
-        parts = [f"{self.percent}%", self.phase]
+        parts = [self.percent_text, self.phase]
         if self.detail:
             parts.append(self.detail)
         parts.append(f"{format_duration(self.elapsed_s)} elapsed")
@@ -215,6 +228,8 @@ class RunProgress:
         # silently drop the first recording's own duration from the average,
         # which on a two-recording batch halves the estimate.
         self._measure_from: float | None = None
+        # item_progress is called from detection's worker threads.
+        self._lock = threading.Lock()
 
     # ── Planning ──────────────────────────────────────────────────────────────
 
@@ -263,6 +278,25 @@ class RunProgress:
         share = (min(1.0, self._items_done / self._items_total)
                  if self._items_total else 1.0)
         self._credit(planned * share)
+
+    def item_progress(self, fraction: float, detail: str | None = None) -> None:
+        """Part of the current item is done: *fraction* of it, 0 to 1.
+
+        For items long enough that waiting for the whole one leaves the bar
+        still — a recording's spike detection is minutes, and on a small batch
+        the whole of step 1's first recording. Never moves the bar back, and
+        never past the item: :meth:`item_done` still marks the item finished.
+        Safe to call from several threads at once.
+        """
+        with self._lock:
+            if detail is not None:
+                self._detail = detail
+            planned = self._weights.get(self._phase_key, 0.0)
+            if not planned or not self._items_total:
+                self._publish()
+                return
+            share = (self._items_done + min(1.0, max(0.0, fraction))) / self._items_total
+            self._credit(planned * min(1.0, share))
 
     def phase_done(self) -> None:
         """Credit whatever is left of the current phase.

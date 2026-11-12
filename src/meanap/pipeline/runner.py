@@ -818,6 +818,29 @@ def _check_catnap_resume_inputs(locator, recordings, params: Params, log) -> Non
         log(f"  ! {name} will be skipped — missing {', '.join(gaps)}")
 
 
+#: How far through one recording's step 1 each stage gets it. Loading a large
+#: file is a real share; detection is most of it; the checks summary the rest.
+STEP1_LOADED = 0.15
+STEP1_DETECTED = 0.90
+#: Report detection progress about this many times per recording, whatever the
+#: channel count — a 1000-channel array would otherwise send 1000 updates.
+CHANNEL_REPORTS = 40
+
+
+def _channel_progress(progress: RunProgress, recording: str):
+    """A ``(done, total)`` channel callback that moves *progress* through detection."""
+    def report(done: int, total: int) -> None:
+        if total <= 0:
+            return
+        every = max(1, total // CHANNEL_REPORTS)
+        if done % every and done != total:
+            return
+        share = STEP1_LOADED + (STEP1_DETECTED - STEP1_LOADED) * done / total
+        progress.item_progress(share, f"{recording} · detecting spikes, "
+                                      f"{done} of {total} channels")
+    return report
+
+
 def _run_step1_spike_detection(
     params: Params,
     recordings: list[RecordingInfo],
@@ -882,7 +905,12 @@ def _run_step1_spike_detection(
 
         log(f"  [{rec.filename}] loading raw data…")
         log.debug(f"      reading {raw_path}")
+        # Within a recording, the bar moves by stage — loaded, then channel by
+        # channel, then the checks — rather than only when the whole recording
+        # is done, which on a small batch left it on 0% for minutes.
+        progress.item_progress(0.0, f"{rec.filename} · loading raw data")
         dat, channels, fs = load_raw_recording(raw_path)
+        progress.item_progress(STEP1_LOADED, f"{rec.filename} · detecting spikes")
         log.detail(f"      {len(channels)} channels, {fs / 1000:g} kHz, "
                    f"{dat.shape[0] / fs:.1f}s "
                    f"({dat.nbytes / 1e6:.0f} MB of samples)")
@@ -921,6 +949,7 @@ def _run_step1_spike_detection(
             result = detect_spikes_recording(
                 dat, channels, fs, detect_params,
                 max_workers=params.spike_detection_channel_workers,
+                progress=_channel_progress(progress, rec.filename),
             )
         if params.stimulation_mode and params.stim_drop_artifact_spikes:
             result = _drop_stim_artifacts(params, rec, dat, channels, fs, result, log)
@@ -945,6 +974,7 @@ def _run_step1_spike_detection(
         # carry these figures at all, and at ~40 KB against ~840 KB of PNG it
         # is cheaper than the pictures it replaces. Drawing is what express
         # mode skips, exactly as it skips every other rebuildable figure.
+        progress.item_progress(STEP1_DETECTED, f"{rec.filename} · summarising checks")
         log(f"  [{rec.filename}] summarising spike detection checks…")
         checks = compute_spike_check_data(dat, result, params, rec.filename)
         save_spike_check_data(spike_dir / f"{rec.filename}{CHECKS_SUFFIX}", checks)
