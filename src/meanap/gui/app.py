@@ -40,7 +40,35 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         help=("open this copy of MEA-NAP even when another version is set as "
               "the default in the versions dialog"),
     )
-    return parser.parse_args(argv)
+    parser.add_argument(
+        "paths",
+        nargs="*",
+        metavar="RUN",
+        help=("a .meanap bundle or a results folder to open in the results "
+              "viewer; given to the MEA-NAP window already open, if there is one"),
+    )
+    association = parser.add_mutually_exclusive_group()
+    association.add_argument(
+        "--register-file-type",
+        action="store_true",
+        help="make double-clicking a .meanap file open it in this copy of MEA-NAP, then exit",
+    )
+    association.add_argument(
+        "--unregister-file-type",
+        action="store_true",
+        help="undo --register-file-type, then exit",
+    )
+    # parse_known_args: macOS can add a -psn_… argument when Finder starts the app.
+    args, _unknown = parser.parse_known_args(argv)
+    return args
+
+
+def _change_file_type(register: bool) -> None:
+    from meanap.gui import file_association
+
+    result = file_association.register() if register else file_association.unregister()
+    print(result.message)
+    sys.exit(0 if result.registered == register else 1)
 
 
 def _open_default_version(argv: list[str]) -> None:
@@ -100,14 +128,30 @@ def _show_splash(app: QApplication, mode: str) -> QSplashScreen | None:
 def main() -> None:
     started = time.perf_counter()
     args = _parse_args(sys.argv[1:])
+    if args.register_file_type or args.unregister_file_type:
+        _change_file_type(args.register_file_type)
     # The desktop app is one fixed version, with no clone to open another from.
-    if not args.here and not is_frozen():
+    # Nor is a double-clicked run handed on: any version can show it, and an
+    # older default might not take a file on its command line.
+    if not args.here and not is_frozen() and not args.paths:
         _open_default_version(sys.argv[1:])
 
     theme.enable_hi_dpi()
     app = QApplication(sys.argv[:1])
     app.setApplicationName("MEA-NAP")
     app.setOrganizationName("SAND Lab")
+
+    from meanap.gui.single_instance import FileOpenFilter, InstanceServer, send_to_running
+
+    # A run double-clicked while MEA-NAP is open goes to that window, which
+    # already has the viewer server, rather than to a second one.
+    if args.paths and send_to_running(args.paths):
+        sys.exit(0)
+    # Before the window exists: Finder sends the file it was started for while
+    # the app is still loading.
+    file_opens = FileOpenFilter(app)
+    app.installEventFilter(file_opens)
+
     # Set on the application so dialogs and the taskbar entry pick it up too,
     # not just the main window.
     app.setWindowIcon(logo_icon())
@@ -121,6 +165,11 @@ def main() -> None:
     window.show()
     if splash is not None:
         splash.finish(window)
+
+    instance = InstanceServer(parent=app)
+    instance.paths_received.connect(window.open_results)
+    file_opens.path_opened.connect(lambda path: window.open_results([path]))
+    window.open_results(args.paths + file_opens.set_ready())
     print(f"MEA-NAP: window ready {time.perf_counter() - started:.1f} s after start",
           file=sys.stderr)
     window.report_app_update()

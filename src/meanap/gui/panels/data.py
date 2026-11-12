@@ -167,7 +167,10 @@ class DataPanel(QWidget):
         self.fs.setDecimals(0)
         self.fs.setSuffix(" Hz")
         self.fs.setValue(25000)
-        self.fs.setToolTip("The rate the data above was recorded at.")
+        self.fs.setToolTip(
+            "Saved with the run's settings for the record only: every step reads "
+            "each recording's own sampling rate from its file, so recordings made "
+            "at different rates are each analysed at the right one.")
 
         self.channel_layout = QComboBox()
         self.channel_layout.addItems(CHANNEL_LAYOUTS)
@@ -279,17 +282,37 @@ class DataPanel(QWidget):
     # ── The spreadsheet editor ────────────────────────────────────────────────
 
     def _on_edit_spreadsheet(self) -> None:
-        """Edit the configured spreadsheet, or start one where it would go."""
+        self.edit_spreadsheet()
+
+    def edit_spreadsheet(self, names: list[str] | None = None) -> None:
+        """Edit the configured spreadsheet, or start one where it would go.
+
+        A new sheet starts with one row per recording in the raw-data folder
+        (or *names*, for a caller that found them another way, as CAT-NAP's
+        suite2p scan does), with group and DIV suggested from the names.
+        """
         from meanap.gui.panels.spreadsheet_editor import edit_spreadsheet
+        from meanap.pipeline.spreadsheet import new_recording_table, raw_recording_names
 
         current = self.spreadsheet.value.strip()
         raw = self.raw_data.value.strip()
+        local = bool(raw) and not is_remote_url(raw)
         # A share link is not somewhere a file can be written; offer the output
         # folder, then the working directory, instead.
-        near = raw if raw and not is_remote_url(raw) else (
-            self.output_data_folder.value.strip() or ".")
+        near = raw if local else (self.output_data_folder.value.strip() or ".")
         suggested = current or str(Path(near) / "recordings.csv")
-        path = edit_spreadsheet(self, path=current, suggested_path=suggested)
+
+        table = None
+        if not (current and Path(current).is_file()):
+            if names is None and local:
+                try:
+                    names = raw_recording_names(raw)
+                except ValueError:  # not a folder (yet)
+                    names = None
+            if names:
+                table = new_recording_table(names)
+        path = edit_spreadsheet(self, path=current, table=table,
+                                suggested_path=suggested, suggest=table is not None)
         if path:
             self.spreadsheet.set_value(path)
 

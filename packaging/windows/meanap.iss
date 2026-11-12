@@ -43,6 +43,8 @@ SolidCompression=yes
 WizardStyle=modern
 ; Close a running MEA-NAP before replacing its files.
 CloseApplications=yes
+; Tells Explorer to pick up the .meanap association below without a log-out.
+ChangesAssociations=yes
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
@@ -53,6 +55,17 @@ Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs 
 [InstallDelete]
 ; An upgrade must not leave the previous version's libraries beside the new.
 Type: filesandordirs; Name: "{app}\_internal"
+
+[Registry]
+; Double-clicking a .meanap bundle opens it in MEA-NAP. The same keys and ProgID
+; as src/meanap/gui/file_association.py writes for a copy run from Python.
+; HKA is the current user's classes for a per-user install, the machine's for
+; an all-users one.
+Root: HKA; Subkey: "Software\Classes\.meanap"; ValueType: string; ValueName: ""; ValueData: "MEANAP.Bundle"; Flags: uninsdeletevalue
+Root: HKA; Subkey: "Software\Classes\.meanap\OpenWithProgids"; ValueType: string; ValueName: "MEANAP.Bundle"; ValueData: ""; Flags: uninsdeletevalue
+Root: HKA; Subkey: "Software\Classes\MEANAP.Bundle"; ValueType: string; ValueName: ""; ValueData: "MEA-NAP run bundle"; Flags: uninsdeletekey
+Root: HKA; Subkey: "Software\Classes\MEANAP.Bundle\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\MEA-NAP.exe,0"
+Root: HKA; Subkey: "Software\Classes\MEANAP.Bundle\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\MEA-NAP.exe"" ""%1"""
 
 [Icons]
 Name: "{autoprograms}\MEA-NAP"; Filename: "{app}\MEA-NAP.exe"

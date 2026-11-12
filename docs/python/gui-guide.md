@@ -17,6 +17,121 @@ button, which fills in sensible defaults and the bundled example dataset
 automatically.
 ```
 
+(simple-view)=
+## Simple view
+
+**✦ Simple view**, at the right-hand end of the status bar, swaps the tabs for
+one page that asks only for what a run needs, one question at a time:
+
+1. **Recordings**: the folder with your recordings (for CAT-NAP, the folder
+   holding one suite2p folder per recording), or a Dropbox folder link;
+2. **Spreadsheet**: checked against that folder, so a recording it names but
+   the folder doesn't have is flagged before the run. No spreadsheet yet?
+   **Build one from the N recordings in this folder** starts one for you (see
+   [Building a spreadsheet](#building-a-spreadsheet));
+3. **Recording settings**: the electrode layout and sampling rate, read from
+   the recordings themselves, so this step usually fills itself in (see
+   [Layout from the files](#layout-from-the-files)). For CAT-NAP it asks for
+   the **activity measure** instead, pre-filled and confirmed with **Continue**;
+4. **Stimulation** (MEA-Stim only): the detection method and value;
+5. **Results folder**.
+
+When an answer checks out, a green tick appears beside it and it folds into a
+one-line summary; a warning (an amber **!**) still lets you move on. Click a
+folded answer to change it. Clicking the logo switches pipeline, **Run** starts
+the run, and the page shows its progress and then **View results**.
+
+The fields on the page are the same settings as the ones on the tabs, so
+switching back with **Classic view** (top right of the page) loses nothing. The
+window remembers which view you used last; the tabs are the default.
+
+### Other settings
+
+Below the questions, an **Other settings** card is always on the page. It has
+one row for each settings tab the pipeline uses: Recordings and output, Spike
+detection (or Calcium imaging), Connectivity and networks, Stimulation (MEA-Stim
+only), and Pipeline steps and figures. Each row shows:
+
+- a short summary of its key values, for example *bior1.5 · thresholds 4, 5 ·
+  active from 0.01 Hz*;
+- an amber count of the settings in that area that differ from the pipeline's
+  defaults. Hover over the row to see which ones, with their old and new
+  values. The settings the questions ask for (folders, layout, sampling rate,
+  stimulation detection, activity measure) are not counted.
+
+Click a row to unfold its sections, the same group boxes as on the tab. Click a
+section to open it in a panel on the right. The panel holds the tab's own
+fields, not copies, so anything changed there is changed everywhere. Close it
+with **Done**, **Esc**, or a click beside it.
+
+The search field at the top left (see [Finding a setting](#search)) opens a
+setting's section in the same panel. A setting that only the tabs have, such as
+the network viewer's, opens in the classic view instead.
+
+### View results
+
+The switch under the logo goes from **Analyse recordings** to **View results**,
+for looking at a run that has already finished, yours or one someone sent you.
+Drop a `.meanap` bundle or a results folder on the dashed box (or use **Open
+bundle…** / **Open results folder…**), and the results viewer opens in your
+browser. Under it are the other viewers the current pipeline has:
+
+| Pipeline | Viewers |
+|---|---|
+| MEA-NAP | Results viewer; network viewer; spike and burst viewer |
+| MEA-Stim | Results viewer; stimulation response (ΔFR); network viewer; stimulation preview; spike and burst viewer |
+| CAT-NAP | Results viewer; network viewer; cell tracking (only for a run with tracking results) |
+
+The [network viewer](network-viewer.md) opens in a window of its own on the run
+you have open, with a list to pick the recording from; it is enabled once a run
+has reached the network step. The spike and burst viewer and the stimulation
+preview read raw recordings, not a finished run, so they use the recordings
+folder and settings from **Analyse recordings**. Runs you have opened are
+listed under **Recent**. **View results** at the end of a run brings you here
+with that run open.
+
+The viewer is served by MEA-NAP itself, so keep MEA-NAP open while you look.
+
+(double-click-bundles)=
+### Opening `.meanap` files by double-clicking
+
+Once set up, double-clicking a `.meanap` file opens MEA-NAP on **View results**
+with that run open, or hands it to the MEA-NAP window already open.
+
+- **Windows and macOS desktop app**: set up by the installer.
+- **Linux, or MEA-NAP run from Python**: click **Set up** at the bottom of
+  **View results**, or run `meanap-gui --register-file-type` once
+  (`--unregister-file-type` undoes it). It changes only your own user's
+  settings; on Linux it writes a MIME type, a launcher and an icon under
+  `~/.local/share`. Setting it up again is needed only if you move to a
+  different copy of MEA-NAP (another virtual environment, say), and the page
+  tells you when that is the case.
+
+`meanap-gui path/to/run.meanap` opens a run the same way from a terminal.
+
+(search)=
+## Finding a setting
+
+Both views have a search field: beside the tabs in the classic view, and at the
+top left of the simple view. **Ctrl+F** (**⌘F** on a Mac) puts the cursor in it.
+Type part of a setting's name, or a word for what it does, and pick a match
+with the mouse or with the arrow keys and Return.
+
+- **A setting** opens its tab, unfolds the advanced section it is in, scrolls
+  to it and outlines it for a moment, with the cursor in the field.
+- **A button or toolbar action** (Make bundle, Tutorial, This computer, …)
+  takes you to the button, or runs the toolbar action.
+- **In the simple view**, its own questions, viewers and pages come first. Any
+  other setting opens in the [Other settings](#other-settings) panel, without
+  leaving the page. A setting that only the tabs have switches to the classic
+  view to show it. That is a detour: the simple view still opens next time.
+
+The search covers only the tabs the current mode shows, and only the rows they
+are showing. CAT-NAP's tabs are not offered in MEA-NAP mode, for example. It
+also matches tooltips and a few common alternative words, so *sampling rate*
+finds **Sampling frequency**, and *fs* finds it too. Matches are on the start
+of a word, so *rate* does not find *separate*.
+
 (advanced-settings)=
 ## Advanced settings
 
@@ -155,6 +270,63 @@ to bottom.
 | **Previous analysis folder** | On the Run tab, beside **Use prior analysis** — see [Run](#run). |
 
 (raw-data-formats)=
+(layout-from-the-files)=
+### Layout from the files
+
+The simple view reads each recording's header to fill in the electrode layout,
+and shows the sampling rate beside it (`Axion64 · 12.5 kHz`):
+
+| What the files show | Layout |
+|---|---|
+| Multi Channel Systems `.h5` | MCS60 (MCS59 at 59 channels) |
+| Axion `.raw` | Axion64, or Axion16 at 16 electrodes per well |
+| `.mat` with 16 / 59 / 60 channels | Axion16 / MCS59 / MCS60 |
+| `.mat` with 64 channels | Axion64 if the corner electrodes (11, 18, 81, 88) carry signal, MCS60 if they are empty |
+
+An MCS 60-electrode array has no corner electrodes, which is what tells a
+64-channel Axion well from an MCS recording padded to the full grid. Reading
+the corners takes a few seconds of data, which an older (v7) `.mat` can't give
+without being read whole; there the sampling rate decides (Axion records at
+12.5 kHz) and the step is marked **!** as a best guess. It is also marked if
+the recordings disagree, or if you pick a different layout from the one the
+files suggest. A batch recorded at several sampling rates is fine, since each
+recording is analysed at its own rate; the summary shows the range
+(`10–25 kHz`).
+
+**🧪 Test pipeline** sets the layout the same way, so the example dataset runs
+as Axion64.
+
+(building-a-spreadsheet)=
+### Building a spreadsheet
+
+**Edit…** beside the spreadsheet field (**Build one from the N recordings…** in
+the simple view) opens a table editor. If there is no spreadsheet yet, it
+starts with one row per recording in the raw-data folder, named exactly as the
+files are, so every row matches a recording.
+
+It also fills in what the names say. Labs usually name recordings after what
+they are: `SYN_20260904_WT_DIV14_A1` is a synapsin culture, plated
+4 Sep 2026, wild type, 14 days in vitro, well A1. So:
+
+- **Genotype** is taken from the part of the names that looks like a group: a
+  word such as WT, KO, Het or Ctrl; otherwise a part that splits the
+  recordings into a few repeating values; otherwise, if every name starts with
+  the same word, that word (one group). Batch, date, well and animal ids are
+  passed over.
+- **DIV** is taken from the part that reads as an age: `DIV14`, `d7`, `day21`.
+
+These are **suggestions**, shown in amber italics until you edit a cell or
+save. A wrong group doesn't make a run fail; it quietly splits or merges the
+comparisons the analysis is built on, so check them. Two tools help:
+
+- **From the names** splits the first name into its parts. Click a part to
+  fill the genotype or DIV column from that position in every name instead.
+- **Call each genotype** renames a suggested value everywhere at once:
+  `WT` → `Wildtype`, say.
+
+If your DIVs are grouped (recordings at DIV 36 analysed as DIV 35, say), the
+DIV read from the name is the exact day, so change those cells to the group.
+
 ### Raw data formats
 
 Unlike the MATLAB pipeline, the Python port does not require you to convert your
@@ -211,7 +383,7 @@ it applies.
 
 | Field | Description |
 |---|---|
-| **Sampling frequency** | The recording's native sampling rate in Hz (e.g. `25000`). |
+| **Sampling frequency** | Kept with the run's settings for the record only. Every step reads each recording's own rate from its file, so a batch recorded at different rates is fine. |
 | **Downsample frequency** ⚙ | Rate used for some plots/metrics that don't need full resolution (e.g. `1000`). |
 | **Potential difference unit** ⚙ | `uV`, `mV`, or `V` — must match your raw data's units. |
 | **Channel layout** | Electrode grid layout: `MCS60`, `Axion64`, `Mea256`, `Custom`, or `FromFile` (each recording's own electrode positions, as written by an [import of sorted data](sorted-import.md) — use it for MaxWell HD-MEAs). See [MATLAB vs. Python](matlab-vs-python.md) for which layouts have confirmed coordinate parity. |
@@ -357,12 +529,14 @@ pressing it.
 ### Opening a bundle
 
 A `.meanap` bundle does not need a run, or even the data it came from — it is a
-file people email each other. Two ways to open one:
+file people email each other. Ways to open one:
 
 - **📦 Open bundle…** on the Results tab;
-- **drag the `.meanap` file onto the window**, anywhere.
+- **drag the `.meanap` file onto the window**, anywhere;
+- **View results** in the [simple view](#simple-view);
+- **double-click it**, once [set up](#double-click-bundles).
 
-Either starts the viewer and opens a browser on it. Each bundle gets its own
+Each starts the viewer and opens a browser on it. Each bundle gets its own
 viewer, all of them shut down when MEA-NAP closes, and opening the same bundle
 twice reuses the page already serving it.
 

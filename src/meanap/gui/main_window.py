@@ -6,12 +6,14 @@ from dataclasses import replace
 from pathlib import Path
 
 from PyQt6.QtWidgets import (
-    QApplication, QComboBox, QDoubleSpinBox, QFileDialog, QLabel, QMainWindow,
-    QMessageBox,
-    QLineEdit, QTabWidget, QToolBar, QToolButton, QWidget,
+    QAbstractSpinBox, QApplication, QComboBox, QDoubleSpinBox, QFileDialog,
+    QHBoxLayout, QLabel, QMainWindow, QWidgetAction,
+    QMessageBox, QPushButton,
+    QLineEdit, QStackedWidget, QTabWidget, QToolBar, QToolButton, QVBoxLayout,
+    QWidget,
 )
 from PyQt6.QtGui import QAction
-from PyQt6.QtCore import Qt, QSettings, QSignalBlocker, QSize
+from PyQt6.QtCore import Qt, QSettings, QSignalBlocker, QSize, QTimer
 
 from meanap.params import STATS_STEP, Params
 from meanap.pipeline.bundle import BUNDLE_SUFFIX
@@ -25,7 +27,7 @@ from meanap.gui.modes import (
     DEFAULT_MODE, MODES, TAB_CATNAP, TAB_CONNECTIVITY, TAB_DATA, TAB_RESULTS,
     TAB_RUN, TAB_SPIKE, TAB_STATS, TAB_STIM,
     TAB_STIM_PREVIEW,
-    apply_mode_to_params, mode_for_params,
+    apply_mode_to_params, default_params, mode_for_params,
 )
 from meanap.gui.bundle_worker import BundleWorker
 from meanap.gui.pipeline_worker import (
@@ -41,10 +43,14 @@ from meanap.gui.panels.spike_detection import SpikeDetectionPanel
 from meanap.gui.panels.connectivity import ConnectivityPanel
 from meanap.gui.panels.stim import StimPanel
 from meanap.gui.panels.stim_preview import StimPreviewPanel
-from meanap.gui.panels.run import QUEUE, SHARED, RunPanel
+from meanap.gui.panels.run import QUEUE, SHARED, THIS_RUN, RunPanel
 from meanap.gui.panels.catnap import CatNapPanel
 from meanap.gui.panels.results import ResultsPanel
 from meanap.gui.panels.stats import StatsPanel
+from meanap.gui.simple_view import SimpleView
+from meanap.gui.settings_search import (
+    FEATURE, SETTING, VIEW, Flash, SearchBox, SearchEntry, index_tabs, reveal_widget,
+)
 from meanap.gui.tooltip import install_tooltip_style, wrap_tooltips
 from meanap.gui.tutorial import TutorialOverlay, TutorialStep, tabbar_target
 from meanap.frozen import is_frozen
@@ -53,6 +59,21 @@ from meanap.gui.versions_dialog import (
 )
 from meanap.gui.combo import install_combo_popup_fit
 from meanap.gui.wheel import install_wheel_guard
+
+
+#: QSettings key remembering whether the window was last in the simple view.
+SIMPLE_VIEW_KEY = "gui/simple_view"
+
+
+def load_simple_view_preference() -> bool:
+    """Whether to open in the simple view. The classic view is the default."""
+    value = QSettings("SAND Lab", "MEA-NAP").value(SIMPLE_VIEW_KEY, False)
+    # QSettings hands back the string "false" on some platforms.
+    return value if isinstance(value, bool) else str(value).lower() == "true"
+
+
+def save_simple_view_preference(simple: bool) -> None:
+    QSettings("SAND Lab", "MEA-NAP").setValue(SIMPLE_VIEW_KEY, bool(simple))
 
 
 class _LogoLabel(QLabel):
@@ -118,6 +139,8 @@ class MainWindow(QMainWindow):
         #: The firing-rate change viewer, built on first use and reopened rather
         #: than rebuilt; it unloads its run when closed.
         self._fr_diff_viewer = None
+        #: Panels the simple view opens in windows of their own (see _panel_window).
+        self._panel_windows: dict[str, QWidget] = {}
         #: The machine report, built on first use and kept so a benchmark
         #: already run is still on screen when it is reopened.
         self._system_report = None
@@ -133,6 +156,18 @@ class MainWindow(QMainWindow):
 
         self._build_toolbar()
         self._build_tabs()
+        # On the status bar, not the toolbar: the toolbar is already as wide as
+        # the default window, and an extra action pushes "This computer" into
+        # the overflow chevron. The simple view has its own way back, in its
+        # top corner.
+        simple_btn = QPushButton("✦  Simple view")
+        simple_btn.setFlat(True)
+        simple_btn.setObjectName("simpleViewButton")
+        simple_btn.setToolTip(
+            "One page that asks only for what a run needs, one question at a "
+            "time. Every setting on these tabs is kept.")
+        simple_btn.clicked.connect(lambda: self._set_simple_view(True))
+        self.statusBar().addPermanentWidget(simple_btn)
         # After the tabs exist, so there is something to expand. Blocked so
         # restoring the preference does not immediately re-save it.
         self._act_advanced.blockSignals(True)
@@ -158,7 +193,10 @@ class MainWindow(QMainWindow):
         # focused field is one the wheel is allowed to change. The tab strip
         # takes it instead, where the arrow keys move between tabs.
         self._tabs.setFocus(Qt.FocusReason.OtherFocusReason)
-        self._maybe_show_tutorial_on_first_launch()
+        self._set_simple_view(load_simple_view_preference(), remember=False)
+        # The tutorial walks the tabs, which the simple view does not show.
+        if not self.is_simple_view():
+            self._maybe_show_tutorial_on_first_launch()
 
     # ── UI construction ───────────────────────────────────────────────────────
 
@@ -257,11 +295,25 @@ class MainWindow(QMainWindow):
         before that the Mode selector — into the overflow chevron. There is
         always room beside five tabs, and nothing there to be pushed out.
         """
+        # The search field shares the corner. The toolbar has no room for it —
+        # it is already as wide as the default window on some platforms — and
+        # the tab strip has a third of its width spare in every mode.
+        corner = QWidget()
+        corner.setObjectName("tabCorner")
+        row = QHBoxLayout(corner)
+        row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(12)
+        self._search_box = SearchBox(self._search_entries)
+        self._search_box.setMaximumWidth(300)
+        self._search_box.install_shortcut(self._tabs)
+        row.addWidget(self._search_box, 0, Qt.AlignmentFlag.AlignVCenter)
+        self._tabs.setCornerWidget(corner, Qt.Corner.TopRightCorner)
         if logo_pixmap(CORNER_LOGO_HEIGHT, self.devicePixelRatioF(), self._mode) is None:
+            row.addSpacing(8)
             return
         self._logo_label = _LogoLabel()
         self._logo_label.setContentsMargins(0, 0, 10, 0)
-        self._tabs.setCornerWidget(self._logo_label, Qt.Corner.TopRightCorner)
+        row.addWidget(self._logo_label, 0, Qt.AlignmentFlag.AlignVCenter)
         self._refresh_logo()
 
     def _refresh_logo(self) -> None:
@@ -288,7 +340,10 @@ class MainWindow(QMainWindow):
     def _build_tabs(self) -> None:
         self._tabs = QTabWidget()
         self._tabs.setDocumentMode(True)
-        self.setCentralWidget(self._tabs)
+        # The tabs and the simple view share the window: one is shown at a time.
+        self._views = QStackedWidget()
+        self._views.addWidget(self._tabs)
+        self.setCentralWidget(self._views)
         self._add_logo()
 
         self._data_panel = DataPanel()
@@ -412,6 +467,291 @@ class MainWindow(QMainWindow):
         self._catnap_panel._make_sheet_btn.setObjectName("secondary")
         self._data_panel.edit_spreadsheet_btn.setObjectName("secondary")
 
+        # Built last: its fields mirror the panels above, which must exist.
+        self._simple_view = SimpleView(
+            self._data_panel, self._stim_panel, self._catnap_panel, self._mode)
+        self._simple_view.run_requested.connect(self._on_run)
+        self._simple_view.stop_requested.connect(self._on_stop)
+        self._simple_view.classic_requested.connect(
+            lambda: self._set_simple_view(False))
+        self._simple_view.mode_requested.connect(self._on_mode_requested)
+        self._simple_view.view_results_requested.connect(self._on_simple_view_results)
+        self._simple_view.show_log_requested.connect(self._on_show_run_log)
+        self._simple_view.search_provider = self._search_entries
+        self._simple_view.settings_provider = self._settings_areas
+        results = self._simple_view.results_page
+        results.open_requested.connect(self._on_results_page_open)
+        results.spike_viewer_requested.connect(self._on_open_spike_viewer)
+        results.fr_diff_requested.connect(self._on_results_page_fr_diff)
+        results.network_viewer_requested.connect(self._on_results_page_network)
+        results.stim_preview_requested.connect(self._on_results_page_stim_preview)
+        self._views.addWidget(self._simple_view)
+
+    # ── Simple and classic views ──────────────────────────────────────────────
+
+    def is_simple_view(self) -> bool:
+        return self._views.currentWidget() is self._simple_view
+
+    def _set_simple_view(self, simple: bool, remember: bool = True) -> None:
+        """Show the one-page view or the tabs. Both edit the same settings."""
+        if not simple:
+            # The panel holds a section borrowed from a tab; the tab needs it.
+            self._simple_view.close_section()
+        self._views.setCurrentWidget(self._simple_view if simple else self._tabs)
+        # The simple view has no use for the toolbar or status bar, and leaving
+        # them would undo most of what makes it simple.
+        for toolbar in self.findChildren(QToolBar):
+            toolbar.setVisible(not simple)
+        self.statusBar().setVisible(not simple)
+        # The tutorial walks the tabs, so it has nothing to point at here. Set
+        # aside, not finished: the classic view still offers it next start.
+        if simple and self._tutorial is not None and self._tutorial.isVisible():
+            self._tutorial.hide()
+        if remember:
+            save_simple_view_preference(simple)
+
+    # ── Search ────────────────────────────────────────────────────────────────
+
+    def _search_entries(self) -> list[SearchEntry]:
+        """Everything the search can find, from whichever view is showing.
+
+        Built afresh each time the field is used, from the window as it is:
+        the current mode's tabs, and only the rows those tabs are showing.
+        """
+        entries: list[SearchEntry] = []
+        if self.is_simple_view():
+            # A section open in the panel is away from its tab, where the
+            # index looks for it.
+            self._simple_view.close_section()
+            entries += self._simple_view.search_entries()
+        for entry in index_tabs(self._tabs):
+            entry.activate = lambda e=entry: self._go_to_setting(e)
+            entries.append(entry)
+        entries += self._window_features()
+        return entries
+
+    def _window_features(self) -> list[SearchEntry]:
+        """The toolbar's actions and the switches that are not on any tab."""
+        out: list[SearchEntry] = []
+        for toolbar in self.findChildren(QToolBar):
+            for action in toolbar.actions():
+                # Widget actions (the mode selector, the version button) have
+                # no text of their own; they are listed by hand below.
+                title = action.text().strip(" ?🖥⚙").strip()
+                if title and not isinstance(action, QWidgetAction):
+                    out.append(SearchEntry(
+                        title, "Toolbar", FEATURE, toolbar.widgetForAction(action),
+                        lambda a=action: self._run_toolbar_action(a), action.toolTip()))
+        out.append(SearchEntry(
+            "Versions and updates", "Toolbar", FEATURE, self._version_label,
+            lambda: self._run_classic(self._on_show_versions),
+            "version update upgrade which version release"))
+        out.append(SearchEntry(
+            "Pipeline mode", "Toolbar", SETTING, self._mode_combo,
+            lambda: self._run_classic(lambda: self._flash(self._mode_combo)),
+            "mode MEA-NAP MEA-Stim CAT-NAP pipeline switch calcium stimulation"))
+        if self.is_simple_view():
+            out.append(SearchEntry(
+                "Classic view", "Every setting, on tabs", VIEW, None,
+                lambda: self._set_simple_view(False), "tabs all settings classic"))
+        else:
+            out.append(SearchEntry(
+                "Simple view", "One page, one question at a time", VIEW, None,
+                lambda: self._set_simple_view(True), "simple one page beginner easy"))
+        return out
+
+    #: Settings tabs the simple view's card lists, with the sections on each
+    #: that are not settings (run controls, logs, progress) left out.
+    _SETTINGS_AREAS = {
+        TAB_DATA: ("Recordings and output", frozenset()),
+        TAB_SPIKE: ("Spike detection", frozenset()),
+        TAB_CATNAP: ("Calcium imaging", frozenset({"Log", "Trace preview", "Suite2p recordings"})),
+        TAB_CONNECTIVITY: ("Connectivity and networks", frozenset()),
+        TAB_STIM: ("Stimulation", frozenset()),
+        TAB_RUN: ("Pipeline steps and figures", frozenset({
+            "Runs", "Step overview", "Start", "Progress", "Status log", "This shared run"})),
+    }
+
+    def _settings_areas(self) -> list:
+        """The simple view's card: one area per settings tab this mode shows."""
+        from meanap.gui.simple_settings import Area, changed_fields, settings_sections, summarise
+
+        panels = {
+            TAB_DATA: self._data_panel, TAB_SPIKE: self._spike_panel,
+            TAB_CATNAP: self._catnap_panel, TAB_CONNECTIVITY: self._connectivity_panel,
+            TAB_STIM: self._stim_panel, TAB_RUN: self._pipeline_panel,
+        }
+        params = self._collect_params()
+        defaults = default_params(self._mode)
+        areas = []
+        for key, page, _label in self._tab_specs:
+            if key not in self._SETTINGS_AREAS or self._tabs.indexOf(page) < 0:
+                continue
+            title, exclude = self._SETTINGS_AREAS[key]
+            sections = settings_sections(page, exclude)
+            if sections:
+                areas.append(Area(key, title, sections, summarise(key, params),
+                                  changed_fields(panels[key], defaults)))
+        return areas
+
+    def _run_classic(self, then) -> None:
+        """Do *then* in the classic view, switching to it first if need be."""
+        if self.is_simple_view():
+            self._set_simple_view(False, remember=False)
+        then()
+
+    def _run_toolbar_action(self, action) -> None:
+        def run() -> None:
+            if action.isCheckable():
+                action.toggle()
+            else:
+                action.trigger()
+        self._run_classic(run)
+
+    def _go_to_setting(self, entry: SearchEntry) -> None:
+        """Show *entry*'s tab, open whatever folds it away, and mark it."""
+        target = entry.target
+        if target is None:
+            return
+        # From the simple view, open the section in its panel rather than
+        # leaving the page — if the setting is in a section the card offers.
+        if self.is_simple_view() and self._simple_view.open_setting(target):
+            if isinstance(target, (QLineEdit, QAbstractSpinBox, QComboBox)) and target.isEnabled():
+                target.setFocus(Qt.FocusReason.OtherFocusReason)
+            self._flash(target)
+            return
+        if self.is_simple_view():
+            # A detour, not a change of preference: the simple view is still
+            # what this person opens to.
+            self._set_simple_view(False, remember=False)
+        page = getattr(entry, "page", None)
+        if page is not None and self._tabs.indexOf(page) >= 0:
+            self._tabs.setCurrentWidget(page)
+        # The Run tab's pipeline settings are on the "This run" page; picking
+        # the page by its radio button keeps the radio and the page in step.
+        if self._pipeline_panel.isAncestorOf(target):
+            self._run_panel.set_mode(THIS_RUN)
+        reveal_widget(target)
+        if isinstance(target, (QLineEdit, QAbstractSpinBox, QComboBox)) and target.isEnabled():
+            target.setFocus(Qt.FocusReason.OtherFocusReason)
+        self._flash(target)
+
+    def _flash(self, target: QWidget) -> None:
+        # After the unfolding and scrolling have been laid out, or the outline
+        # lands where the widget was rather than where it is.
+        def show() -> None:
+            reveal_widget(target)
+            if target.isVisible():
+                Flash(target)
+        QTimer.singleShot(0, show)
+
+    def _on_mode_requested(self, key: str) -> None:
+        """Switch pipeline from the simple view, through the same path as the combo."""
+        if key != self._mode:
+            self._apply_mode(key)
+
+    def _on_show_run_log(self) -> None:
+        self._set_simple_view(False)
+        self._tabs.setCurrentIndex(self._tab_index(TAB_RUN))
+
+    # ── Opening finished runs ────────────────────────────────────────────────
+
+    def open_results(self, paths: list) -> None:
+        """Show runs handed to MEA-NAP from outside: double-clicked, or sent by
+        a second copy of MEA-NAP that was started with them.
+
+        The window goes to the simple view's **View results** page, whichever
+        view was showing, because that is where the run's viewers are; the
+        choice of view is not remembered, so the next ordinary start opens the
+        view the person picked.
+        """
+        from meanap.gui.simple_results import is_results_source
+
+        sources = [Path(p) for p in paths if is_results_source(Path(p))]
+        if not sources:
+            return
+        self._set_simple_view(True, remember=False)
+        # Every one is served, but the page holds one at a time: the last.
+        for source in sources:
+            self._simple_view.show_results(source)
+        if self.isMinimized():
+            self.showNormal()
+        self.raise_()
+        self.activateWindow()
+
+    def _on_results_page_open(self, path: str, query: str) -> None:
+        source = Path(path)
+        if self._open_in_viewer(source, query=query):
+            self._simple_view.results_page.note_opened(
+                path, self._viewers.url_for(source))
+
+    def _on_results_page_fr_diff(self, path: str) -> None:
+        from meanap.gui.fr_diff_viewer import FrDiffViewerWindow
+
+        if self._fr_diff_viewer is None:
+            self._fr_diff_viewer = FrDiffViewerWindow(self)
+        self._fr_diff_viewer.set_source(Path(path), chosen=True)
+        self._fr_diff_viewer.show()
+        self._fr_diff_viewer.raise_()
+        self._fr_diff_viewer.activateWindow()
+
+    def _panel_window(self, key: str, title: str, make):
+        """A separate window holding a panel the tabs also show, made once.
+
+        The simple view has no tabs, so its network viewer and stimulation
+        preview open in windows of their own. Each is its own copy of the
+        panel, independent of the one on the tab, and is reopened rather than
+        rebuilt, keeping whatever it had loaded.
+        """
+        window = self._panel_windows.get(key)
+        if window is None:
+            window = QWidget(self, Qt.WindowType.Window)
+            window.setWindowTitle(title)
+            layout = QVBoxLayout(window)
+            layout.setContentsMargins(6, 6, 6, 6)
+            window.panel = make()
+            layout.addWidget(window.panel)
+            window.resize(1200, 800)
+            self._panel_windows[key] = window
+        window.show()
+        window.raise_()
+        window.activateWindow()
+        return window.panel
+
+    def _on_results_page_network(self, path: str) -> None:
+        from meanap.gui.panels.network_viewer import NetworkViewerPanel
+
+        panel = self._panel_window("network", "MEA-NAP · Network viewer", NetworkViewerPanel)
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        try:
+            panel.load_run(path)
+        except Exception as e:
+            QApplication.restoreOverrideCursor()
+            QMessageBox.warning(self._panel_windows["network"],
+                                "Could not open the run's networks", str(e))
+            return
+        QApplication.restoreOverrideCursor()
+
+    def _on_results_page_stim_preview(self) -> None:
+        panel = self._panel_window("stim_preview", "MEA-Stim · Stimulation preview",
+                                   StimPreviewPanel)
+        params = self._collect_params()
+        panel.load_defaults(params)
+        panel.start_dir = params.raw_data or ""
+
+    def _on_simple_view_results(self) -> None:
+        """The simple view's **View results** after a run: that run, on its page."""
+        root = self._last_output_root or self._candidate_output_root()
+        bundle = self._last_bundle
+        if bundle is None and root is not None:
+            candidate = Path(root).with_suffix(BUNDLE_SUFFIX)
+            bundle = candidate if candidate.is_file() else None
+        source = bundle if bundle is not None and Path(bundle).is_file() else root
+        if source is None or not Path(source).exists():
+            self._on_view_report()  # explains what is missing
+            return
+        self._simple_view.show_results(source)
+
     @staticmethod
     def _bind_mirrored(first: QLineEdit, second: QLineEdit) -> None:
         """Keep two line edits showing the same text, in both directions."""
@@ -505,6 +845,9 @@ class MainWindow(QMainWindow):
         self._refresh_version_label()
         self._refresh_logo()
         self._refresh_timescale_label()
+        simple = getattr(self, "_simple_view", None)
+        if simple is not None:
+            simple.set_mode(mode_key)
         if new_lags is not None:
             # Say it out loud: the lags drive every network in the run, and a
             # field changing itself behind your back is worse than no change.
@@ -715,10 +1058,6 @@ class MainWindow(QMainWindow):
                 "a name — a subfolder with that name will hold all results and plots.",
                 self._tab_index(TAB_DATA), lambda: data.output_data_folder),
             TutorialStep(
-                "Recording settings", "Further down the Data tab, set the sampling frequency "
-                "of your acquisition (Hz) so spike detection and downsampling are correct.",
-                self._tab_index(TAB_DATA), lambda: data.fs),
-            TutorialStep(
                 "Voltage units", "Set this to the units your recordings are in — µV for "
                 "Multi Channel Systems, V for Axion. Getting it wrong scales every "
                 "amplitude, so spike detection thresholds land in the wrong place.",
@@ -868,6 +1207,8 @@ class MainWindow(QMainWindow):
         self._catnap_panel.load(params)
         self._pipeline_panel.load(params)
         self._refresh_timescale_label()
+        if hasattr(self, "_simple_view"):
+            self._simple_view.refresh_settings()
 
     def _collect_params(self) -> Params:
         params = Params()
@@ -889,9 +1230,7 @@ class MainWindow(QMainWindow):
             # Defaults for the pipeline on screen, not for MEA-NAP: resetting
             # in CAT-NAP should not quietly drop you back into the ephys tabs
             # with ephys-scaled lags.
-            params = Params()
-            apply_mode_to_params(self._mode, params)
-            params.func_con_lag_val = list(MODES[self._mode].default_lags)
+            params = default_params(self._mode)
             self._params = params
             self._load_params(self._params)
 
@@ -955,6 +1294,20 @@ class MainWindow(QMainWindow):
         self._data_panel.raw_data.set_value(str(example_dir))
         self._data_panel.spreadsheet.set_value(str(example_dir / "exampleData.csv"))
         self._data_panel.spreadsheet_range.setText("A2:A3")
+        # The layout comes from the files rather than from whatever the window
+        # last held: the example is an Axion 8×8 well, and run as MCS60 its
+        # networks were drawn upside down with the corner electrodes dropped.
+        from meanap.pipeline.recording_probe import detect_layout, probe_folder
+        guess = detect_layout(probe_folder(example_dir))
+        if guess.layout:
+            self._data_panel.channel_layout.setCurrentText(guess.layout)
+            if len(set(guess.rates)) == 1:
+                self._data_panel.fs.setValue(guess.rates[0])
+            # Each format's loader returns its own unit: volts for Axion, µV
+            # for MCS. Only the plots' scale depends on it.
+            unit = "V" if guess.layout.startswith("Axion") else "uV"
+            self._data_panel.potential_difference_unit.setCurrentText(unit)
+            log(f"Electrode layout: {guess.layout}. {guess.reason}")
         try:
             from meanap.pipeline.spreadsheet import read_recording_csv
             recordings = read_recording_csv(example_dir / "exampleData.csv", "A2:A3")
@@ -1060,6 +1413,7 @@ class MainWindow(QMainWindow):
         worker.finished_ok.connect(self._on_pipeline_finished)
         worker.cancelled.connect(self._on_pipeline_cancelled)
         worker.failed.connect(self._on_pipeline_failed)
+        self._simple_view.track_run(worker)
         self._worker = worker
         worker.start()
 
@@ -1841,6 +2195,9 @@ class MainWindow(QMainWindow):
             event.ignore()
             return
         event.acceptProposedAction()
+        if self.is_simple_view():
+            self.open_results(bundles)
+            return
         for bundle in bundles:
             self._open_in_viewer(bundle)
 
@@ -1863,6 +2220,11 @@ class MainWindow(QMainWindow):
         # Each viewer holds a port and a temporary extraction directory; both
         # live as long as the process unless handed back here.
         self._viewers.close_all()
+        network = self._panel_windows.get("network")
+        if network is not None:
+            network.panel.close_run()  # removes an extracted bundle
+        for window in self._panel_windows.values():
+            window.close()
         # The spike viewer is a child window with its own threads, and a child
         # left open keeps the process alive after the main window has gone.
         if self._spike_viewer is not None:

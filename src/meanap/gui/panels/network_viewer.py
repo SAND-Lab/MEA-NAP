@@ -16,10 +16,10 @@ from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
 
 from meanap.network_plot import (
-    EDGE_THRESHOLD_METHODS, LAYOUT_OPTIONS, MatData, build_cell_type_matrix,
+    EDGE_THRESHOLD_METHODS, LAYOUT_OPTIONS, MatData, RunNetwork, build_cell_type_matrix,
     compute_node_coords, count_edges_shown, filter_by_cell_types,
     get_edge_threshold, limit_edges_for_plotting, load_cell_type_file,
-    make_example_network, plot_network,
+    make_example_network, plot_network, run_recordings,
 )
 from meanap.gui.widgets import pin_width
 
@@ -127,6 +127,10 @@ class NetworkViewerPanel(QWidget):
         self._cell_type_matrix: np.ndarray | None = None
         self._cell_type_names: list[str] | None = None
         self._load_worker: _LoadMatWorker | None = None
+        #: A Python run opened with :meth:`load_run`: its render context, and
+        #: the extracted bundle behind it (None for a folder).
+        self._run_ctx = None
+        self._run_bundle = None
 
         # Data source: "example" uses a built-in synthetic network so the
         # display controls are usable immediately; "mat" uses a loaded file.
@@ -195,6 +199,17 @@ class NetworkViewerPanel(QWidget):
         )
         example_btn.clicked.connect(self._load_example_network)
 
+        # A Python run holds every recording; this picks which one to draw.
+        self._run_row = QWidget()
+        run_row = QHBoxLayout(self._run_row)
+        run_row.setContentsMargins(0, 0, 0, 0)
+        self._run_combo = QComboBox()
+        self._run_combo.setToolTip("Which recording of the run to draw.")
+        self._run_combo.currentTextChanged.connect(self._on_run_recording_changed)
+        run_row.addWidget(QLabel("Recording:"))
+        run_row.addWidget(self._run_combo, 1)
+        self._run_row.setVisible(False)
+
         info_form = QFormLayout()
         self._info_fn = QLabel("—")
         self._info_div = QLabel("—")
@@ -208,6 +223,7 @@ class NetworkViewerPanel(QWidget):
         info_form.addRow("Edges shown:", self._info_edges)
 
         file_layout.addLayout(path_row)
+        file_layout.addWidget(self._run_row)
         file_layout.addWidget(example_btn)
         file_layout.addLayout(info_form)
 
@@ -370,6 +386,7 @@ class NetworkViewerPanel(QWidget):
         )
         if not path:
             return
+        self.close_run()
         self._mat_path.setText(path)
         self._log_msg(f"Loading {Path(path).name}…")
         self._load_worker = _LoadMatWorker(path)
@@ -513,6 +530,7 @@ class NetworkViewerPanel(QWidget):
         self._source = "example"
         self._mat_data = None
         self._mat_path.clear()
+        self.close_run()
 
         self._info_fn.setText("Example network")
         self._info_div.setText("—")
@@ -546,6 +564,61 @@ class NetworkViewerPanel(QWidget):
 
         self._log_msg("Loaded built-in example network — adjust the Display controls to explore.")
         self._refresh_plot()
+
+    # ── A Python run ──────────────────────────────────────────────────────────
+
+    def load_run(self, source: str | Path) -> None:
+        """Show the networks of a Python run: an output folder or a ``.meanap`` bundle.
+
+        Raises ``ValueError`` when *source* has no networks to show (a run
+        that stopped before step 4, say).
+        """
+        from meanap.pipeline.bundle import is_bundle, open_bundle
+        from meanap.pipeline.render import load_context
+
+        source = Path(source)
+        bundle = open_bundle(source) if is_bundle(source) else None
+        try:
+            ctx = load_context(bundle if bundle is not None else source)
+            recordings = run_recordings(ctx)
+            if not recordings:
+                raise ValueError(f"{source.name} has no networks to show.")
+        except Exception:
+            if bundle is not None:
+                bundle.close()
+            raise
+        self.close_run()
+        self._run_ctx, self._run_bundle = ctx, bundle
+        self._mat_path.setText(str(source))
+        self._run_combo.blockSignals(True)
+        self._run_combo.clear()
+        self._run_combo.addItems(recordings)
+        self._run_combo.blockSignals(False)
+        self._run_row.setVisible(True)
+        self._log_msg(f"Opened {source.name}: {len(recordings)} recording(s).")
+        self._on_run_recording_changed(recordings[0])
+
+    def close_run(self) -> None:
+        """Let go of the run :meth:`load_run` opened, removing an extracted bundle."""
+        if self._run_bundle is not None:
+            self._run_bundle.close()
+        self._run_ctx = self._run_bundle = None
+        self._run_row.setVisible(False)
+
+    def _on_run_recording_changed(self, recording: str) -> None:
+        if self._run_ctx is None or not recording:
+            return
+        try:
+            data = RunNetwork(self._run_ctx, recording)
+        except Exception as exc:
+            self._log_msg(f"Could not read {recording}: {exc}")
+            return
+        if data.markers is not None:
+            matrix, names = data.markers
+            self._cell_type_matrix, self._cell_type_names = np.asarray(matrix), list(names)
+            self._populate_ct_list(list(names))
+            self._clear_ct_btn.setEnabled(True)
+        self._on_mat_loaded(data)
 
     def _on_load_cell_types(self) -> None:
         path, _ = QFileDialog.getOpenFileName(

@@ -77,6 +77,99 @@ class MatData:
         ]
 
 
+class RunNetwork:
+    """One recording of a Python run, read the way :class:`MatData` reads a
+    MATLAB output file.
+
+    A Python run keeps no per-recording ``.mat``: the adjacency matrices are in
+    ``ExperimentMatFiles/<rec>_adjM.npz`` (``_catnap.npz`` for CAT-NAP) and the
+    node metrics in ``4_NetworkActivity/netmet_results.json``. Both are read
+    through the results viewer's :func:`meanap.pipeline.render.load_context`,
+    so a folder and an opened bundle are the same thing here.
+    """
+
+    def __init__(self, ctx, recording: str) -> None:
+        from meanap.pipeline.probes import layout_coords_for_channels
+        from meanap.pipeline.render import (
+            _adjacency_keys, _recording_arrays, _state_file,
+        )
+
+        self.path = str(ctx.root)
+        rec = ctx.recordings.get(recording)
+        self.info: dict = {
+            "FN": recording,
+            "DIV": ("—" if rec is None else f"{rec.div:g}"),
+            "Grp": ("—" if rec is None else rec.group),
+        }
+        self.params: dict = {"minNodeSize": float(ctx.params.min_node_size)}
+        channels, coords, markers = _recording_arrays(ctx, recording)
+        self.channels = np.asarray(channels).ravel()
+        if coords is None:  # ephys: positions come from the layout, not the file
+            coords, _ = layout_coords_for_channels(ctx.params.channel_layout, self.channels)
+        self.coords = np.asarray(coords, dtype=float)
+        #: ``(matrix, names)`` of cell types the run carries (CAT-NAP), or None.
+        self.markers = markers
+        self.has_readable_cell_types = False
+
+        self._netmet = {f"adjM{lag}mslag": ctx.results[recording][f"{lag}mslag"]
+                        for lag in ctx.lags(recording)}
+        with np.load(_state_file(ctx.root, recording)) as data:
+            keys = _adjacency_keys(data)
+            self._adjMs = {k: np.asarray(data[keys[k]]) for k in self._netmet if k in keys}
+        self.lag_keys = sorted((k for k in self._netmet if k in self._adjMs), key=self.lag_ms)
+
+    def lag_ms(self, lag_key: str) -> int:
+        return int(lag_key.replace("adjM", "").replace("mslag", ""))
+
+    def get_adjM(self, lag_key: str) -> np.ndarray:
+        return self._adjMs[lag_key]
+
+    def _placed(self, lag_key: str) -> np.ndarray:
+        """Which active nodes the layout can place.
+
+        A channel the layout has no position for (MCS60's grounded corners,
+        say) is left out, as the pipeline's own spatial plots leave it out.
+        """
+        active = np.asarray(self._netmet[lag_key]["activeChannelIndex"], dtype=int).ravel()
+        return ~np.isnan(self.coords[active]).any(axis=1)
+
+    def get_active_indices(self, lag_key: str) -> np.ndarray:
+        """0-based, as the Python pipeline stores them."""
+        active = np.asarray(self._netmet[lag_key]["activeChannelIndex"], dtype=int).ravel()
+        return active[self._placed(lag_key)]
+
+    def get_metric(self, lag_key: str, metric: str) -> np.ndarray | None:
+        """One value per node :meth:`get_active_indices` returns."""
+        value = self._netmet[lag_key].get(metric)
+        if metric == "None" or value is None:
+            return None
+        return np.asarray(value).ravel()[self._placed(lag_key)]
+
+    @property
+    def available_node_metrics(self) -> list[str]:
+        """Node-level metrics present in the first lag (one value per active node)."""
+        if not self.lag_keys:
+            return []
+        lag = self.lag_keys[0]
+        n = len(self._netmet[lag]["activeChannelIndex"])
+        names = []
+        for name, value in self._netmet[lag].items():
+            if name == "activeChannelIndex" or not isinstance(value, (list, np.ndarray)):
+                continue
+            arr = np.asarray(value)
+            if arr.shape == (n,) and np.issubdtype(arr.dtype, np.number):
+                names.append(name)
+        return names
+
+
+def run_recordings(ctx) -> list[str]:
+    """The recordings of a run that have a network to show."""
+    from meanap.pipeline.render import _state_file
+
+    return [rec for rec in ctx.results
+            if ctx.lags(rec) and _state_file(ctx.root, rec) is not None]
+
+
 def _is_opaque(obj) -> bool:
     """True if obj is a scipy MatlabOpaque (unreadable MATLAB table)."""
     try:

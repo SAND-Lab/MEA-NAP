@@ -10,9 +10,17 @@ including optional cell-type overlays. It's the Python equivalent of MATLAB's
 When the tab first opens the viewer shows a **built-in example network** so every
 control is usable immediately — no file needed. To explore your own data:
 
-1. Click **Browse…** and select a MEA-NAP output `.mat` file from the
-   `ExperimentMatFiles/` subfolder of an output directory, e.g.
-   `OutputData.../ExperimentMatFiles/<recording>_OutputData....mat`.
+1. Open a run:
+   - **a Python run** (an `OutputData…` folder or a `.meanap` bundle): open it
+     on **View results** in the [simple view](gui-guide.md#view-results) and
+     click **Network viewer**. The viewer opens in its own window, with a
+     **Recording** list to choose which of the run's recordings to draw.
+     Channels the electrode layout has no position for (such as MCS60's
+     grounded corners) are left out, as they are in the run's own figures.
+   - **a MATLAB run**: click **Browse…** and select a MEA-NAP output `.mat`
+     file from the `ExperimentMatFiles/` subfolder of an output directory,
+     e.g. `OutputData.../ExperimentMatFiles/<recording>_OutputData....mat`.
+
    (**Use example network** reloads the synthetic demo at any time.)
 2. The network renders immediately. Recording metadata (name, DIV, group,
    active node count, edges shown) appears in the left panel.
