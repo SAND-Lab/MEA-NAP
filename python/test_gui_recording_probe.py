@@ -236,6 +236,10 @@ def view_section(folders: dict[str, Path], shots: Path | None) -> None:
           f"{card.state} {card.badge.text()} {data.channel_layout.currentText()} "
           f"{card.summary.text()!r}")
     check("and the rate goes into the settings, for the record", data.fs.value() == 12500)
+    from PyQt6.QtWidgets import QLabel
+    rates = [lb.text() for lb in card.body.findChildren(QLabel)]
+    check("the step shows the rate it read, rather than asking",
+          "12.5 kHz, read from the recordings" in rates, str(rates))
     if shots:
         w.grab().save(str(shots / "recording_detected.png"))
 
@@ -266,12 +270,82 @@ def view_section(folders: dict[str, Path], shots: Path | None) -> None:
     w.close()
 
 
+# ── D. The Data tab ──────────────────────────────────────────────────────────
+
+def data_tab_section(folders: dict[str, Path], shots: Path | None) -> None:
+    print("D. Data tab")
+    from meanap.gui.main_window import MainWindow
+
+    w = MainWindow()
+    w._set_simple_view(False, remember=False)
+    w.resize(1100, 860)
+    w.show()
+    data = w._data_panel
+    w._tabs.setCurrentIndex(0)
+    data.raw_data.set_value("")
+    data.channel_layout.setCurrentText("MCS60")
+    pump(600)
+    check("the rate is shown, not edited", not data.fs.isVisible() and data.fs_note.isVisible())
+    check("with no folder, both say where they will come from",
+          "when the run starts" in data.fs_note.text()
+          and "once a raw data folder is chosen" in data.layout_note.text(),
+          f"{data.fs_note.text()!r} / {data.layout_note.text()!r}")
+
+    data.raw_data.set_value(str(folders["axion"]))
+    pump(900)
+    check("a folder is read on its own, in the classic view too",
+          data.channel_layout.currentText() == "Axion64" and data.fs.value() == 12500,
+          data.channel_layout.currentText())
+    check("the rate says it was read from the recordings",
+          "12.5 kHz" in data.fs_note.text() and "read from" in data.fs_note.text(),
+          data.fs_note.text())
+    check("the layout says it was detected",
+          data.layout_note.text().startswith("✓ Detected from the recordings"),
+          data.layout_note.text())
+    if shots:
+        w.grab().save(str(shots / "data_tab_detected.png"))
+
+    data.channel_layout.setCurrentText("MCS60")
+    pump(50)
+    check("a different choice is flagged, with a way back",
+          "You chose MCS60, but the recordings look like Axion64" in data.layout_note.text()
+          and data.layout_use_button.isVisible()
+          and data.layout_use_button.text() == "Use Axion64", data.layout_note.text())
+    if shots:
+        w.grab().save(str(shots / "data_tab_mismatch.png"))
+    data.layout_use_button.click()
+    pump(50)
+    check("which puts the detected layout back",
+          data.channel_layout.currentText() == "Axion64"
+          and not data.layout_use_button.isVisible())
+
+    data.raw_data.set_value(str(folders["mixed"]))
+    pump(900)
+    check("mixed rates: the range, each at its own rate",
+          "10–25 kHz" in data.fs_note.text() and "its own rate" in data.fs_note.text(),
+          data.fs_note.text())
+
+    data.channel_layout.setCurrentText("FromFile")
+    data.raw_data.set_value(str(folders["padded"]))
+    pump(900)
+    check("FromFile is a deliberate choice, never replaced",
+          data.channel_layout.currentText() == "FromFile"
+          and "own file" in data.layout_note.text(), data.layout_note.text())
+
+    data.raw_data.set_value("https://www.dropbox.com/scl/fo/abc/xyz?dl=0")
+    pump(900)
+    check("a share link can't be checked, and says so",
+          "share link" in data.layout_note.text(), data.layout_note.text())
+    w.close()
+
+
 def main() -> int:
     shots = Path(sys.argv[1]) if len(sys.argv) > 1 else None
     with tempfile.TemporaryDirectory() as tmp:
         folders = probe_section(Path(tmp))
         decide_section(folders)
         view_section(folders, shots)
+        data_tab_section(folders, shots)
     if ERRORS:
         FAILURES.append("uncaught exceptions: " + "; ".join(ERRORS[:3]))
     print(f"\n{'ALL PASSED' if not FAILURES else f'{len(FAILURES)} FAILED'}")

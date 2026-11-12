@@ -91,7 +91,7 @@ def areas_section(window) -> None:
         titles[mode] = [a.title for a in view.settings_card.areas()]
     check("MEA-NAP: data, spike detection, connectivity, steps",
           titles["meanap"] == ["Recordings and output", "Spike detection",
-                               "Connectivity and networks", "Pipeline steps and figures"],
+                               "Connectivity and networks", "Pipeline steps and output"],
           str(titles["meanap"]))
     check("MEA-Stim adds Stimulation", "Stimulation" in titles["meastim"]
           and "Stimulation" not in titles["meanap"], str(titles["meastim"]))
@@ -162,9 +162,18 @@ def changes_section(window) -> None:
     window._spike_panel.thresholds.setText(old)
 
     from meanap.gui.modes import default_params
-    window._load_params(default_params("meanap"))
+    loaded = default_params("meanap")
+    loaded.express_mode = True
+    window._load_params(loaded)
     pump(30)
     check("loading the defaults counts nothing again", card.total_changed() == 0,
+          str([c.name for a in card.areas() for c in a.changed]))
+
+    window._load_params(default_params("meanap"))
+    pump(30)
+    check("express mode off counts as a change here: it is on by default in this view",
+          [c.name for a in card.areas() for c in a.changed] == ["express_mode"]
+          and area(view, TAB_RUN).summary == "steps 1–4 · express mode off",
           str([c.name for a in card.areas() for c in a.changed]))
 
     p = default_params("meanap")
@@ -172,7 +181,7 @@ def changes_section(window) -> None:
     p.express_mode = True
     check("summaries read as sentences",
           summarise("data", p) == "First 60 s of each recording"
-          and summarise("run", p) == "steps 1–4 · figures png · express mode",
+          and summarise("run", p) == "steps 1–4 · express mode on",
           f"{summarise('data', p)!r} / {summarise('run', p)!r}")
 
 
@@ -334,6 +343,45 @@ def lifecycle_section(window) -> None:
     save_simple_view_preference(False)
 
 
+# ── E. Express mode ───────────────────────────────────────────────────────────
+
+def express_section() -> None:
+    print("\nE. Express mode")
+    save_simple_view_preference(True)
+    window = MainWindow()
+    sys.excepthook = _excepthook
+    express = window._pipeline_panel.express_mode
+    view = window._simple_view
+    pump(50)
+    check("the simple view starts with express mode on", express.isChecked())
+    check("and the card says so",
+          area(view, TAB_RUN).summary == "steps 1–4 · express mode on"
+          and view.settings_card.total_changed() == 0, area(view, TAB_RUN).summary)
+    express.click()  # as a person would
+    window._set_simple_view(False, remember=False)
+    window._set_simple_view(True, remember=False)
+    pump(30)
+    check("turned off by hand, it stays off", not express.isChecked())
+    check("and counts as changed",
+          [c.name for c in area(view, TAB_RUN).changed] == ["express_mode"])
+    window.close()
+    window.deleteLater()
+    pump(30)
+
+    save_simple_view_preference(False)
+    window = MainWindow()
+    sys.excepthook = _excepthook
+    express = window._pipeline_panel.express_mode
+    pump(30)
+    check("the classic view keeps the pipeline's default", not express.isChecked())
+    window._set_simple_view(True, remember=False)
+    pump(30)
+    check("until the simple view is opened", express.isChecked())
+    window.close()
+    window.deleteLater()
+    save_simple_view_preference(False)
+
+
 def main() -> int:
     sys.excepthook = _excepthook
     shots = Path(sys.argv[1]) if len(sys.argv) > 1 else None
@@ -352,6 +400,7 @@ def main() -> int:
     lifecycle_section(window)
     window.close()
     pump(50)
+    express_section()
     if ERRORS:
         FAILURES.append("uncaught exceptions: " + "; ".join(ERRORS[:3]))
     print(f"\n{'ALL PASSED' if not FAILURES else f'{len(FAILURES)} FAILED'}")

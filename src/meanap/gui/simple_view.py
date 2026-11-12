@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Callable
 
 from PyQt6.QtCore import (
-    QEasingCurve, QPropertyAnimation, QSize, Qt, QTimer, QUrl,
+    QEasingCurve, QPropertyAnimation, QSignalBlocker, QSize, Qt, QTimer, QUrl,
     pyqtSignal,
 )
 from PyQt6.QtGui import QDesktopServices, QIcon
@@ -37,15 +37,16 @@ from meanap.gui.branding import logo_pixmap
 from meanap.gui.modes import MODES
 from meanap.params import is_remote_url
 from meanap.gui.simple_results import ResultsPage, viewers_for
-from meanap.gui.simple_settings import SETTINGS_QSS, SectionDrawer, SettingsCard
+from meanap.gui.simple_settings import SETTINGS_QSS, Section, SectionDrawer, SettingsCard
 from meanap.gui.settings_search import (
     SETTING, VIEW, Flash, SearchBox, SearchEntry, reveal_widget,
 )
 from meanap.gui.simple_checks import (
     Check, check_output_folder, check_recording_settings, check_recordings_folder,
-    check_spreadsheet, recording_names,
+    check_spreadsheet, describe_rates, recording_names,
 )
-from meanap.pipeline.progress import format_duration
+from meanap.gui.run_clock import RunClock
+from meanap.gui.panels.run import QUEUE, SHARED, THIS_RUN
 
 __all__ = ["SimpleView", "StepCard"]
 
@@ -55,6 +56,13 @@ TICK_HOLD_MS = 650
 FADE_MS = 280
 #: Wait this long after the last keystroke before checking a typed path.
 DEBOUNCE_MS = 350
+
+#: The "Run on" choices, in the Run tab's terms.
+RUN_ON_CHOICES = (
+    ("this_run", "This computer"),
+    ("queue", "A queue of saved runs"),
+    ("shared", "Several computers (shared folder)"),
+)
 DONE_OPACITY = 0.55
 LOGO_HEIGHT = 84
 COLUMN_WIDTH = 560
@@ -452,7 +460,6 @@ class SimpleView(QWidget):
         #: Connections from the tabbed window's widgets to this page's fields.
         self._links: list = []
         #: (folder, its raw files) → what they said about layout and rate.
-        self._layout_guesses: dict = {}
 
         self._debounce = QTimer(self)
         self._debounce.setSingleShot(True)
@@ -574,6 +581,32 @@ class SimpleView(QWidget):
         layout.setContentsMargins(0, 8, 0, 0)
         layout.setSpacing(8)
 
+        # Where the run happens: the Run tab's own switch (see attach_run_panel),
+        # so this and the tab can never disagree about what Run starts.
+        run_on = QHBoxLayout()
+        run_on.setSpacing(8)
+        run_on_label = QLabel("Run on")
+        run_on_label.setObjectName("stepHint")
+        self.run_on = QComboBox()
+        for key, text in RUN_ON_CHOICES:
+            self.run_on.addItem(text, key)
+        self.run_on.setToolTip(
+            "This computer: one run of these settings.\n"
+            "A queue: several saved settings files, one after another.\n"
+            "Several computers: these settings, with the recordings shared out "
+            "through a folder they can all reach.")
+        self.run_on.currentIndexChanged.connect(self._on_run_on_changed)
+        self.run_on_setup = QPushButton("Set up…")
+        self.run_on_setup.setObjectName("primaryLink")
+        self.run_on_setup.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.run_on_setup.clicked.connect(self.open_run_setup)
+        self.run_on_setup.hide()
+        run_on.addWidget(run_on_label)
+        run_on.addWidget(self.run_on)
+        run_on.addWidget(self.run_on_setup)
+        run_on.addStretch(1)
+        layout.addLayout(run_on)
+
         self.run_button = QPushButton()
         self.run_button.setObjectName("runButton")
         self.run_button.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -593,6 +626,11 @@ class SimpleView(QWidget):
         layout.addWidget(self.run_headline)
         layout.addWidget(self.progress)
         layout.addWidget(self.run_detail)
+        # Keeps elapsed time and time left moving between progress reports,
+        # which can be minutes apart (see gui/run_clock.py).
+        self.clock = RunClock(self)
+        self.clock.ticked.connect(self._show_timing)
+        self._run_detail_prefix = ""
 
         actions = QHBoxLayout()
         actions.setSpacing(8)
@@ -690,7 +728,7 @@ class SimpleView(QWidget):
             self.logo_button.setText(MODES[mode].label.split("·")[0].strip())
         self.logo_button.setToolTip(f"{MODES[mode].label}\n{MODES[mode].blurb}")
         self.mode_caption.setText(f"{MODES[mode].label}  ▾")
-        self.run_button.setText(f"Run {MODES[mode].label.split('·')[0].strip()}")
+        self._refresh_run_button()
         self.results_page.set_mode(mode)
         self.refresh_settings()
         if self._run_state in ("done", "failed", "cancelled"):
@@ -752,16 +790,18 @@ class SimpleView(QWidget):
                 body, lambda: self._confirmed_check("activity", activity.currentText()),
                 focus=activity, confirm=True, watch=[activity])
         else:
-            # No sampling rate to ask for: every step reads each recording's own.
+            # The rate is shown, not asked for: every step reads each
+            # recording's own, so there is nothing to set.
             layout = QComboBox()
             self._links += mirror_combo(layout, self._data.channel_layout)
-            body = self._form([("Electrode layout", layout)])
+            rate = QLabel()
+            rate.setObjectName("stepHint")
+            rate.setWordWrap(True)
+            body = self._form([("Electrode layout", layout), ("Sampling rate", rate)])
             add("recording", "Recording settings",
-                "Read from your recordings. Change the layout if it's wrong.",
-                body,
-                lambda: (check_recording_settings(self._layout_guess(),
-                                                  layout.currentText())
-                         or self._confirmed_check("recording", layout.currentText())),
+                "Both are read from your recordings. Change the layout only if "
+                "it's wrong.",
+                body, lambda: self._recording_check(layout, rate),
                 focus=layout, confirm=True, watch=[layout])
 
         if mode == "meastim":
@@ -840,37 +880,19 @@ class SimpleView(QWidget):
         return self._data.raw_data.value
 
     def _layout_guess(self):
-        """What the recordings folder's files say about layout and rate; cached.
+        """What the recordings say about layout and rate (read by the Data tab)."""
+        return self._data.layout_guess()
 
-        Read again only when the folder or the files in it change. The first
-        time a folder is read, its layout is put into the settings (the
-        tabbed window's field), so a run uses it without anyone pressing
-        anything; after that, a layout the person picks is left alone.
-        """
-        from meanap.pipeline.io import RAW_EXTENSIONS
-        from meanap.pipeline.recording_probe import detect_layout, probe_folder
-
-        folder = self._folder_text()
-        if not folder or is_remote_url(folder) or not Path(folder).is_dir():
-            return None
-        try:
-            files = tuple(sorted(p.name for p in Path(folder).iterdir()
-                                 if p.suffix.lower() in RAW_EXTENSIONS))
-        except OSError:
-            return None
-        key = (folder, files)
-        if key not in self._layout_guesses:
-            try:
-                guess = detect_layout(probe_folder(folder))
-            except Exception:  # unreadable folder: ask instead
-                guess = None
-            self._layout_guesses[key] = guess
-            if guess is not None and guess.layout:
-                self._data.channel_layout.setCurrentText(guess.layout)
-                if len(set(guess.rates)) == 1:
-                    # Unused by the run, but saved with it: say what was recorded.
-                    self._data.fs.setValue(guess.rates[0])
-        return self._layout_guesses[key]
+    def _recording_check(self, layout: QComboBox, rate: QLabel):
+        guess = self._layout_guess()
+        rates = describe_rates(guess.rates) if guess is not None else ""
+        rate.setText(
+            f"{rates}, read from the recordings" + (
+                " (each is analysed at its own)" if len(set(guess.rates)) > 1 else "")
+            if rates else "Read from each recording when the run starts")
+        self._data.refresh_detection()
+        return (check_recording_settings(guess, layout.currentText())
+                or self._confirmed_check("recording", layout.currentText()))
 
     def _confirmed_check(self, key: str, summary: str) -> Check | None:
         """A settings step with defaults counts once Continue has been pressed."""
@@ -997,8 +1019,10 @@ class SimpleView(QWidget):
 
         self._refresh_sheet_button()
         ready = first_open == len(self._steps) and reopened is None
+        self._ready = ready
+        self._show_settings_badge()
         self.run_area.setVisible(ready or self._run_state != "idle")
-        self.run_button.setEnabled(ready and self._run_state != "running")
+        self._refresh_run_button()
         # Only while the page is on screen: from behind the tabs, taking focus
         # would leave the classic window opening with a field focused.
         if newly_active is not None and self.analyse_page.isVisible():
@@ -1033,8 +1057,29 @@ class SimpleView(QWidget):
         """Re-read the areas, their summaries and what has changed."""
         if self.settings_provider is None or self.drawer.is_open():
             return
-        self.settings_card.badge.setText(str(len(self._steps) + 1))
         self.settings_card.set_areas(self.settings_provider())
+        self._show_settings_badge()
+
+    _ready = False
+
+    def _show_settings_badge(self) -> None:
+        """A tick once every question is answered: the run has all it needs.
+
+        Before then, the card's number — the questions come first. Changed
+        settings still get a tick: changed is a choice, not a problem.
+        """
+        badge = self.settings_card.badge
+        badge.setText("✓" if self._ready else str(len(self._steps) + 1))
+        _set_state(badge, "ok" if self._ready else "")
+
+    def open_log(self, log_box: QWidget, log: QWidget | None = None) -> None:
+        """Show the run's status log in the panel, live, without leaving the page."""
+        self.close_section()
+        self.drawer.open_section("Run", Section("Status log", log_box), fill=True,
+                                 note="Updates as the run goes.")
+        if log is not None and hasattr(log, "verticalScrollBar"):
+            bar = log.verticalScrollBar()
+            bar.setValue(bar.maximum())
 
     def open_section(self, area_key: str, index: int) -> None:
         """Show section *index* of *area_key* in the panel."""
@@ -1081,15 +1126,97 @@ class SimpleView(QWidget):
         self.log_button.setVisible(state != "idle")
         for step in self._steps:
             step.card.setEnabled(not running)
+        # Settings are read as the run starts; changing one now would change
+        # nothing, so do not invite it.
+        self.settings_card.setEnabled(not running)
+        self.run_on.setEnabled(not running)
+        self.run_on_setup.setEnabled(not running)
+
+    # ── Where the run happens ─────────────────────────────────────────────────
+
+    #: The Run tab's panel, once the window has attached it.
+    run_panel = None
+
+    def attach_run_panel(self, run_panel) -> None:
+        """Follow, and drive, the Run tab's switch and its Run button."""
+        self.run_panel = run_panel
+        run_panel.run_label_changed.connect(self._sync_run_on)
+        self._sync_run_on()
+
+    def _run_on_key(self) -> str:
+        return self.run_on.currentData() or THIS_RUN
+
+    def _sync_run_on(self) -> None:
+        if self.run_panel is None:
+            return
+        index = self.run_on.findData(self.run_panel.mode())
+        if index >= 0 and index != self.run_on.currentIndex():
+            blocker = QSignalBlocker(self.run_on)
+            self.run_on.setCurrentIndex(index)
+            del blocker
+        self.run_on_setup.setVisible(self._run_on_key() != THIS_RUN)
+        self._refresh_run_button()
+
+    def _on_run_on_changed(self, _index: int) -> None:
+        if self.run_panel is not None:
+            self.run_panel.set_mode(self._run_on_key())  # relabels, then syncs back
+        else:
+            self._sync_run_on()
+        if self._run_on_key() != THIS_RUN and self.isVisible():
+            # Nothing to run yet until a queue or a shared run is set up.
+            self.open_run_setup()
+
+    def open_run_setup(self) -> None:
+        """The queue's or the shared run's page, in the panel."""
+        if self.run_panel is None:
+            return
+        key = self._run_on_key()
+        if key == QUEUE:
+            page, title = self.run_panel.queue, "Queue of saved runs"
+            note = "Run starts them in order, one after another."
+        elif key == SHARED:
+            page, title = self.run_panel.shared, "Shared with other computers"
+            note = "Run starts once the other computers have joined."
+        else:
+            return
+        self.close_section()
+        self.drawer.open_section("Run on", Section(title, page), fill=True, note=note)
+
+    def _refresh_run_button(self) -> None:
+        """Label and enable Run for what it would start.
+
+        A single run is named after the pipeline. A queue or a shared run takes
+        the Run tab's label and its say on whether there is anything to start
+        (an empty queue, a shared run still waiting for its computers).
+        """
+        key = self._run_on_key()
+        extra_ok = True
+        if key == THIS_RUN or self.run_panel is None:
+            self.run_button.setText(f"Run {MODES[self._mode].label.split('·')[0].strip()}")
+            self.run_button.setToolTip("")
+        else:
+            classic = self.run_panel.run_btn
+            self.run_button.setText(classic.text().replace("▶", "").strip())
+            self.run_button.setToolTip(classic.toolTip())
+            extra_ok = classic.isEnabled()
+        self.run_button.setEnabled(self._ready and self._run_state != "running" and extra_ok)
+
+    # ── The run ───────────────────────────────────────────────────────────────
 
     def track_run(self, worker) -> None:
         """Follow a run the window started, showing its progress on this page."""
         self._output_root = None
         self.progress.setValue(0)
+        self._run_detail_prefix = ""
         self._show_run_state("running", "Starting…")
+        self.clock.start()
         self.run_area.show()
         worker.progress.connect(self._on_progress)
-        worker.finished_ok.connect(self._on_finished)
+        # A single or shared run finishes with its output folder; a queue, or a
+        # helper's share, with (None, a summary).
+        worker.finished_ok.connect(
+            lambda result: self._on_finished(*result) if isinstance(result, tuple)
+            else self._on_finished(result))
         worker.cancelled.connect(lambda: self._on_ended("cancelled", "Run stopped."))
         worker.failed.connect(lambda msg: self._on_ended(
             "failed", "The run failed.", msg.strip().splitlines()[-1] if msg.strip() else ""))
@@ -1097,20 +1224,30 @@ class SimpleView(QWidget):
     def _on_progress(self, snapshot) -> None:
         self.progress.setValue(int(round(snapshot.fraction * 1000)))
         headline = f"{snapshot.percent}%  ·  {snapshot.phase}"
-        elapsed = format_duration(snapshot.elapsed_s)
-        detail = snapshot.detail or ""
-        timing = (f"{elapsed} elapsed" if snapshot.eta_s is None else
-                  f"{elapsed} elapsed  ·  about {format_duration(snapshot.eta_s)} left")
         self.run_headline.setText(headline)
-        self.run_detail.setText(f"{detail}  ·  {timing}" if detail else timing)
+        self._run_detail_prefix = snapshot.detail or ""
+        self.clock.report(snapshot.elapsed_s, snapshot.eta_s)
+
+    def _show_timing(self) -> None:
+        if self._run_state != "running":
+            return
+        timing = self.clock.text()
+        prefix = self._run_detail_prefix
+        self.run_detail.setText(f"{prefix}  ·  {timing}" if prefix else timing)
         self.run_detail.show()
 
-    def _on_finished(self, output_root) -> None:
+    def _on_finished(self, output_root, summary: str = "") -> None:
+        """Done. *output_root* is the run's folder, or None for a queue's end,
+        or for a helper's share of a shared run, which have no one folder."""
+        self.clock.stop()
         self._output_root = Path(output_root) if output_root else None
         self._show_run_state("done", "✓  Finished",
-                             str(self._output_root) if self._output_root else "")
+                             str(self._output_root) if self._output_root else summary)
+        self.results_button.setVisible(self._output_root is not None)
+        self.folder_button.setVisible(self._output_root is not None)
 
     def _on_ended(self, state: str, headline: str, detail: str = "") -> None:
+        self.clock.stop()
         self._show_run_state(state, headline, detail)
         # Back to a Run button after a moment, so trying again is one click.
         self.run_button.setVisible(True)

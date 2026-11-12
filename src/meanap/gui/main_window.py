@@ -1,5 +1,6 @@
 """MEA-NAP main application window."""
 
+import dataclasses
 import json
 import webbrowser
 from dataclasses import replace
@@ -13,7 +14,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 from PyQt6.QtGui import QAction
-from PyQt6.QtCore import Qt, QSettings, QSignalBlocker, QSize, QTimer
+from PyQt6.QtCore import QObject, Qt, QSettings, QSignalBlocker, QSize, QTimer, pyqtSignal
 
 from meanap.params import STATS_STEP, Params
 from meanap.pipeline.bundle import BUNDLE_SUFFIX
@@ -88,6 +89,52 @@ class _LogoLabel(QLabel):
 
     def minimumSizeHint(self) -> QSize:  # noqa: D102
         return QSize(0, 0)
+
+
+class _QueueFeed(QObject):
+    """A queue's progress as the simple view follows a single run's.
+
+    The queue reports ``(index, label, Progress)`` per run; the page wants one
+    bar for the whole queue, so the fraction becomes the queue's and the phase
+    says which run is going. It finishes with a summary, not a folder.
+    """
+
+    progress = pyqtSignal(object)
+    finished_ok = pyqtSignal(object)
+    cancelled = pyqtSignal()
+    failed = pyqtSignal(str)
+
+    def __init__(self, worker, total: int, parent=None) -> None:
+        super().__init__(parent)
+        total = max(total, 1)
+
+        def forward(index: int, label: str, snap) -> None:
+            self.progress.emit(dataclasses.replace(
+                snap, fraction=(index + snap.fraction) / total,
+                phase=f"Run {index + 1} of {total}  ·  {snap.phase}",
+                detail=f"{label}  ·  {snap.detail}" if snap.detail else label))
+
+        worker.progress.connect(forward)
+        worker.finished_all.connect(lambda summary: self.finished_ok.emit((None, summary)))
+        worker.failed.connect(self.failed)
+
+
+class _HelperFeed(QObject):
+    """A helper computer's share of a shared run, as the simple view follows it."""
+
+    progress = pyqtSignal(object)
+    finished_ok = pyqtSignal(object)
+    cancelled = pyqtSignal()
+    failed = pyqtSignal(str)
+
+    def __init__(self, worker, parent=None) -> None:
+        super().__init__(parent)
+        worker.progress.connect(self.progress)
+        worker.finished_ok.connect(lambda status: self.finished_ok.emit(
+            (None, "Your share is done. The main computer pools the results."
+             if status == "done" else "Stopped.")))
+        worker.cancelled.connect(self.cancelled)
+        worker.failed.connect(self.failed)
 
 
 class MainWindow(QMainWindow):
@@ -304,7 +351,8 @@ class MainWindow(QMainWindow):
         row.setContentsMargins(0, 0, 0, 0)
         row.setSpacing(12)
         self._search_box = SearchBox(self._search_entries)
-        self._search_box.setMaximumWidth(300)
+        self._search_box.setMinimumWidth(190)
+        self._search_box.setMaximumWidth(280)
         self._search_box.install_shortcut(self._tabs)
         row.addWidget(self._search_box, 0, Qt.AlignmentFlag.AlignVCenter)
         self._tabs.setCornerWidget(corner, Qt.Corner.TopRightCorner)
@@ -470,7 +518,9 @@ class MainWindow(QMainWindow):
         # Built last: its fields mirror the panels above, which must exist.
         self._simple_view = SimpleView(
             self._data_panel, self._stim_panel, self._catnap_panel, self._mode)
-        self._simple_view.run_requested.connect(self._on_run)
+        # Whatever the Run tab's switch says: one run, a queue, or a shared run.
+        self._simple_view.run_requested.connect(self._on_run_clicked)
+        self._simple_view.attach_run_panel(self._run_panel)
         self._simple_view.stop_requested.connect(self._on_stop)
         self._simple_view.classic_requested.connect(
             lambda: self._set_simple_view(False))
@@ -479,6 +529,12 @@ class MainWindow(QMainWindow):
         self._simple_view.show_log_requested.connect(self._on_show_run_log)
         self._simple_view.search_provider = self._search_entries
         self._simple_view.settings_provider = self._settings_areas
+        # Express mode is the simple view's default (see _apply_simple_defaults)
+        # until someone decides otherwise — by ticking or unticking it, or by
+        # loading settings that say. clicked, not toggled: only a person clicks.
+        self._express_chosen = False
+        self._pipeline_panel.express_mode.clicked.connect(
+            lambda _on: setattr(self, "_express_chosen", True))
         results = self._simple_view.results_page
         results.open_requested.connect(self._on_results_page_open)
         results.spike_viewer_requested.connect(self._on_open_spike_viewer)
@@ -497,6 +553,8 @@ class MainWindow(QMainWindow):
         if not simple:
             # The panel holds a section borrowed from a tab; the tab needs it.
             self._simple_view.close_section()
+        else:
+            self._apply_simple_defaults()
         self._views.setCurrentWidget(self._simple_view if simple else self._tabs)
         # The simple view has no use for the toolbar or status bar, and leaving
         # them would undo most of what makes it simple.
@@ -568,7 +626,7 @@ class MainWindow(QMainWindow):
         TAB_CATNAP: ("Calcium imaging", frozenset({"Log", "Trace preview", "Suite2p recordings"})),
         TAB_CONNECTIVITY: ("Connectivity and networks", frozenset()),
         TAB_STIM: ("Stimulation", frozenset()),
-        TAB_RUN: ("Pipeline steps and figures", frozenset({
+        TAB_RUN: ("Pipeline steps and output", frozenset({
             "Runs", "Step overview", "Start", "Progress", "Status log", "This shared run"})),
     }
 
@@ -583,6 +641,7 @@ class MainWindow(QMainWindow):
         }
         params = self._collect_params()
         defaults = default_params(self._mode)
+        defaults.express_mode = True  # the simple view's own default
         areas = []
         for key, page, _label in self._tab_specs:
             if key not in self._SETTINGS_AREAS or self._tabs.indexOf(page) < 0:
@@ -645,13 +704,26 @@ class MainWindow(QMainWindow):
                 Flash(target)
         QTimer.singleShot(0, show)
 
+    def _apply_simple_defaults(self) -> None:
+        """Defaults the simple view has that the tabs do not: express mode on.
+
+        Its figures are the quick ones, which is what a first look at a run
+        needs. Left alone once someone has chosen either way.
+        """
+        if not self._express_chosen:
+            self._pipeline_panel.express_mode.setChecked(True)
+        self._simple_view.refresh_settings()
+
     def _on_mode_requested(self, key: str) -> None:
         """Switch pipeline from the simple view, through the same path as the combo."""
         if key != self._mode:
             self._apply_mode(key)
 
     def _on_show_run_log(self) -> None:
-        self._set_simple_view(False)
+        """The Run tab's status log — in the simple view's panel when it is showing."""
+        if self.is_simple_view():
+            self._simple_view.open_log(self._run_panel.log.parentWidget(), self._run_panel.log)
+            return
         self._tabs.setCurrentIndex(self._tab_index(TAB_RUN))
 
     # ── Opening finished runs ────────────────────────────────────────────────
@@ -1232,7 +1304,10 @@ class MainWindow(QMainWindow):
             # with ephys-scaled lags.
             params = default_params(self._mode)
             self._params = params
+            self._express_chosen = False
             self._load_params(self._params)
+            if self.is_simple_view():
+                self._apply_simple_defaults()
 
     def _on_open(self) -> None:
         path, _ = QFileDialog.getOpenFileName(
@@ -1245,6 +1320,7 @@ class MainWindow(QMainWindow):
                 data = json.load(f)
             params = Params(**{k: v for k, v in data.items() if hasattr(Params, k)})
             self._params = params
+            self._express_chosen = True  # the file says, either way
             self._load_params(self._params)
             self._run_panel.append_log(f"Loaded parameters from {path}")
         except Exception as e:
@@ -1507,6 +1583,7 @@ class MainWindow(QMainWindow):
         worker.run_finished.connect(self._queue_panel.mark)
         worker.finished_all.connect(self._on_queue_finished)
         worker.failed.connect(self._on_queue_failed)
+        self._simple_view.track_run(_QueueFeed(worker, len(paths), self))
         self._queue_worker = worker
         worker.start()
 
@@ -1568,6 +1645,8 @@ class MainWindow(QMainWindow):
         worker.finished_ok.connect(self._on_shared_main_finished)
         worker.cancelled.connect(self._on_shared_cancelled)
         worker.failed.connect(self._on_shared_failed)
+        # Same signals as a single run's worker: the pooled output is the run.
+        self._simple_view.track_run(worker)
         self._shared_worker = worker
         worker.start()
         panel.refresh()
@@ -1589,6 +1668,7 @@ class MainWindow(QMainWindow):
         worker.finished_ok.connect(self._on_shared_helper_finished)
         worker.cancelled.connect(self._on_shared_cancelled)
         worker.failed.connect(self._on_shared_failed)
+        self._simple_view.track_run(_HelperFeed(worker, self))
         self._shared_worker = worker
         worker.start()
 
