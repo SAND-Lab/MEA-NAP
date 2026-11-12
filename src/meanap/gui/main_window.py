@@ -1576,7 +1576,7 @@ class MainWindow(QMainWindow):
             # way Open bundle… asks — a dead button here would refuse exactly
             # the case it was added for.
             chosen = QFileDialog.getExistingDirectory(
-                self, "Which output folder should be packed?",
+                self, "Make bundle, step 1 of 2: choose the output folder to pack",
                 str(output_root.parent) if output_root is not None else "",
             )
             if not chosen:
@@ -1590,12 +1590,21 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Nothing to pack in that folder", reason)
             return
 
+        # Two file dialogs back to back read as one that did not take: the
+        # folder dialog closes and a second, different-looking one opens with
+        # no word on whether the folder was accepted. Say it was, and what
+        # comes next — this also names the folder when it was the run's own
+        # and no dialog was shown at all.
+        if not self._confirm_bundle_source(output_root):
+            return
+
         # A save dialog rather than a silent write: it offers the default name,
         # lets the bundle be put somewhere else entirely, and asks before
         # overwriting — which matters here, because the file being overwritten
         # may be an express run whose folder is long gone.
         path, _ = QFileDialog.getSaveFileName(
-            self, "Save the run bundle as", str(default_bundle_dest(output_root)),
+            self, "Make bundle, step 2 of 2: save the .meanap file as",
+            str(default_bundle_dest(output_root)),
             f"MEA-NAP bundles (*{BUNDLE_SUFFIX})",
         )
         if not path:
@@ -1614,6 +1623,23 @@ class MainWindow(QMainWindow):
         worker.finished.connect(lambda: self._results_panel.set_bundling(False))
         self._bundle_worker = worker
         worker.start()
+
+    def _confirm_bundle_source(self, output_root: Path) -> bool:
+        """Confirm the folder to pack, and say a save dialog comes next."""
+        box = QMessageBox(
+            QMessageBox.Icon.Information, "Output folder selected",
+            f"✓ Ready to pack <b>{output_root.name}</b><br>"
+            f"<span style='color: gray;'>{output_root.parent}</span><br><br>"
+            f"Next, choose where to save the bundle, a single "
+            f"<b>{BUNDLE_SUFFIX}</b> file. It is suggested beside the folder; "
+            f"the folder itself is not changed.",
+            QMessageBox.StandardButton.Cancel, self,
+        )
+        box.setTextFormat(Qt.TextFormat.RichText)
+        next_btn = box.addButton("Choose where to save…", QMessageBox.ButtonRole.AcceptRole)
+        box.setDefaultButton(next_btn)
+        box.exec()
+        return box.clickedButton() is next_btn
 
     def _on_bundle_finished(self, result) -> None:
         """Say what was written, and offer to open it.

@@ -229,6 +229,42 @@ only deliberately-scoped-out items.
   (60 stim events on the stimulating electrode, 1 pattern). **This completes the
   stim GUI work** (settings tab + run integration + interactive preview).
 
+### Stimulus-triggered networks for electrical stim (MEA-Stim 0.7.0, 2026-11-08)
+
+Python-only, no MATLAB counterpart. The event path's `_stim_networks` now also
+runs on the electrical path: each pattern is a condition (`pattern_k`), the
+evoked window starts at `artifactDuration` (blankDurMode + postStimWindowDur;
+2.02 ms on the test data, where the *non-stim* blank is 1.52 ms and only the
+stim electrode's own blank is ~4.8 ms), and stimulating electrodes are dropped
+(NaN in the `.npz`, `stim_electrode` in the CSVs). New for both paths:
+`stim/consistency.py` + `consistency_plots.py` (trial drift → figure 14,
+odd/even and first/second split-half networks with a Mantel test → figure 15).
+Tests: `python/test_stim_consistency.py` (synthetic drift / stationary /
+switching-network fixtures). On the two test recordings: no drift, split-half
+r ≈ 0.75–0.9, but networks and noise correlations are dominated by slow
+activity states (~75 s cycles) shared across all nodes, in baseline as much as
+evoked — the trial shuffle cannot remove that. Possible follow-up: condition on
+population count (state) before testing edges.
+
+### Stimulation conditions + group comparisons (same branch, 2026-11-08)
+
+`stim/sequences.py`: conditions named by electrodes (`12+13`, `12>13>14`);
+opt-in `stim_group_sequences` groups *pulses* into stimuli (gap
+`stim_sequence_gap`, 1 ms simultaneity / delay tolerance, < 3 trials
+dropped), because MATLAB's electrode grouping splits a sweep into one pattern
+per electrode with both directions mixed (verified in
+`test_stim_sequences.py`). When on, it redefines the patterns for every stim
+output (user's call: MATLAB has no sequences). `StimChannelInfo.pattern_ids`
+holds every condition an electrode is in. Spreadsheet `StimConditions`
+column (by header) labels conditions. `stim/group_plots.py` → `StimNetwork_
+GroupComparisons/` (change / epochs / response × byGroup / byAge, series =
+condition or epoch, via `plot_half_violin_by_x(series_col=…)`). Off by
+default for sequences, so electrode-grouped runs give identical
+`StimActivity_NodeLevel.csv` numbers (checked on the test data). Not done:
+Stim Preview tab and the GUI spreadsheet builder don't know about sequences
+or the `StimConditions` column; no multi-group stim data yet to look at the
+group figures on real data.
+
 ### Plot parity report
 
 `python/gen_stim_plots.py` renders every ported stim figure into a

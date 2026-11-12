@@ -255,6 +255,25 @@ with tempfile.TemporaryDirectory() as tmp:
           str(result.warnings))
 
 
+# ── A bundle saved inside the folder it packs ─────────────────────────────────
+
+print("\nSaved inside the folder")
+
+with tempfile.TemporaryDirectory() as tmp:
+    import zipfile
+
+    run = make_output_folder(Path(tmp) / "OutputData04Jan2026")
+    (run / "earlier_attempt.meanap").write_bytes(b"x" * 1000)
+    # This packed its own growing output until the disk filled (12 GB from a
+    # 100 MB folder) before bundle files in the folder were left out.
+    result = bundle_output_folder(run, run / "Inside.meanap", log=lambda _m: None)
+    names = zipfile.ZipFile(result.dest).namelist()
+    check("a bundle saved inside the folder does not pack itself",
+          not any(n.endswith(".meanap") for n in names), str(names))
+    check("...and comes out the size of the folder, not unbounded",
+          result.dest.stat().st_size < 5_000_000, str(result.dest.stat().st_size))
+
+
 # ── A bundle that will not open is not left to be sent ────────────────────────
 
 print("\nVerification")
@@ -294,6 +313,39 @@ check("it says what it makes", "bundle" in panel.make_bundle_btn.text().lower(),
       panel.make_bundle_btn.text())
 check("pressing it reaches the window",
       callable(getattr(window, "_on_make_bundle", None)), "")
+
+# Between choosing the folder and the save dialog, a box says the folder was
+# taken and that a save dialog comes next; without it the two file dialogs
+# read as one that did not work.
+from PyQt6.QtCore import QTimer  # noqa: E402
+from PyQt6.QtWidgets import QMessageBox  # noqa: E402
+
+_seen = {}
+
+
+def _answer(go_on: bool) -> None:
+    box = app.activeModalWidget()
+    if not isinstance(box, QMessageBox):
+        return
+    _seen["text"] = box.text()
+    for b in box.buttons():
+        if ("save" in b.text().lower()) == go_on:
+            b.click()
+            return
+
+
+with tempfile.TemporaryDirectory() as tmp:
+    folder = Path(tmp) / "OutputData03Jan2026"
+    folder.mkdir()
+    QTimer.singleShot(200, lambda: _answer(True))
+    check("the selected folder is confirmed before the save dialog",
+          window._confirm_bundle_source(folder) is True, "")
+    check("...naming the folder and the .meanap file to come",
+          folder.name in _seen.get("text", "") and ".meanap" in _seen.get("text", ""),
+          _seen.get("text", ""))
+    QTimer.singleShot(200, lambda: _answer(False))
+    check("...and Cancel there stops before any save dialog",
+          window._confirm_bundle_source(folder) is False, "")
 
 with tempfile.TemporaryDirectory() as tmp:
     tmp = Path(tmp)

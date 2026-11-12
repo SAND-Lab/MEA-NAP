@@ -922,6 +922,8 @@ def _run_step1_spike_detection(
                 dat, channels, fs, detect_params,
                 max_workers=params.spike_detection_channel_workers,
             )
+        if params.stimulation_mode and params.stim_drop_artifact_spikes:
+            result = _drop_stim_artifacts(params, rec, dat, channels, fs, result, log)
         log.detail_lines(_describe_spikes(result, dat.shape[0] / fs))
 
         out_path = spike_dir / f"{rec.filename}_spikes.npz"
@@ -959,6 +961,65 @@ def _run_step1_spike_detection(
         progress.item_done(rec.filename)
 
     progress.phase_done()
+
+
+def _drop_stim_artifacts(params: Params, rec, dat, channels, fs: float, result, log):
+    """Step 1's detections without the ones in a stimulation blank.
+
+    The detectors know nothing of stimulation, and the amplifier coming out of
+    its blank steps the voltage by ~100 µV, which the bandpass turns into
+    something spike-shaped: on the MCS test data every electrode gets one
+    such "spike" 1.0–1.5 ms after every stimulus. The stim step has always
+    dropped them (:func:`~meanap.stim.cleaning.clean_spikes_from_stim`); doing
+    it here too keeps them out of the step-1 checks and of steps 2–4. Same
+    windows, so the stim step's results are unchanged; a stimulating
+    electrode also loses what falls in its own, longer blank. Its remaining
+    spikes are kept here (the stim step leaves it out regardless).
+
+    Event-driven stimulation (light, TTL) has no electrical artifact, and is
+    left alone. If the stimuli cannot be found the detections are kept.
+    """
+    import numpy as np
+
+    from meanap.pipeline.spike_detection import SpikeDetectionResult
+    from meanap.pipeline.stim_step import _coords_for_channels
+    from meanap.stim.cleaning import artifact_windows, in_windows
+    from meanap.stim.detection import detect_stim_times
+    from meanap.stim.events import EVENT_METHODS
+
+    if params.stim_detection_method in EVENT_METHODS:
+        return result
+    try:
+        sp = {**params.to_stim_params_dict(), "fs": fs}
+        stim_info = detect_stim_times(np.asarray(dat, np.float64), sp, channels,
+                                      _coords_for_channels(params.channel_layout, channels))
+        starts, ends, own = artifact_windows(stim_info, sp)
+    except Exception as e:                                  # noqa: BLE001
+        log(f"  [{rec.filename}] Warning: could not find the stimuli ({e}); "
+            f"keeping every detection.")
+        return result
+    if starts.size == 0:
+        log(f"  [{rec.filename}] no electrical stimulation found; keeping every detection.")
+        return result
+
+    times, waves, dropped = {}, {}, 0
+    for c, methods in result.spike_times.items():
+        times[c], waves[c] = {}, {}
+        for m, t in methods.items():
+            t = np.asarray(t, float)
+            out = in_windows(t, starts, ends)
+            if c in own:
+                out |= in_windows(t, *own[c])
+            dropped += int(out.sum())
+            times[c][m] = t[~out]
+            w = result.spike_waveforms.get(c, {}).get(m)
+            if w is not None:
+                waves[c][m] = w[~out] if len(w) == len(t) else w
+    log(f"  [{rec.filename}] {starts.size} stimuli: dropped {dropped} detection(s) "
+        f"in the stimulation blank (all methods, all electrodes).")
+    return SpikeDetectionResult(spike_times=times, spike_waveforms=waves,
+                                thresholds=result.thresholds, channels=result.channels,
+                                fs=result.fs)
 
 
 def _sort_one_recording(

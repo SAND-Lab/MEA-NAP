@@ -87,6 +87,10 @@ class StimChannelInfo:
     channel_name: int
     coords: np.ndarray
     pattern: int = 0                       # filled in by get_stim_patterns
+    # Every condition (1-based) the electrode is part of. One, except under
+    # sequence grouping (stim/sequences.py), where an electrode swept in both
+    # directions belongs to both. Empty: fall back to ``pattern``.
+    pattern_ids: tuple = ()
     # longblank extras
     blank_starts: np.ndarray | None = None
     blank_ends: np.ndarray | None = None

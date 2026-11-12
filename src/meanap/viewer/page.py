@@ -267,6 +267,9 @@ does not have MEA-NAP installed.">Export output folder</button>
     <h2>Activity figures</h2>
     <div class="list" id="activity"></div>
 
+    <h2 id="stim-head">Stimulation</h2>
+    <div class="list" id="stim"></div>
+
     <h2>Spike detection</h2>
     <div class="list" id="spikechecks"></div>
 
@@ -424,6 +427,7 @@ let VIEW = {
 // "edgecheck"  — a step-3 thresholding check, per recording + lag; also
 //                unstyled, and usually absent (the run has to ask for it)
 // "subnetwork" — a CAT-NAP cell-type figure, per recording + lag, unstyled
+// "stim"       — a MEA-Stim figure, per recording; PNG only and unstyled
 // "comparison" — one 2B/4B half-violin, addressed by lag/level/split/metric
 // "both"       — the same metric drawn by group and by age, stacked
 // "lagseries"  — one across-lag figure
@@ -454,6 +458,13 @@ function figureURL(extra = {}) {
     for (const [k, v] of Object.entries(extra)) p.set(k, v);
     const route = VIEW.kind === "activity" ? "/api/activity" : "/api/spikecheck";
     return route + "?" + p.toString();
+  }
+  if (VIEW.kind === "stim") {
+    // Redrawn as the run drew it, or carried as a picture by an older bundle:
+    // either way one PNG, so only `download` is passed through.
+    const p = new URLSearchParams({rec: VIEW.rec, name: VIEW.name});
+    if (extra.download) p.set("download", extra.download);
+    return "/api/stim?" + p.toString();
   }
   if (VIEW.kind === "trace") {
     // Carried in the bundle, not rendered: no fmt, no styling overrides. But
@@ -660,6 +671,7 @@ function showSamplingRate() {
 function fillLags() {
   showSamplingRate();
   fillActivity();
+  fillStim();
   fillSpikeChecks();
   fillTraces();
   fillEdgeChecks();
@@ -714,6 +726,32 @@ function fillSpikeChecks() {
     b.dataset.spikecheck = f.name;
     b.addEventListener("click", () => {
       VIEW.kind = "spikecheck"; VIEW.rec = rec.name; VIEW.name = f.name;
+      showFigure();
+    });
+    box.appendChild(b);
+  }
+}
+
+function fillStim() {
+  const rec = currentRecording();
+  const box = $("stim");
+  box.innerHTML = "";
+  const figs = (rec && rec.stim) || [];
+  // Only stimulation runs have these; elsewhere the heading would only ever
+  // say "none", so it goes away with the list.
+  const any = MANIFEST.recordings.some(r => (r.stim || []).length);
+  $("stim-head").classList.toggle("hidden", !any);
+  box.classList.toggle("hidden", !any);
+  if (!figs.length) {
+    if (any) box.innerHTML = '<div class="sub">None for this recording.</div>';
+    return;
+  }
+  for (const f of figs) {
+    const b = document.createElement("button");
+    b.textContent = f.label;
+    b.dataset.stim = f.name;
+    b.addEventListener("click", () => {
+      VIEW.kind = "stim"; VIEW.rec = rec.name; VIEW.name = f.name;
       showFigure();
     });
     box.appendChild(b);
@@ -1233,6 +1271,8 @@ function markCurrent() {
     b.setAttribute("aria-current", String(VIEW.kind === "activity" && b.dataset.activity === VIEW.name));
   for (const b of document.querySelectorAll("#spikechecks button"))
     b.setAttribute("aria-current", String(VIEW.kind === "spikecheck" && b.dataset.spikecheck === VIEW.name));
+  for (const b of document.querySelectorAll("#stim button"))
+    b.setAttribute("aria-current", String(VIEW.kind === "stim" && b.dataset.stim === VIEW.name));
   for (const b of document.querySelectorAll("#traces button"))
     b.setAttribute("aria-current", String(VIEW.kind === "trace" && b.dataset.trace === VIEW.name));
   for (const b of document.querySelectorAll("#edgechecks button"))
@@ -1259,7 +1299,8 @@ function setMode(kind) {
   // button highlighted, the PNG arrived, and the reader saw nothing.
   const one = kind === "figure" || kind === "activity" || kind === "lagseries"
               || kind === "spikecheck" || kind === "edgecheck"
-              || kind === "subnetwork" || kind === "trace" || kind === "stats";
+              || kind === "subnetwork" || kind === "trace" || kind === "stim"
+              || kind === "stats";
   // Hidden, not disabled: the styling controls describe spatial network plots.
   // A raster, a violin and a line plot read none of them, so offering the
   // knobs there would imply they do something.
@@ -1293,12 +1334,12 @@ function setMode(kind) {
   if (kind !== "stats") $("figure-caption").classList.add("hidden");
   // A trace figure is a stored PNG. Offering SVG/PDF would promise a
   // re-render that cannot happen — the fluorescence it needs isn't here.
-  if (kind === "trace")
+  if (kind === "trace" || kind === "stim")
     for (const id of ["dl-svg", "dl-pdf"]) $(id).classList.add("hidden");
 }
 
 function showFigure() {
-  if (!["activity", "spikecheck", "edgecheck", "subnetwork", "trace"].includes(VIEW.kind))
+  if (!["activity", "spikecheck", "edgecheck", "subnetwork", "trace", "stim"].includes(VIEW.kind))
     VIEW.kind = "figure";
   setMode(VIEW.kind); markCurrent();
   $("error").textContent = "";

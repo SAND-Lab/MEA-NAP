@@ -26,6 +26,8 @@ _CONDITION_MODES = (("All events one condition", "single"),
                     ("Alternate labels (e.g. ON, OFF)", "alternate"))
 _NETWORK_NULLS = (("Trial shuffle — beyond shared stimulus drive", "trial_shuffle"),
                   ("Circular shift — total co-activity (step 3's test)", "circular"))
+_NETWORK_STTC = (("Within each trial, averaged over trials", "trial_mean"),
+                 ("Over all trial windows joined end to end", "pooled"))
 _PROCESSING = ["none", "medianAbs"]
 
 
@@ -72,6 +74,23 @@ class StimPanel(QWidget):
         det_advanced.form().addRow("Pattern time-diff threshold", self.pattern_thresh)
         det_advanced.form().addRow("Axion stim CSV", self.axion_csv)
         dform.addRow(det_advanced)
+        self.group_sequences = QCheckBox("Group pulses into sequences")
+        self.group_sequences.setToolTip(
+            "For temporal patterns (e.g. a left-to-right sweep and a right-to-left "
+            "one): pulses on any electrodes that follow each other within the gap "
+            "below are one stimulus, and stimuli with the same electrodes in the "
+            "same order are one condition. Off: MATLAB's grouping, which joins "
+            "electrodes pulsed at the same times and splits a sweep into one "
+            "pattern per electrode. Name conditions with a StimConditions column "
+            "in the spreadsheet, e.g. LtoR=12>13>14; RtoL=14>13>12.")
+        self.sequence_gap = _dspin(0.1, 5000.0, 1, 50.0, " ms")
+        self.sequence_gap.setToolTip(
+            "Longest pause between two pulses of one stimulus. Must be longer than "
+            "the delays within a sequence and shorter than the time between stimuli.")
+        dform.addRow("", self.group_sequences)
+        dform.addRow("Sequence gap", self.sequence_gap)
+        self.group_sequences.toggled.connect(self.sequence_gap.setEnabled)
+        self.sequence_gap.setEnabled(False)
 
         # ── Event-driven stimulation ──────────────────────────────────────────
         # Light, sound, anything logged as events rather than seen in the
@@ -121,6 +140,13 @@ class StimPanel(QWidget):
 
         an_advanced = AdvancedSection()
         an_advanced.form().addRow("Post-stim ignore duration", self.post_ignore)
+        self.drop_artifacts = QCheckBox("Spike detection drops detections in the stimulation blank")
+        self.drop_artifacts.setToolTip(
+            "The amplifier coming out of its blank looks like a spike to every detector, "
+            "once per stimulus on every electrode. Ticked, step 1 drops detections from "
+            "the blank's start to its end plus the ignore duration above (what this "
+            "analysis always removes), so they stay out of the step-1 checks and steps 2-4.")
+        an_advanced.form().addRow("", self.drop_artifacts)
         an_advanced.form().addRow("Raster bin width", self.raster_bin)
         an_advanced.form().addRow("Stim duration (plotting)", self.stim_dur_plot)
         aform.addRow(an_advanced)
@@ -144,12 +170,46 @@ class StimPanel(QWidget):
         self.stim_network.setToolTip(
             "Per condition and lag: the STTC network of the windows after each "
             "event and of equally long windows before it, plus correlations of "
-            "trial-by-trial spike counts. Event-driven methods only for now.")
+            "trial-by-trial spike counts. For electrical stimulation the evoked "
+            "window starts after the blanked artifact and stimulating electrodes "
+            "are left out.")
+        self.trial_consistency = QCheckBox("Trial-by-trial consistency and drift")
+        self.trial_consistency.setToolTip(
+            "Per condition: each node's evoked − baseline response on every trial, "
+            "its trend over trials, first-spike latency, and whether the response "
+            "pattern of trials far apart is less alike than of trials close together "
+            "(tested against shuffled trial order; the baseline window is the control).")
+        self.split_half = QCheckBox("Split-half networks (odd/even, first/second half)")
+        self.split_half.setToolTip(
+            "Networks from half the trials each. Odd vs even trials: how reliable "
+            "the network is. First vs second half: whether it changed over the "
+            "recording. Agreement is the edge-weight correlation, with a Mantel test.")
         self.net_win_start = _dspin(-10.0, 10.0, 3, 0.0, " s")
         self.net_win_end = _dspin(0.001, 60.0, 3, 0.5, " s")
+        self.post_auto = QCheckBox("Post-stimulus window: as long as the evoked one, right after it")
+        self.post_auto.setChecked(True)
+        self.post_auto.setToolTip(
+            "A third network after the evoked window, for whether the network "
+            "outlasts the stimulus (figure 16 draws all three on the array). Ticked: "
+            "the same length as the evoked window and starting where it ends, so the "
+            "three are comparable (STTC depends on window length). Unticked: the "
+            "window set below, in seconds after the stimulus.")
+        self.post_win_start = _dspin(0.0, 60.0, 3, 0.05, " s")
+        self.post_win_end = _dspin(0.001, 60.0, 3, 0.1, " s")
+        for w in (self.post_win_start, self.post_win_end):
+            w.setEnabled(False)
+            self.post_auto.toggled.connect(lambda on, w=w: w.setEnabled(not on))
         self.net_null = QComboBox()
         for label, value in _NETWORK_NULLS:
             self.net_null.addItem(label, value)
+        self.net_sttc = QComboBox()
+        for label, value in _NETWORK_STTC:
+            self.net_sttc.addItem(label, value)
+        self.net_sttc.setToolTip(
+            "Within each trial: STTC is computed in each trial's window and averaged "
+            "over the trials in which both nodes fired, so slow shared activity states "
+            "do not pass for edges (needs the trial-shuffle test; a pair needs 5 such "
+            "trials). Joined: one STTC over all the windows laid end to end.")
         self.net_reps = QSpinBox()
         self.net_reps.setRange(10, 100000)
         self.net_reps.setValue(200)
@@ -157,9 +217,23 @@ class StimPanel(QWidget):
         nform.addRow("", self.stim_network)
         nform.addRow("Evoked window start", self.net_win_start)
         nform.addRow("Evoked window end", self.net_win_end)
+        nform.addRow("", self.post_auto)
+        nform.addRow("Post window start", self.post_win_start)
+        nform.addRow("Post window end", self.post_win_end)
+        nform.addRow("STTC", self.net_sttc)
         nform.addRow("Edge test", self.net_null)
         nform.addRow("Surrogates", self.net_reps)
         nform.addRow("Alpha", self.net_alpha)
+        nform.addRow("", self.trial_consistency)
+        nform.addRow("", self.split_half)
+        self.stim_group_plots = QCheckBox("Group comparisons by condition (half violins)")
+        self.stim_group_plots.setToolTip(
+            "The step-4 half violins of the stimulus networks, by group and DIV, "
+            "with each stimulation condition as its own violin: the evoked - "
+            "baseline change, the two epochs side by side, and split-half "
+            "agreement and response summaries. Conditions are matched across "
+            "recordings by electrodes or by the spreadsheet's StimConditions labels.")
+        nform.addRow("", self.stim_group_plots)
 
         self._det_box = det_box
         for box in (mode_box, det_box, self.event_box, an_box, sig_box, net_box):
@@ -191,6 +265,7 @@ class StimPanel(QWidget):
         self.win_start.setValue(float(win[0]))
         self.win_end.setValue(float(win[1]))
         self.post_ignore.setValue(params.post_stim_window_dur)
+        self.drop_artifacts.setChecked(params.stim_drop_artifact_spikes)
         self.raster_bin.setValue(params.stim_raster_bin_width)
         self.stim_dur_plot.setValue(params.stim_duration_for_plotting)
         self.n_shuffles.setValue(params.stim_n_shuffles)
@@ -205,10 +280,22 @@ class StimPanel(QWidget):
         nwin = params.stim_network_window or [0.0, 0.5]
         self.net_win_start.setValue(float(nwin[0]))
         self.net_win_end.setValue(float(nwin[1]))
+        post = list(params.stim_network_post_window or [])
+        self.post_auto.setChecked(not post)
+        if post:
+            self.post_win_start.setValue(float(post[0]))
+            self.post_win_end.setValue(float(post[1]))
         idx = self.net_null.findData(params.stim_network_null)
         self.net_null.setCurrentIndex(max(idx, 0))
+        idx = self.net_sttc.findData(params.stim_network_sttc)
+        self.net_sttc.setCurrentIndex(max(idx, 0))
         self.net_reps.setValue(params.stim_network_rep_num)
         self.net_alpha.setValue(params.stim_network_alpha)
+        self.trial_consistency.setChecked(params.stim_trial_consistency)
+        self.split_half.setChecked(params.stim_split_half)
+        self.stim_group_plots.setChecked(params.stim_group_plots)
+        self.group_sequences.setChecked(params.stim_group_sequences)
+        self.sequence_gap.setValue(params.stim_sequence_gap)
         self._on_method_changed(self.method.currentText())
 
     def save(self, params: Params) -> None:
@@ -223,6 +310,7 @@ class StimPanel(QWidget):
         params.axion_stim_csv = self.axion_csv.text().strip()
         params.stim_analysis_window = [self.win_start.value(), self.win_end.value()]
         params.post_stim_window_dur = self.post_ignore.value()
+        params.stim_drop_artifact_spikes = self.drop_artifacts.isChecked()
         params.stim_raster_bin_width = self.raster_bin.value()
         params.stim_duration_for_plotting = self.stim_dur_plot.value()
         params.stim_n_shuffles = self.n_shuffles.value()
@@ -235,9 +323,18 @@ class StimPanel(QWidget):
                                               if s.strip()]
         params.stim_network = self.stim_network.isChecked()
         params.stim_network_window = [self.net_win_start.value(), self.net_win_end.value()]
+        params.stim_network_post_window = (
+            [] if self.post_auto.isChecked()
+            else [self.post_win_start.value(), self.post_win_end.value()])
         params.stim_network_null = self.net_null.currentData()
+        params.stim_network_sttc = self.net_sttc.currentData()
         params.stim_network_rep_num = self.net_reps.value()
         params.stim_network_alpha = self.net_alpha.value()
+        params.stim_trial_consistency = self.trial_consistency.isChecked()
+        params.stim_split_half = self.split_half.isChecked()
+        params.stim_group_plots = self.stim_group_plots.isChecked()
+        params.stim_group_sequences = self.group_sequences.isChecked()
+        params.stim_sequence_gap = self.sequence_gap.value()
 
 
 def _dspin(lo: float, hi: float, decimals: int, val: float, suffix: str = "") -> QDoubleSpinBox:

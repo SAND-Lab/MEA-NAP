@@ -271,6 +271,9 @@ step 1 (`stop_analysis_step=1`) still produces it.
     `10_stimulation_raster_and_psth`, `12_shuffle_test_*`,
     `stimPattern_*_heatmap`, `spikeLatency_*_heatmap`, and per-unit PSTHs in
     `Individual_PSTH_and_Raster_Pattern_*`.
+* `ExperimentMatFiles/<name>_stimFigures.npz`: what those figures are drawn
+  from, so a `.meanap` bundle's viewer can redraw them (under *Stimulation*
+  on the Recordings tab) without the raw recording.
 
 Baseline windows for the response metrics are capped so that they fit between
 one event and the one before it. MEA-Stim's default of 30 baseline windows
@@ -285,11 +288,41 @@ Stimulation tab (on by default, `stim_network=True`) to separate the two:
 
 * **Evoked vs baseline networks.** Per condition and STTC lag, every unit's
   train is cut to the window after each event (**Evoked window start / end**,
-  default 0–0.5 s). The windows are joined end to end, and the STTC network is
-  built on that. The same is done for equally long windows **before** each
-  event (baseline). Comparing the two shows how the stimulus reshapes
+  default 0–0.5 s), and the STTC network is built from those windows. The
+  same is done for equally long windows **before** each event (baseline). Comparing the two shows how the stimulus reshapes
   functional connectivity. Events whose evoked window would overlap the next
   event's baseline are left out, and the log says how many.
+* **Post-stimulus network.** A third epoch, after the evoked window: by
+  default as long as the evoked window and starting where it ends (evoked
+  2–50 ms gives post 50–98 ms), so all three epochs are equally long; STTC
+  depends on window length. Untick *Post-stimulus window: as long as the
+  evoked one* to set it (`stim_network_post_window`, seconds after the event).
+  It answers whether a network the stimulus sets up outlasts it. Events whose
+  post window would reach the next event's baseline are left out of all three
+  networks, so every epoch uses the same trials.
+* **Figure 16, `16_StimNetworkGraph_<lag>mslag`**: the three networks drawn on
+  the array, one row per stimulation pattern and one column per epoch
+  (pre-stimulus, during, post-stimulus). Edges are the significant STTC edges;
+  node size (degree) and edge width (STTC) are on scales shared by every
+  panel, so they compare across epochs and patterns. The row's stimulating
+  electrodes are starred; they are left out of the networks.
+* **STTC** sets how a pair's STTC is computed from the windows
+  (`stim_network_sttc`):
+  * *Within each trial, averaged over trials* (default, `trial_mean`): STTC
+    in each trial's window alone, averaged over the trials in which both
+    units fired. A pair needs 5 such trials; with fewer its STTC is
+    undefined, it is never an edge, and it is left out of means and
+    split-half comparisons. STTC's correction for firing rate then holds
+    trial by trial, so slow shared activity states (the culture busier on
+    some trials than others) no longer pass for edges, and no coincidence
+    spans two trials. Needs the trial-shuffle test.
+  * *Over all trial windows joined end to end* (`pooled`, the only method
+    before MEA-NAP 1.19.0): one STTC over the joined train. Shared slow
+    states make these networks dense in every epoch (see the note below).
+
+  `StimNetwork_RecordingLevel.csv` gives `sttc_mode`, `nPairs`,
+  `nDefinedPairs` and `fracSigOfDefined` (significant edges / defined pairs),
+  and Figure 16's panels give the edges out of the defined pairs.
 * **Edge test** decides which edges are significant:
   * *Trial shuffle* (default): the surrogate pairs one unit's trial *i* with
     another unit's trial *j*. This keeps each unit's response to the stimulus
@@ -335,9 +368,181 @@ signal to look for. A baseline well above `alpha` means something other than
 the stimulus is driving the units together.
 :::
 
-Stimulus-triggered networks are built for event-driven methods only.
-Electrical stimulation would also need the stimulating electrodes and blanked
-periods taken out of the windows, and that is not wired up yet.
+### Electrical stimulation
+
+The same analysis runs on electrical stimulation detected from the raw
+voltage (`longblank` and the other detection methods). Each stimulation
+pattern is one condition, named by its electrodes (see
+[Stimulation conditions](#stimulation-conditions)). Two things differ from
+event-driven stimulation:
+
+* **The evoked window starts after the artifact.** Cleaning removes every
+  spike from the blanked period plus the post-stimulus ignore window
+  (`post_stim_window_dur`), so a window starting at 0 would count that
+  stretch as silence. The start moves to the end of the artifact (about
+  2 ms on MCS60 data with `longblank`), and the log says so. For a sequence
+  of pulses, it moves to the end of the *last* pulse's artifact. The baseline
+  window keeps the same length.
+* **Spike detection drops the artifact.** The amplifier coming out of its
+  blank steps the voltage, and the bandpass filter turns the step into
+  something spike-shaped: on the MCS60 test data every electrode gets one
+  detection 1.0–1.5 ms after every stimulus, with every method. With the
+  stimulation mode on, step 1 finds the stimuli and drops detections in the
+  same windows cleaning removes (on a stimulating electrode, its own longer
+  blank), so they stay out of the step-1 waveform checks and steps 2–4 too.
+  *Spike detection drops detections in the stimulation blank*
+  (`stim_drop_artifact_spikes`, on by default) on the Stimulation tab turns
+  this off. Event-driven stimulation is left alone.
+* **Stimulating electrodes are left out.** Cleaning empties their spike
+  trains, so they would sit in the networks as silent nodes. They are NaN in
+  the saved matrices and flagged `stim_electrode = True` in the node-level
+  CSVs.
+
+The detected stimulus times are written to `stim_events.csv` in the
+recording's figure folder.
+
+### Stimulation conditions
+
+A condition is one kind of stimulus, and the analyses and group figures
+compare conditions. How electrical stimulation is split into conditions:
+
+* **By electrode (default).** As in MATLAB: electrodes whose pulse times
+  agree within the pattern threshold are one pattern. This suits sets of
+  electrodes stimulated together, alternating between sets or not.
+* **By sequence** (**Group pulses into sequences** under Detection,
+  `stim_group_sequences=True`). Needed for **temporal patterns**, such as a
+  left-to-right sweep alternating with a right-to-left one. Grouped by
+  electrode, a sweep with 10 ms between pulses becomes one pattern per
+  electrode, and each of those mixes both directions. Grouped by sequence,
+  pulses on any electrodes that follow each other within **Sequence gap**
+  (`stim_sequence_gap`, default 50 ms) are one stimulus. Stimuli with the
+  same electrodes in the same order, and the same delays to within 1 ms, are
+  one condition. The gap must be longer than the delays within a sequence and
+  shorter than the time between stimuli. A sequence seen fewer than 3 times
+  (usually a pulse the detection missed) is left out, and the log says so.
+  The patterns then drive every MEA-Stim output, including
+  `StimActivity_NodeLevel.csv` and the PSTH figures. MATLAB has no
+  counterpart.
+
+Conditions are **named by their electrodes**: `12+13` for electrodes pulsed
+together, `12>13>14` for a sequence, with the delays added when one order
+was run at several speeds (`12>13>14 (5/10 ms)`). Recordings that stimulate
+the same electrodes therefore share condition names, and the group figures
+line them up with no labelling. The response metrics' first window still
+starts at the first pulse, so a sequence's later pulses fall inside it.
+
+To give conditions meaningful names, or to match **different** electrodes
+across recordings (each culture's hub, say), add a `StimConditions` column
+to the spreadsheet. It goes after the Genotype column (after Ground, if you
+use one), and is found by its header:
+
+| StimConditions | Meaning |
+|---|---|
+| `hub` | The recording's one condition is called `hub` |
+| `A=12+13; B=45+46` | Two sets of electrodes pulsed together |
+| `LtoR=12>13>14; RtoL=14>13>12` | Two sequences, told apart by their order |
+
+Unlisted conditions keep their electrode names. A label for electrodes that
+were not stimulated is logged, and a single label on a recording with
+several conditions stops the run with a message saying which conditions to
+name. `stim_events.csv` beside the figures lists every stimulus with its
+condition, electrodes and last-pulse delay.
+
+### Is the response the same on every trial?
+
+**Trial-by-trial consistency and drift** (on by default,
+`stim_trial_consistency=True`) asks whether the response changes over the
+recording, by adaptation, potentiation or electrode drift. Per condition:
+
+* **Per node:** the evoked − baseline spike count on every trial, and its
+  Spearman ρ with trial number.
+* **Population:** the same count summed over nodes, and its trend.
+* **Latency:** each node's first spike after the window start, as the median
+  and interquartile range over nodes on every trial.
+* **Response pattern:** the correlation, over nodes, of every pair of trials'
+  evoked counts. If the pattern drifts, trials close together are more alike
+  than trials far apart. The slope of similarity against trial separation
+  (over the first half of the separations) is compared with 1000 random trial
+  orders. The same is done for the baseline window as a control: drift there
+  is the recording changing, not the response.
+
+Output: `14_StimConsistency_<condition>.png`,
+`StimConsistency_RecordingLevel.csv` (`popResponseRho`/`P`,
+`fracNodesDrifting`, `similarityLagSlope`/`P`,
+`baselineSimilarityLagSlope`/`P`, `latencyRho`/`P`, …) and
+`StimConsistency_NodeLevel.csv` (`meanResponse`, `driftRho`, `driftP`).
+The per-trial count matrices are in the `.npz` (`<condition>__trial_evoked`,
+`__trial_baseline`).
+
+### Split-half networks
+
+A network is only worth interpreting if a different set of trials gives the
+same one. **Split-half networks** (on by default, `stim_split_half=True`)
+build the evoked and baseline networks from half the trials, split two ways:
+
+* **Odd vs even trials.** Both halves span the whole recording, so their
+  agreement measures **reliability**.
+* **First vs second half.** Agreement clearly lower than odd vs even means
+  the network **changed** over the recording, not just that it is noisy.
+
+Agreement is the correlation of edge weights between the two halves, for raw
+STTC and for STTC above the trial-shuffle null. Edges are not independent
+(each node is in n − 1 of them), so the p-value is a **Mantel test**: the node
+labels of one half are permuted 1000 times. Only nodes active in both halves
+are compared, since a silent node's zero edges would agree with each other
+and inflate r. The overlap of significant edges is reported as a Jaccard
+index next to its chance level, and noise correlations get the same split.
+
+Output: `15_StimNetworkSplitHalf_<condition>_<lag>mslag.png`, with the two
+halves' matrices drawn above and below the diagonal of one image and
+scatter plots of edge weights, and `StimNetworkSplitHalf_RecordingLevel.csv`
+(`r_sttc`, `mantel_p_sttc`, `r_excess`, `mantel_p_excess`, `jaccardSigEdges`,
+`jaccardChance`, `r_noise_corr`, …). The half-trial matrices are in the
+`.npz` (`<condition>__<epoch>__<lag>ms__<split>_A__sttc` and `_B`).
+
+### Group comparisons by condition
+
+With **Group comparisons by condition** on (default, `stim_group_plots=True`),
+the stimulus networks get step 4B's half violins: one panel per group with
+DIV on the x-axis, or one panel per DIV with group on the x-axis, and one
+folder per lag. Each cell then has one violin per stimulation condition. Every
+point is one recording × condition. They are written to
+`StimNetwork_GroupComparisons/`:
+
+* `1_ChangeByGroup`, `2_ChangeByAge`: every step-4 network metric (plus mean
+  STTC, mean STTC above the null and the number of significant edges) as
+  **evoked − baseline**, one violin per condition. The difference is taken
+  within each recording, which keeps the pairing that separate baseline and
+  evoked violins would hide.
+* `3_EpochsByGroup/<condition>`, `4_EpochsByAge/<condition>`: the raw
+  metric, **baseline and evoked** side by side. Use it to see whether a
+  difference in the change comes from the evoked network or from a baseline
+  that already differs between groups.
+* `5_ResponseByGroup`, `6_ResponseByAge`: summaries with no epoch, one violin
+  per condition. Split-half agreement (per lag), mean and significant noise
+  correlations, the population response and its trend over trials, the
+  fraction of drifting nodes, and first-spike latency.
+
+Files are numbered as in step 4B. Conditions are matched across recordings
+by name, so label them in the spreadsheet when different electrodes play the
+same role.
+
+:::{dropdown} Why are my pooled networks almost fully connected, in baseline too?
+In a culture whose activity comes in slow waves or network bursts, the
+biggest difference between trials is whether the culture is active at
+that moment. The trial shuffle breaks that shared state, so every pair that
+fires together during active periods passes as an edge, before the stimulus
+as much as after it. Noise correlations come out high for the same reason.
+Panel B of the consistency figure shows this: evoked and baseline counts rise
+and fall together over trials. On the MCS60 test recordings (60 stimuli 5 s
+apart), half or more of all pairs were significant in both epochs, with a
+0.5 s window and with a 50 ms one. A shorter window aimed at the direct
+response (first-spike latency is in the consistency figure) brings the
+networks closer to the stimulus, but it does not remove the shared state.
+Averaging STTC within trials (the default) does: on the same recordings
+baseline and post-stimulus networks keep 0–17 % of defined pairs, and the
+evoked ones 48–95 % (lags 10–25 ms).
+:::
 
 ## Limitations
 

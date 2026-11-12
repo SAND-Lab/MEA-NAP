@@ -71,6 +71,8 @@ __all__ = [
     "render_figure",
     "render_activity_figure",
     "render_group_family",
+    "available_stim_figures",
+    "render_stim_figures",
     "gallery",
     "cached_figure",
     "style_from_overrides",
@@ -1473,7 +1475,10 @@ def available_trace_figures(ctx: RenderContext, recording: str) -> list[FigureSp
     precedes unit 10.
     """
     base = ctx.root / TRACE_DIR
-    if not base.is_dir():
+    # Ephys runs keep other pictures in the same folder (stimulation figures,
+    # step-2 PNGs); they are not traces, and listing them here labelled every
+    # one "Unit <its figure number>".
+    if ctx.mode != "catnap" or not base.is_dir():
         return []
     # group/recording/, matching what _plot_recording writes. Bundles written
     # before the packer skipped them can still carry a Mac's ``._*.png``
@@ -1507,6 +1512,100 @@ def trace_figure_path(ctx: RenderContext, recording: str, name: str) -> Path:
                 break
             return resolved
     raise FileNotFoundError(f"no trace figure {name!r} for {recording}")
+
+
+# ── Stimulation (MEA-Stim) ───────────────────────────────────────────────────
+
+def _stim_payloads(ctx: RenderContext, recording: str) -> tuple[Path | None, Path | None]:
+    """The recording's two stim payloads (meanap.stim.redraw), where present."""
+    from meanap.stim.redraw import FIGURES_SUFFIX, NETWORK_SUFFIX
+
+    mats = ctx.root / "ExperimentMatFiles"
+    fig = mats / f"{recording}{FIGURES_SUFFIX}"
+    net = mats / f"{recording}{NETWORK_SUFFIX}"
+    if net.is_file():
+        with np.load(net) as d:
+            if "figure_meta" not in d.files:
+                net = None          # written before networks could be redrawn
+    else:
+        net = None
+    return (fig if fig.is_file() else None), net
+
+
+def _packed_stim_figures(ctx: RenderContext, recording: str) -> dict[str, Path]:
+    """Stim figures carried in the bundle as pictures, by name relative to the
+    recording's 2A folder without the suffix."""
+    from meanap.stim.redraw import is_stim_figure
+
+    base = ctx.root / TRACE_DIR
+    out: dict[str, Path] = {}
+    for folder in base.glob(f"*/{recording}"):
+        for hit in folder.rglob("*.png"):
+            rel = hit.relative_to(folder).with_suffix("").as_posix()
+            if not is_os_metadata(hit.name) and is_stim_figure(rel):
+                out[rel] = hit
+    return out
+
+
+def _redrawable_stim_names(ctx: RenderContext, recording: str) -> list[str]:
+    """Names :func:`render_stim_figure` draws, read off the payloads without drawing."""
+    from meanap.stim.redraw import _loads, network_figure_names
+
+    fig, net = _stim_payloads(ctx, recording)
+    names: list[str] = []
+    if net is not None:
+        with np.load(net) as d:
+            names += network_figure_names(_loads(d["figure_meta"]))
+    if fig is not None:
+        with np.load(fig) as d:
+            names += [str(n) for n in d["figure_names"]] if "figure_names" in d.files else []
+    return names
+
+
+def available_stim_figures(ctx: RenderContext, recording: str) -> list[FigureSpec]:
+    """The recording's stimulation figures: redrawn when the run saved what they
+    are drawn from, otherwise the pictures packed in the bundle.
+
+    Empty for a run without stimulation analysis.
+    """
+    from meanap.stim.redraw import sort_stim_names, stim_figure_label
+
+    names = set(_redrawable_stim_names(ctx, recording))
+    names |= set(_packed_stim_figures(ctx, recording))
+    return [FigureSpec(n, stim_figure_label(n)) for n in sort_stim_names(names)]
+
+
+def render_stim_figures(ctx: RenderContext, recording: str, out_dir: Path | str) -> list[Path]:
+    """Draw every redrawable stim figure of *recording* into *out_dir*, in the
+    folder layout the step writes (``Individual_PSTH_and_Raster_Pattern_k/``)."""
+    from meanap.stim.redraw import (
+        draw_activity_figures, draw_network_figures, load_figure_payload,
+    )
+
+    out_dir = Path(out_dir)
+    fig, net = _stim_payloads(ctx, recording)
+    written: list[Path] = []
+    if fig is not None:
+        written += draw_activity_figures(load_figure_payload(fig), out_dir)
+    if net is not None:
+        with np.load(net) as d:
+            written += draw_network_figures({k: d[k] for k in d.files}, out_dir)
+    return written
+
+
+def stim_figure_path(ctx: RenderContext, recording: str, name: str,
+                     rendered: list[Path] | None, rendered_root: Path | None) -> Path:
+    """One stim figure: from *rendered* (the redrawn set) when it is there,
+    else the packed picture. *name* arrives from a URL, so it is matched
+    against known files rather than joined onto a path."""
+    if rendered and rendered_root is not None:
+        for path in rendered:
+            if path.relative_to(rendered_root).with_suffix("").as_posix() == name:
+                return path
+    packed = _packed_stim_figures(ctx, recording).get(name)
+    if packed is not None:
+        return packed.resolve()
+    raise FileNotFoundError(f"no stimulation figure {name!r} for {recording}")
 
 
 def available_subnetwork_figures(
