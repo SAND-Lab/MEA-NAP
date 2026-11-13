@@ -153,6 +153,10 @@ def cmd_status(args) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    from meanap.pipeline.step_times import remember_on_this_computer
+
+    # Its runs and benchmarks are this computer's, as the GUI's and meanap's are.
+    remember_on_this_computer()
     ap = argparse.ArgumentParser(prog="meanap-shared", description=__doc__.split("\n\n")[0])
     sub = ap.add_subparsers(dest="command", required=True)
 

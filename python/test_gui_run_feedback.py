@@ -23,6 +23,8 @@ import time
 from pathlib import Path
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+# Runs here are tests, not this computer's history: never remember their step times.
+os.environ["MEANAP_STEP_TIMES"] = "off"
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from PyQt6.QtCore import QObject, QSettings, pyqtSignal  # noqa: E402
@@ -325,6 +327,46 @@ def run_on_section(window: MainWindow, tmp: Path) -> None:
     view.evaluate()
 
 
+def speed_check_section(window: MainWindow, tmp: Path) -> None:
+    print("\nSpeed check on first launch")
+    from meanap.pipeline import step_times
+    from meanap.pipeline.step_times import StepTimes
+    from meanap.shared.benchmark import BenchmarkResult
+
+    os.environ[step_times.ENV_VAR] = "off"
+    check("a window not started by the app, or with remembering off, never benchmarks",
+          window.start_speed_check(delay_ms=10 ** 9) is False)
+
+    path = tmp / "step_times.json"
+    os.environ[step_times.ENV_VAR] = str(path)
+    try:
+        check("a computer never benchmarked gets a speed check, once launched",
+              window.start_speed_check(delay_ms=10 ** 9) is True)
+        result = BenchmarkResult(seconds=10.0, score=1.5, detection_s=0.5, network_s=3.0,
+                                 cores=8, ram_gb=16.0, threads=7, processes=4)
+        busy = window._busy
+        window._busy = lambda: True
+        window._on_speed_checked(result)
+        check("timed while a run was going, the result is not kept",
+              StepTimes(path).benchmark is None)
+        window._busy = busy
+        window._on_speed_checked(result)
+        kept = StepTimes(path).benchmark
+        check("otherwise it is kept with this computer's step times",
+              kept is not None and kept["detection_s"] == 0.5 and kept["network_s"] == 3.0,
+              str(kept))
+        check("and the status bar says what happened",
+              "speed" in window.statusBar().currentMessage(),
+              window.statusBar().currentMessage())
+        check("a computer that has been benchmarked is not timed again",
+              window.start_speed_check(delay_ms=10 ** 9) is False)
+        window._on_speed_checked(None)
+        check("a failed check leaves the kept one alone",
+              StepTimes(path).benchmark["detection_s"] == 0.5)
+    finally:
+        os.environ[step_times.ENV_VAR] = "off"
+
+
 def main() -> int:
     sys.excepthook = _excepthook
     clock_section()
@@ -342,6 +384,7 @@ def main() -> int:
     log_section(window)
     with tempfile.TemporaryDirectory() as tmp:
         run_on_section(window, Path(tmp))
+        speed_check_section(window, Path(tmp))
     window.close()
     pump(50)
     if ERRORS:

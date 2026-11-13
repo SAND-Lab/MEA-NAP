@@ -665,6 +665,131 @@ def _memory_checks() -> list[Check]:
     return checks
 
 
+def _benchmark_checks() -> list[Check]:
+    """A first run on a computer, with its benchmark but no history."""
+    import json
+    import tempfile
+
+    import h5py
+    import numpy as np
+    import scipy.io as sio
+
+    from meanap.pipeline.progress import (
+        BENCHMARK_REFERENCE, STEP1_PER_BENCHMARK, STEP1_RATE_KEY,
+    )
+    from meanap.pipeline.recording_probe import channel_samples
+    from meanap.pipeline.step_times import StepTimes
+    from meanap.shared.benchmark import DETECTION_SAMPLES, remember_benchmark, run_benchmark
+
+    checks: list[Check] = []
+    tmp = Path(tempfile.mkdtemp())
+    ref = BENCHMARK_REFERENCE
+
+    def times_with(detection: float, network: float, name: str) -> StepTimes:
+        t = StepTimes(tmp / f"{name}.json")
+        t.record_benchmark({"detection_s": detection, "network_s": network})
+        return StepTimes(tmp / f"{name}.json")
+
+    def per_item(times) -> dict:
+        p, _, _ = _reporter(times=times)
+        p.plan(plan_ephys(start_step=1, stop_step=4, n_recordings=2))
+        return p._per_item
+
+    plain = per_item(None)
+    slow_detect = per_item(times_with(4 * ref["detection_s"], ref["network_s"], "a"))
+    ratio = lambda w: w["step1"] / w["step4.compute"]  # noqa: E731
+    checks.append(("a computer four times slower at detection weighs step 1 four times heavier",
+                   abs(ratio(slow_detect) / ratio(plain) - 4.0) < 1e-9,
+                   f"{ratio(slow_detect):.2f} vs {ratio(plain):.2f}"))
+    uniform = per_item(times_with(3 * ref["detection_s"], 3 * ref["network_s"], "b"))
+    checks.append(("one uniformly slower keeps the same balance",
+                   all(abs(uniform[k] / plain[k] - 3.0) < 1e-9 for k in plain), str(uniform)))
+
+    # One recording of 64 channels x 1.2M samples, with this computer's benchmark.
+    size = 64 * 1_200_000
+    bench_times = times_with(0.5, 2.0, "c")
+    p, seen, clock = _reporter(times=bench_times)
+    p.plan(plan_ephys(start_step=1, stop_step=1, n_recordings=1))
+    p.begin("step1", items=1)
+    checks.append(("without the recordings' size there is no number yet",
+                   seen[-1].eta_s is None, str(seen[-1].eta_s)))
+    p.expect_detection(size, 1)
+    predicted = 0.5 * STEP1_PER_BENCHMARK * size / DETECTION_SAMPLES
+    checks.append(("with it, the benchmark gives a time left before any work is done",
+                   seen[-1].eta_s is not None and abs(seen[-1].eta_s - predicted) < 1e-6,
+                   f"{seen[-1].eta_s} vs {predicted:.2f}"))
+    clock.tick(predicted * 3)  # this computer is three times slower than predicted
+    p.item_progress(0.5)
+    # Seconds per recording: as measured so far, and as predicted. Half a
+    # recording in, the run-wide pace is half each; step 1's own pace, which
+    # is the measured one again, is then trusted half over that — so the
+    # measurement carries three-quarters.
+    measured, prior = predicted * 3 / 0.5, predicted
+    expected = 0.5 * (0.75 * measured + 0.25 * prior)
+    checks.append(("half a recording in, the run's own pace already outweighs the prediction",
+                   abs(seen[-1].eta_s - expected) < 1e-6,
+                   f"{seen[-1].eta_s:.2f} vs {expected:.2f}"))
+    clock.tick(predicted * 3)
+    p.item_done("a")
+    p.phase_done()
+    p.finish()
+    kept = StepTimes(tmp / "c.json").seconds(STEP1_RATE_KEY)
+    checks.append(("a finished run keeps step 1's own seconds per channel-sample",
+                   kept is not None and abs(kept - predicted * 6 / size) < 1e-15,
+                   f"{kept} vs {predicted * 6 / size}"))
+
+    p, seen, clock = _reporter(times=StepTimes(tmp / "c.json"))
+    p.plan(plan_ephys(start_step=1, stop_step=1, n_recordings=1))
+    p.begin("step1", items=1)
+    p.expect_detection(size, 1)
+    checks.append(("and the next run predicts from that, not from the benchmark",
+                   abs(seen[-1].eta_s - predicted * 6) < 1e-6,
+                   f"{seen[-1].eta_s:.2f} vs {predicted * 6:.2f}"))
+
+    p, seen, clock = _reporter(times=StepTimes(tmp / "nothing.json"))
+    p.plan(plan_ephys(start_step=1, stop_step=1, n_recordings=1))
+    p.begin("step1", items=1)
+    p.expect_detection(size, 1)
+    checks.append(("with neither, it waits for real work as before",
+                   seen[-1].eta_s is None, str(seen[-1].eta_s)))
+
+    both = tmp / "both.json"
+    t = StepTimes(both)
+    t.record({"step1": 5.0})
+    t.record_benchmark({"detection_s": 0.4, "network_s": 1.0})
+    data = json.loads(both.read_text())
+    checks.append(("the benchmark is kept beside the step times, neither losing the other",
+                   data["phases"]["step1"]["seconds"] == 5.0
+                   and data["benchmark"]["detection_s"] == 0.4, str(data)))
+
+    # Sizes from headers: an HDF5 .mat is read, a v7 .mat is not loaded.
+    h5 = tmp / "rec.mat"
+    with h5py.File(h5, "w") as f:
+        f["dat"] = np.zeros((4, 1000), dtype=np.float32)
+        f["channels"] = np.arange(1, 5, dtype=float)
+        f["fs"] = np.array([[25000.0]])
+    v7 = tmp / "old.mat"
+    sio.savemat(v7, {"dat": np.zeros((1000, 4)), "channels": np.arange(1, 5), "fs": 25000.0})
+    checks.append(("a recording's size is read from its header",
+                   channel_samples(h5) == 4000, str(channel_samples(h5))))
+    checks.append(("an old-style .mat is not loaded just to size it",
+                   channel_samples(v7) is None, str(channel_samples(v7))))
+    checks.append(("a file that will not open is no size, not an error",
+                   channel_samples(tmp / "missing.mat") is None, ""))
+
+    os.environ["MEANAP_STEP_TIMES"] = str(tmp / "bench.json")
+    try:
+        run_benchmark(scale=0.02)
+        checks.append(("a scaled-down benchmark is never kept as this computer's",
+                       not (tmp / "bench.json").exists(), ""))
+        remember_benchmark(run_benchmark(scale=0.02, remember=False))
+        checks.append(("but a result can be kept on purpose",
+                       StepTimes(tmp / "bench.json").benchmark is not None, ""))
+    finally:
+        os.environ["MEANAP_STEP_TIMES"] = "off"
+    return checks
+
+
 def _percent_checks() -> list[Check]:
     def text(fraction: float) -> str:
         return Progress(fraction=fraction, phase="", detail="",
@@ -782,6 +907,7 @@ def main() -> int:
                          ("Within a recording:", _partial_checks),
                          ("Missing recordings:", _skip_checks),
                          ("Remembered step times:", _memory_checks),
+                         ("First run, from the benchmark:", _benchmark_checks),
                          ("Percentages:", _percent_checks),
                          ("Formatting:", _format_checks)]:
         p, n = _report(title, build())
