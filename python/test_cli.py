@@ -36,6 +36,8 @@ import numpy as np
 import pandas as pd
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+# Runs here are tests, not this computer's history: never remember their step times.
+os.environ["MEANAP_STEP_TIMES"] = "off"
 
 from meanap import cli  # noqa: E402
 from meanap.params import Params, load_params  # noqa: E402

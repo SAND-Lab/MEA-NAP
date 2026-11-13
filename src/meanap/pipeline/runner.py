@@ -164,7 +164,13 @@ def run_pipeline(
         raise ValueError("No recordings found in the given spreadsheet range")
     group_names = sorted({r.group for r in recordings})
 
-    reporter = RunProgress(progress, express=params.express_mode)
+    from meanap.pipeline.step_times import for_this_computer
+
+    # A continued run redoes only what was missing, so its step times say
+    # nothing about how long a recording takes; it neither learns nor teaches.
+    reporter = RunProgress(
+        progress, express=params.express_mode,
+        times=None if params.continue_interrupted else for_this_computer())
     reporter.plan(
         plan_catnap(n_recordings=len(recordings)) if params.suite2p_mode
         else plan_ephys(
@@ -888,6 +894,17 @@ def _run_step1_spike_detection(
     if already_detected and source.remote:
         log(f"  {len(already_detected)} recording(s) already detected — their "
             f"raw data will not be fetched.")
+    if not source.remote:
+        # Recordings the sheet lists but the folder lacks are not work: found
+        # now, a local stat each, rather than one by one as the loop reaches
+        # them, so the bar is right from the first recording.
+        for rec in recordings:
+            if rec.filename in already_detected:
+                continue
+            try:
+                source.raw_file(rec.filename)
+            except FileNotFoundError:
+                progress.skip(rec.filename)
 
     for rec, raw_path in stream_needing_work(
             source, recordings, already_detected.__contains__,
@@ -899,6 +916,7 @@ def _run_step1_spike_detection(
             progress.item_done(rec.filename)
             continue
         if isinstance(raw_path, BaseException):
+            progress.skip(rec.filename)
             log(f"  ! raw file not found, skipping: {rec.filename}"
                 f" (looked for {', '.join(RAW_EXTENSIONS)})")
             continue

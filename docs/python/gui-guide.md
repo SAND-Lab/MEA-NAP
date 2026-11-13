@@ -46,6 +46,26 @@ only when a recording finishes. If the estimate runs out first, the page says
 *should be done shortly*. The Run tab's progress does the same. **Show log**
 opens the live status log in a panel on the page.
 
+The percentage is weighted by how long each step usually takes, not by
+recordings finished, and spike detection moves it channel by channel. Below
+10% it shows a decimal, so the start of a long batch visibly moves. The time
+left is measured on your computer as the run goes: each step is estimated
+from its own pace once it has done a recording, and steps not reached yet
+from the run's pace so far. Recordings the spreadsheet lists but the folder
+does not have are left out of both.
+
+Each finished run also remembers how long every step took per recording, in a
+small `step_times.json` in this computer's cache folder (`~/.cache/meanap/app-cache`
+on Linux, `~/Library/Caches/MEA-NAP` on macOS, `%LOCALAPPDATA%\MEA-NAP\cache` on
+Windows). The next run plans with those times instead of the built-in ones, so
+the estimate during spike detection already knows how long step 4 takes here.
+A new computer's first run uses the built-in times. Cancelled and continued
+runs are not remembered; deleting the file starts afresh, and setting the
+`MEANAP_STEP_TIMES` environment variable to `off` turns it off.
+
+The version under the logo shows which MEA-NAP is running. When a newer one
+is out it says so, and clicking it opens **Versions and updates**.
+
 **Run on**, above the Run button, chooses what Run starts. It is the same switch
 as the Run tab's:
 

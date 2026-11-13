@@ -19,6 +19,8 @@ import sys
 from pathlib import Path
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+# Runs here are tests, not this computer's history: never remember their step times.
+os.environ["MEANAP_STEP_TIMES"] = "off"
 
 REPO_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(REPO_ROOT / "src"))
@@ -88,9 +90,14 @@ def _plan_checks() -> list[Check]:
 
     # A bar that weighted every recording equally would sit at 50% while the
     # slowest step of the run was still entirely ahead of it.
-    checks.append(("step 4 outweighs step 2, as measured",
-                   PHASE_WEIGHTS["step4.compute"] > 10 * PHASE_WEIGHTS["step2"],
-                   f"{PHASE_WEIGHTS['step4.compute']} vs {PHASE_WEIGHTS['step2']}"))
+    express = RunProgress(express=True)
+    weights = {k: express._weight(k) for k in
+               ("step1", "step2", "step3", "step4.compute", "step4.plot")}
+    heavy = weights["step1"] + weights["step4.compute"]
+    checks.append(("in express mode, detection and network metrics are most of a run",
+                   heavy > 0.85 * sum(weights.values()), str(weights)))
+    checks.append(("and detection is no lighter than network metrics, as measured",
+                   weights["step1"] >= weights["step4.compute"], str(weights)))
     return checks
 
 
@@ -203,6 +210,55 @@ def _calibration_checks() -> list[Check]:
     checks.append(("but it still counts as elapsed time",
                    abs(seen[-1].elapsed_s - 610.0) < 1e-6,
                    f"{seen[-1].elapsed_s:.1f}"))
+
+    # Each phase at its own pace: slow detection must not make the rest of a
+    # quick step 4 look slow once step 4 has shown its own speed.
+    p, seen, clock = _reporter()
+    p.plan(plan_ephys(start_step=1, stop_step=4, n_recordings=2))
+    w = PHASE_WEIGHTS
+    p.begin("step1", items=2)
+    clock.tick(300); p.item_done("a")
+    clock.tick(300); p.item_done("b")
+    p.phase_done()
+    for key in ("step2", "step3"):
+        p.begin(key, items=2)
+        clock.tick(10); p.item_done("a")
+        clock.tick(10); p.item_done("b")
+        p.phase_done()
+    p.begin("step4.compute", items=2)
+    overall = (clock.t) / p._done            # the run-wide rate as step 4 starts
+    checks.append(("a phase that has not started yet is estimated at the run-wide rate",
+                   abs(seen[-1].eta_s - (p._total - p._done) * overall) < 1e-6,
+                   f"{seen[-1].eta_s:.1f}"))
+    clock.tick(5); p.item_done("a")
+    after = p._total - p._done - w["step4.compute"]   # step 4 plots + batch
+    overall = clock.t / p._done
+    expected = 5.0 + after * overall
+    checks.append(("once it has done a recording, the rest of it goes at its own pace",
+                   abs(seen[-1].eta_s - expected) < 1e-6,
+                   f"{seen[-1].eta_s:.1f} vs {expected:.1f}"))
+    run_wide = (p._total - p._done) * overall
+    checks.append(("which is far shorter than detection's pace would say",
+                   seen[-1].eta_s < run_wide, f"{seen[-1].eta_s:.1f} vs {run_wide:.1f}"))
+
+    # Half a recording in: half trusted.
+    p, seen, clock = _reporter()
+    p.plan(plan_ephys(start_step=2, stop_step=3, n_recordings=2))
+    p.begin("step2", items=2)
+    clock.tick(10); p.item_done("a")
+    p.phase_done()
+    p.begin("step3", items=2)
+    overall_before = clock.t / p._done
+    clock.tick(100)
+    p.item_progress(0.5)
+    earned = w["step3"] / 2
+    own = 100 / earned
+    overall = clock.t / p._done
+    rate = 0.5 * own + 0.5 * overall
+    expected = (w["step3"] * 2 - earned) * rate
+    checks.append(("half a recording into a phase, its own pace is half trusted",
+                   abs(seen[-1].eta_s - expected) < 1e-6 and overall_before > 0,
+                   f"{seen[-1].eta_s:.1f} vs {expected:.1f}"))
 
     # Express mode drops most plotting, so the plotting phases must weigh less
     # or the bar would crawl through work that is no longer being done.
@@ -431,6 +487,184 @@ def _partial_checks() -> list[Check]:
     return checks
 
 
+def _skip_checks() -> list[Check]:
+    """Recordings the sheet lists but the folder lacks are not work."""
+    checks: list[Check] = []
+    p, seen, clock = _reporter()
+    p.plan(plan_ephys(start_step=1, stop_step=4, n_recordings=60))
+    p.begin("step1", items=60)
+    for i in range(2, 60):
+        p.skip(f"missing_{i}")
+    p.item_done("real_0")
+    checks.append(("with 58 of 60 missing, one real recording is half of step 1",
+                   abs(p._phase_credited - p._weights["step1"] / 2) < 1e-9,
+                   f"{p._phase_credited:.2f} of {p._weights['step1']:.2f}"))
+    one_rec = sum(PHASE_WEIGHTS[k] for k in
+                  ("step1", "step2", "step3", "step4.compute", "step4.plot"))
+    expected = 2 * one_rec + PHASE_WEIGHTS["batch"]
+    checks.append(("and the whole plan is two recordings' worth plus the batch",
+                   abs(p._total - expected) < 1e-6, f"{p._total:.1f} vs {expected:.1f}"))
+    p.skip("missing_5")
+    checks.append(("skipping twice changes nothing",
+                   abs(p._total - expected) < 1e-6, f"{p._total:.1f}"))
+    p.item_done("missing_7")
+    checks.append(("a report for a skipped recording is ignored",
+                   abs(p._phase_credited - p._weights["step1"] / 2) < 1e-9, ""))
+    p.item_done("real_1")
+    p.phase_done()
+    p.begin("step2", items=60)
+    checks.append(("later steps loop over the sheet but count only what will run",
+                   p._items_total == 2, str(p._items_total)))
+    for name in ["real_0"] + [f"missing_{i}" for i in range(2, 60)]:
+        p.item_done(name)
+    checks.append(("so their bar moves a half per real recording",
+                   abs(p._phase_credited - p._weights["step2"] / 2) < 1e-9, ""))
+    p.item_done("real_1")
+    p.phase_done()
+    for key in ("step3", "step4.compute", "step4.plot"):
+        p.begin(key, items=60)
+        p.item_done("real_0"); p.item_done("real_1")
+        p.phase_done()
+    p.begin("batch", items=1)
+    p.item_done("")
+    checks.append(("and the bar reaches the end on the real work alone",
+                   abs(seen[-1].fraction - 1.0) < 1e-9, f"{seen[-1].fraction:.4f}"))
+
+    # Found part-way: the steps already done keep their credit.
+    p, seen, clock = _reporter()
+    p.plan(plan_ephys(start_step=1, stop_step=2, n_recordings=2))
+    p.begin("step1", items=2)
+    p.item_done("a")
+    p.phase_done()
+    before = seen[-1].fraction
+    p.begin("step2", items=2)
+    p.skip("b")
+    checks.append(("a recording dropped in a later step leaves earlier credit alone",
+                   abs(p._done - PHASE_WEIGHTS["step1"] * 2) < 1e-9 and before > 0,
+                   f"{p._done:.2f}"))
+    return checks
+
+
+def _memory_checks() -> list[Check]:
+    """This computer's step times, remembered between runs."""
+    import json
+    import tempfile
+
+    from meanap.pipeline import step_times
+    from meanap.pipeline.step_times import StepTimes, for_this_computer
+
+    checks: list[Check] = []
+    tmp = Path(tempfile.mkdtemp())
+    path = tmp / "deep" / "step_times.json"
+
+    def run(times, *, express=False, step1=100.0, step4=10.0, finish=True,
+            missing=0) -> RunProgress:
+        p, _, clock = _reporter(express=express, times=times)
+        p.plan(plan_ephys(start_step=1, stop_step=4, n_recordings=2 + missing))
+        p.begin("step1", items=2 + missing)
+        for i in range(missing):
+            p.skip(f"gone_{i}")
+        for name in ("a", "b"):
+            clock.tick(step1); p.item_done(name)
+        p.phase_done()
+        for key, secs in (("step2", 1.0), ("step3", 2.0),
+                          ("step4.compute", step4), ("step4.plot", 0.5)):
+            p.begin(key, items=2 + missing)
+            for name in ("a", "b"):
+                clock.tick(secs); p.item_done(name)
+            p.phase_done()
+        p.begin("batch", items=1)
+        clock.tick(3.0)  # finished with phase_done alone, as step 4 does
+        p.phase_done()
+        if finish:
+            p.finish()
+        return p
+
+    times = StepTimes(path)
+    checks.append(("a computer with no history plans with the benchmark",
+                   run(times, finish=False)._per_item["step1"] == PHASE_WEIGHTS["step1"], ""))
+    checks.append(("a run that never finished leaves nothing behind",
+                   not path.exists(), ""))
+
+    run(times, missing=58)
+    saved = json.loads(path.read_text())["phases"]
+    checks.append(("a finished run saves seconds per recording, per step",
+                   abs(saved["step1"]["seconds"] - 100.0) < 1e-9
+                   and abs(saved["step4.compute"]["seconds"] - 10.0) < 1e-9,
+                   str({k: v["seconds"] for k, v in saved.items()})))
+    checks.append(("recordings with no raw file do not dilute the per-recording time",
+                   saved["step1"]["runs"] == 1, ""))
+    checks.append(("the once-per-run comparisons are timed as one unit",
+                   abs(saved.get("batch@full", {}).get("seconds", 0) - 3.0) < 1e-9,
+                   str(saved.get("batch@full"))))
+    checks.append(("the drawing phases are kept per figure mode",
+                   "step4.plot@full" in saved and "step4.plot" not in saved, str(list(saved))))
+    checks.append(("the file is made where it is asked for, folders and all",
+                   path.is_file(), str(path)))
+
+    again = StepTimes(path)
+    p = run(again, finish=False)
+    checks.append(("the next run plans with this computer's own times",
+                   p._per_item["step1"] == 100.0 and p._per_item["step4.compute"] == 10.0,
+                   str(p._per_item)))
+
+    p = run(StepTimes(path), express=True, finish=False)
+    plotted = p._per_item["step4.plot"]
+    # Not remembered in express mode: the benchmark's figure, scaled by how
+    # this computer compares on what it does remember.
+    # Step 2 is mostly drawing, so its full-figure time does not count here.
+    measured = {"step1": 100.0, "step3": 2.0, "step4.compute": 10.0}
+    scale = sorted(v / PHASE_WEIGHTS[k] for k, v in measured.items())[1]
+    expected = PHASE_WEIGHTS["step4.plot"] * 0.01 * scale
+    checks.append(("a phase it has not timed is scaled to this computer's pace",
+                   abs(plotted - expected) < 1e-9, f"{plotted:.4f} vs {expected:.4f}"))
+
+    run(StepTimes(path), step1=50.0)
+    entry = json.loads(path.read_text())["phases"]["step1"]
+    checks.append(("one new run moves the remembered time halfway, not all the way",
+                   abs(entry["seconds"] - 75.0) < 1e-9 and entry["runs"] == 2, str(entry)))
+
+    path.write_text("{not json")
+    checks.append(("an unreadable file is ignored, not fatal",
+                   StepTimes(path).seconds("step1") is None, ""))
+    path.write_text(json.dumps({"version": 99, "phases": {"step1": {"seconds": 5}}}))
+    checks.append(("a file from another format version is ignored",
+                   StepTimes(path).seconds("step1") is None, ""))
+    blocked = tmp / "a_file"
+    blocked.write_text("")
+    try:
+        StepTimes(blocked / "step_times.json").record({"step1": 1.0})
+        quiet = True
+    except Exception as e:  # noqa: BLE001
+        quiet = f"{type(e).__name__}: {e}"
+    checks.append(("a file that cannot be written does not stop the run",
+                   quiet is True, str(quiet)))
+
+    old_env = os.environ.pop(step_times.ENV_VAR, None)
+    old_flag = step_times._enabled
+    try:
+        step_times._enabled = False
+        checks.append(("scripts and tests calling the runner do not remember",
+                       for_this_computer() is None, ""))
+        step_times.remember_on_this_computer()
+        found = for_this_computer()
+        checks.append(("the GUI and the meanap command do, in this computer's cache folder",
+                       found is not None and found.path == step_times.default_path(),
+                       str(found and found.path)))
+        os.environ[step_times.ENV_VAR] = "off"
+        checks.append(("and MEANAP_STEP_TIMES=off turns it off",
+                       for_this_computer() is None, ""))
+        os.environ[step_times.ENV_VAR] = str(path)
+        checks.append(("or points it at another file",
+                       for_this_computer().path == path, ""))
+    finally:
+        step_times._enabled = old_flag
+        os.environ.pop(step_times.ENV_VAR, None)
+        if old_env is not None:
+            os.environ[step_times.ENV_VAR] = old_env
+    return checks
+
+
 def _percent_checks() -> list[Check]:
     def text(fraction: float) -> str:
         return Progress(fraction=fraction, phase="", detail="",
@@ -546,6 +780,8 @@ def main() -> int:
                          ("Calibration:", _calibration_checks),
                          ("Transfers:", _transfer_checks),
                          ("Within a recording:", _partial_checks),
+                         ("Missing recordings:", _skip_checks),
+                         ("Remembered step times:", _memory_checks),
                          ("Percentages:", _percent_checks),
                          ("Formatting:", _format_checks)]:
         p, n = _report(title, build())

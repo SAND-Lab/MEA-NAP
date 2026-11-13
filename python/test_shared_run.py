@@ -37,6 +37,8 @@ import time
 from pathlib import Path
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+# Runs here are tests, not this computer's history: never remember their step times.
+os.environ["MEANAP_STEP_TIMES"] = "off"
 
 REPO_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(REPO_ROOT / "src"))
