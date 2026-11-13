@@ -17,6 +17,16 @@ consumed, and the estimate is the remaining weight times that ratio. Only the
 relative sizes have to be right, the reading adapts to the machine it is on
 within the first completed recording, and nothing has to be configured.
 
+**Why each phase has its own rate.** The relative sizes are not right
+everywhere, though: spike detection scales with recording length and channel
+count, connectivity and network metrics with how many units are active, so a
+long recording with few active channels spends far longer in step 1 than its
+weight says and far less in step 4. One run-wide rate would then charge step
+1's slowness to all of step 4 — an estimate that is too long all through
+detection and a bar that races at the end. So the phase that is running is
+estimated from its own measured rate, blended in over its first recording, and
+only phases not yet reached fall back to the run-wide rate.
+
 That also handles remote runs without modelling them. Downloads overlap
 compute — :mod:`meanap.remote.prefetch` fetches the next recording while this
 one is analysed — so adding transfer time to the total would double-count it.
@@ -31,42 +41,58 @@ from __future__ import annotations
 import threading
 import time
 from dataclasses import dataclass
-from typing import Callable
+from typing import TYPE_CHECKING, Callable
+
+if TYPE_CHECKING:
+    from meanap.pipeline.step_times import StepTimes
 
 __all__ = [
     "Progress", "ProgressFn", "RunProgress", "PHASE_WEIGHTS",
     "format_duration", "plan_ephys", "plan_catnap",
 ]
 
-#: Relative cost of one recording in each phase, from the 3.3x-optimised
-#: benchmark in ``python/PIPELINE_PORT_STATUS.md`` (2 recordings, 350s total):
-#: step 1 103.6s, step 2 6.4s, step 3 42.7s, step 4 197.3s. Step 4 is split by
-#: the express-mode measurement in ``docs/python/express-mode.md`` (159.0s full
-#: vs 113.4s with plotting removed), which puts its plotting at ~29%.
+#: Relative cost of one recording in each phase: seconds per recording on
+#: ``ExampleData`` (two Axion64 recordings, 12.5 kHz) with the GUI's default
+#: settings, measured per progress phase on 2026-11-12 with
+#: ``RunProgress``'s own phase boundaries, full figures:
 #:
-#: Only the ratios matter — :class:`RunProgress` calibrates the scale — so these
-#: need re-deriving only if the *relative* cost of the steps changes.
+#:     step 1 16.4s   step 2 6.6s   step 3 1.7s   step 4 compute 15.8s
+#:     step 4 figures 29.4s   batch comparisons 27.6s   (wall 97s)
+#:
+#: The earlier benchmark these replaced had step 4 at twice step 1; the
+#: numba/threading work since has made it about equal, which is why the old
+#: weights crawled through detection and raced through step 4.
+#:
+#: Only the ratios matter — :class:`RunProgress` calibrates the scale, and each
+#: phase is re-measured against its own pace as it runs — so these need
+#: re-deriving only if the *relative* cost of the steps changes.
 PHASE_WEIGHTS: dict[str, float] = {
-    "step1": 51.8,
-    "step2": 3.2,
-    "step3": 21.4,
-    "step4.compute": 70.1,
-    "step4.plot": 28.6,
-    "stim": 20.0,
+    "step1": 8.6,
+    "step2": 3.3,
+    "step3": 0.8,
+    "step4.compute": 7.8,
+    "step4.plot": 14.7,
+    # Not re-measured: kept at its old proportion to step 1.
+    "stim": 3.3,
     # CAT-NAP has no separate benchmark. Adjacency + activity stats dominate its
     # compute phase and the trace/network figures its plotting phase, so it is
     # modelled on step 4's shape, which has the same compute-then-plot split.
-    "catnap.compute": 70.1,
-    "catnap.plot": 28.6,
+    "catnap.compute": 7.8,
+    "catnap.plot": 14.7,
     # Batch-level work: group comparison figures, CSV export, bundle writing.
     # One unit for the whole run rather than one per recording.
-    "batch": 40.0,
+    "batch": 27.6,
 }
 
-#: What is left of a plotting phase in express mode. From the same table: step 2
-#: falls from 7.7s to 0.0 and step 4's plotting from 45.6s to near nothing, since
-#: express skips every figure that can be rebuilt from the bundle.
-EXPRESS_PLOT_FACTOR = 0.12
+#: What is left of a plotting phase in express mode. The same measurement in
+#: express mode: step 2 6.6s → 0.04s, step 4 figures 29.4s → 0.02s, batch
+#: comparisons 27.6s → 0.06s — under 1% each, since express skips every figure
+#: that can be rebuilt from the bundle. Rounded up to 1% so the phases still
+#: register.
+EXPRESS_PLOT_FACTOR = 0.01
+
+#: Phases done once per run rather than once per recording.
+_PER_RUN_PHASES = ("batch",)
 
 #: Phases that are mostly drawing, and so mostly skipped in express mode.
 _PLOT_PHASES = ("step2", "step4.plot", "catnap.plot", "batch")
@@ -202,9 +228,15 @@ class RunProgress:
         *,
         express: bool = False,
         clock: Callable[[], float] = time.monotonic,
+        times: "StepTimes | None" = None,
     ) -> None:
         self._emit = emit
         self._express = express
+        # This computer's step times from earlier runs: planned with, and
+        # added to when the run finishes (see meanap.pipeline.step_times).
+        self._times = times
+        self._phase_items: dict[str, int] = {}
+        self._recorded = False
         self._clock = clock
         self._start = clock()
 
@@ -230,15 +262,77 @@ class RunProgress:
         self._measure_from: float | None = None
         # item_progress is called from detection's worker threads.
         self._lock = threading.Lock()
+        # Wall-clock at which the current phase began, and what earlier runs of
+        # the same phase key spent and were credited (a key is rarely begun
+        # twice, but nothing forbids it).
+        self._phase_started: float | None = None
+        self._phase_spent: dict[str, float] = {}
+        self._phase_earned: dict[str, float] = {}
+        # Recordings that will not be analysed at all (see skip), and what one
+        # recording weighs in each planned phase, to take back out of the plan.
+        self._skipped: set[str] = set()
+        self._per_item: dict[str, float] = {}
+        self._begun: set[str] = set()
 
     # ── Planning ──────────────────────────────────────────────────────────────
 
     def plan(self, phases: dict[str, int]) -> None:
         """Declare the phases that will run, as ``{phase key: item count}``."""
+        weights = self._planning_weights(list(phases))
         self._weights = {}
+        self._per_item = {}
         for key, count in phases.items():
-            self._weights[key] = self._weight(key) * max(0, count)
+            self._weights[key] = weights[key] * max(0, count)
+            if key not in _PER_RUN_PHASES:
+                self._per_item[key] = weights[key]
         self._total = sum(self._weights.values())
+
+    def _planning_weights(self, keys: list[str]) -> dict[str, float]:
+        """One recording's weight per phase: remembered here, else the benchmark's.
+
+        Remembered figures are this computer's seconds; the benchmark's are
+        another machine's. Mixed as they are, a computer three times slower
+        would make its remembered phases look three times heavier than the
+        rest, so the benchmark figures are first scaled by how this computer
+        compares on the phases it does remember.
+        """
+        defaults = {key: self._weight(key) for key in keys}
+        if self._times is None:
+            return defaults
+        remembered = {key: self._times.seconds(self._memory_key(key)) for key in keys}
+        ratios = sorted(remembered[k] / defaults[k] for k in keys
+                        if remembered[k] and defaults[k] > 0)
+        if not ratios:
+            return defaults
+        scale = ratios[len(ratios) // 2] if len(ratios) % 2 else (
+            ratios[len(ratios) // 2 - 1] + ratios[len(ratios) // 2]) / 2
+        return {key: remembered[key] or defaults[key] * scale for key in keys}
+
+    def _memory_key(self, key: str) -> str:
+        """Express mode all but removes the drawing phases, so they are kept apart."""
+        if key in _PLOT_PHASES:
+            return f"{key}@{'express' if self._express else 'full'}"
+        return key
+
+    def _close_phase(self, now: float) -> None:
+        """Add the running phase's time, credit and recordings to its totals."""
+        if self._phase_started is None or not self._phase_key:
+            return
+        key = self._phase_key
+        self._phase_spent[key] = self._phase_spent.get(key, 0.0) + now - self._phase_started
+        self._phase_earned[key] = self._phase_earned.get(key, 0.0) + self._phase_credited
+        self._phase_items[key] = self._phase_items.get(key, 0) + self._items_done
+        self._phase_started = None
+
+    def measured(self) -> dict[str, float]:
+        """Seconds per recording each finished planned phase took, by memory key."""
+        out: dict[str, float] = {}
+        for key, items in self._phase_items.items():
+            if key in _PER_RUN_PHASES and self._phase_spent.get(key, 0.0) > 0:
+                items = 1  # done once whatever it reports, per run not per recording
+            if key in self._weights and items > 0:
+                out[self._memory_key(key)] = self._phase_spent.get(key, 0.0) / items
+        return out
 
     def _weight(self, key: str) -> float:
         weight = PHASE_WEIGHTS.get(key, 1.0)
@@ -255,18 +349,52 @@ class RunProgress:
 
     def begin(self, key: str, label: str = "", items: int | None = None) -> None:
         """Enter a phase. Unplanned phases still display, but weigh nothing."""
+        now = self._clock()
+        self._close_phase(now)
+        self._phase_started = now
         self._phase_key = key
+        self._begun.add(key)
         self._phase_label = label or PHASE_LABELS.get(key, key)
         self._items_done = 0
         self._items_total = items if items is not None else 0
+        if key in self._per_item:
+            # The step still loops over every recording in the sheet; the ones
+            # already known to be missing are not work.
+            self._items_total = max(0, self._items_total - len(self._skipped))
         self._phase_credited = 0.0
         self._detail = ""
         if self._measure_from is None:
             self._measure_from = self._clock()
         self._publish()
 
+    def skip(self, recording: str) -> None:
+        """*recording* will not be analysed, in this phase or any later one.
+
+        A spreadsheet can list recordings whose raw files are not in the
+        folder — the example dataset lists sixty and ships two. Planned as
+        work, they would make each real recording a sixtieth of the bar, with
+        the rest arriving in one jump at the end of each step. Idempotent;
+        later reports for a skipped recording are ignored.
+        """
+        with self._lock:
+            if recording in self._skipped:
+                return
+            self._skipped.add(recording)
+            for key, one in self._per_item.items():
+                current = key == self._phase_key
+                if key in self._begun and not current:
+                    continue  # already done and credited
+                self._weights[key] = max(0.0, self._weights.get(key, 0.0) - one)
+                if current:
+                    self._items_total = max(0, self._items_total - 1)
+            self._total = sum(self._weights.values())
+            self._done = min(self._done, self._total)
+            self._publish()
+
     def item_done(self, detail: str = "") -> None:
         """One recording finished in the current phase."""
+        if detail in self._skipped:
+            return
         self._items_done += 1
         self._detail = detail
         planned = self._weights.get(self._phase_key, 0.0)
@@ -329,7 +457,15 @@ class RunProgress:
         self._publish()
 
     def finish(self) -> None:
-        """The run is over; show it complete rather than at 97%."""
+        """The run is over; show it complete rather than at 97%.
+
+        Also the one point a run's step times are remembered: a run that
+        stopped part-way, by cancelling or failing, never gets here.
+        """
+        self._close_phase(self._clock())
+        if self._times is not None and not self._recorded:
+            self._recorded = True
+            self._times.record(self.measured())
         self._done = self._total
         self._detail = ""
         self._phase_label = "Complete"
@@ -358,7 +494,28 @@ class RunProgress:
         remaining = self._total - self._done
         if remaining <= 0:
             return 0.0
-        return remaining * (spent / self._done)
+        overall = spent / self._done
+        current = self._weights.get(self._phase_key, 0.0)
+        left_here = max(0.0, current - self._phase_credited) if current else 0.0
+        return (remaining - left_here) * overall + left_here * self._phase_rate(overall)
+
+    def _phase_rate(self, overall: float) -> float:
+        """Seconds per unit of weight in the running phase.
+
+        Its own measurement once it has done a recording's worth of work, the
+        run-wide rate before it has done any, and a blend in between — the
+        first moments of a phase (loading a file, warming a cache) say little
+        about its pace, and a rate from a sliver of work would swing wildly.
+        """
+        key = self._phase_key
+        earned = self._phase_earned.get(key, 0.0) + self._phase_credited
+        if earned <= 0 or self._phase_started is None:
+            return overall
+        spent = self._phase_spent.get(key, 0.0) + self._clock() - self._phase_started
+        own = spent / earned
+        one_item = self._weights.get(key, 0.0) / max(1, self._items_total)
+        trust = min(1.0, earned / one_item) if one_item > 0 else 1.0
+        return trust * own + (1.0 - trust) * overall
 
     def snapshot(self) -> Progress:
         fraction = (self._done / self._total) if self._total > 0 else 0.0

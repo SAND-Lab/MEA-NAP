@@ -12,6 +12,8 @@ from __future__ import annotations
 import io
 import json
 import os
+# Runs here are tests, not this computer's history: never remember their step times.
+os.environ["MEANAP_STEP_TIMES"] = "off"
 import subprocess
 import sys
 from pathlib import Path

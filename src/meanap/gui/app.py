@@ -136,6 +136,11 @@ def main() -> None:
     if not args.here and not is_frozen() and not args.paths:
         _open_default_version(sys.argv[1:])
 
+    from meanap.pipeline.step_times import remember_on_this_computer
+
+    # Runs started from here plan with, and add to, this computer's step times.
+    remember_on_this_computer()
+
     theme.enable_hi_dpi()
     app = QApplication(sys.argv[:1])
     app.setApplicationName("MEA-NAP")

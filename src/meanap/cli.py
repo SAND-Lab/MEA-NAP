@@ -621,6 +621,11 @@ def main(argv: list[str] | None = None) -> int:
     if argv and argv[0] in FORWARDED:
         return _forward(argv[0], argv[1:])
 
+    from meanap.pipeline.step_times import remember_on_this_computer
+
+    # Runs started from here plan with, and add to, this computer's step times.
+    remember_on_this_computer()
+
     parser = build_parser()
     args = parser.parse_args(argv)
     if args.version:
