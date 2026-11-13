@@ -180,6 +180,7 @@ def main() -> None:
     window.report_app_update()
     if check_on_start():
         window.start_update_check()
+    window.start_speed_check()
     sys.exit(app.exec())
 
 

@@ -124,6 +124,28 @@ def probe_recording(path: str | Path) -> RecordingProbe:
         return RecordingProbe(path.stem, "mat", fs, len(channels), live)
 
 
+def channel_samples(path: str | Path) -> int | None:
+    """Channels × samples of one raw recording, from its header — its detection work.
+
+    ``None`` where that would mean reading the traces (a v7 ``.mat`` has no
+    lazy shape) or the file will not open: a guess at the time is not worth
+    loading a recording, or failing a run.
+    """
+    import h5py
+
+    from meanap.pipeline.axion_raw import is_axion_raw
+    from meanap.pipeline.io import count_raw_samples
+
+    path = Path(path)
+    try:
+        if not is_axion_raw(path) and not h5py.is_hdf5(path):
+            return None
+        probe = probe_recording(path)
+        return probe.n_channels * count_raw_samples(path, probe.n_channels)
+    except Exception:                                       # noqa: BLE001
+        return None
+
+
 def probe_folder(folder: str | Path, limit: int = MAX_PROBED) -> list[RecordingProbe]:
     """Probe the raw recordings in *folder* (up to *limit*), skipping unreadable ones.
 

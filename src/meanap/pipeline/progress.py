@@ -91,6 +91,31 @@ PHASE_WEIGHTS: dict[str, float] = {
 #: register.
 EXPRESS_PLOT_FACTOR = 0.01
 
+#: :mod:`meanap.shared.benchmark` on the machine the weights above were
+#: measured on (2026-11-13, three runs within 0.04 s): its spike-detection and
+#: network null-model parts. Another computer's benchmark against these says
+#: how its detection and network steps compare with the benchmark machine's,
+#: which the weights alone cannot know — a laptop with few cores loses more on
+#: channel-threaded detection than on recording-parallel network metrics.
+BENCHMARK_REFERENCE = {"detection_s": 0.32, "network_s": 2.32}
+
+#: Seconds of step 1 per second of benchmark detection, per benchmark-sized
+#: amount of recording (:data:`meanap.shared.benchmark.DETECTION_SAMPLES`
+#: channel-samples). On the reference machine an ExampleData recording
+#: (64 channels x 7.5M samples, 30 benchmark-sizes) took 8.6 s against the
+#: benchmark's 0.32 s: 8.6 / (0.32 x 30) = 0.9. It covers loading and the
+#: spike-check summaries as well as detection itself.
+STEP1_PER_BENCHMARK = 0.9
+
+#: The step-times key for step 1's measured seconds per channel-sample, which
+#: replaces the benchmark's figure once a run here has detected spikes.
+STEP1_RATE_KEY = "step1.per_channel_sample"
+
+#: Which benchmark part each phase moves with. Phases that are neither (drawing,
+#: activity statistics) move with both, as their geometric mean.
+_DETECTION_PHASES = ("step1",)
+_NETWORK_PHASES = ("step3", "step4.compute", "catnap.compute")
+
 #: Phases done once per run rather than once per recording.
 _PER_RUN_PHASES = ("batch",)
 
@@ -237,6 +262,12 @@ class RunProgress:
         self._times = times
         self._phase_items: dict[str, int] = {}
         self._recorded = False
+        # Seconds per unit of weight predicted before any work (see
+        # expect_detection), and how much work it takes to stop needing it.
+        self._prior_rate: float | None = None
+        self._prior_until = 0.0
+        self._detection_size: float | None = None
+        self._detection_items = 0
         self._clock = clock
         self._start = clock()
 
@@ -296,7 +327,7 @@ class RunProgress:
         rest, so the benchmark figures are first scaled by how this computer
         compares on the phases it does remember.
         """
-        defaults = {key: self._weight(key) for key in keys}
+        defaults = {key: self._weight(key) * self._speed_factor(key) for key in keys}
         if self._times is None:
             return defaults
         remembered = {key: self._times.seconds(self._memory_key(key)) for key in keys}
@@ -307,6 +338,52 @@ class RunProgress:
         scale = ratios[len(ratios) // 2] if len(ratios) % 2 else (
             ratios[len(ratios) // 2 - 1] + ratios[len(ratios) // 2]) / 2
         return {key: remembered[key] or defaults[key] * scale for key in keys}
+
+    def _speed_factor(self, key: str) -> float:
+        """How much slower *key* runs here than on the benchmark machine, if known.
+
+        Only the factors' ratios matter, so a uniformly slower computer gets
+        the same weights; one slower at detection than at network work gets a
+        heavier step 1.
+        """
+        bench = self._times.benchmark if self._times is not None else None
+        if not bench:
+            return 1.0
+        detection = bench["detection_s"] / BENCHMARK_REFERENCE["detection_s"]
+        network = bench["network_s"] / BENCHMARK_REFERENCE["network_s"]
+        if key in _DETECTION_PHASES:
+            return detection
+        if key in _NETWORK_PHASES:
+            return network
+        return (detection * network) ** 0.5
+
+    def expect_detection(self, channel_samples: float, recordings: int) -> None:
+        """How much step 1 has to detect: an estimate before any work is done.
+
+        *channel_samples* is the total over the *recordings* still to detect,
+        read from their headers. With this computer's seconds per
+        channel-sample — measured by an earlier run, else derived from its
+        benchmark — that is step 1's duration, and through the weights the
+        whole run's. Without either, the estimate waits for real work as
+        before. The prediction gives way to the run's own pace over its first
+        recording.
+        """
+        if channel_samples <= 0 or recordings <= 0:
+            return
+        self._detection_size = float(channel_samples)
+        self._detection_items = recordings
+        per_sample = self._times.seconds(STEP1_RATE_KEY) if self._times is not None else None
+        bench = self._times.benchmark if self._times is not None else None
+        if per_sample is None and bench:
+            from meanap.shared.benchmark import DETECTION_SAMPLES
+
+            per_sample = bench["detection_s"] * STEP1_PER_BENCHMARK / DETECTION_SAMPLES
+        one = self._per_item.get("step1", 0.0)
+        if per_sample is None or one <= 0:
+            return
+        self._prior_rate = per_sample * channel_samples / (recordings * one)
+        self._prior_until = one
+        self._publish()
 
     def _memory_key(self, key: str) -> str:
         """Express mode all but removes the drawing phases, so they are kept apart."""
@@ -327,6 +404,12 @@ class RunProgress:
     def measured(self) -> dict[str, float]:
         """Seconds per recording each finished planned phase took, by memory key."""
         out: dict[str, float] = {}
+        done = self._phase_items.get("step1", 0)
+        if self._detection_size and done and "step1" in self._weights:
+            # Per channel-sample, assuming the recordings that ran were of the
+            # average size of those expected.
+            size = self._detection_size * min(1.0, done / self._detection_items)
+            out[STEP1_RATE_KEY] = self._phase_spent.get("step1", 0.0) / size
         for key, items in self._phase_items.items():
             if key in _PER_RUN_PHASES and self._phase_spent.get(key, 0.0) > 0:
                 items = 1  # done once whatever it reports, per run not per recording
@@ -478,23 +561,30 @@ class RunProgress:
         return self._clock() - self._start
 
     def eta_s(self) -> float | None:
-        """Seconds remaining, or ``None`` while there is nothing to calibrate on.
+        """Seconds remaining, or ``None`` while there is nothing to go on.
 
-        A number invented from the benchmark alone would be a guess about a
-        machine this has never run on; "estimating" is the honest reading until
-        one unit of real work has been timed.
+        Before any work is done there is a number only if the recordings' size
+        and this computer's detection speed are known (:meth:`expect_detection`);
+        otherwise "estimating" is the honest reading until one unit of real
+        work has been timed. Once work is being timed, the run's own pace takes
+        over from the prediction across the first recording.
         """
         if self._total <= 0 or self._measure_from is None:
             return None
+        remaining = self._total - self._done
         if self._done <= 0:
-            return None
+            if self._prior_rate is None:
+                return None
+            return remaining * self._prior_rate
         spent = self._clock() - self._measure_from
         if spent <= 0:
             return None
-        remaining = self._total - self._done
         if remaining <= 0:
             return 0.0
         overall = spent / self._done
+        if self._prior_rate is not None and self._prior_until > 0:
+            trust = min(1.0, self._done / self._prior_until)
+            overall = trust * overall + (1.0 - trust) * self._prior_rate
         current = self._weights.get(self._phase_key, 0.0)
         left_here = max(0.0, current - self._phase_credited) if current else 0.0
         return (remaining - left_here) * overall + left_here * self._phase_rate(overall)

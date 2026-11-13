@@ -13,6 +13,13 @@ workstation running the same analysis have different proportions (spike
 detection is threaded per channel, step 4 per recording). A new computer's
 first run uses the benchmark; every run after it, its own history.
 
+The same file keeps this computer's benchmark (:mod:`meanap.shared.benchmark`)
+— how fast it detects spikes and builds null models — which lets a first run
+balance the steps for this computer before it has any history, and put a
+number on spike detection from the recordings' size before it starts. And
+once a run has detected spikes here, its seconds per sample replace the
+benchmark's for that.
+
 The file is a convenience. Reading or writing it never stops a run: anything
 unreadable is ignored, and a failed write is silent.
 
@@ -26,6 +33,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from pathlib import Path
 
 __all__ = ["StepTimes", "ENV_VAR", "remember_on_this_computer", "for_this_computer"]
@@ -71,20 +79,37 @@ class StepTimes:
 
     def __init__(self, path: Path) -> None:
         self.path = Path(path)
-        self._phases: dict[str, dict] = self._read()
+        self._phases: dict[str, dict] = {}
+        self._benchmark: dict | None = None
+        self._read()
 
-    def _read(self) -> dict[str, dict]:
+    def _read(self) -> None:
         try:
             data = json.loads(self.path.read_text())
         except (OSError, ValueError):
-            return {}
+            return
         if not isinstance(data, dict) or data.get("version") != _VERSION:
-            return {}
+            return
         phases = data.get("phases")
-        if not isinstance(phases, dict):
-            return {}
-        return {k: v for k, v in phases.items()
-                if isinstance(v, dict) and _positive(v.get("seconds"))}
+        if isinstance(phases, dict):
+            self._phases = {k: v for k, v in phases.items()
+                            if isinstance(v, dict) and _positive(v.get("seconds"))}
+        bench = data.get("benchmark")
+        if (isinstance(bench, dict) and _positive(bench.get("detection_s"))
+                and _positive(bench.get("network_s"))):
+            self._benchmark = bench
+
+    @property
+    def benchmark(self) -> dict | None:
+        """This computer's last full-size benchmark: ``detection_s``, ``network_s``, …"""
+        return self._benchmark
+
+    def record_benchmark(self, result) -> None:
+        """Keep a :class:`~meanap.shared.benchmark.BenchmarkResult`, replacing the last."""
+        data = result.as_dict() if hasattr(result, "as_dict") else dict(result)
+        data["measured_at"] = time.time()
+        self._benchmark = data
+        self._save()
 
     def seconds(self, key: str) -> float | None:
         """Remembered seconds per recording for *key*, if any run has measured it."""
@@ -110,8 +135,10 @@ class StepTimes:
         try:
             self.path.parent.mkdir(parents=True, exist_ok=True)
             tmp = self.path.with_suffix(".tmp")
-            tmp.write_text(json.dumps(
-                {"version": _VERSION, "phases": self._phases}, indent=1))
+            data = {"version": _VERSION, "phases": self._phases}
+            if self._benchmark is not None:
+                data["benchmark"] = self._benchmark
+            tmp.write_text(json.dumps(data, indent=1))
             os.replace(tmp, self.path)
         except OSError:
             pass

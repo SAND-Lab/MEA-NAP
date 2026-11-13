@@ -31,7 +31,8 @@ from typing import Callable
 
 import numpy as np
 
-__all__ = ["BenchmarkResult", "run_benchmark", "REFERENCE_SECONDS"]
+__all__ = ["BenchmarkResult", "run_benchmark", "remember_benchmark", "REFERENCE_SECONDS",
+           "DETECTION_SAMPLES"]
 
 #: The total time that scores 1.0. Chosen so a mid-range 2020s laptop lands
 #: near 1; only the ratio between machines matters to the split.
@@ -41,6 +42,9 @@ REFERENCE_SECONDS = 15.0
 _DET_FS = 25_000.0
 _DET_CHANNELS = 16
 _DET_SECONDS = 40.0
+#: Channel-samples the detection part works through at full size, so a
+#: recording's detection time can be scaled from it.
+DETECTION_SAMPLES = int(_DET_FS * _DET_SECONDS) * _DET_CHANNELS
 # Network: independent tasks, each a run of null models on a 60-node matrix.
 _NET_NODES = 60
 _NET_TASKS = 12
@@ -140,11 +144,17 @@ def _network_part(scale: float, processes: int | None) -> float:
 def run_benchmark(
     *, scale: float = 1.0, log: Callable[[str], None] | None = None,
     max_threads: int | None = None, max_processes: int | None = None,
+    remember: bool = True,
 ) -> BenchmarkResult:
     """Time both parts and return the score.
 
     *scale* shrinks or grows the work (tests use a small one); the score is
     normalised by it, so a scaled run still lands near what a full one would.
+
+    A full-size, unrestricted run is also kept with this computer's step
+    times (:mod:`meanap.pipeline.step_times`), where run progress uses it to
+    estimate time left — unless *remember* is false. A scaled or capped run
+    is not what a pipeline run here would get, so it is never kept.
     """
     from meanap.pipeline.parallel import (
         available_ram_gb, physical_cores, suggest_process_count,
@@ -171,7 +181,18 @@ def run_benchmark(
     if log:
         for line in result.describe():
             log(line)
+    if remember and scale == 1.0 and max_threads is None and max_processes is None:
+        remember_benchmark(result)
     return result
+
+
+def remember_benchmark(result: BenchmarkResult) -> None:
+    """Keep *result* as this computer's benchmark, where runs here remember."""
+    from meanap.pipeline.step_times import for_this_computer
+
+    times = for_this_computer()
+    if times is not None:
+        times.record_benchmark(result)
 
 
 def _total_ram_gb(fallback: float) -> float:
