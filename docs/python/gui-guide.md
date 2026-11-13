@@ -59,9 +59,20 @@ small `step_times.json` in this computer's cache folder (`~/.cache/meanap/app-ca
 on Linux, `~/Library/Caches/MEA-NAP` on macOS, `%LOCALAPPDATA%\MEA-NAP\cache` on
 Windows). The next run plans with those times instead of the built-in ones, so
 the estimate during spike detection already knows how long step 4 takes here.
-A new computer's first run uses the built-in times. Cancelled and continued
-runs are not remembered; deleting the file starts afresh, and setting the
-`MEANAP_STEP_TIMES` environment variable to `off` turns it off.
+Cancelled and continued runs are not remembered; deleting the file starts
+afresh, and setting the `MEANAP_STEP_TIMES` environment variable to `off` turns
+it off.
+
+For a computer's first run, the same file holds a short benchmark of the
+computer, the one the **System report** and shared runs use. The app runs it
+once by itself, in the background a few seconds after it first opens (about
+15 s; the status bar says so), unless a run has started. It tells the estimate
+how this computer compares at spike detection and at network calculations,
+and with the recordings' size, read from their file headers, it gives a time
+left from the moment a run starts instead of *estimating time left…*. After
+the first run, that run's own spike-detection speed replaces the benchmark's.
+Old-style (v7) `.mat` files cannot be sized without loading them, so they are
+assumed to be the size of the others.
 
 The version under the logo shows which MEA-NAP is running. When a newer one
 is out it says so, and clicking it opens **Versions and updates**.

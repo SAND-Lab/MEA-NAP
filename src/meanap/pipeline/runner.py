@@ -897,14 +897,26 @@ def _run_step1_spike_detection(
     if not source.remote:
         # Recordings the sheet lists but the folder lacks are not work: found
         # now, a local stat each, rather than one by one as the loop reaches
-        # them, so the bar is right from the first recording.
+        # them, so the bar is right from the first recording. The ones that
+        # are there say how much detecting there is to do, from their headers,
+        # which puts a number on the time left before any has been done.
+        from meanap.pipeline.recording_probe import channel_samples
+
+        sizes: list[int | None] = []
         for rec in recordings:
             if rec.filename in already_detected:
                 continue
             try:
-                source.raw_file(rec.filename)
+                raw = source.raw_file(rec.filename)
             except FileNotFoundError:
                 progress.skip(rec.filename)
+                continue
+            sizes.append(channel_samples(raw.path))
+        known = [n for n in sizes if n]
+        if known:
+            # Old-style .mat files cannot be sized without loading them; they
+            # are taken to be the size of the rest.
+            progress.expect_detection(sum(known) * len(sizes) / len(known), len(sizes))
 
     for rec, raw_path in stream_needing_work(
             source, recordings, already_detected.__contains__,

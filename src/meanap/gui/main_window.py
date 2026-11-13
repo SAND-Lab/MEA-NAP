@@ -977,6 +977,54 @@ class MainWindow(QMainWindow):
                 f"{text}  ·  {newer} available ⬆" if newer
                 else f"{text}  ·  update available ⬆" if fresh else ""), tip)
 
+    # ── This computer's speed, for time estimates ─────────────────────────────
+
+    #: How long after the window opens the one-off speed check starts: past
+    #: start-up, so the window is responsive first.
+    SPEED_CHECK_DELAY_MS = 5000
+
+    def start_speed_check(self, delay_ms: int | None = None) -> bool:
+        """Benchmark this computer once, in the background, if it never has been.
+
+        The benchmark (:mod:`meanap.shared.benchmark`) lets a first run's time
+        estimate know how this computer compares at spike detection and at
+        network work, and put a number on step 1 before it starts. Called by
+        ``app.main`` only, like the update check, so a test's window never
+        starts one. Returns whether one was scheduled.
+        """
+        from meanap.pipeline.step_times import for_this_computer
+
+        times = for_this_computer()
+        if times is None or times.benchmark is not None:
+            return False
+        QTimer.singleShot(self.SPEED_CHECK_DELAY_MS if delay_ms is None else delay_ms,
+                          self._begin_speed_check)
+        return True
+
+    def _begin_speed_check(self) -> None:
+        # A run already going would slow the benchmark and be slowed by it;
+        # this run will be timed anyway, and the check waits for next time.
+        if self._busy():
+            return
+        from meanap.gui.speed_check import SpeedCheck
+
+        self._speed_check = SpeedCheck(self)
+        self._speed_check.finished_check.connect(self._on_speed_checked)
+        self.statusBar().showMessage(
+            "Timing this computer once, for run time estimates (about 15 s)…", 20000)
+        self._speed_check.start()
+
+    def _on_speed_checked(self, result) -> None:
+        # Timed alongside a run, it measured a busy computer: not kept.
+        if result is None or self._busy():
+            self.statusBar().clearMessage()
+            return
+        from meanap.shared.benchmark import remember_benchmark
+
+        remember_benchmark(result)
+        self.statusBar().showMessage(
+            "This computer's speed is noted; run time estimates will use it.", 8000)
+
     # ── Versions and updates ──────────────────────────────────────────────────
 
     def start_update_check(self) -> None:
@@ -2315,6 +2363,12 @@ class MainWindow(QMainWindow):
         # its own verification, never left half-written by a closing window.
         if self._bundle_worker is not None and self._bundle_worker.isRunning():
             self._bundle_worker.wait(30000)
+        # The speed check is 10-20 s with no checkpoints; its result is
+        # dropped, and it is tried again next time.
+        speed = getattr(self, "_speed_check", None)
+        if speed is not None and speed.isRunning():
+            speed.discard = True
+            speed.wait(30000)
         # Each viewer holds a port and a temporary extraction directory; both
         # live as long as the process unless handed back here.
         self._viewers.close_all()
