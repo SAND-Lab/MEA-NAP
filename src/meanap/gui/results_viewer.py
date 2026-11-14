@@ -31,7 +31,7 @@ from PyQt6.QtCore import (
 from PyQt6.QtGui import QColor, QCursor, QFontInfo, QPainter, QPen, QPixmap
 from PyQt6.QtWidgets import (
     QAbstractItemView, QButtonGroup, QComboBox, QDoubleSpinBox, QFileDialog,
-    QFormLayout, QFrame, QHBoxLayout, QLabel, QLineEdit, QMenu,
+    QFormLayout, QFrame, QHBoxLayout, QLabel, QLineEdit,
     QListWidget, QListWidgetItem, QPushButton, QScrollArea, QSizePolicy, QSpinBox,
     QSplitter, QStackedWidget, QToolTip, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget,
 )
@@ -654,9 +654,11 @@ class _Cancelled(Exception):
 class _Export(QRunnable):
     """Draw a bundle out into an ordinary output folder (``export_output_folder``)."""
 
-    def __init__(self, bundle: Path, dest: Path, fmt: str, signals: _ExportSignals):
+    def __init__(self, bundle: Path, dest: Path, fmt: str, signals: _ExportSignals,
+                 figures: set | None = None, recordings: set | None = None):
         super().__init__()
         self._bundle, self._dest, self._fmt, self._signals = bundle, dest, fmt, signals
+        self._figures, self._recordings = figures, recordings
         self.cancel = False
 
     def _progress(self, done: int, total: int) -> None:
@@ -669,7 +671,8 @@ class _Export(QRunnable):
 
         try:
             result = export_output_folder(self._bundle, self._dest, fmt=self._fmt,
-                                          log=lambda m: None, progress=self._progress)
+                                          log=lambda m: None, progress=self._progress,
+                                          figures=self._figures, recordings=self._recordings)
         except _Cancelled:
             self._signals.failed.emit("")
             return
@@ -918,7 +921,6 @@ class ResultsViewer(QWidget):
         self._restyle.setSingleShot(True)
         self._restyle.setInterval(RESTYLE_DELAY_MS)
         self._restyle.timeout.connect(self._draw)
-        self._drew_in = 0.0
         self._native_key = None
         self._styleable = False
         self._tracking_listed = False
@@ -958,14 +960,9 @@ class ResultsViewer(QWidget):
         self.export_button = QPushButton("Export figures…")
         self.export_button.setObjectName("ghost")
         self.export_button.setToolTip(
-            "Draw every figure in this bundle into an ordinary results folder beside "
-            "it, with a report.html to browse them — for someone without MEA-NAP.")
-        export_menu = QMenu(self.export_button)
-        for fmt, text in (("png", "As PNG images (300 dpi)"),
-                          ("svg", "As SVG (editable vector)"),
-                          ("pdf", "As PDF (editable vector)")):
-            export_menu.addAction(text, lambda f=fmt: self.export(f))
-        self.export_button.setMenu(export_menu)
+            "Choose figures from this bundle to draw into an ordinary results folder "
+            "beside it, with a report.html to browse them — for someone without MEA-NAP.")
+        self.export_button.clicked.connect(self.choose_export)
         self.export_button.hide()
         self.export_cancel = QPushButton("Cancel")
         self.export_cancel.setObjectName("ghost")
@@ -1345,12 +1342,39 @@ class ResultsViewer(QWidget):
 
     # ── exporting every figure ───────────────────────────────────────────────
 
-    def export(self, fmt: str = "png", dest: Path | None = None) -> bool:
-        """Draw every figure of the open bundle into a folder beside it.
+    def export_dialog(self):
+        """The page that chooses what to export, filled from the open bundle;
+        ``None`` if there is nothing to export or an export is running."""
+        from meanap.gui.export_dialog import ExportDialog
+        from meanap.pipeline.export import SECTIONS, default_export_dest, export_jobs
 
-        Runs in the background; the header says how far it has got and where
-        the folder is when done. ``False`` if there is nothing to export or an
-        export is already running.
+        if (self._service is None or self._export_job is not None
+                or not self._manifest.get("can_export")):
+            return None
+        ctx = self._service.ctx
+        order = {section: i for i, section in enumerate(SECTIONS)}
+        jobs = sorted(export_jobs(ctx, Path(".")), key=lambda j: order.get(j.section, len(order)))
+        return ExportDialog(jobs, list(ctx.recordings),
+                            default_export_dest(Path(self._service.source)), self)
+
+    def choose_export(self) -> None:
+        """Ask which figures, recordings and format, then export them."""
+        dialog = self.export_dialog()
+        if dialog is None or not dialog.exec():
+            return
+        everything = dialog.everything_chosen()
+        self.export(dialog.fmt(), dialog.dest,
+                    figures=None if everything else dialog.chosen_figures(),
+                    recordings=None if everything else dialog.chosen_recordings())
+
+    def export(self, fmt: str = "png", dest: Path | None = None, *,
+               figures: set | None = None, recordings: set | None = None) -> bool:
+        """Draw the open bundle's figures into a folder beside it.
+
+        *figures* (``(section, figure)`` kinds) and *recordings* narrow it;
+        ``None`` means all. Runs in the background; the header says how far it
+        has got and where the folder is when done. ``False`` if there is
+        nothing to export or an export is already running.
         """
         from meanap.pipeline.export import default_export_dest
 
@@ -1359,7 +1383,8 @@ class ResultsViewer(QWidget):
             return False
         source = Path(self._service.source)
         self._export_dest = Path(dest) if dest is not None else default_export_dest(source)
-        self._export_job = _Export(source, self._export_dest, fmt, self._export_signals)
+        self._export_job = _Export(source, self._export_dest, fmt, self._export_signals,
+                                   figures, recordings)
         self._export_job.setAutoDelete(False)
         self.export_button.setEnabled(False)
         self.export_cancel.show()
@@ -1924,14 +1949,11 @@ class ResultsViewer(QWidget):
     def _on_drawn(self, generation: int, live) -> None:
         if isinstance(live, list):           # across DIVs: [(title, Live or message, current)]
             if generation == self._generation:
-                self._drew_in = sum(got.seconds for _t, got, _c in live
-                                    if isinstance(got, Live))
                 self.selection.setText("")
                 self._show_many(live)
             self._finish()
             return
         if generation == self._generation:
-            self._drew_in = live.seconds
             self.selection.setText("")
             self._show(live)
         elif hasattr(live.figure, "clear"):
@@ -2018,10 +2040,11 @@ class ResultsViewer(QWidget):
             self.view.show_message(message)
         self._finish()
 
-    def _on_painted(self, seconds: float) -> None:
-        self.status.setText(f"Drawn in {self._drew_in + seconds:.2f} s")
-        self.status.setToolTip(f"{self._drew_in:.2f} s to make the figure, "
-                               f"{seconds:.2f} s to put it on screen.")
+    def _on_painted(self, _seconds: float) -> None:
+        # "Drawing…" says a figure is on its way; once it is on screen there
+        # is nothing to say (figures draw in a fraction of a second).
+        self.status.setText("")
+        self.status.setToolTip("")
 
     # ── what a metric means ──────────────────────────────────────────────────
 

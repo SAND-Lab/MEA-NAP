@@ -26,13 +26,14 @@ from matplotlib.figure import Figure
 from matplotlib.patches import Circle
 
 from meanap.pipeline.io import load_raw_recording
+from meanap.gui.layout_preview import choose_layout_item
 from meanap.pipeline.channel_layout import get_coords_from_layout
 from meanap.stim.detection import detect_stim_times, get_stim_patterns
 
 _DETECTION_METHODS = [
     "longblank", "blanking", "absPosThreshold", "absNegThreshold", "stdNeg",
 ]
-_LAYOUTS = ["MCS60", "MCS60old", "MCS59", "Axion64", "Axion16"]
+_LAYOUTS = ["MCS60", "Axion64", "Axion16"]
 # Pattern colours (0 = no stim → white); mirrors MATLAB's stimPatternColors head.
 _PATTERN_COLORS = [
     "white", "#d62728", "#1f77b4", "#17becf", "#bcbd22", "#2ca02c",
@@ -265,7 +266,7 @@ class StimPreviewPanel(QWidget):
             self._min_blank.setValue(params.min_blanking_duration)
             self._pattern_thresh.setValue(params.stim_time_diff_threshold)
             self._stim_dur_plot.setValue(params.stim_duration_for_plotting)
-            self._layout_combo.setCurrentText(params.channel_layout)
+            choose_layout_item(self._layout_combo, params)
         except Exception:
             pass
 
@@ -314,7 +315,8 @@ class StimPreviewPanel(QWidget):
         if self._dat is None:
             return
         try:
-            ids, xy = get_coords_from_layout(self._layout_combo.currentText())
+            ids, xy = get_coords_from_layout(self._layout_combo.currentData()
+                                             or self._layout_combo.currentText())
             by_id = {int(c): p for c, p in zip(ids, xy)}
         except Exception:
             by_id = {}
