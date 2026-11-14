@@ -36,6 +36,9 @@ class FigureCanvas(QWidget):
 
     hovered = pyqtSignal(str)
     picked = pyqtSignal(str)
+    #: The recording a mark stands for ("" for none), and whether it was
+    #: pinned (True) or only pointed at (False). See ``FigurePainter.recording_of``.
+    recording = pyqtSignal(str, bool)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -94,6 +97,7 @@ class FigureCanvas(QWidget):
             return
         figure.hovered = what
         self.update()
+        self.recording.emit(figure.recording_of(what) or "", False)
         text = figure.describe(what) if what is not None else ""
         if not text:
             QToolTip.hideText()
@@ -111,6 +115,7 @@ class FigureCanvas(QWidget):
             what = None
         figure.pinned = what
         self.update()
+        self.recording.emit(figure.recording_of(what) or "", True)
         self.picked.emit("" if what is None else figure.describe(what).replace("\n", " · "))
 
     def click(self, what) -> None:

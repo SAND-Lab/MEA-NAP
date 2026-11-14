@@ -1584,6 +1584,143 @@ def _window_checks(bundle: Path) -> list[Check]:
     return checks
 
 
+def _finding_checks(bundle: Path, tmp: Path) -> list[Check]:
+    """Filtering the recordings, one figure across DIVs, previews from a comparison."""
+    from meanap.gui.results_viewer import _RECORDING_ROLE, ResultsViewer, _cultures
+
+    checks: list[Check] = []
+    recs = [{"name": n, "div": d} for n, d in (
+        ("MPT200114_2A_DIV14", 14), ("MPT200114_2A_DIV21", 21), ("MPT200114_3B_DIV14", 14),
+        ("OPME240517_17_20240602_P1_pup2D_WT_DIV16 David Oluigbo", 16),
+        ("OPME240517_17_20240608_P1_pup2D_WT_DIV22 David Oluigbo", 22))]
+    cultures = _cultures(recs)
+    checks.append(("a culture is its recordings at other DIVs, youngest first",
+                   cultures.get(0) == [0, 1] and cultures.get(1) == [0, 1], str(cultures)))
+    checks.append(("a culture recorded once is not offered across DIVs", 2 not in cultures, ""))
+    checks.append(("a note after the DIV token (an exporter's name) does not hide it",
+                   cultures.get(3) == [3, 4], str(cultures)))
+
+    viewer = ResultsViewer()
+    viewer.resize(1300, 850)
+    viewer.show()
+    viewer.load_run(bundle)
+    _settle(viewer)
+    listed = lambda: [viewer.recordings.item(i) for i in range(viewer.recordings.count())]  # noqa: E731
+    names = lambda: [it.text().split("\n")[0] for it in listed()  # noqa: E731
+                     if it.data(_RECORDING_ROLE) is not None]
+    checks.append(("every group is offered as a filter",
+                   [viewer.rec_group.itemText(i) for i in range(viewer.rec_group.count())]
+                   == ["All groups", "KO", "WT"], ""))
+    viewer.rec_group.setCurrentIndex(viewer.rec_group.findData("KO"))
+    _settle(viewer)
+    checks.append(("filtering by group lists that group only, and follows to it",
+                   names() == ["recB"] and viewer._recording()["name"] == "recB"
+                   and viewer.rec_count.text() == "1 of 2", f"{names()} {viewer.rec_count.text()}"))
+    viewer.rec_group.setCurrentIndex(0)
+    viewer.rec_search.setText("reca")
+    _settle(viewer)
+    checks.append(("the name filter ignores case", names() == ["recA"], str(names())))
+    viewer.rec_search.clear()
+    viewer.rec_by.setCurrentIndex(viewer.rec_by.findData("group"))
+    _settle(viewer)
+    heads = [it.text() for it in listed() if it.data(_RECORDING_ROLE) is None]
+    checks.append(("headings per group, which cannot be chosen",
+                   heads == ["KO", "WT"] and all(
+                       not it.flags() & it.flags().ItemIsSelectable
+                       for it in listed() if it.data(_RECORDING_ROLE) is None), str(heads)))
+    viewer.rec_by.setCurrentIndex(0)
+    _settle(viewer)
+
+    # Across DIVs: the fixture's two recordings stand in for one culture.
+    viewer._manifest["recordings"][1]["div"] = 28.0
+    viewer._siblings = {0: [0, 1], 1: [0, 1]}
+    viewer.select_recording("recA")
+    _settle(viewer)
+    viewer.select_figure("Node degree")
+    _settle(viewer)
+    checks.append(("“Across DIVs” is offered for a culture recorded at several",
+                   viewer.across_divs.isVisibleTo(viewer)
+                   and viewer.across_divs.text() == "Across DIVs (2)", viewer.across_divs.text()))
+    viewer.across_divs.setChecked(True)
+    _settle(viewer)
+    cells = viewer.montage.canvases
+    checks.append(("which draws the figure once per DIV, side by side",
+                   viewer._stack.currentWidget() is viewer.montage and len(cells) == 2
+                   and all(getattr(c, "painter", None) is not None for c in cells),
+                   str([type(c).__name__ for c in cells])))
+    if len(cells) == 2 and hasattr(cells[0], "select_name"):
+        cells[0].select(0)
+        name = str(cells[0].painter.network.names[0])
+        other = cells[1].painter.network.names
+        followed = cells[1].selected is not None and str(other[cells[1].selected]) == name
+        if viewer._manifest.get("mode") == "catnap":
+            # Imaged cells are numbered afresh each session: cell 3 at one
+            # DIV is not cell 3 at the next, so nothing follows.
+            checks.append(("an imaged cell chosen in one is not “followed” in the others",
+                           cells[1].selected is None, name))
+        else:
+            checks.append(("an electrode chosen in one is chosen in the others",
+                           followed or name not in [str(n) for n in other], name))
+    out = tmp / "across.svg"
+    viewer.montage.export(str(out))
+    checks.append(("and saves as one figure", out.exists() and out.stat().st_size > 1000, ""))
+    viewer.select_recording("recB")
+    _settle(viewer)
+    checks.append(("it stays on for the next recording of the culture",
+                   viewer._stack.currentWidget() is viewer.montage, ""))
+    viewer.across_divs.setChecked(False)
+    _settle(viewer)
+    viewer._siblings = {}
+    viewer.select_recording("recA")
+    _settle(viewer)
+    checks.append(("and is not offered where there are no other DIVs",
+                   not viewer.across_divs.isVisibleTo(viewer)
+                   and viewer._stack.currentWidget() is not viewer.montage, ""))
+
+    # A point across recordings previews that recording, and opens it.
+    viewer.set_scope("group")
+    _settle(viewer)
+    comparison = next((label for label in viewer.figure_labels()
+                       if "Network" in label and "Recording" in label), None)
+    if comparison:
+        viewer.select_figure(comparison)
+    _settle(viewer)
+    painter = viewer.canvas.painter
+    point = ("point", 0, 0, 0)
+    pointed = painter.recording_of(point) if painter is not None and hasattr(
+        painter.scene, "panels") else None
+    checks.append(("a comparison's point names its recording", pointed in ("recA", "recB"),
+                   f"{comparison} {pointed}"))
+    if pointed:
+        viewer.canvas.point(point)
+        for _ in range(200):
+            _wait()
+            if not viewer._preview_busy:
+                break
+        pic = viewer.preview.picture.pixmap()
+        checks.append(("pointing at it shows a preview of that recording",
+                       viewer.preview.isVisible() and viewer.preview.name == pointed
+                       and pic is not None and not pic.isNull(), viewer.preview.picture.text()))
+        viewer.canvas.click(point)
+        viewer.canvas.point(None)
+        _wait(PREVIEW_WAIT_MS)
+        checks.append(("which stays while the point is pinned", viewer.preview.isVisible(), ""))
+        viewer.preview.opened.emit(viewer.preview.name)
+        _settle(viewer)
+        checks.append(("clicking it opens the recording, at the figure previewed",
+                       viewer.scope == "recording" and viewer._recording()["name"] == pointed
+                       and viewer.figures.currentItem() is not None
+                       and viewer.figures.currentItem().data(0, 0x0100)["kind"]
+                       in ("network", "activity") and not viewer.preview.isVisible(),
+                       f"{viewer.scope} {viewer.figure_title.text()}"))
+    viewer.close()
+    return checks
+
+
+#: Longer than the preview card's grace period.
+PREVIEW_WAIT_MS = 900
+
+
 def main() -> int:
     app = QApplication.instance() or QApplication([])  # noqa: F841
     total_pass = total = 0
@@ -1599,6 +1736,7 @@ def main() -> int:
             ("G. Bursts, cartography and CAT-NAP rasters", _remaining_checks(tmp)),
             ("H. Comparisons across recordings", _group_checks(tmp)),
             ("B. The window", _window_checks(bundle)),
+            ("I. Finding and comparing recordings", _finding_checks(bundle, tmp)),
         ):
             n_pass, n = _report(title, checks)
             total_pass += n_pass

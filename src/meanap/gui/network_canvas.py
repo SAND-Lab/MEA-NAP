@@ -119,6 +119,9 @@ class NetworkCanvas(QWidget):
 
     hovered = pyqtSignal(str)
     picked = pyqtSignal(str)
+    #: The name of the node selected by a click (None when let go), so other
+    #: views of the same array can select it too (see :meth:`select_name`).
+    node_selected = pyqtSignal(object)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -221,19 +224,34 @@ class NetworkCanvas(QWidget):
         else:
             self.select(node)
 
-    def select(self, node: int | None) -> None:
-        """Select one node — its connections stay, the rest fades — or none."""
+    def select(self, node: int | None, *, quiet: bool = False) -> None:
+        """Select one node — its connections stay, the rest fades — or none.
+
+        *quiet* selects without saying so: for a selection made to follow
+        another view's, which has already said it.
+        """
         figure = self.painter
         if figure is None:
             return
         figure.select(node)
         self.surface.update()
+        if quiet:
+            return
+        names = figure.network.names
+        self.node_selected.emit(None if node is None else str(names[node]))
         if node is None:
             self.picked.emit("")
             return
         count = len(figure.network.neighbours(node))
         self.picked.emit(figure.describe(node).replace("\n", " · ")
                          + f" · {count} connection{'' if count == 1 else 's'} shown")
+
+    def select_name(self, name: str | None) -> None:
+        """Quietly select the node called *name*, or none if there is no such node."""
+        if self.painter is None:
+            return
+        names = [str(n) for n in self.painter.network.names]
+        self.select(names.index(name) if name in names else None, quiet=True)
 
     # ── export ───────────────────────────────────────────────────────────────
 
