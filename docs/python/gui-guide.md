@@ -474,7 +474,7 @@ it applies.
 | **Min activity level (spikes/s)** | The firing rate an electrode must reach to count as active (default `0.01`, as in the MATLAB app). Applied after detection: it decides the number of active electrodes and which electrodes enter the firing rate statistics and the network, not which spikes are found. At `0` every electrode counts as active, even a silent one. Also on the Connectivity tab; the two fields are one setting. |
 | **Wavelet methods** | One or more of `bior1.5`, `bior1.3`, `db2`, `sym2`, `haar`, `mea` (multi-select list). `mea` is built on each electrode from its own median spike. |
 | **Wavelet cost** ⚙ | Cost parameter for the continuous wavelet transform (default `-0.12`). |
-| **Spike method for analysis** | Which detection method's output feeds steps 2–4: `bior1p5`, `bior1p3`, `mergedAll`, `mergedWavelet`, `thr4p5`, `thr5p0`, `thr3p5`. |
+| **Spike method for analysis** | Which detection method's output feeds steps 2–4. The list holds the methods step 1 will save with the wavelets and thresholds as set (`bior1p5`, `thr4`, `thr4p5`, …); a saved choice they will not produce stays, marked *not detected by these settings*, for runs that start from step 2. A run stops if a spike file lacks the chosen method. |
 | **Low-pass / high-pass cutoff** ⚙ | Bandpass filter applied before detection (default 600–8000 Hz). |
 | **Refractory period** ⚙ | Minimum inter-spike interval (ms) enforced during detection. |
 | **Template threshold** / **Template refractory period** ⚙ | The threshold (noise-sigma multiplier, default 3.5) and refractory period (default 2 ms) for the spikes the `mea` wavelet's template is the median of. |

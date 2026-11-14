@@ -1416,6 +1416,12 @@ Gotchas that are easy to re-break:
 
 ## Spike detection gotchas (don't re-discover these)
 
+- **Spike method for analysis (2026-11-14)**: the GUI list is now what step 1
+  will save with the selected wavelets/thresholds (`threshold_method_name`:
+  4.0 → `thr4`, never `thr4p0`); the old fixed list offered `thr5p0`,
+  `mergedAll`, `mergedWavelet` (never produced) and not `thr4`/`thr5`. Steps
+  2–4 and stim call `io.require_spike_method`, raising `MissingSpikeMethod`
+  instead of reading empty trains when the file lacks the method.
 - **Every MATLAB wavelet runs (2026-11-14)**: bior1.5, bior1.3, db2, sym2,
   haar and `mea` — until then only bior1.5 did and the others stopped step 1.
   `_intwave` is PyWavelets' `wavefun(level=10)` integrated, equal to MATLAB's
