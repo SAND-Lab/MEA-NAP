@@ -46,7 +46,7 @@ from meanap.pipeline.spreadsheet import (
     read_recording_table, validate_recording_table, write_recording_table,
 )
 
-_FILE_FILTER = "Spreadsheets (*.csv *.xlsx *.xls)"
+_FILE_FILTER = "Spreadsheets (*.csv *.xlsx)"
 #: Columns by position, as ``read_recording_csv`` reads them.
 _DIV_COLUMN, _GROUP_COLUMN = 1, 2
 #: Cells filled from the names, until the person edits them or saves: amber

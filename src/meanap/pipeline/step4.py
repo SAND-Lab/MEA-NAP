@@ -23,7 +23,9 @@ from meanap.timescale import (
 from meanap.params import Params, active_spike_method
 from meanap.pipeline import network_metrics as nm
 from meanap.pipeline.cancellation import CancelCheck, check_cancel
-from meanap.pipeline.channel_layout import get_coords_from_layout, node_distances_in_pitches
+from meanap.pipeline.channel_layout import (
+    get_coords_from_layout, layout_of, node_distances_in_pitches,
+)
 from meanap.pipeline.io import (
     find_raw_file, load_spike_times_npz, require_spike_method, resolve_duration_s,
     truncate_spike_times,
@@ -455,7 +457,7 @@ def _plot_recording_lag(
             # Individual-scaled (this recording's own range).
             if (p := want(fname)) is not None:
                 plot_spatial_network(
-                    metrics["adjMsub"], channels_active, params.channel_layout,
+                    metrics["adjMsub"], channels_active, layout_of(params),
                     z, z2, color_name, lag_ms, rec.filename,
                     p, z_name=size_name,
                     coords_override=coords_active, cell_types=ct_active,
@@ -469,7 +471,7 @@ def _plot_recording_lag(
                 scaled_name = fname.replace("_MEA_NetworkPlot", "_scaled_MEA_NetworkPlot", 1)
                 if (p := want(scaled_name)) is not None:
                     plot_spatial_network(
-                        metrics["adjMsub"], channels_active, params.channel_layout,
+                        metrics["adjMsub"], channels_active, layout_of(params),
                         z, z2, color_name, lag_ms, rec.filename,
                         p, z_name=size_name,
                         z_scale_override=size_max,
@@ -489,7 +491,7 @@ def _plot_recording_lag(
                 combined_name += ".png"
                 if (p := want(combined_name)) is not None:
                     plot_spatial_network_combined(
-                        metrics["adjMsub"], channels_active, params.channel_layout,
+                        metrics["adjMsub"], channels_active, layout_of(params),
                         z, z2, color_name, lag_ms, rec.filename,
                         p, z_name=size_name,
                         z_scale_override=size_max,
@@ -505,7 +507,7 @@ def _plot_recording_lag(
         try:
             if (p := want("12_MeanImageAndNetwork.png")) is not None:
                 plot_network_beside_field(
-                    metrics["adjMsub"], channels_active, params.channel_layout,
+                    metrics["adjMsub"], channels_active, layout_of(params),
                     metrics["ND"], lag_ms, rec.filename, p,
                     background=background,
                     coords_override=coords_active,
@@ -576,7 +578,7 @@ def _plot_recording_lag(
                 if coords_all is not None:
                     xy = np.asarray(coords_all, dtype=float)[idx]
                 else:
-                    layout_ch, layout_xy = get_coords_from_layout(params.channel_layout)
+                    layout_ch, layout_xy = get_coords_from_layout(layout_of(params))
                     by_id = dict(zip(layout_ch.tolist(), map(tuple, layout_xy)))
                     xy = np.array([by_id.get(int(c), (np.nan, np.nan))
                                    for c in np.asarray(channels_arr)[idx]], dtype=float)
@@ -651,7 +653,7 @@ def _spatiotemporal_inputs(
     try:
         node_coords = adj_data["coords"] if "coords" in adj_data.files else None
         dist = node_distances_in_pitches(
-            params.channel_layout, channels_arr, spike_data, node_coords=node_coords)
+            layout_of(params), channels_arr, spike_data, node_coords=node_coords)
     except ValueError as e:
         logs.append(f"  [{filename}] skipping spatial/temporal autocorrelation: {e}")
         return None
@@ -886,7 +888,7 @@ def _step4_plot_one(
                 st_diag = {
                     "raw": raw,
                     "dist": node_distances_in_pitches(
-                        params.channel_layout, channels_arr, spike_data, node_coords=coords_all),
+                        layout_of(params), channels_arr, spike_data, node_coords=coords_all),
                     "rate": np.array([len(t) for t in spike_times_list]) / duration_s,
                     "dist_unit": "electrode pitches",
                     "rate_label": "Firing rate (Hz)",

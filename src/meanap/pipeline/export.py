@@ -26,8 +26,38 @@ from typing import Callable
 
 from meanap.timescale import timescale_folder
 
-__all__ = ["ExportResult", "export_output_folder", "default_export_dest",
-           "unpack_bundle_data"]
+__all__ = ["ExportJob", "ExportResult", "export_choices", "export_jobs",
+           "export_output_folder", "default_export_dest", "unpack_bundle_data"]
+
+#: The sections an export's figures fall into, in the order a run makes them.
+SPIKE_CHECKS = "Spike detection checks"
+ACTIVITY = "Neuronal activity"
+STIMULATION = "Stimulation"
+THRESHOLDING = "Edge thresholding checks"
+NETWORK = "Network"
+SUBNETWORKS = "Cell-type subnetworks"
+GROUPS = "Comparisons across recordings"
+STATISTICS = "Statistics"
+SECTIONS = (SPIKE_CHECKS, ACTIVITY, STIMULATION, THRESHOLDING, NETWORK, SUBNETWORKS,
+            GROUPS, STATISTICS)
+
+
+@dataclass
+class ExportJob:
+    """One thing an export draws: a figure (or a small set) of one kind."""
+
+    section: str
+    #: The kind of figure, as a person picks it ("Node degree"); with the
+    #: section, what the export page lists.
+    figure: str
+    #: The recording it belongs to, or None for one drawn across recordings.
+    recording: str | None
+    what: str
+    run: Callable[[], object]
+
+    @property
+    def kind(self) -> tuple[str, str]:
+        return self.section, self.figure
 
 
 @dataclass
@@ -74,8 +104,14 @@ def export_output_folder(
     report: bool = True,
     log: Callable[[str], None] = print,
     progress: Callable[[int, int], None] | None = None,
+    figures: set[tuple[str, str]] | None = None,
+    recordings: set[str] | None = None,
 ) -> ExportResult:
     """Draw a bundle out into a full output folder and return what was made.
+
+    *figures* (``(section, figure)`` pairs, as :func:`export_choices` lists
+    them) and *recordings* narrow it to those; ``None`` means all. A figure
+    drawn across recordings is drawn whichever recordings are chosen.
 
     *source* is a ``.meanap`` path or an already-open
     :class:`~meanap.pipeline.bundle.RunBundle`. Data files are copied first, so
@@ -113,7 +149,11 @@ def export_output_folder(
 
         ctx = load_context(bundle)
         result = ExportResult(dest=dest)
-        _draw_everything(ctx, dest, result, fmt=fmt, log=log, progress=progress)
+        jobs = [job for job in export_jobs(ctx, dest, fmt=fmt)
+                if (figures is None or job.kind in figures)
+                and (recordings is None or job.recording is None
+                     or job.recording in recordings)]
+        _run_jobs(jobs, result, progress)
 
         if report:
             result.report = _write_report(dest, log)
@@ -189,13 +229,26 @@ def _copy_data(root: Path, dest: Path) -> int:
     return n
 
 
-def _draw_everything(ctx, dest: Path, result: ExportResult, *, fmt: str,
-                     log, progress) -> None:
-    """Every figure the bundle can produce, in the pipeline's own layout."""
+def export_choices(ctx) -> tuple[list[tuple[str, str]], list[str]]:
+    """What an export of *ctx* (a loaded run) can be narrowed to: the
+    ``(section, figure)`` kinds it would draw, in run order, and the recordings."""
+    kinds = list(dict.fromkeys(job.kind for job in export_jobs(ctx, Path("."))))
+    order = {section: i for i, section in enumerate(SECTIONS)}
+    kinds.sort(key=lambda k: order.get(k[0], len(order)))   # stable within a section
+    return kinds, list(ctx.recordings)
+
+
+def export_jobs(ctx, dest: Path, *, fmt: str = "png") -> list[ExportJob]:
+    """Every figure the bundle can produce, in the pipeline's own layout.
+
+    Nothing is drawn: each job draws when run, so listing them is cheap.
+    """
     from meanap.pipeline import render as R
 
-    # Counted up front so the caller can show a bar rather than a spinner.
-    jobs: list[tuple[str, Callable[[], None]]] = []
+    jobs: list[ExportJob] = []
+
+    def add(section, figure, recording, what, run) -> None:
+        jobs.append(ExportJob(section, figure, recording, what, run))
 
     for name in ctx.recordings:
         rec = ctx.recordings[name]
@@ -209,56 +262,50 @@ def _draw_everything(ctx, dest: Path, result: ExportResult, *, fmt: str,
             for spec in R.available_figures(ctx, name, lag):
                 base = spec.name.format(lag=lag)
                 for variant in R.figure_variants(ctx, name, lag, base):
-                    jobs.append((
-                        f"{name} {lag}ms {base} ({variant})",
+                    add(NETWORK, spec.label, name, f"{name} {lag}ms {base} ({variant})",
                         lambda n=name, l=lag, b=base, v=variant, d=net_dir:
-                            R.render_figure(ctx, n, l, b, d, fmt=fmt, variant=v)))
-            for spec in R.available_subnetwork_figures(ctx, name, lag):
-                jobs.append((
-                    f"{name} {lag}ms {spec.name}",
-                    lambda n=name, l=lag, s=spec.name,
-                           d=lag_dir / "cellTypeSubnetworks":
-                        R.render_subnetwork_figure(ctx, n, l, s, d, fmt=fmt)))
-            if R.available_subnetwork_figures(ctx, name, lag):
+                            R.render_figure(ctx, n, l, b, d, fmt=fmt, variant=v))
+            subnetworks = R.available_subnetwork_figures(ctx, name, lag)
+            for spec in subnetworks:
+                add(SUBNETWORKS, spec.label, name, f"{name} {lag}ms {spec.name}",
+                    lambda n=name, l=lag, s=spec.name, d=lag_dir / "cellTypeSubnetworks":
+                        R.render_subnetwork_figure(ctx, n, l, s, d, fmt=fmt))
+            if subnetworks:
                 # The whole 4A set again, once per cell type. Recomputed rather
                 # than reassembled — see render_subnetwork_figure_set.
-                jobs.append((
+                add(SUBNETWORKS, "Network figures for each cell type", name,
                     f"{name} {lag}ms per-subnetwork figure set",
                     lambda n=name, l=lag, d=net_dir:
-                        R.render_subnetwork_figure_set(ctx, n, l, d, fmt=fmt)))
+                        R.render_subnetwork_figure_set(ctx, n, l, d, fmt=fmt))
             if lag in R.available_edge_check_lags(ctx, name):
-                jobs.append((
-                    f"{name} {lag}ms thresholding check",
+                add(THRESHOLDING, "Thresholding check", name, f"{name} {lag}ms thresholding check",
                     lambda n=name, l=lag, d=dest / "3_EdgeThresholdingCheck":
-                        R.render_edge_check_figure(ctx, n, l, d, fmt=fmt)))
+                        R.render_edge_check_figure(ctx, n, l, d, fmt=fmt))
 
         activity_dir = dest / "2_NeuronalActivity" / "2A_IndividualNeuronalAnalysis"
         for spec in R.available_activity_figures(ctx, name):
-            jobs.append((
-                f"{name} {spec.name}",
+            add(ACTIVITY, spec.label, name, f"{name} {spec.name}",
                 lambda n=name, s=spec.name, d=activity_dir:
-                    R.render_activity_figure(ctx, n, s, d, fmt=fmt)))
+                    R.render_activity_figure(ctx, n, s, d, fmt=fmt))
 
         # Stimulation figures, back where the stim step writes them. A bundle
         # from before their payloads were saved carries them as pictures
         # instead, already copied by _copy_data, and this draws nothing.
         if R._redrawable_stim_names(ctx, name):
-            jobs.append((
-                f"{name} stimulation figures",
+            add(STIMULATION, "Stimulation figures", name, f"{name} stimulation figures",
                 lambda n=name, d=activity_dir / rec.group / name:
-                    R.render_stim_figures(ctx, n, d)))
+                    R.render_stim_figures(ctx, n, d))
 
         check_dir = (dest / "1_SpikeDetection" / "1B_SpikeDetectionChecks"
                      / rec.group / name)
         for spec in R.available_spike_check_figures(ctx, name):
-            jobs.append((
-                f"{name} {spec.name}",
+            add(SPIKE_CHECKS, spec.label, name, f"{name} {spec.name}",
                 lambda n=name, s=spec.name, d=check_dir:
-                    R.render_spike_check_figure(ctx, n, s, d, fmt=fmt)))
+                    R.render_spike_check_figure(ctx, n, s, d, fmt=fmt))
 
     for fam in R.available_group_families(ctx):
-        jobs.append((f"family {fam.key}",
-                     lambda k=fam.key: R.render_group_family(ctx, k, dest, fmt=fmt)))
+        add(GROUPS, fam.label, None, f"family {fam.key}",
+            lambda k=fam.key: R.render_group_family(ctx, k, dest, fmt=fmt))
 
     # Step 5, when the run has been through the statistics step. Its tables
     # travel in the bundle and its figures do not, so this is where they come
@@ -267,20 +314,23 @@ def _draw_everything(ctx, dest: Path, result: ExportResult, *, fmt: str,
     for stats_lag in R.available_stats_lags(ctx):
         stats_dir = dest / R.STATS_DIRNAME / stats_lag
         for figure in R.available_stats_figures(ctx, stats_lag):
-            jobs.append((
-                f"statistics {stats_lag} {figure.key}",
+            add(STATISTICS, figure.label, None, f"statistics {stats_lag} {figure.key}",
                 lambda sl=stats_lag, k=figure.key, d=stats_dir:
-                    R.render_stats_figure(ctx, sl, k, d, fmt=fmt)))
+                    R.render_stats_figure(ctx, sl, k, d, fmt=fmt))
+    return jobs
 
+
+def _run_jobs(jobs: list[ExportJob], result: ExportResult, progress) -> None:
+    # Counted up front so the caller can show a bar rather than a spinner.
     total = len(jobs)
-    for i, (what, run) in enumerate(jobs):
+    for i, job in enumerate(jobs):
         if progress is not None:
             progress(i, total)
         try:
-            made = run()
+            made = job.run()
         except Exception as e:                       # noqa: BLE001
             # One figure failing must not cost the other several hundred.
-            result.skipped.append((what, f"{type(e).__name__}: {e}"))
+            result.skipped.append((job.what, f"{type(e).__name__}: {e}"))
             continue
         result.figures += len(made) if isinstance(made, list) else 1
     if progress is not None:

@@ -36,6 +36,7 @@ from PyQt6.QtWidgets import (
 from meanap.gui.branding import logo_pixmap
 from meanap.gui.modes import MODES
 from meanap.params import is_remote_url
+from meanap.pipeline.channel_layout import CUSTOM_LAYOUT
 from meanap.gui.simple_results import ResultsPage, viewers_for
 from meanap.gui.simple_settings import SETTINGS_QSS, Section, SectionDrawer, SettingsCard
 from meanap.gui.settings_search import (
@@ -791,7 +792,7 @@ class SimpleView(QWidget):
         # Spreadsheet
         sheet = self._path_field(self._data.spreadsheet.line_edit, folder=False,
                                  placeholder="Choose a .csv or .xlsx file",
-                                 file_filter="Spreadsheets (*.csv *.xlsx *.xls)")
+                                 file_filter="Spreadsheets (*.csv *.xlsx)")
         make = QPushButton("Create or edit…")
         make.setObjectName("linkButton")
         make.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -832,12 +833,24 @@ class SimpleView(QWidget):
             rate = QLabel()
             rate.setObjectName("stepHint")
             rate.setWordWrap(True)
-            body = self._form([("Electrode layout", layout), ("Sampling rate", rate)])
+            layout_file = self._path_field(
+                self._data.custom_layout_file.line_edit, folder=False,
+                placeholder="A CSV of channel, x, y (µm)",
+                file_filter="Layout tables (*.csv *.xlsx)")
+            body = self._form([("Electrode layout", layout), ("Layout file", layout_file),
+                               ("Sampling rate", rate)])
+            form = body.layout()
+
+            def show_file(text: str) -> None:
+                form.setRowVisible(1, text == CUSTOM_LAYOUT)
+
+            layout.currentTextChanged.connect(show_file)
+            show_file(layout.currentText())
             add("recording", "Recording settings",
                 "Both are read from your recordings. Change the layout only if "
                 "it's wrong.",
                 body, lambda: self._recording_check(layout, rate),
-                focus=layout, confirm=True, watch=[layout])
+                focus=layout, confirm=True, watch=[layout, layout_file.edit])
 
         if mode == "meastim":
             method = QComboBox()
@@ -926,6 +939,12 @@ class SimpleView(QWidget):
                 " (each is analysed at its own)" if len(set(guess.rates)) > 1 else "")
             if rates else "Read from each recording when the run starts")
         self._data.refresh_detection()
+        if layout.currentText() == CUSTOM_LAYOUT:
+            problem = self._data.custom_layout_problem()
+            if problem:
+                return Check("error", problem, "Custom layout")
+            n = len(self._data._custom_rows)
+            return self._confirmed_check("recording", f"Custom layout, {n} electrodes")
         return (check_recording_settings(guess, layout.currentText())
                 or self._confirmed_check("recording", layout.currentText()))
 

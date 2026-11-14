@@ -89,6 +89,7 @@ class RunNetwork:
     """
 
     def __init__(self, ctx, recording: str) -> None:
+        from meanap.pipeline.channel_layout import layout_of
         from meanap.pipeline.probes import layout_coords_for_channels
         from meanap.pipeline.render import (
             _adjacency_keys, _recording_arrays, _state_file,
@@ -105,7 +106,7 @@ class RunNetwork:
         channels, coords, markers = _recording_arrays(ctx, recording)
         self.channels = np.asarray(channels).ravel()
         if coords is None:  # ephys: positions come from the layout, not the file
-            coords, _ = layout_coords_for_channels(ctx.params.channel_layout, self.channels)
+            coords, _ = layout_coords_for_channels(layout_of(ctx.params), self.channels)
         self.coords = np.asarray(coords, dtype=float)
         #: ``(matrix, names)`` of cell types the run carries (CAT-NAP), or None.
         self.markers = markers

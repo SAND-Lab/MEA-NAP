@@ -8,10 +8,10 @@ such, but the channels give it away:
 =====================================  ==========================
 What the files show                    Layout
 =====================================  ==========================
-an MCS ``.h5``                         MCS60, or MCS59 at 59 channels
+an MCS ``.h5``                         MCS60
 an Axion ``.raw``                      Axion64, or Axion16 at 16 per well
 a ``.mat`` with 16 channels            Axion16
-a ``.mat`` with 59 / 60 channels       MCS59 / MCS60
+a ``.mat`` with 59 / 60 channels       MCS60
 a ``.mat`` with 64 channels (11–88)    see below
 =====================================  ==========================
 
@@ -179,8 +179,7 @@ def _layout_of(probe: RecordingProbe, corners: bool | None) -> tuple[str | None,
     """``(layout, sure, reason)`` for one kind of recording."""
     n = probe.n_channels
     if probe.format == "mcs":
-        layout = "MCS59" if n == 59 else "MCS60"
-        return layout, True, f"Multi Channel Systems files with {n} channels"
+        return "MCS60", True, f"Multi Channel Systems files with {n} channels"
     if probe.format == "axion":
         if n in (16, 64):
             return f"Axion{n}", True, f"Axion files with {n} electrodes per well"
@@ -188,7 +187,8 @@ def _layout_of(probe: RecordingProbe, corners: bool | None) -> tuple[str | None,
     if n == 16:
         return "Axion16", True, "16 channels, a 4×4 Axion well"
     if n == 59:
-        return "MCS59", True, "59 channels, an MCS 59-electrode array"
+        # MCS60 places the 59 the same way; only the grounded one is missing.
+        return "MCS60", True, "59 channels, an MCS 60-electrode array with one grounded"
     if n == 60:
         return "MCS60", True, "60 channels, an MCS 60-electrode array"
     if n == 64:
