@@ -1437,7 +1437,8 @@ class ResultsViewer(QWidget):
         if rec.get("activity"):
             branch = self._branch(self.figures, "Activity")
             for figure in rec["activity"]:
-                self._leaf(branch, figure["label"], {"kind": "activity", "name": figure["name"]})
+                self._leaf(branch, figure["label"], {"kind": "activity", "name": figure["name"]},
+                           figure.get("variants"))
         network = rec["figures"].get(str(lag), []) if lag is not None else []
         if network:
             branch = self._branch(self.figures, "Network")
@@ -1671,6 +1672,8 @@ class ResultsViewer(QWidget):
             request = {"kind": kind, "recording": rec["name"], "name": chosen["name"]}
             if kind == "edge_check":
                 request["lag"] = self.lag.currentData()
+            if kind == "activity":
+                request["variant"] = self.variant.currentData() or "plain"
             if kind == "network":
                 from meanap.viewer.controls import parse_overrides
 

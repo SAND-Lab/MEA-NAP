@@ -62,6 +62,8 @@ __all__ = [
     "available_edge_check_lags",
     "render_edge_check_figure",
     "figure_variants",
+    "activity_figure_variants",
+    "pick_scale",
     "SUBNETWORK_FIGURES",
     "available_subnetwork_figures",
     "render_subnetwork_figure",
@@ -2051,6 +2053,48 @@ def _activity_batch_max(ctx: RenderContext) -> dict:
         ]
         out[metric] = max(maxes) if maxes else None
     return out
+
+
+def activity_figure_variants(ctx: RenderContext, recording: str, figure: str) -> list[str]:
+    """Which scalings of activity *figure* the viewer can offer.
+
+    The raster and the per-electrode heatmaps are drawn as MATLAB draws them:
+    one panel scaled to this recording and one to the entire dataset. Offering
+    them as the network plots' scalings lets a reader look at one at a time.
+    A heatmap only has the second panel when the batch has a maximum for its
+    metric; CAT-NAP rasters have a single panel, so neither offers a choice.
+    """
+    from meanap.pipeline.step4 import FIGURE_VARIANTS
+
+    if ctx.mode == "catnap":
+        return ["plain"]
+    spec = next((f for f in ACTIVITY_FIGURES if f.name == Path(figure).stem), None)
+    if spec is None:
+        return ["plain"]
+    if spec.name == "3_Raster":
+        return list(FIGURE_VARIANTS)
+    if spec.requires in _ACTIVITY_BATCH_METRICS and _activity_batch_max(ctx).get(spec.requires):
+        return list(FIGURE_VARIANTS)
+    return ["plain"]
+
+
+def pick_scale(figure, variant: str):
+    """*figure* (a :class:`~meanap.native.output.NativeFigure`) with only the
+    panel *variant* asks for: ``"plain"`` the one scaled to the recording,
+    ``"scaled"`` the one scaled to the dataset, ``"combined"`` both.
+
+    For figures whose ``scene.panels`` are those two scales, in that order (the
+    activity heatmaps and the raster). Anything else is handed back as it is.
+    """
+    import dataclasses
+
+    from meanap.native.output import NativeFigure
+
+    panels = getattr(getattr(figure, "scene", None), "panels", None)
+    if variant not in ("plain", "scaled") or not isinstance(panels, list) or len(panels) != 2:
+        return figure
+    scene = dataclasses.replace(figure.scene, panels=[panels[0 if variant == "plain" else 1]])
+    return NativeFigure(figure.kind, scene, type(figure.painter)(scene))
 
 
 def render_activity_figure(
