@@ -44,7 +44,7 @@ class Live:
 
 def live_figure(service, kind: str, recording: str | None = None, name: str | None = None, *,
                 lag: int | str | None = None, overrides: dict | None = None,
-                variant: str = "plain", keep_dir: Path | None = None,
+                variant: str | None = None, keep_dir: Path | None = None,
                 family: str | None = None, level: str | None = None,
                 split: str | None = None, metric: str | None = None,
                 series: str | None = None, key: str | None = None) -> Live:
@@ -54,7 +54,10 @@ def live_figure(service, kind: str, recording: str | None = None, name: str | No
     :data:`GROUP_KINDS`: a ``comparison`` by *family*, *level*, *split*,
     *metric* (and *lag*), a ``lag_series`` by *series* and *key*, a ``stats``
     figure by *lag* (its folder name) and *key*. ``overrides`` is what
-    :func:`meanap.viewer.controls.parse_overrides` returns. A plotter that does
+    :func:`meanap.viewer.controls.parse_overrides` returns. *variant* is the
+    scale (``"plain"``, ``"scaled"``, ``"combined"``) of a network figure
+    (``"plain"`` if None) or of an activity raster or heatmap (both panels, as
+    saved, if None). A plotter that does
     not go through the shared ``savefig`` cannot be intercepted; its file is
     written under *keep_dir* and returned as ``image`` instead.
     """
@@ -70,7 +73,7 @@ def live_figure(service, kind: str, recording: str | None = None, name: str | No
             if kind == "network":
                 path = render.render_figure(
                     ctx, recording, int(lag), name, out_dir,
-                    overrides=overrides or None, variant=variant)
+                    overrides=overrides or None, variant=variant or "plain")
             elif kind == "activity":
                 path = render.render_activity_figure(
                     ctx, recording, name, out_dir, overrides=overrides or None)
@@ -112,5 +115,9 @@ def live_figure(service, kind: str, recording: str | None = None, name: str | No
         wanted = ([c for c in got if Path(c.path).stem.endswith(Path(name).stem)]
                   if name else [])
         pick = (wanted or got)[-1]
-        return Live(pick.figure, None, pick.tight, pick.pad_inches, seconds)
+        figure = pick.figure
+        if kind == "activity" and variant is not None:
+            # The raster and heatmaps hold both scales; show the one asked for.
+            figure = render.pick_scale(figure, variant)
+        return Live(figure, None, pick.tight, pick.pad_inches, seconds)
     return Live(None, Path(path), False, 0.0, seconds)

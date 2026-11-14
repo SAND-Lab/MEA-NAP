@@ -1717,6 +1717,44 @@ def _finding_checks(bundle: Path, tmp: Path) -> list[Check]:
     return checks
 
 
+def _scale_checks(bundle: Path) -> list[Check]:
+    """The activity raster and heatmaps offer the network plots' scale choice."""
+    from meanap.native.activity_paint import HeatmapPainter, RasterPainter
+    from meanap.native.output import NativeFigure, render_image
+    from meanap.native.scene import heatmap_scene, raster_scene
+    from meanap.pipeline.render import activity_figure_variants, pick_scale
+    from meanap.viewer.server import ViewerService
+
+    checks: list[Check] = []
+    rng = np.random.default_rng(3)
+    heat = heatmap_scene(rng.random(60) * 10, list(range(11, 71)), "rec", "mean firing rate (Hz)",
+                         channel_layout="MCS60", batch_max=25.0)
+    raster = raster_scene({ch: np.sort(rng.random(50) * 60) for ch in range(8)}, 60.0,
+                          title="rec", spike_freq_max=12.0)
+    for label, scene, painter in (("heatmap", heat, HeatmapPainter), ("raster", raster,
+                                                                      RasterPainter)):
+        whole = NativeFigure(label, scene, painter(scene))
+        own, batch, both = (pick_scale(whole, v) for v in ("plain", "scaled", "combined"))
+        checks.append((f"{label}: “this recording's scale” keeps the recording's panel only",
+                       own.scene.panels == [scene.panels[0]], str(own.scene.panels)))
+        checks.append((f"{label}: “whole batch's scale” keeps the dataset's panel only",
+                       batch.scene.panels == [scene.panels[1]], str(batch.scene.panels)))
+        checks.append((f"{label}: “both” is the figure as the pipeline saves it",
+                       both is whole, ""))
+        image = render_image(own.painter)
+        checks.append((f"{label}: one panel draws on its own",
+                       image.width() > 100 and own.scene is not scene
+                       and len(scene.panels) == 2, ""))
+    service = ViewerService(bundle)
+    rec = service.manifest()["recordings"][0]
+    checks.append(("a CAT-NAP raster has one panel, so offers no choice",
+                   all(f["variants"] == ["plain"] for f in rec["activity"])
+                   and activity_figure_variants(service.ctx, rec["name"], "3_Raster") == ["plain"],
+                   str([f["variants"] for f in rec["activity"]])))
+    service.close()
+    return checks
+
+
 #: Longer than the preview card's grace period.
 PREVIEW_WAIT_MS = 900
 
@@ -1737,6 +1775,7 @@ def main() -> int:
             ("H. Comparisons across recordings", _group_checks(tmp)),
             ("B. The window", _window_checks(bundle)),
             ("I. Finding and comparing recordings", _finding_checks(bundle, tmp)),
+            ("J. Choosing an activity figure's scale", _scale_checks(bundle)),
         ):
             n_pass, n = _report(title, checks)
             total_pass += n_pass
