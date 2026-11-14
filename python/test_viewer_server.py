@@ -442,16 +442,21 @@ def _lag_series_checks() -> list[Check]:
             httpd.shutdown()
             service.close()
 
-        # A one-lag run must not advertise a tab with nothing behind it.
+        # A one-lag run offers only the sets drawn one lag at a time — no
+        # curve against lag, which would have a single point.
         single = _run(tmp, "SingleLag", express=True)
         httpd, service = serve(single.with_suffix(BUNDLE_SUFFIX), port=0,
                                background=True)
         try:
             _, body, _ = _get(
                 f"http://127.0.0.1:{httpd.server_address[1]}/api/manifest")
-            checks.append(("a one-lag run offers no across-lag sets",
-                           json.loads(body)["lag_series"] == [],
-                           f"{json.loads(body)['lag_series']}"))
+            offered = {s["key"] for s in json.loads(body)["lag_series"]}
+            checks.append(("a one-lag run offers no curves against lag",
+                           not offered & {"graph_metrics", "cartography"},
+                           f"{sorted(offered)}"))
+            checks.append(("…but does offer the role compositions and the landscape",
+                           offered == {"cartography_by_group", "cartography_by_age",
+                                       "density_landscape"}, f"{sorted(offered)}"))
         finally:
             httpd.shutdown()
             service.close()

@@ -843,6 +843,9 @@ def plot_network(
         min_nonzero = min_ew
 
     edges_x, edges_y, edge_lw, edge_colors = [], [], [], []
+    edge_weights: list[float] = []      # recorded for interactive views, not drawn
+    edge_ends: list[tuple[int, int]] = []
+    drawn_weights, drawn_ends = np.zeros(0), np.zeros((0, 2), dtype=int)
     for a in range(n):
         for b in range(n):
             w = adjM[a, b]
@@ -854,6 +857,8 @@ def plot_network(
                 edges_y.append([yc[a], yc[b]])
                 edge_lw.append(lw)
                 edge_colors.append(col)
+                edge_weights.append(float(w))
+                edge_ends.append((a, b))
 
     # Sort edges light → dark so darker edges draw last (on top), then render
     # them all as a single LineCollection. Drawing each edge as its own
@@ -865,6 +870,8 @@ def plot_network(
         from matplotlib.collections import LineCollection
 
         order = np.argsort([c[0] for c in edge_colors])[::-1]
+        drawn_weights = np.asarray(edge_weights)[order]
+        drawn_ends = np.asarray(edge_ends, dtype=int)[order]
         segments = [
             np.array([[edges_x[idx][0], edges_y[idx][0]],
                       [edges_x[idx][1], edges_y[idx][1]]])
@@ -948,6 +955,20 @@ def plot_network(
 
     if outer_patches:
         ax.add_collection(PatchCollection(outer_patches, match_original=True, zorder=2))
+        # What each circle stands for, for an interactive view to read back.
+        # Recorded, not drawn — see meanap.pipeline.hover.
+        from meanap.pipeline.hover import attach
+
+        drawn = [i for i in range(n) if not np.isnan(z[i]) and float(z[i]) > 0]
+        lines = []
+        for i in drawn:
+            line = f"{z_name}: {float(z[i]):.4g}"
+            if use_colormap and not np.isnan(z2[i]):
+                line += f"\n{z2_name}: {float(z2[i]):.4g}"
+            lines.append(line)
+        attach(ax, np.column_stack([xc[drawn], yc[drawn]]), lines,
+               radius=[c.get_radius() for c in outer_patches], index=drawn,
+               noun="node")
     if absent_patches:
         # Negative-marker slots go under the positive rings, so an overlap never
         # hides a marker the cell actually carries.
@@ -975,8 +996,13 @@ def plot_network(
     else:
         leg_label = lambda v: f"{v:.4f}"
     leg_y = y_max - 0.5
+    legend_spec = {"size": {"name": z_name, "items": []},
+                   "edges": {"name": "edge weight", "items": []},
+                   "colour": None,
+                   "cell_types": list(cell_type_names) if has_ct else []}
     for lv in leg_vals:
         ls = node_size_of(lv)
+        legend_spec["size"]["items"].append((leg_label(lv), float(ls)))
         circ = mpatches.Circle(
             (legend_x + 0.5, leg_y - ls / 2),
             ls / 2,
@@ -993,6 +1019,7 @@ def plot_network(
         t = np.clip((ew_val - min_nonzero) / edge_range, 0.0, 1.0)
         lw = min_ew + (max_ew - min_ew) * t
         col = np.clip(1.0 - light_c * t, 0.0, 1.0)
+        legend_spec["edges"]["items"].append((f"{ew_val:.3f}", float(lw), float(col[0])))
         leg_y -= 0.5
         ax.plot(
             [legend_x, legend_x + 1.0], [leg_y, leg_y],
@@ -1004,6 +1031,8 @@ def plot_network(
     if use_colormap:
         leg_y -= 0.6
         ax.text(legend_x, leg_y, f"{z2_name}:", fontsize=7, va="bottom", color="black")
+        legend_spec["colour"] = {"name": z2_name, "min": float(z2_min),
+                                 "max": float(z2_max), "colormap": colormap}
         n_steps = 20
         bar_h = 0.18
         for s in range(n_steps):
@@ -1062,6 +1091,20 @@ def plot_network(
         ax.text(cx, leg_y_ct - leg_node_size * 0.62,
                 "bright ring = positive, faint = negative",
                 fontsize=5, ha="center", va="top", color="0.45")
+
+    # The legend's content as data, for a view that draws its own (see
+    # meanap.pipeline.hover). ``extent`` is the nodes' own box, without the
+    # room the drawn legend takes.
+    from meanap.pipeline.hover import set_legend
+
+    legend_spec["extent"] = (x_min, x_max, y_min, y_max)
+    legend_spec["title"] = title
+    legend_spec["node_colour"] = default_node_color
+    # One weight per edge segment, in the order the segments were drawn.
+    legend_spec["edge_weight"] = drawn_weights
+    # ...and the rows (of the arrays this was called with) it joins.
+    legend_spec["edge_ends"] = drawn_ends
+    set_legend(ax, legend_spec)
 
     # ── Axis limits ───────────────────────────────────────────────────────────
     ax.set_xlim(x_min - 1, x_max + 4.0)

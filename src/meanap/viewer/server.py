@@ -49,6 +49,7 @@ from meanap.pipeline.figure_output import DEFAULT_THUMBNAIL_DPI
 from meanap.pipeline.render import (
     available_activity_figures, available_comparison_families, available_figures,
     available_spike_check_figures, render_spike_check_figure, figure_variants,
+    available_sorting_check_figures, available_stim_check_figures,
     available_edge_check_lags, render_edge_check_figure,
     available_subnetwork_figures, render_subnetwork_figure,
     available_group_families, available_lag_series, available_stats_figures,
@@ -499,6 +500,13 @@ class ViewerService:
                 "spike_checks": [{"name": f.name, "label": f.label}
                                  for f in available_spike_check_figures(
                                      self.ctx, name)],
+                # The same question for a run whose spikes came from a sorter.
+                "sorting_checks": [{"name": f.name, "label": f.label}
+                                   for f in available_sorting_check_figures(
+                                       self.ctx, name)],
+                # And whether the stimuli were found where they were given.
+                "stim_checks": [{"name": f.name, "label": f.label}
+                                for f in available_stim_check_figures(self.ctx, name)],
                 # CAT-NAP peak-detection traces. Per recording like the step-1
                 # checks and answering the same question — did detection work —
                 # but *carried* in the bundle rather than redrawn, since they

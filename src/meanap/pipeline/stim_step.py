@@ -110,6 +110,7 @@ def run_stim_analysis(
 
         stim_info = detect_stim_times(dat, sp_params, channels, coords)
         stim_info, patterns = get_stim_patterns(stim_info, sp_params)
+        _stim_detection_checks(params, rec, dat, stim_info, sp_params, output_root, log)
         conditions, patterns = _recording_conditions(params, rec, stim_info, patterns, log)
         n_stim_elec = sum(1 for s in stim_info if s.pattern and s.pattern > 0)
         log(f"    {len(patterns)} pattern(s), {n_stim_elec} stimulating electrode(s)")
@@ -200,6 +201,28 @@ def _stim_figures(params: Params, rec: RecordingInfo, dest: Path, output_root: P
         log(f"  [{rec.filename}] wrote {len(figs)} stim figures")
     except Exception as e:   # plotting must never sink the numeric results
         log(f"  [{rec.filename}] Warning: stim plotting failed: {e}")
+
+
+def _stim_detection_checks(params: Params, rec: RecordingInfo, dat: np.ndarray, stim_info: list,
+                           sp_params: dict, output_root: Path, log) -> None:
+    """MATLAB's stimulus detection checks (``plotStimDetectionChecks.m``), into
+    ``1_SpikeDetection/1C_StimDetectionChecks/<group>/<recording>/``, drawn
+    from the small file they are kept in for a bundle to redraw them."""
+    from meanap.stim.detection_checks import (
+        STIM_CHECKS_DIR, STIM_CHECKS_SUFFIX, compute_stim_check_data, draw_stim_check_figures,
+        load_stim_check_data, save_stim_check_data,
+    )
+
+    try:
+        data = compute_stim_check_data(
+            dat, stim_info, sp_params, rec.filename,
+            make_rng(params.random_seed or 1, "stim-checks", rec.filename))
+        path = save_stim_check_data(
+            output_root / "ExperimentMatFiles" / f"{rec.filename}{STIM_CHECKS_SUFFIX}", data)
+        dest = output_root / STIM_CHECKS_DIR / str(rec.group) / rec.filename
+        draw_stim_check_figures(load_stim_check_data(path), dest)
+    except Exception as e:   # plotting must never sink the numeric results
+        log(f"  [{rec.filename}] Warning: stimulus detection checks failed: {e}")
 
 
 # ── Event-driven stimulation (light, TTL, event logs) ─────────────────────────
@@ -753,37 +776,48 @@ def _split_half_networks(trains, events, window, lag, epoch_net, cond, rng):
     return halves, rows
 
 
-def _plot_stim_network(nets: dict, nc, path: Path, title: str) -> None:
-    """Baseline and evoked networks, the change in raw STTC, and noise correlations."""
-    import matplotlib
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
+def _plot_stim_network(nets: dict, nc, path: Path, title: str, names=None) -> None:
+    """Baseline and evoked networks, the change in raw STTC, and noise correlations.
 
-    from meanap.pipeline.figure_output import savefig
+    *names* labels the nodes (electrode or unit) for a view to name the pair
+    under the pointer; without it they are numbered.
+    """
+    from meanap.native.chart import Cells, Chart, ColourBar, Panel
+    from meanap.native.chart_paint import save_chart
 
     b, e = nets["baseline"], nets["evoked"]
     vmax = max(float(np.nanmax(b.sttc_thr)), float(np.nanmax(e.sttc_thr)), 1e-6)
     diff = e.sttc - b.sttc
     dlim = max(float(np.nanmax(np.abs(diff))), 1e-6)
-    fig, axes = plt.subplots(2, 2, figsize=(11, 10))
-    panels = (
-        (axes[0, 0], b.sttc_thr, "viridis", 0, vmax,
+    n = len(diff)
+    names = [str(x) for x in names] if names is not None and len(names) == n else \
+        [str(i) for i in range(n)]
+    quads = (
+        (b.sttc_thr, "viridis", 0, vmax, "STTC",
          f"Baseline {b.window_s[0]:g}–{b.window_s[1]:g} s (significant STTC)"),
-        (axes[0, 1], e.sttc_thr, "viridis", 0, vmax,
+        (e.sttc_thr, "viridis", 0, vmax, "STTC",
          f"Evoked {e.window_s[0]:g}–{e.window_s[1]:g} s (significant STTC)"),
-        (axes[1, 0], diff, "RdBu_r", -dlim, dlim, "Evoked − baseline (raw STTC)"),
-        (axes[1, 1], nc.r, "RdBu_r", -1, 1,
-         f"Noise correlation ({nc.n_trials} trials)"),
+        (diff, "RdBu_r", -dlim, dlim, "change in STTC", "Evoked − baseline (raw STTC)"),
+        (nc.r, "RdBu_r", -1, 1, "r", f"Noise correlation ({nc.n_trials} trials)"),
     )
-    for ax, mat, cmap, lo, hi, label in panels:
-        im = ax.imshow(mat, cmap=cmap, vmin=lo, vmax=hi, interpolation="nearest")
-        ax.set_title(label, fontsize=10)
-        ax.set_xlabel("Node")
-        ax.set_ylabel("Node")
-        fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+    panels = []
+    for k, (mat, cmap, lo, hi, what, label) in enumerate(quads):
+        mat = np.asarray(mat, float)
+
+        def hover(i, j, mat=mat, what=what):
+            v = mat[i, j]
+            if i == j:
+                return ""
+            return (f"{names[i]} ↔ {names[j]}\n"
+                    + (f"{what} {v:+.3f}" if np.isfinite(v) else f"{what}: no value"))
+
+        panels.append(Panel(
+            cell=divmod(k, 2), marks=[Cells(mat, cmap=cmap, low=lo, high=hi, hover=hover)],
+            title=label, title_size=10, xlabel="Node", ylabel="Node", label_size=10,
+            tick_size=9, y_down=True, equal=True, grid="",
+            colour_bar=ColourBar(cmap, lo, hi, fraction=0.046, tick_size=9)))
     how = ("STTC within each trial, averaged over trials" if e.sttc_mode == "trial_mean"
            else "STTC over the trial windows joined end to end")
-    fig.suptitle(f"{title}\n{how}; {e.null.replace('_', ' ')} null, {e.n_trials} trials")
-    fig.tight_layout()
-    savefig(fig, path, default_dpi=150)
-    plt.close(fig)
+    chart = Chart(panels, size=(11, 10), grid=(2, 2), title_size=12,
+                  title=f"{title}\n{how}; {e.null.replace('_', ' ')} null, {e.n_trials} trials")
+    save_chart(chart, path)

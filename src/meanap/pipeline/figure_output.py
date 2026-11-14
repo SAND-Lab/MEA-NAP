@@ -23,9 +23,11 @@ from __future__ import annotations
 
 import contextvars
 from contextlib import contextmanager
+from dataclasses import dataclass
 from pathlib import Path
 
-__all__ = ["DEFAULT_THUMBNAIL_DPI", "figure_dpi", "current_dpi", "savefig"]
+__all__ = ["DEFAULT_THUMBNAIL_DPI", "figure_dpi", "current_dpi", "savefig", "capture_native",
+           "Captured", "capture_figures"]
 
 #: Resolution for gallery thumbnails. Chosen by measurement: against the
 #: as-authored mix of 150/300 dpi, 96 dpi cut a 109-figure batch from 11.5 s to
@@ -52,11 +54,70 @@ def current_dpi() -> int | None:
     return _dpi_override.get()
 
 
+@dataclass
+class Captured:
+    """A figure a plotter was about to save, handed over live instead."""
+
+    figure: object
+    path: Path
+    #: Whether the plotter saved with ``bbox_inches="tight"`` — the file would
+    #: have been cropped to the artists, so a live view should crop too.
+    tight: bool
+    pad_inches: float
+
+
+_capture: contextvars.ContextVar[list | None] = contextvars.ContextVar(
+    "meanap_figure_capture", default=None,
+)
+
+
+@contextmanager
+def capture_figures():
+    """Collect the figures drawn in this block instead of writing them.
+
+    The native viewer shows the matplotlib figure itself — zoomable, with the
+    artists still there to hover over — and the only way to get that from
+    plotters that end in ``savefig(...); plt.close(fig)`` without touching each
+    of them is to intercept the save. Nothing is written while a capture is
+    active, so the plotter's drawing cost is paid and its encoding cost is not.
+    ``plt.close`` afterwards only detaches the figure from pyplot; the object
+    lives on and can be given a new canvas.
+
+    A :class:`~contextvars.ContextVar` for the same reason as the resolution
+    override: renders run on worker threads and must not see each other's.
+    """
+    captured: list[Captured] = []
+    token = _capture.set(captured)
+    try:
+        yield captured
+    finally:
+        _capture.reset(token)
+
+
+def capture_native(figure, path: Path) -> bool:
+    """Hand a Qt-drawn figure to an active capture. ``False`` if there is none.
+
+    *figure* is a :class:`meanap.native.output.NativeFigure`: the scene and its
+    painter, which a viewer shows live rather than as a picture.
+    """
+    captured = _capture.get()
+    if captured is None:
+        return False
+    captured.append(Captured(figure, Path(path), tight=False, pad_inches=0.0))
+    return True
+
+
 def savefig(fig, path: Path, *, default_dpi: int, **kwargs) -> None:
     """Save *fig*, honouring any active override in preference to *default_dpi*.
 
     Creates the parent directory, so callers don't each repeat that.
     """
     path = Path(path)
+    captured = _capture.get()
+    if captured is not None:
+        captured.append(Captured(
+            fig, path, tight=kwargs.get("bbox_inches") == "tight",
+            pad_inches=float(kwargs.get("pad_inches", 0.1))))
+        return
     path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(path, dpi=current_dpi() or default_dpi, **kwargs)

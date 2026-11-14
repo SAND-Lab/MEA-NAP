@@ -165,11 +165,9 @@ def plot_activity_raster(
     map centred on zero with a symmetric ceiling at the same percentile of
     ``|z|``, floored at 1 SD.
     """
-    import matplotlib
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
-
-    from meanap.pipeline.figure_output import savefig
+    from meanap.native import output
+    from meanap.native.activity_paint import RasterPainter
+    from meanap.native.scene import RasterScene
     from meanap.pipeline.plotting_step2 import parula_85
 
     out_path = Path(out_path)
@@ -183,7 +181,6 @@ def plot_activity_raster(
     if zscored:
         ceiling = float(np.percentile(np.abs(finite), upper_percentile)) if finite.size else 1.0
         vmax = max(ceiling, 1.0)
-        vmin = -vmax
         cmap = "RdBu_r"
         cbar_label = "z-score (per cell)"
     else:
@@ -192,25 +189,17 @@ def plot_activity_raster(
         vmax = max(ceiling, floor)
         if not vmax > 0:
             vmax = 1.0
-        vmin = 0.0
         cmap = "gray_r" if str(colormap).lower() == "gray" else parula_85
         cbar_label = activity_colorbar_label(activity)
 
-    fig, ax = plt.subplots(figsize=(10, 4.5))
-    im = ax.imshow(
-        mat.T, aspect="auto", cmap=cmap, vmin=vmin, vmax=vmax,
-        extent=[0, duration_s, n_units, 0], interpolation="nearest",
-    )
-    ax.set_xlabel("Time (s)")
-    ax.set_ylabel("Cell")
-    ax.set_title(title, fontsize=10)
-    ax.tick_params(direction="out")
-    for side in ("top", "right"):
-        ax.spines[side].set_visible(False)
-    cbar = fig.colorbar(im, ax=ax, fraction=0.04, pad=0.02)
-    cbar.set_label(cbar_label)
-    cbar.outline.set_visible(False)
-    fig.tight_layout()
-    savefig(fig, out_path, default_dpi=150)
-    plt.close(fig)
+    # A row per cell, in stored order, the first at the top. Peaks are counted
+    # per second; the other measures are in the trace's own units.
+    unit = "z" if zscored else ("events/s" if activity == "peaks" else "")
+    scene = RasterScene(
+        counts=mat.T, duration_s=float(duration_s), panels=[(title, float(vmax))],
+        names=[str(i + 1) for i in range(n_units)], noun="cell", cmap=cmap,
+        bin_s=float(bin_s), time_unit="s", label=cbar_label, unit=unit,
+        symmetric=zscored)
+    painter = RasterPainter(scene)
+    output.save(painter, out_path, capture=output.NativeFigure("raster", scene, painter))
     return out_path

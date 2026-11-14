@@ -310,45 +310,17 @@ def _series_checks() -> list[Check]:
                                      "FR": float(rng.normal(mu, 0.03))})
     df = pd.DataFrame(rows)
 
-    # Count rendered violins directly off the axes rather than trusting the file.
-    import matplotlib.pyplot as plt_mod
-    made = {}
+    # Count the violins in what was drawn, rather than trusting the file.
+    from meanap.pipeline.figure_output import capture_figures
 
-    def _count(series_col):
-        with tempfile.TemporaryDirectory() as tmp:
-            plot_half_violin_by_x(df, "FR", "Event Rate", "group",
-                                  Path(tmp) / "f.png", group_order=["WT", "KO"],
-                                  series_col=series_col)
-        # The plotter closes its figure; re-render onto our own axes instead.
-        return None
-
-    # Re-implement the count by inspecting a live figure: patch savefig away.
-    real_savefig = matplotlib.figure.Figure.savefig
-    captured: list = []
-    try:
-        matplotlib.figure.Figure.savefig = lambda self, *a, **k: captured.append(self)
-        real_close = plt_mod.close
-        plt_mod.close = lambda *a, **k: None
-        with tempfile.TemporaryDirectory() as tmp:
-            plot_half_violin_by_x(df, "FR", "Event Rate", "group", Path(tmp) / "a.png",
-                                  group_order=["WT", "KO"], series_col="CellType")
-            paired = captured[-1]
-            plot_half_violin_by_x(df, "FR", "Event Rate", "group", Path(tmp) / "b.png",
-                                  group_order=["WT", "KO"])
-            plain = captured[-1]
-    finally:
-        matplotlib.figure.Figure.savefig = real_savefig
-        plt_mod.close = real_close
-
-    def _fills(fig):
-        from matplotlib.collections import PolyCollection
-        return sum(len([c for c in ax.collections if isinstance(c, PolyCollection)])
-                   for ax in fig.axes)
-
-    made["paired"] = _fills(paired)
-    made["plain"] = _fills(plain)
-    plt_mod.close(paired)
-    plt_mod.close(plain)
+    with tempfile.TemporaryDirectory() as tmp, capture_figures() as got:
+        plot_half_violin_by_x(df, "FR", "Event Rate", "group", Path(tmp) / "a.png",
+                              group_order=["WT", "KO"], series_col="CellType")
+        plot_half_violin_by_x(df, "FR", "Event Rate", "group", Path(tmp) / "b.png",
+                              group_order=["WT", "KO"])
+    paired, plain = (c.figure.scene for c in got)
+    made = {name: sum(len(p.violins) for p in scene.panels)
+            for name, scene in (("paired", paired), ("plain", plain))}
 
     # 2 groups (subplots) x 2 ages x 2 cell types = 8 violins; without the
     # series dimension, 2 x 2 = 4.
@@ -357,8 +329,7 @@ def _series_checks() -> list[Check]:
     checks.append(("the two-factor plot is unchanged without a series column",
                    made["plain"] == 4, f"{made}"))
     checks.append(("adding a series adds a legend",
-                   any(ax.get_legend() is not None for ax in paired.axes)
-                   and all(ax.get_legend() is None for ax in plain.axes), ""))
+                   paired.legend is not None and plain.legend is None, ""))
 
     with tempfile.TemporaryDirectory() as tmp:
         out = Path(tmp)

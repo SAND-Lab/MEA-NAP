@@ -1,4 +1,8 @@
-"""Matplotlib plotting layer for the MEA-Stim subsystem.
+"""Plotting layer for the MEA-Stim subsystem.
+
+Every figure is a native chart (:mod:`meanap.native.chart`), so the in-app
+viewer shows it live; the stimulus-detection checks are drawn by
+:mod:`meanap.stim.detection_checks`, which these entry points call.
 
 Port of the figure-producing functions in ``Functions/stimAnalysis/`` on
 ``origin/main``:
@@ -19,8 +23,7 @@ Port of the figure-producing functions in ``Functions/stimAnalysis/`` on
 
 These reproduce the MATLAB figures in *content* and layout (titles, axis
 labels, colorbars, artifact-window shading, colours). They are not
-pixel-identical — matplotlib defaults differ from MATLAB — but aim to be at
-least as clear. Every function writes a PNG (default) whose basename matches
+pixel-identical to MATLAB's, but aim to be at least as clear. Every function writes a PNG (default) whose basename matches
 the MATLAB output artifact exactly.
 
 Nothing here mutates the numeric modules; all display quantities are recomputed
@@ -32,13 +35,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import numpy as np
-import matplotlib
-
-matplotlib.use("Agg")  # headless: never needs a display
-import matplotlib.pyplot as plt
-from matplotlib.patches import Circle
-from matplotlib.cm import ScalarMappable
-from matplotlib.colors import Normalize, ListedColormap
+from matplotlib.colors import ListedColormap
 
 from ..pipeline.parula import parula_map
 from .detection import StimChannelInfo, _matlab_mode
@@ -51,19 +48,6 @@ from .psth import (
 
 _WHITE = (1.0, 1.0, 1.0)
 _NAN_COLOR = (0.9, 0.9, 0.9)
-
-
-# ── shared save helper ────────────────────────────────────────────────────────
-
-def _save(fig, out_path: str | Path, dpi: int = 150) -> Path:
-    """Save ``fig`` to ``out_path`` (``.png`` appended if no suffix) and close it."""
-    out_path = Path(out_path)
-    if out_path.suffix == "":
-        out_path = out_path.with_suffix(".png")
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(out_path, dpi=dpi, bbox_inches="tight", facecolor="white")
-    plt.close(fig)
-    return out_path
 
 
 def _method_spikes(spike_times: dict, channel_idx: int, method: str) -> np.ndarray:
@@ -83,7 +67,9 @@ def values_to_colormap(value: float, cmap, vmin: float, vmax: float):
     channels are simply drawn neutral, matching the reference figures where
     missing metrics read as background).
     """
-    cmap = plt.get_cmap(cmap) if isinstance(cmap, str) else cmap
+    from meanap.native.figure import colormap
+
+    cmap = colormap(cmap)
     if value is None or (isinstance(value, float) and np.isnan(value)):
         return _NAN_COLOR
     if vmax == vmin:
@@ -104,33 +90,42 @@ def _in_patterns(info: StimChannelInfo, pattern_ids) -> bool:
 def plot_stim_heatmap(stim_info: list[StimChannelInfo], out_path: str | Path) -> Path:
     """Electrode layout: stimulated electrodes black (red edge, pattern label),
     the rest white (port of ``plotStimHeatmap.m``)."""
-    fig, ax = plt.subplots(figsize=(6, 6))
-    for info in stim_info:
-        xc, yc = float(info.coords[0]), float(info.coords[1])
-        if info.elec_stim_times.size == 0:
-            ax.add_patch(Circle((xc, yc), 0.5, facecolor="white",
-                                edgecolor="black", linewidth=1.0, zorder=2))
-        else:
-            ax.add_patch(Circle((xc, yc), 0.5, facecolor="black",
-                                edgecolor="red", linewidth=1.5, zorder=3))
-            ax.text(xc, yc, ",".join(str(p) for p in (info.pattern_ids or (info.pattern,))),
-                    color="white", fontsize=12 if len(info.pattern_ids) < 2 else 8,
-                    ha="center", va="center", zorder=4)
-    _finalize_layout_axes(ax, stim_info)
-    return _save(fig, out_path)
+    from meanap.native.chart_paint import save_chart
+    from meanap.stim.detection_checks import StimCheckData, _stims_heatmap
 
-
-def _finalize_layout_axes(ax, stim_info: list[StimChannelInfo]) -> None:
-    """Common electrode-layout axis styling (equal aspect, no ticks, padding)."""
-    xs = [float(i.coords[0]) for i in stim_info]
-    ys = [float(i.coords[1]) for i in stim_info]
-    ax.set_xlim(min(xs) - 1, max(xs) + 1)
-    ax.set_ylim(min(ys) - 1, max(ys) + 1)
-    ax.set_aspect("equal")
-    ax.axis("off")
+    data = StimCheckData(
+        recording="", duration_s=0.0,
+        channel_names=np.array([int(i.channel_name) for i in stim_info]),
+        coords=np.array([np.asarray(i.coords, float).ravel()[:2] for i in stim_info]),
+        stim_times=[np.asarray(i.elec_stim_times, float).ravel() for i in stim_info],
+        patterns=[tuple(i.pattern_ids or ((i.pattern,) if i.pattern else ()))
+                  for i in stim_info],
+        stim_dur_for_plotting=0.0, detection_method="", detection_value=np.nan)
+    return save_chart(_stims_heatmap(data), _png(out_path))
 
 
 # ── plotStimHeatmapWmetric.m  (stimPattern_k_heatmap, spikeLatency_k_heatmap) ──
+
+#: matplotlib's text sizes at its defaults, which these figures were drawn at.
+_TEXT = dict(title_size=12, label_size=10, tick_size=9)
+
+
+def _png(out_path: str | Path) -> Path:
+    """``out_path`` with ``.png`` added when it has no suffix (MATLAB names)."""
+    out_path = Path(out_path)
+    return out_path.with_suffix(".png") if out_path.suffix == "" else out_path
+
+
+def _circle(xc: float, yc: float, r: float = 0.5, n: int = 48):
+    t = np.linspace(0, 2 * np.pi, n, endpoint=False)
+    return xc + r * np.cos(t), yc + r * np.sin(t)
+
+
+def _layout_limits(stim_info: list[StimChannelInfo]):
+    xs = [float(i.coords[0]) for i in stim_info]
+    ys = [float(i.coords[1]) for i in stim_info]
+    return (min(xs) - 1, max(xs) + 1), (min(ys) - 1, max(ys) + 1)
+
 
 def plot_stim_heatmap_w_metric(
     node_metric: np.ndarray,
@@ -145,54 +140,66 @@ def plot_stim_heatmap_w_metric(
 ) -> Path:
     """Electrode circles coloured by ``node_metric`` (port of ``plotStimHeatmapWmetric.m``).
 
-    The stimulating electrode(s) of ``pattern_id`` are drawn white. A colorbar
+    The stimulating electrode(s) of ``pattern_id`` are drawn white. A colour bar
     labelled ``cmap_label`` is added over ``vrange``. When ``categorical_legend``
-    (a list of ``(rgb, label)``) is given, the colorbar is replaced by a
-    horizontal legend beneath the axes — used for the categorical significance
-    heatmap.
+    (a list of ``(rgb, label)``) is given, the colour bar is replaced by a
+    legend beneath the array — used for the categorical significance heatmap.
     """
-    cmap = plt.get_cmap(cmap) if isinstance(cmap, str) else cmap
+    from meanap.native.chart import (
+        Chart, ColourBar, Legend, LegendItem, Panel, Polygon, rgba,
+    )
+    from meanap.native.chart_paint import save_chart
+    from meanap.native.figure import colormap
+
+    table = colormap(cmap)
     node_metric = np.asarray(node_metric, dtype=float).ravel()
     pattern_ids = pattern_id if np.iterable(pattern_id) else [pattern_id]
+    lo, hi = (float(v) for v in vrange)
+    if not (np.isfinite(lo) and np.isfinite(hi)):
+        lo, hi = 0.0, 1.0
 
-    fig, ax = plt.subplots(figsize=(7, 6))
+    marks, n_nan = [], 0
     for idx, info in enumerate(stim_info):
         xc, yc = float(info.coords[0]), float(info.coords[1])
         is_stim = info.elec_stim_times.size > 0 and _in_patterns(info, pattern_ids)
-        color = _WHITE if is_stim else values_to_colormap(
-            node_metric[idx], cmap, vrange[0], vrange[1])
-        ax.add_patch(Circle((xc, yc), 0.5, facecolor=color,
-                            edgecolor="black", linewidth=1.0, zorder=2))
-    _finalize_layout_axes(ax, stim_info)
-
+        value = node_metric[idx] if idx < node_metric.size else np.nan
+        if is_stim:
+            colour, said = _WHITE, "stimulating electrode"
+        elif np.isnan(value):
+            # MATLAB's valuesToColormap maps NaN to the darkest colour (its
+            # two-argument min/max drop NaN), conflating "no data" with the
+            # maximum; grey keeps them apart.
+            colour, said, n_nan = _NAN_COLOR, "no data", n_nan + 1
+        else:
+            colour = values_to_colormap(value, table, lo, hi)
+            said = f"{cmap_label}: {value:.4g}"
+            if categorical_legend is not None:   # name the category, not the code
+                said = next((lbl for c, lbl in categorical_legend
+                             if np.allclose(rgba(c)[:3], rgba(colour)[:3])), said)
+        px, py = _circle(xc, yc)
+        marks.append(Polygon(px, py, fill=rgba(colour), edge=rgba("black"), edge_width=1.0,
+                             hover=f"electrode {info.channel_name}\n{said}"))
+    xlim, ylim = _layout_limits(stim_info)
+    panel = Panel(marks=marks, bare=True, equal=True, xlim=xlim, ylim=ylim,
+                  title=title or "", title_size=12)
+    legend = None
     if categorical_legend is None:
-        sm = ScalarMappable(norm=Normalize(vrange[0], vrange[1]), cmap=cmap)
-        cb = fig.colorbar(sm, ax=ax, fraction=0.046, pad=0.04)
-        cb.set_label(cmap_label, fontsize=12)
-        # Note grey = missing metric. MATLAB's valuesToColormap maps NaN to the
-        # darkest colour (its two-arg min/max drop NaN → norm 1), conflating
-        # "no data" with the maximum; this port keeps it visually distinct.
-        n_nan = int(np.sum([np.isnan(node_metric[i]) and not _in_patterns(info, pattern_ids)
-                            for i, info in enumerate(stim_info)]))
+        panel.colour_bar = ColourBar(table, lo, hi, label=cmap_label, fraction=0.046,
+                                     tick_size=9)
         if n_nan:
-            ax.plot([], [], marker="o", linestyle="", markersize=10,
-                    markerfacecolor=_NAN_COLOR, markeredgecolor="black",
-                    label=f"no data ({n_nan})")
-            ax.legend(loc="lower right", frameon=False, fontsize=9,
-                      handletextpad=0.3, borderpad=0.2)
+            panel.legend = Legend([LegendItem(f"no data ({n_nan})", rgba(_NAN_COLOR),
+                                              kind="point", edge=rgba("black"), size=9)],
+                                  loc="lower right", size=9)
     else:
-        handles = [plt.Line2D([0], [0], marker="o", linestyle="", markersize=11,
-                              markerfacecolor=c, markeredgecolor="black", label=lbl)
-                   for c, lbl in categorical_legend]
-        ax.legend(handles=handles, loc="upper center",
-                  bbox_to_anchor=(0.5, -0.02), ncol=len(handles),
-                  frameon=False, fontsize=11)
-    if title:
-        ax.set_title(title, fontweight="bold")
-    return _save(fig, out_path)
+        legend = Legend([LegendItem(lbl, rgba(c), kind="point", edge=rgba("black"), size=10)
+                         for c, lbl in categorical_legend],
+                        loc="bottom", columns=len(categorical_legend), size=10)
+    return save_chart(Chart([panel], size=(7, 6), legend=legend), _png(out_path))
 
 
-# ── plotStimTimes.m  (1_StimsDetected) ────────────────────────────────────────
+# ── plotStimTimes.m, plotIdvStimDataAndTrace.m, plotStimDetectionChecks.m ─────
+# Drawn by meanap.stim.detection_checks, from what the figures show of the raw
+# data, so a bundle can redraw them; these keep the MATLAB-shaped entry points.
 
 def plot_stim_times(
     raw_data: np.ndarray,
@@ -206,44 +213,12 @@ def plot_stim_times(
     vertically, ordered by electrode ID (top = smallest). Electrode IDs label
     the left, channel indices the right.
     """
-    fs = float(params["fs"])
-    stim_dur = float(params["stimDurationForPlotting"])
-    n_time = raw_data.shape[0]
-    dur_s = n_time / fs
-    resample_n = round(dur_s * 1000.0)  # 1000 Hz
-    resample_t = np.linspace(0, dur_s, resample_n)
+    from meanap.native.chart_paint import save_chart
+    from meanap.stim.detection_checks import _stims_detected, compute_stim_check_data
 
-    electrodes = np.array([info.channel_name for info in stim_info])
-    sorted_elecs = np.sort(electrodes)
-    n_ch = len(stim_info)
+    data = compute_stim_check_data(raw_data, stim_info, params, "", channels=[])
+    return save_chart(_stims_detected(data), _png(out_path))
 
-    fig, ax = plt.subplots(figsize=(6, 15))
-    channels = n_ch
-    for curr_elec in sorted_elecs:
-        chan = int(np.flatnonzero(electrodes == curr_elec)[0])
-        stim_vec = np.zeros(resample_n)
-        for st in stim_info[chan].elec_stim_times:
-            loc = (resample_t >= st) & (resample_t <= st + stim_dur)
-            stim_vec[loc] = 1.0
-        vert = channels * 1.2
-        ax.plot(resample_t, stim_vec + vert, linewidth=0.8)
-        ax.text(-1, vert + 0.5, str(int(curr_elec)), ha="right", va="center", fontsize=7)
-        ax.text(dur_s + 1, vert + 0.5, str(chan + 1), ha="left", va="center", fontsize=7)
-        channels -= 1
-
-    ax.set_yticks([])
-    ax.spines[["top", "right", "left"]].set_visible(False)
-    ax.set_xlabel("Time (s)")
-    ax.tick_params(direction="out")
-    y_mid = n_ch * 1.2 / 2
-    ax.text(-dur_s * 0.06, y_mid, "Electrode ID", rotation=90, va="center",
-            ha="center", fontsize=10)
-    ax.text(dur_s * 1.06, y_mid, "Channel Index", rotation=270, va="center",
-            ha="center", fontsize=10)
-    return _save(fig, out_path)
-
-
-# ── plotIdvStimDataAndTrace.m  (3_*Electrode_<id>) ────────────────────────────
 
 def plot_idv_stim_data_and_trace(
     raw_data: np.ndarray,
@@ -254,37 +229,12 @@ def plot_idv_stim_data_and_trace(
 ) -> Path:
     """Raw trace (top) + detected stim pulses (bottom) for one channel
     (port of ``plotIdvStimDataAndTrace.m``)."""
-    fs = float(params["fs"])
-    stim_dur = float(params["stimDurationForPlotting"])
-    n_time = raw_data.shape[0]
-    dur_s = n_time / fs
-    resample_n = round(dur_s * 1000.0)
-    resample_t = np.linspace(0, dur_s, resample_n)
-    rec_t = np.linspace(0, dur_s, n_time)
+    from meanap.native.chart_paint import save_chart
+    from meanap.stim.detection_checks import _electrode_trace, compute_stim_check_data
 
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 6))
-    if params.get("stimDetectionMethod") == "absPosThreshold":
-        ax1.axhline(float(params["stimDetectionVal"]), linestyle="--", color="k")
-    ax1.plot(rec_t, raw_data[:, channel_idx], linewidth=0.5)
-    ax1.spines[["top", "right"]].set_visible(False)
-    ax1.set_xlabel("Time")
-    ax1.set_ylabel("Filtered signal")
-    ax1.set_title(f"Electrode {int(stim_info[channel_idx].channel_name)} "
-                  f"(Channel {channel_idx + 1})")
+    data = compute_stim_check_data(raw_data, stim_info, params, "", channels=[channel_idx])
+    return save_chart(_electrode_trace(data, channel_idx), _png(out_path))
 
-    stim_vec = np.zeros(resample_n)
-    for st in stim_info[channel_idx].elec_stim_times:
-        stim_vec[(resample_t >= st) & (resample_t <= st + stim_dur)] = 1.0
-    ax2.plot(resample_t, stim_vec, linewidth=0.8)
-    ax2.set_ylim(0, 1)
-    ax2.set_ylabel("Stim Pulses Detected")
-    ax2.set_xlabel("Time (s)")
-    ax2.spines[["top", "right"]].set_visible(False)
-    fig.tight_layout()
-    return _save(fig, out_path)
-
-
-# ── plotStimDetectionChecks.m ─────────────────────────────────────────────────
 
 def plot_stim_detection_checks(
     raw_data: np.ndarray,
@@ -301,33 +251,11 @@ def plot_stim_detection_checks(
     ``3_StimsElectrode_<id>`` per stimulated channel. ``rng`` seeds the random
     non-stim electrode picks for reproducibility.
     """
-    out_dir = Path(out_dir)
-    if rng is None:
-        rng = np.random.default_rng()
-    written: list[Path] = []
+    from meanap.stim.detection_checks import compute_stim_check_data, draw_stim_check_figures
 
-    written.append(plot_stim_times(raw_data, stim_info, params, out_dir / "1_StimsDetected"))
-    written.append(plot_stim_heatmap(stim_info, out_dir / "2_StimsHeatmap"))
-
-    channel_names = np.array([info.channel_name for info in stim_info])
-    stim_channels = [i for i, info in enumerate(stim_info) if info.elec_stim_times.size > 0]
-    # electrode index 15 (1-based) is the reference electrode, excluded from picks
-    non_stim_channels = [i for i, info in enumerate(stim_info)
-                         if info.elec_stim_times.size == 0 and i != 14]
-
-    picks = list(non_stim_channels)
-    for _ in range(min(num_no_stim_traces, len(picks))):
-        j = int(rng.integers(len(picks)))
-        ch = picks.pop(j)
-        name = int(channel_names[ch])
-        written.append(plot_idv_stim_data_and_trace(
-            raw_data, ch, stim_info, params, out_dir / f"3_NoStimsElectrode_{name}"))
-
-    for ch in stim_channels:
-        name = int(channel_names[ch])
-        written.append(plot_idv_stim_data_and_trace(
-            raw_data, ch, stim_info, params, out_dir / f"3_StimsElectrode_{name}"))
-    return written
+    data = compute_stim_check_data(raw_data, stim_info, params, "", rng,
+                                   num_no_stim=num_no_stim_traces)
+    return draw_stim_check_figures(data, Path(out_dir))
 
 
 # ── plotPrePostStimFR.m  (9_FR_before_after_stimulation) ──────────────────────
@@ -346,6 +274,9 @@ def plot_pre_post_stim_fr(
     Post-stim window starts after the blanked artifact; the pre-stim window is
     matched to the same effective duration.
     """
+    from meanap.native.chart import NONE, Chart, Line, Panel, Points, rgba
+    from meanap.native.chart_paint import save_chart
+
     method = params["SpikesMethod"]
     all_stim_times = np.asarray(all_stim_times, dtype=float).ravel()
     n_ch = len(stim_info)
@@ -370,18 +301,14 @@ def plot_pre_post_stim_fr(
         post_fr[c] = n_post.mean() / (post_win[1] - post_win[0]) if all_stim_times.size else np.nan
 
     both = np.concatenate([pre_fr, post_fr])
-    lo, hi = np.nanmin(both), np.nanmax(both)
-    unity = np.linspace(lo, hi, 100)
-
-    fig, ax = plt.subplots(figsize=(4, 4))
-    ax.scatter(pre_fr, post_fr, facecolors="none", edgecolors="C0")
-    ax.plot(unity, unity, linestyle="--", color="C1")
-    ax.set_xlabel("Pre-stim firing rate (spikes/s)")
-    ax.set_ylabel("Post-stim firing rate (spikes/s)")
-    ax.tick_params(direction="out")
-    ax.spines[["top", "right"]].set_visible(False)
-    ax.set_title(_fn(info), fontweight="bold")
-    return _save(fig, out_path)
+    lo, hi = (np.nanmin(both), np.nanmax(both)) if np.isfinite(both).any() else (0.0, 1.0)
+    marks = [Line([lo, hi], [lo, hi], colour=rgba("C1"), dash="--", width=1.5, z=1),
+             Points(pre_fr, post_fr, fill=NONE, edge=rgba("C0"), edge_width=1.0, size=6.5,
+                    hover=[f"electrode {i.channel_name}\npre {a:.2f}, post {b:.2f} spikes/s"
+                           for i, a, b in zip(stim_info, pre_fr, post_fr)])]
+    panel = Panel(marks=marks, title=_fn(info), xlabel="Pre-stim firing rate (spikes/s)",
+                  ylabel="Post-stim firing rate (spikes/s)", grid="", **_TEXT)
+    return save_chart(Chart([panel], size=(4, 4)), _png(out_path))
 
 
 def _fn(info: dict) -> str:
@@ -409,41 +336,49 @@ def plot_metric_aligned_to_stim(
     the grey artifact-window shading. ``fr_aligned_to_stim`` is
     ``[n_ch, n_stim, n_bins]``.
     """
+    import warnings
+
+    from meanap.native.chart import Cells, Chart, ColourBar, Line, Panel, Polygon, rgba
+    from meanap.native.chart_paint import save_chart
+
     n_ch = fr_aligned_to_stim.shape[0]
     bins_ms = np.asarray(raster_bins, dtype=float) * 1000.0
     centers_ms = bins_ms[1:]  # MATLAB plots against rasterBins(2:end)
 
-    mean_fr = np.nanmean(fr_aligned_to_stim, axis=(0, 1))          # (n_bins,)
-    per_channel = np.nanmean(fr_aligned_to_stim, axis=1)           # (n_ch, n_bins)
+    with warnings.catch_warnings():     # a channel with no trials: an all-NaN mean
+        warnings.simplefilter("ignore", RuntimeWarning)
+        mean_fr = np.nanmean(fr_aligned_to_stim, axis=(0, 1))          # (n_bins,)
+        per_channel = np.nanmean(fr_aligned_to_stim, axis=1)           # (n_ch, n_bins)
+    top = float(np.nanmax(mean_fr)) if np.isfinite(mean_fr).any() else 1.0
 
     blank_ms = float(params.get("blankDurMode") or 0.0) * 1000.0
     artifact_end_ms = blank_ms + float(params.get("postStimWindowDur") or 0.0)
+    xlim = (float(bins_ms[0]), float(bins_ms[-1]))
 
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(6, 5),
-                                   gridspec_kw={"height_ratios": [1, 1]})
-    ax1.plot(centers_ms, mean_fr, color="C0")
-    ax1.fill([0, artifact_end_ms, artifact_end_ms, 0],
-             [0, 0, np.nanmax(mean_fr), np.nanmax(mean_fr)],
-             color=(0.5, 0.5, 0.5), alpha=0.3, linewidth=0)
-    ax1.spines[["top", "right"]].set_visible(False)
-    ax1.tick_params(direction="out")
-    ax1.set_ylabel(ylabel_txt)
-    ax1.set_xlim(bins_ms[0], bins_ms[-1])
-    ax1.set_title(_fn(info), fontweight="bold")
+    trace = Panel(
+        cell=(0, 0), title=_fn(info), ylabel=ylabel_txt, xlim=xlim, sharex="time", grid="",
+        marks=[Polygon([0, artifact_end_ms, artifact_end_ms, 0], [0, 0, top, top],
+                       fill=rgba((0.5, 0.5, 0.5), 0.3), z=0.5),
+               Line(centers_ms, mean_fr, colour=rgba("C0"), width=1.5,
+                    hover=[f"{t:g} ms: {v:.2f}" for t, v in zip(centers_ms, mean_fr)])],
+        **_TEXT)
+    finite = per_channel[np.isfinite(per_channel)]
+    lo, hi = (float(finite.min()), float(finite.max())) if finite.size else (0.0, 1.0)
 
-    # pcolormesh over true bin edges keeps each column in its time interval
-    im = ax2.pcolormesh(bins_ms, np.arange(0.5, n_ch + 1), per_channel,
-                        cmap=parula_map, shading="flat")
-    ax2.set_xlim(bins_ms[0], bins_ms[-1])
-    ax2.set_ylim(n_ch + 0.5, 0.5)  # channel 1 at top
-    ax2.set_ylabel("Channel")
-    ax2.set_xlabel("Time from stimulation (ms)")
-    ax2.tick_params(direction="out")
-    ax2.spines[["top", "right"]].set_visible(False)
-    cb = fig.colorbar(im, ax=ax2, location="right", fraction=0.046, pad=0.04)
-    cb.set_label("Firing rate (spikes/s)", fontsize=12)
-    fig.tight_layout()
-    return _save(fig, out_path)
+    def hover(i, j):
+        v = per_channel[i, j]
+        return (f"channel {i + 1}, {bins_ms[j]:g} to {bins_ms[j + 1]:g} ms\n"
+                + (f"{v:.2f} spikes/s" if np.isfinite(v) else "no value"))
+
+    heat = Panel(
+        cell=(1, 0), xlabel="Time from stimulation (ms)", ylabel="Channel", xlim=xlim,
+        sharex="time", grid="", y_down=True,
+        marks=[Cells(per_channel, cmap=parula_map, low=lo, high=hi, x=xlim,
+                     y=(0.5, n_ch + 0.5), hover=hover)],
+        colour_bar=ColourBar(parula_map, lo, hi, label="Firing rate (spikes/s)",
+                             fraction=0.046, tick_size=9),
+        **_TEXT)
+    return save_chart(Chart([trace, heat], size=(6, 5), grid=(2, 1)), _png(out_path))
 
 
 # ── plotStimShuffleResults.m  (12_...) ────────────────────────────────────────
@@ -463,6 +398,11 @@ def plot_stim_shuffle_results(
     ``12_shuffle_test_sig_heatmap[_pattern_k]`` (electrode layout coloured by
     significance). ``shuffle_results`` is a :class:`~meanap.stim.shuffle.ShuffleResults`.
     """
+    from meanap.native.chart import (
+        Cells, Chart, ColourBar, ErrorBars, Legend, LegendItem, Panel, Points, rgba,
+    )
+    from meanap.native.chart_paint import save_chart
+
     out_dir = Path(out_dir)
     if pattern_idx is None:
         name_suffix, title_suffix = "_allStim", "all stim"
@@ -477,42 +417,56 @@ def plot_stim_shuffle_results(
     n_ch = obs.size
     n_shuffles = shuffle_results.n_shuffles
     x = np.arange(1, n_ch + 1)
+    names = [str(i.channel_name) for i in stim_info] if len(stim_info) == n_ch else \
+        [str(k) for k in x]
 
     written: list[Path] = []
 
     # Figure 1: null-dist heatmap (sorted) + observed vs null
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(8, 5))
     null_sorted = np.sort(null, axis=1)
-    im = ax1.imshow(null_sorted, aspect="auto", cmap=parula_map, origin="upper",
-                    extent=[1, n_shuffles, n_ch + 0.5, 0.5])
-    fig.colorbar(im, ax=ax1, fraction=0.046, pad=0.02)
-    ax1.set_ylabel("Channel Index")
-    ax1.set_xlabel("Shuffle (sorted)")
-    ax1.set_title(f"Null trial proportion distribution – {title_suffix}  |  {_fn(info)}")
-    ax1.tick_params(direction="out")
+    finite = null_sorted[np.isfinite(null_sorted)]
+    lo, hi = (float(finite.min()), float(finite.max())) if finite.size else (0.0, 1.0)
+    heat = Panel(
+        cell=(0, 0), title=f"Null trial proportion distribution – {title_suffix}  |  {_fn(info)}",
+        xlabel="Shuffle (sorted)", ylabel="Channel Index", grid="", y_down=True,
+        marks=[Cells(null_sorted, cmap=parula_map, low=lo, high=hi, x=(1, n_shuffles),
+                     y=(0.5, n_ch + 0.5),
+                     hover=lambda i, j: f"channel {i + 1} (electrode {names[i]}), "
+                                        f"shuffle rank {j + 1}\n{null_sorted[i, j]:.3f}")],
+        colour_bar=ColourBar(parula_map, lo, hi, fraction=0.046, tick_size=9),
+        **{**_TEXT, "title_size": 10})
 
     null_median = np.median(null, axis=1)
-    ax2.errorbar(x, null_median, yerr=[null_median - pctile_lo, pctile_hi - null_median],
-                 fmt=".", color=(0.6, 0.6, 0.6), linewidth=1,
-                 label=r"Null median $\pm$ CI")
-    ax2.scatter(x[~is_sig], obs[~is_sig], s=25, color=(0.3, 0.3, 0.7),
-                label="Not significant")
-    ax2.scatter(x[is_sig], obs[is_sig], s=40, color=(0.9, 0.2, 0.2),
-                label="Significant")
-    ax2.set_xlabel("Channel Index")
-    ax2.set_ylabel("Proportion of trials (post > pre)")
-    ax2.legend(loc="best")
-    ax2.set_title(f"Observed vs null – {title_suffix}")
-    ax2.spines[["top", "right"]].set_visible(False)
-    ax2.tick_params(direction="out")
-    fig.tight_layout()
-    written.append(_save(fig, out_dir / f"12_shuffle_test_null_dist{name_suffix}"))
+    grey, blue, red = rgba((0.6, 0.6, 0.6)), rgba((0.3, 0.3, 0.7)), rgba((0.9, 0.2, 0.2))
+
+    def said(k):
+        return (f"channel {x[k]} (electrode {names[k]})\nobserved {obs[k]:.3f}; null median "
+                f"{null_median[k]:.3f} [{pctile_lo[k]:.3f}, {pctile_hi[k]:.3f}]")
+
+    marks = [ErrorBars(x, null_median, yerr=np.vstack([null_median - pctile_lo,
+                                                       pctile_hi - null_median]),
+                       colour=grey, width=1.0),
+             Points(x, null_median, fill=grey, size=4, z=2,
+                    hover=[said(k) for k in range(n_ch)])]
+    for mask, colour, size, label in ((~is_sig, blue, 5.5, "Not significant"),
+                                      (is_sig, red, 7.5, "Significant")):
+        if mask.any():
+            marks.append(Points(x[mask], obs[mask], fill=colour, size=size,
+                                hover=[said(k) for k in np.flatnonzero(mask)]))
+    scatter = Panel(
+        cell=(1, 0), title=f"Observed vs null – {title_suffix}", xlabel="Channel Index",
+        ylabel="Proportion of trials (post > pre)", grid="", marks=marks,
+        legend=Legend([LegendItem("Not significant", blue, kind="point"),
+                       LegendItem("Significant", red, kind="point"),
+                       LegendItem("Null median ± CI", grey, kind="tick")], loc="best", size=9),
+        **{**_TEXT, "title_size": 10})
+    written.append(save_chart(Chart([heat, scatter], size=(8, 5), grid=(2, 1)),
+                              out_dir / f"12_shuffle_test_null_dist{name_suffix}.png"))
 
     # Figure 2: categorical significance heatmap (only per-pattern)
     if pattern_idx is not None:
         sig_red = (0.9, 0.2, 0.2)
         not_sig_grey = (0.85, 0.85, 0.85)
-        node_colors = [sig_red if s else not_sig_grey for s in is_sig]
         legend = [(sig_red, "Significant"),
                   (not_sig_grey, "Not significant"),
                   (_WHITE, "Stimulated electrode")]
@@ -660,49 +614,60 @@ def plot_individual_psth_and_raster(
     else:
         hm_t_ms = hm_val = np.nan
 
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 8))
-    fig.suptitle(
-        f"Pattern {pattern_idx} | Electrode {int(channel_id)} | "
-        f"Corrected AUC: {data['auc_corrected']:.3f} | d' = {data['d_prime']:.2f}",
-        fontweight="bold")
+    from meanap.native.chart import (
+        Chart, Legend, LegendItem, Line, Panel, Points, Text, rgba,
+    )
+    from meanap.native.chart_paint import save_chart
 
-    # panel 1: spike raster (trials reversed on y)
+    red, black, blue, green = rgba("r"), rgba("k"), rgba("b"), rgba("g")
+    xs, ys = [], []
     for trial_idx, trial_spikes in enumerate(resp_data.spike_times_by_event, start=1):
-        if trial_spikes.size:
-            ax1.plot(trial_spikes * 1000.0, np.full(trial_spikes.size, trial_idx),
-                     "r.", markersize=5)
-    ax1.set_ylim(len(stim_times) + 1, 0)  # reversed, trial 1 at top
-    ax1.set_xlim(window_ms)
-    ax1.set_ylabel("Trial Number")
-    ax1.set_xlabel("Time from stimulus (ms)")
-    ax1.set_title("Spike Raster (Response)")
-    ax1.grid(True, alpha=0.3)
+        xs.append(np.asarray(trial_spikes, float) * 1000.0)
+        ys.append(np.full(len(trial_spikes), trial_idx, float))
+    xs = np.concatenate(xs) if xs else np.zeros(0)
+    ys = np.concatenate(ys) if ys else np.zeros(0)
+    raster = Panel(
+        cell=(0, 0), title="Spike Raster (Response)", xlabel="Time from stimulus (ms)",
+        ylabel="Trial Number", xlim=tuple(window_ms), ylim=(0, len(stim_times) + 1),
+        y_down=True, grid="xy", sharex="time",
+        marks=[Points(xs, ys, fill=red, size=3.5,
+                      hover=[f"trial {int(y)}: spike at {x:.2f} ms" for x, y in zip(xs, ys)])],
+        **_TEXT)
 
-    # panel 2: z-scored response vs baselines
     base_win = data["current_baseline_window_s"]
-    base_time_ms = (base.time_vector_s - base_win[0]) * 1000.0
+    base_time_ms = (base.time_vector_s - base_win[0]) * 1000.0 - window_ms[1]
+    marks = []
     for i in range(data["num_baseline"]):
         z_ind = (data["all_baseline_psth_smooth"][i] - b_mean) / b_std_safe
-        ax2.plot(base_time_ms - window_ms[1], z_ind, color=(0.8, 0.8, 0.8), linewidth=0.5)
-    ax2.plot(resp.time_vector_s * 1000.0, zscore_psth, "r-", linewidth=2, label="Response")
-    ax2.plot(base_time_ms - window_ms[1], zscore_baseline_psth, "k-", linewidth=2,
-             label="Mean Baseline")
-    ax2.plot(peak_t_ms, peak_val, "bo", markerfacecolor="b", markersize=7)
-    ax2.annotate(r" $Z_{max}$", (peak_t_ms, peak_val), va="bottom", ha="left",
-                 fontweight="bold")
+        marks.append(Line(base_time_ms, z_ind, colour=rgba((0.8, 0.8, 0.8)), width=0.5, z=1))
+    resp_ms = resp.time_vector_s * 1000.0
+    marks += [
+        Line(resp_ms, zscore_psth, colour=red, width=2, key="Response",
+             hover=[f"response at {t:.1f} ms: z = {v:.2f}" for t, v in zip(resp_ms, zscore_psth)]),
+        Line(base_time_ms, zscore_baseline_psth, colour=black, width=2, key="Mean Baseline",
+             hover=[f"mean baseline at {t:.1f} ms: z = {v:.2f}"
+                    for t, v in zip(base_time_ms, zscore_baseline_psth)]),
+        Points([peak_t_ms], [peak_val], fill=blue, size=7,
+               hover=[f"Z max {peak_val:.2f} at {peak_t_ms:.1f} ms"]),
+        Text(peak_t_ms, peak_val, "  Z max", size=10, bold=True, ha="left", va="bottom"),
+    ]
     if not np.isnan(hm_t_ms):
-        ax2.plot(hm_t_ms, hm_val, "go", markerfacecolor="g", markersize=7)
-        ax2.annotate(r" Half $Z_{max}$", (hm_t_ms, hm_val), va="top", ha="left",
-                     fontweight="bold")
-    ax2.set_title("Diagnostic: Response vs. Baselines (Z-score)")
-    ax2.set_ylabel("Z-score")
-    ax2.set_xlabel("Time from stimulus (ms)")
-    ax2.set_xlim(window_ms)
-    ax2.legend(loc="best")
-    ax2.grid(True, alpha=0.3)
-    fig.tight_layout(rect=(0, 0, 1, 0.97))
-    return _save(fig, out_path)
-
+        marks += [Points([hm_t_ms], [hm_val], fill=green, size=7,
+                         hover=[f"half Z max {hm_val:.2f} at {hm_t_ms:.1f} ms"]),
+                  Text(hm_t_ms, hm_val, "  Half Z max", size=10, bold=True, ha="left",
+                       va="top")]
+    diagnostic = Panel(
+        cell=(1, 0), title="Diagnostic: Response vs. Baselines (Z-score)",
+        xlabel="Time from stimulus (ms)", ylabel="Z-score", xlim=tuple(window_ms),
+        grid="xy", sharex="time", marks=marks,
+        legend=Legend([LegendItem("Response", red, key="Response"),
+                       LegendItem("Mean Baseline", black, key="Mean Baseline")],
+                      loc="best", size=9),
+        **_TEXT)
+    chart = Chart([raster, diagnostic], size=(12, 8), grid=(2, 1), title_size=12,
+                  title=f"Pattern {pattern_idx} | Electrode {int(channel_id)} | "
+                        f"Corrected AUC: {data['auc_corrected']:.3f} | d' = {data['d_prime']:.2f}")
+    return save_chart(chart, _png(out_path))
 
 def plot_individual_psth_and_raster_for_pattern(
     spike_times: dict,
@@ -714,12 +679,14 @@ def plot_individual_psth_and_raster_for_pattern(
     artifact_duration_s: float,
     max_channels: int = 5,
     auc_threshold: float = 0.5,
+    only_electrode: int | None = None,
 ) -> list[Path]:
     """Select and plot the top-AUC electrodes for one pattern (STEP 6 loop).
 
     Computes corrected AUC per non-stim channel, keeps those ``> auc_threshold``,
     plots the top ``max_channels`` by AUC into
-    ``Individual_PSTH_and_Raster_electrode_<id>.png``.
+    ``Individual_PSTH_and_Raster_electrode_<id>.png`` — or, given
+    ``only_electrode``, just that one of them.
     """
     out_dir = Path(out_dir)
     method = params["SpikesMethod"]
@@ -746,6 +713,8 @@ def plot_individual_psth_and_raster_for_pattern(
     written: list[Path] = []
     for _, c, d in candidates[:max_channels]:
         channel_id = int(stim_info[c].channel_name)
+        if only_electrode is not None and channel_id != only_electrode:
+            continue
         sp = _method_spikes(spike_times, c, method)
         p = plot_individual_psth_and_raster(
             sp, stim_times, params,

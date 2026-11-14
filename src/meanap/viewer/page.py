@@ -17,10 +17,13 @@ Three tabs, because a run holds three different kinds of question:
   at a time. The CAT-NAP cell-type families, which have no such address, stay
   galleries, listed separately so the difference is visible rather than
   surprising.
-* **Across lags** — the two sets whose subject is the lag itself: each metric's
+* **Across lags** — the sets whose subject is the lag itself: each metric's
   curve against lag, and the cartography roles at each lag. They answer a
   different question from anything sliced at one lag, so they get their own
-  tab rather than sitting among figures that are all one lag deep.
+  tab rather than sitting among figures that are all one lag deep. The role
+  compositions (by group, by age) and the PC/Z landscape the role boundaries
+  were placed on sit here too, one figure per lag, and are offered even when
+  the run has a single lag.
 
 The styling controls are *hidden* outside the Recordings tab, not disabled:
 they style spatial network plots, and no violin or line plot reads them. A

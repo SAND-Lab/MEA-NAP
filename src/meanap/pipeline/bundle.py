@@ -324,6 +324,13 @@ def _redrawable_stim_members(root: Path) -> set[str]:
         for folder in base.glob(f"*/{recording}"):
             for stem in stems:
                 out.add((folder / f"{stem}.png").relative_to(root).as_posix())
+    # The stimulus detection checks, likewise, per recording that kept them.
+    from meanap.stim.detection_checks import STIM_CHECKS_DIR, STIM_CHECKS_SUFFIX
+
+    for path in mats.glob(f"*{STIM_CHECKS_SUFFIX}"):
+        recording = path.name[:-len(STIM_CHECKS_SUFFIX)]
+        for folder in (root / STIM_CHECKS_DIR).glob(f"*/{recording}"):
+            out |= {p.relative_to(root).as_posix() for p in folder.glob("*.png")}
     return out
 
 

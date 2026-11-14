@@ -47,6 +47,10 @@ class Viewer:
 
 _RESULTS = Viewer("results", "Results viewer",
                   "Every figure and table from the run, in your browser.")
+_RESULTS_NATIVE = Viewer(
+    "results_native", "Results viewer, in this app (preview)",
+    "Each recording's figures in a window here: zoom and move them, and point "
+    "at a node or a point to read it. Comparisons are still in the browser.")
 _SPIKES = Viewer("spikes", "Spike and burst viewer",
                  "The detected spikes and bursts on one recording, from the "
                  "recordings folder set under Analyse recordings.", needs_run=False)
@@ -65,10 +69,10 @@ _STIM_PREVIEW = Viewer("stim_preview", "Stimulation preview",
 def viewers_for(mode: str) -> list[Viewer]:
     """The viewers that apply to *mode*'s pipeline, most used first."""
     if mode == "meastim":
-        return [_RESULTS, _FR_DIFF, _NETWORK, _STIM_PREVIEW, _SPIKES]
+        return [_RESULTS, _RESULTS_NATIVE, _FR_DIFF, _NETWORK, _STIM_PREVIEW, _SPIKES]
     if mode == "catnap":
-        return [_RESULTS, _NETWORK, _TRACKING]
-    return [_RESULTS, _NETWORK, _SPIKES]
+        return [_RESULTS, _RESULTS_NATIVE, _NETWORK, _TRACKING]
+    return [_RESULTS, _RESULTS_NATIVE, _NETWORK, _SPIKES]
 
 
 def is_results_source(path: Path) -> bool:
@@ -174,6 +178,8 @@ class ResultsPage(QWidget):
     fr_diff_requested = pyqtSignal(str)
     #: path: open the network viewer on that run.
     network_viewer_requested = pyqtSignal(str)
+    #: path: open the in-app results viewer on that run.
+    native_viewer_requested = pyqtSignal(str)
     stim_preview_requested = pyqtSignal()
 
     def __init__(self, mode: str, parent: QWidget | None = None) -> None:
@@ -348,6 +354,8 @@ class ResultsPage(QWidget):
             self.fr_diff_requested.emit(str(self.source))
         elif key == "network":
             self.network_viewer_requested.emit(str(self.source))
+        elif key == "results_native":
+            self.native_viewer_requested.emit(str(self.source))
 
     def note_opened(self, path: str, url: str | None) -> None:
         """The window opened *path* in the browser; remember it and say where."""

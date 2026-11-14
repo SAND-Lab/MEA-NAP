@@ -134,15 +134,19 @@ def load_figure_payload(path: Path) -> dict:
             "info": meta["info"], "seed": meta["seed"], "recording": meta["recording"]}
 
 
-def draw_activity_figures(payload: dict, dest: Path) -> list[Path]:
-    """Figures 9, 10, the heatmaps, PSTHs and shuffle tests, from a loaded payload."""
+def draw_activity_figures(payload: dict, dest: Path, only: str | None = None,
+                          shuffles: dict | None = None) -> list[Path]:
+    """Figures 9, 10, the heatmaps, PSTHs and shuffle tests, from a loaded payload
+    — or just the one named *only* (its path under *dest*, no suffix). *shuffles*
+    keeps the shuffle tests between calls (see ``write_stim_figures``)."""
     from meanap.pipeline.rng import make_rng
     from meanap.stim.pipeline import write_stim_figures
 
     return write_stim_figures(
         dest, payload["stim_info"], payload["patterns"], payload["spike_times"],
         payload["params"], None, payload["artifact_s"], payload["info"],
-        rng=make_rng(payload["seed"], "stim-figures", payload["recording"]))
+        rng=make_rng(payload["seed"], "stim-figures", payload["recording"]), only=only,
+        shuffles=shuffles)
 
 
 def record_figure_names(path: Path, written: list[Path], dest: Path) -> None:
@@ -188,8 +192,9 @@ def has_network_figures(arrays: Mapping) -> bool:
     return "figure_meta" in arrays
 
 
-def draw_network_figures(arrays: Mapping, fig_dir: Path) -> list[Path]:
-    """Figures 13–15 for every condition and lag in a ``_stimNetwork.npz``."""
+def draw_network_figures(arrays: Mapping, fig_dir: Path, only: str | None = None) -> list[Path]:
+    """Figures 13–16 for every condition and lag in a ``_stimNetwork.npz`` — or
+    just the one whose name (no suffix) is *only*."""
     from meanap.stim.consistency import PatternDrift, TrialConsistency
     from meanap.stim.consistency_plots import plot_split_half, plot_trial_consistency
     from meanap.stim.evoked_network import EpochNetwork, NoiseCorrelation
@@ -206,6 +211,9 @@ def draw_network_figures(arrays: Mapping, fig_dir: Path) -> list[Path]:
     sub2 = np.ix_(keep, keep)
     title = meta["title"]
     written: list[Path] = []
+
+    def want(stem: str) -> bool:
+        return only is None or only == stem
 
     def net(cond, epoch, lag, info, prefix, *, subset=False, n_trials=None):
         def get(k, nd=2):
@@ -226,7 +234,7 @@ def draw_network_figures(arrays: Mapping, fig_dir: Path) -> list[Path]:
 
     for c in meta["conditions"]:
         cond = c["name"]
-        if c.get("consistency") is not None:
+        if c.get("consistency") is not None and want(f"14_StimConsistency_{cond}"):
             cs = c["consistency"]
 
             def drift(kind):
@@ -257,12 +265,14 @@ def draw_network_figures(arrays: Mapping, fig_dir: Path) -> list[Path]:
                               counts=np.empty((0, keep.size)))
         for lg in c["lags"]:
             lag = lg["lag"]
-            nets = {ep: net(cond, ep, lag, lg["epochs"][ep], f"{cond}__{ep}__{lag}ms")
-                    for ep in ("baseline", "evoked")}
-            path = fig_dir / f"13_StimNetwork_{cond}_{lag}mslag.png"
-            _plot_stim_network(nets, nc, path, f"{title} — {cond}, lag {lag} ms")
-            written.append(path)
-            if lg.get("split_rows"):
+            if want(f"13_StimNetwork_{cond}_{lag}mslag"):
+                nets = {ep: net(cond, ep, lag, lg["epochs"][ep], f"{cond}__{ep}__{lag}ms")
+                        for ep in ("baseline", "evoked")}
+                path = fig_dir / f"13_StimNetwork_{cond}_{lag}mslag.png"
+                _plot_stim_network(nets, nc, path, f"{title} — {cond}, lag {lag} ms",
+                                   names=channels)
+                written.append(path)
+            if lg.get("split_rows") and want(f"15_StimNetworkSplitHalf_{cond}_{lag}mslag"):
                 halves = {}
                 for r in lg["split_rows"]:
                     if r["epoch"] not in ("baseline", "evoked"):
@@ -274,9 +284,11 @@ def draw_network_figures(arrays: Mapping, fig_dir: Path) -> list[Path]:
                             subset=True, n_trials=r[f"n_trials_{half}"])
                 path = fig_dir / f"15_StimNetworkSplitHalf_{cond}_{lag}mslag.png"
                 plot_split_half(halves, lg["split_rows"], path,
-                                f"{title} — {cond}, lag {lag} ms")
+                                f"{title} — {cond}, lag {lag} ms", names=channels[keep])
                 written.append(path)
     for lag in _graph_lags(meta):
+        if not want(f"16_StimNetworkGraph_{lag}mslag"):
+            continue
         path = fig_dir / f"16_StimNetworkGraph_{lag}mslag.png"
         plot_epoch_graphs(arrays, meta, lag, path)
         written.append(path)
@@ -299,17 +311,15 @@ def plot_epoch_graphs(arrays: Mapping, meta: dict, lag, path: Path) -> None:
     can be compared across epochs and patterns. Stimulating electrodes are
     left out of the networks; the row's own are starred, any others crossed.
     """
-    import matplotlib
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
-
-    from meanap.network_plot import plot_network
-    from meanap.pipeline.figure_output import savefig
+    from meanap.native import output
+    from meanap.native.network_paint import NetworkGridPainter, NetworkGridScene
+    from meanap.native.scene import network_scene
 
     keep = ~np.asarray(arrays["stim_electrode"], bool)
     channels = np.asarray(arrays["channels"]).astype(int)
     coords = np.asarray(arrays["coords"], float)
-    shown = keep & np.isfinite(coords).all(axis=1)   # e.g. a grounded corner has none
+    placed = np.isfinite(coords).all(axis=1)
+    shown = keep & placed                            # e.g. a grounded corner has none
     idx = np.flatnonzero(shown)
 
     rows = []
@@ -333,37 +343,48 @@ def plot_epoch_graphs(arrays: Mapping, meta: dict, lag, path: Path) -> None:
                    else (0.0, 1.0))
     max_degree = max([float((m > 0).sum(axis=1).max()) for _c, ms in rows for m, _e in ms
                       if m.size] + [1.0])
+    every = coords[placed]
+    extent = ((float(every[:, 0].min()), float(every[:, 0].max()),
+               float(every[:, 1].min()), float(every[:, 1].max())) if len(every)
+              else (0.0, 1.0, 0.0, 1.0))
 
-    fig, axes = plt.subplots(len(rows), 3, figsize=(15.5, 5.0 * len(rows)), squeeze=False)
-    for (c, mats), row in zip(rows, axes):
+    grid = []
+    for c, mats in rows:
         own = set(c.get("electrodes") or [])
-        for (m, ep), ax, (_epoch, label) in zip(mats, row, GRAPH_EPOCHS):
+        markers = []
+        for i in np.flatnonzero(~keep & placed):
+            mine = int(channels[i]) in own
+            markers.append({"xy": tuple(coords[i]), "shape": "star" if mine else "cross",
+                            "colour": STIM_MARK if mine else "#8a8f98",
+                            "size": 16 if mine else 7,
+                            "text": f"electrode {int(channels[i])}: stimulating"
+                                    + (" in this pattern" if mine else " in another pattern")})
+        panels = []
+        for (m, ep), (_epoch, label) in zip(mats, GRAPH_EPOCHS):
             n_edges = int(np.count_nonzero(np.triu(m, 1)))
             w0, w1 = ep["window_s"]
             of = (f" of {ep['n_defined_pairs']} defined pairs"
                   if ep.get("n_defined_pairs") is not None
                   and ep["n_defined_pairs"] < ep.get("n_pairs", 0) else "")
-            plot_network(ax, m, coords[idx], 0.0, (m > 0).sum(axis=1).astype(float),
-                         title=f"{label}  {w0 * 1000:g} to {w1 * 1000:g} ms\n"
-                               f"{n_edges} significant edges{of}, {ep['n_trials']} trials",
-                         z_scale_override=max_degree, edge_bounds_override=edge_bounds)
-            for i in np.flatnonzero(~keep & np.isfinite(coords).all(axis=1)):
-                mine = int(channels[i]) in own
-                ax.scatter(*coords[i], marker="*" if mine else "x", s=260 if mine else 60,
-                           color=STIM_MARK if mine else "#8a8f98", zorder=10,
-                           linewidths=1.5, edgecolors="white" if mine else None)
-        row[0].text(-0.04, 0.5, c["name"], transform=row[0].transAxes, rotation=90,
-                    ha="right", va="center", fontsize=13, fontweight="bold")
+            net = network_scene(
+                m, coords[idx], 0.0, (m > 0).sum(axis=1).astype(float),
+                title=f"{label}  {w0 * 1000:g} to {w1 * 1000:g} ms\n"
+                      f"{n_edges} significant edges{of}, {ep['n_trials']} trials",
+                names=channels[idx], noun="electrode",
+                z_scale_override=max_degree, edge_bounds_override=edge_bounds)
+            net.extent, net.markers = extent, markers
+            panels.append(net)
+        grid.append(panels)
     how = (", STTC within each trial and averaged" if meta.get("sttc_mode") == "trial_mean"
            else "")
-    fig.suptitle(f"{meta['title']}: networks before, during and after stimulation, "
-                 f"lag {lag} ms\nSignificant STTC edges ({meta['null'].replace('_', ' ')} "
-                 f"null{how}). Node size: degree; edge width: STTC; shared across panels. "
-                 f"\u2605 the row's stimulating electrodes (left out of the networks).",
-                 fontsize=11)
-    fig.tight_layout(rect=(0.02, 0, 1, 0.97))
-    savefig(fig, path, default_dpi=150)
-    plt.close(fig)
+    scene = NetworkGridScene(
+        title=f"{meta['title']}: networks before, during and after stimulation, lag {lag} ms\n"
+              f"Significant STTC edges ({meta['null'].replace('_', ' ')} null{how}). "
+              f"Node size: degree; edge width: STTC; shared across panels. "
+              f"\u2605 the row's stimulating electrodes (left out of the networks).",
+        panels=grid, row_names=[c["name"] for c, _m in rows])
+    painter = NetworkGridPainter(scene)
+    output.save(painter, path, capture=output.NativeFigure("network_grid", scene, painter))
 
 
 # ── What a recording has, by name ─────────────────────────────────────────────

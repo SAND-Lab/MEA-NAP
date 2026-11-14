@@ -22,13 +22,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-import matplotlib
-
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
 import numpy as np
 
-from meanap.pipeline.figure_output import savefig
 from meanap.pipeline.atomic import atomic_savez
 
 __all__ = [
@@ -187,69 +182,79 @@ def draw_edge_threshold_check(data: EdgeThresholdCheckData, out_path: Path) -> P
          variation (right axis) vs. number of repeats.
       2. Threshold trajectories of 12 sampled edges vs. repeats.
       3. Five heatmaps of the edges that would be discarded at five repeat
-         checkpoints.
+         checkpoints, on one colour scale so they can be compared.
     """
-    a = np.asarray(data.rep_val, dtype=float)
-    mean_thr, std_thr = data.mean_thr, data.std_thr
-    c = (0.471, 0.674, 0.188)  # green (MATLAB "wild-type" colour)
+    from matplotlib import colormaps
 
+    from meanap.native.chart import (Band, Cells, Chart, ColourBar, Legend, LegendItem,
+                                     Line, Panel, rgba)
+    from meanap.native.chart_paint import save_chart
+
+    a = np.asarray(data.rep_val, dtype=float)
+    mean_thr = np.asarray(data.mean_thr, dtype=float)
+    std_thr = np.asarray(data.std_thr, dtype=float)
+    c = (0.471, 0.674, 0.188)  # green (MATLAB "wild-type" colour)
     with np.errstate(divide="ignore", invalid="ignore"):
         coeff_var = np.where(mean_thr != 0, std_thr / mean_thr, np.nan)
+    reps = [f"after {int(n)} repeats" for n in a]
+    text = dict(title_size=12, label_size=10, tick_size=8)
+    xlim = (0.0, float(a[-1])) if len(a) and a[-1] > 0 else None
 
-    fig = plt.figure(figsize=(12, 8.5))
-    gs = fig.add_gridspec(3, 5, height_ratios=[1, 1, 1.1], hspace=0.45, wspace=0.35)
+    threshold = Panel(
+        cell=(0, 0), span=(1, N_MAPS), sharex="repeats", xlim=xlim, zoom=(True, False),
+        marks=[Band(a, mean_thr - std_thr, mean_thr + std_thr, colour=rgba(c, 0.3),
+                    key="threshold"),
+               Line(a, mean_thr, colour=rgba(c), width=2, key="threshold",
+                    hover=[f"{r}: threshold {m:.4g} ± {sd:.2g}"
+                           for r, m, sd in zip(reps, mean_thr, std_thr)])],
+        title="Change in threshold", xlabel="Number of Repeats",
+        ylabel="Average threshold value", grid="",
+        legend=Legend([LegendItem("average threshold ± SD", rgba(c), key="threshold"),
+                       LegendItem("coefficient of variation", rgba("black"), key="cv")],
+                      loc="best", size=8), **text)
+    variation = Panel(
+        cell=(0, 0), span=(1, N_MAPS), twin=True, sharex="repeats", xlim=xlim,
+        zoom=(True, False),
+        marks=[Line(a, coeff_var, colour=rgba("black"), width=1, key="cv",
+                    hover=[f"{r}: coefficient of variation {v:.3g}"
+                           for r, v in zip(reps, coeff_var)])],
+        ylabel="Coefficient of Variance", **text)
 
-    ax1 = fig.add_subplot(gs[0, :])
-    ax1.fill_between(a, mean_thr - std_thr, mean_thr + std_thr, color=c, alpha=0.3,
-                     edgecolor="none")
-    ax1.plot(a, mean_thr, "-", color=c, lw=2)
-    ax1.set_xlabel("Number of Repeats")
-    ax1.set_ylabel("Average threshold value", color=(0, 0.4, 0))
-    ax1.set_xlim(0, a[-1])
-    ax1.set_title("Change in threshold")
-    ax1.spines["top"].set_visible(False)
-    ax1.tick_params(direction="out")
-    ax1b = ax1.twinx()
-    ax1b.plot(a, coeff_var, "-", color="k", lw=1)
-    ax1b.set_ylabel("Coefficient of Variance")
-    ax1b.spines["top"].set_visible(False)
-    ax1b.tick_params(direction="out")
+    trajectories = np.asarray(data.trajectories, dtype=float)
+    ramp = colormaps["inferno"]
+    n_sample = len(trajectories)
+    lines = [Line(a, t, colour=rgba(ramp(j / max(n_sample - 1, 1))), width=1,
+                  key=f"edge {j + 1}",
+                  hover=[f"sampled edge {j + 1}, {r}: threshold {v:.4g}"
+                         for r, v in zip(reps, t)])
+             for j, t in enumerate(trajectories)]
+    samples = Panel(cell=(1, 0), span=(1, N_MAPS), sharex="repeats", xlim=xlim,
+                    zoom=(True, False), marks=lines, title="Raw Data Samples",
+                    xlabel="Number of Repeats", ylabel="Threshold value", grid="", **text)
 
-    # ── Row 2: threshold trajectories of 12 random edges ─────────────────────
-    ax2 = fig.add_subplot(gs[1, :])
-    n_sample = len(data.trajectories)
-    cmap = plt.cm.inferno
-    for j, trajectory in enumerate(data.trajectories):
-        ax2.plot(a, trajectory, "-", color=cmap(j / max(n_sample - 1, 1)), lw=1)
-    ax2.set_xlim(0, a[-1])
-    ax2.set_xlabel("Number of Repeats")
-    ax2.set_ylabel("Threshold value")
-    ax2.set_title("Raw Data Samples")
-    ax2.spines["top"].set_visible(False)
-    ax2.spines["right"].set_visible(False)
-    ax2.tick_params(direction="out")
+    maps = [np.asarray(m, dtype=float) for m in data.maps]
+    high = max([float(np.nanmax(m)) for m in maps if m.size] + [0.0]) or 1.0
+    panels = [threshold, variation, samples]
+    for q, blank in enumerate(maps):
+        rep = int(data.map_reps[q]) - 1
 
-    # ── Row 3: discarded-edge heatmaps at 5 checkpoints ──────────────────────
-    last_im = None
-    for q, blank in enumerate(data.maps):
-        ax = fig.add_subplot(gs[2, q])
-        last_im = ax.imshow(blank, aspect="equal", origin="upper")
-        ax.set_title(f"discarded edges (rep{int(data.map_reps[q]) - 1})", fontsize=8)
-        ax.set_xlabel("Electrode", fontsize=8)
-        if q == 0:
-            ax.set_ylabel("Electrode", fontsize=8)
-        ax.tick_params(direction="out", labelsize=7)
-    if last_im is not None:
-        cbar = fig.colorbar(last_im, ax=fig.axes[-1], fraction=0.046, pad=0.04)
-        cbar.set_label("Edge weight", fontsize=8)
+        def hover(i, j, blank=blank, rep=rep):
+            if i == j:
+                return ""
+            v = blank[i, j]
+            return (f"electrodes {i + 1} ↔ {j + 1}\n"
+                    + (f"discarded at rep {rep} (weight {v:.3g})" if v else "kept"))
 
-    for ax in fig.axes:
-        for lbl in ax.get_xticklabels() + ax.get_yticklabels():
-            lbl.set_fontsize(8)
-
-    savefig(fig, out_path, default_dpi=200, bbox_inches="tight")
-    plt.close(fig)
-    return out_path
+        last = q == len(maps) - 1
+        panels.append(Panel(
+            cell=(2, q), marks=[Cells(blank, cmap="viridis", low=0.0, high=high, hover=hover)],
+            title=f"discarded edges (rep{rep})", title_size=9, xlabel="Electrode",
+            ylabel="Electrode" if q == 0 else "", label_size=9, tick_size=8,
+            y_down=True, equal=True, grid="",
+            colour_bar=ColourBar("viridis", 0.0, high, label="Edge weight", fraction=0.046)
+            if last else None))
+    chart = Chart(panels, size=(12, 8.5), grid=(3, N_MAPS), heights=[1, 1, 1.1])
+    return save_chart(chart, out_path)
 
 
 def plot_prob_thresh_check(
