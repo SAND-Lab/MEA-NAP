@@ -31,10 +31,14 @@ from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
 
-__all__ = ["MetricInfo", "METRICS_DIR", "all_metrics", "lookup", "render_markdown",
-           "metrics_for"]
+__all__ = ["MetricInfo", "METRICS_DIR", "SETTINGS_DIR", "all_metrics", "lookup",
+           "render_markdown", "metrics_for"]
 
 METRICS_DIR = Path(__file__).resolve().parent / "gui" / "assets" / "metrics"
+#: The same kind of card about the settings of a run, read the same way. Their
+#: front matter adds ``tab`` and ``labels`` (the GUI texts the card explains;
+#: semicolon-separated) and ``params`` (the Params fields).
+SETTINGS_DIR = Path(__file__).resolve().parent / "gui" / "assets" / "settings"
 
 _FRONT = re.compile(r"\A---\s*\n(.*?)\n---\s*\n?(.*)\Z", re.S)
 _PARAM = re.compile(r"\{\{\s*param:([A-Za-z0-9_]+)\s*\}\}")
@@ -53,6 +57,13 @@ class MetricInfo:
     image: str | None = None
     related: tuple[str, ...] = ()
     path: Path | None = field(default=None, compare=False)
+    #: Every front-matter entry, as written (lower-cased names).
+    meta: dict = field(default_factory=dict, compare=False, hash=False)
+
+    @property
+    def labels(self) -> tuple[str, ...]:
+        """The GUI texts a settings card explains (``labels:``, split on ";")."""
+        return tuple(t.strip() for t in self.meta.get("labels", "").split(";") if t.strip())
 
     @property
     def keys(self) -> tuple[str, ...]:
@@ -75,7 +86,7 @@ def parse(text: str, path: Path | None = None) -> MetricInfo:
         raise ValueError(f"{path or 'card'}: no front matter")
     meta: dict[str, str] = {}
     for line in match.group(1).splitlines():
-        line = line.split(" #", 1)[0].rstrip()
+        line = line.split("  #", 1)[0].rstrip()
         if ":" in line:
             name, value = line.split(":", 1)
             meta[name.strip().lower()] = value.strip()
@@ -85,7 +96,7 @@ def parse(text: str, path: Path | None = None) -> MetricInfo:
         key=meta["key"], name=meta["name"], body=match.group(2).strip(),
         also=_split_list(meta.get("also", "")), level=meta.get("level", "concept"),
         family=meta.get("family", ""), image=meta.get("image") or None,
-        related=_split_list(meta.get("related", "")), path=path)
+        related=_split_list(meta.get("related", "")), path=path, meta=meta)
 
 
 @lru_cache(maxsize=4)

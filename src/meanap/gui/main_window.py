@@ -14,7 +14,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 from PyQt6.QtGui import QAction
-from PyQt6.QtCore import QObject, Qt, QSettings, QSignalBlocker, QSize, QTimer, pyqtSignal
+from PyQt6.QtCore import QObject, QRect, Qt, QSettings, QSignalBlocker, QSize, QTimer, pyqtSignal
 
 from meanap.params import STATS_STEP, Params
 from meanap.pipeline.bundle import BUNDLE_SUFFIX
@@ -385,6 +385,21 @@ class MainWindow(QMainWindow):
             f"{mode.label}\n{mode.blurb}" if own
             else "MEA-NAP — MEA Network Analysis Pipeline")
 
+    def _setting_help_area(self) -> QRect:
+        """Where a setting's card goes: over the tab below its strip, or in
+        the simple view beside the drawer that holds the setting."""
+        views = self._views.rect()
+        if self._views.currentWidget() is self._tabs:
+            return views.adjusted(0, self._tabs.tabBar().height(), 0, 0)
+        simple = getattr(self, "_simple_view", None)
+        drawer = getattr(simple, "drawer", None)
+        if drawer is not None and drawer.is_open():
+            panel = drawer.panel.geometry()
+            left = drawer.mapTo(self._views, panel.topLeft()).x()
+            return QRect(views.left(), views.top(), max(left - views.left(), 320),
+                         views.height())
+        return views
+
     def _build_tabs(self) -> None:
         self._tabs = QTabWidget()
         self._tabs.setDocumentMode(True)
@@ -447,6 +462,10 @@ class MainWindow(QMainWindow):
             # for a keyboard mnemonic and swallows it.
             (TAB_STATS, scrollable(self._stats_panel), "  Stats && ML  "),
         ]
+        from meanap.gui.setting_help import SettingHelp
+
+        # ⓘ on the settings that have a card saying what they do.
+        self._setting_help = SettingHelp(self._tabs, self._views, self._setting_help_area)
         self._apply_mode(self._mode, sync_params=False)
 
         self._catnap_panel.log_message.connect(self._run_panel.append_log)
@@ -518,6 +537,8 @@ class MainWindow(QMainWindow):
         # Built last: its fields mirror the panels above, which must exist.
         self._simple_view = SimpleView(
             self._data_panel, self._stim_panel, self._catnap_panel, self._mode)
+        # A setting's card goes with the drawer that showed the setting.
+        self._simple_view.drawer.closed.connect(self._setting_help.card.close_card)
         # Whatever the Run tab's switch says: one run, a queue, or a shared run.
         self._simple_view.run_requested.connect(self._on_run_clicked)
         self._simple_view.attach_run_panel(self._run_panel)
@@ -559,6 +580,7 @@ class MainWindow(QMainWindow):
         else:
             self._apply_simple_defaults()
         self._views.setCurrentWidget(self._simple_view if simple else self._tabs)
+        self._setting_help.card.close_card()
         # The simple view has no use for the toolbar or status bar, and leaving
         # them would undo most of what makes it simple.
         for toolbar in self.findChildren(QToolBar):
@@ -927,6 +949,10 @@ class MainWindow(QMainWindow):
         self._refresh_version_label()
         self._refresh_logo()
         self._refresh_timescale_label()
+        # A panel may have relabelled itself for the mode ("events/s").
+        help_ = getattr(self, "_setting_help", None)
+        if help_ is not None:
+            help_.attach()
         simple = getattr(self, "_simple_view", None)
         if simple is not None:
             simple.set_mode(mode_key)
