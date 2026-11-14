@@ -82,6 +82,16 @@ class FigurePainter:
         recordings — so a view can offer that recording's own figures."""
         return None
 
+    #: How far down the figure's title reaches, for :meth:`info_at`.
+    info_band: float = 36.0
+
+    def info_at(self, x: float, y: float) -> str | None:
+        """What part of the figure pixel (x, y) is on, for a card explaining
+        it: "title" over the title (by default the top ``info_band`` pixels),
+        else None. A painter with a legend may name its parts too ("size",
+        "colour", "edges"; see :func:`meanap.metric_info.metrics_for`)."""
+        return "title" if 0 <= y <= self.info_band else None
+
     def pinnable(self, what) -> bool:
         """Whether a click on *what* keeps it marked."""
         return what is not None

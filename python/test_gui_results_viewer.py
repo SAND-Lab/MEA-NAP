@@ -1832,6 +1832,182 @@ def _params_and_export_checks(bundle: Path, tmp: Path) -> list[Check]:
     return checks
 
 
+def _card_text_checks() -> list[Check]:
+    """The metric cards themselves: well formed, and about this run."""
+    import dataclasses
+
+    from meanap.metric_info import _PARAM, all_metrics, lookup, render_markdown
+    from meanap.params import Params
+
+    checks: list[Check] = []
+    cards = all_metrics()
+    fields = {f.name for f in dataclasses.fields(Params)}
+    checks.append(("there is a card for each node, recording and activity measure",
+                   len(cards) >= 30 and {"BC", "ND", "PC", "FR", "SW", "NC", "edges"} <= set(cards),
+                   str(len(cards))))
+    bad = [(k, p) for k, c in cards.items() for p in _PARAM.findall(c.body) if p not in fields]
+    checks.append(("every setting a card quotes is a real setting", not bad, str(bad)))
+    loose = [(k, r) for k, c in cards.items() for r in c.related if lookup(r) is None]
+    checks.append(("every related metric has a card of its own", not loose, str(loose)))
+    owners: dict[str, str] = {}
+    twice = []
+    for k, c in cards.items():
+        for alias in c.keys:
+            if alias in owners:
+                twice.append((alias, owners[alias], k))
+            owners[alias] = k
+    checks.append(("no key is explained by two cards", not twice, str(twice)))
+    headings = [k for k, c in cards.items()
+                if not all(f"## {h}" in c.body for h in
+                           ("What it measures", "Reading the values", "How MEA-NAP calculates it"))]
+    checks.append(("each says what it measures, how to read it, and how it is calculated",
+                   not headings, str(headings)))
+    checks.append(("a summary key finds the card of its measure",
+                   lookup("PCmeanTop10").key == "PC" and lookup("NDmean").key == "ND"
+                   and lookup("ncpn3").key == "NC", ""))
+    params = Params(min_activity_level=0.37)
+    text = render_markdown(lookup("FR"), params)
+    checks.append(("the run's own settings are filled in",
+                   "`0.37`" in text and "{{" not in text, text[:0]))
+    plain = render_markdown(lookup("FR"))
+    checks.append(("and without a run, the setting is named instead",
+                   "`min_activity_level`" in plain, ""))
+    return checks
+
+
+def _metric_card_checks(bundle: Path) -> list[Check]:
+    """Clicking a figure's title or legend says what its metric means."""
+    from PyQt6.QtCore import QPoint, Qt
+    from PyQt6.QtTest import QTest
+
+    from meanap.gui.results_viewer import ResultsViewer
+    from meanap.metric_info import metrics_for
+
+    checks: list[Check] = []
+    viewer = ResultsViewer()
+    viewer.resize(1400, 900)
+    viewer.show()
+    viewer.load_run(bundle)
+    _settle(viewer)
+    card = viewer.metric_card
+    left = Qt.MouseButton.LeftButton
+
+    # Every figure of the run has something to say about it.
+    missing = []
+    for scope in ("recording", "group"):
+        viewer.set_scope(scope)
+        _settle(viewer)
+        for leaf in viewer._leaves():
+            request = leaf.data(0, Qt.ItemDataRole.UserRole)
+            if request and "title" not in metrics_for(request):
+                missing.append(leaf.text(0))
+    checks.append(("every figure of the run has a card about its metric", not missing,
+                   str(missing)))
+
+    viewer.set_scope("recording")
+    _settle(viewer)
+    label = next(t for t in viewer.figure_labels() if t.endswith("Betweenness centrality"))
+    viewer.select_figure(label)
+    _settle(viewer)
+    checks.append(("a figure with a card offers an About button, closed until asked",
+                   viewer.about_button.isVisibleTo(viewer) and not card.isVisible(), ""))
+    surface, figure = viewer.native.surface, viewer.native.painter
+    QTest.mouseClick(surface, left, pos=QPoint(int(figure.size[0] / 2), 18))
+    _wait(60)
+    checks.append(("clicking the title opens the card for the metric in colour",
+                   card.isVisible() and card.current == "BC", str(card.current)))
+    checks.append(("laid over the figure, inside it",
+                   viewer._stack.rect().contains(card.geometry()), str(card.geometry())))
+    checks.append(("with what the values mean and how they were calculated",
+                   "Reading the values" in card.text.toPlainText()
+                   and "How MEA-NAP calculates it" in card.text.toPlainText(), ""))
+    boxes = {role: box for box, role in figure._info_boxes}
+    for role, key in (("size", "ND"), ("edges", "edges")):
+        if role not in boxes:
+            checks.append((f"the {role} heading is clickable", False, str(list(boxes))))
+            continue
+        at = boxes[role].center()
+        QTest.mouseClick(surface, left, pos=QPoint(int(at.x()), int(at.y())))
+        _wait(60)
+        checks.append((f"clicking the legend's {role} heading opens the {key} card",
+                       card.current == key, str(card.current)))
+    centre = figure.plot_rect.center()
+    middle = QPoint(int(centre.x()), int(centre.y()))
+    checks.append(("the network itself is not a card link",
+                   viewer.native.info.role_at(figure, middle.x(), middle.y()) is None, ""))
+    viewer.about_button.click()
+    _wait(30)
+    viewer.about_button.click()
+    _wait(30)
+    checks.append(("the About button opens the card, and closes it again",
+                   not card.isVisible(), ""))
+    viewer.about_button.click()
+    _wait(30)
+    from PyQt6.QtCore import QUrl
+
+    card.text.anchorClicked.emit(QUrl("metric:PC"))
+    _wait(30)
+    checks.append(("a related metric is a link to its card, with a way back",
+                   card.current == "PC" and card.back.isVisible(), str(card.history)))
+    card.go_back()
+    checks.append(("and Back returns", card.current == "BC" and not card.back.isVisible(),
+                   str(card.history)))
+    node_degree = next(t for t in viewer.figure_labels() if t.endswith("Node degree")
+                       and "Spatial" in t)
+    viewer.select_figure(node_degree)
+    _settle(viewer)
+    checks.append(("an open card follows the figure chosen",
+                   card.isVisible() and card.current == "ND", str(card.current)))
+    QTest.keyClick(card.text, Qt.Key.Key_Escape)
+    _wait(30)
+    checks.append(("Esc closes it", not card.isVisible(), ""))
+
+    # The colour bar of an activity figure (this run draws none: the painters).
+    from meanap.native.activity_paint import HeatmapPainter
+    from meanap.native.scene import heatmap_scene
+
+    heat = HeatmapPainter(heatmap_scene(np.arange(60.0), list(range(11, 71)), "rec",
+                                        "mean firing rate (Hz)", channel_layout="MCS60"))
+    _plot, bar, _s, _c = heat._panel(0)
+    checks.append(("a heatmap's colour bar and title are card links, its electrodes are not",
+                   heat.info_at(bar.center().x(), bar.center().y()) == "colour"
+                   and heat.info_at(heat.size[0] / 2, 20) == "title"
+                   and heat.info_at(_plot.center().x(), _plot.center().y()) is None, ""))
+    from meanap.native.activity_paint import RasterPainter
+    from meanap.native.scene import raster_scene
+
+    raster = RasterPainter(raster_scene({ch: np.arange(5.0) for ch in range(4)}, 10.0,
+                                        title="rec", spike_freq_max=3.0))
+    bar = raster.bars[0]
+    checks.append(("so is a raster's colour bar",
+                   raster.info_at(bar.center().x(), bar.center().y()) == "colour", ""))
+    checks.append(("and an activity figure's colour bar is about its measure",
+                   metrics_for({"kind": "activity", "name": "2_Heatmap"}).get("colour") == "FR"
+                   and metrics_for({"kind": "activity",
+                                    "name": "7_ISIwithinBurst_heatmap"})["title"] == "ISI"
+                   and metrics_for({"kind": "activity",
+                                    "name": "6_FractSpikesInBursts_heatmap"})["title"]
+                   == "bursts", ""))
+    viewer.set_scope("params")
+    _wait(30)
+    checks.append(("leaving the figures closes the card", not card.isVisible(), ""))
+
+    viewer.set_scope("group")
+    _settle(viewer)
+    metric = next(t for t in viewer.figure_labels() if t.endswith("node degree"))
+    viewer.select_figure(metric)
+    _settle(viewer)
+    painter = viewer.canvas.painter
+    rect = painter.axes[0].rect
+    QTest.mouseClick(viewer.canvas, left,
+                     pos=QPoint(int(rect.left() - 30), int(rect.center().y())))
+    _wait(60)
+    checks.append(("across recordings, clicking the metric's axis label opens its card",
+                   card.current == "ND", str(card.current)))
+    viewer.close()
+    return checks
+
+
 #: Longer than the preview card's grace period.
 PREVIEW_WAIT_MS = 900
 
@@ -1855,6 +2031,7 @@ def main() -> int:
             ("J. Choosing an activity figure's scale", _scale_checks(bundle)),
             ("K. The run's settings, and exporting its figures",
              _params_and_export_checks(bundle, tmp)),
+            ("L. What a metric means", _card_text_checks() + _metric_card_checks(bundle)),
         ):
             n_pass, n = _report(title, checks)
             total_pass += n_pass

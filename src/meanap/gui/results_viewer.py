@@ -1085,9 +1085,16 @@ class ResultsViewer(QWidget):
             canvas.hovered.connect(self._on_hover)
             canvas.picked.connect(self._on_picked)
         self.canvas.recording.connect(self._on_point_recording)
+        for canvas in (self.native, self.canvas):
+            canvas.info_requested.connect(self._open_info)
         self._stack = QStackedWidget()
         for widget in (self.view, self.native, self.canvas, self.montage):
             self._stack.addWidget(widget)
+        from meanap.gui.metric_card import MetricCard
+
+        # Laid over the figure, not beside it: it is read, then closed.
+        self.metric_card = MetricCard(self._stack)
+        self._stack.installEventFilter(self)
 
         # The same figure at every DIV this culture was recorded at.
         self.across_divs = QPushButton("Across DIVs")
@@ -1106,6 +1113,14 @@ class ResultsViewer(QWidget):
         self._split_label = _muted("Panels")
         self.figure_title = QLabel("")
         self.figure_title.setStyleSheet("font-size: 14px; font-weight: 600;")
+        # What the figure's metric means: also opened by clicking the
+        # figure's title or a legend heading.
+        self.about_button = QPushButton("ⓘ About")
+        self.about_button.setObjectName("ghost")
+        self.about_button.clicked.connect(lambda: self._open_info("title"))
+        self.about_button.hide()
+        #: Which card each part of the figure on show is about (metrics_for).
+        self._info: dict[str, str] = {}
         self.status = _muted()
         # The timing is a note; it gives way before the controls do.
         self.status.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
@@ -1130,6 +1145,7 @@ class ResultsViewer(QWidget):
         bar = QHBoxLayout()
         bar.setSpacing(8)
         bar.addWidget(self.figure_title)
+        bar.addWidget(self.about_button)
         bar.addWidget(self.status, 1)
         for widget in (self._variant_label, self.variant, self._split_label, self.split,
                        self.across_divs, self.style_button, reset, save):
@@ -1237,8 +1253,9 @@ class ResultsViewer(QWidget):
         self._scope_buttons[TRACKING].setVisible(bool(service.tracking().get("available")))
         settings = self._manifest.get("params")
         self._scope_buttons[PARAMS].setVisible(settings is not None)
-        self.params_view.load(settings, self._manifest.get("produced_by"),
-                              service.run_params())
+        run_params = service.run_params()
+        self.params_view.load(settings, self._manifest.get("produced_by"), run_params)
+        self.metric_card.set_params(run_params)
         # Only a bundle has figures to draw out; a folder already is one.
         self.export_button.setVisible(bool(self._manifest.get("can_export")))
         if self._export_job is None:
@@ -1304,6 +1321,8 @@ class ResultsViewer(QWidget):
         self._scope = scope
         self._dismiss_preview()
         self._place_across()
+        if scope in (TRACKING, PARAMS):
+            self.metric_card.close_card()
         if scope == TRACKING:
             self._pages.setCurrentWidget(self.tracking)
             # Listing the chains opens the first one, which is megabytes to
@@ -1793,6 +1812,7 @@ class ResultsViewer(QWidget):
         if not request:
             return
         self.figure_title.setText(item.text(0))
+        self._place_info(request)
         variants = item.data(0, _VARIANTS_ROLE) or ["plain"]
         self._fill_combo(self.variant, [(v, _VARIANT_LABELS.get(v, v)) for v in variants])
         for widget in (self.variant, self._variant_label):
@@ -2002,6 +2022,48 @@ class ResultsViewer(QWidget):
         self.status.setText(f"Drawn in {self._drew_in + seconds:.2f} s")
         self.status.setToolTip(f"{self._drew_in:.2f} s to make the figure, "
                                f"{seconds:.2f} s to put it on screen.")
+
+    # ── what a metric means ──────────────────────────────────────────────────
+
+    def _place_info(self, request: dict) -> None:
+        """Note which cards the figure *request* draws has, for its ⓘ button
+        and its clickable title and legend; an open card follows the figure."""
+        from meanap.metric_info import lookup, metrics_for
+
+        self._info = metrics_for(request)
+        names = {role: lookup(key).name for role, key in self._info.items()}
+        for canvas in (self.native, self.canvas):
+            canvas.info.names = names
+            canvas.info.over = None
+        title = self._info.get("title")
+        self.about_button.setVisible(title is not None)
+        if title is not None:
+            self.about_button.setToolTip(
+                f"What {names['title'].lower()} means and how it was calculated. "
+                "Clicking the figure's title or a legend heading does the same.")
+        if self.metric_card.isVisible():
+            if title is None:
+                self.metric_card.close_card()
+            elif self.metric_card.current != title:
+                self.metric_card.show_metric(title)
+
+    def _open_info(self, role: str = "title") -> bool:
+        """Open the card about part *role* of the figure; False if it has none."""
+        key = self._info.get(role) or self._info.get("title")
+        if key is None:
+            return False
+        if self.metric_card.current == key:
+            self.metric_card.close_card()           # a second click closes it
+            return True
+        return self.metric_card.show_metric(key)
+
+    def eventFilter(self, watched, event) -> bool:
+        from PyQt6.QtCore import QEvent
+
+        if watched is self._stack and event.type() == QEvent.Type.Resize \
+                and self.metric_card.isVisible():
+            self.metric_card.place()
+        return super().eventFilter(watched, event)
 
     def _on_picked(self, text: str) -> None:
         self.selection.setText("Selected: " + text if text else "")

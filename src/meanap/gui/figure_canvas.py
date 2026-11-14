@@ -31,6 +31,39 @@ WHEEL_STEP = 1.2
 CLICK_SLOP = 4
 
 
+class InfoTargets:
+    """The parts of a figure that open a card about their metric when clicked.
+
+    The viewer sets ``names`` — role ("title", "size", "colour", …) to the
+    metric's name — for the figure on show; a canvas asks its painter's
+    ``info_at`` what the pointer is over and, where that is one of them,
+    shows a pointing hand and says so.
+    """
+
+    def __init__(self) -> None:
+        self.names: dict[str, str] = {}
+        self.over: str | None = None
+
+    def role_at(self, figure, x: float, y: float) -> str | None:
+        info_at = getattr(figure, "info_at", None)
+        role = info_at(x, y) if info_at is not None and self.names else None
+        return role if role in self.names else None
+
+    def hover(self, widget: QWidget, figure, x: float, y: float) -> bool:
+        """Mark the part at (x, y) as clickable; True if it is one."""
+        role = self.role_at(figure, x, y)
+        if role != self.over:
+            self.over = role
+            if role is None:
+                widget.unsetCursor()
+                QToolTip.hideText()
+            else:
+                widget.setCursor(Qt.CursorShape.PointingHandCursor)
+                QToolTip.showText(QCursor.pos(),
+                                  f"Click to read about {self.names[role].lower()}", widget)
+        return role is not None
+
+
 class FigureCanvas(QWidget):
     """A figure's painter on screen: point, pin, zoom, export."""
 
@@ -39,10 +72,13 @@ class FigureCanvas(QWidget):
     #: The recording a mark stands for ("" for none), and whether it was
     #: pinned (True) or only pointed at (False). See ``FigurePainter.recording_of``.
     recording = pyqtSignal(str, bool)
+    #: A part of the figure with a card about it was clicked: its role.
+    info_requested = pyqtSignal(str)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.painter: FigurePainter | None = None
+        self.info = InfoTargets()
         self.setMouseTracking(True)
         self.setMinimumSize(480, 340)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
@@ -148,6 +184,9 @@ class FigureCanvas(QWidget):
                     step.x(), step.y(), along_x=x, along_y=y))
             self._last = at
             return
+        if self.info.hover(self, figure, at.x(), at.y()):
+            self.point(None)
+            return
         self.point(figure.under(at.x(), at.y()))
 
     def mousePressEvent(self, event) -> None:
@@ -164,6 +203,10 @@ class FigureCanvas(QWidget):
         if dragged or self.painter is None:
             return
         at = event.position()
+        role = self.info.role_at(self.painter, at.x(), at.y())
+        if role is not None:
+            self.info_requested.emit(role)
+            return
         self.click(self.painter.under(at.x(), at.y()))
 
     def wheelEvent(self, event) -> None:

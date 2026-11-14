@@ -179,6 +179,14 @@ class ComparisonPainter(FigurePainter):
         return (f"{violin.label}: {n} {things if n != 1 else things[:-1]}\n"
                 f"mean {violin.mean:.4g} ± {violin.sem:.3g} (SEM)")
 
+    def info_at(self, x: float, y: float) -> str | None:
+        """The metric: the title band, or the y axis's label and ticks."""
+        if self.axes:
+            rect = self.axes[0].rect
+            if x < rect.left() and rect.top() <= y <= rect.bottom():
+                return "title"
+        return super().info_at(x, y)
+
     def recording_of(self, what) -> str | None:
         if what is None or what[0] != "point":
             return None
