@@ -20,7 +20,7 @@ matrices, and a set of eigenvalues) for no gain.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import pandas as pd
@@ -87,6 +87,9 @@ class StatsResults:
     #: wrote no ``adjusted_effects.csv`` (a run from before the analysis
     #: existed). The viewer sets it; the fits take about a second.
     adjust_live: bool = False
+    #: How 5A4 is drawn: ``term``, ``show`` and ``sort`` for
+    #: :func:`meanap.stats.plots.plot_adjusted_effects` (the viewer's picker).
+    adjust_view: dict = field(default_factory=dict)
     correlation: object = None
     decoding: DecodingResults | None = None
     lda: dict | None = None
@@ -855,7 +858,7 @@ def _draw_stats_figure(
             from meanap.stats.adjustment import adjusted_effects
 
             table = adjusted_effects(ds, _live_sets(results)).table
-        return plots.plot_adjusted_effects(table, out_path)
+        return plots.plot_adjusted_effects(table, out_path, **(results.adjust_view or {}))
     if key == "control_effects":
         return plots.plot_control_effects(results.control_effects, out_path)
     if key == "genotype_effect_by_age":

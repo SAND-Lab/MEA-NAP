@@ -2338,7 +2338,16 @@ def adjustment_choices(ctx: RenderContext, lag: str) -> dict:
         from meanap.stats.figures import _live_sets
 
         chosen = [c for c in chosen if c not in PRESETS] + list(_live_sets(results))
-    return {"presets": presets, "columns": columns, "chosen": chosen}
+    import pandas as pd
+
+    terms = []
+    source = stored if stored is not None and not stored.empty else (
+        results.comparisons.table if results.comparisons is not None else None)
+    if source is not None and "Term" in source.columns:
+        rows = source[source["Family"] == "mixed-model"] if "Family" in source.columns else source
+        found = [str(t) for t in pd.unique(rows["Term"]) if str(t) == "age" or " vs " in str(t)]
+        terms = [t for t in found if t == "age"] + sorted(t for t in found if t != "age")
+    return {"presets": presets, "columns": columns, "chosen": chosen, "terms": terms}
 
 
 def _adjusted_table(ctx: RenderContext, lag: str, sets: tuple[str, ...]):
@@ -2431,6 +2440,10 @@ def render_stats_figure(
             raise ValueError("None of those can be held fixed in this run: "
                              + "; ".join(fitted.skipped))
         results = dataclasses.replace(results, adjusted=fitted.table)
+    view = {name: str(overrides.pop(f"adjust_{name}"))
+            for name in ("term", "show", "sort") if f"adjust_{name}" in overrides}
+    if view and key == "adjusted_effects":
+        results = dataclasses.replace(results, adjust_view=view)
 
     figure = next((f for f in stats_figures(results) if f.key == key), None)
     if figure is None:

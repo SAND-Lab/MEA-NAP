@@ -1908,7 +1908,8 @@ class ResultsViewer(QWidget):
         request = {"kind": kind, "lag": chosen["lag"], "key": chosen["key"]}
         if self._adjusting(request):
             self._load_adjust_choices(chosen["lag"])
-            request["overrides"] = {"adjust_for": self.adjust_panel.query()}
+            request["overrides"] = {"adjust_for": self.adjust_panel.query(),
+                                    **self.adjust_panel.view()}
         return request
 
     @staticmethod

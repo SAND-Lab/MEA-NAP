@@ -210,6 +210,18 @@ def viewer_render_checks(run: Path, lag: str) -> None:
     except ValueError as err:
         check("nothing ticked says to tick something", "tick" in str(err).lower(), str(err))
 
+    with capture_figures() as got:
+        render.render_stats_figure(ctx, lag, "adjusted_effects", run / "_live",
+                                   overrides={"adjust_for": "rate", "adjust_term": "age",
+                                              "adjust_show": "survives",
+                                              "adjust_sort": "name"})
+    chart = getattr(got[-1].figure, "scene", None) if got else None
+    titles = [p.title for p in getattr(chart, "panels", [])]
+    rows = [label for _v, label, *_ in (chart.panels[0].yticks if titles else [])]
+    check("one effect alone draws one panel, with only the rows asked for, in order",
+          titles == ["Age"] and rows == sorted(rows, key=str.lower, reverse=True)
+          and "Direct" in rows and "Mediated" not in rows, f"{titles} {rows}")
+
     gui_viewer_checks(run)
 
 
@@ -263,11 +275,25 @@ def gui_viewer_checks(run: Path) -> None:
     check("ticking refits: the figure is asked for with the new sets",
           request["overrides"]["adjust_for"] == "rate,activity,Direct"
           and "Direct" in panel.own_summary.text(), str(request))
-    legend = [item.label for item in viewer.canvas.scene.legend.items] \
+    legend = [item.label for item in viewer.canvas.scene.legend.items
+              if item.kind == "point"] \
         if getattr(viewer.canvas, "scene", None) is not None \
         and getattr(viewer.canvas.scene, "legend", None) is not None else []
     check("and the figure on screen has a line of dots per set",
           len(legend) == 4, str(legend))
+    terms = [panel.term.itemData(i) for i in range(panel.term.count())]
+    check("the View menu offers every effect, then each one alone",
+          terms[0] == "all" and "age" in terms and len(terms) >= 3, str(terms))
+    panel.term.setCurrentIndex(terms.index("age"))
+    panel.show_rows.setCurrentIndex(panel.show_rows.findData("changed"))
+    panel.sort.setCurrentIndex(panel.sort.findData("retained"))
+    settle(viewer)
+    request = viewer._request()["overrides"]
+    check("choosing one effect, what changed, and an order redraws with them",
+          request.get("adjust_term") == "age" and request.get("adjust_show") == "changed"
+          and request.get("adjust_sort") == "retained"
+          and getattr(getattr(viewer.canvas, "scene", None), "legend", None) is not None,
+          str(request))
     viewer.select_figure(next(label for label in viewer.figure_labels()
                               if "age and genotype" in label.lower()))
     settle(viewer)
@@ -303,7 +329,34 @@ def gui_checks() -> None:
     del app
 
 
+def verdict_checks() -> None:
+    from meanap.stats.plots import LOST, PARTLY, SURVIVES, adjusted_verdicts
+
+    print("What survives, per effect")
+    rows = []
+    for metric, base, under in (("kept", (0.8, 0.001), [(0.7, 0.01), (0.6, 0.02)]),
+                                ("gone", (0.8, 0.001), [(0.1, 0.6), (0.05, 0.8)]),
+                                ("half", (0.8, 0.001), [(0.7, 0.01), (0.1, 0.5)]),
+                                ("flipped", (0.8, 0.001), [(-0.7, 0.01), (0.6, 0.01)]),
+                                ("never", (0.1, 0.5), [(0.7, 0.01), (0.6, 0.01)])):
+        rows.append((metric, "age", "none", *base, np.nan))
+        for k, (effect, q) in enumerate(under):
+            rows.append((metric, "age", f"set{k}", effect, q, effect / base[0]))
+    table = pd.DataFrame(rows, columns=["Metric", "Term", "Adjustment", "EffectSize",
+                                        "PValueFDR", "Retained"])
+    got = adjusted_verdicts(table).set_index("Metric")
+    check("significant under every set survives; under none is lost; else partly",
+          got.loc["kept", "Verdict"] == SURVIVES and got.loc["gone", "Verdict"] == LOST
+          and got.loc["half", "Verdict"] == PARTLY, str(got["Verdict"].to_dict()))
+    check("a sign flip does not count as surviving",
+          got.loc["flipped", "Verdict"] == PARTLY and got.loc["flipped", "Held"] == 1)
+    check("an effect not significant unadjusted gets no verdict", "never" not in got.index)
+    check("the count and the most lost are carried",
+          got.loc["half", "Sets"] == 2 and abs(got.loc["gone", "Retained"] - 0.05 / 0.8) < 1e-9)
+
+
 def main() -> int:
+    verdict_checks()
     model_checks()
     with tempfile.TemporaryDirectory() as tmp:
         run_checks(Path(tmp))

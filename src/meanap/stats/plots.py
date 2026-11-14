@@ -1449,8 +1449,52 @@ _ADJUSTMENT_COLOURS = {"rate": "#6f9fd0", "activity": "#1f4e79", "size": "#c0504
 _OWN_SET_COLOURS = ("#2a9d8f", "#e9a23b", "#9bbb59", "#5b5b5b")
 
 
+#: What 5A4's row bands and marks say about one effect under the sets drawn.
+SURVIVES, LOST, PARTLY = "survives", "lost", "partly"
+_VERDICT_COLOURS = {SURVIVES: "#2e8b57", LOST: "#c0392b", PARTLY: "#b8860b"}
+_VERDICT_MARKS = {SURVIVES: "✓", LOST: "✗", PARTLY: "~"}
+#: The choices the viewer offers for 5A4's rows (``show``) and order (``sort``).
+ADJUSTED_SHOW = {"all": "All effects", SURVIVES: "Survives every set",
+                 "changed": "Lost under some set", LOST: "Lost under every set"}
+ADJUSTED_SORT = {"effect": "Unadjusted effect size", "retained": "Most lost first",
+                 "name": "Name"}
+
+
+def adjusted_verdicts(table: pd.DataFrame, *, alpha: float = 0.05) -> pd.DataFrame:
+    """One row per (metric, term) whose unadjusted effect is significant.
+
+    ``Verdict`` is :data:`SURVIVES` when it stays significant, with the same
+    sign, under every covariate set; :data:`LOST` when it is significant under
+    none; :data:`PARTLY` otherwise. ``Retained`` is the smallest fraction of
+    the unadjusted effect any set keeps (the most it is ever lost).
+    """
+    from meanap.stats.adjustment import NONE
+
+    columns = ["Metric", "Term", "Verdict", "Retained", "Unadjusted", "Held", "Sets"]
+    if table is None or table.empty:
+        return pd.DataFrame(columns=columns)
+    base = table[(table["Adjustment"] == NONE) & (table["PValueFDR"] < alpha)]
+    adjusted = table[table["Adjustment"] != NONE]
+    rows = []
+    for (metric, term), first in base.groupby(["Metric", "Term"], sort=False):
+        effect = float(first["EffectSize"].iloc[0])
+        under = adjusted[(adjusted["Metric"] == metric) & (adjusted["Term"] == term)]
+        under = under.dropna(subset=["EffectSize"])
+        if under.empty:
+            continue
+        held = ((under["PValueFDR"] < alpha)
+                & (np.sign(under["EffectSize"]) == np.sign(effect)))
+        verdict = SURVIVES if held.all() else LOST if not held.any() else PARTLY
+        kept = pd.to_numeric(under.get("Retained"), errors="coerce")
+        rows.append((metric, term, verdict,
+                     float(kept.min()) if kept.notna().any() else np.nan, effect,
+                     int(held.sum()), len(held)))
+    return pd.DataFrame(rows, columns=columns)
+
+
 def plot_adjusted_effects(
     table: pd.DataFrame, out_path: Path, *, alpha: float = 0.05,
+    term: str = "all", show: str = "all", sort: str = "effect",
 ) -> Path | None:
     """Each metric's age and genotype effects, unadjusted and under each covariate set.
 
@@ -1460,6 +1504,13 @@ def plot_adjusted_effects(
     per adjustment set joined by a line — so an effect the covariate carried
     collapses toward zero and one beyond it holds its place. Filled dots
     survive FDR correction at *alpha*.
+
+    Each significant effect is also given a verdict (:func:`adjusted_verdicts`)
+    drawn as a tinted row band and a ✓ / ✗ / ~ at the panel's edge, so what
+    survives can be read without decoding the dots. *term* keeps one panel
+    (``"age"`` or a contrast), *show* keeps the rows that survive or that
+    changed (see :data:`ADJUSTED_SHOW`), and *sort* orders them
+    (:data:`ADJUSTED_SORT`).
 
     The legend carries each set's design R² (how much of its covariates age
     and genotype explain), because a covariate the design nearly fixes leaves
@@ -1476,6 +1527,8 @@ def plot_adjusted_effects(
         return None
     terms = ([t for t in terms if str(t) == "age"]
              + sorted(t for t in terms if str(t) != "age"))
+    if term not in (None, "", "all"):
+        terms = [t for t in terms if str(t) == str(term)] or terms
     levels = list(pd.unique(table["Adjustment"]))
     if NONE in levels:
         levels = [NONE] + [lv for lv in levels if lv != NONE]
@@ -1489,17 +1542,39 @@ def plot_adjusted_effects(
 
     shown = table[table["Term"].isin(terms)]
     base = shown[shown["Adjustment"] == NONE]
+    verdicts = adjusted_verdicts(shown, alpha=alpha)
+    verdict_of = {(m, t): (v, h, n) for m, t, v, h, n in
+                  verdicts[["Metric", "Term", "Verdict", "Held", "Sets"]]
+                  .itertuples(index=False)}
     significant = base.loc[base["PValueFDR"] < alpha, "Metric"].unique()
-    metrics = significant if len(significant) else base["Metric"].unique()
-    order = (base[base["Metric"].isin(metrics)].groupby("Metric")["EffectSize"]
-             .apply(lambda v: v.abs().max()).sort_values(ascending=True).index.tolist())
-    if not order:
-        return None
+    metrics = list(significant if len(significant) else base["Metric"].unique())
+    if show == SURVIVES:
+        metrics = [m for m in metrics
+                   if (verdicts.loc[verdicts["Metric"] == m, "Verdict"] == SURVIVES).any()]
+    elif show == "changed":
+        metrics = [m for m in metrics
+                   if (verdicts.loc[verdicts["Metric"] == m, "Verdict"] != SURVIVES).any()]
+    elif show == LOST:
+        metrics = [m for m in metrics
+                   if (verdicts.loc[verdicts["Metric"] == m, "Verdict"] == LOST).any()]
     labels = (table.drop_duplicates("Metric").set_index("Metric")["MetricLabel"]
               .fillna("").to_dict())
 
     def name(metric):
         return labels.get(metric) or metric
+
+    # Ranked lists read from the top, so the first in order is drawn highest.
+    sub_base = base[base["Metric"].isin(metrics)]
+    if sort == "name":
+        order = sorted(metrics, key=lambda m: name(m).lower(), reverse=True)
+    elif sort == "retained" and not verdicts.empty:
+        kept = (verdicts[verdicts["Metric"].isin(metrics)].groupby("Metric")["Retained"]
+                .min())
+        order = (kept.reindex(metrics).fillna(np.inf).sort_values(ascending=False)
+                 .index.tolist())
+    else:
+        order = (sub_base.groupby("Metric")["EffectSize"]
+                 .apply(lambda v: v.abs().max()).sort_values(ascending=True).index.tolist())
 
     def legend_label(level):
         rows = table[table["Adjustment"] == level]
@@ -1512,12 +1587,40 @@ def plot_adjusted_effects(
             label += f" (design R² {r2.iloc[0]:.2f}{flag})"
         return label
 
+    title = "Effects holding firing rate (and more) fixed"
+    if not order:
+        if base.empty:
+            return None
+        what = ADJUSTED_SHOW.get(show, show).lower()
+        chart = Chart([Panel(cell=(0, 0), marks=[], bare=True,
+                             empty=f"No effect matches “{what}” for the sets ticked.")],
+                      size=(6.0, 2.4), grid=(1, 1), title=title)
+        return save_chart(chart, out_path)
+
     level_names = {level: legend_label(level) for level in levels}
+    n_levels = len(levels) - (NONE in levels)
     panels = []
-    for idx, term in enumerate(terms):
-        sub = shown[shown["Term"] == term]
+    for idx, term_ in enumerate(terms):
+        sub = shown[shown["Term"] == term_]
         marks = []
         for row_idx, metric in enumerate(order):
+            found = verdict_of.get((metric, term_))
+            if found is not None:
+                verdict, held, n_sets = found
+                if verdict != PARTLY:
+                    marks.append(Span(row_idx - 0.5, row_idx + 0.5, axis="y",
+                                      colour=rgba(_VERDICT_COLOURS[verdict], 0.12)))
+                # How many of the sets it survives: "2/3" says more than a
+                # bare "partly" once several sets are ticked.
+                text = _VERDICT_MARKS[verdict] if n_levels == 1 else f"{held}/{n_sets}"
+                skipped = n_levels - n_sets
+                marks.append(Text(0.99, row_idx, text,
+                                  colour=rgba(_VERDICT_COLOURS[verdict]), size=8,
+                                  bold=True, ha="right", coords="blend",
+                                  hover=f"Significant, same direction, under {held} of "
+                                        f"{n_sets} set{'s' * (n_sets != 1)}"
+                                        + (f" ({skipped} not fitted: the metric is, or "
+                                           f"nearly copies, a covariate)" if skipped else "")))
             points = (sub[sub["Metric"] == metric].drop_duplicates("Adjustment")
                       .set_index("Adjustment").reindex(levels)
                       .dropna(subset=["EffectSize"]))
@@ -1527,9 +1630,11 @@ def plot_adjusted_effects(
                 marks.append(Line(points["EffectSize"].to_numpy(float),
                                   [row_idx] * len(points), rgba(MUTED, 0.7), width=1.2, z=1))
             for level, point in points.iterrows():
-                colour = rgba(colours[level])
                 q = point.get("PValueFDR")
                 filled = pd.notna(q) and float(q) < alpha
+                # Significant dots solid and full size; the rest hollow and
+                # faded, so what survives stands out before the legend is read.
+                colour = rgba(colours[level], 1.0 if filled else 0.45)
                 kept = point.get("Retained")
                 hover = (f"{name(metric)}, {level_names[level]}: "
                          f"{float(point['EffectSize']):+.2f}"
@@ -1539,29 +1644,44 @@ def plot_adjusted_effects(
                 marks.append(Points(
                     [point["EffectSize"]], [row_idx],
                     fill=colour if filled else rgba("white"), edge=colour,
-                    edge_width=1.5, size=float(np.sqrt(42)),
+                    edge_width=1.5 if filled else 1.1,
+                    size=float(np.sqrt(48 if filled else 26)),
                     key=level_names[level], hover=[hover]))
         marks.append(Rule(0, axis="x", colour=INK_RGBA, width=0.9, dash=":"))
-        is_age = str(term) == "age"
+        # Room on the right for the survival count, clear of the dots.
+        values = sub.loc[sub["Metric"].isin(order), "EffectSize"].astype(float).dropna()
+        low, high = (min(values.min(), 0.0), max(values.max(), 0.0)) if len(values) else (-1, 1)
+        pad = 0.06 * ((high - low) or 1.0)
+        xlim = (low - pad, high + pad + 0.16 * ((high - low) or 1.0))
+        is_age = str(term_) == "age"
         panels.append(Panel(
             cell=(0, idx), marks=marks,
             yticks=[(k, name(m)) for k, m in enumerate(order)], tick_size=8,
-            ylabels=idx == 0, title="Age" if is_age else str(term), title_size=9.5,
+            ylabels=idx == 0, title="Age" if is_age else str(term_), title_size=9.5,
             xlabel="SD change across ages" if is_age else "Standardised difference",
-            label_size=8.5, sharey="metric", zoom=(True, False)))
+            label_size=8.5, sharey="metric", zoom=(True, False),
+            ylim=(-0.5, len(order) - 0.5), xlim=xlim))
 
     legend = Legend([LegendItem(level_names[lv], rgba(colours[lv]), kind="point",
-                                size=7, key=level_names[lv]) for lv in levels],
-                    loc="bottom", columns=min(len(levels), 3), size=8.5)
-    chart = Chart(panels, size=(3.5 * len(terms) + 1.8, 1.6 + 0.24 * len(order)),
+                                size=7, key=level_names[lv]) for lv in levels]
+                    + [LegendItem(text, rgba(_VERDICT_COLOURS[v], 0.45 if v != PARTLY else 0.9),
+                                  kind="box" if v != PARTLY else "hline", size=7)
+                       for v, text in ((SURVIVES, "survives every set"),
+                                       (PARTLY, "survives some (count at right)"),
+                                       (LOST, "lost under every set"))],
+                    loc="bottom", columns=min(len(levels), 3) if len(levels) > 3 else 3,
+                    size=8.5)
+    chart = Chart(panels, size=(3.5 * len(terms) + 1.8, 1.8 + 0.24 * len(order)),
                   grid=(1, len(terms)),
-                  title="Effects holding firing rate (and more) fixed",
+                  title=title,
                   legend=legend,
-                  note="Filled dots survive FDR correction; open ones do not. A dot that "
-                       "moves to zero was carried by the covariate, one that stays is an "
-                       "effect beyond it. Every set is fitted on the same recordings. "
-                       "Design R² is how much of the covariates age and genotype explain; "
-                       "near 1 (⚠), the model cannot separate them.")
+                  note="Green rows stay significant (same direction) under every set ticked; "
+                       "red rows lose significance under all of them. The count at the right "
+                       "is how many sets each effect survives. Solid dots "
+                       "survive FDR correction; faded open ones do not. A dot that moves to "
+                       "zero was carried by the covariate. Every set is fitted on the same "
+                       "recordings. Design R² is how much of the covariates age and genotype "
+                       "explain; near 1 (⚠), the model cannot separate them.")
     return save_chart(chart, out_path)
 
 

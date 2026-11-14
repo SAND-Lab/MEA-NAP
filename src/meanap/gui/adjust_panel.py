@@ -14,8 +14,11 @@ from __future__ import annotations
 
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import (
-    QCheckBox, QLabel, QLineEdit, QPushButton, QScrollArea, QVBoxLayout, QWidget,
+    QCheckBox, QComboBox, QFormLayout, QLabel, QLineEdit, QPushButton, QScrollArea,
+    QVBoxLayout, QWidget,
 )
+
+from meanap.stats.plots import ADJUSTED_SHOW, ADJUSTED_SORT
 
 __all__ = ["AdjustPanel"]
 
@@ -35,6 +38,27 @@ class AdjustPanel(QWidget):
         intro.setObjectName("muted")
         intro.setWordWrap(True)
         layout.addWidget(intro)
+
+        # What to look at: one effect's panel, only what survives or what
+        # changed, in what order. A long figure is read by narrowing it.
+        layout.addWidget(QLabel("<b>View</b>"))
+        view = QFormLayout()
+        view.setContentsMargins(0, 0, 0, 0)
+        view.setSpacing(4)
+        self.term = QComboBox()
+        self.term.addItem("All effects", "all")
+        self.show_rows = QComboBox()
+        for value, label in ADJUSTED_SHOW.items():
+            self.show_rows.addItem(label, value)
+        self.sort = QComboBox()
+        for value, label in ADJUSTED_SORT.items():
+            self.sort.addItem(label, value)
+        for combo in (self.term, self.show_rows, self.sort):
+            combo.currentIndexChanged.connect(lambda _i: self._on_edit())
+        view.addRow("Effect", self.term)
+        view.addRow("Show", self.show_rows)
+        view.addRow("Sort by", self.sort)
+        layout.addLayout(view)
 
         heading = QLabel("<b>Sets</b>")
         layout.addWidget(heading)
@@ -115,6 +139,13 @@ class AdjustPanel(QWidget):
                 box.toggled.connect(lambda _on: self._on_edit())
                 self._column_box.insertWidget(self._column_box.count() - 1, box)
                 self.columns[column] = box
+            keep = self.term.currentData()
+            self.term.clear()
+            self.term.addItem("All effects", "all")
+            for term in choices.get("terms", []):
+                self.term.addItem("Age" if term == "age" else term, term)
+            at = self.term.findData(keep)
+            self.term.setCurrentIndex(at if at >= 0 else 0)
             self._filter(self.search.text())
             self._summarise()
         finally:
@@ -136,6 +167,12 @@ class AdjustPanel(QWidget):
     def query(self) -> str:
         """The ``adjust_for`` override: the sets, comma-separated."""
         return ",".join(self.sets())
+
+    def view(self) -> dict:
+        """The ``adjust_term`` / ``adjust_show`` / ``adjust_sort`` overrides."""
+        return {"adjust_term": self.term.currentData() or "all",
+                "adjust_show": self.show_rows.currentData() or "all",
+                "adjust_sort": self.sort.currentData() or "effect"}
 
     # ── editing ──────────────────────────────────────────────────────────────
 

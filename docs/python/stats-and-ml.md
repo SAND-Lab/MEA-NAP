@@ -117,6 +117,19 @@ step 5 to try another covariate. A set this run cannot resolve is greyed out,
 and its tooltip says why. Sets tried before are kept in memory for the
 session. What step 5 wrote to `adjusted_effects.csv` is not changed.
 
+Each significant effect gets a verdict. Its row is tinted green if the effect
+stays significant, in the same direction, under every set ticked. It is tinted
+red if it loses significance under all of them. A count at the right of the
+row, such as `2/3`, says how many sets it survives. A set is left out of a
+row's count when the metric is, or nearly copies, one of that set's
+covariates. The **View** menus at the top of the panel narrow a crowded figure:
+
+- **Effect** shows one panel (Age, or a single genotype contrast).
+- **Show** keeps the rows that survive every set, are lost under some, or are
+  lost under all.
+- **Sort by** orders the rows by unadjusted effect size, by how much of the
+  effect is lost (most lost first), or by name.
+
 The random-intercept model is fitted by exact REML. The fit profiles out the
 fixed effects and searches a single variance ratio, which is fast enough for
 the viewer. Its estimates match statsmodels' `MixedLM` to within 3 × 10⁻⁴ SD,
