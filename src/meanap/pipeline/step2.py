@@ -12,7 +12,8 @@ from meanap.pipeline.progress import RunProgress
 from meanap.pipeline.resume import build_input_locator
 from meanap.pipeline.spreadsheet import RecordingInfo, ground_spike_times_dict, parse_ground_electrodes
 from meanap.pipeline.io import (
-    find_raw_file, load_spike_times_npz, resolve_duration_s, truncate_spike_times,
+    find_raw_file, load_spike_times_npz, require_spike_method, resolve_duration_s,
+    truncate_spike_times,
 )
 from meanap.pipeline.firing_rates import firing_rates_bursts
 from meanap.pipeline.plotting_step2 import plot_neuronal_activity_checks
@@ -204,6 +205,7 @@ def _run_step2_neuronal_activity(
 
         # Filter down to the chosen method
         method = active_spike_method(params)
+        require_spike_method(spike_times_full, method, rec.filename)
         spike_times_dict = {}
         for ch in range(n_channels):
             # Keys in spike_times_full might be string or int

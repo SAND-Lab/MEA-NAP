@@ -1416,6 +1416,29 @@ Gotchas that are easy to re-break:
 
 ## Spike detection gotchas (don't re-discover these)
 
+- **Spike method for analysis (2026-11-14)**: the GUI list is now what step 1
+  will save with the selected wavelets/thresholds (`threshold_method_name`:
+  4.0 → `thr4`, never `thr4p0`); the old fixed list offered `thr5p0`,
+  `mergedAll`, `mergedWavelet` (never produced) and not `thr4`/`thr5`. Steps
+  2–4 and stim call `io.require_spike_method`, raising `MissingSpikeMethod`
+  instead of reading empty trains when the file lacks the method.
+- **Every MATLAB wavelet runs (2026-11-14)**: bior1.5, bior1.3, db2, sym2,
+  haar and `mea` — until then only bior1.5 did and the others stopped step 1.
+  `_intwave` is PyWavelets' `wavefun(level=10)` integrated, equal to MATLAB's
+  `intwave` to 4e-13, **except sym2, whose sign PyWavelets flips** (MATLAB's
+  `determine_scales` counts sym2's *rising* crossings because of it). haar's
+  scales are `Width/dt - 1`, unrounded, as MATLAB's. `mea` =
+  `get_template` (MATLAB `getTemplate`, waveforms cut one sample after the
+  trough as MATLAB's alignPeaks does — bit-identical template) +
+  `adapt_wavelet` (`adaptWavelet` + `pat2cwav(...,'orthconst',0,'none')`,
+  to 2e-15). One deliberate difference: MATLAB's mea width table includes
+  aliased narrow scales (scale 5 for 0.4 ms at 12.5 kHz where the trend says
+  ~16) or crashes when one lacks a crossing (1 of 11 example electrodes); the
+  port walks down from the widest scale and drops any narrower scale claiming
+  an equal-or-wider width. Standard wavelets' tables are monotonic, so
+  unchanged. Multiple templates are not ported. Test + MATLAB fixture:
+  `test_spike_detection_wavelets.py`, `test_fixtures/make_wavelet_reference.m`.
+
 - **The wavelet detectors never had a refractory period** — in MATLAB
   (`detectSpikesCWT.m` passes `refPeriod` only to `detectSpikesThreshold`)
   and, until 2026-09-17, in this port. The CWT fires at more than one scale
