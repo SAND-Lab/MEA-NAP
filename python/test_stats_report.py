@@ -288,6 +288,12 @@ def _bundle_checks(root: Path, lag: str) -> list[Check]:
             "the viewer finds the statistics results in the bundle",
             lags == [lag], str(lags)))
         figures = available_stats_figures(ctx, lag)
+        # 5A4 is fitted on demand when the run wrote none but some covariate
+        # set resolves (here: size, though step 5's defaults were rate sets),
+        # so the viewer may offer it beyond the folder's figures.
+        held = {p.stem for p in folder.glob("*.png")}
+        live = [f for f in figures if f.key == "adjusted_effects" and f.filename not in held]
+        figures = [f for f in figures if f not in live]
         checks.append((
             "and offers the same figures the folder held",
             {f.filename for f in figures} == {p.stem for p in folder.glob("*.png")},
@@ -301,6 +307,10 @@ def _bundle_checks(root: Path, lag: str) -> list[Check]:
             checks.append((
                 "rendering from the bundle reproduces the folder's figures exactly",
                 same == len(figures), f"{same}/{len(figures)}"))
+            for figure in live:
+                checks.append((
+                    "and 5A4, which the run did not write, is fitted on demand",
+                    render_stats_figure(ctx, lag, figure.key, Path(tmp)).exists(), ""))
 
         try:
             render_stats_figure(ctx, "no-such-lag", "correlation", Path(tempfile.gettempdir()))

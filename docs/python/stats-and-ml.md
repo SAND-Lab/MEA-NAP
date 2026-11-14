@@ -108,6 +108,20 @@ are separable here, if not by much.
 From the command line: `meanap-stats RUN --adjust-for rate activity
 FRmean+numActiveElec`. Give `--adjust-for` with no sets to skip it.
 
+**Exploring in the results viewer.** Open 5A4 under *Statistics → Group and
+age comparisons* and a **Hold fixed** panel appears beside it. Tick or untick
+the preset sets, or build your own set by searching for and ticking columns
+(they are held fixed together). The figure is refitted and redrawn for each
+change, in about a second for a 50-metric run, so you do not need to rerun
+step 5 to try another covariate. A set this run cannot resolve is greyed out,
+and its tooltip says why. Sets tried before are kept in memory for the
+session. What step 5 wrote to `adjusted_effects.csv` is not changed.
+
+The random-intercept model is fitted by exact REML. The fit profiles out the
+fixed effects and searches a single variance ratio, which is fast enough for
+the viewer. Its estimates match statsmodels' `MixedLM` to within 3 × 10⁻⁴ SD,
+and its z values to within about 1%.
+
 ### Feature structure — which metrics are the same measurement?
 
 Correlation matrices overall and per group × age, the redundant pairs, and the

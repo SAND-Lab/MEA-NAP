@@ -83,6 +83,10 @@ class StatsResults:
     comparisons: ComparisonResults | None = None
     #: The 5A effects refitted with covariates (:mod:`meanap.stats.adjustment`).
     adjusted: pd.DataFrame | None = None
+    #: Whether 5A4 may be fitted on demand from :attr:`dataset` when the run
+    #: wrote no ``adjusted_effects.csv`` (a run from before the analysis
+    #: existed). The viewer sets it; the fits take about a second.
+    adjust_live: bool = False
     correlation: object = None
     decoding: DecodingResults | None = None
     lda: dict | None = None
@@ -583,8 +587,10 @@ def stats_figures(results: StatsResults) -> list[StatsFigure]:
         if _trajectory_metrics(results):
             out.append(_fixed("trajectories"))
     adjusted = results.adjusted
-    if adjusted is not None and not adjusted.empty \
-            and (adjusted["Adjustment"] != "none").any():
+    if (adjusted is not None and not adjusted.empty
+            and (adjusted["Adjustment"] != "none").any()) or (
+            results.adjust_live and comp is not None and not comp.table.empty
+            and _live_sets(results)):
         out.append(_fixed("adjusted_effects"))
 
     if results.correlation is not None:
@@ -757,6 +763,19 @@ def draw_stats_figure(
     return _draw_stats_figure(results, key, out_path, scheme=scheme)
 
 
+def _live_sets(results: StatsResults) -> tuple[str, ...]:
+    """The presets a live 5A4 starts from: the defaults this run can resolve,
+    else every preset it can. Empty when nothing can be held fixed — a run
+    with no firing-rate, size or bursting columns, where 5A4 is not offered."""
+    from meanap.stats.adjustment import DEFAULT_SETS, PRESETS, resolve_sets
+
+    for specs in (DEFAULT_SETS, tuple(PRESETS)):
+        sets, _ = resolve_sets(results.dataset, specs)
+        if sets:
+            return tuple(s.name for s in sets)
+    return ()
+
+
 def _draw_stats_figure(
     results: StatsResults, key: str, out_path: Path | str, *, scheme=None,
 ) -> Path | None:
@@ -831,7 +850,12 @@ def _draw_stats_figure(
     if key == "selection_check":
         return plots.plot_selection_check(results.sweep_selection, out_path)
     if key == "adjusted_effects":
-        return plots.plot_adjusted_effects(results.adjusted, out_path)
+        table = results.adjusted
+        if (table is None or table.empty) and results.adjust_live:
+            from meanap.stats.adjustment import adjusted_effects
+
+            table = adjusted_effects(ds, _live_sets(results)).table
+        return plots.plot_adjusted_effects(table, out_path)
     if key == "control_effects":
         return plots.plot_control_effects(results.control_effects, out_path)
     if key == "genotype_effect_by_age":

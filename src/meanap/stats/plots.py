@@ -1441,9 +1441,12 @@ def plot_control_effects(
     return save_chart(chart, out_path)
 
 
-#: One colour per adjustment set, in the order the sets were asked for; the
-#: unadjusted level is always the pale grey the control figure uses for "none".
-_ADJUSTMENT_COLOURS = ("#6f9fd0", "#1f4e79", "#c0504d", "#8064a2", "#4bacc6", "#9bbb59")
+#: One colour per preset, kept whatever else is ticked, so a set does not
+#: change colour as others come and go; sets of your own take the rest in turn.
+#: The unadjusted level is the pale grey the control figure uses for "none".
+_ADJUSTMENT_COLOURS = {"rate": "#6f9fd0", "activity": "#1f4e79", "size": "#c0504d",
+                       "bursting": "#8064a2"}
+_OWN_SET_COLOURS = ("#2a9d8f", "#e9a23b", "#9bbb59", "#5b5b5b")
 
 
 def plot_adjusted_effects(
@@ -1479,8 +1482,10 @@ def plot_adjusted_effects(
     if len(levels) < 2:
         return None
     colours = {NONE: "#b7b7b7"}
-    for i, level in enumerate(lv for lv in levels if lv != NONE):
-        colours[level] = _ADJUSTMENT_COLOURS[i % len(_ADJUSTMENT_COLOURS)]
+    own = iter(_OWN_SET_COLOURS * 4)
+    for level in levels:
+        if level != NONE:
+            colours[level] = _ADJUSTMENT_COLOURS.get(level) or next(own)
 
     shown = table[table["Term"].isin(terms)]
     base = shown[shown["Adjustment"] == NONE]

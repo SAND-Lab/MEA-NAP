@@ -313,7 +313,7 @@ def export_jobs(ctx, dest: Path, *, fmt: str = "png") -> list[ExportJob]:
     # beside the CSVs that were carried.
     for stats_lag in R.available_stats_lags(ctx):
         stats_dir = dest / R.STATS_DIRNAME / stats_lag
-        for figure in R.available_stats_figures(ctx, stats_lag):
+        for figure in R.available_stats_figures(ctx, stats_lag, live=False):
             add(STATISTICS, figure.label, None, f"statistics {stats_lag} {figure.key}",
                 lambda sl=stats_lag, k=figure.key, d=stats_dir:
                     R.render_stats_figure(ctx, sl, k, d, fmt=fmt))

@@ -128,8 +128,11 @@ def run_checks(tmp: Path) -> None:
     table = timecourse(1)
     (tmp / "run" / "4_NetworkActivity").mkdir(parents=True)
     (tmp / "run" / "2_NeuronalActivity").mkdir(parents=True)
-    table[["FileName", "Grp", "DIV", "Mediated", "Direct"]].assign(Lag=25).to_csv(
+    table[["FileName", "Grp", "DIV", "Mediated", "Direct"]].assign(Lag="25mslag").to_csv(
         tmp / "run" / "4_NetworkActivity" / "NetworkActivity_RecordingLevel.csv", index=False)
+    # What the viewer's entry point needs of a run that is statistics only.
+    (tmp / "run" / "4_NetworkActivity" / "netmet_results.json").write_text("{}")
+    (tmp / "run" / "params.json").write_text('{"custom_grp_order": ["WT", "KO"]}')
     table[["FileName", "Grp", "DIV", "FRmean", "numActiveElec"]].to_csv(
         tmp / "run" / "2_NeuronalActivity" / "NeuronalActivity_RecordingLevel.csv", index=False)
     logs: list[str] = []
@@ -144,8 +147,8 @@ def run_checks(tmp: Path) -> None:
           "Firing rate" in text and "bursting" in text and "no longer significant" in text, text)
     figure = list(folder.glob("5A4_adjusted_effects.*"))
     check("and draws 5A4", len(figure) == 1 and figure[0].stat().st_size > 5000, str(figure))
-    ds = load_dataset(tmp / "run").for_lag(25)
-    stored = load_results(folder, ds, lag=25)
+    ds = load_dataset(tmp / "run").for_lag("25mslag")
+    stored = load_results(folder, ds, lag="25mslag")
     keys = [f.key for f in stats_figures(stored)]
     check("read back from the folder, the viewer is offered 5A4", "adjusted_effects" in keys, str(keys))
     redrawn = draw_stats_figure(stored, "adjusted_effects", tmp / "redrawn.png")
@@ -156,6 +159,121 @@ def run_checks(tmp: Path) -> None:
                     log=lambda m: None)
     check("switched off, nothing is written", not list(Path(off.dest).rglob("adjusted_effects.csv")))
     assert result.dest
+    viewer_render_checks(tmp / "run", folder.name)
+
+
+def viewer_render_checks(run: Path, lag: str) -> None:
+    import time
+
+    from meanap.pipeline import render
+    from meanap.pipeline.figure_output import capture_figures
+    from meanap.pipeline.render import load_context
+
+    print("Refitting on demand (the viewer)")
+    ctx = load_context(run)
+    choices = render.adjustment_choices(ctx, lag)
+    available = {name for name, _l, ok, _w in choices["presets"] if ok}
+    check("the picker offers the presets this run can resolve, and the run's own sets",
+          available == {"rate", "activity"} and choices["chosen"] == ["rate", "bursting"][:1]
+          and ("Direct", "Direct") in [tuple(c) for c in choices["columns"]],
+          str(choices["chosen"]) + str(available))
+
+    def drawn(adjust_for):
+        with capture_figures() as got:
+            try:
+                render.render_stats_figure(ctx, lag, "adjusted_effects", run / "_live",
+                                           overrides={"adjust_for": adjust_for})
+            except ValueError:
+                if not got:
+                    raise
+        chart = getattr(got[-1].figure, "chart", got[-1].figure) if got else None
+        return chart
+
+    start = time.perf_counter()
+    one = drawn("rate")
+    first = time.perf_counter() - start
+    two = drawn("rate,FRmean+numActiveElec")
+    keys = render._adjusted_table(ctx, lag, ("rate", "FRmean+numActiveElec")).table
+    check("a new choice of sets is refitted and drawn",
+          one is not None and two is not None
+          and set(keys["Adjustment"]) == {"none", "rate", "FRmean+numActiveElec"},
+          str(set(keys["Adjustment"])))
+    check("fast enough to follow the ticks (under 3 s here)", first < 3, f"{first:.1f}s")
+    start = time.perf_counter()
+    drawn("rate")
+    check("and a choice made before comes back from memory",
+          time.perf_counter() - start < first / 2, "")
+    try:
+        render.render_stats_figure(ctx, lag, "adjusted_effects", run / "_live",
+                                   overrides={"adjust_for": ""})
+        check("nothing ticked says to tick something", False)
+    except ValueError as err:
+        check("nothing ticked says to tick something", "tick" in str(err).lower(), str(err))
+
+    gui_viewer_checks(run)
+
+
+def gui_viewer_checks(run: Path) -> None:
+    import os
+
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    from PyQt6.QtCore import QEventLoop, QTimer
+    from PyQt6.QtWidgets import QApplication
+
+    app = QApplication.instance() or QApplication([])
+    from meanap.gui.results_viewer import ResultsViewer
+
+    def wait(ms=30):
+        loop = QEventLoop()
+        QTimer.singleShot(ms, loop.quit)
+        loop.exec()
+
+    def settle(v):
+        for _ in range(1500):
+            wait()
+            if not (v._drawing or v._queued or v._restyle.isActive()):
+                break
+        wait(100)
+
+    viewer = ResultsViewer()
+    viewer.resize(1400, 900)
+    viewer.show()
+    viewer.load_run(run)
+    settle(viewer)
+    viewer.set_scope("group")
+    settle(viewer)
+    row = next((label for label in viewer.figure_labels() if "held fixed" in label.lower()
+                or "holding" in label.lower()), None)
+    check("the viewer lists 5A4 under the comparisons", row is not None, str(viewer.figure_labels()))
+    if row is None:
+        return
+    viewer.select_figure(row)
+    settle(viewer)
+    panel = viewer.adjust_panel
+    check("selecting it opens the covariate picker beside it, with the run's sets ticked",
+          viewer._right.isVisible() and panel.isVisible() and panel.sets() == ["rate"],
+          str(panel.sets()))
+    check("the bursting preset is greyed out, saying why",
+          not panel.presets["bursting"].isEnabled()
+          and "no" in panel.presets["bursting"].toolTip().lower())
+    panel.presets["activity"].setChecked(True)
+    panel.columns["Direct"].setChecked(True)
+    settle(viewer)
+    request = viewer._request()
+    check("ticking refits: the figure is asked for with the new sets",
+          request["overrides"]["adjust_for"] == "rate,activity,Direct"
+          and "Direct" in panel.own_summary.text(), str(request))
+    legend = [item.label for item in viewer.canvas.scene.legend.items] \
+        if getattr(viewer.canvas, "scene", None) is not None \
+        and getattr(viewer.canvas.scene, "legend", None) is not None else []
+    check("and the figure on screen has a line of dots per set",
+          len(legend) == 4, str(legend))
+    viewer.select_figure(next(label for label in viewer.figure_labels()
+                              if "age and genotype" in label.lower()))
+    settle(viewer)
+    check("another figure puts the picker away", not viewer._right.isVisible())
+    viewer.close()
+    del app
 
 
 def gui_checks() -> None:
