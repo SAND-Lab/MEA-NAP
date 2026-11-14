@@ -59,6 +59,12 @@ class AdjustPanel(QWidget):
         view.addRow("Show", self.show_rows)
         view.addRow("Sort by", self.sort)
         layout.addLayout(view)
+        #: Sizes only: rows sorted by size then fall in a line by eye.
+        self.unsigned = QCheckBox("Sizes only (ignore direction)")
+        self.unsigned.setToolTip("Draw |effect|, so a sort by size reads as a ramp. "
+                                 "A dark ring marks an adjusted effect whose sign flipped.")
+        self.unsigned.toggled.connect(lambda _on: self._on_edit())
+        layout.addWidget(self.unsigned)
 
         heading = QLabel("<b>Sets</b>")
         layout.addWidget(heading)
@@ -172,7 +178,8 @@ class AdjustPanel(QWidget):
         """The ``adjust_term`` / ``adjust_show`` / ``adjust_sort`` overrides."""
         return {"adjust_term": self.term.currentData() or "all",
                 "adjust_show": self.show_rows.currentData() or "all",
-                "adjust_sort": self.sort.currentData() or "effect"}
+                "adjust_sort": self.sort.currentData() or "effect",
+                "adjust_unsigned": "1" if self.unsigned.isChecked() else "0"}
 
     # ── editing ──────────────────────────────────────────────────────────────
 

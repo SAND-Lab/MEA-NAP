@@ -129,6 +129,10 @@ covariates. The **View** menus at the top of the panel narrow a crowded figure:
   lost under all.
 - **Sort by** orders the rows by unadjusted effect size, by how much of the
   effect is lost (most lost first), or by name.
+- **Sizes only** draws every effect at its size, |effect|, ignoring direction,
+  so rows sorted by size fall in a line. Direction is then off the axis, so an
+  adjusted effect whose sign is the opposite of the unadjusted one gets a
+  dark ring.
 
 The random-intercept model is fitted by exact REML. The fit profiles out the
 fixed effects and searches a single variance ratio, which is fast enough for

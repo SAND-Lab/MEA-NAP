@@ -2441,7 +2441,7 @@ def render_stats_figure(
                              + "; ".join(fitted.skipped))
         results = dataclasses.replace(results, adjusted=fitted.table)
     view = {name: str(overrides.pop(f"adjust_{name}"))
-            for name in ("term", "show", "sort") if f"adjust_{name}" in overrides}
+            for name in ("term", "show", "sort", "unsigned") if f"adjust_{name}" in overrides}
     if view and key == "adjusted_effects":
         results = dataclasses.replace(results, adjust_view=view)
 

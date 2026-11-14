@@ -355,8 +355,45 @@ def verdict_checks() -> None:
           got.loc["half", "Sets"] == 2 and abs(got.loc["gone", "Retained"] - 0.05 / 0.8) < 1e-9)
 
 
+def unsigned_checks() -> None:
+    import tempfile as _tf
+
+    from meanap.native.chart import Points
+    from meanap.pipeline.figure_output import capture_figures
+    from meanap.stats.plots import plot_adjusted_effects
+
+    print("Sizes only")
+    rows = []
+    for metric, base, under in (("up", 0.8, 0.7), ("down", -1.2, -1.0), ("flips", 0.9, -0.5)):
+        rows.append((metric, "age", "none", "", base, 0.001))
+        rows.append((metric, "age", "rate", "Firing rate", under, 0.01))
+    table = pd.DataFrame(rows, columns=["Metric", "Term", "Adjustment", "AdjustmentLabel",
+                                        "EffectSize", "PValueFDR"])
+    table = table.assign(Family="mixed-model", MetricLabel=table["Metric"],
+                         CovariateR2=0.2, Retained=np.nan)
+
+    def points(**kw):
+        with _tf.TemporaryDirectory() as tmp, capture_figures() as got:
+            plot_adjusted_effects(table, Path(tmp) / "f.png", **kw)
+        chart = got[-1].figure.scene
+        return [m for m in chart.panels[0].marks if isinstance(m, Points)], chart
+
+    signed, _ = points()
+    sized, chart = points(unsigned="1", sort="effect")
+    check("signed, effects keep their direction",
+          min(float(m.x[0]) for m in signed) < 0)
+    check("sizes only, every dot sits at |effect|",
+          sorted(round(float(m.x[0]), 3) for m in sized)
+          == sorted(round(abs(v), 3) for v in table["EffectSize"]))
+    check("and the axis says so", chart.panels[0].xlabel.startswith("|"))
+    ringed = [m for m in sized if m.edge_width >= 2.0]
+    check("a sign that flipped under adjustment is ringed",
+          len(ringed) == 1 and "opposite sign" in ringed[0].hover[0], str(len(ringed)))
+
+
 def main() -> int:
     verdict_checks()
+    unsigned_checks()
     model_checks()
     with tempfile.TemporaryDirectory() as tmp:
         run_checks(Path(tmp))

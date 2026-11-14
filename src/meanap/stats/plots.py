@@ -1495,6 +1495,7 @@ def adjusted_verdicts(table: pd.DataFrame, *, alpha: float = 0.05) -> pd.DataFra
 def plot_adjusted_effects(
     table: pd.DataFrame, out_path: Path, *, alpha: float = 0.05,
     term: str = "all", show: str = "all", sort: str = "effect",
+    unsigned: bool | str = False,
 ) -> Path | None:
     """Each metric's age and genotype effects, unadjusted and under each covariate set.
 
@@ -1510,7 +1511,10 @@ def plot_adjusted_effects(
     survives can be read without decoding the dots. *term* keeps one panel
     (``"age"`` or a contrast), *show* keeps the rows that survive or that
     changed (see :data:`ADJUSTED_SHOW`), and *sort* orders them
-    (:data:`ADJUSTED_SORT`).
+    (:data:`ADJUSTED_SORT`). *unsigned* draws every effect at its size,
+    ``|effect|``, so rows sorted by size fall in a line; a dot whose sign is
+    the opposite of the unadjusted effect's gets a dark ring, since the axis
+    no longer shows it.
 
     The legend carries each set's design R² (how much of its covariates age
     and genotype explain), because a covariate the design nearly fixes leaves
@@ -1520,6 +1524,7 @@ def plot_adjusted_effects(
 
     if table is None or table.empty or "Adjustment" not in table.columns:
         return None
+    unsigned = str(unsigned).lower() in ("1", "true", "yes")
     table = table[table["Family"] == "mixed-model"]
     terms = [t for t in pd.unique(table["Term"])
              if str(t) == "age" or " vs " in str(t)]
@@ -1626,10 +1631,16 @@ def plot_adjusted_effects(
                       .dropna(subset=["EffectSize"]))
             if points.empty:
                 continue
+            signed = points["EffectSize"].to_numpy(float)
+            reference = (float(points.loc[NONE, "EffectSize"]) if NONE in points.index
+                         else 0.0)
+            shown_x = np.abs(signed) if unsigned else signed
             if len(points) > 1:
-                marks.append(Line(points["EffectSize"].to_numpy(float),
-                                  [row_idx] * len(points), rgba(MUTED, 0.7), width=1.2, z=1))
-            for level, point in points.iterrows():
+                marks.append(Line(shown_x, [row_idx] * len(points), rgba(MUTED, 0.7),
+                                  width=1.2, z=1))
+            for (level, point), x in zip(points.iterrows(), shown_x):
+                flipped = (unsigned and level != NONE and reference != 0
+                           and np.sign(float(point["EffectSize"])) == -np.sign(reference))
                 q = point.get("PValueFDR")
                 filled = pd.notna(q) and float(q) < alpha
                 # Significant dots solid and full size; the rest hollow and
@@ -1641,15 +1652,20 @@ def plot_adjusted_effects(
                          + (f", FDR q = {float(q):.3g}" if pd.notna(q) else "")
                          + (f", {float(kept):.0%} of unadjusted"
                             if level != NONE and pd.notna(kept) else ""))
+                if flipped:
+                    hover += " (opposite sign to unadjusted)"
                 marks.append(Points(
-                    [point["EffectSize"]], [row_idx],
-                    fill=colour if filled else rgba("white"), edge=colour,
-                    edge_width=1.5 if filled else 1.1,
+                    [x], [row_idx],
+                    fill=colour if filled else rgba("white"),
+                    edge=INK_RGBA if flipped else colour,
+                    edge_width=2.0 if flipped else 1.5 if filled else 1.1,
                     size=float(np.sqrt(48 if filled else 26)),
                     key=level_names[level], hover=[hover]))
         marks.append(Rule(0, axis="x", colour=INK_RGBA, width=0.9, dash=":"))
         # Room on the right for the survival count, clear of the dots.
         values = sub.loc[sub["Metric"].isin(order), "EffectSize"].astype(float).dropna()
+        if unsigned:
+            values = values.abs()
         low, high = (min(values.min(), 0.0), max(values.max(), 0.0)) if len(values) else (-1, 1)
         pad = 0.06 * ((high - low) or 1.0)
         xlim = (low - pad, high + pad + 0.16 * ((high - low) or 1.0))
@@ -1658,7 +1674,9 @@ def plot_adjusted_effects(
             cell=(0, idx), marks=marks,
             yticks=[(k, name(m)) for k, m in enumerate(order)], tick_size=8,
             ylabels=idx == 0, title="Age" if is_age else str(term_), title_size=9.5,
-            xlabel="SD change across ages" if is_age else "Standardised difference",
+            xlabel=("|SD change| across ages" if unsigned else "SD change across ages")
+            if is_age else ("|Standardised difference|" if unsigned
+                            else "Standardised difference"),
             label_size=8.5, sharey="metric", zoom=(True, False),
             ylim=(-0.5, len(order) - 0.5), xlim=xlim))
 
@@ -1677,7 +1695,11 @@ def plot_adjusted_effects(
                   legend=legend,
                   note="Green rows stay significant (same direction) under every set ticked; "
                        "red rows lose significance under all of them. The count at the right "
-                       "is how many sets each effect survives. Solid dots "
+                       "is how many sets each effect survives. "
+                       + ("Sizes only, |effect|: a dark ring marks an adjusted effect "
+                          "whose sign is the opposite of the unadjusted one. "
+                          if unsigned else "")
+                       + "Solid dots "
                        "survive FDR correction; faded open ones do not. A dot that moves to "
                        "zero was carried by the covariate. Every set is fitted on the same "
                        "recordings. Design R² is how much of the covariates age and genotype "
