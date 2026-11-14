@@ -36,6 +36,7 @@ __all__ = [
     "plot_decoding_by_age",
     "plot_decoding_importance",
     "plot_decoding_scores",
+    "plot_adjusted_effects",
     "plot_control_effects",
     "plot_density_context",
     "plot_genotype_effect_by_age",
@@ -1437,6 +1438,125 @@ def plot_control_effects(
                        f"organisation. {note} Every condition is measured on the "
                        "recordings all of them have, so a step is the control changing "
                        "and not the cohort.")
+    return save_chart(chart, out_path)
+
+
+#: One colour per adjustment set, in the order the sets were asked for; the
+#: unadjusted level is always the pale grey the control figure uses for "none".
+_ADJUSTMENT_COLOURS = ("#6f9fd0", "#1f4e79", "#c0504d", "#8064a2", "#4bacc6", "#9bbb59")
+
+
+def plot_adjusted_effects(
+    table: pd.DataFrame, out_path: Path, *, alpha: float = 0.05,
+) -> Path | None:
+    """Each metric's age and genotype effects, unadjusted and under each covariate set.
+
+    The question the 5A heatmap leaves open: an effect of age on network
+    density may be an effect of age on firing rate, passed on. One row per
+    metric with a significant unadjusted effect, one panel per term, one dot
+    per adjustment set joined by a line — so an effect the covariate carried
+    collapses toward zero and one beyond it holds its place. Filled dots
+    survive FDR correction at *alpha*.
+
+    The legend carries each set's design R² (how much of its covariates age
+    and genotype explain), because a covariate the design nearly fixes leaves
+    the model unable to separate the two, and a collapse is then undecided.
+    """
+    from meanap.stats.adjustment import COLLINEAR_R2, NONE
+
+    if table is None or table.empty or "Adjustment" not in table.columns:
+        return None
+    table = table[table["Family"] == "mixed-model"]
+    terms = [t for t in pd.unique(table["Term"])
+             if str(t) == "age" or " vs " in str(t)]
+    if not terms:
+        return None
+    terms = ([t for t in terms if str(t) == "age"]
+             + sorted(t for t in terms if str(t) != "age"))
+    levels = list(pd.unique(table["Adjustment"]))
+    if NONE in levels:
+        levels = [NONE] + [lv for lv in levels if lv != NONE]
+    if len(levels) < 2:
+        return None
+    colours = {NONE: "#b7b7b7"}
+    for i, level in enumerate(lv for lv in levels if lv != NONE):
+        colours[level] = _ADJUSTMENT_COLOURS[i % len(_ADJUSTMENT_COLOURS)]
+
+    shown = table[table["Term"].isin(terms)]
+    base = shown[shown["Adjustment"] == NONE]
+    significant = base.loc[base["PValueFDR"] < alpha, "Metric"].unique()
+    metrics = significant if len(significant) else base["Metric"].unique()
+    order = (base[base["Metric"].isin(metrics)].groupby("Metric")["EffectSize"]
+             .apply(lambda v: v.abs().max()).sort_values(ascending=True).index.tolist())
+    if not order:
+        return None
+    labels = (table.drop_duplicates("Metric").set_index("Metric")["MetricLabel"]
+              .fillna("").to_dict())
+
+    def name(metric):
+        return labels.get(metric) or metric
+
+    def legend_label(level):
+        rows = table[table["Adjustment"] == level]
+        label = str(rows["AdjustmentLabel"].iloc[0]) if len(rows) else level
+        if level == NONE:
+            return "unadjusted"
+        r2 = pd.to_numeric(rows["CovariateR2"], errors="coerce").dropna()
+        if len(r2):
+            flag = " ⚠" if r2.iloc[0] >= COLLINEAR_R2 else ""
+            label += f" (design R² {r2.iloc[0]:.2f}{flag})"
+        return label
+
+    level_names = {level: legend_label(level) for level in levels}
+    panels = []
+    for idx, term in enumerate(terms):
+        sub = shown[shown["Term"] == term]
+        marks = []
+        for row_idx, metric in enumerate(order):
+            points = (sub[sub["Metric"] == metric].drop_duplicates("Adjustment")
+                      .set_index("Adjustment").reindex(levels)
+                      .dropna(subset=["EffectSize"]))
+            if points.empty:
+                continue
+            if len(points) > 1:
+                marks.append(Line(points["EffectSize"].to_numpy(float),
+                                  [row_idx] * len(points), rgba(MUTED, 0.7), width=1.2, z=1))
+            for level, point in points.iterrows():
+                colour = rgba(colours[level])
+                q = point.get("PValueFDR")
+                filled = pd.notna(q) and float(q) < alpha
+                kept = point.get("Retained")
+                hover = (f"{name(metric)}, {level_names[level]}: "
+                         f"{float(point['EffectSize']):+.2f}"
+                         + (f", FDR q = {float(q):.3g}" if pd.notna(q) else "")
+                         + (f", {float(kept):.0%} of unadjusted"
+                            if level != NONE and pd.notna(kept) else ""))
+                marks.append(Points(
+                    [point["EffectSize"]], [row_idx],
+                    fill=colour if filled else rgba("white"), edge=colour,
+                    edge_width=1.5, size=float(np.sqrt(42)),
+                    key=level_names[level], hover=[hover]))
+        marks.append(Rule(0, axis="x", colour=INK_RGBA, width=0.9, dash=":"))
+        is_age = str(term) == "age"
+        panels.append(Panel(
+            cell=(0, idx), marks=marks,
+            yticks=[(k, name(m)) for k, m in enumerate(order)], tick_size=8,
+            ylabels=idx == 0, title="Age" if is_age else str(term), title_size=9.5,
+            xlabel="SD change across ages" if is_age else "Standardised difference",
+            label_size=8.5, sharey="metric", zoom=(True, False)))
+
+    legend = Legend([LegendItem(level_names[lv], rgba(colours[lv]), kind="point",
+                                size=7, key=level_names[lv]) for lv in levels],
+                    loc="bottom", columns=min(len(levels), 3), size=8.5)
+    chart = Chart(panels, size=(3.5 * len(terms) + 1.8, 1.6 + 0.24 * len(order)),
+                  grid=(1, len(terms)),
+                  title="Effects holding firing rate (and more) fixed",
+                  legend=legend,
+                  note="Filled dots survive FDR correction; open ones do not. A dot that "
+                       "moves to zero was carried by the covariate, one that stays is an "
+                       "effect beyond it. Every set is fitted on the same recordings. "
+                       "Design R² is how much of the covariates age and genotype explain; "
+                       "near 1 (⚠), the model cannot separate them.")
     return save_chart(chart, out_path)
 
 

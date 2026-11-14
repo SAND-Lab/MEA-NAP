@@ -15,6 +15,7 @@ Step 5 analyses a finished run: an output folder or a `.meanap` bundle. It reads
 **Analyses** (on by default unless marked):
 
 - **Compare groups and ages**: a mixed model for each metric, giving an age slope, genotype contrasts, contrasts within each age and paired contrasts between ages. All p-values are FDR-corrected.
+- **Hold covariates fixed**: refits the comparison model with covariates added, such as firing rate, rate and active units, network size and density, bursting, or any columns you type, joined by `+`. It shows each age and genotype effect beside the unadjusted one, in figure 5A4. An effect that vanishes was carried by the covariate. This is not the same as "not real", and the figure flags covariates that age and genotype nearly determine, where the model cannot tell them apart.
 - **Feature correlation structure**: which metrics measure the same thing, and how many independent dimensions the metric set really has.
 - **Decoding**: classifies genotype or age from the metrics. Two optional splits of the result go with it. **Per-age attribution** shows which metrics carry the signal at each age. **Activity vs correlation strength vs network topology** asks whether a difference in topology is more than a difference in firing and correlation.
 - **Variance attribution**: splits the R² of a continuous target, by default age, across the metrics.

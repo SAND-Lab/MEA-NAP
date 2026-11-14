@@ -233,16 +233,25 @@ def _wald_joint(result, terms: list[str]) -> tuple[float, float]:
 
 # ── the analyses ─────────────────────────────────────────────────────────────
 
-def _model_rows(ds: StatsDataset, metric: str, lag, rows: list[dict], models: dict) -> None:
+def _model_rows(ds: StatsDataset, metric: str, lag, rows: list[dict], models: dict,
+                covariates: dict[str, str] | None = None) -> None:
     """Mixed-effects age and genotype effects for one metric.
 
     Fits ``metric ~ age + genotype + (1|culture)`` and, when both factors vary,
     the interaction model as well, reporting: the age slope, each genotype
     contrast against the reference level, the joint genotype effect, and the
     interaction LRT.
+
+    *covariates* (``{column: name}``, columns already in ``ds.table`` and
+    already transformed) are added to the model, which then estimates the age
+    and genotype effects holding them fixed (:mod:`meanap.stats.adjustment`).
+    Each covariate's own coefficient is reported as a ``"covariate <name>"``
+    row in family ``"covariate"``, so it does not join the effects' FDR
+    family. The interaction is not fitted under adjustment.
     """
+    covariates = covariates or {}
     label = ds.label(metric)
-    cols = [metric, ds.age_col, ds.group_col, ds.culture_col]
+    cols = [metric, ds.age_col, ds.group_col, ds.culture_col, *covariates]
     data = ds.table[cols].copy()
     data[metric] = pd.to_numeric(data[metric], errors="coerce")
     data = data.replace([np.inf, -np.inf], np.nan).dropna()
@@ -277,6 +286,9 @@ def _model_rows(ds: StatsDataset, metric: str, lag, rows: list[dict], models: di
     if not terms:
         blank("LME", "age", "only one age and one group present")
         return
+    # A covariate that is not numeric (a batch, a plate) enters as a factor.
+    terms += [c if pd.api.types.is_numeric_dtype(data[c]) else f"C({c})"
+              for c in covariates]
 
     formula = "_y ~ " + " + ".join(terms)
     fit, test_name, note = _fit_with_fallback(data, formula, data[ds.culture_col])
@@ -316,7 +328,17 @@ def _model_rows(ds: StatsDataset, metric: str, lag, rows: list[dict], models: di
                      "Statistic": stat, "PValue": pval,
                      "EffectSizeName": "chi-square"})
 
-    if n_ages > 1 and n_groups > 1:
+    for column, name in covariates.items():
+        if column in fit.params.index:
+            rows.append({**base, "Family": "covariate", "Test": test_name,
+                         "Term": f"covariate {name}",
+                         "Estimate": float(fit.params[column]),
+                         "Statistic": float(fit.tvalues[column]),
+                         "PValue": float(fit.pvalues[column]),
+                         "EffectSize": float(fit.params[column]),
+                         "EffectSizeName": "standardised beta"})
+
+    if n_ages > 1 and n_groups > 1 and not covariates:
         # Whether the groups age *differently* is a joint test that every
         # age x genotype coefficient is zero. A joint Wald test rather than a
         # likelihood-ratio test so the same test can be reported whether the
