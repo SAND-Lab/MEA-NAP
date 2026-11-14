@@ -114,27 +114,22 @@ def _routing_checks(app: QApplication, express_root: Path, full_root: Path) -> l
     bundle = express_root.with_suffix(BUNDLE_SUFFIX)
 
     # An express run: the bundle is the only complete record of it, so that is
-    # where View report must go.
+    # where View report must go — the results viewer, in a window of the app.
     window._params = Params(express_mode=True)
     window._on_pipeline_finished(express_root)
     window._on_view_report()
-    checks.append(("express run: View report opens a viewer URL",
-                   len(opened) == 1 and opened[0].startswith("http://"),
-                   str(opened)))
-    checks.append(("…and it is the viewer, not a file:// report",
-                   not opened[0].startswith("file:"), str(opened[:1])))
-    checks.append(("…serving something a browser can load",
-                   urllib.request.urlopen(opened[0]).status == 200
-                   if opened else False, ""))
+    checks.append(("express run: View report opens the run in the results window",
+                   _shown(window) == bundle.resolve(), str(_shown(window))))
+    checks.append(("…not the browser", opened == [], str(opened)))
     checks.append(("…and no report.html was written into the folder",
                    not (express_root / "report.html").exists(), ""))
 
-    # Clicking again must not start a second server for the same bundle.
-    before = len(window._viewers)
+    # Clicking again reopens the same window rather than making another.
+    first = window._panel_windows.get("results_native")
     window._on_view_report()
-    checks.append(("clicking twice reuses the running viewer",
-                   len(window._viewers) == before and opened[1] == opened[0],
-                   f"{before} → {len(window._viewers)}"))
+    checks.append(("clicking twice reuses the results window",
+                   window._panel_windows.get("results_native") is first
+                   and _shown(window) == bundle.resolve(), ""))
 
     # A full run has the figures on disk; the static report is still right.
     window2 = MainWindow()
@@ -159,11 +154,25 @@ def _routing_checks(app: QApplication, express_root: Path, full_root: Path) -> l
     window3._data_panel.output_data_folder_name.setText(express_root.name)
     window3._on_view_report()
     checks.append(("a bundle is found from the paths alone, with no run",
-                   len(opened3) == 1 and opened3[0].startswith("http://"), str(opened3)))
+                   _shown(window3) == bundle.resolve() and not opened3, str(opened3)))
 
     for w in (window, window2, window3):
+        _close_results(w)
         w._viewers.close_all()
     return checks
+
+
+def _shown(window) -> Path | None:
+    """The run the window's results viewer has open, if it has one."""
+    holder = window._panel_windows.get("results_native")
+    service = holder.panel._service if holder is not None else None
+    return Path(service.source).resolve() if service is not None else None
+
+
+def _close_results(window) -> None:
+    holder = window._panel_windows.get("results_native")
+    if holder is not None:
+        holder.panel.close_run()
 
 
 # ── Section B: opening bundles ────────────────────────────────────────────────
@@ -179,7 +188,13 @@ def _open_checks(app: QApplication, express_root: Path) -> list[Check]:
     _opened_urls(window, opened)
 
     ok = window._open_in_viewer(bundle)
-    checks.append(("opening a bundle succeeds", ok, ""))
+    checks.append(("opening a bundle shows it in the results window",
+                   ok and _shown(window) == bundle.resolve() and not opened, str(opened)))
+    _close_results(window)
+
+    # The web viewer stays a link away, for what only it has.
+    ok = window._open_in_browser(bundle)
+    checks.append(("opening it in the browser instead succeeds", ok, ""))
     url = window._viewers.url_for(bundle)
     checks.append(("the session is addressable by path", url == opened[-1], str(url)))
     checks.append(("the log says where the viewer is",
@@ -205,12 +220,18 @@ def _open_checks(app: QApplication, express_root: Path) -> list[Check]:
         junk.write_text("this is not a zip")
         errors: list[str] = []
         _stub_critical(errors)
-        refused = window._open_in_viewer(junk)
+        refused = window._open_in_browser(junk)
         checks.append(("a non-bundle file is refused", refused is False, ""))
         checks.append(("…with an explanation naming the file",
                        bool(errors) and "notes.meanap" in errors[0], str(errors)))
         checks.append(("…and leaves no session behind",
                        len(window._viewers) == 0, str(len(window._viewers))))
+        warnings: list[str] = []
+        _stub_warning(warnings)
+        refused = window._open_in_viewer(junk)
+        checks.append(("the results window refuses it too, naming the file",
+                       refused is False and bool(warnings) and "notes.meanap" in warnings[0],
+                       str(warnings)))
     return checks
 
 
@@ -219,6 +240,15 @@ def _stub_critical(sink: list[str]) -> None:
     from PyQt6.QtWidgets import QMessageBox
 
     QMessageBox.critical = staticmethod(  # type: ignore[method-assign]
+        lambda parent, title, text, *a, **k: sink.append(text)
+    )
+
+
+def _stub_warning(sink: list[str]) -> None:
+    """Collect QMessageBox.warning text instead of blocking on a dialog."""
+    from PyQt6.QtWidgets import QMessageBox
+
+    QMessageBox.warning = staticmethod(  # type: ignore[method-assign]
         lambda parent, title, text, *a, **k: sink.append(text)
     )
 
@@ -281,20 +311,18 @@ def _drop_checks(app: QApplication, express_root: Path) -> list[Check]:
 
     drop = _FakeDrag([str(bundle)])
     window.dropEvent(drop)
-    checks.append(("dropping it opens the viewer",
-                   drop.accepted and len(opened) == 1
-                   and opened[0].startswith("http://"), str(opened)))
+    checks.append(("dropping it opens it in the results window",
+                   drop.accepted and _shown(window) == bundle.resolve() and not opened,
+                   str(opened)))
 
-    # Two bundles dropped together get a viewer each — the ports differ, so the
-    # fallback off the preferred port has to work.
+    # Two bundles dropped together: the window shows the last, as the page does.
     with tempfile.TemporaryDirectory() as tmp:
         second = Path(tmp) / "Second.meanap"
         second.write_bytes(bundle.read_bytes())
-        window.dropEvent(_FakeDrag([str(second)]))
-        urls = set(opened)
-        checks.append(("a second bundle gets its own viewer",
-                       len(window._viewers) == 2 and len(urls) == 2, str(sorted(urls))))
-        window._viewers.close_all()
+        window.dropEvent(_FakeDrag([str(bundle), str(second)]))
+        checks.append(("of two dropped together, the last is shown",
+                       _shown(window) == second.resolve(), str(_shown(window))))
+        _close_results(window)
 
     # Opening a bundle belongs with the other things you do to a finished run,
     # not in the toolbar beside New and Save params.
