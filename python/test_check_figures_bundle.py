@@ -517,6 +517,75 @@ def _edge_viewer_checks() -> list[Check]:
     return checks
 
 
+def _sorting_check_data():
+    """A sorted recording: twelve units on an 8x8 grid, three labels."""
+    from meanap.pipeline.plotting_sorting import SortingCheckData
+
+    rng = np.random.default_rng(4)
+    ids = np.array([c * 10 + r for c in range(1, 9) for r in range(1, 9)])
+    coords = np.array([[c, r] for c in range(1, 9) for r in range(1, 9)], float)
+    labels = np.array(["good", "mua", "noise"] * 4)
+    chans = rng.choice(ids, 12)
+    table = [dict(unit_id=f"u{i}", channel_id=int(chans[i]), label=labels[i], kept=True,
+                  n_spikes=100 + i, firing_rate=0.5 + i, snr=3 + i,
+                  rp_violation_frac=0.01 * i, presence_ratio=0.9, amplitude_uv=40 + i,
+                  sorter_unit_id=i) for i in range(12)]
+    return SortingCheckData(
+        rec_name="REC", channel_layout="MCS60", sorter_name="kilosort4", sorter_version="4",
+        electrode_ids=ids, electrode_coords=coords, unit_table=table,
+        kept_ids=np.array([f"u{i}" for i in range(12)]), kept_channel_ids=chans,
+        kept_labels=labels, templates=rng.normal(0, 10, (12, 60)).astype(np.float32),
+        template_times_ms=np.linspace(-1, 1.4, 60))
+
+
+def _in_app_checks() -> list[Check]:
+    """The in-app viewer draws both kinds live, as native charts."""
+    from types import SimpleNamespace
+
+    from meanap.native.chart import Chart
+    from meanap.pipeline.plotting_sorting import SORTING_CHECKS_SUFFIX, save_sorting_check_data
+    from meanap.pipeline.plotting_step3 import (
+        EDGE_CHECK_SUFFIX, compute_edge_threshold_check, save_edge_threshold_check,
+    )
+    from meanap.pipeline.render import (
+        SORTING_CHECK_FIGURES, RenderContext, available_sorting_check_figures,
+    )
+    from meanap.pipeline.resume import SPIKE_SUBDIR
+    from meanap.viewer.live import live_figure
+
+    checks: list[Check] = []
+    dist1, rep_val, adj = _edge_check_data()
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp) / "run"
+        (root / "ExperimentMatFiles").mkdir(parents=True)
+        (root / SPIKE_SUBDIR).mkdir(parents=True, exist_ok=True)
+        save_edge_threshold_check(
+            root / "ExperimentMatFiles" / f"REC{EDGE_CHECK_SUFFIX}",
+            {25: compute_edge_threshold_check(dist1, rep_val, adj,
+                                              rng=np.random.default_rng(1))})
+        save_sorting_check_data(root / SPIKE_SUBDIR / f"REC{SORTING_CHECKS_SUFFIX}",
+                                _sorting_check_data())
+        ctx = RenderContext(params=_params(), recordings={}, results={},
+                            batch_bounds={}, root=root, mode="ephys")
+        service = SimpleNamespace(ctx=ctx)
+
+        offered = available_sorting_check_figures(ctx, "REC")
+        checks.append(("a sorted recording offers its three sorting checks",
+                       offered == list(SORTING_CHECK_FIGURES), str(offered)))
+        checks.append(("and a detected one none",
+                       available_sorting_check_figures(ctx, "OTHER") == [], ""))
+        for spec in offered:
+            live = live_figure(service, "sorting_check", "REC", spec.name)
+            checks.append((f"{spec.name} comes back as a native chart",
+                           isinstance(getattr(live.figure, "scene", None), Chart),
+                           type(live.figure).__name__))
+        live = live_figure(service, "edge_check", "REC", "ProbThreshCheck", lag=25)
+        checks.append(("and so does the edge threshold check",
+                       isinstance(getattr(live.figure, "scene", None), Chart),
+                       type(live.figure).__name__))
+    return checks
+
+
 # ── CAT-NAP per-recording subnetwork figures ──────────────────────────────────
 
 DATASET = REPO_ROOT / "local" / "example2pdataWCellTypes"
@@ -818,6 +887,7 @@ def main() -> int:
                          ("Edge-threshold payload:", _edge_check_checks),
                          ("Edge-threshold renderer:", _edge_render_checks),
                          ("Edge-threshold viewer:", _edge_viewer_checks),
+                         ("In-app viewer (sorting + edge):", _in_app_checks),
                          ("Subnetwork wiring:", _subnetwork_declaration_checks),
                          ("Subnetwork viewer:", _subnetwork_viewer_checks),
                          ("Scaling toggle:", _variant_checks),

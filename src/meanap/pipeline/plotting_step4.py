@@ -21,12 +21,10 @@ from pathlib import Path
 import matplotlib
 
 matplotlib.use("Agg")
-import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import numpy as np
 from meanap.pipeline.figure_output import savefig
 
-from meanap.network_plot import plot_network
 from meanap.params import Params
 from meanap.pipeline.channel_layout import get_coords_from_layout
 from meanap.pipeline.network_metrics import classify_node_cartography
@@ -49,67 +47,27 @@ def plot_connectivity_stats(
     recording_name: str,
     out_path: Path,
     exclude_edges_below_threshold: bool = True,
+    node_names: list | None = None,
+    node_noun: str = "node",
 ) -> None:
     """Port of ``plotConnectivityProperties.m``'s single saved figure.
 
-    Layout mirrors the MATLAB 6x6 ``tiledlayout``: adjacency matrix heatmap
-    (top-left block) + max/mean STTC bars (bottom-left) + ND/NS/edge-weight
-    histograms (right column).
+    ``node_names`` and ``node_noun`` name the rows of ``adj_m`` for an
+    interactive view; they change nothing that is drawn.
+
+    Drawn by Qt, not matplotlib: the file written here is the figure the viewer
+    shows and exports (see :mod:`meanap.native`).
     """
-    if exclude_edges_below_threshold:
-        edge_weights = adj_m[adj_m > 0]
-    else:
-        edge_weights = adj_m.ravel()
+    from meanap.native import output
+    from meanap.native.connectivity_paint import ConnectivityPainter
+    from meanap.native.scene import connectivity_scene
 
-    mean_sttc = float(np.nanmean(edge_weights)) if edge_weights.size else 0.0
-    max_sttc = float(np.max(edge_weights)) if edge_weights.size else 0.0
-    max_sttc = max(max_sttc, 0.001)
-    max_adj_m = max(float(np.max(adj_m)) if adj_m.size else 0.0, 0.0001)
-    ylim_bar = (0, max_adj_m + 0.15 * max_adj_m)
-
-    fig = plt.figure(figsize=(11, 6))
-    gs = fig.add_gridspec(6, 6)
-    fig.suptitle(_std_title(recording_name, lag_ms))
-
-    ax_adj = fig.add_subplot(gs[0:3, 0:2])
-    im = ax_adj.imshow(adj_m, aspect="auto")
-    ax_adj.set_xlabel("nodes")
-    ax_adj.set_ylabel("nodes")
-    ax_adj.set_title("adjacency matrix")
-    cbar = fig.colorbar(im, ax=ax_adj)
-    cbar.set_label("correlation coefficient")
-
-    ax_max = fig.add_subplot(gs[3:6, 0])
-    ax_max.bar([0], [max_sttc], color="#1f77b4")
-    ax_max.set_ylim(*ylim_bar)
-    ax_max.set_title("max corr. value")
-    ax_max.set_xticks([])
-
-    ax_mean = fig.add_subplot(gs[3:6, 1])
-    ax_mean.bar([0], [mean_sttc], color="#1f77b4")
-    ax_mean.set_ylim(*ylim_bar)
-    ax_mean.set_title("mean corr. value")
-    ax_mean.set_xticks([])
-
-    ax_nd = fig.add_subplot(gs[0:2, 3:6])
-    ax_nd.hist(nd, bins=50, color="#4FC3E8")
-    ax_nd.set_xlabel("node degree")
-    ax_nd.set_ylabel("frequency")
-
-    ax_ns = fig.add_subplot(gs[2:4, 3:6])
-    ax_ns.hist(ns, bins=50, color="#4FC3E8")
-    ax_ns.set_xlabel("node strength")
-    ax_ns.set_ylabel("frequency")
-
-    ax_ew = fig.add_subplot(gs[4:6, 3:6])
-    ax_ew.hist(edge_weights, bins=50, color="#4FC3E8")
-    ax_ew.set_xlabel("edge weight")
-    ax_ew.set_ylabel("frequency")
-
-    fig.tight_layout()
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    savefig(fig, out_path, default_dpi=150)
-    plt.close(fig)
+    scene = connectivity_scene(
+        adj_m, nd, ns, title=_std_title(recording_name, lag_ms),
+        exclude_edges_below_threshold=exclude_edges_below_threshold,
+        names=node_names, noun=node_noun)
+    painter = ConnectivityPainter(scene)
+    output.save(painter, out_path, capture=output.NativeFigure("connectivity", scene, painter))
 
 
 def plot_spatial_network(
@@ -170,12 +128,19 @@ def plot_spatial_network(
     else:
         sub, coords, edge_thresh = style.prepare(sub, coords)
 
+    # Drawn by Qt, not matplotlib: the file written here, the figure the
+    # viewer shows and what it exports are the same drawing (meanap.native).
     # MATLAB titles the batch-scaled variant exactly like the plain one; only
     # the file name ("<n>_scaled_…") tells them apart.
-    fig, ax = plt.subplots(figsize=(8, 8))
-    plot_network(
-        ax, sub, coords, edge_thresh, z_sub, z2_sub, z2_name,
+    from meanap.native import output
+    from meanap.native.network_paint import NetworkPainter
+    from meanap.native.scene import network_scene
+
+    names, noun = _node_names(channels_active, channel_layout, coords_override)
+    scene = network_scene(
+        sub, coords, edge_thresh, z_sub, z2_sub, z2_name,
         title=_std_title(recording_name, lag_ms), z_name=z_name,
+        names=names, noun=noun,
         z_scale_override=z_scale_override,
         z2_bounds_override=z2_bounds_override,
         edge_bounds_override=edge_bounds_override,
@@ -188,10 +153,8 @@ def plot_spatial_network(
         min_ew=style.min_edge_width, max_ew=style.max_edge_width,
         colormap=style.colormap,
     )
-    fig.tight_layout()
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    savefig(fig, out_path, default_dpi=150)
-    plt.close(fig)
+    painter = NetworkPainter(scene)
+    output.save(painter, out_path, capture=output.NativeFigure("network", scene, painter))
 
 
 def plot_network_beside_field(
@@ -226,35 +189,37 @@ def plot_network_beside_field(
         return
     sub, coords, z_sub, _z2, _ct = prepared
 
-    bg_img, bg_extent = background
-    bg_img = np.asarray(bg_img, dtype=float)
+    import dataclasses
 
-    fig, (ax_img, ax_net) = plt.subplots(1, 2, figsize=(16, 8))
+    from meanap.native import output
+    from meanap.native.network_paint import NetworkPairPainter
+    from meanap.native.scene import NetworkPairScene, network_scene
 
-    # Draw the network first: plot_network sets the axis limits (it reserves
-    # room for its legends), and the image panel then adopts them, so a
-    # position on the left maps to the same position on the right.
-    plot_network(
-        ax_net, sub, coords, edge_thresh, z_sub, None, "None",
-        title=f"{recording_name}  {lag_ms} ms lag\nnetwork", z_name=z_name,
-        node_size_scale=node_size_scale,
-    )
+    names, noun = _node_names(channels_active, channel_layout, coords_override)
+    network = network_scene(
+        sub, coords, edge_thresh, z_sub, None, "None",
+        title=_std_title(recording_name, lag_ms), z_name=z_name, names=names, noun=noun,
+        node_size_scale=node_size_scale)
+    # The same scene with the image behind it and nothing drawn on top: the
+    # two panels are then the same view of the same coordinates.
+    field = dataclasses.replace(network, background=background, title="Imaged field of view")
+    scene = NetworkPairScene(left=field, right=network, left_is_field=True)
+    painter = NetworkPairPainter(scene)
+    output.save(painter, out_path, capture=output.NativeFigure("field", scene, painter))
 
-    finite = bg_img[np.isfinite(bg_img)]
-    lo, hi = (np.percentile(finite, [1, 99]) if finite.size else (0.0, 1.0))
-    if hi <= lo:
-        lo, hi = (float(finite.min()), float(finite.max()) or 1.0) if finite.size else (0.0, 1.0)
-    ax_img.imshow(bg_img, cmap="gray", origin="lower", extent=bg_extent,
-                  vmin=lo, vmax=hi, interpolation="bilinear", aspect="equal")
-    ax_img.set_title(f"{recording_name}\nimaged field of view", fontsize=9, color="black")
-    ax_img.set_xlim(ax_net.get_xlim())
-    ax_img.set_ylim(ax_net.get_ylim())
-    ax_img.axis("off")
 
-    fig.tight_layout()
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    savefig(fig, out_path, default_dpi=150)
-    plt.close(fig)
+def _node_names(channels_active, channel_layout: str,
+                coords_override: np.ndarray | None) -> tuple[list, str]:
+    """The name of each node a spatial plot draws, by row, and what one is called.
+
+    Uses the same rule as :func:`_prepare_network_plot_data` for which channels
+    survive, so the names line up with the rows that were drawn.
+    """
+    if coords_override is not None:
+        return list(np.asarray(channels_active).tolist()), "cell"
+    layout_channels, _ = get_coords_from_layout(channel_layout)
+    known = set(layout_channels.tolist())
+    return [int(ch) for ch in channels_active if int(ch) in known], "electrode"
 
 
 def _prepare_network_plot_data(
@@ -371,26 +336,27 @@ def plot_spatial_network_combined(
     )
 
     # No titles: MATLAB builds this figure with copyobj, which drops them.
-    fig, (ax_ind, ax_batch) = plt.subplots(1, 2, figsize=(16, 8))
-    plot_network(
-        ax_ind, sub, coords, edge_thresh, z_sub, z2_sub, z2_name,
-        z_name=z_name, **styling,
-    )
-    plot_network(
-        ax_batch, sub, coords, edge_thresh, z_sub, z2_sub, z2_name,
-        z_name=z_name,
+    from meanap.native import output
+    from meanap.native.network_paint import NetworkPairPainter
+    from meanap.native.scene import NetworkPairScene, network_scene
+
+    names, noun = _node_names(channels_active, channel_layout, coords_override)
+    title = _std_title(recording_name, lag_ms)
+    own = network_scene(
+        sub, coords, edge_thresh, z_sub, z2_sub, z2_name, z_name=z_name,
+        title=f"{title} — scaled to recording", names=names, noun=noun, **styling)
+    batch = network_scene(
+        sub, coords, edge_thresh, z_sub, z2_sub, z2_name, z_name=z_name,
+        title=f"{title} — scaled to entire dataset", names=names, noun=noun,
         z_scale_override=z_scale_override,
         z2_bounds_override=z2_bounds_override,
         edge_bounds_override=edge_bounds_override,
-        **styling,
-    )
-    fig.tight_layout()
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    savefig(fig, out_path, default_dpi=150)
-    plt.close(fig)
+        **styling)
+    scene = NetworkPairScene(left=own, right=batch)
+    painter = NetworkPairPainter(scene)
+    output.save(painter, out_path, capture=output.NativeFigure("network", scene, painter))
 
 
-# Role colors, matching NodeCartography.m's c1..c6 exactly.
 _CARTOGRAPHY_COLORS = {
     1: (0.8, 0.902, 0.310),    # Peripheral node — light green
     2: (0.580, 0.706, 0.278),  # Non-hub connector — medium green
@@ -415,31 +381,16 @@ def _matlab_images_dir() -> Path:
     return Path(__file__).resolve().parents[3] / "matlab" / "Images"
 
 
-_CARTOGRAPHY_DIAGRAM_CACHE: "np.ndarray | None | bool" = False  # False = not yet loaded
+def _cartography_diagram_path() -> str | None:
+    """The picture of the six roles (legend and schematic), or ``None`` if missing.
 
-
-def _load_cartography_diagram() -> "np.ndarray | None":
-    """Load the bundled NodeCartographyDiagram image (role legend + schematic).
-
-    Port of ``NodeCartography.m``'s ``imshow('NodeCartographyDiagram.jpg')``
-    bottom panel. Cached after first load; returns ``None`` if unavailable so
-    the plot falls back to an inline legend.
+    ``NodeCartography.m`` shows ``NodeCartographyDiagram.jpg`` under its
+    scatter; without it the plot draws a plain key instead.
     """
-    global _CARTOGRAPHY_DIAGRAM_CACHE
-    if _CARTOGRAPHY_DIAGRAM_CACHE is not False:
-        return _CARTOGRAPHY_DIAGRAM_CACHE
-    candidates = [
-        Path(__file__).resolve().parent / "assets" / "NodeCartographyDiagram.jpg",
-        _matlab_images_dir() / "NodeCartographyDiagram.jpg",
-    ]
-    for p in candidates:
+    for p in (Path(__file__).resolve().parent / "assets" / "NodeCartographyDiagram.jpg",
+              _matlab_images_dir() / "NodeCartographyDiagram.jpg"):
         if p.exists():
-            try:
-                _CARTOGRAPHY_DIAGRAM_CACHE = plt.imread(str(p))
-                return _CARTOGRAPHY_DIAGRAM_CACHE
-            except Exception:
-                break
-    _CARTOGRAPHY_DIAGRAM_CACHE = None
+            return str(p)
     return None
 
 
@@ -448,6 +399,8 @@ def plot_node_cartography(
     lag_ms: float, recording_name: str, out_path: Path,
     boundaries: tuple | None = None,
     nd_cart_div: np.ndarray | None = None,
+    names: list | None = None,
+    noun: str = "electrode",
 ) -> None:
     """Node cartography scatter, port of the top panel of ``NodeCartography.m``
     (participation coefficient vs. within-module degree z-score, colored by
@@ -461,9 +414,9 @@ def plot_node_cartography(
     cartography plot exactly. Both fall back to fixed thresholds / re-derivation
     when omitted (i.e. when auto boundary selection is off).
 
-    The bottom panel in MATLAB's version is a static reference diagram image
-    (``NodeCartographyDiagram.jpg``) explaining the 6 roles — not
-    reproduced here since it's not derived from any data.
+    The bottom panel is MATLAB's static reference picture of the six roles
+    (``NodeCartographyDiagram.jpg``), which doubles as the key. *names* and
+    *noun* say what each node is, for whoever points at one.
     """
     if boundaries is not None:
         hub_boundary, peri, non_hub_connector, pro_hub, connector_hub = boundaries
@@ -481,67 +434,18 @@ def plot_node_cartography(
     else:
         nd_cart_div = np.asarray(nd_cart_div)
 
-    if len(pc) == 0 or np.all(np.isnan(pc)):
-        part_coef_range = (0.0, 1.0)
-    else:
-        part_coef_range = (float(np.nanmin(pc)), float(np.nanmax(pc)))
-        if part_coef_range[0] == part_coef_range[1]:
-            part_coef_range = (0.0, 1.0)
+    from meanap.native import output
+    from meanap.native.cartography_paint import CartographyPainter
+    from meanap.native.scene import cartography_scene
 
-    if len(z) == 0 or np.all(np.isnan(z)):
-        wm_deg_range = (-2.0, 4.0)
-    else:
-        lo = np.nanmin(z) * (1.1 if np.nanmin(z) < 0 else 0.9)
-        hi = np.nanmax(z) * (1.1 if np.nanmax(z) > 0 else 0.9)
-        wm_deg_range = (float(lo), float(hi))
-        if wm_deg_range[0] == wm_deg_range[1]:
-            wm_deg_range = (-2.0, 4.0)
-
-    # Two-panel layout mirroring NodeCartography.m: scatter on top, the static
-    # role-diagram (which doubles as the legend) below.
-    diagram = _load_cartography_diagram()
-    if diagram is not None:
-        fig = plt.figure(figsize=(6, 8))
-        gs = fig.add_gridspec(2, 1, height_ratios=[2, 1], hspace=0.25)
-        ax = fig.add_subplot(gs[0])
-        ax_diag = fig.add_subplot(gs[1])
-    else:
-        fig, ax = plt.subplots(figsize=(6, 6))
-        ax_diag = None
-
-    ax.plot(part_coef_range, [hub_boundary, hub_boundary], "--k", linewidth=1)
-    ax.plot([peri, peri], [wm_deg_range[0], hub_boundary], "--k", linewidth=1)
-    ax.plot([non_hub_connector, non_hub_connector], [wm_deg_range[0], hub_boundary], "--k", linewidth=1)
-    ax.plot([pro_hub, pro_hub], [hub_boundary, wm_deg_range[1]], "--k", linewidth=1)
-    ax.plot([connector_hub, connector_hub], [hub_boundary, wm_deg_range[1]], "--k", linewidth=1)
-
-    for role in range(1, 7):
-        mask = nd_cart_div == role
-        if np.any(mask):
-            ax.scatter(
-                pc[mask], z[mask], s=18, color=_CARTOGRAPHY_COLORS[role],
-                label=_CARTOGRAPHY_LABELS[role], edgecolors="none",
-            )
-
-    ax.set_xlim(*part_coef_range)
-    ax.set_ylim(*wm_deg_range)
-    ax.set_xlabel("participation coefficient")
-    ax.set_ylabel("within-module degree z-score")
-    # As NodeCartography.m: the standard title over the figure, and the
-    # scatter panel titled on its own.
-    fig.suptitle(_std_title(recording_name, lag_ms))
-    ax.set_title("node cartography")
-
-    if ax_diag is not None:
-        ax_diag.imshow(diagram)
-        ax_diag.axis("off")
-    else:
-        # Fall back to an inline legend only if the diagram image is unavailable.
-        ax.legend(loc="upper left", bbox_to_anchor=(1.02, 1.0), fontsize=8, frameon=False)
-
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    savefig(fig, out_path, default_dpi=150, bbox_inches="tight")
-    plt.close(fig)
+    scene = cartography_scene(
+        pc, z, nd_cart_div,
+        (hub_boundary, peri, non_hub_connector, pro_hub, connector_hub),
+        title=_std_title(recording_name, lag_ms),
+        roles={r: (_CARTOGRAPHY_LABELS[r], _CARTOGRAPHY_COLORS[r]) for r in range(1, 7)},
+        names=names, noun=noun, diagram=_cartography_diagram_path())
+    painter = CartographyPainter(scene)
+    output.save(painter, out_path, capture=output.NativeFigure("cartography", scene, painter))
 
 
 # ── Plasma colormap helper ────────────────────────────────────────────────────
@@ -629,6 +533,8 @@ def plot_circular_module_network(
     recording_name: str,
     out_path: Path,
     edge_thresh: float = 0.0,
+    names: list | None = None,
+    noun: str = "node",
 ) -> None:
     """Circular network plot with nodes colored by module (Ci) and sized by
     node degree (ND).
@@ -653,226 +559,51 @@ def plot_circular_module_network(
     out_path  : full path for the saved PNG
     edge_thresh : minimum edge weight to draw (default 0 = all edges)
     """
+    from meanap.native import output
+    from meanap.native.network_paint import NetworkPainter
+    from meanap.native.scene import circular_scene
+
     n = adj_m_sub.shape[0]
     if n == 0:
         return
-
     plasma = _plasma_256()
+    nd = np.asarray(nd, dtype=float)
+    modules = np.asarray(ci, dtype=float)
+    present = np.unique(modules[~np.isnan(modules)])
+    present = present[present > 0]
+    low = float(present.min()) if present.size else 1.0
+    high = float(present.max()) if present.size else 1.0
+    if high == low:
+        high = low + 1.0
 
-    # ── Node positions (unit circle) ──────────────────────────────────────────
-    t = np.linspace(-np.pi, np.pi, n + 1)  # N+1 angles; node i uses t[i]
-    node_x = np.cos(t[:n])
-    node_y = np.sin(t[:n])
+    def module_colour(module: float) -> np.ndarray:
+        frac = (module - low) / (high - low)
+        index = max(int(np.ceil(len(plasma) * frac)) - 1, 0)
+        return plasma[min(index, len(plasma) - 1)]
 
-    # ── Edge geometry ─────────────────────────────────────────────────────────
-    max_ew = 2.0
-    min_ew = 0.001
-    light_c = np.array([0.8, 0.8, 0.8])
-
-    adj_tril = np.tril(adj_m_sub, -1)
-    flat_order = np.argsort(adj_tril.ravel())          # ascending → weak first
-    rows_ord, cols_ord = np.unravel_index(flat_order, adj_tril.shape)
-
-    pos_vals = adj_m_sub[adj_m_sub > 0]
-    edge_max = float(adj_m_sub.max()) if adj_m_sub.max() > 0 else 1.0
-    edge_min = float(pos_vals.min()) if pos_vals.size else edge_max
-    edge_range = edge_max - edge_min if edge_max != edge_min else max(edge_max, 1e-6)
-
-    edge_xs: list[np.ndarray] = []
-    edge_ys: list[np.ndarray] = []
-    edge_lws: list[float] = []
-    edge_cols: list[np.ndarray] = []
-
-    for ea, eb in zip(rows_ord, cols_ord):
-        w = adj_m_sub[ea, eb]
-        if w < edge_thresh or ea == eb or np.isnan(w) or w <= 0:
-            continue
-        xc, yc = _arc_points(t[ea], t[eb])
-        frac = (w - edge_min) / edge_range
-        lw = min_ew + (max_ew - min_ew) * frac
-        col = np.clip(np.ones(3) - light_c * frac, 0.0, 1.0)
-        edge_xs.append(xc)
-        edge_ys.append(yc)
-        edge_lws.append(max(lw, min_ew))
-        edge_cols.append(col)
-
-    # ── Node colours by module ────────────────────────────────────────────────
-    ci_arr = np.asarray(ci, dtype=float)
-    unique_modules = np.unique(ci_arr[~np.isnan(ci_arr)])
-    unique_modules = unique_modules[unique_modules > 0]
-    ci_min = float(unique_modules.min()) if unique_modules.size else 1.0
-    ci_max = float(unique_modules.max()) if unique_modules.size else 1.0
-    if ci_max == ci_min:
-        ci_max = ci_min + 1.0
-
-    def _module_color(m: float) -> np.ndarray:
-        frac = (m - ci_min) / (ci_max - ci_min)
-        idx = max(int(np.ceil(len(plasma) * frac)) - 1, 0)
-        return plasma[min(idx, len(plasma) - 1)]
-
-    # ── Node sizing ───────────────────────────────────────────────────────────
-    max_z = float(np.nanmax(nd)) if np.any(nd > 0) else 1.0
-    spacing = np.sqrt(
-        (np.cos(t[0]) - np.cos(t[1])) ** 2 + (np.sin(t[0]) - np.sin(t[1])) ** 2
-    )
-    node_scale_f = max_z / spacing if spacing > 0 else max_z
-    min_node_size_px = 0.02
-
-    # ── Figure layout ─────────────────────────────────────────────────────────
-    fig = plt.figure(figsize=(9.6, 7.3))
-    ax = fig.add_axes([0.04, 0.05, 0.60, 0.88])
-    ax.set_aspect("equal")
-    ax.axis("off")
-
-    ax.set_title(_std_title(recording_name, lag_ms), fontweight="bold", fontsize=11)
-
-    # Draw edges (weakest drawn first so strongest appear on top)
-    for xc, yc, lw, col in zip(edge_xs, edge_ys, edge_lws, edge_cols):
-        ax.plot(xc, yc, linewidth=lw, color=col, solid_capstyle="round")
-
-    # Draw nodes
-    for i in range(n):
-        if nd[i] <= 0:
-            continue
-        node_size = max(min_node_size_px, nd[i] / node_scale_f)
-        m = ci_arr[i]
-        node_color = _module_color(m) if (not np.isnan(m) and m > 0) else plasma[0]
-        circ = plt.Circle(
-            (node_x[i], node_y[i]), node_size / 2,
-            facecolor=node_color, edgecolor="white", linewidth=0.1, zorder=3,
-        )
-        ax.add_patch(circ)
-
-    ax.set_xlim(-1.1, 1.1)
-    ax.set_ylim(-1.1, 1.1)
-
-    # ── Legend (right panel) ──────────────────────────────────────────────────
-    # The legend uses a separate axes with xlim/ylim = (0,1).  Circles are
-    # rendered as scatter points (display-space, always round) rather than
-    # matplotlib Patch objects (which would appear oval in a non-square axes).
-    ax_leg = fig.add_axes([0.67, 0.02, 0.31, 0.96])
-    ax_leg.set_xlim(0, 1)
-    ax_leg.set_ylim(0, 1)
-    ax_leg.axis("off")
-
-    # Convert a data-space radius in ax_leg's y-direction to a scatter marker
-    # size (points²).  This lets us keep legend geometry in data coordinates
-    # while still producing round dots.
-    #   - ax_leg height in inches = fig height × axes_height_frac
-    #   - data height = ylim_max - ylim_min = 1
-    #   - 1 data unit = (fig_h_in × axes_frac) × 72 pt/in display points
-    fig_h_in, ax_frac_h = fig.get_size_inches()[1], 0.96
-    pts_per_data_unit = fig_h_in * ax_frac_h * fig.dpi / 72  # px-per-unit → pt-per-unit with dpi correction
-    pts_per_data_unit = fig_h_in * ax_frac_h * 72  # display-pts per data unit
-
-    def _r_to_s(r_data: float) -> float:
-        """Convert a circle radius in ax_leg data coords to scatter s (pt²)."""
-        diameter_pts = r_data * 2 * pts_per_data_unit
-        return max((diameter_pts / 2) ** 2 * np.pi, 4.0)
-
-    # -- Node degree legend --
-    nd_fracs = [1 / 3, 2 / 3, 1.0]
-    nd_vals = [max_z * f for f in nd_fracs]
-    # Plain numbers, right-aligned below. The zero padding ("05" beside "14")
-    # only existed to line the digits up under left alignment, which aligning on
-    # the right does without putting a digit there that isn't in the data.
-    if int(round(nd_vals[0])) >= 1:
-        nd_labels = [f"{int(round(v))}" for v in nd_vals]
-    else:
-        nd_labels = [f"{v:.4f}" for v in nd_vals]
-
-    ax_leg.text(0.05, 0.97, "Node degree:", fontsize=9, va="top")
-
-    # Node-degree circle sizes in ax_leg data coords
-    sizes_norm = [max(v / node_scale_f, min_node_size_px) for v in nd_vals]
-    # Cap so they fit in the legend panel (max radius = 0.10 data units)
-    sizes_norm = [min(s, 0.20) for s in sizes_norm]
-
-    # Stack circles from top, with a small gap between each
-    gap = 0.06
-    y_pos = []
-    cur_y = 0.90
-    for s in sizes_norm:
-        cur_y -= s / 2
-        y_pos.append(cur_y)
-        cur_y -= s / 2 + gap
-
-    leg_x_circle = 0.22
-    leg_x_text = 0.46          # the right edge the numbers align to
-    for si, yi, label in zip(sizes_norm, y_pos, nd_labels):
-        ax_leg.scatter(
-            [leg_x_circle], [yi],
-            s=_r_to_s(si / 2),
-            facecolors="white", edgecolors="black", linewidths=0.8, zorder=3,
-        )
-        ax_leg.text(leg_x_text, yi, label, va="center", ha="right", fontsize=8)
-
-    # -- Edge weight legend --
-    ew_top = cur_y - 0.02
-    ax_leg.text(0.05, ew_top, "edge weight:", fontsize=9, va="top")
-
-    ew_triplet = [
-        edge_max - (2 / 3) * edge_range,
-        edge_max - (1 / 3) * edge_range,
-        edge_max,
-    ]
-    line_x = [0.05, 0.45]
-    ew_y_start = ew_top - 0.08
-    ew_y_gap = 0.075
-
-    for k, ew_val in enumerate(ew_triplet):
-        frac = (ew_val - edge_min) / edge_range if edge_range > 0 else 1.0
-        lw = max(min_ew + (max_ew - min_ew) * frac, 0.3) * 1.5
-        col = np.clip(np.ones(3) - light_c * frac, 0, 1)
-        ew_y = ew_y_start - k * ew_y_gap
-        ax_leg.plot(line_x, [ew_y, ew_y],
-                    linewidth=lw, color=col, solid_capstyle="round")
-        ax_leg.text(0.50, ew_y, str(round(ew_val, 4)), va="center", fontsize=8)
-
-    # -- Module swatches --
-    mod_label_y = ew_y - ew_y_gap - 0.02
-    ax_leg.text(0.05, mod_label_y, "Module", fontsize=9, va="top")
-
-    swatch_y = mod_label_y - 0.10
-    n_mods = len(unique_modules)
-
-    # The legend axes is ~2.4x taller than it is wide with both axes running
-    # 0..1, so "a radius of r" means a different distance along each. _r_to_s
-    # reads it in y; packing the swatches across the panel has to be done in x
-    # and converted. Doing the packing directly in y-units — as this used to —
-    # made every circle 2.4x wider than the spacing it was allotted, which is
-    # why the modules sat on top of each other.
-    ax_w_in = fig.get_size_inches()[0] * 0.31
-    x_span = 0.90
-    pitch_x = x_span / n_mods
-    # 0.82 of the pitch leaves a visible gap between neighbours; the cap stops
-    # one or two modules ballooning into discs the size of the node-degree keys.
-    diameter_in = min(pitch_x * 0.82 * ax_w_in, 0.47)
-    swatch_r = (diameter_in / 2) / (fig_h_in * ax_frac_h)   # back to y-units
-    swatch_xs = 0.05 + pitch_x * (np.arange(n_mods) + 0.5)
-
-    # The number rides inside the circle, so it has to be sized from it rather
-    # than fixed: at 6pt it was unreadable against a 26pt disc.
-    label_fs = diameter_in * 72 * 0.42
-    if max(len(str(int(m))) for m in unique_modules) > 1:
-        label_fs *= 0.68        # two digits need the room one didn't
-    label_fs = float(np.clip(label_fs, 4.5, 11.0))
-
-    for mod_val, sx in zip(unique_modules, swatch_xs):
-        col = _module_color(mod_val)
-        ax_leg.scatter(
-            [sx], [swatch_y],
-            s=_r_to_s(swatch_r),
-            facecolors=[col], edgecolors="white", linewidths=0.1, zorder=3,
-        )
-        ax_leg.text(
-            sx, swatch_y, str(int(mod_val)),
-            ha="center", va="center", fontsize=label_fs, color="white", zorder=4,
-        )
-
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    savefig(fig, out_path, default_dpi=150, bbox_inches="tight")
-    plt.close(fig)
+    # The busiest node is as wide as the gap between neighbours on the circle.
+    t = np.linspace(-np.pi, np.pi, n + 1)
+    spacing = float(np.hypot(np.cos(t[0]) - np.cos(t[1]), np.sin(t[0]) - np.sin(t[1])))
+    top = float(np.nanmax(nd)) if np.any(nd > 0) else 1.0
+    scale = top / spacing if spacing > 0 else top
+    diameter = np.where(nd > 0, np.maximum(0.02, np.nan_to_num(nd) / scale), 0.0)
+    samples = [top * f for f in (1 / 3, 2 / 3, 1.0)]
+    whole = int(round(samples[0])) >= 1
+    size_items = [(f"{int(round(v))}" if whole else f"{v:.4f}", max(v / scale, 0.02))
+                  for v in samples]
+    colour = np.array([module_colour(m) if (not np.isnan(m) and m > 0) else plasma[0]
+                       for m in modules])
+    text = [f"node degree: {nd[i]:.4g}"
+            + (f"\nmodule: {int(modules[i])}" if not np.isnan(modules[i]) else "")
+            for i in range(n)]
+    scene = circular_scene(
+        adj_m_sub, colour, diameter, text, title=_std_title(recording_name, lag_ms),
+        edge_thresh=edge_thresh, size_name="node degree", size_items=size_items,
+        category_key={"name": "module",
+                      "items": [(str(int(m)), tuple(module_colour(m))) for m in present]},
+        names=names, noun=noun)
+    painter = NetworkPainter(scene)
+    output.save(painter, out_path, capture=output.NativeFigure("circular", scene, painter))
 
 
 def plot_circular_cartography_network(
@@ -882,148 +613,46 @@ def plot_circular_cartography_network(
     recording_name: str,
     out_path: Path,
     edge_thresh: float = 0.0,
+    names: list | None = None,
+    noun: str = "node",
 ) -> None:
     """Circular network plot with nodes colored by cartography role.
 
     Port of ``StandardisedNetworkPlotNodeCartography.m`` with
     ``plotType='circular'``.
     """
+    from meanap.native import output
+    from meanap.native.network_paint import NetworkPainter
+    from meanap.native.scene import circular_scene
+
     n = adj_m_sub.shape[0]
     if n == 0:
         return
-
-    # ── Node positions (unit circle) ──────────────────────────────────────────
+    # Every node the same size: two thirds of the gap between neighbours.
     t = np.linspace(-np.pi, np.pi, n + 1)
-    node_x = np.cos(t[:n])
-    node_y = np.sin(t[:n])
-
-    # ── Edge geometry ─────────────────────────────────────────────────────────
-    max_ew = 2.0
-    min_ew = 0.001
-    light_c = np.array([0.8, 0.8, 0.8])
-
-    adj_tril = np.tril(adj_m_sub, -1)
-    flat_order = np.argsort(adj_tril.ravel())
-    rows_ord, cols_ord = np.unravel_index(flat_order, adj_tril.shape)
-
-    pos_vals = adj_m_sub[adj_m_sub > 0]
-    edge_max = float(adj_m_sub.max()) if adj_m_sub.max() > 0 else 1.0
-    edge_min = float(pos_vals.min()) if pos_vals.size else edge_max
-    edge_range = edge_max - edge_min if edge_max != edge_min else max(edge_max, 1e-6)
-
-    edge_xs: list[np.ndarray] = []
-    edge_ys: list[np.ndarray] = []
-    edge_lws: list[float] = []
-    edge_cols: list[np.ndarray] = []
-
-    for ea, eb in zip(rows_ord, cols_ord):
-        w = adj_m_sub[ea, eb]
-        if w < edge_thresh or ea == eb or np.isnan(w) or w <= 0:
-            continue
-        xc, yc = _arc_points(t[ea], t[eb])
-        frac = (w - edge_min) / edge_range
-        lw = max(min_ew + (max_ew - min_ew) * frac, min_ew)
-        col = np.clip(np.ones(3) - light_c * frac, 0.0, 1.0)
-        edge_xs.append(xc)
-        edge_ys.append(yc)
-        edge_lws.append(max(lw, min_ew))
-        edge_cols.append(col)
-
-    # ── Node sizes ────────────────────────────────────────────────────────────
-    if n > 1:
-        spacing = np.sqrt(
-            (np.cos(t[0]) - np.cos(t[1])) ** 2 + (np.sin(t[0]) - np.sin(t[1])) ** 2
-        )
-    else:
-        spacing = 0.1
-    node_size = (2.0 / 3.0) * spacing
-
-    # ── Figure layout ─────────────────────────────────────────────────────────
-    fig = plt.figure(figsize=(9.6, 7.3))
-    ax = fig.add_axes([0.04, 0.05, 0.60, 0.88])
-    ax.set_aspect("equal")
-    ax.axis("off")
-
-    ax.set_title(_std_title(recording_name, lag_ms), fontweight="bold", fontsize=11)
-
-    # Draw edges
-    for xc, yc, lw, col in zip(edge_xs, edge_ys, edge_lws, edge_cols):
-        ax.plot(xc, yc, linewidth=lw, color=col, solid_capstyle="round")
-
-    # Draw nodes
-    for i in range(n):
-        role = nd_cart_div[i]
-        node_color = _CARTOGRAPHY_COLORS.get(role, (0.5, 0.5, 0.5))
-        circ = plt.Circle(
-            (node_x[i], node_y[i]), node_size / 2,
-            facecolor=node_color, edgecolor="white", linewidth=0.1, zorder=3,
-        )
-        ax.add_patch(circ)
-
-    ax.set_xlim(-1.1, 1.1)
-    ax.set_ylim(-1.1, 1.1)
-
-    # ── Legend (right panel) ──────────────────────────────────────────────────
-    ax_leg = fig.add_axes([0.67, 0.02, 0.31, 0.96])
-    ax_leg.set_xlim(0, 1)
-    ax_leg.set_ylim(0, 1)
-    ax_leg.axis("off")
-
-    def _r_to_s(r_data: float) -> float:
-        ax_h_inches = 7.3 * 0.96
-        y_range = 1.0
-        r_inches = (r_data / y_range) * ax_h_inches
-        r_points = r_inches * 72.0
-        return (r_points * 2) ** 2
-
-    # Draw cartography swatches vertically.
-    #
-    # Sized against the label text, not against the network's nodes. A node's
-    # drawn size depends on how many there are — 13pt across for 60 nodes, 39pt
-    # for 20 — so a swatch that tracked it would swing from bullet to blob for
-    # reasons that say nothing about the roles it is naming. 20pt sits a little
-    # above the 9pt label, which reads as a swatch at any node count.
-    swatch_r = 0.020            # ≈20pt across in this axes; see _r_to_s
-    current_y = 0.90
-    for role in range(1, 7):
-        col = _CARTOGRAPHY_COLORS[role]
-        label = _CARTOGRAPHY_LABELS[role]
-        ax_leg.scatter(
-            [0.1], [current_y],
-            s=_r_to_s(swatch_r),
-            facecolors=[col], edgecolors="white", linewidths=0.1, zorder=3,
-        )
-        ax_leg.text(0.2, current_y, label, va="center", fontsize=9)
-        # Row pitch follows the swatch: keeping the old 0.09 would leave the six
-        # roles strung out down the panel with the swatches no longer filling it.
-        current_y -= 0.048
-
-    current_y -= 0.03
-    ax_leg.text(0.05, current_y, "edge weight:", va="center", fontsize=9)
-    current_y -= 0.08
-
-    ew_triplet = [
-        edge_max - (2 / 3) * edge_range,
-        edge_max - (1 / 3) * edge_range,
-        edge_max,
-    ]
-    line_x = [0.1, 0.35]
-
-    for ew_val in ew_triplet:
-        frac = (ew_val - edge_min) / edge_range if edge_range > 0 else 1.0
-        lw = max(min_ew + (max_ew - min_ew) * frac, 0.3) * 1.5
-        col = np.clip(np.ones(3) - light_c * frac, 0, 1)
-        ax_leg.plot(line_x, [current_y, current_y],
-                    linewidth=lw, color=col, solid_capstyle="round")
-        ax_leg.text(0.40, current_y, str(round(ew_val, 4)), va="center", fontsize=9)
-        current_y -= 0.08
-
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    savefig(fig, out_path, default_dpi=150, bbox_inches="tight")
-    plt.close(fig)
+    spacing = (float(np.hypot(np.cos(t[0]) - np.cos(t[1]), np.sin(t[0]) - np.sin(t[1])))
+               if n > 1 else 0.1)
+    roles = np.asarray(nd_cart_div)
+    colour = np.array([_CARTOGRAPHY_COLORS.get(_role(r), (0.5, 0.5, 0.5)) for r in roles])
+    text = [f"role: {_CARTOGRAPHY_LABELS.get(_role(r), 'not classified')}" for r in roles]
+    scene = circular_scene(
+        adj_m_sub, colour, np.full(n, (2.0 / 3.0) * spacing), text,
+        title=_std_title(recording_name, lag_ms), edge_thresh=edge_thresh,
+        category_key={"name": "cartography role",
+                      "items": [(_CARTOGRAPHY_LABELS[r], _CARTOGRAPHY_COLORS[r])
+                                for r in range(1, 7)]},
+        names=names, noun=noun)
+    painter = NetworkPainter(scene)
+    output.save(painter, out_path, capture=output.NativeFigure("circular", scene, painter))
 
 
-# ── Half-violin helper ────────────────────────────────────────────────────────
+def _role(value):
+    """A cartography role as the integer the colour and label tables are keyed by."""
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
 
 def _half_violin(
     ax: "plt.Axes",
@@ -1175,6 +804,7 @@ def plot_half_violin_by_x(
     age_title_sep: str = " ",
     kde_limits: tuple[float | None, float | None] | None | str = "auto",
     max_nodes: int | None = None,
+    node_noun: str = "node",
 ) -> None:
     """Group-comparison half-violin plot, port of ``plotHalfViolinByX.m``.
 
@@ -1222,166 +852,28 @@ def plot_half_violin_by_x(
     degree and strength in that lookup.
 
     The file name is the caller's; :func:`comparison_figure_stem` builds the
-    MATLAB one.
+    MATLAB one. *node_noun* is what a point is called at node level, for
+    whoever points at one in the viewer.
     """
+    from meanap.native import output
+    from meanap.native.group_paint import ComparisonPainter
+    from meanap.native.group_scene import comparison_scene
+
     if df.empty:
         return
     if isinstance(kde_limits, str):
         from meanap.pipeline.metric_limits import metric_limits
         kde_limits = metric_limits(metric, max_nodes)
-    has_col = metric in df.columns
-    data = df.dropna(subset=[metric]) if has_col else df.iloc[0:0]
-    is_empty = data.empty
-
-    # Count recordings with no finite value (for the "no data" note).
-    if "FileName" in df.columns:
-        total_files = int(df["FileName"].nunique())
-        files_with = int(data["FileName"].nunique()) if not is_empty else 0
-    else:
-        total_files = len(df)
-        files_with = len(data)
-    no_data_files = max(0, total_files - files_with)
-
-    # Structure (groups/DIVs) comes from the full df so empty plots still show
-    # the right axes.
-    struct_src = df
-    groups = list(group_order) if group_order else sorted(struct_src["Grp"].dropna().unique())
-    def _divkey(d):
-        try:
-            return float(str(d).replace("DIV", ""))
-        except ValueError:
-            return str(d)
-    divs = list(div_order) if div_order else sorted(struct_src["DIV"].dropna().unique(), key=_divkey)
-
-    if x_kind == "group":
-        subplot_items, sub_col = groups, "Grp"
-        within_items, within_col = divs, "DIV"
-        within_colors = _div_colors(len(divs), colors)
-        xlabel = "Age"
-        titles = [str(g) for g in groups]
-    elif x_kind == "DIV":
-        subplot_items, sub_col = divs, "DIV"
-        within_items, within_col = groups, "Grp"
-        within_colors = _group_colors(len(groups), colors)
-        xlabel = "Group"
-        # _tick_label so the title reads "Age 14", matching the tick labels on
-        # the other layout rather than the raw float DIV ("Age 14.0").
-        titles = [f"Age{age_title_sep}{_tick_label(d)}" for d in divs]
-    else:
-        raise ValueError(f"x_kind must be 'group' or 'DIV', got {x_kind!r}")
-
-    # Third factor (e.g. cell type): one violin per series value at each x
-    # position. Colour then encodes the series rather than the x position.
-    series_items: list = []
-    if series_col is not None and series_col in df.columns:
-        series_items = (list(series_order) if series_order
-                        else sorted(struct_src[series_col].dropna().unique().tolist()))
-    n_series = len(series_items)
-    series_gap = 0.1
-    series_mean_colors: list = []
-    if n_series:
-        if series_colors is None:
-            series_colors = _group_colors(n_series, colors)
-        # Split the unit-wide x slot between the series. A violin spans
-        # pos ± (width + gap), so keeping 2*(width + gap) safely under one
-        # slot is what stops one series' scatter dots landing on top of the
-        # next series' KDE fill.
-        slot = 0.92 / n_series
-        offsets = [(s - (n_series - 1) / 2.0) * slot for s in range(n_series)]
-        kde_height = 0.34 * slot
-        series_gap = 0.12 * slot
-        # Mean marker in a darkened version of the series colour: black would
-        # read as a separate series once colour is what distinguishes them,
-        # but the undarkened colour disappears against its own KDE fill.
-        series_mean_colors = [tuple(0.45 * c for c in mcolors.to_rgb(col))
-                              for col in series_colors]
-
-    n_sub = len(subplot_items)
-    if n_sub == 0 or len(within_items) == 0:
+    scene = comparison_scene(
+        df, metric, netmet_axis_label(metric, metric_label), x_kind,
+        group_order=group_order, div_order=div_order, kde_height=kde_height,
+        series_col=series_col, series_order=series_order, series_colors=series_colors,
+        colors=colors, ylim=ylim, age_title_sep=age_title_sep, kde_limits=kde_limits,
+        node_noun=node_noun)
+    if scene is None:
         return
-
-    fig, axes = plt.subplots(
-        1, n_sub, figsize=(max(4.0, n_sub * 3.0 * max(1, n_series * 0.6)), 5.0),
-        squeeze=False, sharey=True,
-    )
-    axes = axes[0]
-    xt = np.arange(1, len(within_items) + 1)
-    rng = np.random.default_rng(0)
-
-    for si, sub in enumerate(subplot_items):
-        ax = axes[si]
-        if not is_empty:
-            sdf = data[data[sub_col].astype(str) == str(sub)]
-            for wi, within in enumerate(within_items):
-                wdf = sdf[sdf[within_col].astype(str) == str(within)]
-                if n_series:
-                    for se, series in enumerate(series_items):
-                        vals = wdf[wdf[series_col].astype(str) == str(series)][metric].to_numpy(float)
-                        vals = vals[np.isfinite(vals)]
-                        if len(vals) == 0:
-                            continue
-                        _half_violin(ax, vals, pos=float(xt[wi]) + offsets[se],
-                                     colour=series_colors[se], width=kde_height,
-                                     rng=rng, gap=series_gap,
-                                     mean_colour=series_mean_colors[se],
-                                     limits=kde_limits)
-                    continue
-                vals = wdf[metric].to_numpy(float)
-                vals = vals[np.isfinite(vals)]
-                if len(vals) == 0:
-                    continue
-                _half_violin(ax, vals, pos=float(xt[wi]), colour=within_colors[wi],
-                             width=kde_height, rng=rng, limits=kde_limits)
-        ax.set_xticks(xt)
-        ax.set_xticklabels([_tick_label(w) for w in within_items])
-        ax.set_xlabel(xlabel)
-        ax.set_title(titles[si])
-        ax.set_xlim(xt.min() - 0.5, xt.max() + 0.5)
-        ax.spines["top"].set_visible(False)
-        ax.spines["right"].set_visible(False)
-        ax.tick_params(direction="out")
-        if si == 0:
-            ax.set_ylabel(netmet_axis_label(metric, metric_label))
-
-    if n_series:
-        import matplotlib.patches as mpatches
-        axes[-1].legend(
-            handles=[mpatches.Patch(facecolor=series_colors[s], label=str(name))
-                     for s, name in enumerate(series_items)],
-            title=series_col, loc="upper left", bbox_to_anchor=(1.02, 1.0),
-            frameon=False, fontsize=8, title_fontsize=8,
-        )
-
-    # Note explaining an empty (or partially-empty) plot.
-    noun = "bursts detected" if "burst" in f"{metric} {metric_label}".lower() else "values"
-    if is_empty:
-        for ax in axes:
-            ax.text(0.5, 0.5, f"No data\n{no_data_files}/{total_files} recording(s)\nwith no {noun}",
-                    transform=ax.transAxes, ha="center", va="center",
-                    fontsize=10, color="0.4")
-    elif no_data_files > 0:
-        fig.text(0.5, 0.005,
-                 f"Note: {no_data_files}/{total_files} recording(s) had no {noun} "
-                 "and are not shown",
-                 ha="center", va="bottom", fontsize=8, color="0.5")
-
-    if ylim is not None and not is_empty:
-        # Only the pinned ends move; the others keep the autoscaled value the
-        # drawing settled on (sharey, so reading one axis is reading them all).
-        # An empty plot is left alone: its "No data" note is what matters, and
-        # a lower bound of 1 on default (0, 1) axes would be no range at all.
-        # The same guard covers data lying wholly outside the bound — pinning
-        # would then hide every point, so the autoscaled axis stands.
-        lo, hi = ylim
-        cur_lo, cur_hi = axes[0].get_ylim()
-        lo = cur_lo if lo is None else lo
-        hi = cur_hi if hi is None else hi
-        if hi > lo:
-            axes[0].set_ylim(lo, hi)
-
-    fig.tight_layout()
-    savefig(fig, out_path, default_dpi=300, bbox_inches="tight")
-    plt.close(fig)
+    painter = ComparisonPainter(scene)
+    output.save(painter, out_path, capture=output.NativeFigure("comparison", scene, painter))
 
 
 def _timescale_group_folder(value, timescale: str = "lag") -> str:
@@ -1482,6 +974,48 @@ def _node_cartography_proportion_frame(df: "pd.DataFrame") -> "pd.DataFrame":
     return pooled
 
 
+#: matplotlib's default lettering, which these figures were designed with.
+_MPL_TEXT = dict(title_size=12, label_size=10, tick_size=9)
+
+
+def _role_stack(cells: list, pooled: "pd.DataFrame", where: str) -> list:
+    """The six role bars stacked at positions ``0..len(cells)-1``.
+
+    *cells* are ``(label, rows)`` pairs: the pooled rows of one bar. Each role
+    is one series, so pointing at it in the legend picks it out in every bar.
+    """
+    from meanap.native.chart import Bars, rgba
+
+    bottom = np.zeros(len(cells), dtype=float)
+    marks = []
+    for role, (colour, label) in enumerate(zip(_NC_PROP_COLORS, _NC_PROP_LABELS), start=1):
+        name = label.replace("proportion ", "")
+        values, hover = [], []
+        for cell, rows in cells:
+            mine = rows[rows["Role"] == role]
+            total = float(rows["Count"].sum())
+            value = float(mine["Proportion"].sum())
+            values.append(value)
+            hover.append(f"{name}: {100 * value:.1f}% "
+                         f"({int(mine['Count'].sum())} of {int(total)} nodes)\n{cell}{where}")
+        values = np.asarray(values)
+        marks.append(Bars(np.arange(len(cells)), values, width=0.8, base=bottom.copy(),
+                          colour=rgba(colour), edge=rgba("white"), edge_width=0.5,
+                          key=name, hover=hover))
+        bottom += values
+    return marks
+
+
+def _role_legend():
+    from meanap.native.chart import Legend, LegendItem, rgba
+
+    names = [label.replace("proportion ", "") for label in _NC_PROP_LABELS]
+    # Top of the stack first, as the eye meets the bars.
+    return Legend([LegendItem(n, rgba(c), kind="box", key=n)
+                   for n, c in reversed(list(zip(names, _NC_PROP_COLORS)))],
+                  title="Node role", loc="right", size=8.5)
+
+
 def plot_node_cartography_proportions(
     df: "pd.DataFrame", out_dir: Path, group_order: list | None = None,
     only: int | None = None, fmt: str = "png",
@@ -1492,6 +1026,9 @@ def plot_node_cartography_proportions(
     DIV on the x-axis. Unlike the existing line chart, the bars pool all nodes
     in each group/DIV/lag cell before calculating the six role proportions.
     """
+    from meanap.native.chart import Chart, Panel
+    from meanap.native.chart_paint import save_chart
+
     pooled = _node_cartography_proportion_frame(df)
     if pooled.empty:
         return []
@@ -1504,6 +1041,7 @@ def plot_node_cartography_proportions(
         except ValueError:
             return str(d)
 
+    ticks = [(v, f"{v:.1f}") for v in np.arange(0, 1.01, 0.2)]
     written: list[Path] = []
     for lag in sorted(pooled["Lag"].unique(), key=_lag_num):
         if only is not None and _lag_num(lag) != only:
@@ -1512,31 +1050,22 @@ def plot_node_cartography_proportions(
         divs = sorted(ldf["DIV"].dropna().unique(), key=_divkey)
         if not divs:
             continue
-        fig, axes = plt.subplots(len(groups), 1, figsize=(8.0, max(3.0, 3.0 * len(groups))),
-                                 squeeze=False, sharex=True, sharey=True)
-        x = np.arange(len(divs))
-        for ax, group in zip(axes[:, 0], groups):
+        panels = []
+        for row, group in enumerate(groups):
             gdf = ldf[ldf["Grp"].astype(str) == str(group)]
-            bottom = np.zeros(len(divs), dtype=float)
-            for role, (color, label) in enumerate(zip(_NC_PROP_COLORS, _NC_PROP_LABELS), start=1):
-                values = np.array([gdf[(gdf["DIV"].astype(str) == str(div)) &
-                                       (gdf["Role"] == role)]["Proportion"].sum() for div in divs])
-                ax.bar(x, values, bottom=bottom, color=color, edgecolor="black", linewidth=0.25,
-                       label=label)
-                bottom += values
-            ax.set_title(str(group))
-            ax.set_ylabel("Proportion of nodes")
-            ax.set_ylim(0, 1)
-            ax.spines["top"].set_visible(False)
-            ax.spines["right"].set_visible(False)
-        axes[-1, 0].set_xticks(x, [_tick_label(div) for div in divs])
-        axes[-1, 0].set_xlabel("Age")
-        axes[0, 0].legend(loc="center left", bbox_to_anchor=(1.01, 0.5), fontsize=8, frameon=False)
-        fig.tight_layout()
+            cells = [(f"age {_tick_label(div)}", gdf[gdf["DIV"].astype(str) == str(div)])
+                     for div in divs]
+            last = row == len(groups) - 1
+            panels.append(Panel(
+                cell=(row, 0), marks=_role_stack(cells, pooled, f", {group}"),
+                title=str(group), ylabel="Proportion of nodes", ylim=(0, 1), yticks=ticks,
+                xticks=[(k, _tick_label(div)) for k, div in enumerate(divs)],
+                xlabels=last, xlabel="Age" if last else "", xlim=(-0.6, len(divs) - 0.4),
+                grid="", zoom=(True, False), sharex="age", **_MPL_TEXT))
+        chart = Chart(panels, size=(8.0, max(3.0, 3.0 * len(groups))),
+                      grid=(len(groups), 1), legend=_role_legend())
         dest = out_dir / f"NodeCartographyProportionsByGenotype{_lag_num(lag)}mslag.{fmt}"
-        savefig(fig, dest, default_dpi=300, bbox_inches="tight")
-        plt.close(fig)
-        written.append(dest)
+        written.append(save_chart(chart, dest))
     return written
 
 
@@ -1551,6 +1080,9 @@ def plot_node_cartography_proportions_by_age(
     stack of the six node-cartography roles. It corresponds to the R workflow's
     second proportion plot (``facet_wrap(~ AgeDiv)``).
     """
+    from meanap.native.chart import Chart, Panel
+    from meanap.native.chart_paint import save_chart
+
     pooled = _node_cartography_proportion_frame(df)
     if pooled.empty:
         return []
@@ -1563,6 +1095,7 @@ def plot_node_cartography_proportions_by_age(
         except ValueError:
             return str(d)
 
+    ticks = [(v, f"{v:.1f}") for v in np.arange(0, 1.01, 0.2)]
     written: list[Path] = []
     for lag in sorted(pooled["Lag"].unique(), key=_lag_num):
         if only is not None and _lag_num(lag) != only:
@@ -1571,30 +1104,22 @@ def plot_node_cartography_proportions_by_age(
         divs = sorted(ldf["DIV"].dropna().unique(), key=_divkey)
         if not divs:
             continue
-        fig, axes = plt.subplots(1, len(divs), figsize=(max(8.0, 3.2 * len(divs)), 5.5),
-                                 squeeze=False, sharey=True)
-        x = np.arange(len(groups))
-        for ax, div in zip(axes[0], divs):
+        panels = []
+        for col, div in enumerate(divs):
             ddf = ldf[ldf["DIV"].astype(str) == str(div)]
-            bottom = np.zeros(len(groups), dtype=float)
-            for role, (color, label) in enumerate(zip(_NC_PROP_COLORS, _NC_PROP_LABELS), start=1):
-                values = np.array([ddf[(ddf["Grp"].astype(str) == str(group)) &
-                                       (ddf["Role"] == role)]["Proportion"].sum() for group in groups])
-                ax.bar(x, values, bottom=bottom, color=color, edgecolor="black", linewidth=0.25,
-                       label=label)
-                bottom += values
-            ax.set_title(f"DIV {_tick_label(div)}")
-            ax.set_xticks(x, [str(group) for group in groups], rotation=45, ha="right")
-            ax.set_ylim(0, 1)
-            ax.spines["top"].set_visible(False)
-            ax.spines["right"].set_visible(False)
-        axes[0, 0].set_ylabel("Proportion of nodes")
-        axes[0, -1].legend(loc="center left", bbox_to_anchor=(1.01, 0.5), fontsize=8, frameon=False)
-        fig.tight_layout()
+            cells = [(str(group), ddf[ddf["Grp"].astype(str) == str(group)])
+                     for group in groups]
+            panels.append(Panel(
+                cell=(0, col), marks=_role_stack(cells, pooled, f", age {_tick_label(div)}"),
+                title=f"DIV {_tick_label(div)}", ylim=(0, 1), yticks=ticks,
+                ylabel="Proportion of nodes" if col == 0 else "", ylabels=col == 0,
+                xticks=[(k, str(group)) for k, group in enumerate(groups)],
+                xtick_rotation=45, xlim=(-0.6, len(groups) - 0.4),
+                grid="", zoom=(False, False), **_MPL_TEXT))
+        chart = Chart(panels, size=(max(8.0, 3.2 * len(divs)), 5.5),
+                      grid=(1, len(divs)), legend=_role_legend())
         dest = out_dir / f"NodeCartographyProportionsByAge{_lag_num(lag)}mslag.{fmt}"
-        savefig(fig, dest, default_dpi=300, bbox_inches="tight")
-        plt.close(fig)
-        written.append(dest)
+        written.append(save_chart(chart, dest))
     return written
 
 
@@ -1633,55 +1158,38 @@ def plot_node_cartography_by_lag(
         except ValueError:
             return str(d)
     divs = sorted(df["DIV"].dropna().unique(), key=_divkey)
-    xt = np.arange(1, len(divs) + 1)
+
+    from meanap.native import output
+    from meanap.native.group_paint import LinePainter
+    from meanap.native.group_scene import LineScene, LineSeries, line_panel, line_span, mean_sem
 
     for lag in lags:
         if only is not None and _lag_num(lag) != only:
             continue
         ldf = df[df["Lag"] == lag]
-        n_grp = len(groups)
-        fig, axes = plt.subplots(n_grp, 1, figsize=(8.0, max(3.0, 3.0 * n_grp)),
-                                 squeeze=False, sharex=True, sharey=True)
-        axes = axes[:, 0]
-        for gi, g in enumerate(groups):
-            ax = axes[gi]
+        panels = []
+        for g in groups:
             gdf = ldf[ldf["Grp"].astype(str) == str(g)]
-            handles = []
+            series = []
             for mi, metric in enumerate(metrics):
-                means, sems = [], []
-                for d in divs:
-                    vals = gdf[gdf["DIV"].astype(str) == str(d)][metric].to_numpy(float)
-                    vals = vals[np.isfinite(vals)]
-                    if len(vals) == 0:
-                        means.append(np.nan)
-                        sems.append(0.0)
-                    else:
-                        means.append(float(np.mean(vals)))
-                        sems.append(float(np.std(vals) / np.sqrt(len(vals))) if len(vals) > 1 else 0.0)
-                means = np.array(means)
-                sems = np.array(sems)
-                color = _NC_PROP_COLORS[mi]
-                ax.fill_between(xt, means - sems, means + sems, color=color,
-                                alpha=0.3, edgecolor="none")
-                ln, = ax.plot(xt, means, "-", color=color, lw=3)
-                ax.scatter(xt, means, color=color, zorder=3)
-                handles.append(ln)
-            ax.set_xticks(xt)
-            ax.set_xticklabels([_tick_label(d) for d in divs])
-            ax.set_xlabel("Age")
-            ax.set_ylabel("node cartography")
-            ax.set_title(str(g))
-            ax.set_xlim(xt.min() - 0.5, xt.max() + 0.5)
-            ax.spines["top"].set_visible(False)
-            ax.spines["right"].set_visible(False)
-            ax.tick_params(direction="out")
-            ax.legend(handles, _NC_PROP_LABELS, loc="center left",
-                      bbox_to_anchor=(1.01, 0.5), fontsize=8, frameon=False)
-
-        fig.tight_layout()
+                stats = [mean_sem(gdf[gdf["DIV"].astype(str) == str(d)][metric])
+                         for d in divs]
+                series.append(LineSeries(
+                    label=_NC_PROP_LABELS[mi], colour=_NC_PROP_COLORS[mi],
+                    means=np.array([m for m, _, _ in stats]),
+                    sems=np.array([e for _, e, _ in stats]),
+                    counts=np.array([c for _, _, c in stats])))
+            panels.append(line_panel(str(g), series))
+        # One y range for every group, as before (sharey).
+        shared = line_span(panels)
+        for panel in panels:
+            panel.ylim = shared
+        scene = LineScene(panels=panels, ticks=[_tick_label(d) for d in divs],
+                          xlabel="Age", ylabel="node cartography",
+                          x_format="age {}")
         dest = out_dir / f"NodeCartography{_lag_num(lag)}mslag.{fmt}"
-        savefig(fig, dest, default_dpi=300, bbox_inches="tight")
-        plt.close(fig)
+        painter = LinePainter(scene)
+        output.save(painter, dest, capture=output.NativeFigure("lines", scene, painter))
         written.append(dest)
     return written
 
@@ -1691,7 +1199,7 @@ def plot_density_landscape(
     z: np.ndarray,
     boundaries: tuple,
     out_path: Path,
-) -> None:
+) -> Path | None:
     """Pooled PC-vs-Z scatter with the k-means cartography boundaries drawn.
 
     Port of ``TrialLandscapeDensity.m``'s ``ZandPC_scatter_with_kmeans_boundaries``
@@ -1699,32 +1207,42 @@ def plot_density_landscape(
     circles) with the horizontal z boundary, the two hub PC boundaries (above the
     z line) and the two non-hub PC boundaries (below it).
     """
+    from meanap.native.chart import (Chart, Legend, LegendItem, Panel, Points, Rule,
+                                     Segments, rgba)
+    from meanap.native.chart_paint import save_chart
+
     pc = np.asarray(pc, dtype=float)
     z = np.asarray(z, dtype=float)
     mask = np.isfinite(pc) & np.isfinite(z)
     pc, z = pc[mask], z[mask]
     if pc.size == 0:
-        return
+        return None
     z_boundary, peri, non_hub_connector, pro_hub, connector_hub = boundaries
     zmax = float(np.max(np.abs(z))) if z.size else 4.0
 
-    fig, ax = plt.subplots(figsize=(9, 5))
-    ax.scatter(pc, z, s=30, facecolors="none", edgecolors="#0072BD", linewidths=1)
-    ax.axhline(z_boundary, color="0.5", lw=1)
-    # hub PC boundaries (z >= z_boundary)
-    for xb, col in ((pro_hub, "#D95319"), (connector_hub, "#EDB120")):
-        ax.plot([xb, xb], [z_boundary, zmax], color=col, lw=1.5)
-    # non-hub PC boundaries (z < z_boundary)
-    for xb, col in ((peri, "#7E2F8E"), (non_hub_connector, "#77AC30")):
-        ax.plot([xb, xb], [-zmax, z_boundary], color=col, lw=1.5)
-    ax.set_xlabel("Participation Coefficient (PC)")
-    ax.set_ylabel("Within-module Z-score (Z)")
-    ax.spines["top"].set_visible(False)
-    ax.spines["right"].set_visible(False)
-    fig.tight_layout()
+    grey = rgba("0.5")
+    lines = [  # (x, from z, to z, colour, what it separates)
+        (pro_hub, z_boundary, zmax, "#D95319", "provincial | connector hubs"),
+        (connector_hub, z_boundary, zmax, "#EDB120", "connector | kinless hubs"),
+        (peri, -zmax, z_boundary, "#7E2F8E", "peripheral | non-hub connectors"),
+        (non_hub_connector, -zmax, z_boundary, "#77AC30", "non-hub connectors | kinless"),
+    ]
+    marks = [
+        Points(pc, z, fill=rgba("none"), edge=rgba("#0072BD"), edge_width=1.0,
+               size=float(np.sqrt(30)), key="nodes",
+               hover=[f"PC {a:.3f}, Z {b:.2f}" for a, b in zip(pc, z)]),
+        Rule(z_boundary, colour=grey, width=1.0, key="hub", z=3),
+    ]
+    items = [LegendItem(f"hub boundary, Z = {z_boundary:.2f}", grey, key="hub")]
+    for x, low, high, colour, what in lines:
+        marks.append(Segments([[x, low, x, high]], colour=rgba(colour), width=1.5, key=what,
+                              z=3))
+        items.append(LegendItem(f"{what}, PC = {x:.2f}", rgba(colour), key=what))
+    panel = Panel(marks=marks, xlabel="Participation Coefficient (PC)",
+                  ylabel="Within-module Z-score (Z)", grid="",
+                  legend=Legend(items, loc="right", size=8), **_MPL_TEXT)
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    savefig(fig, out_path, default_dpi=300, bbox_inches="tight")
-    plt.close(fig)
+    return save_chart(Chart([panel], size=(9, 5)), out_path)
 
 
 def plot_graph_metrics_by_lag(
@@ -1769,68 +1287,40 @@ def plot_graph_metrics_by_lag(
             return str(d)
     divs = sorted(df["DIV"].dropna().unique(), key=_divkey)
     div_colors = _div_colors(len(divs), colors)
-    xt = np.arange(1, len(lags) + 1)
+
+    from meanap.native import output
+    from meanap.native.group_paint import LinePainter
+    from meanap.native.group_scene import LineScene, LineSeries, line_panel, mean_sem
 
     for n, (metric, label) in enumerate(NETMET_REC_METRICS.items(), start=1):
         if metric not in df.columns or (only is not None and metric != only):
             continue
-
-        n_grp = len(groups)
-        fig, axes = plt.subplots(n_grp, 1, figsize=(8.0, max(3.0, 3.0 * n_grp)),
-                                 squeeze=False, sharex=True)
-        axes = axes[:, 0]
-        any_data = False
-
-        for gi, g in enumerate(groups):
-            ax = axes[gi]
+        panels = []
+        for g in groups:
             gdf = df[df["Grp"].astype(str) == str(g)]
-            lines, line_labels = [], []
+            series = []
             for di, d in enumerate(divs):
                 ddf = gdf[gdf["DIV"].astype(str) == str(d)]
-                means, sems = [], []
-                for lag in lags:
-                    vals = ddf[ddf["Lag"] == lag][metric].to_numpy(float)
-                    vals = vals[np.isfinite(vals)]
-                    if len(vals) == 0:
-                        means.append(np.nan)
-                        sems.append(0.0)
-                    else:
-                        means.append(float(np.mean(vals)))
-                        sems.append(float(np.std(vals) / np.sqrt(len(vals))) if len(vals) > 1 else 0.0)
-                means = np.array(means)
-                sems = np.array(sems)
+                stats = [mean_sem(ddf[ddf["Lag"] == lag][metric]) for lag in lags]
+                means = np.array([m for m, _, _ in stats])
                 if np.all(np.isnan(means)):
                     continue
-                any_data = True
-                color = div_colors[di]
-                ax.fill_between(xt, means - sems, means + sems, color=color,
-                                alpha=0.3, edgecolor="none")
-                ln, = ax.plot(xt, means, "-", color=color, lw=3)
-                ax.scatter(xt, means, color=color, zorder=3)
-                lines.append(ln)
-                line_labels.append(_tick_label(d))
-
-            ax.set_xticks(xt)
-            ax.set_xticklabels([str(n) for n in lag_nums])
-            ax.set_xlabel("STTC lag (ms)" if timescale == "lag"
-                          else "Correlation bin (ms)")
-            ax.set_ylabel(netmet_axis_label(metric, label))
-            ax.set_title(str(g))
-            ax.set_xlim(xt.min() - 0.5, xt.max() + 0.5)
-            ax.spines["top"].set_visible(False)
-            ax.spines["right"].set_visible(False)
-            ax.tick_params(direction="out")
-            if lines:
-                ax.legend(lines, line_labels, title="DIV", loc="center left",
-                          bbox_to_anchor=(1.01, 0.5), fontsize=8)
-
-        if not any_data:
-            plt.close(fig)
+                series.append(LineSeries(
+                    label=_tick_label(d), colour=tuple(div_colors[di]), means=means,
+                    sems=np.array([e for _, e, _ in stats]),
+                    counts=np.array([c for _, _, c in stats])))
+            panels.append(line_panel(str(g), series))
+        if not any(p.series for p in panels):
             continue
-        fig.tight_layout()
+        scene = LineScene(
+            panels=panels, ticks=[str(v) for v in lag_nums],
+            xlabel="STTC lag (ms)" if timescale == "lag" else "Correlation bin (ms)",
+            ylabel=netmet_axis_label(metric, label), legend_title="DIV",
+            x_format="{} ms lag" if timescale == "lag" else "{} ms bins",
+            series_noun="DIV")
         dest = out_dir / f"{comparison_figure_stem(n, label)}.{fmt}"
-        savefig(fig, dest, default_dpi=300, bbox_inches="tight")
-        plt.close(fig)
+        painter = LinePainter(scene)
+        output.save(painter, dest, capture=output.NativeFigure("lines", scene, painter))
         written.append(dest)
     return written
 
@@ -1850,8 +1340,13 @@ def plot_graph_metrics_by_node(
     out_path: Path,
     images_dir: Path | None = None,
     rng: np.random.Generator | None = None,
+    names: list | None = None,
+    noun: str = "node",
 ) -> None:
     """Half-violin panel for all node-level graph metrics.
+
+    Drawn by Qt (:mod:`meanap.native`). ``names`` and ``noun`` name the nodes
+    for whoever points at one; they change nothing that is drawn.
 
     Port of ``electrodeSpecificMetrics.m``.  Layout mirrors MATLAB's 4×7
     ``tiledlayout``:
@@ -1876,132 +1371,74 @@ def plot_graph_metrics_by_node(
         (i.e. the MEA-NAP repo root).
     rng : optional seeded RNG (for reproducible jitter in tests)
     """
+    from meanap.native import output
+    from meanap.native.scene import ViolinScene, empty_violin_panel, violin_panel
+    from meanap.native.violin_paint import ViolinPainter
+    from meanap.pipeline.metric_limits import metric_limits
+
     if rng is None:
         rng = np.random.default_rng()
-
-    # ── Resolve schematic images directory ───────────────────────────────────
     if images_dir is None:
         images_dir = _matlab_images_dir()
 
-    SCHEMATICS = [
-        ("ND.png",   "node degree"),
-        ("EW.png",   "edge weight"),
-        ("NS.png",   "node strength"),
-        ("WMZ.png",  "within-module\ndegree z-score"),
-        ("Eloc.png", "local efficiency"),
-        ("PC.png",   "participation\ncoefficient"),
-        ("BC.png",   "betweenness\ncentrality"),
-    ]
+    def top_of(d, floor):
+        return (0, max(float(np.nanmax(d)), floor) * 1.2)
 
-    # ── Metric slots (in column order, matching MATLAB) ───────────────────────
-    # Each entry: (data_array, y_label, y_lim_fn)
-    def _ylim_nd(d):
-        mx = max(float(np.nanmax(d)), 1.0)
-        return (0, mx * 1.2)
-
-    def _ylim_mew(d):
-        mx = max(float(np.nanmax(d)), 0.1)
-        return (0, mx * 1.2)
-
-    def _ylim_ns(d):
-        mx = max(float(np.nanmax(d)), 0.1)
-        return (0, mx * 1.2)
-
-    def _ylim_z(d):
+    def spread(d):
         lo, hi = float(np.nanmin(d)), float(np.nanmax(d))
-        if lo == hi:
-            return (0, hi + 0.1)
-        return (lo - abs(lo) * 0.2, hi + abs(hi) * 0.2)
+        return (0, hi + 0.1) if lo == hi else (lo - abs(lo) * 0.2, hi + abs(hi) * 0.2)
 
-    def _ylim_eloc(d):
-        mx = float(np.nanmax(d))
-        if len(np.unique(d[np.isfinite(d)])) == 1:
-            return None  # let matplotlib decide
-        return (0, mx * 1.2)
+    def eloc_range(d):
+        if len(np.unique(d)) == 1:
+            return None                 # no spread: let the panel choose
+        return (0, float(np.nanmax(d)) * 1.2)
 
-    def _ylim_pc(d):
-        mx = min(float(np.nanmax(d)) * 1.2, 1.0)
-        return (0, mx)
-
-    def _ylim_bc(d):
+    def from_zero(d):
         lo, hi = float(np.nanmin(d)), float(np.nanmax(d))
-        if lo == hi:
-            return (0, hi + 0.1)
-        return (0, hi * 1.2)
+        return (0, hi + 0.1) if lo == hi else (0, hi * 1.2)
 
-    def _is_plottable(arr):
-        if arr is None:
+    def plottable(values) -> bool:
+        if values is None:
             return False
-        a = np.asarray(arr, dtype=float)
-        a = a[np.isfinite(a)]
-        return len(a) > 1
+        finite = np.asarray(values, dtype=float)
+        return int(np.isfinite(finite).sum()) > 1
 
-    metrics = [
-        (nd,   "node degree",                  _ylim_nd,   True),
-        (mew,  "mean edge weight",              _ylim_mew,  True),
-        (ns,   "node strength",                 _ylim_ns,   True),
-        (z,    "within-module degree z-score",  _ylim_z,    _is_plottable(z)),
-        (eloc, "local efficiency",              _ylim_eloc,
-            _is_plottable(eloc) and float(np.nanmax(eloc)) > 0),
-        (pc,   "participation coefficient",     _ylim_pc,   _is_plottable(pc)),
-        (bc,   "betweenness centrality",        _ylim_bc,   _is_plottable(bc)),
+    # (values, y label, limits key, picture, y range, drawn?) — in MATLAB's order.
+    panels_spec = [
+        (nd, "node degree", "ND", "ND.png", lambda d: top_of(d, 1.0), True),
+        (mew, "mean edge weight", "MEW", "EW.png", lambda d: top_of(d, 0.1), True),
+        (ns, "node strength", "NS", "NS.png", lambda d: top_of(d, 0.1), True),
+        (z, "within-module degree z-score", "Z", "WMZ.png", spread, plottable(z)),
+        (eloc, "local efficiency", "Eloc", "Eloc.png", eloc_range,
+         plottable(eloc) and float(np.nanmax(eloc)) > 0),
+        (pc, "participation coefficient", "PC", "PC.png",
+         lambda d: (0, min(float(np.nanmax(d)) * 1.2, 1.0)), plottable(pc)),
+        (bc, "betweenness centrality", "BC", "BC.png", from_zero, plottable(bc)),
     ]
+    panels = []
+    for data, label, key, picture, y_range, drawn in panels_spec:
+        icon = str(images_dir / picture)
+        panel = None
+        if drawn and data is not None:
+            values = np.asarray(data, dtype=float)
+            finite = values[np.isfinite(values)]
+            ylim = y_range(finite) if finite.size else None
+            if ylim is not None and ylim[1] <= ylim[0]:
+                ylim = None
+            panel = violin_panel(values, label, rng, ylim=ylim, icon=icon,
+                                 limits=metric_limits(key, max_nodes=len(values)))
+        panels.append(panel or empty_violin_panel(label, icon=icon))
 
-    # ── Figure ────────────────────────────────────────────────────────────────
-    fig = plt.figure(figsize=(18.7, 7.3))   # ~1400×550 pt at 75 dpi (MATLAB p=[100 100 1400 550])
-    gs = fig.add_gridspec(4, 7, hspace=0.05, wspace=0.35)
+    count = len(np.asarray(nd).ravel())
+    scene = ViolinScene(
+        title=_std_title(recording_name, lag_ms), panels=panels,
+        names=[str(i + 1) for i in range(count)] if names is None else [str(n) for n in names],
+        noun=noun, colour=(0.3, 0.3, 0.3), width=1.0)
+    painter = ViolinPainter(scene)
+    output.save(painter, out_path, capture=output.NativeFigure("violin", scene, painter))
 
-    fig.suptitle(_std_title(recording_name, lag_ms), fontsize=11)
-
-    # ── Row 0: schematic images ───────────────────────────────────────────────
-    for col, (fname, label) in enumerate(SCHEMATICS):
-        ax_img = fig.add_subplot(gs[0, col])
-        ax_img.axis("off")
-        img_path = images_dir / fname
-        if img_path.exists():
-            import matplotlib.image as mpimg
-            img = mpimg.imread(str(img_path))
-            ax_img.imshow(img, aspect="equal")
-        else:
-            # Fallback: just show the label as text
-            ax_img.text(0.5, 0.5, label, ha="center", va="center",
-                        fontsize=8, transform=ax_img.transAxes)
-
-    # ── Rows 1–3: half-violin plots ───────────────────────────────────────────
-    grey = (0.3, 0.3, 0.3)
-
-    from meanap.pipeline.metric_limits import metric_limits
-    _PANEL_KEYS = {"node degree": "ND", "mean edge weight": "MEW",
-                   "node strength": "NS", "within-module degree z-score": "Z",
-                   "local efficiency": "Eloc", "participation coefficient": "PC",
-                   "betweenness centrality": "BC"}
-
-    for col, (data, ylabel, ylim_fn, do_plot) in enumerate(metrics):
-        ax = fig.add_subplot(gs[1:4, col])
-        ax.tick_params(direction="out")
-        ax.set_xticks([])
-        ax.set_ylabel(ylabel, fontsize=8)
-
-        # Match MATLAB `aesthetics`: minimal spines
-        ax.spines["top"].set_visible(False)
-        ax.spines["right"].set_visible(False)
-        ax.spines["bottom"].set_visible(False)
-
-        if do_plot and data is not None:
-            arr = np.asarray(data, dtype=float)
-            _half_violin(ax, arr, pos=1.0, colour=grey, width=1.0, rng=rng,
-                         limits=metric_limits(_PANEL_KEYS[ylabel], max_nodes=len(arr)))
-
-            ylim = ylim_fn(arr[np.isfinite(arr)])
-            if ylim is not None:
-                ax.set_ylim(*ylim)
-
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    savefig(fig, out_path, default_dpi=150, bbox_inches="tight")
-    plt.close(fig)
 
 import pandas as pd
-import seaborn as sns
 
 #: Recording-level network metrics and their labels, in MATLAB's order and
 #: wording (``networkLevelNetMetLabels`` in ``AdvancedSettings.m``; the last two
@@ -2223,34 +1660,6 @@ def batch_node_count(df_node: "pd.DataFrame") -> int | None:
         return None
     n = df_node["Channel"].max()
     return int(n) if np.isfinite(n) else None
-
-def _plot_violin(df: pd.DataFrame, metric: str, group_col: str, out_path: Path, ylabel: str) -> None:
-    if df.empty or metric not in df.columns or df[metric].dropna().empty:
-        return
-        
-    df_plot = df.dropna(subset=[metric])
-    if df_plot.empty:
-        return
-        
-    fig, ax = plt.subplots(figsize=(max(4, len(df_plot[group_col].unique()) * 1.5), 6))
-    
-    sns.violinplot(
-        data=df_plot, x=group_col, y=metric,
-        ax=ax, color="lightgray", inner=None, linewidth=1
-    )
-    sns.stripplot(
-        data=df_plot, x=group_col, y=metric,
-        ax=ax, color="black", size=4, jitter=True, alpha=0.6
-    )
-    
-    ax.set_ylabel(ylabel)
-    ax.set_xlabel("")
-    ax.set_title(ylabel)
-    ax.spines["top"].set_visible(False)
-    ax.spines["right"].set_visible(False)
-    fig.tight_layout()
-    savefig(fig, out_path, default_dpi=300, bbox_inches="tight")
-    plt.close(fig)
 
 def netmet_comparison_frames(
     recordings: list,

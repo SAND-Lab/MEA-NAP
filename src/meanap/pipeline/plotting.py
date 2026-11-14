@@ -23,11 +23,9 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
 
-import matplotlib.pyplot as plt
 import numpy as np
 
 from meanap.params import Params
-from meanap.pipeline.figure_output import savefig
 from meanap.pipeline.parallel import compute_threads
 from meanap.pipeline.rng import make_rng
 from meanap.pipeline.spike_detection import SpikeDetectionResult, bandpass_filter
@@ -371,170 +369,25 @@ def draw_spike_check_figures(
     ``fmt`` and ``only`` are the two hooks the bundle viewer needs — one figure
     per request, optionally as vector — and default to the pipeline's behaviour.
     """
-    plt.switch_backend("Agg")
+    from meanap.native import output
+    from meanap.native.spike_check_paint import (
+        FrequenciesPainter, TracesPainter, WaveformsPainter,
+    )
+
     out_dir = Path(out_dir)
-    colors = plt.cm.tab10.colors
     written: list[Path] = []
-
-    def want(name: str) -> Path | None:
-        if only is not None and Path(only).stem != name:
-            return None
-        return out_dir / f"{name}.{fmt}"
-
-    if (path := want("2_SpikeFrequencies")) is not None:
-        _draw_frequencies(data, path, colors)
+    # Drawn by Qt (meanap.native): the file is the figure the viewer shows.
+    figures = [("2_SpikeFrequencies", FrequenciesPainter, True),
+               ("1_ExampleTraces", TracesPainter, bool(data.n_panels)),
+               ("3_Waveforms", WaveformsPainter, bool(data.n_panels))]
+    for name, painter_type, available in figures:
+        if not available or (only is not None and Path(only).stem != name):
+            continue
+        path = out_dir / f"{name}.{fmt}"
+        painter = painter_type(data)
+        output.save(painter, path, capture=output.NativeFigure("spike_check", data, painter))
         written.append(path)
-
-    # A recording with no detected spikes on any channel has no panels and no
-    # waveform channel, so these two are skipped rather than drawn empty —
-    # matching what the pipeline did before this was split apart.
-    if data.n_panels:
-        if (path := want("1_ExampleTraces")) is not None:
-            _draw_example_traces(data, path, colors)
-            written.append(path)
-        if (path := want("3_Waveforms")) is not None:
-            _draw_waveforms(data, path)
-            written.append(path)
-
     return written
-
-
-def _draw_frequencies(data: SpikeCheckData, path: Path, colors) -> None:
-    fig, ax = plt.subplots(figsize=(12, 6))
-    n_bins = data.freq_curves.shape[1] if data.freq_curves.size else 0
-
-    for i, method in enumerate(data.methods):
-        # MATLAB plots raw counts per bin against bin indices, not Hz vs time.
-        ax.plot(np.arange(1, n_bins + 1), data.freq_curves[i], lw=2,
-                color=colors[i % len(colors)], label=method.replace("p", "."))
-
-    ax.set_xlim(0, data.duration_s)
-    tick_step = 60
-    ticks = np.arange(tick_step, data.duration_s + tick_step, tick_step)
-    ax.set_xticks(ticks)
-    ax.set_xticklabels([str(int(i + 1)) for i in range(len(ticks))])
-
-    ax.set_xlabel("Time (minutes)")
-    ax.set_ylabel("Spiking frequency (Hz)")  # raw spikes/bin, as in MATLAB
-    ax.legend(bbox_to_anchor=(1.01, 1), loc="upper left")
-    ax.set_title(_fnt(data.rec_name))
-    ax.spines["top"].set_visible(False)
-    ax.spines["right"].set_visible(False)
-    plt.tight_layout()
-    savefig(fig, path, default_dpi=150)
-    plt.close(fig)
-
-
-def _fnt(rec_name: str) -> str:
-    """MATLAB's ``FNt``: the recording name with its underscores removed."""
-    return rec_name.replace("_", "")
-
-
-def _draw_example_traces(data: SpikeCheckData, path: Path, colors) -> None:
-    fig, axes = plt.subplots(5, 2, figsize=(14, 8), constrained_layout=True)
-    fig.suptitle(_fnt(data.rec_name))
-    axes = axes.flatten()
-
-    for i in range(data.n_panels):
-        ax = axes[i]
-        window = data.trace_windows[i]
-        cut_from = int(data.trace_starts[i])
-        start_f, end_f = (int(v) for v in data.trace_views[i])
-        std_trace = float(data.trace_stds[i])
-
-        # x in absolute frames, so the stored slice lands where the full trace
-        # used to; the x-limits then clip it exactly as they clipped the whole
-        # trace before, overhang included.
-        ax.plot(np.arange(cut_from, cut_from + len(window)), window,
-                color="black", lw=0.5)
-        ax.set_xlim(start_f, end_f)
-        ax.set_ylim(-6 * std_trace, 5 * std_trace)
-
-        for m_idx, frames in enumerate(data.trace_spike_frames[i]):
-            y_val = 5 * std_trace - (m_idx + 1) * (0.5 * std_trace)
-            ax.scatter(frames, np.full_like(frames, y_val, dtype=float),
-                       s=15, marker="v", color=colors[m_idx % len(colors)])
-
-        ax.spines["top"].set_visible(False)
-        ax.spines["right"].set_visible(False)
-        ax.spines["bottom"].set_visible(False)
-        ax.set_xticks([])
-        ax.set_ylabel("Amplitude ($\\mu$V)")
-        ax.set_title(f"Electrode {int(data.trace_channels[i])}\n"
-                     f"{start_f / data.fs:.3f} - {end_f / data.fs:.3f} s")
-
-    for i in range(data.n_panels, len(axes)):
-        axes[i].axis("off")
-    savefig(fig, path, default_dpi=150)
-    plt.close(fig)
-
-
-def _draw_waveforms(data: SpikeCheckData, path: Path) -> None:
-    n_methods = len(data.methods)
-    n_cols = int(np.ceil(n_methods / 2))
-    n_rows = 2
-
-    fig, axes = plt.subplots(n_rows, n_cols, figsize=(n_cols * 3, 6),
-                             squeeze=False, constrained_layout=True)
-    fig.suptitle(f"{_fnt(data.rec_name)}\n\nUnique spikes by method from "
-                 f"electrode {data.wave_channel}")
-
-    ymin, ymax = -6 * data.wave_std, 5 * data.wave_std
-    if ymin == ymax:
-        ymin, ymax = -1, 1
-
-    wave_len = 0
-    for method in data.methods:
-        w = data.waveforms.get(method, np.zeros((0, 0)))
-        if w.shape[0] > 0:
-            wave_len = w.shape[1]
-            break
-
-    # A "nice" scale-bar duration ~ a quarter of the window.
-    scale_bar_ms = None
-    if wave_len > 0 and data.fs > 0:
-        window_ms = wave_len / data.fs * 1000.0
-        for cand in (2.0, 1.0, 0.5, 0.2, 0.1):
-            if cand <= window_ms * 0.6:
-                scale_bar_ms = cand
-                break
-
-    for i, method in enumerate(data.methods):
-        ax = axes[i // n_cols, i % n_cols]
-        waves = data.waveforms.get(method, np.zeros((0, 0)))
-
-        if waves.shape[0] > 0:
-            ax.plot(waves.T, color=[0.7, 0.7, 0.7], lw=0.1)
-            ax.plot(np.mean(waves, axis=0), color="black", lw=1.5)
-
-        if wave_len > 0:
-            ax.set_xlim(0, wave_len - 1)  # axis tight, like MATLAB
-
-        # MATLAB hides the x-axis entirely, so give an explicit time reference.
-        if scale_bar_ms is not None and wave_len > 0:
-            bar_samples = scale_bar_ms / 1000.0 * data.fs
-            x0 = wave_len * 0.05
-            y0 = ymin + 0.06 * (ymax - ymin)
-            ax.plot([x0, x0 + bar_samples], [y0, y0], color="black", lw=2,
-                    solid_capstyle="butt", clip_on=False)
-            label = (f"{scale_bar_ms:g} ms" if scale_bar_ms >= 1
-                     else f"{scale_bar_ms * 1000:g} µs")
-            ax.text(x0 + bar_samples / 2, y0 - 0.03 * (ymax - ymin), label,
-                    ha="center", va="top", fontsize=8)
-
-        ax.set_title(method.replace("p", "."))
-        ax.set_ylim(ymin, ymax)
-        ax.set_ylabel("Voltage [$\\mu$V]")
-        ax.spines["top"].set_visible(False)
-        ax.spines["right"].set_visible(False)
-        ax.spines["bottom"].set_visible(False)
-        ax.set_xticks([])
-
-    for i in range(n_methods, n_rows * n_cols):
-        axes[i // n_cols, i % n_cols].axis("off")
-
-    savefig(fig, path, default_dpi=150)
-    plt.close(fig)
 
 
 def plot_spike_detection_checks(

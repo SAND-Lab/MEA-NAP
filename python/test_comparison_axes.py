@@ -138,17 +138,18 @@ def _drawn_axis_checks() -> list[Check]:
                              "NS": 3.0 + rng.standard_normal()})
     df = pd.DataFrame(rows)
 
-    captured: list[tuple[float, float]] = []
-    real_savefig = p4.savefig
+    from meanap.pipeline.figure_output import capture_figures
 
-    def spy(fig, path, **kw):
-        captured.append(tuple(fig.axes[0].get_ylim()))
-        real_savefig(fig, path, **kw)
-
-    p4.savefig = spy
-    try:
-        with tempfile.TemporaryDirectory() as tmp:
-            out = Path(tmp)
+    with tempfile.TemporaryDirectory() as tmp:
+        out = Path(tmp)
+        p4.plot_half_violin_by_x(df, "Dens", "Density", "group", out / "a.png", ylim=(0, 1))
+        p4.plot_half_violin_by_x(df, "Dens", "Density", "DIV", out / "b.png", ylim=(0, 1))
+        p4.plot_half_violin_by_x(df, "NS", "Node Strength", "group", out / "c.png",
+                                 ylim=(0, None))
+        p4.plot_half_violin_by_x(df, "NS", "Node Strength", "group", out / "d.png")
+        written = sorted(p.name for p in out.iterdir())
+        # The y range each was drawn on: its scene's, which the file is painted from.
+        with capture_figures() as got:
             p4.plot_half_violin_by_x(df, "Dens", "Density", "group", out / "a.png",
                                      ylim=(0, 1))
             p4.plot_half_violin_by_x(df, "Dens", "Density", "DIV", out / "b.png",
@@ -156,9 +157,7 @@ def _drawn_axis_checks() -> list[Check]:
             p4.plot_half_violin_by_x(df, "NS", "Node Strength", "group", out / "c.png",
                                      ylim=(0, None))
             p4.plot_half_violin_by_x(df, "NS", "Node Strength", "group", out / "d.png")
-            written = sorted(p.name for p in out.iterdir())
-    finally:
-        p4.savefig = real_savefig
+    captured = [tuple(c.figure.scene.ylim) for c in got]
 
     checks.append(("all four figures written", written == ["a.png", "b.png", "c.png", "d.png"],
                    str(written)))
@@ -184,23 +183,16 @@ def _normalised_label_checks() -> list[Check]:
             for grp in ("WT", "KO") for lag in (10, 25) for i in range(6)]
     df = pd.DataFrame(rows)
 
-    drawn: dict[str, str] = {}
-    real_savefig = p4.savefig
+    from meanap.pipeline.figure_output import capture_figures
 
-    def spy(fig, path, **kw):
-        drawn[Path(path).stem] = fig.axes[0].get_ylabel()
-        real_savefig(fig, path, **kw)
-
-    p4.savefig = spy
-    try:
-        with tempfile.TemporaryDirectory() as tmp:
-            out = Path(tmp)
+    with tempfile.TemporaryDirectory() as tmp:
+        out = Path(tmp)
+        with capture_figures() as got:
             for key in ("CC", "PL"):
                 p4.plot_half_violin_by_x(df, key, p4.NETMET_REC_METRICS[key], "group",
                                          out / f"violin_{key}.png")
                 p4.plot_graph_metrics_by_lag(df, out, only=key)
-    finally:
-        p4.savefig = real_savefig
+    drawn = {Path(c.path).stem: c.figure.scene.ylabel for c in got}
 
     expected = {
         "violin_CC": "clustering coefficient (normalised)",
@@ -240,45 +232,33 @@ def _size_limit_checks() -> list[Check]:
     checks.append(("no electrode count: size metrics unbounded above",
                    metric_limits("NS") == (0, None) and metric_limits("aN") == (0, None), ""))
 
-    # Grounded electrodes: grey, and out of the colour range.
-    from meanap.pipeline import plotting_step2 as ps2
+    # Grounded electrodes: grey, and out of the colour range. The heatmap is
+    # drawn by Qt from a scene (meanap.native), so the scene is what is checked.
+    from meanap.native.activity_paint import HeatmapPainter
+    from meanap.native.scene import heatmap_scene
     from meanap.pipeline.channel_layout import get_coords_from_layout
     chs, coords = get_coords_from_layout("MCS60")
     fr = np.linspace(1.0, 5.0, len(chs))
     fr[[3, 10]] = 0.0
-    figs = []
-    real_savefig = ps2.savefig
-    ps2.savefig = lambda fig, *a, **k: figs.append(fig)
-    try:
-        ps2.plot_heatmap(fr, chs, "t", "Hz", Path("unused.png"), channel_layout="MCS60",
-                         grounded={int(chs[3]), int(chs[10])})
-    finally:
-        ps2.savefig = real_savefig
-    ax = figs[0].axes[0]
-    grey = [c for c in ax.collections if c.get_array() is None]
-    coloured = [c for c in ax.collections if c.get_array() is not None]
-    grey_xy = {tuple(np.round(xy, 6)) for c in grey for xy in c.get_offsets()}
+    scene = heatmap_scene(fr, chs, "t", "Hz", channel_layout="MCS60",
+                          grounded={int(chs[3]), int(chs[10])})
+    grey_xy = {tuple(np.round(xy, 6)) for xy in scene.xy[np.isnan(scene.values)]}
     checks.append(("grounded electrodes drawn grey, and only they",
                    grey_xy == {tuple(np.round(coords[3], 6)), tuple(np.round(coords[10], 6))},
                    str(grey_xy)))
     checks.append(("grounded electrodes kept out of the colour range (vmin 1, not 0)",
-                   coloured and coloured[0].norm.vmin == 1.0,
-                   repr(coloured[0].norm.vmin if coloured else None)))
+                   scene.panels[0][1] == 1.0, repr(scene.panels[0][1])))
 
     # No bursts detected: every electrode NaN, so no colour bar on either panel.
-    figs.clear()
-    ps2.savefig = lambda fig, *a, **k: figs.append(fig)
-    try:
-        ps2.plot_heatmap(np.full(len(chs), np.nan), chs, "t", "ms", Path("unused.png"),
-                         channel_layout="MCS60", batch_max=4000.0)
-        ps2.plot_heatmap(fr, chs, "t", "Hz", Path("unused.png"), channel_layout="MCS60",
-                         batch_max=10.0)
-    finally:
-        ps2.savefig = real_savefig
+    empty = heatmap_scene(np.full(len(chs), np.nan), chs, "t", "ms",
+                          channel_layout="MCS60", batch_max=4000.0)
+    full = heatmap_scene(fr, chs, "t", "Hz", channel_layout="MCS60", batch_max=10.0)
     checks.append(("no bursts detected: two panels, no colour bars",
-                   len(figs[0].axes) == 2, f"{len(figs[0].axes)} axes"))
+                   len(empty.panels) == 2 and not HeatmapPainter(empty).has_scale,
+                   f"{len(empty.panels)} panels"))
     checks.append(("values present: a colour bar per panel",
-                   len(figs[1].axes) == 4, f"{len(figs[1].axes)} axes"))
+                   len(full.panels) == 2 and HeatmapPainter(full).has_scale,
+                   f"{len(full.panels)} panels"))
 
     import matplotlib.pyplot as plt
     plt.close("all")

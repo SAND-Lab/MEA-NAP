@@ -73,6 +73,9 @@ __all__ = [
     "render_group_family",
     "available_stim_figures",
     "render_stim_figures",
+    "render_stim_figure",
+    "available_stim_check_figures",
+    "render_stim_check_figure",
     "gallery",
     "cached_figure",
     "style_from_overrides",
@@ -164,6 +167,13 @@ SPIKE_CHECK_FIGURES: tuple[FigureSpec, ...] = (
     FigureSpec("1_ExampleTraces", "Example traces with detected spikes"),
     FigureSpec("2_SpikeFrequencies", "Spike frequency over time"),
     FigureSpec("3_Waveforms", "Spike waveforms by method"),
+)
+
+#: Step 1's checks when the spikes came from a spike sorter instead.
+SORTING_CHECK_FIGURES: tuple[FigureSpec, ...] = (
+    FigureSpec("1_UnitsPerElectrode", "Units per electrode"),
+    FigureSpec("2_UnitTemplates", "Unit templates"),
+    FigureSpec("3_UnitQuality", "Unit quality against the curation floors"),
 )
 
 #: Per-channel metrics whose heatmap colour ceiling is pooled across the batch
@@ -1091,7 +1101,10 @@ def render_comparison_figure(
                               kde_limits=(twop_kde_limits(metric, params.twop_activity)
                                           if family == "activity" else "auto"),
                               # PlotEphysStats.m titles its by-age panels "Age14".
-                              age_title_sep="" if family == "ephys_activity" else " ")
+                              age_title_sep="" if family == "ephys_activity" else " ",
+                              node_noun=("cell" if ctx.mode == "catnap" else
+                                         "electrode" if family == "ephys_activity"
+                                         else "node"))
 
     if not dest.is_file():
         raise ValueError(
@@ -1123,7 +1136,16 @@ LAG_SERIES: tuple[LagSeries, ...] = (
               "4_NetworkActivity/4B_GroupComparisons/5_GraphMetricsByLag", "metric"),
     LagSeries("cartography", "Node cartography by lag",
               "4_NetworkActivity/4B_GroupComparisons/6_NodeCartographyByLag", "lag"),
+    LagSeries("cartography_by_group", "Cartography roles, by group",
+              "4_NetworkActivity/4B_GroupComparisons/6_NodeCartographyByLag", "lag"),
+    LagSeries("cartography_by_age", "Cartography roles, by age",
+              "4_NetworkActivity/4B_GroupComparisons/6_NodeCartographyByLag", "lag"),
+    LagSeries("density_landscape", "Cartography boundaries (PC/Z landscape)",
+              "4_NetworkActivity/4B_GroupComparisons/7_DensityLandscape", "lag"),
 )
+
+#: The sets drawn one lag at a time, which say something with a single lag.
+_PER_LAG = {"cartography_by_group", "cartography_by_age", "density_landscape"}
 
 
 def lag_series(key: str) -> LagSeries:
@@ -1147,12 +1169,21 @@ def available_lag_series(ctx: RenderContext) -> list[tuple[LagSeries, tuple[Choi
     from meanap.pipeline.plotting_step4 import netmet_axis_label
 
     lags = comparison_lags(ctx, "network")
-    if len(lags) < 2:
+    if not lags:
         return []
     df_rec, _ = _comparison_frames(ctx, "network", ctx.params.custom_grp_order or None)
     out = []
     for series in LAG_SERIES:
-        if series.keyed_by == "metric":
+        if len(lags) < 2 and series.key not in _PER_LAG:
+            continue
+        if series.key == "density_landscape":
+            present = [Choice(key=str(_lag_ms(source)), label=f"{_lag_ms(source)} ms")
+                       for source, *_ in _landscapes(ctx)]
+        elif series.key in ("cartography_by_group", "cartography_by_age"):
+            has_counts = all(f"NCpn{i}count" in df_rec.columns for i in range(1, 7))
+            present = ([Choice(key=str(lag), label=f"{lag} ms") for lag in lags]
+                       if has_counts else [])
+        elif series.keyed_by == "metric":
             present = [Choice(key=k, label=plain_label(netmet_axis_label(k, v)))
                        for k, v in comparison_metrics("network", "recording").items()
                        if k in df_rec.columns and df_rec[k].notna().any()]
@@ -1163,6 +1194,20 @@ def available_lag_series(ctx: RenderContext) -> list[tuple[LagSeries, tuple[Choi
         if present:
             out.append((series, tuple(present)))
     return out
+
+
+def _lag_ms(lag_key: str) -> int:
+    return int(str(lag_key).replace("mslag", ""))
+
+
+def _landscapes(ctx: RenderContext, params=None) -> list[tuple]:
+    """The run's pooled PC/Z landscapes with boundaries placed, as step 4 placed them."""
+    from meanap.pipeline.step4 import cartography_landscapes
+
+    if not ctx.results:
+        return []
+    return [entry for entry in cartography_landscapes(params or ctx.params, ctx.results)
+            if entry[4] is not None]
 
 
 def render_lag_series_figure(
@@ -1182,7 +1227,8 @@ def render_lag_series_figure(
     """
     from meanap.pipeline.figure_output import figure_dpi
     from meanap.pipeline.plotting_step4 import (
-        plot_graph_metrics_by_lag, plot_node_cartography_by_lag,
+        plot_density_landscape, plot_graph_metrics_by_lag, plot_node_cartography_by_lag,
+        plot_node_cartography_proportions, plot_node_cartography_proportions_by_age,
     )
 
     spec = lag_series(series)
@@ -1211,12 +1257,24 @@ def render_lag_series_figure(
                 raise ValueError(
                     f"The {series} set is keyed by lag in ms; {key!r} is not a "
                     f"number.") from None
-            available = comparison_lags(ctx, "network")
-            if lag not in available:
-                raise ValueError(
-                    f"No results at {lag} ms lag; this run has {available} ms.")
-            written = plot_node_cartography_by_lag(
-                df_rec, dest_dir, group_order=order, only=lag, fmt=fmt)
+            if series == "density_landscape":
+                found = [(pc, z, bounds) for source, _, pc, z, bounds in _landscapes(ctx, params)
+                         if _lag_ms(source) == lag]
+                if not found:
+                    raise ValueError(f"No cartography boundaries were placed at {lag} ms.")
+                dest = dest_dir / f"ZandPC_scatter_with_kmeans_boundaries_.{fmt}"
+                drawn = plot_density_landscape(*found[0], dest)
+                written = [drawn] if drawn is not None else []
+            else:
+                available = comparison_lags(ctx, "network")
+                if lag not in available:
+                    raise ValueError(
+                        f"No results at {lag} ms lag; this run has {available} ms.")
+                draw = {"cartography": plot_node_cartography_by_lag,
+                        "cartography_by_group": plot_node_cartography_proportions,
+                        "cartography_by_age": plot_node_cartography_proportions_by_age,
+                        }[series]
+                written = draw(df_rec, dest_dir, group_order=order, only=lag, fmt=fmt)
 
     if not written:
         raise ValueError(
@@ -1389,6 +1447,100 @@ def _spike_check_file(ctx: RenderContext, recording: str) -> Path | None:
 
     path = ctx.root / SPIKE_SUBDIR / f"{recording}{CHECKS_SUFFIX}"
     return path if path.exists() else None
+
+
+def _sorting_check_file(ctx: RenderContext, recording: str) -> Path | None:
+    from meanap.pipeline.plotting_sorting import SORTING_CHECKS_SUFFIX
+    from meanap.pipeline.resume import SPIKE_SUBDIR
+
+    path = ctx.root / SPIKE_SUBDIR / f"{recording}{SORTING_CHECKS_SUFFIX}"
+    return path if path.exists() else None
+
+
+def available_sorting_check_figures(
+    ctx: RenderContext, recording: str,
+) -> list[FigureSpec]:
+    """The spike-sorting check figures this recording can be redrawn with:
+    none unless its spikes came from a sorter."""
+    if _sorting_check_file(ctx, recording) is None:
+        return []
+    return list(SORTING_CHECK_FIGURES)
+
+
+def render_sorting_check_figure(
+    ctx: RenderContext, recording: str, figure: str, out_dir: Path | str, *,
+    fmt: str = "png", dpi: int | None = None,
+) -> Path:
+    """Redraw one spike-sorting check figure from the bundle. No overrides:
+    like the detection checks, they record what step 1 did."""
+    from meanap.pipeline.figure_output import figure_dpi
+    from meanap.pipeline.plotting_sorting import (
+        draw_sorting_check_figures, load_sorting_check_data,
+    )
+
+    path = _sorting_check_file(ctx, recording)
+    if path is None:
+        raise ValueError(f"No spike-sorting check data for {recording} in this bundle — "
+                         "its spikes were not sorted, or the run predates the checks.")
+    with figure_dpi(dpi):
+        written = draw_sorting_check_figures(
+            load_sorting_check_data(path), Path(out_dir), fmt=fmt, only=figure)
+    if not written:
+        raise ValueError(f"'{figure}' cannot be drawn for {recording}: not a sorting check, "
+                         "or the recording kept no units for it to show.")
+    return written[0]
+
+
+def _stim_check_file(ctx: RenderContext, recording: str) -> Path | None:
+    from meanap.stim.detection_checks import STIM_CHECKS_SUFFIX
+
+    path = ctx.root / "ExperimentMatFiles" / f"{recording}{STIM_CHECKS_SUFFIX}"
+    return path if path.exists() else None
+
+
+def _stim_check_label(name: str) -> str:
+    if name == "1_StimsDetected":
+        return "Pulses detected on every electrode"
+    if name == "2_StimsHeatmap":
+        return "Stimulating electrodes on the array"
+    kind, _, elec = name.rpartition("_")
+    return (f"Electrode {elec}: trace and pulses" + (" (not stimulating)"
+            if kind.startswith("3_NoStims") else ""))
+
+
+def available_stim_check_figures(
+    ctx: RenderContext, recording: str,
+) -> list[FigureSpec]:
+    """The stimulus detection checks (MATLAB's ``plotStimDetectionChecks``) the
+    recording can be redrawn with: none unless its stim step kept them."""
+    from meanap.stim.detection_checks import load_stim_check_data, stim_check_names
+
+    path = _stim_check_file(ctx, recording)
+    if path is None:
+        return []
+    return [FigureSpec(n, _stim_check_label(n))
+            for n in stim_check_names(load_stim_check_data(path))]
+
+
+def render_stim_check_figure(
+    ctx: RenderContext, recording: str, figure: str, out_dir: Path | str, *,
+    fmt: str = "png", dpi: int | None = None,
+) -> Path:
+    """Redraw one stimulus detection check from the bundle."""
+    from meanap.pipeline.figure_output import figure_dpi
+    from meanap.stim.detection_checks import draw_stim_check_figures, load_stim_check_data
+
+    path = _stim_check_file(ctx, recording)
+    if path is None:
+        raise ValueError(f"No stimulus detection checks for {recording} in this bundle — "
+                         "it was not stimulated, or the run predates the checks.")
+    with figure_dpi(dpi):
+        written = draw_stim_check_figures(load_stim_check_data(path), Path(out_dir),
+                                          fmt=fmt, only=figure)
+    if not written:
+        raise ValueError(f"'{figure}' is not a stimulus detection check of {recording}; "
+                         "available_stim_check_figures lists them.")
+    return written[0]
 
 
 def available_spike_check_figures(
@@ -1591,6 +1743,36 @@ def render_stim_figures(ctx: RenderContext, recording: str, out_dir: Path | str)
         with np.load(net) as d:
             written += draw_network_figures({k: d[k] for k in d.files}, out_dir)
     return written
+
+
+#: Shuffle tests a viewer has run, by payload file and its modification time:
+#: they are the slow part of the stim figures (seconds a pattern), and a viewer
+#: opening one figure after another would otherwise rerun them every time.
+_STIM_SHUFFLES: dict[tuple[str, int], dict] = {}
+
+
+def render_stim_figure(ctx: RenderContext, recording: str, name: str,
+                       out_dir: Path | str) -> Path:
+    """Draw one stim figure into *out_dir*, computing only what it needs; a run
+    that saved no payload for it gives back the picture packed in the bundle."""
+    from meanap.stim.redraw import (
+        draw_activity_figures, draw_network_figures, load_figure_payload,
+    )
+
+    out_dir = Path(out_dir)
+    fig, net = _stim_payloads(ctx, recording)
+    written: list[Path] = []
+    if name in _redrawable_stim_names(ctx, recording):
+        if net is not None and name.split("_")[0] in ("13", "14", "15", "16"):
+            with np.load(net) as d:
+                written = draw_network_figures({k: d[k] for k in d.files}, out_dir, only=name)
+        elif fig is not None:
+            key = (str(fig.resolve()), fig.stat().st_mtime_ns)
+            if len(_STIM_SHUFFLES) > 32:
+                _STIM_SHUFFLES.clear()
+            written = draw_activity_figures(load_figure_payload(fig), out_dir, only=name,
+                                            shuffles=_STIM_SHUFFLES.setdefault(key, {}))
+    return stim_figure_path(ctx, recording, name, written, out_dir)
 
 
 def stim_figure_path(ctx: RenderContext, recording: str, name: str,

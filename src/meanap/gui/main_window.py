@@ -542,6 +542,7 @@ class MainWindow(QMainWindow):
         results.spike_viewer_requested.connect(self._on_open_spike_viewer)
         results.fr_diff_requested.connect(self._on_results_page_fr_diff)
         results.network_viewer_requested.connect(self._on_results_page_network)
+        results.native_viewer_requested.connect(self._on_results_page_native)
         results.stim_preview_requested.connect(self._on_results_page_stim_preview)
         self._views.addWidget(self._simple_view)
 
@@ -808,6 +809,19 @@ class MainWindow(QMainWindow):
                                 "Could not open the run's networks", str(e))
             return
         QApplication.restoreOverrideCursor()
+
+    def _on_results_page_native(self, path: str) -> None:
+        from meanap.gui.results_viewer import ResultsViewer
+
+        panel = self._panel_window("results_native", "MEA-NAP · Results", ResultsViewer)
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        try:
+            panel.load_run(path)
+        except Exception as e:
+            QMessageBox.warning(self._panel_windows["results_native"],
+                                "Could not open the run", str(e))
+        finally:
+            QApplication.restoreOverrideCursor()
 
     def _on_results_page_stim_preview(self) -> None:
         panel = self._panel_window("stim_preview", "MEA-Stim · Stimulation preview",
@@ -2375,6 +2389,9 @@ class MainWindow(QMainWindow):
         network = self._panel_windows.get("network")
         if network is not None:
             network.panel.close_run()  # removes an extracted bundle
+        native = self._panel_windows.get("results_native")
+        if native is not None:
+            native.panel.close_run()  # removes an extracted bundle
         for window in self._panel_windows.values():
             window.close()
         # The spike viewer is a child window with its own threads, and a child

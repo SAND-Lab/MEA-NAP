@@ -19,13 +19,13 @@ from __future__ import annotations
 from pathlib import Path
 
 import matplotlib
-
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from meanap.pipeline.figure_output import savefig
+from meanap.native.chart import (Band, Bars, Cells, Chart, ColourBar, ErrorBars, Legend,
+                                 LegendItem, Line, Panel, Points, Rule, Segments, Span,
+                                 Text, rgba)
+from meanap.native.chart_paint import save_chart
 from meanap.pipeline.palette import DEFAULT_SCHEME, GROUP_SCHEMES, ColorScheme
 from meanap.stats.density_sweep import CONTROL_LEVELS, SWEEP_METRICS
 
@@ -70,38 +70,9 @@ SEQUENTIAL = "viridis"
 #: Ink for text and marks that carry no identity of their own.
 INK = "#222222"
 MUTED = "#8a8a8a"
-
-
-def _bare(ax) -> None:
-    """No top/right spines, ticks pointing out.
-
-    Under :func:`meanap.stats.style.stats_style` there are no spines or tick
-    marks at all, so this matters only to a figure drawn outside it.
-    """
-    ax.spines["top"].set_visible(False)
-    ax.spines["right"].set_visible(False)
-    ax.tick_params(direction="out")
-
-
-def _ungrid_images(fig) -> None:
-    """Take the style's gridlines off heatmaps and colour bars.
-
-    The gridlines carry the y-scale of a plot; across a heatmap's cells, or a
-    colour bar, they only cut through the colour.
-    """
-    from matplotlib.collections import QuadMesh
-
-    for ax in fig.axes:
-        if ax.images or any(isinstance(c, QuadMesh) for c in ax.collections):
-            ax.grid(False)
-
-
-def _save(fig, path: Path, *, dpi: int = 200) -> Path:
-    _ungrid_images(fig)
-    savefig(fig, Path(path), default_dpi=dpi, bbox_inches="tight",
-            facecolor="white")
-    plt.close(fig)
-    return Path(path)
+INK_RGBA = rgba(INK)
+MUTED_RGBA = rgba(MUTED)
+NONE_RGBA = rgba("none")
 
 
 def _group_colors(groups, scheme: ColorScheme) -> dict:
@@ -126,6 +97,15 @@ _TARGET_LABELS = {"Grp": "genotype", "eGrp": "genotype",
 
 def _target_label(target: str) -> str:
     return _TARGET_LABELS.get(target, target)
+
+
+def _ink_for(value: float, cmap: str, low: float, high: float):
+    """Ink that reads on a cell of *value*: white on dark colours, else the ink."""
+    if not np.isfinite(value):
+        return rgba(INK)
+    span = (high - low) or 1.0
+    r, g, b = matplotlib.colormaps[cmap](min(max((value - low) / span, 0.0), 1.0))[:3]
+    return rgba("white") if 0.299 * r + 0.587 * g + 0.114 * b < 0.5 else rgba(INK)
 
 
 def _stars(p: float) -> str:
@@ -169,41 +149,30 @@ def plot_effect_heatmap(
 
     limit = float(np.nanmax(np.abs(wide.to_numpy()))) or 1.0
     n_rows, n_cols = wide.shape
-    fig, ax = plt.subplots(figsize=(max(4.5, 1.5 * n_cols + 2), max(3.0, 0.28 * n_rows + 1.2)))
-    mesh = ax.imshow(wide.to_numpy(), cmap=DIVERGING, vmin=-limit, vmax=limit,
-                     aspect="auto")
-
+    values = wide.to_numpy(float)
     # Stars sit *on* the cells, so their colour has to follow the cell's
     # lightness; a dark star on a saturated red cell is invisible, which is
     # exactly where the significant effects are.
-    norm = matplotlib.colors.Normalize(vmin=-limit, vmax=limit)
-    cmap = matplotlib.colormaps[DIVERGING]
-    for i in range(n_rows):
-        for j in range(n_cols):
-            mark = _stars(pvals.iat[i, j])
-            value = wide.iat[i, j]
-            if not mark or not np.isfinite(value):
-                continue
-            r, g, b = cmap(norm(value))[:3]
-            luminance = 0.299 * r + 0.587 * g + 0.114 * b
-            ax.text(j, i, mark, ha="center", va="center", fontsize=9,
-                    color="white" if luminance < 0.5 else INK, fontweight="bold")
-
-    ax.set_xticks(range(n_cols))
-    ax.set_xticklabels(wide.columns, rotation=30, ha="right", fontsize=8)
-    ax.set_yticks(range(n_rows))
-    ax.set_yticklabels(wide.index, fontsize=8)
-    ax.set_title(title or f"Effect sizes — {family}", fontsize=11)
-    for spine in ax.spines.values():
-        spine.set_visible(False)
-    ax.tick_params(length=0)
-
-    cbar = fig.colorbar(mesh, ax=ax, fraction=0.03, pad=0.02)
-    cbar.set_label("Effect size", fontsize=9)
-    cbar.outline.set_visible(False)
-    ax.text(1.0, -0.06, f"* FDR q < {alpha}   ** q < 0.01   *** q < 0.001",
-            transform=ax.transAxes, ha="right", va="top", fontsize=7, color=MUTED)
-    return _save(fig, out_path)
+    marks = [[_stars(pvals.iat[i, j]) if np.isfinite(values[i, j]) else ""
+              for j in range(n_cols)] for i in range(n_rows)]
+    inks = [[_ink_for(values[i, j], DIVERGING, -limit, limit) for j in range(n_cols)]
+            for i in range(n_rows)]
+    hover = [[(f"{wide.index[i]} · {wide.columns[j]}\n"
+               f"effect size {values[i, j]:.3g}, FDR q = {pvals.iat[i, j]:.3g}")
+              if np.isfinite(values[i, j]) else "" for j in range(n_cols)]
+             for i in range(n_rows)]
+    panel = Panel(
+        marks=[Cells(values, DIVERGING, -limit, limit, text=marks, text_colour=inks,
+                     text_size=9, text_bold=True, hover=hover)],
+        title=title or f"Effect sizes — {family}", title_size=11,
+        xticks=[(j, str(c)) for j, c in enumerate(wide.columns)], xtick_rotation=30,
+        yticks=[(i, str(r)) for i, r in enumerate(wide.index)], tick_size=8,
+        grid="", y_down=True)
+    chart = Chart([panel], size=(max(4.5, 1.5 * n_cols + 2), max(3.0, 0.28 * n_rows + 1.2)),
+                  colour_bar=ColourBar(DIVERGING, -limit, limit, "Effect size", fraction=0.03),
+                  note=f"* FDR q < {alpha}   ** q < 0.01   *** q < 0.001", note_size=7,
+                  note_align="right")
+    return save_chart(chart, out_path)
 
 
 def plot_metric_trajectories(
@@ -221,11 +190,9 @@ def plot_metric_trajectories(
         return None
     colors = _group_colors([str(g) for g in ds.groups], scheme)
     n_rows = int(np.ceil(len(metrics) / n_cols))
-    fig, axes = plt.subplots(n_rows, n_cols, figsize=(3.1 * n_cols, 2.5 * n_rows),
-                             squeeze=False)
-
+    panels, seen = [], []
     for idx, metric in enumerate(metrics):
-        ax = axes[idx // n_cols][idx % n_cols]
+        marks = []
         for grp in ds.groups:
             sub = ds.table[ds.table[ds.group_col] == grp]
             values = pd.to_numeric(sub[metric], errors="coerce")
@@ -236,47 +203,41 @@ def plot_metric_trajectories(
             stat = stat[stat["count"] >= 2]
             if stat.empty:
                 continue
-            colour = colors[str(grp)]
-            ax.errorbar(stat.index, stat["mean"], yerr=stat["sem"], marker="o",
-                        markersize=4, linewidth=2, capsize=0, color=colour,
-                        label=str(grp))
-            ax.fill_between(stat.index, stat["mean"] - stat["sem"],
-                            stat["mean"] + stat["sem"], color=colour, alpha=0.15,
-                            linewidth=0)
-        ax.set_title(ds.label(metric), fontsize=9)
-        ax.set_xlabel("Age (DIV)", fontsize=8)
-        ax.tick_params(labelsize=8)
-        _bare(ax)
-
-    for idx in range(len(metrics), n_rows * n_cols):
-        axes[idx // n_cols][idx % n_cols].axis("off")
-
-    handles, labels = axes[0][0].get_legend_handles_labels()
-    if len(labels) >= 2:
-        fig.legend(handles, labels, loc="lower center", ncol=min(4, len(labels)),
-                   frameon=False, fontsize=9,
-                   bbox_to_anchor=(0.5, -0.02 if n_rows > 1 else -0.08))
-    if title:
-        fig.suptitle(title, fontsize=11)
-    fig.tight_layout()
-    return _save(fig, out_path)
+            colour, name = rgba(colors[str(grp)]), str(grp)
+            ages = stat.index.to_numpy(float)
+            mean, sem = stat["mean"].to_numpy(float), stat["sem"].to_numpy(float)
+            marks += [
+                Band(ages, mean - sem, mean + sem, rgba(colors[str(grp)], 0.15), key=name, z=1),
+                ErrorBars(ages, mean, yerr=sem, colour=colour, width=2, key=name, z=2),
+                Line(ages, mean, colour, width=2, marker="o", marker_size=4, key=name,
+                     label=name, z=3,
+                     hover=[f"{name}, DIV {a:g}: {m:.4g} ± {s:.3g} (SEM), n = {int(n)}"
+                            for a, m, s, n in zip(ages, mean, sem, stat["count"])]),
+            ]
+            if idx == 0:
+                seen.append((name, colour))
+        panels.append(Panel(cell=(idx // n_cols, idx % n_cols), marks=marks,
+                            title=ds.label(metric), xlabel="Age (DIV)", tick_size=8))
+    legend = (Legend([LegendItem(n, c, marker=True, key=n) for n, c in seen], loc="bottom",
+                     columns=min(4, len(seen)), size=9) if len(seen) >= 2 else None)
+    chart = Chart(panels, size=(3.1 * n_cols, 2.5 * n_rows), grid=(n_rows, n_cols),
+                  legend=legend, title=title or "")
+    return save_chart(chart, out_path)
 
 
 # ── correlation ──────────────────────────────────────────────────────────────
 
-def _draw_corr(ax, corr: pd.DataFrame, *, labels, fontsize: float, title=None):
-    mesh = ax.imshow(corr.to_numpy(), cmap=DIVERGING, vmin=-1, vmax=1, aspect="equal")
+def _corr_panel(corr: pd.DataFrame, *, labels, fontsize: float, title: str = "",
+                cell=(0, 0), show_x: bool = True, show_y: bool = True) -> Panel:
     n = len(corr.columns)
-    ax.set_xticks(range(n))
-    ax.set_xticklabels(labels, rotation=90, fontsize=fontsize)
-    ax.set_yticks(range(n))
-    ax.set_yticklabels(labels, fontsize=fontsize)
-    ax.tick_params(length=0)
-    for spine in ax.spines.values():
-        spine.set_visible(False)
-    if title:
-        ax.set_title(title, fontsize=9)
-    return mesh
+    values = corr.to_numpy(float)
+    names = [str(c) for c in labels]
+    hover = [[f"{names[i]} × {names[j]}\nr = {values[i, j]:.3f}" for j in range(n)]
+             for i in range(n)]
+    return Panel(cell=cell, marks=[Cells(values, DIVERGING, -1, 1, hover=hover)],
+                 title=title, xticks=[(j, t) for j, t in enumerate(names)] if show_x else [],
+                 yticks=[(i, t) for i, t in enumerate(names)] if show_y else [],
+                 xtick_rotation=90, tick_size=fontsize, grid="", y_down=True, equal=True)
 
 
 def plot_correlation_matrix(res, out_path: Path, *, labeller=None) -> Path | None:
@@ -291,17 +252,17 @@ def plot_correlation_matrix(res, out_path: Path, *, labeller=None) -> Path | Non
         return None
     labels = [labeller(c) if labeller else c for c in corr.columns]
     size = max(5.0, 0.22 * len(corr.columns) + 3.0)
-    fig, ax = plt.subplots(figsize=(size, size))
-    mesh = _draw_corr(ax, corr, labels=labels,
-                      fontsize=7 if len(corr.columns) > 25 else 9)
-    ax.set_title(f"Feature correlation ({res.method}), clustered", fontsize=11)
-    cbar = fig.colorbar(mesh, ax=ax, fraction=0.035, pad=0.02)
-    cbar.set_label("Correlation", fontsize=9)
-    cbar.outline.set_visible(False)
-    ax.text(0.0, 1.02,
-            f"{len(corr.columns)} metrics, effective dimensionality {res.effective_dim:.1f}",
-            transform=ax.transAxes, fontsize=8, color=MUTED)
-    return _save(fig, out_path)
+    panel = _corr_panel(corr, labels=labels, fontsize=7 if len(corr.columns) > 25 else 9,
+                        title=f"Feature correlation ({res.method}), clustered")
+    panel.title_size = 11
+    panel.marks.append(Text(
+        0.0, 1.0, f"{len(corr.columns)} metrics, effective dimensionality "
+        f"{res.effective_dim:.1f}", MUTED_RGBA, size=8, ha="left", va="bottom",
+        coords="axes", offset=(0, 3)))
+    panel.title = panel.title + "\n "
+    chart = Chart([panel], size=(size, size),
+                  colour_bar=ColourBar(DIVERGING, -1, 1, "Correlation", fraction=0.035))
+    return save_chart(chart, out_path)
 
 
 def plot_correlation_grid(res, out_path: Path, *, labeller=None) -> Path | None:
@@ -317,30 +278,19 @@ def plot_correlation_grid(res, out_path: Path, *, labeller=None) -> Path | None:
     ages = sorted({a for _, a in res.per_cell})
     labels = [labeller(c) if labeller else c for c in res.order]
     fontsize = 5 if len(res.order) > 25 else 7
-
-    fig, axes = plt.subplots(len(groups), len(ages),
-                             figsize=(3.2 * len(ages), 3.2 * len(groups)),
-                             squeeze=False)
-    mesh = None
+    panels = []
     for i, grp in enumerate(groups):
         for j, age in enumerate(ages):
-            ax = axes[i][j]
             cell = res.per_cell.get((grp, age))
             if cell is None:
-                ax.axis("off")
                 continue
-            show = labels if (i == len(groups) - 1 or j == 0) else [""] * len(labels)
-            mesh = _draw_corr(ax, cell, labels=show, fontsize=fontsize,
-                              title=f"{grp}  DIV {age:g}")
-            if j != 0:
-                ax.set_yticklabels([""] * len(labels))
-            if i != len(groups) - 1:
-                ax.set_xticklabels([""] * len(labels))
-    if mesh is not None:
-        cbar = fig.colorbar(mesh, ax=axes, fraction=0.015, pad=0.01)
-        cbar.set_label("Correlation", fontsize=9)
-        cbar.outline.set_visible(False)
-    return _save(fig, out_path)
+            panels.append(_corr_panel(cell, labels=labels, fontsize=fontsize,
+                                      title=f"{grp}  DIV {age:g}", cell=(i, j),
+                                      show_x=i == len(groups) - 1, show_y=j == 0))
+    chart = Chart(panels, size=(3.2 * len(ages), 3.2 * len(groups)),
+                  grid=(len(groups), len(ages)), gap=(4, 8),
+                  colour_bar=ColourBar(DIVERGING, -1, 1, "Correlation", fraction=0.015))
+    return save_chart(chart, out_path)
 
 
 def plot_pca_variance(res, out_path: Path) -> Path | None:
@@ -348,24 +298,25 @@ def plot_pca_variance(res, out_path: Path) -> Path | None:
     var = res.variance_explained
     if var.empty:
         return None
-    fig, ax = plt.subplots(figsize=(5.5, 3.6))
     n = min(20, len(var))
-    ax.bar(var["Component"][:n], var["VarianceExplained"][:n],
-           color="#4c72b0", width=0.7)
-    ax.set_xlabel("Principal component")
-    ax.set_ylabel("Variance explained")
-    _bare(ax)
-
+    comp = var["Component"][:n].to_numpy(float)
+    each = var["VarianceExplained"][:n].to_numpy(float)
+    cum = var["CumulativeVariance"][:n].to_numpy(float)
     # The cumulative curve shares the y-axis (both are fractions of variance),
     # so this is one scale, not a dual axis.
-    ax.plot(var["Component"][:n], var["CumulativeVariance"][:n], color=INK,
-            marker="o", markersize=4, linewidth=2, label="Cumulative")
-    ax.axhline(0.9, color=MUTED, linestyle=":", linewidth=1)
-    ax.text(n, 0.905, "90%", ha="right", va="bottom", fontsize=8, color=MUTED)
-    ax.legend(frameon=False, fontsize=9, loc="center right")
-    ax.set_title("Feature-space dimensionality", fontsize=11)
-    fig.tight_layout()
-    return _save(fig, out_path)
+    panel = Panel(
+        marks=[Bars(comp, each, width=0.7, colour=rgba("#4c72b0"),
+                    hover=[f"PC {c:g}: {v:.1%} of the variance" for c, v in zip(comp, each)]),
+               Line(comp, cum, INK_RGBA, width=2, marker="o", marker_size=4,
+                    label="Cumulative", z=3,
+                    hover=[f"PCs 1–{c:g}: {v:.1%} of the variance" for c, v in zip(comp, cum)]),
+               Rule(0.9, colour=MUTED_RGBA, width=1, dash=":"),
+               Text(n, 0.905, "90%", MUTED_RGBA, size=8, ha="right", va="bottom")],
+        title="Feature-space dimensionality", title_size=11,
+        xlabel="Principal component", ylabel="Variance explained",
+        legend=Legend([LegendItem("Cumulative", INK_RGBA, marker=True)], loc="center right",
+                      size=9))
+    return save_chart(Chart([panel], size=(5.5, 3.6)), out_path)
 
 
 # ── decoding ─────────────────────────────────────────────────────────────────
@@ -381,41 +332,40 @@ def plot_decoding_scores(res, out_path: Path) -> Path | None:
         return None
     order = (res.scores.groupby("Model")["BalancedAccuracy"].mean()
              .sort_values(ascending=False).index.tolist())
-    fig, ax = plt.subplots(figsize=(max(4.5, 1.1 * len(order) + 1.5), 4.2))
     rng = np.random.default_rng(0)
-
+    marks = []
     for i, name in enumerate(order):
-        vals = res.scores.loc[res.scores["Model"] == name, "BalancedAccuracy"]
-        ax.scatter(i + rng.normal(0, 0.06, len(vals)), vals, s=26, color="#4c72b0",
-                   alpha=0.65, linewidths=0, zorder=3)
-        ax.hlines(vals.mean(), i - 0.28, i + 0.28, color=INK, linewidth=2.5, zorder=4)
+        vals = res.scores.loc[res.scores["Model"] == name, "BalancedAccuracy"].to_numpy(float)
+        marks.append(Points(i + rng.normal(0, 0.06, len(vals)), vals,
+                            fill=rgba("#4c72b0", 0.65), size=float(np.sqrt(26)), key=name,
+                            hover=[f"{name}, fold {k + 1}: {v:.3f}"
+                                   for k, v in enumerate(vals)]))
+        marks.append(Segments([[i - 0.28, vals.mean(), i + 0.28, vals.mean()]],
+                              colour=INK_RGBA, width=2.5, key=name, z=4))
         if not res.null.empty:
             row = res.null[res.null["Model"] == name]
             if not row.empty and np.isfinite(row["Null95"].iloc[0]):
-                ax.hlines(row["Null95"].iloc[0], i - 0.28, i + 0.28, color="#c44e52",
-                          linewidth=1.5, linestyle="--", zorder=4)
+                level = float(row["Null95"].iloc[0])
+                marks.append(Segments([[i - 0.28, level, i + 0.28, level]],
+                                      colour=rgba("#c44e52"), width=1.5, dash="--", key=name,
+                                      z=4))
                 mark = _stars(row["PValue"].iloc[0])
                 if mark:
-                    ax.text(i, vals.max() + 0.02, mark, ha="center", fontsize=10,
-                            color=INK, fontweight="bold")
-
-    ax.axhline(res.chance, color=MUTED, linewidth=1.2, linestyle=":")
-    ax.text(len(order) - 0.4, res.chance + 0.008, "chance", ha="right", fontsize=8,
-            color=MUTED)
-    ax.set_xticks(range(len(order)))
-    ax.set_xticklabels(order, rotation=20, ha="right", fontsize=9)
-    ax.set_ylabel("Balanced accuracy (held-out)")
-    ax.set_ylim(0, 1)
-    ax.set_title(
-        f"Decoding {_target_label(res.target)} — {res.n_samples} recordings from "
-        f"{res.n_groups} cultures", fontsize=11)
-    if not res.null.empty:
-        ax.plot([], [], color="#c44e52", linestyle="--", linewidth=1.5,
-                label="95th centile of label-permutation null")
-        ax.legend(frameon=False, fontsize=8, loc="upper left")
-    _bare(ax)
-    fig.tight_layout()
-    return _save(fig, out_path)
+                    marks.append(Text(i, vals.max() + 0.02, mark, INK_RGBA, size=10,
+                                      va="bottom", bold=True))
+    marks += [Rule(res.chance, colour=MUTED_RGBA, width=1.2, dash=":"),
+              Text(len(order) - 0.4, res.chance + 0.008, "chance", MUTED_RGBA, size=8,
+                   ha="right", va="bottom")]
+    legend = (Legend([LegendItem("95th centile of label-permutation null", rgba("#c44e52"),
+                                 dash="--")], loc="upper left", size=8)
+              if not res.null.empty else None)
+    panel = Panel(
+        marks=marks, xticks=[(i, str(m)) for i, m in enumerate(order)], xtick_rotation=20,
+        tick_size=9, ylabel="Balanced accuracy (held-out)", ylim=(0, 1),
+        title_size=11, legend=legend, zoom=(False, True),
+        title=(f"Decoding {_target_label(res.target)} — {res.n_samples} recordings from "
+               f"{res.n_groups} cultures"))
+    return save_chart(Chart([panel], size=(max(4.5, 1.1 * len(order) + 1.5), 4.2)), out_path)
 
 
 def plot_confusion(res, out_path: Path, *, model: str | None = None) -> Path | None:
@@ -423,32 +373,31 @@ def plot_confusion(res, out_path: Path, *, model: str | None = None) -> Path | N
     if not res.confusion:
         return None
     names = [model] if model else list(res.confusion)
-    fig, axes = plt.subplots(1, len(names), figsize=(3.4 * len(names), 3.4),
-                             squeeze=False)
-    for ax, name in zip(axes[0], names):
+    panels = []
+    for k, name in enumerate(names):
         mat = res.confusion[name]
         # Normalised by row: with unequal class sizes the raw counts say more
         # about how many recordings each genotype has than about the decoder.
         norm = mat.div(mat.sum(axis=1).replace(0, np.nan), axis=0)
-        mesh = ax.imshow(norm.to_numpy(), cmap=SEQUENTIAL, vmin=0, vmax=1)
-        for i in range(len(mat)):
-            for j in range(len(mat.columns)):
-                value = norm.iat[i, j]
-                ax.text(j, i, f"{value:.2f}\n({mat.iat[i, j]})", ha="center",
-                        va="center", fontsize=7.5,
-                        color="white" if value > 0.55 else INK)
-        ax.set_xticks(range(len(mat.columns)))
-        ax.set_xticklabels(mat.columns, rotation=30, ha="right", fontsize=8)
-        ax.set_yticks(range(len(mat.index)))
-        ax.set_yticklabels(mat.index, fontsize=8)
-        ax.set_xlabel("Predicted", fontsize=9)
-        ax.set_ylabel("True", fontsize=9)
-        ax.set_title(name, fontsize=10)
-        ax.tick_params(length=0)
-        for spine in ax.spines.values():
-            spine.set_visible(False)
-    fig.colorbar(mesh, ax=axes, fraction=0.02, pad=0.02).outline.set_visible(False)
-    return _save(fig, out_path)
+        values = norm.to_numpy(float)
+        rows, cols = values.shape
+        text = [[f"{values[i, j]:.2f}\n({mat.iat[i, j]})" for j in range(cols)]
+                for i in range(rows)]
+        ink = [[rgba("white") if values[i, j] > 0.55 else INK_RGBA for j in range(cols)]
+               for i in range(rows)]
+        hover = [[f"true {mat.index[i]}, predicted {mat.columns[j]}: {mat.iat[i, j]} "
+                  f"({values[i, j]:.0%} of {mat.index[i]})" for j in range(cols)]
+                 for i in range(rows)]
+        panels.append(Panel(
+            cell=(0, k), marks=[Cells(values, SEQUENTIAL, 0, 1, text=text, text_colour=ink,
+                                      text_size=7.5, hover=hover)],
+            xticks=[(j, str(c)) for j, c in enumerate(mat.columns)], xtick_rotation=30,
+            yticks=[(i, str(r)) for i, r in enumerate(mat.index)], tick_size=8,
+            xlabel="Predicted", ylabel="True", label_size=9, title=str(name),
+            title_size=10, grid="", y_down=True, equal=True))
+    chart = Chart(panels, size=(3.4 * len(names), 3.4), grid=(1, len(names)),
+                  colour_bar=ColourBar(SEQUENTIAL, 0, 1, fraction=0.02))
+    return save_chart(chart, out_path)
 
 
 def plot_decoding_importance(res, out_path: Path, *, top: int = 15) -> Path | None:
@@ -456,22 +405,33 @@ def plot_decoding_importance(res, out_path: Path, *, top: int = 15) -> Path | No
     if res.importance.empty:
         return None
     models = list(res.importance["Model"].unique())
-    fig, axes = plt.subplots(1, len(models), figsize=(3.7 * len(models), 4.6),
-                             squeeze=False, sharex=True)
-    for ax, name in zip(axes[0], models):
+    panels = []
+    for k, name in enumerate(models):
         sub = res.importance[res.importance["Model"] == name].head(top).iloc[::-1]
-        y = np.arange(len(sub))
-        ax.barh(y, sub["Importance"], color="#4c72b0", height=0.7)
-        ax.errorbar(sub["Importance"], y, xerr=sub["SD"].fillna(0), fmt="none",
-                    ecolor=MUTED, elinewidth=1, capsize=0)
-        ax.set_yticks(y)
-        ax.set_yticklabels(sub["FeatureLabel"], fontsize=7.5)
-        ax.axvline(0, color=MUTED, linewidth=1)
-        ax.set_title(name, fontsize=10)
-        ax.set_xlabel("Drop in balanced accuracy", fontsize=8.5)
-        _bare(ax)
-    fig.tight_layout()
-    return _save(fig, out_path)
+        y = np.arange(len(sub), dtype=float)
+        imp, sd = sub["Importance"].to_numpy(float), sub["SD"].fillna(0).to_numpy(float)
+        labels = [str(t) for t in sub["FeatureLabel"]]
+        panels.append(Panel(
+            cell=(0, k),
+            marks=[Bars(y, imp, width=0.7, colour=rgba("#4c72b0"), horizontal=True,
+                        hover=[f"{t}: {v:.3f} ± {s:.3f}" for t, v, s in zip(labels, imp, sd)]),
+                   ErrorBars(imp, y, xerr=sd, colour=MUTED_RGBA, width=1),
+                   Rule(0, axis="x", colour=MUTED_RGBA, width=1)],
+            yticks=[(v, t) for v, t in zip(y, labels)], tick_size=7.5,
+            title=str(name), title_size=10, xlabel="Drop in balanced accuracy",
+            label_size=8.5, sharex="importance", zoom=(True, False)))
+    chart = Chart(panels, size=(3.7 * len(models), 4.6), grid=(1, len(models)))
+    return save_chart(chart, out_path)
+
+
+def _row_names(frame: pd.DataFrame, skip) -> list[str]:
+    """What each row is, from the columns that are not values: "culture X, DIV 14"."""
+    cols = [c for c in frame.columns if c not in skip]
+    out = []
+    for _, row in frame[cols].iterrows():
+        out.append(", ".join(f"{c} {row[c]:g}" if isinstance(row[c], (int, float, np.number))
+                             else f"{row[c]}" for c in cols))
+    return out
 
 
 def plot_lda_projection(proj: dict, out_path: Path, *,
@@ -497,49 +457,58 @@ def plot_lda_projection(proj: dict, out_path: Path, *,
     levels = list(pd.unique(coords[target]))
     colors = _group_colors([str(g) for g in levels], scheme)
     explained = proj.get("explained", [])
+    axes_cols = [c for c in coords.columns if str(c).startswith("LD")]
+    size = float(np.sqrt(30))
 
+    marks = []
     if "LD2" in coords.columns:
-        fig, ax = plt.subplots(figsize=(5.4, 4.8))
         for level in levels:
             sub = coords[coords[target] == level]
-            ax.scatter(sub["LD1"], sub["LD2"], s=30, alpha=0.75, linewidths=0.5,
-                       edgecolors="white", color=colors[str(level)], label=str(level))
-        # Share of the *between-class* separation carried by each axis; the two
-        # add to 100% by construction (see lda_projection).
-        ax.set_xlabel(f"LD1 ({explained[0] * 100:.0f}% of class separation)"
-                      if len(explained) > 0 else "LD1")
-        ax.set_ylabel(f"LD2 ({explained[1] * 100:.0f}%)" if len(explained) > 1 else "LD2")
+            names = _row_names(sub, set(axes_cols) | {target})
+            marks.append(Points(
+                sub["LD1"], sub["LD2"], fill=rgba(colors[str(level)], 0.75),
+                edge=rgba("white"), edge_width=0.5, size=size, key=str(level),
+                hover=[f"{level}: {n}\nLD1 {a:.2f}, LD2 {b:.2f}"
+                       for n, a, b in zip(names, sub["LD1"], sub["LD2"])]))
+        panel = Panel(
+            marks=marks,
+            # Share of the *between-class* separation carried by each axis; the
+            # two add to 100% by construction (see lda_projection).
+            xlabel=(f"LD1 ({explained[0] * 100:.0f}% of class separation)"
+                    if len(explained) > 0 else "LD1"),
+            ylabel=f"LD2 ({explained[1] * 100:.0f}%)" if len(explained) > 1 else "LD2",
+            legend=Legend([LegendItem(str(v), rgba(colors[str(v)], 0.75), kind="point",
+                                      size=size, key=str(v)) for v in levels],
+                          loc="best", size=9))
+        size_in = (5.4, 4.8)
     else:
         # One axis: the groups go on y, so the reader compares distributions
         # along the discriminant rather than reading a scatter with a
         # meaningless second dimension.
-        fig, ax = plt.subplots(figsize=(6.0, max(2.4, 0.9 * len(levels) + 1.4)))
         rng = np.random.default_rng(0)
         for i, level in enumerate(levels):
             sub = coords[coords[target] == level]
-            ax.scatter(sub["LD1"], i + rng.normal(0, 0.08, len(sub)), s=30,
-                       alpha=0.7, linewidths=0.5, edgecolors="white",
-                       color=colors[str(level)], label=str(level))
-            ax.plot([sub["LD1"].mean()], [i], marker="|", markersize=18,
-                    color=INK, markeredgewidth=2.5)
-        ax.set_yticks(range(len(levels)))
-        ax.set_yticklabels([str(x) for x in levels], fontsize=9)
-        ax.set_ylim(-0.6, len(levels) - 0.4)
-        ax.set_xlabel("LD1 — the only discriminant axis "
-                      f"({len(levels)} groups give {len(levels) - 1})")
-
-    ax.set_title(f"Linear discriminant projection — {_target_label(target)}",
-                 fontsize=11)
-    if "LD2" in coords.columns:
-        ax.legend(frameon=False, fontsize=9)
-    _bare(ax)
-    # The caveat goes at the foot of the *figure*, with room reserved for it.
-    # Hung off the axes it lands on the x-axis label as soon as the axes are
-    # short, which the one-axis variant always is.
-    fig.tight_layout(rect=(0, 0.06, 1, 1))
-    fig.text(0.01, 0.015, "In-sample projection: fitted on all recordings, so "
-             "the separation shown is optimistic.", fontsize=7.5, color=MUTED)
-    return _save(fig, out_path)
+            names = _row_names(sub, set(axes_cols) | {target})
+            marks.append(Points(
+                sub["LD1"], i + rng.normal(0, 0.08, len(sub)),
+                fill=rgba(colors[str(level)], 0.7), edge=rgba("white"), edge_width=0.5,
+                size=size, key=str(level),
+                hover=[f"{level}: {n}\nLD1 {a:.2f}" for n, a in zip(names, sub["LD1"])]))
+            mean = float(sub["LD1"].mean())
+            marks.append(Points([mean], [i], fill=INK_RGBA, size=18, marker="|",
+                                edge_width=2.5, key=str(level), z=4,
+                                hover=[f"{level}: mean LD1 {mean:.2f}"]))
+        panel = Panel(marks=marks, yticks=[(i, str(v)) for i, v in enumerate(levels)],
+                      ylim=(-0.6, len(levels) - 0.4), zoom=(True, False),
+                      xlabel=("LD1 — the only discriminant axis "
+                              f"({len(levels)} groups give {len(levels) - 1})"))
+        size_in = (6.0, max(2.4, 0.9 * len(levels) + 1.4))
+    panel.title = f"Linear discriminant projection — {_target_label(target)}"
+    panel.title_size = 11
+    chart = Chart([panel], size=size_in,
+                  note="In-sample projection: fitted on all recordings, so the separation "
+                       "shown is optimistic.")
+    return save_chart(chart, out_path)
 
 
 def plot_decoding_by_age(by_age: pd.DataFrame, out_path: Path, *,
@@ -559,29 +528,31 @@ def plot_decoding_by_age(by_age: pd.DataFrame, out_path: Path, *,
     if not models or not ages:
         return None
 
-    fig, ax = plt.subplots(figsize=(5.6, 3.8))
     colors = _group_colors(models, scheme)
+    marks, items = [], []
+    x = np.asarray(ages, float)
     for name in models:
         sub = by_age[by_age["Model"] == name].set_index("DIV").reindex(ages)
         # SD across folds, shown as the standard error of their mean: the
         # spread of the estimate, not of the folds.
         n_folds = sub["NFolds"] if "NFolds" in sub.columns else pd.Series(1, index=ages)
-        err = (sub["SD"] / np.sqrt(n_folds.clip(lower=1))).fillna(0)
-        ax.errorbar(ages, sub["BalancedAccuracy"], yerr=err, marker="o",
-                    markersize=5, linewidth=2, capsize=0, color=colors[name],
-                    label=name)
+        err = (sub["SD"] / np.sqrt(n_folds.clip(lower=1))).fillna(0).to_numpy(float)
+        acc = sub["BalancedAccuracy"].to_numpy(float)
+        colour = rgba(colors[name])
+        marks += [ErrorBars(x, acc, yerr=err, colour=colour, width=2, key=name),
+                  Line(x, acc, colour, width=2, marker="o", marker_size=5, key=name, z=3,
+                       hover=[f"{name}, DIV {a:g}: {v:.3f} ± {e:.3f} (SEM)"
+                              for a, v, e in zip(x, acc, err)])]
+        items.append(LegendItem(name, colour, marker=True, key=name))
     chance = float(by_age["Chance"].iloc[0]) if "Chance" in by_age.columns else np.nan
     if np.isfinite(chance):
-        ax.axhline(chance, color=MUTED, linestyle=":", linewidth=1.2)
-        ax.text(ages[-1], chance + 0.01, "chance", ha="right", fontsize=8, color=MUTED)
-    ax.set_xlabel("Age (DIV)")
-    ax.set_ylabel("Balanced accuracy (held-out)")
-    ax.set_ylim(0, 1)
-    ax.set_title("Group separability across age", fontsize=11)
-    ax.legend(frameon=False, fontsize=9)
-    _bare(ax)
-    fig.tight_layout()
-    return _save(fig, out_path)
+        marks += [Rule(chance, colour=MUTED_RGBA, width=1.2, dash=":"),
+                  Text(ages[-1], chance + 0.01, "chance", MUTED_RGBA, size=8, ha="right",
+                       va="bottom")]
+    panel = Panel(marks=marks, xlabel="Age (DIV)", ylabel="Balanced accuracy (held-out)",
+                  ylim=(0, 1), title="Group separability across age", title_size=11,
+                  legend=Legend(items, loc="best", size=9))
+    return save_chart(Chart([panel], size=(5.6, 3.8)), out_path)
 
 
 # ── regression ───────────────────────────────────────────────────────────────
@@ -592,25 +563,25 @@ def plot_regression_scores(res, out_path: Path) -> Path | None:
         return None
     order = (res.scores.groupby("Model")["R2"].mean()
              .sort_values(ascending=False).index.tolist())
-    fig, ax = plt.subplots(figsize=(max(4.5, 1.1 * len(order) + 1.5), 4.0))
     rng = np.random.default_rng(0)
+    marks = []
     for i, name in enumerate(order):
-        vals = res.scores.loc[res.scores["Model"] == name, "R2"]
-        ax.scatter(i + rng.normal(0, 0.06, len(vals)), vals, s=26, color="#4c72b0",
-                   alpha=0.65, linewidths=0, zorder=3)
-        ax.hlines(vals.mean(), i - 0.28, i + 0.28, color=INK, linewidth=2.5, zorder=4)
-    ax.axhline(0, color=MUTED, linewidth=1.2, linestyle=":")
-    ax.text(len(order) - 0.4, 0.012, "no better than the mean", ha="right",
-            fontsize=8, color=MUTED)
-    ax.set_xticks(range(len(order)))
-    ax.set_xticklabels(order, rotation=20, ha="right", fontsize=9)
-    ax.set_ylabel("$R^2$ (held-out)")
-    ax.set_title(
-        f"Predicting {_target_label(res.target)} from network and activity features",
-        fontsize=11)
-    _bare(ax)
-    fig.tight_layout()
-    return _save(fig, out_path)
+        vals = res.scores.loc[res.scores["Model"] == name, "R2"].to_numpy(float)
+        marks.append(Points(i + rng.normal(0, 0.06, len(vals)), vals,
+                            fill=rgba("#4c72b0", 0.65), size=float(np.sqrt(26)), key=name,
+                            hover=[f"{name}, fold {k + 1}: R² = {v:.3f}"
+                                   for k, v in enumerate(vals)]))
+        marks.append(Segments([[i - 0.28, vals.mean(), i + 0.28, vals.mean()]],
+                              colour=INK_RGBA, width=2.5, key=name, z=4))
+    marks += [Rule(0, colour=MUTED_RGBA, width=1.2, dash=":"),
+              Text(len(order) - 0.4, 0.012, "no better than the mean", MUTED_RGBA, size=8,
+                   ha="right", va="bottom")]
+    panel = Panel(
+        marks=marks, xticks=[(i, str(m)) for i, m in enumerate(order)], xtick_rotation=20,
+        tick_size=9, ylabel="R² (held-out)", zoom=(False, True), title_size=11,
+        title=(f"Predicting {_target_label(res.target)} from network and activity "
+               "features"))
+    return save_chart(Chart([panel], size=(max(4.5, 1.1 * len(order) + 1.5), 4.0)), out_path)
 
 
 def plot_variance_decomposition(res, out_path: Path, *, top: int = 20) -> Path | None:
@@ -628,26 +599,29 @@ def plot_variance_decomposition(res, out_path: Path, *, top: int = 20) -> Path |
     if dec is None or dec.empty:
         return None
     sub = dec.head(top).iloc[::-1]
-    y = np.arange(len(sub))
-    fig, ax = plt.subplots(figsize=(7.2, max(3.4, 0.32 * len(sub) + 1.4)))
-
-    ax.barh(y, sub["Shapley"], color="#4c72b0", height=0.62, zorder=3,
-            label="Shapley share of $R^2$")
-    ax.scatter(sub["Marginal"], y, s=34, facecolors="none", edgecolors=MUTED,
-               linewidths=1.3, zorder=4, label="alone ($R^2$ of this feature only)")
-    ax.scatter(sub["Unique"], y, marker="|", s=90, color="#c44e52", linewidths=1.8,
-               zorder=5, label="unique (drop in $R^2$ if removed)")
-
-    ax.set_yticks(y)
-    ax.set_yticklabels(sub["FeatureLabel"], fontsize=8)
-    ax.set_xlabel(f"Share of variance in {_target_label(res.target)}")
-    ax.set_title(
-        f"What explains {_target_label(res.target)}? Full-model $R^2$ = "
-        f"{res.r2_full:.2f}, partitioned across {len(dec)} features", fontsize=11)
-    ax.legend(frameon=False, fontsize=8, loc="lower right")
-    _bare(ax)
-    fig.tight_layout()
-    return _save(fig, out_path)
+    y = np.arange(len(sub), dtype=float)
+    names = [str(t) for t in sub["FeatureLabel"]]
+    shap, alone, unique = (sub[c].to_numpy(float) for c in ("Shapley", "Marginal", "Unique"))
+    hover = [f"{n}\nShapley {s:.3f}, alone {a:.3f}, unique {u:.3f}"
+             for n, s, a, u in zip(names, shap, alone, unique)]
+    blue, red = rgba("#4c72b0"), rgba("#c44e52")
+    panel = Panel(
+        marks=[Bars(y, shap, width=0.62, colour=blue, horizontal=True, hover=hover, z=3),
+               Points(alone, y, fill=NONE_RGBA, edge=MUTED_RGBA, edge_width=1.3,
+                      size=float(np.sqrt(34)), z=4, hover=hover),
+               Points(unique, y, fill=red, marker="|", size=float(np.sqrt(90)),
+                      edge_width=1.8, z=5, hover=hover)],
+        yticks=[(v, t) for v, t in zip(y, names)], tick_size=8, zoom=(True, False),
+        xlabel=f"Share of variance in {_target_label(res.target)}", title_size=11,
+        title=(f"What explains {_target_label(res.target)}? Full-model R² = "
+               f"{res.r2_full:.2f}, partitioned across {len(dec)} features"),
+        legend=Legend([LegendItem("Shapley share of R²", blue, kind="box"),
+                       LegendItem("alone (R² of this feature only)", MUTED_RGBA, kind="open",
+                                  size=float(np.sqrt(34))),
+                       LegendItem("unique (drop in R² if removed)", red, kind="tick",
+                                  size=float(np.sqrt(90)))],
+                      loc="lower right", size=8))
+    return save_chart(Chart([panel], size=(7.2, max(3.4, 0.32 * len(sub) + 1.4))), out_path)
 
 
 def plot_observed_vs_predicted(res, out_path: Path, *, model: str | None = None,
@@ -665,23 +639,26 @@ def plot_observed_vs_predicted(res, out_path: Path, *, model: str | None = None,
     if sub.empty:
         return None
 
-    fig, ax = plt.subplots(figsize=(4.8, 4.6))
     rng = np.random.default_rng(0)
     # Jitter the observed axis: ages are a handful of discrete values, so
     # without it every recording at one DIV lands on a single vertical line.
     jitter = rng.normal(0, 0.35, len(sub))
-    ax.scatter(sub["Observed"] + jitter, sub["Predicted"], s=22, alpha=0.5,
-               linewidths=0, color="#4c72b0")
-    lo = float(min(sub["Observed"].min(), sub["Predicted"].min()))
-    hi = float(max(sub["Observed"].max(), sub["Predicted"].max()))
-    ax.plot([lo, hi], [lo, hi], color=INK, linewidth=1.2, linestyle="--")
+    observed = sub["Observed"].to_numpy(float)
+    predicted = sub["Predicted"].to_numpy(float)
+    names = _row_names(sub, {"Model", "Observed", "Predicted"})
+    lo = float(min(observed.min(), predicted.min()))
+    hi = float(max(observed.max(), predicted.max()))
     r2 = res.scores.loc[res.scores["Model"] == model, "R2"].mean()
-    ax.set_xlabel(f"Observed {_target_label(res.target)}")
-    ax.set_ylabel(f"Predicted {_target_label(res.target)} (held-out)")
-    ax.set_title(f"{model}: $R^2$ = {r2:.2f}", fontsize=11)
-    _bare(ax)
-    fig.tight_layout()
-    return _save(fig, out_path)
+    panel = Panel(
+        marks=[Points(observed + jitter, predicted, fill=rgba("#4c72b0", 0.5),
+                      size=float(np.sqrt(22)),
+                      hover=[f"{n}\nobserved {o:g}, predicted {p:.3g}"
+                             for n, o, p in zip(names, observed, predicted)]),
+               Line([lo, hi], [lo, hi], INK_RGBA, width=1.2, dash="--")],
+        xlabel=f"Observed {_target_label(res.target)}",
+        ylabel=f"Predicted {_target_label(res.target)} (held-out)",
+        title=f"{model}: R² = {r2:.2f}", title_size=11)
+    return save_chart(Chart([panel], size=(4.8, 4.6)), out_path)
 
 
 # ── Shapley attribution of decoding, per age ─────────────────────────────────
@@ -727,19 +704,15 @@ def plot_shapley_by_age(res, out_path: Path) -> Path | None:
 
     limit = float(np.nanmax(np.abs(wide.to_numpy()))) or 1.0
     n_rows, n_cols = wide.shape
-    fig, ax = plt.subplots(figsize=(max(4.5, 1.25 * n_cols + 3.2),
-                                    max(3.0, 0.34 * n_rows + 1.8)))
-    mesh = ax.imshow(wide.to_numpy(), cmap=DIVERGING, vmin=-limit, vmax=limit,
-                     aspect="auto")
-
-    for i in range(n_rows):
-        for j in range(n_cols):
-            value = wide.iat[i, j]
-            if not np.isfinite(value):
-                continue
-            shade = abs(value) / limit
-            ax.text(j, i, f"{value:+.02f}", ha="center", va="center", fontsize=7.5,
-                    color="white" if shade > 0.6 else INK)
+    values = wide.to_numpy(float)
+    names = [labels.get(f, f) for f in wide.index]
+    text = [[f"{values[i, j]:+.02f}" if np.isfinite(values[i, j]) else ""
+             for j in range(n_cols)] for i in range(n_rows)]
+    ink = [[rgba("white") if np.isfinite(values[i, j]) and abs(values[i, j]) / limit > 0.6
+            else INK_RGBA for j in range(n_cols)] for i in range(n_rows)]
+    hover = [[f"{names[i]}, DIV {wide.columns[j]:g}: {values[i, j]:+.3f}"
+              if np.isfinite(values[i, j]) else "" for j in range(n_cols)]
+             for i in range(n_rows)]
 
     totals = res.totals.set_index("DIV") if not res.totals.empty else None
     heads = []
@@ -748,23 +721,20 @@ def plot_shapley_by_age(res, out_path: Path) -> Path | None:
             heads.append(f"DIV {age:g}\n{totals.loc[age, 'Total']:.2f} total")
         else:
             heads.append(f"DIV {age:g}")
-    ax.set_xticks(range(n_cols))
-    ax.set_xticklabels(heads, fontsize=8)
-    ax.set_yticks(range(n_rows))
-    ax.set_yticklabels([labels.get(f, f) for f in wide.index], fontsize=8)
-    ax.tick_params(length=0)
-    for spine in ax.spines.values():
-        spine.set_visible(False)
-
-    ax.set_title("Which features carry the genotype signal, and when", fontsize=11)
-    cbar = fig.colorbar(mesh, ax=ax, fraction=0.03, pad=0.02)
-    cbar.set_label("Shapley share of balanced accuracy above chance", fontsize=8)
-    cbar.outline.set_visible(False)
-    ax.text(0.0, -0.04 - 0.5 / max(n_rows, 1),
-            "Each column sums to that age's decodability. Negative means the "
-            "feature cost the decoder accuracy there.",
-            transform=ax.transAxes, fontsize=7.5, color=MUTED, va="top")
-    return _save(fig, out_path)
+    panel = Panel(
+        marks=[Cells(values, DIVERGING, -limit, limit, text=text, text_colour=ink,
+                     text_size=7.5, hover=hover)],
+        xticks=[(j, h) for j, h in enumerate(heads)],
+        yticks=[(i, str(n)) for i, n in enumerate(names)], tick_size=8, grid="",
+        y_down=True, title="Which features carry the genotype signal, and when",
+        title_size=11)
+    chart = Chart([panel], size=(max(4.5, 1.25 * n_cols + 3.2), max(3.0, 0.34 * n_rows + 1.8)),
+                  colour_bar=ColourBar(DIVERGING, -limit, limit,
+                                       "Shapley share of balanced accuracy above chance",
+                                       fraction=0.03),
+                  note="Each column sums to that age's decodability. Negative means the "
+                       "feature cost the decoder accuracy there.")
+    return save_chart(chart, out_path)
 
 
 def plot_shapley_across_ages(res, out_path: Path, *, top: int = _MAX_FEATURE_LINES
@@ -784,45 +754,50 @@ def plot_shapley_across_ages(res, out_path: Path, *, top: int = _MAX_FEATURE_LIN
         return None
     labels = dict(zip(table["Feature"], table["FeatureLabel"]))
     ages = list(wide.columns)
+    x = np.asarray(ages, float)
 
     ranked = wide.abs().max(axis=1).sort_values(ascending=False).index.tolist()
     leading, rest = ranked[:top], ranked[top:]
 
-    fig, (top_ax, ax) = plt.subplots(
-        2, 1, figsize=(7.0, 6.4), sharex=True,
-        gridspec_kw={"height_ratios": [1, 2.6], "hspace": 0.18})
-
+    upper = Panel(cell=(0, 0), xticks=[], sharex="age", zoom=(True, False),
+                  ylabel="Decodability\n(accuracy − chance)", label_size=9)
     totals = res.totals.set_index("DIV") if not res.totals.empty else None
     if totals is not None:
         present = [a for a in ages if a in totals.index]
-        top_ax.plot(present, totals.loc[present, "Total"], marker="o",
-                    markersize=5, linewidth=2, color=INK)
-        top_ax.axhline(0, color=MUTED, linewidth=1, linestyle=":")
-        top_ax.set_ylabel("Decodability\n(accuracy − chance)", fontsize=9)
-        top_ax.set_title("Genotype decoding, and what carries it, across age",
-                         fontsize=11)
-    _bare(top_ax)
+        values = totals.loc[present, "Total"].to_numpy(float)
+        upper.marks += [
+            Line(np.asarray(present, float), values, INK_RGBA, width=2, marker="o",
+                 marker_size=5, hover=[f"DIV {a:g}: {v:.3f} above chance"
+                                       for a, v in zip(present, values)]),
+            Rule(0, colour=MUTED_RGBA, width=1, dash=":")]
+        upper.title = "Genotype decoding, and what carries it, across age"
+        upper.title_size = 11
 
+    marks, items = [], []
     for i, feature in enumerate(leading):
-        ax.plot(ages, wide.loc[feature], marker="o", markersize=4.5, linewidth=2,
-                color=_FEATURE_HUES[i], label=labels.get(feature, feature))
+        name = str(labels.get(feature, feature))
+        values = wide.loc[feature].to_numpy(float)
+        colour = rgba(_FEATURE_HUES[i])
+        marks.append(Line(x, values, colour, width=2, marker="o", marker_size=4.5, key=name,
+                          hover=[f"{name}, DIV {a:g}: {v:+.3f}" for a, v in zip(x, values)]))
+        items.append(LegendItem(name, colour, marker=True, key=name))
     if rest:
         # Summed, not dropped: the values are additive, so the remainder is a
         # meaningful line and keeping it means the panel still adds up to the
         # total drawn above it.
-        ax.plot(ages, wide.loc[rest].sum(axis=0), marker="o", markersize=4,
-                linewidth=1.6, linestyle="--", color=MUTED,
-                label=f"other {len(rest)} features (summed)")
-
-    ax.axhline(0, color=MUTED, linewidth=1)
-    ax.set_xlabel("Age (DIV)")
-    ax.set_ylabel("Shapley share of decodability", fontsize=9)
-    ax.set_xticks(ages)
-    ax.legend(frameon=False, fontsize=8, ncol=2, loc="upper left",
-              bbox_to_anchor=(0, -0.12))
-    _bare(ax)
-    fig.tight_layout()
-    return _save(fig, out_path)
+        name = f"other {len(rest)} features (summed)"
+        values = wide.loc[rest].sum(axis=0).to_numpy(float)
+        marks.append(Line(x, values, MUTED_RGBA, width=1.6, dash="--", marker="o",
+                          marker_size=4, key=name,
+                          hover=[f"{name}, DIV {a:g}: {v:+.3f}" for a, v in zip(x, values)]))
+        items.append(LegendItem(name, MUTED_RGBA, dash="--", marker=True, key=name))
+    marks.append(Rule(0, colour=MUTED_RGBA, width=1))
+    lower = Panel(cell=(1, 0), marks=marks, xlabel="Age (DIV)",
+                  ylabel="Shapley share of decodability", label_size=9,
+                  xticks=[(a, f"{a:g}") for a in ages], sharex="age", zoom=(True, False))
+    chart = Chart([upper, lower], size=(7.0, 6.4), grid=(2, 1), heights=[1, 2.6],
+                  legend=Legend(items, loc="bottom", columns=2, size=8))
+    return save_chart(chart, out_path)
 
 
 # ── Feature families ─────────────────────────────────────────────────────────
@@ -860,36 +835,39 @@ def plot_family_contributions(res, out_path: Path) -> Path | None:
     labels = dict(zip(table["Family"], table["FamilyLabel"]))
     counts = table.groupby("Family")["NFeatures"].first()
 
-    fig, ax = plt.subplots(figsize=(max(5.5, 1.5 * len(ages) + 2.5), 4.2))
     positions = np.arange(len(ages), dtype=float)
     width = 0.8 / len(families)
+    marks, items = [], []
     for i, family in enumerate(families):
         offset = (i - (len(families) - 1) / 2) * width
-        ax.bar(positions + offset, [wide.loc[family, a] for a in ages],
-               width=width * 0.92, color=_family_colour(family),
-               label=f"{labels.get(family, family)}  ({counts.get(family, 0)} metrics)")
+        name = str(labels.get(family, family))
+        values = np.asarray([wide.loc[family, a] for a in ages], float)
+        colour = rgba(_family_colour(family))
+        marks.append(Bars(positions + offset, values, width=width * 0.92, colour=colour,
+                          key=name, hover=[f"{name}, DIV {a:g}: {v:+.3f}"
+                                           for a, v in zip(ages, values)]))
+        items.append(LegendItem(f"{name}  ({counts.get(family, 0)} metrics)", colour,
+                                kind="box", key=name))
 
     totals = res.totals.set_index("DIV") if not res.totals.empty else None
     if totals is not None:
         present = [a for a in ages if a in totals.index]
-        ax.plot([positions[ages.index(a)] for a in present],
-                [totals.loc[a, "Total"] for a in present], marker="_",
-                markersize=26, markeredgewidth=2.5, linestyle="none", color=INK,
-                label="total decodability")
+        values = [float(totals.loc[a, "Total"]) for a in present]
+        marks.append(Points([positions[ages.index(a)] for a in present], values,
+                            fill=INK_RGBA, marker="_", size=26, edge_width=2.5, z=4,
+                            hover=[f"DIV {a:g}: total {v:+.3f}"
+                                   for a, v in zip(present, values)]))
+        items.append(LegendItem("total decodability", INK_RGBA, kind="hline"))
 
-    ax.axhline(0, color=MUTED, linewidth=1)
-    ax.set_xticks(positions)
-    ax.set_xticklabels([f"DIV {a:g}" for a in ages])
-    ax.set_ylabel("Shapley share of decodability")
-    ax.set_title("What kind of feature carries the genotype difference", fontsize=11)
-    ax.legend(frameon=False, fontsize=8.5, ncol=2, loc="upper right")
-    _bare(ax)
-    fig.tight_layout(rect=(0, 0.05, 1, 1))
-    fig.text(0.01, 0.015,
-             "Bars at one age sum to that age's total. A family is one player, "
-             "so metrics that duplicate each other inside it cost it nothing.",
-             fontsize=7.5, color=MUTED)
-    return _save(fig, out_path)
+    marks.append(Rule(0, colour=MUTED_RGBA, width=1))
+    panel = Panel(marks=marks, xticks=[(p, f"DIV {a:g}") for p, a in zip(positions, ages)],
+                  ylabel="Shapley share of decodability", zoom=(False, True), title_size=11,
+                  title="What kind of feature carries the genotype difference",
+                  legend=Legend(items, loc="upper right", columns=2, size=8.5))
+    chart = Chart([panel], size=(max(5.5, 1.5 * len(ages) + 2.5), 4.2),
+                  note="Bars at one age sum to that age's total. A family is one player, "
+                       "so metrics that duplicate each other inside it cost it nothing.")
+    return save_chart(chart, out_path)
 
 
 def plot_family_alone_vs_unique(res, out_path: Path) -> Path | None:
@@ -920,52 +898,42 @@ def plot_family_alone_vs_unique(res, out_path: Path) -> Path | None:
     if not families or len(ages) < 2:
         return None
     labels = dict(zip(table["Family"], table["FamilyLabel"]))
+    x = np.asarray(ages, float)
 
-    fig, axes = plt.subplots(1, len(families), figsize=(3.5 * len(families), 4.0),
-                             sharey=True, squeeze=False)
-    for ax, family in zip(axes[0], families):
+    panels = []
+    for k, family in enumerate(families):
         sub = table[table["Family"] == family].set_index("DIV").reindex(ages)
-        colour = _family_colour(family)
-        ax.fill_between(ages, sub["Unique"], sub["Alone"], color=colour,
-                        alpha=0.16, linewidth=0)
-        ax.plot(ages, sub["Alone"], marker="o", markersize=5, linewidth=2,
-                linestyle="--", color=colour)
-        ax.plot(ages, sub["Unique"], marker="o", markersize=5, linewidth=2.4,
-                color=colour)
-        ax.axhline(0, color=INK, linewidth=1)
-        ax.set_title(labels.get(family, family), fontsize=10)
-        ax.set_xlabel("Age (DIV)", fontsize=9)
-        ax.set_xticks(ages)
-        _bare(ax)
-    axes[0][0].set_ylabel("Balanced accuracy above chance")
-
-    fig.suptitle("Does each family carry signal of its own?", fontsize=11)
+        colour = rgba(_family_colour(family))
+        name = str(labels.get(family, family))
+        alone, unique = sub["Alone"].to_numpy(float), sub["Unique"].to_numpy(float)
+        panels.append(Panel(
+            cell=(0, k), title=name, title_size=10, xlabel="Age (DIV)", label_size=9,
+            ylabel="Balanced accuracy above chance" if k == 0 else "",
+            xticks=[(a, f"{a:g}") for a in ages], sharey="accuracy",
+            ylabels=k == 0,
+            marks=[Band(x, unique, alone, rgba(_family_colour(family), 0.16)),
+                   Line(x, alone, colour, width=2, dash="--", marker="o", marker_size=5,
+                        key="alone", hover=[f"{name}, DIV {a:g}: alone {v:+.3f}"
+                                            for a, v in zip(x, alone)]),
+                   Line(x, unique, colour, width=2.4, marker="o", marker_size=5,
+                        key="unique", hover=[f"{name}, DIV {a:g}: unique {v:+.3f}"
+                                             for a, v in zip(x, unique)]),
+                   Rule(0, colour=INK_RGBA, width=1)]))
     # The legend goes under the panels rather than inside the first one: the
     # upper-left corner is where the "alone" curve peaks in every family, so an
-    # in-axes legend sits on the data it is describing.
-    #
-    # Its swatches are drawn in ink rather than lifted from the first panel:
-    # they distinguish two *line styles*, and a blue swatch beside "alone"
-    # reads as though the entry meant the Activity family. The handles are long
-    # so the dash pattern is actually visible at legend size.
-    from matplotlib.lines import Line2D
-
-    proxies = [
-        Line2D([], [], color=INK, linewidth=2, linestyle="--", marker="o",
-               markersize=5, label="alone"),
-        Line2D([], [], color=INK, linewidth=2.4, marker="o", markersize=5,
-               label="unique"),
-    ]
-    fig.legend(handles=proxies, frameon=False, fontsize=9, ncol=2,
-               handlelength=3.4, loc="lower center", bbox_to_anchor=(0.5, 0.055))
-    fig.tight_layout(rect=(0, 0.14, 1, 1))
-    fig.text(0.01, 0.015,
-             "Dashed: what the family achieves on its own. Solid: what is lost "
-             "when it is removed from the full set. A solid line at zero means "
-             "the family carries nothing the others do not. Solid above dashed "
-             "is complementarity: worth more in company than alone.",
-             fontsize=7.5, color=MUTED)
-    return _save(fig, out_path)
+    # in-axes legend sits on the data it is describing. Its swatches are in
+    # ink: they distinguish two *line styles*, and a blue swatch beside "alone"
+    # would read as though the entry meant the Activity family.
+    legend = Legend([LegendItem("alone", INK_RGBA, dash="--", marker=True, key="alone"),
+                     LegendItem("unique", INK_RGBA, marker=True, key="unique")],
+                    loc="bottom", columns=2, size=9, swatch=3.4)
+    chart = Chart(panels, size=(3.5 * len(families), 4.0), grid=(1, len(families)),
+                  title="Does each family carry signal of its own?", legend=legend,
+                  note="Dashed: what the family achieves on its own. Solid: what is lost "
+                       "when it is removed from the full set. A solid line at zero means "
+                       "the family carries nothing the others do not. Solid above dashed "
+                       "is complementarity: worth more in company than alone.")
+    return save_chart(chart, out_path)
 
 
 # ── Density sweep ────────────────────────────────────────────────────────────
@@ -987,13 +955,14 @@ _SWEEP_LABELS = {
 
 
 def _sweep_panels(labelled, metrics, split_col, colours, n_cols, ylabel_of):
-    """Shared body of the two sweep figures: one panel per metric, one line per level."""
+    """Shared body of the two sweep figures: one panel per metric, one line per level.
+
+    Returns the panels, the metrics drawn and the legend entries.
+    """
     metrics = [m for m in metrics if m in labelled.columns]
-    n_rows = int(np.ceil(len(metrics) / n_cols))
-    fig, axes = plt.subplots(n_rows, n_cols, figsize=(3.2 * n_cols, 2.6 * n_rows),
-                             squeeze=False, sharex=True)
+    panels, items = [], {}
     for idx, metric in enumerate(metrics):
-        ax = axes[idx // n_cols][idx % n_cols]
+        marks = []
         for level, colour in colours.items():
             sub = labelled[labelled[split_col] == level]
             if sub.empty:
@@ -1002,18 +971,19 @@ def _sweep_panels(labelled, metrics, split_col, colours, n_cols, ylabel_of):
             stat = stat[stat["count"] >= 2]
             if stat.empty:
                 continue
-            ax.plot(stat.index, stat["mean"], linewidth=2, color=colour,
-                    label=str(level))
-            ax.fill_between(stat.index, stat["mean"] - stat["sem"],
-                            stat["mean"] + stat["sem"], color=colour, alpha=0.18,
-                            linewidth=0)
-        ax.set_title(ylabel_of(metric), fontsize=9)
-        ax.set_xlabel("Imposed density", fontsize=8)
-        ax.tick_params(labelsize=8)
-        _bare(ax)
-    for idx in range(len(metrics), n_rows * n_cols):
-        axes[idx // n_cols][idx % n_cols].axis("off")
-    return fig, axes, metrics
+            name = str(level)
+            x = stat.index.to_numpy(float)
+            mean, sem = stat["mean"].to_numpy(float), stat["sem"].to_numpy(float)
+            marks += [Band(x, mean - sem, mean + sem, rgba(colour, 0.18), key=name),
+                      Line(x, mean, rgba(colour), width=2, key=name,
+                           hover=[f"{name}, density {d:g}: {m:.4g} ± {s:.3g} (SEM)"
+                                  for d, m, s in zip(x, mean, sem)])]
+            if idx == 0:
+                items[name] = LegendItem(name, rgba(colour), key=name)
+        panels.append(Panel(cell=(idx // n_cols, idx % n_cols), marks=marks,
+                            title=ylabel_of(metric), xlabel="Imposed density", tick_size=8,
+                            sharex="density", zoom=(True, False)))
+    return panels, metrics, list(items.values())
 
 
 def plot_density_sweep(
@@ -1033,19 +1003,38 @@ def plot_density_sweep(
     """
     if labelled is None or labelled.empty:
         return None
-    fig, axes, drawn = _sweep_panels(
+    panels, drawn, items = _sweep_panels(
         labelled, metrics, split, colours, n_cols, lambda m: _SWEEP_LABELS.get(m, m))
     if not drawn:
-        plt.close(fig)
         return None
+    n_rows = int(np.ceil(len(drawn) / n_cols))
+    legend = (Legend(items, loc="bottom", columns=min(5, len(items)), size=9)
+              if len(items) >= 2 else None)
+    chart = Chart(panels, size=(3.2 * n_cols, 2.6 * n_rows), grid=(n_rows, n_cols),
+                  title=title, legend=legend)
+    return save_chart(chart, out_path)
 
-    handles, labels_ = axes[0][0].get_legend_handles_labels()
-    if len(labels_) >= 2:
-        fig.legend(handles, labels_, loc="lower center", ncol=min(5, len(labels_)),
-                   frameon=False, fontsize=9, bbox_to_anchor=(0.5, -0.01))
-    fig.suptitle(title, fontsize=11)
-    fig.tight_layout(rect=(0, 0.05, 1, 1))
-    return _save(fig, out_path)
+
+def _by_age_scatter(observed, column, group_col, age_col, groups, colours, rng):
+    """Every recording's *column* by age, groups side by side, with their medians."""
+    marks = []
+    for offset, group in enumerate(groups):
+        sub = observed[observed[group_col] == group]
+        jitter = (offset - (len(groups) - 1) / 2) * 0.9
+        name, colour = str(group), colours[str(group)]
+        ages = sub[age_col].to_numpy(float)
+        values = sub[column].to_numpy(float)
+        names = _row_names(sub, {column, group_col, age_col, "ObservedDensity", "NNodes"})
+        marks.append(Points(ages + jitter + rng.normal(0, 0.25, len(sub)), values,
+                            fill=rgba(colour, 0.55), size=4.0, key=name,
+                            hover=[f"{name}, DIV {a:g}: {v:.4g}" + (f"\n{n}" if n else "")
+                                   for a, v, n in zip(ages, values, names)]))
+        stat = sub.groupby(age_col)[column].median()
+        marks.append(Line(stat.index.to_numpy(float) + jitter, stat.to_numpy(float),
+                          rgba(colour), width=2, marker="o", marker_size=5, key=name, z=4,
+                          hover=[f"{name}, DIV {a:g}: median {v:.4g}"
+                                 for a, v in zip(stat.index, stat.to_numpy(float))]))
+    return marks
 
 
 def plot_density_context(
@@ -1063,59 +1052,47 @@ def plot_density_context(
     """
     if observed is None or observed.empty:
         return None
-    fig, (ax_obs, ax_lcc) = plt.subplots(1, 2, figsize=(10.5, 4.0))
-
     groups = list(pd.unique(observed[group_col].dropna())) if group_col in observed else []
     colours = _group_colors([str(g) for g in groups], scheme)
     ages = sorted(pd.unique(observed[age_col].dropna())) if age_col in observed else []
     rng = np.random.default_rng(0)
-    for offset, group in enumerate(groups):
-        sub = observed[observed[group_col] == group]
-        jitter = (offset - (len(groups) - 1) / 2) * 0.9
-        ax_obs.scatter(sub[age_col] + jitter + rng.normal(0, 0.25, len(sub)),
-                       sub["ObservedDensity"], s=16, alpha=0.55, linewidths=0,
-                       color=colours[str(group)], label=str(group))
-        stat = sub.groupby(age_col)["ObservedDensity"].median()
-        ax_obs.plot(stat.index + jitter, stat.values, color=colours[str(group)],
-                    linewidth=2, marker="o", markersize=5)
+    marks = (_by_age_scatter(observed, "ObservedDensity", group_col, age_col, groups,
+                             colours, rng) if ages else [])
     # The band the sweep imposes, against the densities that actually occur.
-    ax_obs.axhspan(min(densities), max(densities), color="0.6", alpha=0.18,
-                   linewidth=0)
-    ax_obs.text(ax_obs.get_xlim()[0], max(densities), " swept range",
-                va="bottom", ha="left", fontsize=8, color=MUTED)
-    ax_obs.set_xlabel("Age (DIV)")
-    ax_obs.set_ylabel("Observed density (step 4)")
-    ax_obs.set_ylim(0, 1.02)
-    ax_obs.set_xticks(ages)
-    ax_obs.set_title("Densities the recordings actually have", fontsize=10)
-    if groups:
-        ax_obs.legend(frameon=False, fontsize=8.5, loc="lower right")
-    _bare(ax_obs)
-
+    marks += [Span(min(densities), max(densities)),
+              Text(0, max(densities), " swept range", MUTED_RGBA, size=8, ha="left",
+                   va="bottom", coords="blend")]
+    left = Panel(cell=(0, 0), marks=marks, xlabel="Age (DIV)",
+                 ylabel="Observed density (step 4)", ylim=(0, 1.02),
+                 xticks=[(a, f"{a:g}") for a in ages] or None,
+                 title="Densities the recordings actually have", title_size=10,
+                 legend=(Legend([LegendItem(str(g), rgba(colours[str(g)]), kind="point",
+                                            key=str(g)) for g in groups],
+                                loc="lower right", size=8.5) if groups else None))
+    right = Panel(cell=(0, 1), xlabel="Imposed density",
+                  ylabel="Largest component (fraction of nodes)",
+                  title="How much of the network survives thresholding", title_size=10)
     if labelled is not None and not labelled.empty and "lccFraction" in labelled:
         for group in groups:
             sub = labelled[labelled[group_col] == group]
             if sub.empty:
                 continue
             stat = sub.groupby("Density")["lccFraction"].mean()
-            ax_lcc.plot(stat.index, stat.values, linewidth=2,
-                        color=colours[str(group)], label=str(group))
-        ax_lcc.axhline(1.0, color=MUTED, linestyle=":", linewidth=1)
-        ax_lcc.set_ylim(0, 1.05)
-    ax_lcc.set_xlabel("Imposed density")
-    ax_lcc.set_ylabel("Largest component (fraction of nodes)")
-    ax_lcc.set_title("How much of the network survives thresholding", fontsize=10)
-    _bare(ax_lcc)
-
-    fig.suptitle("Reading the density sweep", fontsize=11)
-    fig.tight_layout(rect=(0, 0.06, 1, 1))
-    fig.text(0.01, 0.015,
-             "Left: if the groups' observed densities differ, metrics compared "
-             "at those densities were confounded. Right: where the largest "
-             "component falls below 1 the network is fragmented and path "
-             "length is averaged over connected pairs only — prefer global "
-             "efficiency there.", fontsize=7.5, color=MUTED)
-    return _save(fig, out_path)
+            name = str(group)
+            right.marks.append(Line(
+                stat.index.to_numpy(float), stat.to_numpy(float), rgba(colours[name]),
+                width=2, key=name, hover=[f"{name}, density {d:g}: {v:.2f} of the nodes"
+                                          for d, v in zip(stat.index, stat.to_numpy(float))]))
+        right.marks.append(Rule(1.0, colour=MUTED_RGBA, width=1, dash=":"))
+        right.ylim = (0, 1.05)
+    chart = Chart([left, right], size=(10.5, 4.0), grid=(1, 2),
+                  title="Reading the density sweep",
+                  note="Left: if the groups' observed densities differ, metrics compared "
+                       "at those densities were confounded. Right: where the largest "
+                       "component falls below 1 the network is fragmented and path "
+                       "length is averaged over connected pairs only — prefer global "
+                       "efficiency there.")
+    return save_chart(chart, out_path)
 
 
 def plot_topology_controlled(raw, controlled, out_path: Path) -> Path | None:
@@ -1149,37 +1126,37 @@ def plot_topology_controlled(raw, controlled, out_path: Path) -> Path | None:
         "Alone": "What topology achieves alone",
         "Unique": "What only topology contributes",
     }
-    colour_raw, colour_new = _OKABE_ITO[5], _OKABE_ITO[2]
-
-    fig, axes = plt.subplots(1, 3, figsize=(11.0, 3.8), sharex=True)
-    for ax, measure in zip(axes, measures):
-        for frame, colour, label, style in (
-            (raw_t, colour_raw, "as measured (step 4)", "--"),
-            (new_t, colour_new, "density + size controlled", "-"),
-        ):
-            series = frame.set_index("DIV").reindex(ages)[measure]
-            ax.plot(ages, series, marker="o", markersize=5, linewidth=2.2,
-                    linestyle=style, color=colour, label=label)
-        ax.axhline(0, color=INK, linewidth=1)
-        ax.set_title(titles[measure], fontsize=10)
-        ax.set_xlabel("Age (DIV)", fontsize=9)
-        ax.set_xticks(ages)
-        _bare(ax)
-    axes[0].set_ylabel("Balanced accuracy above chance")
-
-    handles, labels_ = axes[0].get_legend_handles_labels()
-    fig.legend(handles, labels_, loc="lower center", ncol=2, frameon=False,
-               fontsize=9, bbox_to_anchor=(0.5, 0.02))
-    fig.suptitle("Does network topology carry genotype information of its own?",
-                 fontsize=11)
-    fig.tight_layout(rect=(0, 0.12, 1, 1))
-    fig.text(0.01, 0.015,
-             "Topology measured on networks thresholded to a common density and "
-             "subsampled to a common node count, against the same metrics as "
-             "step 4 measured them. Activity and correlation strength are left "
-             "uncontrolled in both — they are what topology is being tested "
-             "against.", fontsize=7.5, color=MUTED)
-    return _save(fig, out_path)
+    colour_raw, colour_new = rgba(_OKABE_ITO[5]), rgba(_OKABE_ITO[2])
+    x = np.asarray(ages, float)
+    series_of = (
+        (raw_t, colour_raw, "as measured (step 4)", "--"),
+        (new_t, colour_new, "density + size controlled", "-"),
+    )
+    panels = []
+    for k, measure in enumerate(measures):
+        marks = []
+        for frame, colour, label, style in series_of:
+            series = frame.set_index("DIV").reindex(ages)[measure].to_numpy(float)
+            marks.append(Line(x, series, colour, width=2.2, dash=style, marker="o",
+                              marker_size=5, key=label,
+                              hover=[f"{label}, DIV {a:g}: {v:+.3f}"
+                                     for a, v in zip(x, series)]))
+        marks.append(Rule(0, colour=INK_RGBA, width=1))
+        panels.append(Panel(cell=(0, k), marks=marks, title=titles[measure], title_size=10,
+                            xlabel="Age (DIV)", label_size=9, sharex="age",
+                            xticks=[(a, f"{a:g}") for a in ages],
+                            ylabel="Balanced accuracy above chance" if k == 0 else ""))
+    legend = Legend([LegendItem(label, colour, dash=style, marker=True, key=label)
+                     for _, colour, label, style in series_of],
+                    loc="bottom", columns=2, size=9)
+    chart = Chart(panels, size=(11.0, 3.8), grid=(1, 3), legend=legend,
+                  title="Does network topology carry genotype information of its own?",
+                  note="Topology measured on networks thresholded to a common density and "
+                       "subsampled to a common node count, against the same metrics as "
+                       "step 4 measured them. Activity and correlation strength are left "
+                       "uncontrolled in both — they are what topology is being tested "
+                       "against.")
+    return save_chart(chart, out_path)
 
 
 #: Marks a comparison the selection check flagged. One accent, used nowhere
@@ -1210,7 +1187,6 @@ def plot_size_control(
     if "NNodes" not in observed.columns:
         return None
 
-    fig, (ax_size, ax_keep) = plt.subplots(1, 2, figsize=(10.5, 4.0))
     groups = (list(pd.unique(observed[group_col].dropna()))
               if group_col in observed.columns else [])
     colours = _group_colors([str(g) for g in groups], scheme)
@@ -1219,82 +1195,77 @@ def plot_size_control(
 
     # Left: node counts, on a log axis because they span an order of magnitude
     # and the target would otherwise sit squashed against the bottom.
+    left = Panel(cell=(0, 0), ylog=True, ylabel="Connected nodes per recording",
+                 title="Sizes the recordings actually have", title_size=10)
     if has_age:
         ages = sorted(pd.unique(observed[age_col].dropna()))
-        for offset, group in enumerate(groups):
-            sub = observed[observed[group_col] == group]
-            jitter = (offset - (len(groups) - 1) / 2) * 0.9
-            ax_size.scatter(sub[age_col] + jitter + rng.normal(0, 0.25, len(sub)),
-                            sub["NNodes"], s=16, alpha=0.55, linewidths=0,
-                            color=colours[str(group)], label=str(group))
-            stat = sub.groupby(age_col)["NNodes"].median()
-            ax_size.plot(stat.index + jitter, stat.values, color=colours[str(group)],
-                         linewidth=2, marker="o", markersize=5)
-        ax_size.set_xlabel(f"Age ({age_col})")
-        ax_size.set_xticks(ages)
+        left.marks += _by_age_scatter(observed, "NNodes", group_col, age_col, groups,
+                                      colours, rng)
+        left.xlabel = f"Age ({age_col})"
+        left.xticks = [(a, f"{a:g}") for a in ages]
+        if groups:
+            # Lower right is the emptiest corner here: it is inside the band of
+            # sizes too small to keep, where by definition few points sit.
+            left.legend = Legend([LegendItem(str(g), rgba(colours[str(g)]), kind="point",
+                                             key=str(g)) for g in groups],
+                                 loc="lower right", size=8.5)
     else:
         for offset, group in enumerate(groups):
             sub = observed[observed[group_col] == group]
-            ax_size.scatter(np.full(len(sub), offset) + rng.normal(0, 0.08, len(sub)),
-                            sub["NNodes"], s=16, alpha=0.55, linewidths=0,
-                            color=colours[str(group)], label=str(group))
-        ax_size.set_xticks(range(len(groups)))
-        ax_size.set_xticklabels([str(g) for g in groups], fontsize=8)
-
-    ax_size.set_yscale("log")
-    ax_size.axhline(n_nodes, color=INK, linestyle="--", linewidth=1.2)
-    ax_size.axhspan(ax_size.get_ylim()[0], n_nodes, color=FLAGGED, alpha=0.10,
-                    linewidth=0)
-    ax_size.text(ax_size.get_xlim()[0], n_nodes, f" subsampled to {n_nodes}",
-                 va="bottom", ha="left", fontsize=8, color=INK)
-    ax_size.set_ylabel("Connected nodes per recording")
-    ax_size.set_title("Sizes the recordings actually have", fontsize=10)
-    if groups and has_age:
-        # Lower right is the emptiest corner here: it is inside the band of
-        # sizes too small to keep, where by definition few points sit.
-        ax_size.legend(frameon=False, fontsize=8.5, loc="lower right")
-    _bare(ax_size)
+            values = sub["NNodes"].to_numpy(float)
+            left.marks.append(Points(
+                np.full(len(sub), offset) + rng.normal(0, 0.08, len(sub)), values,
+                fill=rgba(colours[str(group)], 0.55), size=4.0, key=str(group),
+                hover=[f"{group}: {v:g} nodes" for v in values]))
+        left.xticks = [(k, str(g)) for k, g in enumerate(groups)]
+        left.tick_size = 8
+    finite = observed["NNodes"].to_numpy(float)
+    finite = finite[np.isfinite(finite) & (finite > 0)]
+    floor = float(finite.min()) / 10 if len(finite) else n_nodes / 10
+    left.marks += [Rule(n_nodes, colour=INK_RGBA, width=1.2, dash="--"),
+                   Span(floor, n_nodes, colour=rgba(FLAGGED, 0.10)),
+                   Text(0, n_nodes, f" subsampled to {n_nodes}", INK_RGBA, size=8, ha="left",
+                        va="bottom", coords="blend")]
 
     # Right: retention. Recomputed here rather than read, so the figure needs
     # only the table it is already handed.
+    right = Panel(cell=(0, 1), ylabel="Fraction of recordings retained", zoom=(False, True))
     if groups:
         kept = (observed.assign(_kept=observed["NNodes"] >= n_nodes)
                 .groupby(group_col)["_kept"].agg(["mean", "sum", "size"]))
         kept = kept.reindex([g for g in groups if g in kept.index])
-        positions = np.arange(len(kept))
-        ax_keep.bar(positions, kept["mean"], width=0.62,
-                    color=[colours[str(g)] for g in kept.index])
+        positions = np.arange(len(kept), dtype=float)
+        right.marks.append(Bars(
+            positions, kept["mean"].to_numpy(float), width=0.62,
+            colour=[rgba(colours[str(g)]) for g in kept.index],
+            key=[str(g) for g in kept.index],
+            hover=[f"{g}: kept {int(r['sum'])} of {int(r['size'])} ({r['mean']:.0%})"
+                   for g, (_, r) in zip(kept.index, kept.iterrows())]))
         for pos, (_, row) in zip(positions, kept.iterrows()):
-            ax_keep.text(pos, row["mean"] + 0.02,
-                         f"{row['mean']:.0%}\n{int(row['sum'])}/{int(row['size'])}",
-                         ha="center", va="bottom", fontsize=8, color=INK)
-        ax_keep.set_xticks(positions)
-        ax_keep.set_xticklabels([str(g) for g in kept.index], fontsize=8.5)
-        ax_keep.set_ylim(0, 1.18)
+            right.marks.append(Text(
+                pos, row["mean"] + 0.02,
+                f"{row['mean']:.0%}\n{int(row['sum'])}/{int(row['size'])}",
+                INK_RGBA, size=8, va="bottom"))
+        right.xticks = [(p, str(g)) for p, g in zip(positions, kept.index)]
+        right.tick_size = 8.5
+        right.ylim = (0, 1.18)
         spread = float(kept["mean"].max() - kept["mean"].min())
         # The same 20-point rule the runner warns on, drawn rather than logged.
         if spread > 0.2:
-            ax_keep.set_title(
-                f"Kept per group - {spread:.0%} spread, uneven", fontsize=10,
-                color=FLAGGED)
+            right.title = f"Kept per group - {spread:.0%} spread, uneven"
+            right.title_colour = rgba(FLAGGED)
         else:
-            ax_keep.set_title("Kept per group", fontsize=10)
-    ax_keep.set_ylabel("Fraction of recordings retained")
-    _bare(ax_keep)
-
-    fig.suptitle("Controlling for network size", fontsize=11)
-    # Footnotes are wrapped by hand: the figure is saved with a tight bounding
-    # box, so one long line silently widens the whole canvas.
-    fig.tight_layout(rect=(0, 0.15, 1, 1))
-    fig.text(0.01, 0.015,
-             "Left: every recording below the dashed line was dropped — it "
-             "cannot be subsampled up to the common size.\n"
-             "Right: if the groups were not dropped evenly, the comparison is "
-             "now between the largest networks of one group\n"
-             "and typical ones of another, and the size confound has been "
-             "traded rather than removed.",
-             fontsize=7.5, color=MUTED, va="bottom", linespacing=1.5)
-    return _save(fig, out_path)
+            right.title = "Kept per group"
+        right.title_size = 10
+    chart = Chart([left, right], size=(10.5, 4.0), grid=(1, 2),
+                  title="Controlling for network size",
+                  note="Left: every recording below the dashed line was dropped — it "
+                       "cannot be subsampled up to the common size.\n"
+                       "Right: if the groups were not dropped evenly, the comparison is "
+                       "now between the largest networks of one group and typical ones "
+                       "of another, and the size confound has been traded rather than "
+                       "removed.")
+    return save_chart(chart, out_path)
 
 
 def plot_selection_check(check, out_path: Path) -> Path | None:
@@ -1321,46 +1292,43 @@ def plot_selection_check(check, out_path: Path) -> Path | None:
     # can be read straight across.
     order = (table.groupby("Metric")["Delta"].apply(lambda s: s.abs().max())
              .sort_values(ascending=True).index.tolist())
-
-    fig, axes = plt.subplots(1, len(pairs), figsize=(3.6 * len(pairs) + 1.2, 4.2),
-                             squeeze=False, sharex=True, sharey=True)
+    panels = []
     for idx, (a, b) in enumerate(pairs):
-        ax = axes[0][idx]
         sub = table[(table["GroupA"] == a) & (table["GroupB"] == b)]
         sub = sub.set_index("Metric").reindex(order).dropna(subset=["GapAll"])
-        for row_idx, (metric, row) in enumerate(sub.iterrows()):
-            colour = FLAGGED if bool(row["Flagged"]) else MUTED
-            ax.plot([row["GapAll"], row["GapRestricted"]], [row_idx, row_idx],
-                    color=colour, linewidth=2, alpha=0.85, zorder=1)
-            ax.scatter(row["GapAll"], row_idx, s=34, facecolors="white",
-                       edgecolors=colour, linewidths=1.4, zorder=2)
-            ax.scatter(row["GapRestricted"], row_idx, s=34, color=colour,
-                       linewidths=0, zorder=3)
-        ax.axvline(0, color=INK, linewidth=0.9, linestyle=":")
-        ax.set_yticks(range(len(sub)))
-        ax.set_yticklabels(
-            [_SWEEP_LABELS.get(m, m) for m in sub.index], fontsize=8)
-        ax.set_xlabel("Standardised group difference", fontsize=8.5)
-        ax.set_title(f"{a} vs {b}", fontsize=9.5)
-        ax.tick_params(labelsize=8)
-        _bare(ax)
+        rows = np.arange(len(sub), dtype=float)
+        colours = [rgba(FLAGGED) if bool(r["Flagged"]) else MUTED_RGBA
+                   for _, r in sub.iterrows()]
+        names = [_SWEEP_LABELS.get(m, m) for m in sub.index]
+        every, cut = sub["GapAll"].to_numpy(float), sub["GapRestricted"].to_numpy(float)
+        hover = [f"{n}: {g:+.2f} over every recording, {r:+.2f} after the cut"
+                 + (" (flagged)" if bool(f) else "")
+                 for n, g, r, f in zip(names, every, cut, sub["Flagged"])]
+        panels.append(Panel(
+            cell=(0, idx),
+            marks=[Segments(np.column_stack([every, rows, cut, rows]),
+                            colour=[rgba(c, 0.85) for c in colours], width=2),
+                   Points(every, rows, fill=rgba("white"), edge=colours, edge_width=1.4,
+                          size=float(np.sqrt(34)), hover=hover),
+                   Points(cut, rows, fill=colours, size=float(np.sqrt(34)), hover=hover),
+                   Rule(0, axis="x", colour=INK_RGBA, width=0.9, dash=":")],
+            yticks=[(r, n) for r, n in zip(rows, names)], tick_size=8, ylabels=idx == 0,
+            xlabel="Standardised group difference", label_size=8.5,
+            title=f"{a} vs {b}", title_size=9.5, sharex="gap", sharey="metric",
+            zoom=(True, False)))
 
     threshold = getattr(check, "threshold", None)
     cohort = ""
     if getattr(check, "n_restricted", 0) and getattr(check, "n_all", 0):
         cohort = f" ({check.n_restricted} of {check.n_all} recordings)"
-    fig.suptitle("Do the group differences survive a stricter size cut?",
-                 fontsize=11)
-    fig.tight_layout(rect=(0, 0.18, 1, 1))
-    fig.text(0.01, 0.015,
-             "Open marker: every swept recording. Filled: only those with at "
-             f"least {threshold} nodes{cohort}.\n"
-             "Nothing is re-swept between the two, so the movement is the "
-             "cohort changing, not the measurement —\n"
-             "a long line in the warning colour means the difference is partly "
-             "about which recordings were big enough to keep.",
-             fontsize=7.5, color=MUTED, va="bottom", linespacing=1.5)
-    return _save(fig, out_path)
+    chart = Chart(panels, size=(3.6 * len(pairs) + 1.2, 4.2), grid=(1, len(pairs)),
+                  title="Do the group differences survive a stricter size cut?",
+                  note="Open marker: every swept recording. Filled: only those with at "
+                       f"least {threshold} nodes{cohort}. Nothing is re-swept between the "
+                       "two, so the movement is the cohort changing, not the measurement — "
+                       "a long line in the warning colour means the difference is partly "
+                       "about which recordings were big enough to keep.")
+    return save_chart(chart, out_path)
 
 
 #: One colour per level of control, darkening as more is controlled for, so the
@@ -1419,60 +1387,57 @@ def plot_control_effects(
              .apply(lambda s: s.abs().max())
              .sort_values(ascending=True).index.tolist())
 
-    fig, axes = plt.subplots(1, len(terms), figsize=(3.5 * len(terms) + 1.3, 4.4),
-                             squeeze=False, sharey=True)
+    panels = []
     for idx, term in enumerate(terms):
-        ax = axes[0][idx]
         sub = shown[shown["Term"] == term]
+        marks = []
         for row_idx, metric in enumerate(order):
             points = (sub[sub["Metric"] == metric]
                       .set_index("Control").reindex(present).dropna(subset=["EffectSize"]))
             if points.empty:
                 continue
+            values = points["EffectSize"].to_numpy(float)
             if len(points) > 1:
-                ax.plot(points["EffectSize"], [row_idx] * len(points),
-                        color=MUTED, linewidth=1.2, alpha=0.7, zorder=1)
+                marks.append(Line(values, [row_idx] * len(points), rgba(MUTED, 0.7),
+                                  width=1.2, z=1))
             for control, point in points.iterrows():
-                colour = _CONTROL_COLOURS.get(control, INK)
-                significant = (pd.notna(point.get("PValueFDR"))
-                               and float(point["PValueFDR"]) < alpha)
-                ax.scatter(point["EffectSize"], row_idx, s=42, zorder=3,
-                           color=colour if significant else "white",
-                           edgecolors=colour, linewidths=1.5)
-        ax.axvline(0, color=INK, linewidth=0.9, linestyle=":")
-        ax.set_yticks(range(len(order)))
-        ax.set_yticklabels([_SWEEP_LABELS.get(m, m) for m in order], fontsize=8)
-        ax.set_title("Age" if str(term) == "age" else str(term), fontsize=9.5)
-        ax.set_xlabel("Effect size", fontsize=8.5)
-        ax.tick_params(labelsize=8)
-        _bare(ax)
+                colour = rgba(_CONTROL_COLOURS.get(control, INK))
+                q = point.get("PValueFDR")
+                significant = pd.notna(q) and float(q) < alpha
+                label = _CONTROL_LABELS.get(control, control)
+                marks.append(Points(
+                    [point["EffectSize"]], [row_idx], fill=colour if significant else
+                    rgba("white"), edge=colour, edge_width=1.5, size=float(np.sqrt(42)),
+                    key=label, hover=[f"{_SWEEP_LABELS.get(metric, metric)}, {label}: "
+                                      f"{float(point['EffectSize']):+.2f}"
+                                      + (f", FDR q = {float(q):.3g}" if pd.notna(q) else "")]))
+        marks.append(Rule(0, axis="x", colour=INK_RGBA, width=0.9, dash=":"))
+        panels.append(Panel(
+            cell=(0, idx), marks=marks,
+            yticks=[(k, _SWEEP_LABELS.get(m, m)) for k, m in enumerate(order)], tick_size=8,
+            ylabels=idx == 0, title="Age" if str(term) == "age" else str(term),
+            title_size=9.5, xlabel="Effect size", label_size=8.5, sharey="metric",
+            zoom=(True, False)))
 
-    handles = [plt.Line2D([], [], marker="o", linestyle="none",
-                          markerfacecolor=_CONTROL_COLOURS.get(c, INK),
-                          markeredgecolor=_CONTROL_COLOURS.get(c, INK),
-                          markersize=7, label=_CONTROL_LABELS.get(c, c))
-               for c in present]
-    fig.legend(handles=handles, loc="lower center", ncol=len(handles),
-               frameon=False, fontsize=8.5, bbox_to_anchor=(0.5, 0.145))
-    fig.suptitle("Age and genotype effects, before and after the controls",
-                 fontsize=11)
-    # Room for three footnote lines under the legend, which sits under the axes.
-    fig.tight_layout(rect=(0, 0.23, 1, 1))
-
+    legend = Legend([LegendItem(_CONTROL_LABELS.get(c, c),
+                                rgba(_CONTROL_COLOURS.get(c, INK)), kind="point", size=7,
+                                key=_CONTROL_LABELS.get(c, c)) for c in present],
+                    loc="bottom", columns=len(present), size=8.5)
     isolated = "density" in present and "density+size" in present
     note = ("Matched density to matched density + size is the node-subsampling "
             "step on its own." if isolated else
             "Only one controlled condition was run, so the density and size "
             "controls cannot be told apart here.")
-    fig.text(0.01, 0.015,
-             "Filled markers survive FDR correction; open ones do not. An "
-             "effect that collapses toward zero under control was a statement\n"
-             "about how dense or how large the networks were, not about their "
-             f"organisation.\n{note} Every condition is measured on the "
-             "recordings all of them have, so a step is the control changing "
-             "and not the cohort.",
-             fontsize=7.5, color=MUTED, va="bottom", linespacing=1.5)
-    return _save(fig, out_path)
+    chart = Chart(panels, size=(3.5 * len(terms) + 1.3, 4.4), grid=(1, len(terms)),
+                  title="Age and genotype effects, before and after the controls",
+                  legend=legend,
+                  note="Filled markers survive FDR correction; open ones do not. An "
+                       "effect that collapses toward zero under control was a statement "
+                       "about how dense or how large the networks were, not about their "
+                       f"organisation. {note} Every condition is measured on the "
+                       "recordings all of them have, so a step is the control changing "
+                       "and not the cohort.")
+    return save_chart(chart, out_path)
 
 
 def plot_genotype_effect_by_age(
@@ -1505,52 +1470,49 @@ def plot_genotype_effect_by_age(
     if not contrasts or not metrics or not present:
         return None
 
-    fig, axes = plt.subplots(
-        len(metrics), len(contrasts), squeeze=False, sharex=True, sharey=True,
-        figsize=(2.9 * len(contrasts) + 1.0, 1.75 * len(metrics) + 1.8))
+    panels = []
+    last = len(metrics) - 1
     for r, metric in enumerate(metrics):
         for c, contrast in enumerate(contrasts):
-            ax = axes[r][c]
             sub = per_age[(per_age["Metric"] == metric)
                           & (per_age["Contrast"].astype(str) == contrast)]
+            marks = []
             for control in present:
                 line = sub[sub["Control"] == control].sort_values("Age")
                 if line.empty:
                     continue
-                colour = _CONTROL_COLOURS.get(control, INK)
-                ax.plot(line["Age"], line["EffectSize"], color=colour,
-                        linewidth=1.8, zorder=2)
-                significant = (line["PValueFDR"].notna()
-                               & (line["PValueFDR"] < alpha))
-                ax.scatter(line["Age"], line["EffectSize"], s=30, zorder=3,
-                           color=[colour if ok else "white" for ok in significant],
-                           edgecolors=colour, linewidths=1.4)
-            ax.axhline(0, color=INK, linewidth=0.9, linestyle=":")
-            if r == 0:
-                ax.set_title(contrast, fontsize=9)
-            if c == 0:
-                ax.set_ylabel(_SWEEP_LABELS.get(metric, metric), fontsize=7.5)
-            if r == len(metrics) - 1:
-                ax.set_xlabel("Age (DIV)", fontsize=8.5)
-            ax.tick_params(labelsize=7.5)
-            _bare(ax)
-
-    handles = [plt.Line2D([], [], color=_CONTROL_COLOURS.get(c, INK), marker="o",
-                          markersize=6, linewidth=1.8,
-                          label=_CONTROL_LABELS.get(c, c)) for c in present]
-    fig.legend(handles=handles, loc="lower center", ncol=len(handles),
-               frameon=False, fontsize=8.5, bbox_to_anchor=(0.5, 0.045))
-    fig.suptitle("Genotype differences at each age, before and after the controls",
-                 fontsize=11)
-    fig.tight_layout(rect=(0, 0.085, 1, 0.985))
-    fig.text(0.01, 0.008,
-             "Hedges' g at each age; filled markers survive FDR correction. "
-             "Not the same statistic as the pooled figure, so read the shape "
-             "across ages rather than against that one.\nEvery condition is "
-             "measured on the recordings all of them have, so a step is the "
-             "control changing and not the cohort.",
-             fontsize=7.5, color=MUTED, va="bottom")
-    return _save(fig, out_path)
+                colour = rgba(_CONTROL_COLOURS.get(control, INK))
+                label = _CONTROL_LABELS.get(control, control)
+                ages = line["Age"].to_numpy(float)
+                g = line["EffectSize"].to_numpy(float)
+                q = line["PValueFDR"].to_numpy(float)
+                significant = np.isfinite(q) & (q < alpha)
+                marks += [
+                    Line(ages, g, colour, width=1.8, key=label, z=2),
+                    Points(ages, g, fill=[colour if ok else rgba("white")
+                                          for ok in significant],
+                           edge=colour, edge_width=1.4, size=float(np.sqrt(30)), key=label,
+                           hover=[f"{contrast}, {label}, DIV {a:g}: g = {v:+.2f}"
+                                  + (f", FDR q = {p:.3g}" if np.isfinite(p) else "")
+                                  for a, v, p in zip(ages, g, q)])]
+            marks.append(Rule(0, colour=INK_RGBA, width=0.9, dash=":"))
+            panels.append(Panel(
+                cell=(r, c), marks=marks, title=contrast if r == 0 else "",
+                ylabel=_SWEEP_LABELS.get(metric, metric) if c == 0 else "", label_size=7.5,
+                xlabel="Age (DIV)" if r == last else "", tick_size=7.5,
+                xlabels=r == last, ylabels=c == 0, sharex="age", sharey="g"))
+    legend = Legend([LegendItem(_CONTROL_LABELS.get(c, c), rgba(_CONTROL_COLOURS.get(c, INK)),
+                                marker=True, key=_CONTROL_LABELS.get(c, c)) for c in present],
+                    loc="bottom", columns=len(present), size=8.5)
+    chart = Chart(panels, size=(2.9 * len(contrasts) + 1.0, 1.75 * len(metrics) + 1.8),
+                  grid=(len(metrics), len(contrasts)), legend=legend, gap=(10, 8),
+                  title="Genotype differences at each age, before and after the controls",
+                  note="Hedges' g at each age; filled markers survive FDR correction. "
+                       "Not the same statistic as the pooled figure, so read the shape "
+                       "across ages rather than against that one. Every condition is "
+                       "measured on the recordings all of them have, so a step is the "
+                       "control changing and not the cohort.")
+    return save_chart(chart, out_path)
 
 
 def plot_metric_values(
@@ -1586,76 +1548,48 @@ def plot_metric_values(
     # column is a different measurement — step 4 on the weighted network at its
     # own density — and forcing it onto the same axis flattens it to a line
     # (raw nMod is ~2 against ~10-35 controlled).
-    fig, axes = plt.subplots(
-        len(metrics), len(controls), squeeze=False, sharex=True,
-        figsize=(2.9 * len(controls) + 1.0, 1.75 * len(metrics) + 1.8))
+    controlled = [c for c, name in enumerate(controls) if name != "none"]
+    panels, items = [], {}
+    last = len(metrics) - 1
     for r, metric in enumerate(metrics):
         for c, control in enumerate(controls):
-            ax = axes[r][c]
-            sub = values[(values["Metric"] == metric)
-                         & (values["Control"] == control)]
-            if sub.empty:
-                ax.text(0.5, 0.5, "no step-4 equivalent", transform=ax.transAxes,
-                        ha="center", va="center", fontsize=7.5, color=MUTED)
-                # Only this panel's labels: the x axis is shared, so clearing
-                # its ticks would strip them from every column.
-                ax.tick_params(labelbottom=False)
-                ax.set_yticks([])
+            sub = values[(values["Metric"] == metric) & (values["Control"] == control)]
+            marks = []
             for group in groups:
                 line = sub[sub["Group"] == group].sort_values("Age")
                 if line.empty:
                     continue
-                colour = colours[str(group)]
-                ax.plot(line["Age"], line["Mean"], color=colour, linewidth=1.8,
-                        marker="o", markersize=4, label=str(group))
-                ax.fill_between(line["Age"], line["Mean"] - line["SEM"],
-                                line["Mean"] + line["SEM"], color=colour,
-                                alpha=0.18, linewidth=0)
-            if r == 0:
-                ax.set_title(_CONTROL_LABELS.get(control, control), fontsize=9)
-            if c == 0:
-                ax.set_ylabel(_SWEEP_LABELS.get(metric, metric), fontsize=7.5)
-            if r == len(metrics) - 1:
-                ax.set_xlabel("Age (DIV)", fontsize=8.5)
-            ax.tick_params(labelsize=7.5)
-            _bare(ax)
-
-    # Put the controlled columns of each row on one scale, after autoscaling.
-    controlled = [c for c, name in enumerate(controls) if name != "none"]
-    if len(controlled) > 1:
-        for r in range(len(metrics)):
-            limits = [axes[r][c].get_ylim() for c in controlled
-                      if axes[r][c].has_data()]
-            if len(limits) < 2:
-                continue
-            low, high = min(l for l, _ in limits), max(h for _, h in limits)
-            for c in controlled:
-                axes[r][c].set_ylim(low, high)
-            for c in controlled[1:]:
-                axes[r][c].tick_params(labelleft=False)
-
-    handles, labels_ = axes[0][0].get_legend_handles_labels()
-    if not handles:
-        for row in axes:
-            for ax in row:
-                handles, labels_ = ax.get_legend_handles_labels()
-                if handles:
-                    break
-            if handles:
-                break
-    if handles:
-        fig.legend(handles, labels_, loc="lower center", ncol=min(5, len(labels_)),
-                   frameon=False, fontsize=8.5, bbox_to_anchor=(0.5, 0.045))
-    fig.suptitle("The metrics themselves, under each level of control", fontsize=11)
-    fig.tight_layout(rect=(0, 0.085, 1, 0.985))
-    fig.text(0.01, 0.008,
-             "Mean ± SEM. The controlled columns of a row share a y axis, so "
-             "the subsampling step can be read directly; the uncontrolled "
-             "column is\na different measurement of the same quantity and is "
-             "scaled on its own. Every condition uses the recordings all of "
-             "them have.",
-             fontsize=7.5, color=MUTED, va="bottom")
-    return _save(fig, out_path)
+                name = str(group)
+                colour = colours[name]
+                ages = line["Age"].to_numpy(float)
+                mean, sem = line["Mean"].to_numpy(float), line["SEM"].to_numpy(float)
+                marks += [Band(ages, mean - sem, mean + sem, rgba(colour, 0.18), key=name),
+                          Line(ages, mean, rgba(colour), width=1.8, marker="o", marker_size=4,
+                               key=name, hover=[f"{name}, DIV {a:g}: {m:.4g} ± {s:.3g} (SEM)"
+                                                for a, m, s in zip(ages, mean, sem)])]
+                items.setdefault(name, LegendItem(name, rgba(colour), marker=True, key=name))
+            shared = c in controlled and len(controlled) > 1
+            panels.append(Panel(
+                cell=(r, c), marks=marks,
+                title=_CONTROL_LABELS.get(control, control) if r == 0 else "",
+                ylabel=_SWEEP_LABELS.get(metric, metric) if c == 0 else "", label_size=7.5,
+                xlabel="Age (DIV)" if r == last else "", tick_size=7.5,
+                xlabels=r == last and not sub.empty,
+                ylabels=not sub.empty and not (shared and c != controlled[0]),
+                yticks=[] if sub.empty else None,
+                empty="no step-4 equivalent" if sub.empty else "",
+                sharex="age", sharey=f"row {r}" if shared else None))
+    legend = (Legend(list(items.values()), loc="bottom", columns=min(5, len(items)), size=8.5)
+              if items else None)
+    chart = Chart(panels, size=(2.9 * len(controls) + 1.0, 1.75 * len(metrics) + 1.8),
+                  grid=(len(metrics), len(controls)), legend=legend, gap=(10, 8),
+                  title="The metrics themselves, under each level of control",
+                  note="Mean ± SEM. The controlled columns of a row share a y axis, so "
+                       "the subsampling step can be read directly; the uncontrolled "
+                       "column is a different measurement of the same quantity and is "
+                       "scaled on its own. Every condition uses the recordings all of "
+                       "them have.")
+    return save_chart(chart, out_path)
 
 
 # ── measure of activity ──────────────────────────────────────────────────────
@@ -1696,33 +1630,31 @@ def plot_measure_agreement(result, out_path: Path) -> Path | None:
     wide = wide.reindex(wide.abs().min(axis=1).sort_values().index)
 
     n_rows, n_cols = wide.shape
-    fig, ax = plt.subplots(figsize=(max(4.0, 1.9 * n_cols + 2.4),
-                                    max(3.0, 0.28 * n_rows + 1.4)))
-    mesh = ax.imshow(wide.to_numpy(), cmap=DIVERGING, vmin=-1, vmax=1, aspect="auto")
-
-    norm = matplotlib.colors.Normalize(vmin=-1, vmax=1)
+    values = wide.to_numpy(float)
     cmap = matplotlib.colormaps[DIVERGING]
-    for i in range(n_rows):
-        for j in range(n_cols):
-            value = wide.iat[i, j]
-            if not np.isfinite(value):
-                continue
-            r, g, b, _ = cmap(norm(value))
-            ink = "white" if (0.299 * r + 0.587 * g + 0.114 * b) < 0.55 else INK
-            ax.text(j, i, f"{value:.2f}", ha="center", va="center",
-                    fontsize=7, color=ink)
 
-    ax.set_xticks(range(n_cols))
-    ax.set_xticklabels(wide.columns, rotation=20, ha="right", fontsize=8)
-    ax.set_yticks(range(n_rows))
-    ax.set_yticklabels(wide.index, fontsize=7)
-    ax.set_title("Do the measures rank recordings the same way?\n"
-                 "Spearman rho between measures, over matched recordings",
-                 fontsize=10)
-    bar = fig.colorbar(mesh, ax=ax, fraction=0.035, pad=0.02)
-    bar.set_label("Spearman rho", fontsize=8)
-    bar.ax.tick_params(labelsize=7)
-    return _save(fig, out_path)
+    def ink(value):
+        r, g, b, _ = cmap((value + 1) / 2)
+        return rgba("white") if (0.299 * r + 0.587 * g + 0.114 * b) < 0.55 else INK_RGBA
+
+    text = [[f"{values[i, j]:.2f}" if np.isfinite(values[i, j]) else ""
+             for j in range(n_cols)] for i in range(n_rows)]
+    inks = [[ink(values[i, j]) if np.isfinite(values[i, j]) else INK_RGBA
+             for j in range(n_cols)] for i in range(n_rows)]
+    hover = [[f"{wide.index[i]}, {wide.columns[j]}: rho = {values[i, j]:.3f}"
+              if np.isfinite(values[i, j]) else "" for j in range(n_cols)]
+             for i in range(n_rows)]
+    panel = Panel(
+        marks=[Cells(values, DIVERGING, -1, 1, text=text, text_colour=inks, text_size=7,
+                     hover=hover)],
+        xticks=[(j, str(c)) for j, c in enumerate(wide.columns)], xtick_rotation=20,
+        yticks=[(i, str(r)) for i, r in enumerate(wide.index)], tick_size=7, grid="",
+        y_down=True, title_size=10,
+        title="Do the measures rank recordings the same way?\n"
+              "Spearman rho between measures, over matched recordings")
+    chart = Chart([panel], size=(max(4.0, 1.9 * n_cols + 2.4), max(3.0, 0.28 * n_rows + 1.4)),
+                  colour_bar=ColourBar(DIVERGING, -1, 1, "Spearman rho", fraction=0.035))
+    return save_chart(chart, out_path)
 
 
 def plot_measure_differences(result, out_path: Path, *, alpha: float = 0.05,
@@ -1754,32 +1686,32 @@ def plot_measure_differences(result, out_path: Path, *, alpha: float = 0.05,
     positions = {name: i for i, name in enumerate(reversed(keep))}
 
     pairs = list(pd.unique(sub["Pair"]))
-    colours = dict(zip(pairs, plt.get_cmap("tab10").colors))
+    colours = dict(zip(pairs, matplotlib.colormaps["tab10"].colors))
     offsets = np.linspace(-0.22, 0.22, len(pairs)) if len(pairs) > 1 else [0.0]
 
-    fig, ax = plt.subplots(figsize=(6.4, max(3.0, 0.26 * len(keep) + 1.4)))
-    ax.axvline(0.0, color=MUTED, lw=1.0, zorder=0)
+    marks = [Rule(0.0, axis="x", colour=MUTED_RGBA, width=1.0, z=0)]
     pcol = "PValueFDR" if "PValueFDR" in sub.columns else "PValue"
     for pair, offset in zip(pairs, offsets):
         block = sub[sub["Pair"] == pair]
-        y = [positions[name] + offset for name in block["MetricLabel"]]
-        sig = pd.to_numeric(block[pcol], errors="coerce") < alpha
-        colour = colours[pair]
-        ax.scatter(block["HedgesG"][sig], np.asarray(y)[sig.to_numpy()],
-                   s=26, color=colour, label=pair, zorder=3)
-        ax.scatter(block["HedgesG"][~sig], np.asarray(y)[~sig.to_numpy()],
-                   s=26, facecolors="none", edgecolors=colour, zorder=3)
-
-    ax.set_yticks(list(positions.values()))
-    ax.set_yticklabels(list(positions.keys()), fontsize=7)
-    ax.set_xlabel("paired difference between measures (Hedges' g$_{av}$)", fontsize=9)
-    ax.set_title("How far do the values move when the measure changes?\n"
-                 f"filled = significant after FDR correction (p < {alpha})",
-                 fontsize=10)
-    if len(pairs) > 1:
-        ax.legend(fontsize=7, frameon=False, loc="best")
-    _bare(ax)
-    return _save(fig, out_path)
+        y = np.asarray([positions[name] + offset for name in block["MetricLabel"]], float)
+        p = pd.to_numeric(block[pcol], errors="coerce").to_numpy(float)
+        sig = p < alpha
+        colour = rgba(colours[pair])
+        g = block["HedgesG"].to_numpy(float)
+        marks.append(Points(
+            g, y, fill=[colour if ok else NONE_RGBA for ok in sig], edge=colour,
+            edge_width=1.0, size=float(np.sqrt(26)), key=pair,
+            hover=[f"{name}, {pair}: g = {v:+.2f}" + (f", q = {q:.3g}" if np.isfinite(q) else "")
+                   for name, v, q in zip(block["MetricLabel"], g, p)]))
+    panel = Panel(
+        marks=marks, yticks=[(v, str(k)) for k, v in positions.items()], tick_size=7,
+        xlabel="paired difference between measures (Hedges' g_av)", label_size=9,
+        title="How far do the values move when the measure changes?\n"
+              f"filled = significant after FDR correction (p < {alpha})", title_size=10,
+        zoom=(True, False),
+        legend=(Legend([LegendItem(p, rgba(colours[p]), kind="point", key=p) for p in pairs],
+                       loc="best", size=7) if len(pairs) > 1 else None))
+    return save_chart(Chart([panel], size=(6.4, max(3.0, 0.26 * len(keep) + 1.4))), out_path)
 
 
 #: Colour per concordance verdict. Green for the two agreements, warm for the
@@ -1813,44 +1745,40 @@ def plot_measure_concordance(result, out_path: Path) -> Path | None:
 
     pairs = sorted({(a, b) for a, b in zip(sub["MeasureA"], sub["MeasureB"])})
     n = len(pairs)
-    fig, axes = plt.subplots(1, n, figsize=(4.2 * n, 4.2), squeeze=False)
-    for ax, (a, b) in zip(axes[0], pairs):
+    panels, items = [], {}
+    for k, (a, b) in enumerate(pairs):
         block = sub[(sub["MeasureA"] == a) & (sub["MeasureB"] == b)]
         limit = float(np.nanmax(np.abs(
             np.concatenate([block["EffectA"], block["EffectB"]])))) or 1.0
         limit *= 1.15
-        ax.plot([-limit, limit], [-limit, limit], color=MUTED, lw=1.0, ls="--",
-                zorder=0)
-        ax.axhline(0, color=MUTED, lw=0.6, zorder=0)
-        ax.axvline(0, color=MUTED, lw=0.6, zorder=0)
+        marks = [Line([-limit, limit], [-limit, limit], MUTED_RGBA, width=1.0, dash="--", z=0),
+                 Rule(0, colour=MUTED_RGBA, width=0.6, z=0),
+                 Rule(0, axis="x", colour=MUTED_RGBA, width=0.6, z=0)]
         for verdict, part in block.groupby("Verdict"):
-            colour = _VERDICT_COLORS.get(str(verdict), _VERDICT_DEFAULT)
-            ax.scatter(part["EffectA"], part["EffectB"], s=30, color=colour,
-                       edgecolors="white", linewidths=0.4, label=str(verdict),
-                       zorder=3)
+            colour = rgba(_VERDICT_COLORS.get(str(verdict), _VERDICT_DEFAULT))
+            names = [str(m) for m in part["Metric"]]
+            ea, eb = part["EffectA"].to_numpy(float), part["EffectB"].to_numpy(float)
+            marks.append(Points(ea, eb, fill=colour, edge=rgba("white"), edge_width=0.4,
+                                size=float(np.sqrt(30)), key=str(verdict),
+                                hover=[f"{m}: {x:+.2f} under {a}, {y:+.2f} under {b}\n"
+                                       f"{verdict}" for m, x, y in zip(names, ea, eb)]))
+            items.setdefault(str(verdict), LegendItem(str(verdict), colour, kind="point",
+                                                      key=str(verdict)))
         # Name only the points that disagree: labelling all fifty would bury
         # the four that matter.
         off = block[block["Verdict"].str.startswith("disagree")]
         for row in off.itertuples():
-            ax.annotate(str(row.Metric), (row.EffectA, row.EffectB),
-                        textcoords="offset points", xytext=(4, 3), fontsize=6,
-                        color=INK)
-        ax.set_xlim(-limit, limit)
-        ax.set_ylim(-limit, limit)
-        ax.set_xlabel(f"effect under {a}", fontsize=9)
-        ax.set_ylabel(f"effect under {b}", fontsize=9)
-        ax.set_aspect("equal", adjustable="box")
-        _bare(ax)
-
-    handles, labels = axes[0][-1].get_legend_handles_labels()
-    if handles:
-        fig.legend(handles, labels, fontsize=7, frameon=False,
-                   loc="lower center", ncol=min(4, len(labels)),
-                   bbox_to_anchor=(0.5, -0.06))
-    fig.suptitle("Would the conclusion have been the same?\n"
-                 "group and age effects, measured each way", fontsize=10)
-    fig.tight_layout()
-    return _save(fig, out_path)
+            marks.append(Text(row.EffectA, row.EffectB, str(row.Metric), INK_RGBA, size=6,
+                              ha="left", va="bottom", offset=(4, 3)))
+        panels.append(Panel(cell=(0, k), marks=marks, xlim=(-limit, limit),
+                            ylim=(-limit, limit), xlabel=f"effect under {a}",
+                            ylabel=f"effect under {b}", label_size=9, equal=True))
+    legend = (Legend(list(items.values()), loc="bottom", columns=min(4, len(items)), size=7)
+              if items else None)
+    chart = Chart(panels, size=(4.2 * n, 4.2), grid=(1, n), legend=legend, title_size=10,
+                  title="Would the conclusion have been the same?\n"
+                        "group and age effects, measured each way")
+    return save_chart(chart, out_path)
 
 
 def plot_measure_decoding(result, out_path: Path, *, scheme=None) -> Path | None:
@@ -1869,36 +1797,39 @@ def plot_measure_decoding(result, out_path: Path, *, scheme=None) -> Path | None
         return None
     scheme = scheme or DEFAULT_SCHEME
 
-    colours = scheme.groups(len(sub))
-    fig, ax = plt.subplots(figsize=(5.6, max(2.4, 0.5 * len(sub) + 1.4)))
-    y = np.arange(len(sub))
-    errs = pd.to_numeric(sub["SD"], errors="coerce").fillna(0.0).to_numpy()
-    ax.barh(y, sub["BalancedAccuracy"], xerr=errs, color=colours, height=0.6,
-            error_kw={"ecolor": MUTED, "elinewidth": 1.0, "capsize": 3})
+    colours = [rgba(c) for c in scheme.groups(len(sub))]
+    y = np.arange(len(sub), dtype=float)
+    errs = pd.to_numeric(sub["SD"], errors="coerce").fillna(0.0).to_numpy(float)
+    acc = sub["BalancedAccuracy"].to_numpy(float)
+    names = [str(t) for t in sub["ActivityType"]]
+    marks = [Bars(y, acc, width=0.6, colour=colours, horizontal=True, key=names,
+                  hover=[f"{t}: {v:.3f} ± {e:.3f} ({m})"
+                         for t, v, e, m in zip(names, acc, errs, sub["Model"])]),
+             # Over the bars, as matplotlib draws them: half of each interval
+             # lies inside its bar.
+             ErrorBars(acc, y, xerr=errs, colour=MUTED_RGBA, width=1.0, cap=6, z=3)]
+    legend = None
     chance = pd.to_numeric(sub["Chance"], errors="coerce").dropna()
     if len(chance):
-        ax.axvline(float(chance.iloc[0]), color=INK, ls="--", lw=1.0,
-                   label="chance")
-        ax.legend(fontsize=7, frameon=False, loc="lower right")
-
+        marks.append(Rule(float(chance.iloc[0]), axis="x", colour=INK_RGBA, width=1.0,
+                          dash="--", z=3))
+        legend = Legend([LegendItem("chance", INK_RGBA, dash="--")], loc="lower right",
+                        size=7)
     for i, row in enumerate(sub.itertuples()):
         mark = _stars(getattr(row, "PValue", np.nan))
         # Past the error bar, not past the bar: a wide interval would otherwise
         # run straight through the model's name.
-        ax.text(float(row.BalancedAccuracy) + float(errs[i]) + 0.015, i,
-                f"{row.Model}{(' ' + mark) if mark else ''}", va="center",
-                fontsize=7, color=INK)
-
-    ax.set_yticks(y)
-    ax.set_yticklabels(sub["ActivityType"], fontsize=8)
-    ax.set_xlabel("balanced accuracy (best model)", fontsize=9)
-    # Room past 1.0 for the winning model's name, which sits at the bar's end.
-    # Without it a measure that decodes perfectly has its label clipped, which
-    # is exactly the row a reader looks at first.
-    ax.set_xlim(0, 1.22)
-    ax.set_xticks([0.0, 0.2, 0.4, 0.6, 0.8, 1.0])
+        marks.append(Text(float(row.BalancedAccuracy) + float(errs[i]) + 0.015, i,
+                          f"{row.Model}{(' ' + mark) if mark else ''}", INK_RGBA, size=7,
+                          ha="left"))
     target = _target_label(str(sub["Target"].iloc[0])) if "Target" in sub else "target"
-    ax.set_title(f"Which measure carries the most information about {target}?",
-                 fontsize=10)
-    _bare(ax)
-    return _save(fig, out_path)
+    panel = Panel(
+        marks=marks, yticks=[(v, t) for v, t in zip(y, names)], tick_size=8,
+        xlabel="balanced accuracy (best model)", label_size=9,
+        # Room past 1.0 for the winning model's name, which sits at the bar's
+        # end. Without it a measure that decodes perfectly has its label
+        # clipped, which is exactly the row a reader looks at first.
+        xlim=(0, 1.22), xticks=[(v, f"{v:.1f}") for v in (0.0, 0.2, 0.4, 0.6, 0.8, 1.0)],
+        title=f"Which measure carries the most information about {target}?", title_size=10,
+        zoom=(True, False), legend=legend)
+    return save_chart(Chart([panel], size=(5.6, max(2.4, 0.5 * len(sub) + 1.4))), out_path)

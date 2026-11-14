@@ -27,11 +27,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-import matplotlib.pyplot as plt
 import numpy as np
 
 from meanap.pipeline.atomic import atomic_savez
-from meanap.pipeline.figure_output import savefig
 from meanap.pipeline.probes import layout_coords_for_channels, layout_grid_step
 
 SORTING_CHECKS_SUFFIX = "_sortingchecks.npz"
@@ -192,7 +190,6 @@ def draw_sorting_check_figures(
     """Draw the three sorting check figures, returning the paths written.
     ``fmt`` / ``only`` are the bundle viewer's hooks, as for the detection
     checks."""
-    plt.switch_backend("Agg")
     out_dir = Path(out_dir)
     written: list[Path] = []
 
@@ -223,36 +220,50 @@ def _grid_axes(data: SortingCheckData):
 
 
 def _draw_units_per_electrode(data: SortingCheckData, path: Path) -> None:
+    from matplotlib import colormaps
+
+    from meanap.native.chart import Chart, ColourBar, Panel, Polygon, Text, rgba
+    from meanap.native.chart_paint import save_chart
+
     xs, ys, step, ok = _grid_axes(data)
     ids = data.electrode_ids[ok]
     counts = np.array([(data.kept_channel_ids == e).sum() for e in ids])
-
-    fig, ax = plt.subplots(figsize=(6.2, 5.6))
     vmax = max(1, int(counts.max()) if len(counts) else 1)
-    sc = ax.scatter(xs, ys, c=counts, s=520, marker="s", cmap="Blues",
-                    vmin=0, vmax=vmax, edgecolors="0.6", linewidths=0.6)
+    blues = colormaps["Blues"]
+    half = 0.27 * step
+    marks = []
     for x, y, e, c in zip(xs, ys, ids, counts):
-        ax.text(x, y + 0.02 * step, str(int(c)), ha="center", va="center",
-                fontsize=9, color="white" if c > vmax / 2 else "0.2",
-                fontweight="bold")
-        ax.text(x, y - 0.32 * step, str(int(e)), ha="center", va="top",
-                fontsize=5.5, color="0.45")
-    cbar = fig.colorbar(sc, ax=ax, fraction=0.046, pad=0.04)
-    cbar.set_label("units kept on electrode")
+        units = [str(u) for u, ch in zip(data.kept_ids, data.kept_channel_ids) if ch == e]
+        marks.append(Polygon([x - half, x + half, x + half, x - half],
+                             [y - half, y - half, y + half, y + half],
+                             fill=rgba(blues(c / vmax)), edge=rgba("0.6"), edge_width=0.6,
+                             hover=f"electrode {int(e)}: {int(c)} unit(s) kept"
+                                   + (f"\n{', '.join(units)}" if units else "")))
+        marks.append(Text(x, y + 0.02 * step, str(int(c)), size=9, bold=True,
+                          colour=rgba("white" if c > vmax / 2 else "0.2")))
+        marks.append(Text(x, y - 0.32 * step, str(int(e)), size=5.5, va="top",
+                          colour=rgba("0.45")))
     n_units = len(data.kept_ids)
     n_e = len(np.unique(data.kept_channel_ids)) if n_units else 0
-    ax.set_title(f"{data.rec_name}\n{n_units} unit(s) on {n_e} of {len(ids)} electrodes "
-                 f"({data.sorter_name} {data.sorter_version})", fontsize=10)
-    ax.set_aspect("equal", "box")
-    ax.axis("off")
-    ax.set_xlim(xs.min() - 0.6 * step, xs.max() + 0.6 * step)
-    ax.set_ylim(ys.min() - 0.6 * step, ys.max() + 0.6 * step)
-    plt.tight_layout()
-    savefig(fig, path, default_dpi=200)
-    plt.close(fig)
+    panel = Panel(
+        marks=marks, bare=True, equal=True,
+        xlim=(xs.min() - 0.6 * step, xs.max() + 0.6 * step),
+        ylim=(ys.min() - 0.6 * step, ys.max() + 0.6 * step),
+        title=f"{data.rec_name}\n{n_units} unit(s) on {n_e} of {len(ids)} electrodes "
+              f"({data.sorter_name} {data.sorter_version})", title_size=10,
+        colour_bar=ColourBar("Blues", 0, vmax, label="units kept on electrode",
+                             ticks=[(v, str(v)) for v in range(vmax + 1)]
+                             if vmax <= 10 else None,
+                             fraction=0.046, tick_size=8))
+    save_chart(Chart([panel], size=(6.2, 5.6)), path)
 
 
 def _draw_templates(data: SortingCheckData, path: Path) -> None:
+    from matplotlib import colormaps
+
+    from meanap.native.chart import Chart, Line, Panel, Rule, Text, rgba
+    from meanap.native.chart_paint import save_chart
+
     xs, ys, step, ok = _grid_axes(data)
     ids = data.electrode_ids[ok]
     cols = np.round((xs - xs.min()) / step).astype(int)
@@ -261,69 +272,75 @@ def _draw_templates(data: SortingCheckData, path: Path) -> None:
 
     amp = np.nanmax(np.abs(data.templates)) if data.templates.size else 1.0
     t = data.template_times_ms
-    fig, axes = plt.subplots(n_rows, n_cols, figsize=(1.55 * n_cols, 1.25 * n_rows),
-                             squeeze=False)
-    for ax in axes.ravel():
-        ax.axis("off")
-    palette = plt.cm.tab10.colors
+    palette = colormaps["tab10"].colors
+    panels = []
     for r, c, e in zip(rows, cols, ids):
-        ax = axes[r, c]
-        ax.axis("on")
-        ax.set_xticks([])
-        ax.set_yticks([])
-        for spine in ax.spines.values():
-            spine.set_color("0.8")
-        ax.set_ylim(-amp * 1.05, amp * 0.6)
-        ax.set_xlim(t[0], t[-1])
-        ax.axhline(0, color="0.9", lw=0.5)
         here = np.flatnonzero(data.kept_channel_ids == e)
+        marks = [Rule(0, colour=rgba("0.9"), width=0.5)]
         for k, i in enumerate(here):
-            ls = "-" if data.kept_labels[i] == "good" else "--"
-            ax.plot(t, data.templates[i], color=palette[k % 10], lw=1.0, ls=ls)
-        title = f"{int(e)}" + (f"  ×{len(here)}" if len(here) > 1 else "")
-        ax.text(0.03, 0.95, title, transform=ax.transAxes, fontsize=6.5,
-                va="top", color="0.35")
-    fig.suptitle(f"{data.rec_name} — unit templates on each electrode "
-                 f"(solid: good, dashed: multi-unit; ±{amp:.0f} µV)", fontsize=10)
-    plt.tight_layout(rect=(0, 0, 1, 0.97))
-    savefig(fig, path, default_dpi=170)
-    plt.close(fig)
+            good = data.kept_labels[i] == "good"
+            unit = str(data.kept_ids[i])
+            marks.append(Line(t, data.templates[i], colour=rgba(palette[k % 10]), width=1.0,
+                              dash="-" if good else "--", key=unit,
+                              hover=[f"{unit} ({data.kept_labels[i]}), electrode {int(e)}\n"
+                                     f"{v:+.1f} µV at {tt:.2f} ms"
+                                     for tt, v in zip(t, data.templates[i])]))
+        marks.append(Text(0.03, 0.95, f"{int(e)}" + (f"  ×{len(here)}" if len(here) > 1 else ""),
+                          size=6.5, ha="left", va="top", coords="axes", colour=rgba("0.35")))
+        panels.append(Panel(cell=(int(r), int(c)), marks=marks, xticks=[], yticks=[],
+                            grid="", frame=rgba("0.8"),
+                            xlim=(t[0], t[-1]), ylim=(-amp * 1.05, amp * 0.6),
+                            sharex="time", sharey="voltage"))
+    chart = Chart(panels, size=(1.55 * n_cols, 1.25 * n_rows), grid=(int(n_rows), int(n_cols)),
+                  title=f"{data.rec_name} — unit templates on each electrode "
+                        f"(solid: good, dashed: multi-unit; ±{amp:.0f} µV)", title_size=10,
+                  gap=(4, 4))
+    save_chart(chart, path)
 
 
 def _draw_quality(data: SortingCheckData, path: Path) -> None:
+    from meanap.native.chart import (Chart, Legend, LegendItem, Panel, Points, Rule, rgba)
+    from meanap.native.chart_paint import save_chart
+
     tbl = data.unit_table
     snr = np.array([r["snr"] for r in tbl], dtype=float)
     rp = np.array([r["rp_violation_frac"] for r in tbl], dtype=float)
     fr = np.array([r["firing_rate"] for r in tbl], dtype=float)
     labels = np.array([r["label"] for r in tbl])
+    names = [f"{r.get('unit_id') or 'sorter unit ' + str(r['sorter_unit_id'])} "
+             f"({r['label']}{'' if int(r.get('kept', 0)) else ', dropped'}), "
+             f"electrode {r['channel_id']}" for r in tbl]
+    grey = rgba("0.5")
 
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 4.6))
-    for lab, color in _LABEL_COLORS.items():
+    left, right, items = [], [], []
+    for x_pos, (lab, colour) in enumerate(_LABEL_COLORS.items()):
         m = labels == lab
         if not m.any():
             continue
-        ax1.scatter(rp[m] * 100, snr[m], s=28, color=color, alpha=0.85,
-                    edgecolors="white", linewidths=0.4, label=f"{lab} ({m.sum()})")
-        ax2.scatter(np.full(m.sum(), list(_LABEL_COLORS).index(lab))
-                    + np.random.default_rng(0).uniform(-0.18, 0.18, m.sum()),
-                    fr[m], s=24, color=color, alpha=0.85, edgecolors="white",
-                    linewidths=0.4)
-    ax1.axhline(data.min_snr, color="0.5", lw=0.8, ls=":")
-    ax1.axvline(data.max_rp_violation_frac * 100, color="0.5", lw=0.8, ls=":")
-    ax1.set_xlabel("ISIs shorter than the refractory period (%)")
-    ax1.set_ylabel("SNR")
-    ax1.set_title("Where each unit fell against the curation floors", fontsize=10)
-    ax1.legend(frameon=False, fontsize=8)
-
-    ax2.set_xticks(range(3))
-    ax2.set_xticklabels(list(_LABEL_COLORS))
-    ax2.set_yscale("log")
-    ax2.axhline(data.min_firing_rate, color="0.5", lw=0.8, ls=":")
-    ax2.set_ylabel("firing rate (Hz)")
-    ax2.set_title("Firing rate by label", fontsize=10)
-    for ax in (ax1, ax2):
-        ax.spines[["top", "right"]].set_visible(False)
-    fig.suptitle(f"{data.rec_name} — {len(tbl)} unit(s) from {data.sorter_name}", fontsize=10)
-    plt.tight_layout()
-    savefig(fig, path, default_dpi=170)
-    plt.close(fig)
+        fill = rgba(colour, 0.85)
+        who = [names[i] for i in np.flatnonzero(m)]
+        stats = [f"{n}\nSNR {a:.2f}, {100 * b:.2f}% short ISIs, {c:.3g} Hz"
+                 for n, a, b, c in zip(who, snr[m], rp[m], fr[m])]
+        left.append(Points(rp[m] * 100, snr[m], fill=fill, edge=rgba("white"),
+                           edge_width=0.4, size=float(np.sqrt(28)), key=lab, hover=stats))
+        right.append(Points(np.full(m.sum(), x_pos)
+                            + np.random.default_rng(0).uniform(-0.18, 0.18, m.sum()),
+                            fr[m], fill=fill, edge=rgba("white"), edge_width=0.4,
+                            size=float(np.sqrt(24)), key=lab, hover=stats))
+        items.append(LegendItem(f"{lab} ({m.sum()})", rgba(colour), kind="point", key=lab))
+    left += [Rule(data.min_snr, colour=grey, width=0.8, dash=":"),
+             Rule(data.max_rp_violation_frac * 100, axis="x", colour=grey, width=0.8, dash=":")]
+    right.append(Rule(data.min_firing_rate, colour=grey, width=0.8, dash=":"))
+    text = dict(title_size=10, label_size=10, tick_size=9, grid="")
+    panels = [
+        Panel(cell=(0, 0), marks=left, xlabel="ISIs shorter than the refractory period (%)",
+              ylabel="SNR", title="Where each unit fell against the curation floors",
+              legend=Legend(items, loc="best", size=8), **text),
+        Panel(cell=(0, 1), marks=right, ylog=True, ylabel="firing rate (Hz)",
+              title="Firing rate by label", xlim=(-0.5, len(_LABEL_COLORS) - 0.5),
+              xticks=[(k, lab) for k, lab in enumerate(_LABEL_COLORS)], zoom=(False, True),
+              **text),
+    ]
+    chart = Chart(panels, size=(11, 4.6), grid=(1, 2), title_size=10,
+                  title=f"{data.rec_name} — {len(tbl)} unit(s) from {data.sorter_name}")
+    save_chart(chart, path)

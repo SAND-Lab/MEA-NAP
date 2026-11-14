@@ -180,7 +180,7 @@ def page_section(runs: dict[str, Path], shots: Path | None) -> None:
     check("View results hides the questions", not sv.analyse_page.isVisible()
           and page.isVisible())
     check("MEA-NAP offers the results, network and spike viewers",
-          page.viewer_keys() == ["results", "network", "spikes"], str(page.viewer_keys()))
+          page.viewer_keys() == ["results", "results_native", "network", "spikes"], str(page.viewer_keys()))
     check("before a run is open, only the spike viewer can open",
           not page.viewer_enabled("results") and not page.viewer_enabled("network")
           and page.viewer_enabled("spikes"))
@@ -204,7 +204,7 @@ def page_section(runs: dict[str, Path], shots: Path | None) -> None:
 
     w._apply_mode("meastim")
     check("MEA-Stim adds the ΔFR viewer and stimulation preview",
-          page.viewer_keys() == ["results", "fr_diff", "network", "stim_preview", "spikes"],
+          page.viewer_keys() == ["results", "results_native", "fr_diff", "network", "stim_preview", "spikes"],
           str(page.viewer_keys()))
     check("stimulation preview needs no run", page.viewer_enabled("stim_preview"))
     w._data_panel.raw_data.line_edit.setText(str(runs["plain"]))
@@ -223,7 +223,7 @@ def page_section(runs: dict[str, Path], shots: Path | None) -> None:
 
     w._apply_mode("catnap")
     check("CAT-NAP offers results, networks and cell tracking",
-          page.viewer_keys() == ["results", "network", "tracking"], str(page.viewer_keys()))
+          page.viewer_keys() == ["results", "results_native", "network", "tracking"], str(page.viewer_keys()))
     check("cell tracking disabled for a run without it", not page.viewer_enabled("tracking"))
     page.set_source(runs["tracked"])
     check("enabled for a run with it", page.viewer_enabled("tracking"))

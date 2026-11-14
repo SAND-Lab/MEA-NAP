@@ -733,13 +733,8 @@ def draw_stats_figure(
     ``None`` rather than an exception for an empty figure: a metric that is
     all-missing, or an analysis that found nothing to plot, is an ordinary
     outcome and the caller's other figures should still be drawn.
-
-    Every step-5 figure is drawn in :func:`meanap.stats.style.stats_style`.
     """
-    from meanap.stats.style import stats_style
-
-    with stats_style():
-        return _draw_stats_figure(results, key, out_path, scheme=scheme)
+    return _draw_stats_figure(results, key, out_path, scheme=scheme)
 
 
 def _draw_stats_figure(

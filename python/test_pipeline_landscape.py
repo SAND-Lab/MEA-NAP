@@ -59,6 +59,58 @@ def test_optimal_1d_split() -> None:
     check("too few points → None", nm._optimal_1d_split_boundaries(np.array([1.0]), 2) is None)
 
 
+def _exhaustive_split(x: np.ndarray, k: int) -> np.ndarray | None:
+    """The optimal 1-D k-means boundaries by trying every way to cut the sorted
+    values into k runs, for k <= 4 — slow, and plainly right."""
+    from itertools import combinations
+
+    xs = np.sort(x[np.isfinite(x)])
+    n = len(xs)
+    if n < k or len(np.unique(xs)) < k:
+        return None
+    best, cuts = None, None
+    for c in combinations(range(1, n), k - 1):   # each c is the first index of a run
+        edges = (0, *c, n)
+        cost = sum(float(np.sum((xs[a:b] - xs[a:b].mean()) ** 2))
+                   for a, b in zip(edges, edges[1:]))
+        if best is None or cost < best - 1e-9:
+            best, cuts = cost, c
+    return np.array([(xs[i - 1] + xs[i]) / 2 for i in cuts])
+
+
+def test_split_matches_exhaustive() -> None:
+    print("[1b] _optimal_1d_split_boundaries — the fast search finds the true optimum")
+    rng = np.random.default_rng(3)
+    wrong = []
+    for trial in range(250):
+        n, k = int(rng.integers(3, 26)), int(rng.integers(2, 5))
+        # Coarse values make ties: equal-cost cuts must still land on the optimum.
+        x = (rng.integers(0, int(rng.integers(2, 9)), n).astype(float) if trial % 2
+             else np.round(rng.normal(size=n) * rng.choice([1, 5]), 1))
+        fast, slow = nm._optimal_1d_split_boundaries(x, k), _exhaustive_split(x, k)
+        if (fast is None) != (slow is None):
+            wrong.append((trial, fast, slow))
+            continue
+        if fast is None:
+            continue
+        # Equal-cost cuts can sit at different places, so compare the cost.
+        def cost(bounds):
+            labels = np.searchsorted(bounds, x)
+            return sum(float(np.sum((x[labels == g] - x[labels == g].mean()) ** 2))
+                       for g in np.unique(labels))
+        if abs(cost(fast) - cost(slow)) > 1e-9:
+            wrong.append((trial, fast, slow))
+    check("250 random sets (with ties): same optimal cost as exhaustive search",
+          not wrong, f"{wrong[:2]}")
+    # Large pools: the old quadratic search took ~10 min on 38k nodes.
+    import time
+    big = rng.normal(size=40_000)
+    started = time.perf_counter()
+    nm._optimal_1d_split_boundaries(big, 3)
+    took = time.perf_counter() - started
+    check("40k values split in well under a minute", took < 20, f"{took:.2f} s")
+
+
 def test_trial_landscape_density() -> None:
     print("\n[2] trial_landscape_density — fixture PC/Z, boundary ordering")
     defaults = (2.5, 0.625, 0.3, 0.8, 0.75)  # hub, peri, prohub, nonhub, connhub
@@ -106,6 +158,7 @@ def test_fixes_role1_pileup() -> None:
 
 if __name__ == "__main__":
     test_optimal_1d_split()
+    test_split_matches_exhaustive()
     test_trial_landscape_density()
     test_fixes_role1_pileup()
     print("\n" + "=" * 70)

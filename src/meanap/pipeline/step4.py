@@ -320,6 +320,14 @@ def variant_stem(base: str, variant: str) -> str | None:
     return None
 
 
+def _graph_metric_names(channels_arr, metrics) -> list | None:
+    """The active channels' names, for reading a figure; ``None`` if unknown."""
+    try:
+        return np.asarray(channels_arr)[metrics["activeChannelIndex"]].tolist()
+    except Exception:
+        return None
+
+
 def _plot_recording_lag(
     rec: RecordingInfo,
     lag_ms,
@@ -410,10 +418,17 @@ def _plot_recording_lag(
         return path
 
     if (p := want(f"1_adjM{lag_ms}msConnectivityStats.png")) is not None:
+        # Names for an interactive view only; the figure is the same without.
+        try:
+            node_names = np.asarray(channels_arr)[metrics["activeChannelIndex"]].tolist()
+        except Exception:
+            node_names = None
         plot_connectivity_stats(
             metrics["adjMsub"], metrics["ND"], metrics["NS"], lag_ms,
             rec.filename, p,
             exclude_edges_below_threshold=params.exclude_edges_below_threshold,
+            node_names=node_names,
+            node_noun="electrode" if coords_all is None else "cell",
         )
 
     try:
@@ -504,6 +519,8 @@ def _plot_recording_lag(
                 metrics["PC"], metrics["Z"], params, lag_ms, rec.filename, p,
                 boundaries=metrics.get("cartographyBoundaries"),
                 nd_cart_div=metrics.get("NdCartDiv"),
+                names=_graph_metric_names(channels_arr, metrics),
+                noun="electrode" if coords_all is None else "cell",
             )
 
     if "NdCartDiv" in metrics:
@@ -512,6 +529,8 @@ def _plot_recording_lag(
                 metrics["adjMsub"], metrics["NdCartDiv"],
                 lag_ms, rec.filename, p,
                 edge_thresh=params.exclude_edges_below_threshold * 0.0001,
+                names=_graph_metric_names(channels_arr, metrics),
+                noun="electrode" if coords_all is None else "cell",
             )
 
     if "Ci" in metrics:
@@ -519,6 +538,8 @@ def _plot_recording_lag(
             plot_circular_module_network(
                 metrics["adjMsub"], metrics["Ci"], metrics["ND"],
                 lag_ms, rec.filename, p,
+                names=_graph_metric_names(channels_arr, metrics),
+                noun="electrode" if coords_all is None else "cell",
             )
 
     try:
@@ -534,6 +555,8 @@ def _plot_recording_lag(
                 lag_ms=lag_ms,
                 recording_name=rec.filename,
                 out_path=p,
+                names=_graph_metric_names(channels_arr, metrics),
+                noun="electrode" if coords_all is None else "cell",
                 # The half-violin jitter is the only randomness in the 4A set.
                 # Left unseeded it made this one figure differ between two
                 # otherwise-identical seeded runs — and between the pipeline's
@@ -879,6 +902,52 @@ def _step4_plot_one(
     return rec.filename, logs
 
 
+def cartography_landscapes(params: Params, all_results: dict[str, dict]) -> list[tuple]:
+    """The pooled PC/Z landscapes the cartography boundaries are placed on.
+
+    One ``(source_lag, target_lags, pc, z, bounds)`` per boundary set: with
+    ``auto_set_cartography_boundaries_per_lag`` each lag pools its own nodes;
+    otherwise one set, from ``cartography_lag_val[0]``, serves every lag.
+    ``bounds`` is what :func:`nm.trial_landscape_density` places, or ``None``
+    when there are too few values. Shared with the viewer, which redraws the
+    landscape from a run's stored metrics.
+    """
+    lag_keys = sorted(
+        {lag for rec in all_results.values() for lag in rec},
+        key=lambda k: int(k.replace("mslag", "")),
+    )
+    if not lag_keys:
+        return []
+
+    if params.auto_set_cartography_boundaries_per_lag:
+        # each lag: derive from its own pooled PC/Z, apply to itself
+        plans = [(lk, [lk]) for lk in lag_keys]
+    else:
+        ref = f"{params.cartography_lag_val[0]}mslag"
+        source = ref if ref in lag_keys else lag_keys[0]
+        plans = [(source, lag_keys)]  # one boundary set → all lags
+
+    out = []
+    for source_lag, target_lags in plans:
+        pc_pool, z_pool = [], []
+        for rec in all_results.values():
+            m = rec.get(source_lag)
+            if m and "PC" in m and "Z" in m:
+                pc_pool.append(np.asarray(m["PC"], dtype=float))
+                z_pool.append(np.asarray(m["Z"], dtype=float))
+        if not pc_pool:
+            continue
+        pc, z = np.concatenate(pc_pool), np.concatenate(z_pool)
+        bounds = nm.trial_landscape_density(
+            pc, z,
+            params.hub_boundary_wm_d_deg, params.peri_part_coef,
+            params.pro_hub_part_coef, params.non_hub_connector_part_coef,
+            params.connector_hub_part_coef,
+        )
+        out.append((source_lag, target_lags, pc, z, bounds))
+    return out
+
+
 def _apply_cartography_boundaries(
     params: Params,
     all_results: dict[str, dict],
@@ -899,37 +968,8 @@ def _apply_cartography_boundaries(
     boundaries from that lag's pooled PC/Z (MEApipeline default); otherwise a
     single set from ``cartography_lag_val[0]`` is applied to all lags.
     """
-    lag_keys = sorted(
-        {lag for rec in all_results.values() for lag in rec},
-        key=lambda k: int(k.replace("mslag", "")),
-    )
-    if not lag_keys:
-        return
-
-    if params.auto_set_cartography_boundaries_per_lag:
-        # each lag: derive from its own pooled PC/Z, apply to itself
-        plans = [(lk, [lk]) for lk in lag_keys]
-    else:
-        ref = f"{params.cartography_lag_val[0]}mslag"
-        source = ref if ref in lag_keys else lag_keys[0]
-        plans = [(source, lag_keys)]  # one boundary set → all lags
-
-    for source_lag, target_lags in plans:
-        pc_pool, z_pool = [], []
-        for rec in all_results.values():
-            m = rec.get(source_lag)
-            if m and "PC" in m and "Z" in m:
-                pc_pool.append(np.asarray(m["PC"], dtype=float))
-                z_pool.append(np.asarray(m["Z"], dtype=float))
-        if not pc_pool:
-            continue
-
-        bounds = nm.trial_landscape_density(
-            np.concatenate(pc_pool), np.concatenate(z_pool),
-            params.hub_boundary_wm_d_deg, params.peri_part_coef,
-            params.pro_hub_part_coef, params.non_hub_connector_part_coef,
-            params.connector_hub_part_coef,
-        )
+    for source_lag, target_lags, pc_all, z_all, bounds in cartography_landscapes(
+            params, all_results):
         if bounds is None:
             log("  Cartography: too few PC/Z values at "
                 f"{timescale_folder_display(source_lag, params)}; "
@@ -948,7 +988,7 @@ def _apply_cartography_boundaries(
             from meanap.pipeline.plotting_step4 import plot_density_landscape
             dl_dir = out_dir / "4B_GroupComparisons" / "7_DensityLandscape"
             plot_density_landscape(
-                np.concatenate(pc_pool), np.concatenate(z_pool), bounds,
+                pc_all, z_all, bounds,
                 dl_dir / "ZandPC_scatter_with_kmeans_boundaries_.png",
             )
 

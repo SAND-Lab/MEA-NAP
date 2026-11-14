@@ -419,8 +419,12 @@ def _vector_checks() -> list[Check]:
                            f"{svg.name}"))
             head = svg.read_text(errors="ignore")[:400]
             checks.append(("svg really is vector markup", "<svg" in head, head[:60]))
+            # Qt writes a network as circles, lines and real text; matplotlib
+            # wrote paths. Either is editable — an embedded picture is not.
+            markup = svg.read_text(errors="ignore")
             checks.append(("svg holds editable elements",
-                           "<path" in svg.read_text(errors="ignore"), ""))
+                           any(tag in markup for tag in ("<path", "<circle", "<polyline"))
+                           and "<image" not in markup, ""))
 
             pdf = render_figure(ctx, "recA", LAG, "2_MEA_NetworkPlot", out, fmt="pdf")
             checks.append(("pdf is written",

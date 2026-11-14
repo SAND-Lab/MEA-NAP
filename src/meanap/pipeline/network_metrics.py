@@ -543,30 +543,38 @@ def _optimal_1d_split_boundaries(x: np.ndarray, k: int) -> np.ndarray | None:
         return None
     xs = np.sort(x)
     n = len(xs)
-    # prefix sums for O(1) segment cost: cost(i,j) = sum sq dev of xs[i..j]
+    # prefix sums: the cost of xs[i..j] is (p2[j+1]-p2[i]) - (p1[j+1]-p1[i])² / (j-i+1)
     p1 = np.concatenate([[0.0], np.cumsum(xs)])
     p2 = np.concatenate([[0.0], np.cumsum(xs * xs)])
 
-    def seg_cost(i: int, j: int) -> float:  # inclusive, 0-indexed
-        m = j - i + 1
-        s = p1[j + 1] - p1[i]
-        return (p2[j + 1] - p2[i]) - s * s / m
-
+    # D[m][j] = min cost to split xs[0..j] into m+1 clusters; B = split start.
+    # The best split start never moves left as j grows (the cost obeys the
+    # quadrangle inequality), so each layer is solved by divide and conquer:
+    # O(k·n·log n) instead of O(k·n²) — 38k pooled nodes in under a second
+    # rather than ten minutes — with the same optimum and the same tie-break
+    # (the leftmost best start), computed by the same arithmetic.
     INF = float("inf")
-    # D[m][j] = min cost to split xs[0..j] into m+1 clusters; B = split backptr
-    D = [[INF] * n for _ in range(k)]
-    B = [[0] * n for _ in range(k)]
-    for j in range(n):
-        D[0][j] = seg_cost(0, j)
+    js = np.arange(n)
+    prev = (p2[js + 1] - p2[0]) - (p1[js + 1] - p1[0]) ** 2 / (js + 1)
+    B = [np.zeros(n, dtype=np.int64) for _ in range(k)]
     for m in range(1, k):
-        for j in range(m, n):
-            best, arg = INF, m
-            for i in range(m, j + 1):
-                c = D[m - 1][i - 1] + seg_cost(i, j)
-                if c < best:
-                    best, arg = c, i
-            D[m][j] = best
-            B[m][j] = arg
+        cur = np.full(n, INF)
+        arg = B[m]
+        todo = [(m, n - 1, m, n - 1)]
+        while todo:
+            jlo, jhi, ilo, ihi = todo.pop()
+            if jlo > jhi:
+                continue
+            j = (jlo + jhi) // 2
+            lo, hi = max(ilo, m), min(ihi, j)
+            i = np.arange(lo, hi + 1)
+            s = p1[j + 1] - p1[i]
+            c = prev[i - 1] + ((p2[j + 1] - p2[i]) - s * s / (j - i + 1))
+            t = int(np.argmin(c))
+            cur[j], arg[j] = c[t], lo + t
+            todo.append((jlo, j - 1, ilo, lo + t))
+            todo.append((j + 1, jhi, lo + t, ihi))
+        prev = cur
 
     # backtrack split start-indices, then boundary = midpoint across each split
     splits = []
