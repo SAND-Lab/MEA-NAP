@@ -179,11 +179,13 @@ class ComparisonPainter(FigurePainter):
         return (f"{violin.label}: {n} {things if n != 1 else things[:-1]}\n"
                 f"mean {violin.mean:.4g} ± {violin.sem:.3g} (SEM)")
 
-    def _marked_recording(self) -> str | None:
-        marked = self.marked
-        if marked is None or marked[0] != "point":
+    def recording_of(self, what) -> str | None:
+        if what is None or what[0] != "point":
             return None
-        return self.scene.panels[marked[1]].violins[marked[2]].recordings[marked[3]]
+        return self.scene.panels[what[1]].violins[what[2]].recordings[what[3]] or None
+
+    def _marked_recording(self) -> str | None:
+        return self.recording_of(self.marked)
 
     # ── painting ─────────────────────────────────────────────────────────────
 

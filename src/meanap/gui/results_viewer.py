@@ -31,7 +31,7 @@ from PyQt6.QtCore import (
 from PyQt6.QtGui import QColor, QCursor, QFontInfo, QPainter, QPen, QPixmap
 from PyQt6.QtWidgets import (
     QAbstractItemView, QButtonGroup, QComboBox, QDoubleSpinBox, QFileDialog,
-    QFormLayout, QFrame, QHBoxLayout, QLabel,
+    QFormLayout, QFrame, QHBoxLayout, QLabel, QLineEdit,
     QListWidget, QListWidgetItem, QPushButton, QScrollArea, QSizePolicy, QSpinBox,
     QSplitter, QStackedWidget, QToolTip, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget,
 )
@@ -53,6 +53,9 @@ MIN_TEXT_PX = 11.5
 MAX_CANVAS_PX = 6000
 #: Wait this long after the last control change before redrawing.
 RESTYLE_DELAY_MS = 120
+#: How long a recording's preview card stays after the pointer leaves its
+#: point — time to move onto the card and click it.
+PREVIEW_GRACE_MS = 700
 
 
 # ── the figure ────────────────────────────────────────────────────────────────
@@ -615,6 +618,66 @@ class _Draw(QRunnable):
         self._signals.done.emit(self._generation, live)
 
 
+class _DrawMany(QRunnable):
+    """The same figure for several recordings: ``[(title, Live or message, current)]``.
+
+    A recording that cannot draw it (no such lag, no such check) gets the
+    reason in its place rather than failing the rest.
+    """
+
+    def __init__(self, generation: int, service, cells: list[tuple[str, dict, bool]],
+                 signals: _Signals):
+        super().__init__()
+        self._generation, self._service = generation, service
+        self._cells, self._signals = cells, signals
+
+    def run(self) -> None:
+        drawn = []
+        for title, request, current in self._cells:
+            try:
+                drawn.append((title, live_figure(self._service, **request), current))
+            except Exception as e:       # one recording's gap, not the montage's
+                drawn.append((title, str(e) or "Not available.", current))
+        self._signals.done.emit(self._generation, drawn)
+
+
+class _PreviewSignals(QObject):
+    done = pyqtSignal(object, object)       # key, QImage
+    failed = pyqtSignal(object, str)
+
+
+class _Preview(QRunnable):
+    """One recording's figure as a small picture, for the hover card."""
+
+    def __init__(self, key: tuple, service, request: dict, width: int,
+                 signals: _PreviewSignals):
+        super().__init__()
+        self._key, self._service, self._request = key, service, request
+        self._width, self._signals = width, signals
+
+    def run(self) -> None:
+        from meanap.native import output
+        from meanap.native.output import NativeFigure
+
+        try:
+            live = live_figure(self._service, **self._request)
+            if isinstance(live.figure, NativeFigure):
+                painter = live.figure.painter
+                image = output.render_image(painter, 2 * self._width / painter.size[0])
+            else:
+                from meanap.gui.div_montage import _picture
+
+                image = _picture(live)
+                if hasattr(live.figure, "clear"):
+                    live.figure.clear()
+            if image is None:
+                raise ValueError("Nothing to preview.")
+        except Exception as e:           # shown on the card, not raised in a pool
+            self._signals.failed.emit(self._key, str(e) or "Could not draw this.")
+            return
+        self._signals.done.emit(self._key, image)
+
+
 #: The headings stim figures fold under, by the start of their name.
 _STIM_HEADINGS = (
     ("9_", "Responses"), ("10_", "Responses"), ("stimPattern_", "Responses"),
@@ -636,7 +699,46 @@ _REQUEST_ROLE = Qt.ItemDataRole.UserRole
 _VARIANTS_ROLE = Qt.ItemDataRole.UserRole + 1
 #: A heading's own name; its text also carries the open/closed mark.
 _NAME_ROLE = Qt.ItemDataRole.UserRole + 2
+#: A recording list item's index into the manifest's recordings.
+_RECORDING_ROLE = Qt.ItemDataRole.UserRole + 3
 _OPEN, _SHUT = "▾  ", "▸  "
+
+
+def _cultures(recordings: list[dict]) -> dict[int, list[int]]:
+    """For each recording that shares its culture with recordings at other
+    DIVs, all of them (itself included), youngest first.
+
+    The culture is the name with its DIV and date tokens dropped — the same
+    rule the statistics use for repeated measures
+    (:func:`meanap.stats.dataset.derive_culture_ids`), so the viewer and the
+    statistics agree on which recordings are one culture. A culture recorded
+    at a single DIV is left out: there is nothing to compare across.
+    """
+    import re
+
+    import pandas as pd
+
+    from meanap.stats.dataset import derive_culture_ids
+
+    if not recordings:
+        return {}
+    # A DIV token with a note after it (``..._DIV16 David Oluigbo``, as folders
+    # exported with their owner's name are) is still a DIV token.
+    names = [re.sub(r"(?i)(_DIV[_-]?\d+\.?\d*)\s.*$", r"\1", r["name"]) for r in recordings]
+    ids = derive_culture_ids(pd.Series(names)).tolist()
+    members: dict[str, list[int]] = {}
+    for index, culture in enumerate(ids):
+        members.setdefault(culture, []).append(index)
+    out = {}
+    for group in members.values():
+        divs = {recordings[i].get("div") for i in group}
+        if len(group) > 1 and len(divs) > 1:
+            group = sorted(group, key=lambda i: (
+                float(recordings[i]["div"]) if recordings[i].get("div") is not None
+                else float("inf"), recordings[i]["name"]))
+            for index in group:
+                out[index] = group
+    return out
 
 _VARIANT_LABELS = {"plain": "This recording's scale", "scaled": "Whole batch's scale",
                    "combined": "Both, side by side"}
@@ -692,6 +794,11 @@ _QSS = f"""
     background: transparent;
 }}
 #resultsViewer QComboBox::drop-down {{ border: none; width: 20px; }}
+#resultsViewer QLineEdit {{
+    min-height: 26px; border: 1px solid {_LINE}; border-radius: 8px;
+    padding: 0px 8px; background: #ffffff; color: {_INK};
+}}
+#resultsViewer QLineEdit:focus {{ border: 1px solid #c7d7f8; }}
 #primary {{
     color: #ffffff; background: {_ACCENT}; border: none; border-radius: 8px;
     padding: 6px 14px; font-weight: 600;
@@ -813,10 +920,53 @@ class ResultsViewer(QWidget):
 
         # ── left: what to look at ────────────────────────────────────────────
         self.recordings = QListWidget()
-        self.recordings.currentRowChanged.connect(self._on_recording)
+        self.recordings.currentItemChanged.connect(lambda *_: self._on_recording(0))
+        # Which recordings are listed, and how: by name, group (genotype) and
+        # DIV, optionally under headings.
+        self.rec_search = QLineEdit()
+        self.rec_search.setPlaceholderText("Filter by name…")
+        self.rec_search.setClearButtonEnabled(True)
+        self.rec_search.textChanged.connect(lambda _t: self._fill_recordings())
+        self.rec_group = QComboBox()
+        self.rec_group.setToolTip("Show one group (genotype, condition) only.")
+        self.rec_div = QComboBox()
+        self.rec_div.setToolTip("Show one age only.")
+        self.rec_by = QComboBox()
+        self.rec_by.setToolTip("List the recordings under a heading per group, per DIV, or both.")
+        for key, text in ((None, "No headings"), ("group", "Under group"),
+                          ("div", "Under DIV"), ("group_div", "Under group, DIV")):
+            self.rec_by.addItem(text, key)
+        for combo in (self.rec_group, self.rec_div, self.rec_by):
+            combo.setSizeAdjustPolicy(
+                QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+            combo.setMinimumContentsLength(4)
+            combo.currentIndexChanged.connect(lambda _i: self._fill_recordings())
+        self.rec_by.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
+        filter_row = QHBoxLayout()
+        filter_row.setSpacing(4)
+        filter_row.addWidget(self.rec_search, 1)
+        filter_row.addWidget(self.rec_by)
+        choose_row = QHBoxLayout()
+        choose_row.setSpacing(4)
+        for combo in (self.rec_group, self.rec_div):
+            choose_row.addWidget(combo, 1)
+        self.rec_count = _muted()
+        rec_title = QHBoxLayout()
+        rec_title.addWidget(_card_title("Recording"))
+        rec_title.addStretch(1)
+        rec_title.addWidget(self.rec_count)
         self._recordings_card, rec_box = _card()
-        rec_box.addWidget(_card_title("Recording"))
+        rec_box.addLayout(rec_title)
+        rec_box.addLayout(filter_row)
+        rec_box.addLayout(choose_row)
         rec_box.addWidget(self.recordings, 1)
+        # Long names are shortened in the middle, where they differ least.
+        self.recordings.setTextElideMode(Qt.TextElideMode.ElideMiddle)
+        self.recordings.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.recordings.setWordWrap(False)
+        #: Each recording's culture: the manifest indices of the recordings of
+        #: it (itself included), youngest first. See ``derive_culture_ids``.
+        self._siblings: dict[int, list[int]] = {}
 
         self.figures = QTreeWidget()
         self.figures.setHeaderHidden(True)
@@ -846,7 +996,7 @@ class ResultsViewer(QWidget):
         left.addWidget(self._recordings_card)
         left.addWidget(fig_card)
         left.setStretchFactor(1, 1)
-        left.setSizes([240, 520])
+        left.setSizes([380, 480])
         left.setMinimumWidth(270)
 
         # ── middle: the figure ───────────────────────────────────────────────
@@ -861,12 +1011,23 @@ class ResultsViewer(QWidget):
         # figure is shown by the one generic canvas.
         self.native = NetworkCanvas()
         self.canvas = FigureCanvas()
-        for canvas in (self.native, self.canvas):
+        from meanap.gui.div_montage import DivMontage
+
+        self.montage = DivMontage()
+        for canvas in (self.native, self.canvas, self.montage):
             canvas.hovered.connect(self._on_hover)
             canvas.picked.connect(self._on_picked)
+        self.canvas.recording.connect(self._on_point_recording)
         self._stack = QStackedWidget()
-        for widget in (self.view, self.native, self.canvas):
+        for widget in (self.view, self.native, self.canvas, self.montage):
             self._stack.addWidget(widget)
+
+        # The same figure at every DIV this culture was recorded at.
+        self.across_divs = QPushButton("Across DIVs")
+        self.across_divs.setObjectName("ghost")
+        self.across_divs.setCheckable(True)
+        self.across_divs.toggled.connect(lambda _on: self._draw())
+        self.across_divs.hide()
 
         self.variant = QComboBox()
         self.variant.currentIndexChanged.connect(lambda _i: self._draw())
@@ -904,7 +1065,7 @@ class ResultsViewer(QWidget):
         bar.addWidget(self.figure_title)
         bar.addWidget(self.status, 1)
         for widget in (self._variant_label, self.variant, self._split_label, self.split,
-                       self.style_button, reset, save):
+                       self.across_divs, self.style_button, reset, save):
             bar.addWidget(widget)
         self.readout = _muted(self.HINT)
         # While something is selected its description is the longer text; the
@@ -954,6 +1115,29 @@ class ResultsViewer(QWidget):
         box.addLayout(header)
         box.addWidget(self._pages, 1)
 
+        # ── the card previewing a recording pointed at across recordings ─────
+        from meanap.gui.recording_preview import PREVIEW_W, RecordingPreview
+
+        self._preview_w = PREVIEW_W
+        self.preview = RecordingPreview(self)
+        self.preview.opened.connect(self._open_preview)
+        self.preview.entered.connect(lambda: self._preview_hide.stop())
+        self.preview.left.connect(lambda: self._preview_hide.start())
+        self._preview_hide = QTimer(self)
+        self._preview_hide.setSingleShot(True)
+        self._preview_hide.setInterval(PREVIEW_GRACE_MS)
+        self._preview_hide.timeout.connect(self._hide_preview_if_idle)
+        self._preview_signals = _PreviewSignals(self)
+        self._preview_signals.done.connect(self._on_preview)
+        self._preview_signals.failed.connect(self._on_preview_failed)
+        #: Pictures already drawn, by (recording, kind, name, lag).
+        self._preview_cache: dict[tuple, object] = {}
+        self._preview_busy = False
+        self._preview_wanted: tuple | None = None
+        #: The recording pointed at, and the one pinned, on the figure shown.
+        self._hover_recording: str | None = None
+        self._pinned_recording: str | None = None
+
     # ── the run ──────────────────────────────────────────────────────────────
 
     def load_run(self, source: str | Path) -> None:
@@ -972,20 +1156,31 @@ class ResultsViewer(QWidget):
         self.style_panel.blockSignals(False)
         self._scope_buttons[GROUP].setVisible(self._has_group_figures())
         self._scope_buttons[TRACKING].setVisible(bool(service.tracking().get("available")))
-        self.recordings.blockSignals(True)
-        self.recordings.clear()
-        for rec in self._manifest["recordings"]:
-            detail = " · ".join(str(v) for v in (
-                rec.get("group"), f"DIV {rec['div']:g}" if rec.get("div") else None) if v)
-            self.recordings.addItem(QListWidgetItem(rec["name"] + (f"\n{detail}" if detail else "")))
-        self.recordings.blockSignals(False)
+        recs = self._manifest["recordings"]
+        self._siblings = _cultures(recs)
+        self._preview_cache = {}
+        for combo, values, every in (
+                (self.rec_group, sorted({str(r.get("group") or "") for r in recs} - {""}),
+                 "All groups"),
+                (self.rec_div, [f"{d:g}" for d in sorted({float(r["div"]) for r in recs
+                                                         if r.get("div") is not None})],
+                 "All DIVs")):
+            combo.blockSignals(True)
+            combo.clear()
+            combo.addItem(every, None)
+            for value in values:
+                combo.addItem(value if combo is self.rec_group else f"DIV {value}", value)
+            combo.setVisible(len(values) > 1)
+            combo.blockSignals(False)
+        self.rec_search.blockSignals(True)
+        self.rec_search.clear()
+        self.rec_search.blockSignals(False)
         self._scope = RECORDING
         self._scope_buttons[RECORDING].setChecked(True)
         self._pages.setCurrentIndex(0)
         self._recordings_card.show()
-        if self.recordings.count():
-            self.recordings.setCurrentRow(0)
-        else:
+        self._fill_recordings(select=0)
+        if not recs:
             self.view.show_message("This run has no recordings to show.")
 
     def close_run(self) -> None:
@@ -994,6 +1189,8 @@ class ResultsViewer(QWidget):
         self._stack.setCurrentWidget(self.view)
         self.view.show_message("")
         self._native_key = None
+        self._dismiss_preview()
+        self.montage.clear()
         self.tracking.close_run()
         if self._service is not None:
             self._service.close()
@@ -1018,6 +1215,8 @@ class ResultsViewer(QWidget):
             return
         self._remember()
         self._scope = scope
+        self._dismiss_preview()
+        self._place_across()
         if scope == TRACKING:
             self._pages.setCurrentWidget(self.tracking)
             # Listing the chains opens the first one, which is megabytes to
@@ -1035,16 +1234,138 @@ class ResultsViewer(QWidget):
         """Turn to the cell-tracking page, if this run has one."""
         self.set_scope(TRACKING)
 
+    def _recording_index(self) -> int | None:
+        item = self.recordings.currentItem()
+        index = item.data(_RECORDING_ROLE) if item is not None else None
+        return index if isinstance(index, int) else None
+
     def _recording(self) -> dict | None:
-        row = self.recordings.currentRow()
+        index = self._recording_index()
         recs = self._manifest.get("recordings", [])
-        return recs[row] if 0 <= row < len(recs) else None
+        return recs[index] if index is not None and 0 <= index < len(recs) else None
 
     def _on_recording(self, _row: int) -> None:
         if self._recording() is None:
             return
         self._fill_lags()
         self._fill_figures()
+
+    @staticmethod
+    def _div_text(rec: dict) -> str | None:
+        return f"DIV {float(rec['div']):g}" if rec.get("div") is not None else None
+
+    def _listed(self) -> list[int]:
+        """The manifest indices the filters let through, in the order listed."""
+        recs = self._manifest.get("recordings", [])
+        text = self.rec_search.text().strip().lower()
+        group, div = self.rec_group.currentData(), self.rec_div.currentData()
+        keep = [i for i, rec in enumerate(recs)
+                if (not text or text in rec["name"].lower())
+                and (group is None or str(rec.get("group") or "") == group)
+                and (div is None or (rec.get("div") is not None
+                                     and f"{float(rec['div']):g}" == div))]
+        by = self.rec_by.currentData()
+        if by is None:
+            return keep
+        order = {g: k for k, g in enumerate(self._group_order())}
+
+        def key(i):
+            rec = recs[i]
+            g = order.get(str(rec.get("group") or ""), len(order))
+            d = float(rec["div"]) if rec.get("div") is not None else float("inf")
+            return (g, d) if by in ("group", "group_div") else (d, g)
+        return sorted(keep, key=key)
+
+    def _group_order(self) -> list[str]:
+        """Groups in the run's own order (its custom one, if it set one)."""
+        recs = self._manifest.get("recordings", [])
+        present = []
+        for rec in recs:
+            g = str(rec.get("group") or "")
+            if g not in present:
+                present.append(g)
+        custom = []
+        if self._service is not None:
+            custom = [str(g) for g in (getattr(self._service.ctx.params,
+                                               "custom_grp_order", None) or [])]
+        return [g for g in custom if g in present] + sorted(g for g in present
+                                                            if g not in custom)
+
+    def _heading_of(self, rec: dict) -> str | None:
+        by = self.rec_by.currentData()
+        group = str(rec.get("group") or "") or "No group"
+        div = self._div_text(rec) or "No DIV"
+        return {None: None, "group": group, "div": div,
+                "group_div": f"{group} · {div}"}[by]
+
+    def _fill_recordings(self, select: int | None = None, *, notify: bool = True) -> None:
+        """List the recordings the filters let through, keeping the one chosen.
+
+        Choosing a different one redraws, unless *notify* is False.
+        """
+        recs = self._manifest.get("recordings", [])
+        wanted = self._recording_index() if select is None else select
+        listed = self._listed()
+        self.recordings.blockSignals(True)
+        self.recordings.clear()
+        heading, chosen = None, None
+        for index in listed:
+            rec = recs[index]
+            this = self._heading_of(rec)
+            if this is not None and this != heading:
+                heading = this
+                head = QListWidgetItem(this)
+                head.setFlags(Qt.ItemFlag.NoItemFlags)       # a heading, not a recording
+                font = head.font()
+                font.setBold(True)
+                head.setFont(font)
+                head.setForeground(QColor(_MUTED))
+                self.recordings.addItem(head)
+            detail = [v for v in (rec.get("group"), self._div_text(rec)) if v]
+            others = [recs[j] for j in self._siblings.get(index, []) if j != index]
+            if others:
+                detail.append("also " + ", ".join(self._div_text(r) or "?" for r in others))
+            item = QListWidgetItem(rec["name"] + ("\n" + " · ".join(map(str, detail))
+                                                  if detail else ""))
+            item.setData(_RECORDING_ROLE, index)
+            if others:
+                item.setToolTip(
+                    "This culture was also recorded at "
+                    + ", ".join(self._div_text(r) or "?" for r in others)
+                    + ". Turn on “Across DIVs” to see a figure at every age at once.")
+            self.recordings.addItem(item)
+            if index == wanted:
+                chosen = item
+        self.recordings.blockSignals(False)
+        self.rec_count.setText(f"{len(listed)} of {len(recs)}" if len(listed) != len(recs)
+                               else f"{len(recs)}")
+        if chosen is None:
+            # The chosen recording is filtered out: the first one left instead.
+            chosen = next((self.recordings.item(i) for i in range(self.recordings.count())
+                           if self.recordings.item(i).data(_RECORDING_ROLE) is not None), None)
+        if chosen is not None:
+            changed = chosen.data(_RECORDING_ROLE) != wanted or select is not None
+            self.recordings.blockSignals(not (changed and notify))
+            self.recordings.setCurrentItem(chosen)
+            self.recordings.blockSignals(False)
+            self.recordings.scrollToItem(chosen)
+
+    def select_recording(self, name: str, *, notify: bool = True) -> bool:
+        """Choose the recording called *name*, clearing filters that hide it."""
+        names = [r["name"] for r in self._manifest.get("recordings", [])]
+        if name not in names:
+            return False
+        index = names.index(name)
+        if index not in self._listed():
+            for widget in (self.rec_search, self.rec_group, self.rec_div):
+                widget.blockSignals(True)
+            self.rec_search.clear()
+            self.rec_group.setCurrentIndex(0)
+            self.rec_div.setCurrentIndex(0)
+            for widget in (self.rec_search, self.rec_group, self.rec_div):
+                widget.blockSignals(False)
+        self._fill_recordings(select=index, notify=notify)
+        return True
 
     def _fill_lags(self) -> None:
         """The lags the current scope has figures for, keeping the one chosen."""
@@ -1319,6 +1640,7 @@ class ResultsViewer(QWidget):
         self._fill_combo(self.split, splits)
         for widget in (self.split, self._split_label):
             widget.setVisible(len(splits) > 1)
+        self._place_across()
         self._draw()
 
     @staticmethod
@@ -1380,8 +1702,35 @@ class ResultsViewer(QWidget):
             return
         self._generation += 1
         self._drawing = True
+        self._dismiss_preview()
+        if self._across():
+            recs, index = self._manifest["recordings"], self._recording_index()
+            cells = [(" · ".join(t for t in (self._div_text(recs[j]), recs[j]["name"]) if t),
+                      {**request, "recording": recs[j]["name"]}, j == index)
+                     for j in self._siblings[index]]
+            self.status.setText(f"Drawing {len(cells)} recordings…")
+            self._pool.start(_DrawMany(self._generation, self._service, cells, self._signals))
+            return
         self.status.setText("Drawing…")
         self._pool.start(_Draw(self._generation, self._service, request, self._signals))
+
+    def _across(self) -> bool:
+        """Whether the figure is to be drawn at every DIV of this culture."""
+        return (self._scope == RECORDING and self.across_divs.isChecked()
+                and self._recording_index() in self._siblings)
+
+    def _place_across(self) -> None:
+        """Offer "Across DIVs" on a recording whose culture has others."""
+        index = self._recording_index()
+        others = self._siblings.get(index, []) if self._scope == RECORDING else []
+        self.across_divs.setVisible(bool(others))
+        if others:
+            recs = self._manifest["recordings"]
+            self.across_divs.setText(f"Across DIVs ({len(others)})")
+            self.across_divs.setToolTip(
+                "This culture was recorded at "
+                + ", ".join(self._div_text(recs[j]) or "?" for j in others)
+                + ": show this figure for each, side by side.")
 
     def _finish(self) -> None:
         self._drawing = False
@@ -1389,7 +1738,15 @@ class ResultsViewer(QWidget):
             self._queued = False
             self._draw()
 
-    def _on_drawn(self, generation: int, live: Live) -> None:
+    def _on_drawn(self, generation: int, live) -> None:
+        if isinstance(live, list):           # across DIVs: [(title, Live or message, current)]
+            if generation == self._generation:
+                self._drew_in = sum(got.seconds for _t, got, _c in live
+                                    if isinstance(got, Live))
+                self.selection.setText("")
+                self._show_many(live)
+            self._finish()
+            return
         if generation == self._generation:
             self._drew_in = live.seconds
             self.selection.setText("")
@@ -1397,6 +1754,22 @@ class ResultsViewer(QWidget):
         elif hasattr(live.figure, "clear"):
             live.figure.clear()
         self._finish()
+
+    def _show_many(self, cells: list) -> None:
+        import time
+
+        item = self.figures.currentItem()
+        request = item.data(0, _REQUEST_ROLE) if item is not None else {}
+        self._styleable = (request or {}).get("kind") == "network"
+        self._place_styling()
+        self._native_key = None
+        started = time.perf_counter()
+        self.montage.link_nodes = self._manifest.get("mode") != "catnap"
+        self.montage.show_cells(cells)
+        self.view.show_message("")
+        self._stack.setCurrentWidget(self.montage)
+        self.montage.repaint()
+        self._on_painted(time.perf_counter() - started)
 
     def _place_styling(self) -> None:
         """Offer the styling panel on network plots only; show it when asked."""
@@ -1473,12 +1846,128 @@ class ResultsViewer(QWidget):
     def _on_hover(self, text: str) -> None:
         self.readout.setText(text or self.HINT)
 
+    # ── previewing a recording pointed at across recordings ──────────────────
+
+    def _preview_request(self, name: str) -> tuple[dict, str] | None:
+        """Which of *name*'s own figures to preview, and what it is called.
+
+        An activity comparison previews the raster; a network one, the
+        spatial network at the comparison's lag. Each falls back on the other
+        when the recording does not have it (a CAT-NAP run from before rasters
+        were stored has none).
+        """
+        recs = {r["name"]: r for r in self._manifest.get("recordings", [])}
+        rec = recs.get(name)
+        item = self.figures.currentItem()
+        shown = item.data(0, _REQUEST_ROLE) if item is not None else None
+        if rec is None or not shown:
+            return None
+        lag = self.lag.currentData()
+        if lag is None and rec.get("lags"):
+            lag = rec["lags"][0]
+        network = rec["figures"].get(str(lag), []) if lag is not None else []
+        spatial = next((f for f in network if f["label"].startswith("Network — ")),
+                       network[0] if network else None)
+        raster = next((f for f in rec.get("activity", []) if "aster" in f["name"]), None)
+        found = []
+        if raster is not None:
+            found.append(({"kind": "activity", "recording": name, "name": raster["name"]},
+                          raster["label"]))
+        if spatial is not None:
+            found.append(({"kind": "network", "recording": name, "name": spatial["name"],
+                           "lag": lag}, "Network"))
+        if shown.get("family") == "network" or shown.get("kind") != "comparison":
+            found.reverse()
+        return found[0] if found else None
+
+    def _on_point_recording(self, name: str, pinned: bool) -> None:
+        if pinned:
+            self._pinned_recording = name or None
+        else:
+            self._hover_recording = name or None
+        target = self._hover_recording or self._pinned_recording
+        if target is None:
+            self._preview_hide.start()
+            return
+        self._preview_hide.stop()
+        # A pinned card stays where it is while the pointer wanders off it.
+        self._show_preview(target, move=self._hover_recording is not None)
+
+    def _show_preview(self, name: str, *, move: bool = True) -> None:
+        found = self._preview_request(name)
+        if found is None or self._service is None:
+            self.preview.hide()
+            return
+        request, label = found
+        key = (name, request["kind"], request["name"], request.get("lag"))
+        rec = next(r for r in self._manifest["recordings"] if r["name"] == name)
+        detail = " · ".join(str(v) for v in (rec.get("group"), self._div_text(rec)) if v)
+        self.preview.show_for(name, detail, label, self._preview_cache.get(key), move=move)
+        self.preview.setProperty("request", (request, label))
+        if key not in self._preview_cache:
+            self._preview_wanted = (key, request)
+            self._next_preview()
+
+    def _next_preview(self) -> None:
+        """Draw the latest picture asked for, one at a time, behind any figure."""
+        if self._preview_busy or self._preview_wanted is None:
+            return
+        key, request = self._preview_wanted
+        self._preview_wanted = None
+        if key in self._preview_cache:
+            return
+        self._preview_busy = True
+        self._pool.start(_Preview(key, self._service, request, self._preview_w,
+                                  self._preview_signals))
+
+    def _on_preview(self, key: tuple, image) -> None:
+        self._preview_busy = False
+        self._preview_cache[key] = image
+        if self.preview.isVisible() and self.preview.name == key[0]:
+            self.preview.set_image(image)
+        self._next_preview()
+
+    def _on_preview_failed(self, key: tuple, message: str) -> None:
+        self._preview_busy = False
+        if self.preview.isVisible() and self.preview.name == key[0]:
+            self.preview.set_image(None, failed=message)
+        self._next_preview()
+
+    def _hide_preview_if_idle(self) -> None:
+        if self.preview.underMouse() or self._pinned_recording or self._hover_recording:
+            return
+        self.preview.hide()
+
+    def _dismiss_preview(self) -> None:
+        """A new figure: no recording is pointed at any more."""
+        self._hover_recording = self._pinned_recording = None
+        self._preview_wanted = None
+        self._preview_hide.stop()
+        self.preview.hide()
+
+    def _open_preview(self, name: str) -> None:
+        """Open the recording on the card at the figure it previews."""
+        found = self._preview_request(name)
+        self._dismiss_preview()
+        if found is None:
+            return
+        request, _label = found
+        self._remember()
+        self._remembered[RECORDING] = self._identity(request)
+        self.select_recording(name, notify=False)
+        if self._scope == RECORDING:
+            self._on_recording(0)
+        else:
+            self.set_scope(RECORDING)
+
     def _save(self) -> None:
         shown, item = self._stack.currentWidget(), self.figures.currentItem()
         request = item.data(0, _REQUEST_ROLE) if item is not None else None
         if not request or (shown is self.view and self.view.figure is None):
             return
         name = str(request.get("name") or request.get("metric") or request.get("key"))
+        if shown is self.montage:
+            name += "_acrossDIVs"
         path, _ = QFileDialog.getSaveFileName(
             self, "Save figure", name + ".png",
             "PNG image, 300 dpi (*.png);;SVG, editable (*.svg);;PDF, editable (*.pdf)")

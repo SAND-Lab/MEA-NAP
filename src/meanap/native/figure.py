@@ -77,6 +77,11 @@ class FigurePainter:
         """One or two lines about *what*, for a tooltip and the read-out."""
         return ""
 
+    def recording_of(self, what) -> str | None:
+        """The recording *what* stands for, on a figure whose marks are
+        recordings — so a view can offer that recording's own figures."""
+        return None
+
     def pinnable(self, what) -> bool:
         """Whether a click on *what* keeps it marked."""
         return what is not None
