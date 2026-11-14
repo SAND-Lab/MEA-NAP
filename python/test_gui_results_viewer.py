@@ -1755,6 +1755,83 @@ def _scale_checks(bundle: Path) -> list[Check]:
     return checks
 
 
+def _params_and_export_checks(bundle: Path, tmp: Path) -> list[Check]:
+    """The run's settings on a page of their own, and every figure drawn out."""
+    from meanap.gui.results_viewer import ResultsViewer
+    from meanap.params import load_params
+
+    checks: list[Check] = []
+    viewer = ResultsViewer()
+    viewer.resize(1300, 850)
+    viewer.show()
+    viewer.load_run(bundle)
+    _settle(viewer)
+    checks.append(("a bundle offers its settings, and exporting its figures",
+                   viewer._scope_buttons["params"].isVisibleTo(viewer)
+                   and viewer.export_button.isVisibleTo(viewer), ""))
+    viewer.set_scope("params")
+    _wait(60)
+    page = viewer.params_view
+    summary = viewer._manifest["params"]
+    changed = summary["changed"]
+    shown = lambda: [page.table.item(r, 0).text() for r in range(page.table.rowCount())  # noqa: E731
+                     if page.table.item(r, 1) is not None]
+    checks.append(("the Parameters page lists what the run changed",
+                   viewer._pages.currentWidget() is page and len(shown()) == changed
+                   and changed > 0, f"{len(shown())} of {changed}"))
+    checks.append(("and says which version made the run",
+                   page.made_with.text().startswith(("Made with", "Made before")),
+                   page.made_with.text()))
+    page.changed_only.setChecked(False)
+    _wait(30)
+    checks.append(("every setting is a click away", len(shown()) == summary["total"],
+                   f"{len(shown())} of {summary['total']}"))
+    page.search.setText("lag")
+    _wait(30)
+    checks.append(("and can be searched by name",
+                   shown() and all("lag" in n.lower() or "lag" in page.table.item(
+                       r, 1).text().lower() for r, n in enumerate(shown())), str(shown())))
+    page.search.clear()
+    saved = page.save(tmp / "saved_params.json")
+    loaded, unknown = load_params(saved)
+    checks.append(("the settings save as a params file MEA-NAP loads back",
+                   loaded == viewer._service.run_params() and not unknown, str(unknown)))
+    viewer.set_scope("recording")
+    _settle(viewer)
+    checks.append(("and the figures are where they were left",
+                   viewer._pages.currentIndex() == 0 and viewer.figures.currentItem() is not None,
+                   ""))
+
+    dest = tmp / "exported"
+    started = viewer.export("png", dest)
+    checks.append(("exporting starts in the background, and only once",
+                   started and viewer.exporting and not viewer.export("png", dest), ""))
+    for _ in range(3000):
+        _wait(100)
+        if not viewer.exporting:
+            break
+    result = getattr(viewer, "last_export", None)
+    pngs = list(dest.rglob("*.png"))
+    checks.append(("it draws the bundle's figures into a folder, with a report",
+                   result is not None and result.figures > 0 and len(pngs) >= result.figures
+                   and (dest / "report.html").exists(),
+                   f"{result and result.figures} figures, {len(pngs)} png"))
+    checks.append(("and says where, as a link",
+                   "href" in viewer.export_status.text() and dest.name in viewer.export_status.text()
+                   and viewer.export_button.isEnabled(), viewer.export_status.text()))
+    viewer.export("svg", tmp / "stopped")
+    viewer.cancel_export()
+    for _ in range(600):
+        _wait(50)
+        if not viewer.exporting:
+            break
+    checks.append(("an export can be stopped",
+                   not viewer.exporting and "stopped" in viewer.export_status.text().lower()
+                   and viewer.export_button.isEnabled(), viewer.export_status.text()))
+    viewer.close()
+    return checks
+
+
 #: Longer than the preview card's grace period.
 PREVIEW_WAIT_MS = 900
 
@@ -1776,6 +1853,8 @@ def main() -> int:
             ("B. The window", _window_checks(bundle)),
             ("I. Finding and comparing recordings", _finding_checks(bundle, tmp)),
             ("J. Choosing an activity figure's scale", _scale_checks(bundle)),
+            ("K. The run's settings, and exporting its figures",
+             _params_and_export_checks(bundle, tmp)),
         ):
             n_pass, n = _report(title, checks)
             total_pass += n_pass

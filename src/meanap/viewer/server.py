@@ -563,6 +563,13 @@ class ViewerService:
             "formats": list(ALLOWED_FORMATS),
         }
 
+    def run_params(self):
+        """The :class:`~meanap.params.Params` the run was made with, or ``None``.
+
+        A bundle's are already redacted (see :mod:`meanap.pipeline.bundle`).
+        """
+        return self._bundle.params if self._bundle is not None else self.ctx.params
+
     def run_style(self):
         """The :class:`NetworkStyle` this run's own figures were drawn with.
 

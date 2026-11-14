@@ -31,7 +31,7 @@ from PyQt6.QtCore import (
 from PyQt6.QtGui import QColor, QCursor, QFontInfo, QPainter, QPen, QPixmap
 from PyQt6.QtWidgets import (
     QAbstractItemView, QButtonGroup, QComboBox, QDoubleSpinBox, QFileDialog,
-    QFormLayout, QFrame, QHBoxLayout, QLabel, QLineEdit,
+    QFormLayout, QFrame, QHBoxLayout, QLabel, QLineEdit, QMenu,
     QListWidget, QListWidgetItem, QPushButton, QScrollArea, QSizePolicy, QSpinBox,
     QSplitter, QStackedWidget, QToolTip, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget,
 )
@@ -641,6 +641,44 @@ class _DrawMany(QRunnable):
         self._signals.done.emit(self._generation, drawn)
 
 
+class _ExportSignals(QObject):
+    progress = pyqtSignal(int, int)
+    done = pyqtSignal(object)               # ExportResult
+    failed = pyqtSignal(str)
+
+
+class _Cancelled(Exception):
+    """Raised from the progress callback to stop an export between figures."""
+
+
+class _Export(QRunnable):
+    """Draw a bundle out into an ordinary output folder (``export_output_folder``)."""
+
+    def __init__(self, bundle: Path, dest: Path, fmt: str, signals: _ExportSignals):
+        super().__init__()
+        self._bundle, self._dest, self._fmt, self._signals = bundle, dest, fmt, signals
+        self.cancel = False
+
+    def _progress(self, done: int, total: int) -> None:
+        if self.cancel:
+            raise _Cancelled
+        self._signals.progress.emit(done, total)
+
+    def run(self) -> None:
+        from meanap.pipeline.export import export_output_folder
+
+        try:
+            result = export_output_folder(self._bundle, self._dest, fmt=self._fmt,
+                                          log=lambda m: None, progress=self._progress)
+        except _Cancelled:
+            self._signals.failed.emit("")
+            return
+        except Exception as e:           # shown to the user, not raised in a pool
+            self._signals.failed.emit(str(e) or type(e).__name__)
+            return
+        self._signals.done.emit(result)
+
+
 class _PreviewSignals(QObject):
     done = pyqtSignal(object, object)       # key, QImage
     failed = pyqtSignal(object, str)
@@ -744,7 +782,7 @@ _VARIANT_LABELS = {"plain": "This recording's scale", "scaled": "Whole batch's s
                    "combined": "Both, side by side"}
 
 #: The two ways of looking at a run, and the page for tracked cells.
-RECORDING, GROUP, TRACKING = "recording", "group", "tracking"
+RECORDING, GROUP, TRACKING, PARAMS = "recording", "group", "tracking", "params"
 
 _INK, _MUTED, _LINE, _ACCENT = "#111827", "#6b7280", "#e5e7eb", "#4f8ef7"
 #: The simple view's look: a pale ground, white rounded cards, one accent.
@@ -901,6 +939,8 @@ class ResultsViewer(QWidget):
             (GROUP, "Across recordings",
              "Figures that compare recordings: by group, by age, across lags, statistics."),
             (TRACKING, "Cell tracking", "Cells followed across days."),
+            (PARAMS, "Parameters", "The settings this run used, and which differ "
+             "from the defaults."),
         ):
             button = QPushButton(text)
             button.setObjectName("scopeButton")
@@ -913,9 +953,36 @@ class ResultsViewer(QWidget):
             self._scope_buttons[key] = button
         self._scope_buttons[RECORDING].setChecked(True)
         self.run_name = _muted()
+        # Drawing every figure of a bundle out into a folder, for someone
+        # without MEA-NAP or for a paper's supplement.
+        self.export_button = QPushButton("Export figures…")
+        self.export_button.setObjectName("ghost")
+        self.export_button.setToolTip(
+            "Draw every figure in this bundle into an ordinary results folder beside "
+            "it, with a report.html to browse them — for someone without MEA-NAP.")
+        export_menu = QMenu(self.export_button)
+        for fmt, text in (("png", "As PNG images (300 dpi)"),
+                          ("svg", "As SVG (editable vector)"),
+                          ("pdf", "As PDF (editable vector)")):
+            export_menu.addAction(text, lambda f=fmt: self.export(f))
+        self.export_button.setMenu(export_menu)
+        self.export_button.hide()
+        self.export_cancel = QPushButton("Cancel")
+        self.export_cancel.setObjectName("ghost")
+        self.export_cancel.clicked.connect(self.cancel_export)
+        self.export_cancel.hide()
+        self.export_status = QLabel()
+        self.export_status.setObjectName("muted")
+        self.export_status.setTextFormat(Qt.TextFormat.RichText)
+        self.export_status.setTextInteractionFlags(
+            Qt.TextInteractionFlag.TextBrowserInteraction)
+        self.export_status.linkActivated.connect(self._open_link)
         header = QHBoxLayout()
         header.addWidget(scope_bar)
         header.addStretch(1)
+        header.addWidget(self.export_status)
+        header.addWidget(self.export_cancel)
+        header.addWidget(self.export_button)
         header.addWidget(self.run_name)
 
         # ── left: what to look at ────────────────────────────────────────────
@@ -1108,6 +1175,18 @@ class ResultsViewer(QWidget):
         self._pages = QStackedWidget()
         self._pages.addWidget(splitter)
         self._pages.addWidget(self.tracking)
+        from meanap.gui.params_view import ParamsView
+
+        self.params_view = ParamsView()
+        self._pages.addWidget(self.params_view)
+        self._export_signals = _ExportSignals(self)
+        self._export_signals.progress.connect(self._on_export_progress)
+        self._export_signals.done.connect(self._on_exported)
+        self._export_signals.failed.connect(self._on_export_failed)
+        #: The export running, if one is: its own pool, so figures keep drawing.
+        self._export_job: _Export | None = None
+        self._export_pool = QThreadPool(self)
+        self._export_pool.setMaxThreadCount(1)
 
         box = QVBoxLayout(self)
         box.setContentsMargins(14, 12, 14, 12)
@@ -1156,6 +1235,14 @@ class ResultsViewer(QWidget):
         self.style_panel.blockSignals(False)
         self._scope_buttons[GROUP].setVisible(self._has_group_figures())
         self._scope_buttons[TRACKING].setVisible(bool(service.tracking().get("available")))
+        settings = self._manifest.get("params")
+        self._scope_buttons[PARAMS].setVisible(settings is not None)
+        self.params_view.load(settings, self._manifest.get("produced_by"),
+                              service.run_params())
+        # Only a bundle has figures to draw out; a folder already is one.
+        self.export_button.setVisible(bool(self._manifest.get("can_export")))
+        if self._export_job is None:
+            self.export_status.setText("")
         recs = self._manifest["recordings"]
         self._siblings = _cultures(recs)
         self._preview_cache = {}
@@ -1225,6 +1312,9 @@ class ResultsViewer(QWidget):
                 self._tracking_listed = True
                 self.tracking.load(self._service)
             return
+        if scope == PARAMS:
+            self._pages.setCurrentWidget(self.params_view)
+            return
         self._pages.setCurrentIndex(0)
         self._recordings_card.setVisible(scope == RECORDING)
         self._fill_lags()
@@ -1233,6 +1323,76 @@ class ResultsViewer(QWidget):
     def show_tracking(self) -> None:
         """Turn to the cell-tracking page, if this run has one."""
         self.set_scope(TRACKING)
+
+    # ── exporting every figure ───────────────────────────────────────────────
+
+    def export(self, fmt: str = "png", dest: Path | None = None) -> bool:
+        """Draw every figure of the open bundle into a folder beside it.
+
+        Runs in the background; the header says how far it has got and where
+        the folder is when done. ``False`` if there is nothing to export or an
+        export is already running.
+        """
+        from meanap.pipeline.export import default_export_dest
+
+        if (self._service is None or self._export_job is not None
+                or not self._manifest.get("can_export")):
+            return False
+        source = Path(self._service.source)
+        self._export_dest = Path(dest) if dest is not None else default_export_dest(source)
+        self._export_job = _Export(source, self._export_dest, fmt, self._export_signals)
+        self._export_job.setAutoDelete(False)
+        self.export_button.setEnabled(False)
+        self.export_cancel.show()
+        self.export_status.setText(f"Exporting {fmt.upper()} figures…")
+        self._export_pool.start(self._export_job)
+        return True
+
+    def cancel_export(self) -> None:
+        if self._export_job is not None:
+            self._export_job.cancel = True
+            self.export_status.setText("Stopping after this figure…")
+
+    @property
+    def exporting(self) -> bool:
+        return self._export_job is not None
+
+    def _on_export_progress(self, done: int, total: int) -> None:
+        if self._export_job is not None and not self._export_job.cancel:
+            self.export_status.setText(f"Exporting figures… {done} of {total}")
+
+    def _export_finished(self) -> None:
+        self._export_job = None
+        self.export_button.setEnabled(True)
+        self.export_cancel.hide()
+
+    def _on_exported(self, result) -> None:
+        self._export_finished()
+        where = Path(result.dest)
+        skipped = (f" · {len(result.skipped)} could not be drawn"
+                   if result.skipped else "")
+        self.export_status.setText(
+            f'✓ {result.figures} figures in <a href="{where.as_uri()}">{where.name}</a>'
+            + skipped)
+        self.export_status.setToolTip(str(where) + ("\n\nNot drawn:\n" + "\n".join(
+            f"{what}: {why}" for what, why in result.skipped[:20]) if result.skipped else ""))
+        self.last_export = result
+
+    def _on_export_failed(self, message: str) -> None:
+        self._export_finished()
+        self.export_status.setToolTip(str(getattr(self, "_export_dest", "")))
+        self.export_status.setText(
+            "Export stopped; what was drawn is in "
+            f'<a href="{self._export_dest.as_uri()}">{self._export_dest.name}</a>'
+            if not message and self._export_dest.exists() else
+            "Export stopped." if not message else f"Export failed: {message}")
+
+    @staticmethod
+    def _open_link(url: str) -> None:
+        from PyQt6.QtCore import QUrl
+        from PyQt6.QtGui import QDesktopServices
+
+        QDesktopServices.openUrl(QUrl(url))
 
     def _recording_index(self) -> int | None:
         item = self.recordings.currentItem()
@@ -1569,7 +1729,7 @@ class ResultsViewer(QWidget):
             self._remembered[self._tree_scope] = self._identity(request)
 
     def _fill_figures(self) -> None:
-        if self._service is None or self._scope == TRACKING:
+        if self._service is None or self._scope in (TRACKING, PARAMS):
             return
         self._remember()
         keep = self._remembered.get(self._scope)
@@ -1984,6 +2144,9 @@ class ResultsViewer(QWidget):
             shown.export(path)
 
     def closeEvent(self, event) -> None:
+        if self._export_job is not None:
+            self._export_job.cancel = True
+            self._export_pool.waitForDone(30000)
         self.close_run()
         super().closeEvent(event)
 
