@@ -49,6 +49,7 @@ from meanap.pipeline.figure_output import DEFAULT_THUMBNAIL_DPI
 from meanap.pipeline.render import (
     available_activity_figures, available_comparison_families, available_figures,
     available_spike_check_figures, render_spike_check_figure, figure_variants,
+    activity_figure_variants,
     available_sorting_check_figures, available_stim_check_figures,
     available_edge_check_lags, render_edge_check_figure,
     available_subnetwork_figures, render_subnetwork_figure,
@@ -491,7 +492,9 @@ class ViewerService:
                 },
                 # Step-2 figures are per recording, not per lag — a separate
                 # list rather than a lag key, so the page can show them once.
-                "activity": [{"name": f.name, "label": f.label}
+                "activity": [{"name": f.name, "label": f.label,
+                              # The raster and heatmaps carry a panel per scale.
+                              "variants": activity_figure_variants(self.ctx, name, f.name)}
                              for f in available_activity_figures(self.ctx, name)],
                 # Step-1 checks are per recording too. Listed separately from
                 # the step-2 activity set because they answer a different
@@ -559,6 +562,13 @@ class ViewerService:
             "comparison_controls": comparison_control_schema(),
             "formats": list(ALLOWED_FORMATS),
         }
+
+    def run_params(self):
+        """The :class:`~meanap.params.Params` the run was made with, or ``None``.
+
+        A bundle's are already redacted (see :mod:`meanap.pipeline.bundle`).
+        """
+        return self._bundle.params if self._bundle is not None else self.ctx.params
 
     def run_style(self):
         """The :class:`NetworkStyle` this run's own figures were drawn with.

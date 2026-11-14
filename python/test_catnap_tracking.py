@@ -1256,11 +1256,9 @@ def test_page_lands_on_a_chain_when_the_url_asks_for_it():
     assert '$("track-view").value' in body
 
 
-def test_gui_button_opens_the_served_viewer_on_the_chain(tmp_path, monkeypatch):
-    """The panel asks; the main window serves the run folder and opens the
-    browser on the tracking tab at that chain. Not a static file: the page
-    written at run time carries that day's JavaScript and none of the other
-    tracking views."""
+def test_gui_button_opens_the_results_viewer_on_the_chain(tmp_path):
+    """The panel asks; the main window opens the run folder in the results
+    viewer, on its cell-tracking page at that chain."""
     import os
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
     pytest.importorskip("PyQt6")
@@ -1282,22 +1280,15 @@ def test_gui_button_opens_the_served_viewer_on_the_chain(tmp_path, monkeypatch):
     # the window side, without a window: the same method the signal reaches
     from meanap.gui import main_window as mw
     opened = []
-    monkeypatch.setattr(mw.webbrowser, "open", opened.append)
-
-    class FakeViewers:
-        def url_for(self, source):
-            return None
-        def open(self, source):
-            assert Path(source) == root.resolve()
-            return "http://127.0.0.1:1/"
 
     class Stub:
         _last_output_root = root
-        _viewers = FakeViewers()
-        _run_panel = type("P", (), {"append_log": staticmethod(lambda *_: None)})()
-        _open_in_viewer = mw.MainWindow._open_in_viewer
+
+        def _open_in_viewer(self, source, *, query=""):
+            opened.append((Path(source), query))
+            return True
     mw.MainWindow._on_open_tracking_viewer(Stub(), "chainA")
-    assert opened == ["http://127.0.0.1:1/?tab=tracking&chain=chainA"]
+    assert opened == [(root, "tab=tracking&chain=chainA")]
 
 
 def test_tracking_tab_hides_the_figure_panes():

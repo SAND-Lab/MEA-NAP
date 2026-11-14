@@ -1182,7 +1182,7 @@ class CatNapPanel(QWidget):
         viewer_row.addWidget(self._track_chain, stretch=1)
         self._track_viewer_btn = QPushButton("Open in viewer")
         self._track_viewer_btn.setToolTip(
-            "Opens the run's viewer in a browser on the cell-tracking tab, at "
+            "Opens the run in the results viewer on its cell-tracking page, at "
             "this chain: every tracked cell with its footprint and trace on "
             "each day and its fingerprint score, plus the dataset overview and "
             "the network view. Ordered worst first, so it calibrates how much "

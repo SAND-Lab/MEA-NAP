@@ -152,7 +152,15 @@ def window_with_fake_viewer() -> tuple[MainWindow, list]:
         opened.append((Path(source), query))
         return True
 
+    browsed: list = []
+
+    def fake_browser(source, *, query=""):
+        browsed.append((Path(source), query))
+        return True
+
     w._open_in_viewer = fake_open
+    w._open_in_browser = fake_browser
+    w._browsed = browsed
     w._viewers.url_for = lambda source: "http://127.0.0.1:8765/"
     return w, opened
 
@@ -180,7 +188,7 @@ def page_section(runs: dict[str, Path], shots: Path | None) -> None:
     check("View results hides the questions", not sv.analyse_page.isVisible()
           and page.isVisible())
     check("MEA-NAP offers the results, network and spike viewers",
-          page.viewer_keys() == ["results", "results_native", "network", "spikes"], str(page.viewer_keys()))
+          page.viewer_keys() == ["results", "network", "spikes"], str(page.viewer_keys()))
     check("before a run is open, only the spike viewer can open",
           not page.viewer_enabled("results") and not page.viewer_enabled("network")
           and page.viewer_enabled("spikes"))
@@ -188,7 +196,14 @@ def page_section(runs: dict[str, Path], shots: Path | None) -> None:
     page.set_source(runs["bundle"])
     check("choosing a bundle opens it in the results viewer",
           opened[-1:] == [(runs["bundle"].resolve(), "")], str(opened))
-    check("and says where, with a reminder to keep MEA-NAP open",
+    check("and says it is open in the results window",
+          "results window" in page.serving.text(), page.serving.text())
+    check("with nothing opened in the browser", w._browsed == [], str(w._browsed))
+    page.browser_button.click()
+    check("the browser is a link away, for what only it has",
+          w._browsed == [(runs["bundle"].resolve(), "")]
+          and "settings" in page.browser_button.toolTip(), str(w._browsed))
+    check("and then says where, with a reminder to keep MEA-NAP open",
           "127.0.0.1:8765" in page.serving.text() and "Keep MEA-NAP open" in page.serving.text())
     check("the results viewer is now enabled", page.viewer_enabled("results"))
     check("the network viewer is not, for a run with no networks",
@@ -204,7 +219,7 @@ def page_section(runs: dict[str, Path], shots: Path | None) -> None:
 
     w._apply_mode("meastim")
     check("MEA-Stim adds the ΔFR viewer and stimulation preview",
-          page.viewer_keys() == ["results", "results_native", "fr_diff", "network", "stim_preview", "spikes"],
+          page.viewer_keys() == ["results", "fr_diff", "network", "stim_preview", "spikes"],
           str(page.viewer_keys()))
     check("stimulation preview needs no run", page.viewer_enabled("stim_preview"))
     w._data_panel.raw_data.line_edit.setText(str(runs["plain"]))
@@ -223,12 +238,12 @@ def page_section(runs: dict[str, Path], shots: Path | None) -> None:
 
     w._apply_mode("catnap")
     check("CAT-NAP offers results, networks and cell tracking",
-          page.viewer_keys() == ["results", "results_native", "network", "tracking"], str(page.viewer_keys()))
+          page.viewer_keys() == ["results", "network", "tracking"], str(page.viewer_keys()))
     check("cell tracking disabled for a run without it", not page.viewer_enabled("tracking"))
     page.set_source(runs["tracked"])
     check("enabled for a run with it", page.viewer_enabled("tracking"))
     page.open_viewer("tracking")
-    check("and opens the browser on the tracking tab",
+    check("and opens the results viewer on its tracking page",
           opened[-1] == (runs["tracked"].resolve(), "tab=tracking"), str(opened[-1]))
     if shots:
         pump(50)
