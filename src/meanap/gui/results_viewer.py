@@ -1167,9 +1167,20 @@ class ResultsViewer(QWidget):
         self._style_scroll = QScrollArea()
         self._style_scroll.setWidgetResizable(True)
         self._style_scroll.setWidget(self.style_panel)
+        # ...or, beside 5A4, what its effects are held fixed for.
+        from meanap.gui.adjust_panel import AdjustPanel
+
+        self.adjust_panel = AdjustPanel()
+        self.adjust_panel.changed.connect(self._restyle.start)
+        #: The lag whose choices the picker holds; refilled when it changes.
+        self._adjust_lag = None
         self._right, right_box = _card()
-        right_box.addWidget(_card_title("Network styling"))
-        right_box.addWidget(self._style_scroll, 1)
+        self._right_title = _card_title("Network styling")
+        right_box.addWidget(self._right_title)
+        self._right_pages = QStackedWidget()
+        self._right_pages.addWidget(self._style_scroll)
+        self._right_pages.addWidget(self.adjust_panel)
+        right_box.addWidget(self._right_pages, 1)
         self._right.setMinimumWidth(280)
         self._right.hide()
 
@@ -1894,7 +1905,27 @@ class ResultsViewer(QWidget):
                     "lag": self.lag.currentData() if chosen.get("lagged") else None}
         if kind == "lag_series":
             return {"kind": kind, "series": chosen["series"], "key": chosen["key"]}
-        return {"kind": kind, "lag": chosen["lag"], "key": chosen["key"]}
+        request = {"kind": kind, "lag": chosen["lag"], "key": chosen["key"]}
+        if self._adjusting(request):
+            self._load_adjust_choices(chosen["lag"])
+            request["overrides"] = {"adjust_for": self.adjust_panel.query(),
+                                    **self.adjust_panel.view()}
+        return request
+
+    @staticmethod
+    def _adjusting(request: dict | None) -> bool:
+        """Whether *request* is 5A4, the figure the covariate picker drives."""
+        return bool(request) and request.get("kind") == "stats" \
+            and request.get("key") == "adjusted_effects"
+
+    def _load_adjust_choices(self, lag) -> None:
+        """Fill the picker for *lag*'s run, once per lag."""
+        if self._adjust_lag == lag or self._service is None:
+            return
+        from meanap.pipeline.render import adjustment_choices
+
+        self.adjust_panel.load(adjustment_choices(self._service.ctx, lag))
+        self._adjust_lag = lag
 
     def _draw(self) -> None:
         """Draw what is selected. A request made while drawing waits its turn."""
@@ -1977,9 +2008,17 @@ class ResultsViewer(QWidget):
         self._on_painted(time.perf_counter() - started)
 
     def _place_styling(self) -> None:
-        """Offer the styling panel on network plots only; show it when asked."""
+        """Offer the styling panel on network plots only; show it when asked.
+
+        Beside 5A4 the same pane holds the covariate picker instead, shown
+        without asking: choosing what to hold fixed is what that figure is for.
+        """
         self.style_button.setVisible(self._styleable)
-        show = self._styleable and self.style_button.isChecked()
+        item = self.figures.currentItem()
+        adjusting = self._adjusting(item.data(0, _REQUEST_ROLE) if item is not None else None)
+        self._right_pages.setCurrentWidget(self.adjust_panel if adjusting else self._style_scroll)
+        self._right_title.setText(("Hold fixed" if adjusting else "Network styling").upper())
+        show = adjusting or (self._styleable and self.style_button.isChecked())
         if show and not self._right.isVisible():
             # A hidden splitter pane comes back at whatever is left over, which
             # is nothing; give it its width out of the figure's.

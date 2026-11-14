@@ -27,8 +27,16 @@ def build_parser() -> argparse.ArgumentParser:
 
     which = parser.add_argument_group("which analyses")
     which.add_argument("--only", nargs="+", default=None,
-                       choices=["comparisons", "correlation", "decoding", "regression"],
-                       help="Run only these (default: all four)")
+                       choices=["comparisons", "adjustment", "correlation", "decoding",
+                                "regression"],
+                       help="Run only these (default: all five)")
+    which.add_argument("--adjust-for", nargs="*", default=None, metavar="SET",
+                       help="Covariate sets to refit the comparisons with, asking "
+                            "whether each age or genotype effect survives "
+                            "holding them fixed: presets rate, activity, size, "
+                            "bursting, or columns joined by '+' "
+                            "(FRmean+numActiveElec). Default: rate activity. "
+                            "Give none (--adjust-for with no sets) to skip it.")
     which.add_argument("--metrics", nargs="+", default=None,
                        help="Restrict to these metric columns")
     which.add_argument("--density-sweep", action="store_true",
@@ -144,9 +152,12 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
 
     enabled = set(args.only) if args.only else {
-        "comparisons", "correlation", "decoding", "regression"}
+        "comparisons", "adjustment", "correlation", "decoding", "regression"}
+    adjust_for = StatsSettings.adjust_for if args.adjust_for is None else tuple(args.adjust_for)
     settings = StatsSettings(
         comparisons="comparisons" in enabled,
+        adjustment="adjustment" in enabled and bool(adjust_for),
+        adjust_for=adjust_for,
         correlation="correlation" in enabled,
         decoding="decoding" in enabled,
         regression="regression" in enabled,
