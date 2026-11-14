@@ -307,6 +307,14 @@ and `meanap-gui` opens whichever copy you run it from.
 Untick **Check for updates when MEA-NAP starts** to stop the startup check. You
 can still check from the dialog at any time.
 
+### What's new after an update
+
+When an update changes something you need to know to read your results, such
+as a new default setting, MEA-NAP says so once, in a **What's new** window the
+first time it starts after the update. The window links to the full
+explanation on this site. A first install shows nothing, since nothing has
+changed for you, and the window does not come back once closed.
+
 ## Data
 
 What you are analysing, what that data is, and where the results go — read top
