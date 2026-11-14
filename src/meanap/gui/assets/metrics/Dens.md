@@ -23,7 +23,7 @@ Density counts how many pairs of active nodes share a significant functional con
 
 `density_und` (`meanap.pipeline.network_metrics`) works on the active-node sub-network built in `compute_network_metrics` (`meanap.pipeline.step4`). It counts the non-zero entries in the upper triangle of the thresholded adjacency matrix (each pair once), and divides by the number of possible pairs, n(n − 1)/2, where n is the number of active nodes. Edge weights are not used: any edge that survived probabilistic thresholding counts as 1.
 
-The network comes from the STTC at each lag in `{{param:func_con_lag_val}}` ms, thresholded against `{{param:prob_thresh_rep_num}}` circular-shift surrogates.
+The network comes from the STTC at each lag in `{{param:func_con_lag_val}}` ms, thresholded against `{{param:prob_thresh_rep_num}}` surrogates (`{{param:prob_thresh_null}}`: circular shifts, or spikes jittered within windows).
 
 ## Things to watch for
 

@@ -180,6 +180,12 @@ class Params:
     # ── Thresholding ─────────────────────────────────────────────────────────
     prob_thresh_rep_num: int = 200
     prob_thresh_tail: float = 0.05
+    # The surrogates edges must beat: "circular" shifts each whole train (as
+    # MATLAB does); "jitter" moves each spike within its own window
+    # prob_thresh_jitter_lags x the lag long, keeping every train's rate
+    # profile, bursts included, so only finer coincidences count as edges.
+    prob_thresh_null: Literal["circular", "jitter"] = "circular"
+    prob_thresh_jitter_lags: float = 5.0
     prob_thresh_plot_checks: bool = False
     prob_thresh_plot_checks_n: int = 5
     # CAT-NAP correlation measures (F / spks / denoised F): threshold the binned
