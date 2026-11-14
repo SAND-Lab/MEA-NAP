@@ -77,6 +77,9 @@ class Params:
     # exact MATLAB parity. See python/PIPELINE_PORT_STATUS.md.
     wavelet_ref_period_ms: float | None = 0.5
     get_template_ref_period: float = 2.0
+    # Threshold (noise-sigma multiplier) for the spikes the mea wavelet's
+    # template is made from (MATLAB Params.multiplier, "Wavelet multiplier").
+    template_multiplier: float = 3.5
     min_peak_thr_multiplier: float = -5.0
     max_peak_thr_multiplier: float = -100.0
     pos_peak_thr_multiplier: float = 40.0

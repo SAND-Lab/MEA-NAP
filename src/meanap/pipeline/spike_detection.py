@@ -6,12 +6,15 @@ behaviour of the MATLAB ``detectSpikesCWT`` / ``detectSpikesThreshold`` /
 
 Both the threshold and the wavelet CWT paths are exact ports.
 
-``_cwt_bior15`` reproduces MATLAB's legacy ``cwt(x, scales, 'bior1.5')``
-algorithm literally (integrated wavelet, convolve, differentiate) rather than
+``_cwt`` reproduces MATLAB's legacy ``cwt(x, scales, wname)`` algorithm
+literally (integrated wavelet, convolve, differentiate) rather than
 approximating it, and agrees with MATLAB's own ``cwt`` to ~1e-15 relative on
-real traces. PyWavelets' bior1.5 is *not* an approximation of MATLAB's: the
-filters are identical and ``wavefun`` agrees to 1.6e-15 — see
-``_get_bior15_intwave``.
+real traces. Every wavelet MATLAB's ``detectSpikesWavelet`` accepts is here —
+bior1.5, bior1.3, db2, sym2, haar and the data-driven ``mea`` — and
+PyWavelets' are not approximations of MATLAB's: the filters are identical and
+the integrated wavelets agree to 1e-12 (sym2's up to sign) — see
+``_intwave``. ``mea`` is built per electrode from its median spike
+(:func:`get_template`, :func:`adapt_wavelet`).
 """
 
 from __future__ import annotations
@@ -179,29 +182,143 @@ def detect_spikes_threshold(
 
 # ── Wavelet CWT implementation ────────────────────────────────────────────────
 
-_BIOR15_INTWAVE_CACHE: tuple[np.ndarray, np.ndarray] | None = None
+#: The wavelets MATLAB's ``detectSpikesWavelet`` accepts (its ``wfam``), as
+#: the GUI and the params file name them. ``mea`` is built from the data.
+WAVELETS = ("bior1.5", "bior1.3", "db2", "sym2", "haar", "mea")
+
+# PyWavelets and MATLAB draw sym2 with opposite signs (every other wavelet
+# here agrees, sign included). MATLAB's scale table for sym2 counts *rising*
+# zero crossings because of its sign, so the port takes MATLAB's.
+_MATLAB_SIGN = {"sym2": -1.0}
+
+_INTWAVE_CACHE: dict[str, tuple[np.ndarray, np.ndarray]] = {}
+_INTWAVE_LOCK = threading.Lock()
+
+
+def wavelet_name(name: str) -> str:
+    """A wavelet as MATLAB names it: ``bior1p5`` (a result's name) → ``bior1.5``."""
+    return name if name == "mea" else name.replace("p", ".")
+
+
+def _intwave(wname: str) -> tuple[np.ndarray, np.ndarray]:
+    """Return ``(int_psi, x)`` — the *integrated* wavelet MATLAB convolves with.
+
+    Port of MATLAB's ``intwave(wname, 10)``, which is what its legacy
+    ``cwt(x, scales, wname)`` uses: ``cumsum(psi) * step`` over ``wavefun``'s
+    level-10 grid, where for a biorthogonal wavelet ``psi`` is the
+    *decomposition* wavelet (``intwave.m`` takes ``wavefun``'s 2nd output, as
+    PyWavelets' ``wavefun`` also puts it second).
+
+    PyWavelets' wavelets are not approximations of MATLAB's: for bior1.5,
+    bior1.3, db2, sym2 and haar the grids are identical and ``int_psi`` agrees
+    with MATLAB's to 4e-13 (sym2 once its sign is flipped; checked against
+    R2025b). ``level=10`` matters: it is ``intwave``'s default precision, and
+    MATLAB's ``cwt`` relies on it. ``mea`` is not a fixed wavelet — see
+    :func:`adapt_wavelet`.
+    """
+    wname = wavelet_name(wname)
+    with _INTWAVE_LOCK:
+        cached = _INTWAVE_CACHE.get(wname)
+    if cached is not None:
+        return cached
+    if wname not in WAVELETS or wname == "mea":
+        raise ValueError(f"Unknown wavelet {wname!r}: choose one of {', '.join(WAVELETS)}"
+                         + (" (mea is built from a template; see adapt_wavelet)"
+                            if wname == "mea" else ""))
+    out = pywt.Wavelet(wname).wavefun(level=10)
+    psi, x = out[1], out[-1]
+    step = x[1] - x[0]
+    int_psi = _MATLAB_SIGN.get(wname, 1.0) * np.cumsum(psi) * step
+    with _INTWAVE_LOCK:
+        _INTWAVE_CACHE[wname] = (int_psi, x)
+    return int_psi, x
 
 
 def _get_bior15_intwave() -> tuple[np.ndarray, np.ndarray]:
-    """Return ``(int_psi, x)`` — the *integrated* bior1.5 decomposition wavelet.
+    """The integrated bior1.5 wavelet (:func:`_intwave`; kept for callers)."""
+    return _intwave("bior1.5")
 
-    Port of MATLAB's ``intwave('bior1.5', 10)``, which is what its legacy
-    ``cwt(x, scales, wname)`` convolves with: ``cumsum(psi_d) * step`` over
-    ``wavefun``'s level-10 grid, where ``psi_d`` is the *decomposition* wavelet
-    (``intwave.m`` takes ``wavefun``'s 2nd output for biorthogonal wavelets).
 
-    PyWavelets' bior1.5 is not an approximation of MATLAB's — the two agree
-    exactly: identical filters, identical ``wavefun`` grid, and ``psi_d`` equal
-    to MATLAB's to 1.6e-15 (hence ``int_psi`` to 2.7e-16). ``level=10`` matters:
-    it is ``intwave``'s default precision, and MATLAB's ``cwt`` relies on it.
+# ── The data-driven wavelet ("mea") ───────────────────────────────────────────
+
+#: Half-width of a template waveform: 51 samples, as MATLAB's alignPeaks cuts.
+_TEMPLATE_HALF = 25
+
+
+def get_template(
+    trace: np.ndarray,
+    fs: float,
+    multiplier: float = 3.5,
+    ref_period_ms: float = 2.0,
+    n_spikes: int = 10000,
+    noise: tuple[float, float] | None = None,
+) -> np.ndarray | None:
+    """The median spike on a filtered trace: the shape ``mea`` is built from.
+
+    Port of MATLAB ``getTemplate.m`` (one template): threshold detection at
+    ``multiplier`` noise-sigmas with a ``ref_period_ms`` refractory period,
+    each spike moved to its trough within ±10 samples, then the median of up
+    to ``n_spikes`` of their 51-sample waveforms, spread evenly through the
+    recording (``round(linspace(2, n-2, n_spikes))``, so not the first or last
+    spike). MATLAB cuts each waveform one sample after the trough (its
+    alignPeaks' off-by-one; see :func:`align_peaks`); so does this, so the
+    template — and the wavelet made from it — match MATLAB's exactly.
+
+    Returns None when fewer than four spikes cross the threshold — too few for
+    MATLAB's sampling, which fails there.
     """
-    global _BIOR15_INTWAVE_CACHE
-    if _BIOR15_INTWAVE_CACHE is None:
-        wav = pywt.Wavelet("bior1.5")
-        _, psi_d, _, _, x = wav.wavefun(level=10)
-        step = x[1] - x[0]
-        _BIOR15_INTWAVE_CACHE = (np.cumsum(psi_d) * step, x)
-    return _BIOR15_INTWAVE_CACHE
+    frames, _ = detect_spikes_threshold(trace, multiplier, ref_period_ms, fs,
+                                        filter_flag=False, noise=noise)
+    peaks, _ = align_peaks(frames, trace, win=10, remove_artifacts=False,
+                           noise_sigma=1.0)
+    n = len(trace)
+    # MATLAB's waveform window, centred one sample after the trough; spikes
+    # whose window would run off the trace are left out, as MATLAB drops them.
+    centres = peaks + 1
+    centres = centres[(centres >= _TEMPLATE_HALF) & (centres + _TEMPLATE_HALF < n)]
+    if centres.size < 4:
+        return None
+    count = min(int(n_spikes), centres.size)
+    # MATLAB: round(linspace(2, numel-2, nSpikes)), 1-based; round is half
+    # away from zero.
+    use = np.floor(np.linspace(2, centres.size - 2, count) + 0.5).astype(int) - 1
+    waves = trace[centres[use, None] + np.arange(-_TEMPLATE_HALF, _TEMPLATE_HALF + 1)]
+    return np.median(waves, axis=0)
+
+
+def adapt_wavelet(template: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Build the ``mea`` wavelet from a template; returns ``(int_psi, x)``.
+
+    Port of MATLAB ``adaptWavelet.m`` followed by ``pat2cwav(signal,
+    'orthconst', 0, 'none')`` and ``intwave('mea', 10)``: the template is
+    resampled to 100 points by a not-a-knot cubic spline (MATLAB ``spline``),
+    smoothed with ``filter(gausswin(10), 1, ·)``, rescaled to [0, 1], centred
+    on zero, padded with five zeros either side, and made a wavelet by
+    subtracting its integral over [0, 1] and normalising its energy. Agrees
+    with MATLAB to 2e-15 (R2025b).
+    """
+    from scipy.interpolate import CubicSpline
+    from scipy.signal import lfilter
+
+    template = np.asarray(template, dtype=float).ravel()
+    n = template.size
+    y = CubicSpline(np.arange(1, n + 1), template, bc_type="not-a-knot")(
+        np.linspace(1, n, 100))
+    # MATLAB gausswin(10): exp(-0.5 * (alpha * k / ((N-1)/2))^2), alpha 2.5.
+    k = np.arange(10) - 4.5
+    y = lfilter(np.exp(-0.5 * (2.5 * k / 4.5) ** 2), 1.0, y)
+    span = y.max() - y.min()
+    if span == 0:
+        raise ValueError("a flat template cannot make a wavelet")
+    y = (y - y.min()) / span
+    y = y - y.mean()
+    signal = np.zeros(110)
+    signal[5:105] = y
+    x = np.linspace(0.0, 1.0, signal.size)
+    psi = signal - np.trapezoid(signal, x)
+    step = x[1] - x[0]
+    psi = psi / np.sqrt(np.sum(psi ** 2) * step)
+    return np.cumsum(psi) * step, x
 
 
 def _wkeep1_centre(x: np.ndarray, length: int) -> np.ndarray:
@@ -214,9 +331,16 @@ def _wkeep1_centre(x: np.ndarray, length: int) -> np.ndarray:
 
 
 def _cwt_bior15(signal: np.ndarray, scales: np.ndarray) -> np.ndarray:
-    """Compute CWT of ``signal`` at each scale using the bior1.5 wavelet.
+    """The CWT with bior1.5 (:func:`_cwt`; kept for callers)."""
+    return _cwt(signal, scales, _intwave("bior1.5"))
 
-    Literal port of MATLAB's legacy ``cwt(signal, scales, 'bior1.5')``, whose
+
+def _cwt(signal: np.ndarray, scales: np.ndarray,
+         wavelet: tuple[np.ndarray, np.ndarray]) -> np.ndarray:
+    """Compute CWT of ``signal`` at each scale with an integrated *wavelet*
+    (``(int_psi, x)``, from :func:`_intwave` or :func:`adapt_wavelet`).
+
+    Literal port of MATLAB's legacy ``cwt(signal, scales, wname)``, whose
     algorithm is (verified bit-identical against R2024b's ``cwt``)::
 
         [psi, xval] = intwave(wname, 10);  step = xval(2)-xval(1);
@@ -233,7 +357,7 @@ def _cwt_bior15(signal: np.ndarray, scales: np.ndarray) -> np.ndarray:
     -------
     c : (n_scales, n_samples) array of CWT coefficients
     """
-    int_psi, x = _get_bior15_intwave()
+    int_psi, x = wavelet
     step = x[1] - x[0]
     x_span = x[-1] - x[0]
     n = len(signal)
@@ -345,29 +469,53 @@ def _determine_scales(
     wid_ms: tuple[float, float],
     fs_hz: float,
     ns: int,
+    wavelet: tuple[np.ndarray, np.ndarray] | None = None,
 ) -> np.ndarray:
     """Determine CWT scales matching MATLAB's ``determine_scales()``.
 
-    Returns integer scales for the desired spike-width range ``wid_ms``.
+    Returns the scales for the desired spike-width range ``wid_ms``: whole
+    numbers, except for haar, whose scales MATLAB computes by formula and does
+    not round. *wavelet* is the ``mea`` wavelet (:func:`adapt_wavelet`); the
+    others are looked up by name.
 
     The result depends on the wavelet, the width range and the sampling rate —
     not on the recording — so every channel of every recording in a run asks
     for the same table and gets it from :func:`_determine_scales_cached`. A
     copy is handed out because the answer is an array and a caller that wrote
-    to it would poison every later channel.
+    to it would poison every later channel. (``mea`` differs per electrode, so
+    its wavelet is part of the key.)
     """
-    return _determine_scales_cached(wname, wid_ms, fs_hz, ns).copy()
+    wname = wavelet_name(wname)
+    if wname == "mea":
+        if wavelet is None:
+            raise ValueError("the mea wavelet is built from a template: pass wavelet=")
+        key = np.asarray(wavelet[0], dtype=float).tobytes()
+    else:
+        key = None
+    return _determine_scales_cached(wname, tuple(wid_ms), float(fs_hz), int(ns), key).copy()
 
 
-@lru_cache(maxsize=32)
+@lru_cache(maxsize=256)
 def _determine_scales_cached(
     wname: str,
     wid_ms: tuple[float, float],
     fs_hz: float,
     ns: int,
+    mea_key: bytes | None = None,
 ) -> np.ndarray:
     fs_khz = fs_hz / 1000.0
     dt = 1.0 / fs_khz           # ms per sample (of the actual signal)
+
+    if wname not in WAVELETS:
+        raise ValueError(f"Unknown wavelet {wname!r}: choose one of {', '.join(WAVELETS)}")
+
+    # MATLAB: Width = linspace(Wid(1), Wid(2), Ns)
+    width_target = np.linspace(wid_ms[0], wid_ms[1], ns)
+
+    if wname == "haar":
+        # MATLAB: Scale(i) = Width(i)/dt - 1 — no table, and not rounded.
+        return width_target / dt - 1
+
     ScaleMax = int(4 * fs_khz)   # MATLAB: ScaleMax = 4*SFr
     scales_test = np.arange(2, ScaleMax + 1, dtype=float)
 
@@ -375,50 +523,81 @@ def _determine_scales_cached(
     test_signal = np.zeros(1000)
     test_signal[499] = 1.0
 
-    if wname in ("bior1.5", "bior1p5"):
-        c = _cwt_bior15(test_signal, scales_test)
-
-        width_table = np.zeros(len(scales_test))
-        for i in range(len(scales_test)):
-            ind_pos = (c[i, :] > 0).astype(int)
-            ind_der = np.diff(ind_pos)
-            # MATLAB's IndZeroCross are 1-BASED indices and the >500 / <500
-            # comparisons are against those, so use the same convention: a
-            # crossing at 1-based index 501 belongs to IndMax, whereas testing
-            # the 0-based index against 500 drops it from *both* bins. That
-            # off-by-one silently corrupted the narrowest scale's width entry.
-            zero_cross = np.where(ind_der == -1)[0] + 1
-            max_cross = zero_cross[zero_cross > 500]
-            min_cross = zero_cross[zero_cross < 500]
-            if len(max_cross) == 0 or len(min_cross) == 0:
-                continue
-            width_table[i] = (max_cross.min() + 1 - min_cross.max()) * dt
-
-        # MATLAB: WidthTable + [1:length(Scales)]*Eps
-        Eps = 1e-15
-        width_table = width_table + np.arange(1, len(scales_test) + 1) * Eps
-
-        # Target widths
-        width_target = np.linspace(wid_ms[0], wid_ms[1], ns)
-
-        width_target = _fit_widths_to_table(width_target, width_table, wid_ms, fs_hz, wname)
-
-        # MATLAB: Scale = round(interp1(WidthTable, Scales, Width, 'linear')).
-        # interp1 returns NaN outside WidthTable's range; np.interp would
-        # silently clamp, so ask for NaN and surface it instead of guessing.
-        interp = np.interp(width_target, width_table, scales_test,
-                           left=np.nan, right=np.nan)
-        if np.isnan(interp).any():
-            bad = width_target[np.isnan(interp)]
-            raise ValueError(
-                f"Wid {wid_ms} is not achievable at fs={fs_hz} Hz with {wname!r}: "
-                f"target width(s) {bad} ms fall outside the wavelet's range "
-                f"[{width_table.min():.3g}, {width_table.max():.3g}] ms"
-            )
-        # MATLAB's round() is half-away-from-zero; np.round is half-to-even.
-        return np.floor(interp + 0.5).astype(int)
+    if wname == "mea":
+        int_psi = np.frombuffer(mea_key, dtype=float)
+        wavelet = (int_psi, np.linspace(0.0, 1.0, int_psi.size))
     else:
-        raise ValueError(f"Unsupported wavelet for scale determination: {wname!r}")
+        wavelet = _intwave(wname)
+    c = _cwt(test_signal, scales_test, wavelet)
+
+    # The width a scale resolves is the distance between the zero crossings
+    # either side of the Dirac's response: falling crossings for every
+    # wavelet but sym2, whose sign makes them rising. MATLAB skips the two
+    # narrowest scales for mea.
+    direction = 1 if wname == "sym2" else -1
+    first = 2 if wname == "mea" else 0
+    width_table = np.full(len(scales_test), np.nan)
+    for i in range(first, len(scales_test)):
+        ind_der = np.diff((c[i, :] > 0).astype(int))
+        # MATLAB's IndZeroCross are 1-BASED indices and the >500 / <500
+        # comparisons are against those, so use the same convention: a
+        # crossing at 1-based index 501 belongs to IndMax, whereas testing
+        # the 0-based index against 500 drops it from *both* bins. That
+        # off-by-one silently corrupted the narrowest scale's width entry.
+        zero_cross = np.where(ind_der == direction)[0] + 1
+        max_cross = zero_cross[zero_cross > 500]
+        min_cross = zero_cross[zero_cross < 500]
+        if len(max_cross) == 0 or len(min_cross) == 0:
+            # MATLAB stops here with an indexing error ("left and right sides
+            # have a different number of elements"). It happens to mea's
+            # wavelets, whose narrow scales can lack a crossing on one side:
+            # 1 of 11 example-data electrodes, and every rate tried for a
+            # synthetic template (R2025b). The scale is left out instead.
+            continue
+        width_table[i] = (max_cross.min() + 1 - min_cross.max()) * dt
+
+    # MATLAB: WidthTable + [1:length(Scales)]*Eps
+    Eps = 1e-15
+    width_table = width_table + np.arange(1, len(scales_test) + 1) * Eps
+
+    # The table must rise with scale for the lookup to mean anything. It does
+    # for every standard wavelet, and then this keeps every scale — MATLAB's
+    # table. mea's does not: its wavelet spans [0, 1], so scale a draws it
+    # with only a samples, and the narrowest scales' "widths" are aliasing
+    # (0.32–0.4 ms at scales 2–5 on 12.5 kHz recordings, before a clean rise
+    # from 0.24 ms at scale 6). MATLAB's interp1 sorts them in anyway and asks
+    # a 5-sample wavelet to find 0.4 ms spikes (scales [5 25 31 36 39] on the
+    # example data, where the trend puts 0.4 ms near scale 16). So trust the
+    # wide, well-sampled scales and walk down from them, dropping any
+    # narrower scale that claims a spike at least as wide as a wider one.
+    keep = np.zeros(len(scales_test), dtype=bool)
+    narrowest = np.inf
+    for i in range(len(scales_test) - 1, -1, -1):
+        width = width_table[i]
+        if np.isfinite(width) and width < narrowest:
+            keep[i] = True
+            narrowest = width
+    if keep.sum() < 2:
+        raise ValueError(f"The {wname!r} wavelet resolves no usable range of spike "
+                         f"widths at fs={fs_hz:g} Hz")
+    width_table, scales_test = width_table[keep], scales_test[keep]
+
+    width_target = _fit_widths_to_table(width_target, width_table, wid_ms, fs_hz, wname)
+
+    # MATLAB: Scale = round(interp1(WidthTable, Scales, Width, 'linear')).
+    # interp1 returns NaN outside WidthTable's range; np.interp would
+    # silently clamp, so ask for NaN and surface it instead of guessing.
+    interp = np.interp(width_target, width_table, scales_test,
+                       left=np.nan, right=np.nan)
+    if np.isnan(interp).any():
+        bad = width_target[np.isnan(interp)]
+        raise ValueError(
+            f"Wid {wid_ms} is not achievable at fs={fs_hz} Hz with {wname!r}: "
+            f"target width(s) {bad} ms fall outside the wavelet's range "
+            f"[{width_table.min():.3g}, {width_table.max():.3g}] ms"
+        )
+    # MATLAB's round() is half-away-from-zero; np.round is half-to-even.
+    return np.floor(interp + 0.5).astype(int)
 
 
 # ── Wavelet spike detection ───────────────────────────────────────────────────
@@ -472,11 +651,14 @@ def detect_spikes_wavelet(
     option: str = "l",
     L: float = -0.12,
     wname: str = "bior1.5",
+    template: np.ndarray | None = None,
 ) -> np.ndarray:
     """Wavelet CWT spike detection.
 
     Port of MATLAB ``detectSpikesWavelet()``.  Signal should already be
-    filtered (bandpass).
+    filtered (bandpass). For ``wname="mea"`` the wavelet is built from
+    *template* (:func:`get_template`), or from the signal's own median spike
+    with MATLAB's default template settings when none is given.
 
     Parameters
     ----------
@@ -486,18 +668,29 @@ def detect_spikes_wavelet(
     ns : number of CWT scales
     option : 'l' (liberal) or 'c' (conservative)
     L : Bayesian cost factor (typically -0.12)
-    wname : wavelet name ('bior1.5' supported)
+    wname : wavelet name: one of :data:`WAVELETS`
 
     Returns
     -------
     spike_frames : 1-D int array of spike frame indices (0-based)
     """
+    wname = wavelet_name(wname)
+    if wname == "mea":
+        if template is None:
+            template = get_template(signal, fs_hz)
+        if template is None:
+            # Too few threshold crossings to make a wavelet from: no spikes.
+            return np.array([], dtype=int)
+        wavelet = adapt_wavelet(template)
+    else:
+        wavelet = _intwave(wname)
+
     signal = signal - signal.mean()
     Nt = len(signal)
 
-    W = _determine_scales(wname, wid_ms, fs_hz, ns)
+    W = _determine_scales(wname, wid_ms, fs_hz, ns, wavelet)
 
-    c = _cwt_bior15(signal, W.astype(float))
+    c = _cwt(signal, W.astype(float), wavelet)
 
     Lmax = 36.7368
     L_scaled = L * Lmax
@@ -511,7 +704,9 @@ def detect_spikes_wavelet(
         # MATLAB: median(abs(c(i,1:round(W(i)):end) - mean(c(i,:))))/0.6745 —
         # the subsampled coefficients are centred on the mean of the FULL row,
         # not on their own mean.
-        stride = max(1, int(round(w_i)))
+        # round() half away from zero, as MATLAB's: haar's scales are not
+        # whole numbers, and 5.5 must stride 6, not Python's 6-or-4.
+        stride = max(1, int(np.floor(w_i + 0.5)))
         Sigmaj = np.median(np.abs(row[::stride] - row.mean())) / 0.6745
         if Sigmaj == 0:
             continue
@@ -679,7 +874,12 @@ class SpikeDetectionParams:
     # only). See ``Params.wavelet_ref_period_ms`` for why this is separate
     # from ``ref_period_ms`` and why it defaults to a short value.
     wavelet_ref_period_ms: float | None = 0.5
+    # The mea wavelet's template (MATLAB getTemplate): threshold detection at
+    # template_multiplier noise-sigmas with this refractory period, then the
+    # median of up to n_spikes of the spikes found.
     n_spikes: int = 10000
+    template_multiplier: float = 3.5
+    template_ref_period_ms: float = 2.0
     min_peak_thr_mult: float = -5.0
     max_peak_thr_mult: float = -100.0
     pos_peak_thr_mult: float = 15.0
@@ -735,9 +935,11 @@ def detect_spikes_recording(
     thr_list = [threshold_method_name(t) for t in params.thresholds]
     all_methods = wname_list + thr_list
 
-    # Pre-cache wavelet function before the channel loop so it's not recomputed
-    if any(not w.startswith("thr") for w in all_methods):
-        _get_bior15_intwave()
+    # Build the fixed wavelets once, before the channel loop, and fail here —
+    # not once per electrode — on a name that is not one.
+    for w in wname_list:
+        if wavelet_name(w) != "mea":
+            _intwave(w)
 
     # Per-channel work is independent and dominated by GIL-releasing
     # scipy.filtfilt + numpy.fft, so it threads cleanly over the (single,
@@ -770,6 +972,12 @@ def detect_spikes_recording(
         spike_struct: dict[str, np.ndarray] = {}
         wave_struct: dict[str, np.ndarray] = {}
         thr_struct: dict[str, float] = {}
+        # mea's wavelet is this electrode's median spike, found once for it.
+        template = None
+        if any(wavelet_name(w) == "mea" for w in wname_list):
+            template = get_template(
+                filtered, fs, params.template_multiplier,
+                params.template_ref_period_ms, params.n_spikes, noise=channel_noise)
 
         for wname in all_methods:
             valid_name = wname.replace(".", "p")
@@ -786,15 +994,20 @@ def detect_spikes_recording(
 
             else:
                 # Wavelet method
-                actual_wname = wname.replace("p", ".")
-                frames = detect_spikes_wavelet(
-                    filtered, fs,
-                    wid_ms=params.wid_ms,
-                    ns=params.n_scales,
-                    option="l",
-                    L=params.cost_list[0],
-                    wname=actual_wname,
-                )
+                actual_wname = wavelet_name(wname)
+                if actual_wname == "mea" and template is None:
+                    # Too few threshold crossings to make a wavelet from.
+                    frames = np.array([], dtype=int)
+                else:
+                    frames = detect_spikes_wavelet(
+                        filtered, fs,
+                        wid_ms=params.wid_ms,
+                        ns=params.n_scales,
+                        option="l",
+                        L=params.cost_list[0],
+                        wname=actual_wname,
+                        template=template,
+                    )
                 thr_struct[valid_name] = float("nan")
 
             aligned_frames, waveforms = align_peaks(

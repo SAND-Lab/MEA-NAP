@@ -71,7 +71,7 @@ from meanap.pipeline.io import (
 )
 from meanap.pipeline.spike_detection import (
     SpikeDetectionParams, bandpass_filter, detect_spikes_recording,
-    threshold_method_name,
+    WAVELETS, threshold_method_name,
 )
 
 __all__ = ["UNLABELLED_METHOD", "SpikeViewerWindow", "SweepPoint",
@@ -80,7 +80,7 @@ __all__ = ["UNLABELLED_METHOD", "SpikeViewerWindow", "SweepPoint",
            "sweep_points", "unpack_bursts"]
 
 _LAYOUTS = ["MCS60", "MCS60old", "MCS59", "Axion64", "Axion16"]
-_WAVELETS = ["bior1.5", "bior1.3", "db2", "mea"]
+_WAVELETS = list(WAVELETS)
 #: Points drawn for one window of a matplotlib trace — the Filtering tab's
 #: before/after pair. Above this, a screen-width axes has more samples than
 #: pixels and the extra ones cost redraw time to show nothing; but spikes are

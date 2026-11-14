@@ -627,6 +627,27 @@ def load_spike_times_npz(path: str | Path) -> dict[int, dict[str, np.ndarray]]:
     return result
 
 
+class MissingSpikeMethod(ValueError):
+    """The spike method chosen for analysis is not in a recording's spike file."""
+
+
+def require_spike_method(spike_times: dict[int, dict[str, np.ndarray]], method: str,
+                         recording: str) -> None:
+    """Stop if *method* is not among the methods a spike file holds.
+
+    Every later step reads one method's trains; read a method that was never
+    detected and every electrode is silently empty — zero firing rates, no
+    networks, and nothing to say why. A file with no electrodes at all has
+    nothing to check.
+    """
+    present = sorted({m for methods in spike_times.values() for m in methods})
+    if present and method not in present:
+        raise MissingSpikeMethod(
+            f"Spike method {method!r} is not in {recording}'s spike file, which holds "
+            f"{', '.join(present)}. Choose one of those as the spike method for "
+            f"analysis, or detect {method!r} by running step 1 again.")
+
+
 # ── Whole spike files, for inspection ─────────────────────────────────────────
 
 @dataclass

@@ -12,15 +12,14 @@ from __future__ import annotations
 
 import numpy as np
 import pywt
-from scipy.interpolate import CubicSpline
 from scipy.signal import butter, freqz
-from scipy.signal.windows import gaussian
 
 from meanap.pipeline.burst_detection import (
     burst_detect_isin, burst_detect_network, get_isin_threshold,
 )
 from meanap.pipeline.spike_detection import (
-    SpikeDetectionParams, _get_bior15_intwave, align_peaks, bandpass_filter,
+    WAVELETS, _MATLAB_SIGN, SpikeDetectionParams, _get_bior15_intwave, adapt_wavelet,
+    align_peaks, bandpass_filter,
     detect_spikes_recording, detect_spikes_threshold, trace_noise,
 )
 
@@ -69,17 +68,11 @@ def synthetic_trace(seconds: float = 2.0, rate: float = 12.0, seed: int = 1,
 # ── Wavelets ──────────────────────────────────────────────────────────────────
 
 def mea_wavelet(waveform: np.ndarray) -> np.ndarray:
-    """The 'mea' wavelet as MATLAB's adaptWavelet.m builds its starting shape
-    from an average spike: spline to 100 points, Gaussian smoothing
-    (gausswin(10)), rescale to [0, 1], subtract the mean. (adaptWavelet then
-    fits a wavelet to this with pat2cwav; the shape is what matters here.)"""
-    template = CubicSpline(np.arange(len(waveform)), waveform)(
-        np.linspace(0, len(waveform) - 1, 100))
-    # MATLAB gausswin(10) = exp(-0.5*(2.5*n/(N/2))^2): std (N-1)/(2*2.5).
-    win = gaussian(10, std=(10 - 1) / (2 * 2.5))
-    y = np.convolve(template, win)[:len(template)]  # filter(w, 1, x)
-    y = (y - y.min()) / (y.max() - y.min())
-    return y - y.mean()
+    """The 'mea' wavelet the pipeline builds from a median spike
+    (``adapt_wavelet``: MATLAB's adaptWavelet.m + pat2cwav), as the wavelet
+    itself rather than its integral."""
+    int_psi, x = adapt_wavelet(waveform)
+    return np.diff(np.r_[0.0, int_psi]) / (x[1] - x[0])
 
 
 def run_detector(raw: np.ndarray, *, thresholds=(), wavelets=(), cost=-0.12,
@@ -100,25 +93,28 @@ def _main_lobes(x, psi):
 
 
 def draw_wavelets():
-    names = ["bior1.5", "bior1.3", "db2", "mea"]
-    notes = {"bior1.5": "default; the only one\nPython runs",
-             "bior1.3": "MATLAB only", "db2": "MATLAB only",
-             "mea": "MATLAB only; built\nfrom your own spikes"}
-    fig, axes = style.figure((4.6, 2.3), nrows=1, ncols=4, sharey=True)
+    names = list(WAVELETS)
+    notes = {"bior1.5": "the default", "bior1.3": "shorter, plainer",
+             "db2": "lopsided", "sym2": "db2 turned round",
+             "haar": "a square step", "mea": "built from each\nelectrode's spikes"}
+    fig, axes = style.figure((4.6, 3.5), nrows=2, ncols=3, sharey=True)
+    axes = axes.ravel()
     t_sp, sp = spike_shape(FS, 1.0)
     for ax, name in zip(axes, names):
         if name == "mea":
-            # The median spike getTemplate.m takes, put through adaptWavelet.m.
+            # The median spike get_template takes, put through adapt_wavelet.
             keep = (t_sp >= -0.6) & (t_sp <= 1.2)
             psi = mea_wavelet(sp[keep])
             x = np.linspace(-0.6, 1.2, len(psi))
-            # adaptWavelet smooths with a causal filter, which delays the shape;
-            # line the troughs up so the two can be compared.
+            # adapt_wavelet smooths with a causal filter, which delays the
+            # shape; line the troughs up so the two can be compared.
             sx = t_sp + x[np.argmin(psi)]
         else:
             out = pywt.Wavelet(name).wavefun(level=8)
             # Biorthogonal: the decomposition wavelet is what the CWT uses.
-            psi, x = (out[1], out[-1]) if len(out) == 5 else (out[1], out[2])
+            # MATLAB draws sym2 the other way up from PyWavelets; so does
+            # the pipeline.
+            psi, x = out[1] * _MATLAB_SIGN.get(name, 1.0), out[-1]
             # Spike stretched so its trough spans the wavelet's two main
             # lobes, centred between them: the scale the detector would pick.
             hi, lo = _main_lobes(x, psi)
@@ -139,8 +135,8 @@ def draw_wavelets():
         ax.set_ylim(-1.15, 1.15)
     axes[0].plot([], [], color=style.ACCENT, label="wavelet")
     axes[0].plot([], [], color=style.MUTED, alpha=0.6, label="a typical spike")
-    fig.legend(loc="lower center", ncol=2, frameon=False, bbox_to_anchor=(0.5, -0.14))
-    fig.subplots_adjust(wspace=0.1)
+    fig.legend(loc="lower center", ncol=2, frameon=False, bbox_to_anchor=(0.5, -0.08))
+    fig.subplots_adjust(wspace=0.1, hspace=0.55)
     return style.save(fig, "sd_wavelets")
 
 
