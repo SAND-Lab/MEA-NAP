@@ -8,6 +8,8 @@ metrics are links, and Back returns along the way followed.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from PyQt6.QtCore import QRect, QUrl, Qt, pyqtSignal
 from PyQt6.QtGui import QDesktopServices, QKeySequence, QShortcut
 from PyQt6.QtWidgets import (
@@ -29,21 +31,24 @@ _FAMILIES = {"network": "network", "activity": "activity", "catnap": "calcium im
              "spatiotemporal": "spatiotemporal"}
 
 
-def card_markdown(card: MetricInfo, params=None) -> str:
+def card_markdown(card: MetricInfo, params=None, directory: Path = METRICS_DIR) -> str:
     """The Markdown the card shows: summary, picture, sections, related links."""
     text = render_markdown(card, params)
     summary, _, rest = text.partition("\n## ")
     parts = [summary.strip()]
-    if card.image and (METRICS_DIR / card.image).is_file():
+    if card.image and (directory / card.image).is_file():
         parts.append(f"![{card.name}]({card.image})")
     if rest:
         parts.append("## " + rest.strip())
-    related = [lookup(k) for k in card.related]
+    related = [lookup(k, directory) for k in card.related]
     links = [f"[{c.name}](metric:{c.key})" for c in related if c is not None and c != card]
     if links:
         parts.append("## Related\n\n" + " · ".join(links))
     if card.also:
         parts.append("*Also explains:* " + ", ".join(f"`{k}`" for k in card.also))
+    fields = [f.strip() for f in card.meta.get("params", "").split(",") if f.strip()]
+    if fields:
+        parts.append("*In a params file:* " + ", ".join(f"`{f}`" for f in fields))
     return "\n\n".join(parts)
 
 
@@ -52,13 +57,24 @@ class MetricCard(QFrame):
 
     closed = pyqtSignal()
 
-    def __init__(self, parent: QWidget) -> None:
+    def __init__(self, parent: QWidget, directory: Path = METRICS_DIR) -> None:
         super().__init__(parent)
+        #: Where the cards are: the metrics, or the settings (``SETTINGS_DIR``).
+        self.directory = Path(directory)
         self.setObjectName("metricCard")
         self.setStyleSheet(
             "#metricCard { background: #ffffff; border: 1px solid #d1d5db;"
             " border-radius: 10px; }"
             "#metricCard QTextBrowser { border: none; background: transparent; }"
+            "#metricCard QScrollBar:vertical { background: transparent; width: 10px;"
+            " margin: 2px; border: none; }"
+            "#metricCard QScrollBar::handle:vertical { background: #d5d9e0;"
+            " border-radius: 3px; min-height: 28px; }"
+            "#metricCard QScrollBar::handle:vertical:hover { background: #b9c0cb; }"
+            "#metricCard QScrollBar::add-line:vertical, #metricCard QScrollBar::sub-line:vertical"
+            " { height: 0px; }"
+            "#metricCard QScrollBar::add-page:vertical, #metricCard QScrollBar::sub-page:vertical"
+            " { background: transparent; }"
             "#metricChip { color: #4b5563; background: #eef2ff; border-radius: 8px;"
             " padding: 2px 8px; font-size: 11px; }")
         shadow = QGraphicsDropShadowEffect(self)
@@ -70,6 +86,10 @@ class MetricCard(QFrame):
         self.setGraphicsEffect(shadow)
 
         self._params = None
+        #: Where to lay the card, if not over the whole parent: () -> QRect.
+        self.area = None
+        #: The widest a picture is drawn (None: the text's width).
+        self.image_width: int | None = IMAGE_W
         #: The cards shown, oldest first; the last is on screen.
         self.history: list[str] = []
 
@@ -88,8 +108,11 @@ class MetricCard(QFrame):
         self.close_button.clicked.connect(self.close_card)
         self.text = QTextBrowser()
         self.text.setOpenLinks(False)
-        self.text.setSearchPaths([str(METRICS_DIR)])
+        self.text.setSearchPaths([str(self.directory)])
         self.text.anchorClicked.connect(self._on_link)
+        # Pictures fit the text's width, which is known only once laid out.
+        self.text.viewport().installEventFilter(self)
+        self._fitted_width = -1
 
         head = QHBoxLayout()
         head.setSpacing(6)
@@ -119,7 +142,7 @@ class MetricCard(QFrame):
     def show_metric(self, key: str, *, fresh: bool = True) -> bool:
         """Show *key*'s card. *fresh* starts a new history; following a link
         does not. Returns False if there is no card for it."""
-        card = lookup(key)
+        card = lookup(key, self.directory)
         if card is None:
             return False
         if fresh:
@@ -139,11 +162,14 @@ class MetricCard(QFrame):
 
     def _fill(self, card: MetricInfo) -> None:
         self.title.setText(card.name)
-        chip = " · ".join(t for t in (_LEVELS.get(card.level, ""),
-                                       _FAMILIES.get(card.family, card.family)) if t)
+        if card.meta.get("tab"):                # a setting: where it is
+            chip = f"{card.meta['tab']} tab"
+        else:
+            chip = " · ".join(t for t in (_LEVELS.get(card.level, ""),
+                                           _FAMILIES.get(card.family, card.family)) if t)
         self.chip.setText(chip)
         self.chip.setVisible(bool(chip))
-        self.text.setMarkdown(card_markdown(card, self._params))
+        self.text.setMarkdown(card_markdown(card, self._params, self.directory))
         self._fit_images()
         self.text.verticalScrollBar().setValue(0)
         self.back.setVisible(len(self.history) > 1)
@@ -152,11 +178,15 @@ class MetricCard(QFrame):
         """Pictures at most ``IMAGE_W`` wide (and never wider than the text),
         headings sized for a card rather than a page."""
         from PyQt6.QtGui import (
-            QImage, QTextCharFormat, QTextCursor, QTextFormat, QTextImageFormat,
+            QImage, QTextCharFormat, QTextCursor, QTextDocument, QTextFormat,
+            QTextImageFormat,
         )
 
         document = self.text.document()
-        width = min(max(self.text.viewport().width() - 24, 120), IMAGE_W)
+        self._fitted_width = self.text.viewport().width()
+        width = max(self.text.viewport().width() - 24, 120)
+        if self.image_width is not None:
+            width = min(width, self.image_width)
         block = document.begin()
         while block.isValid():
             level = block.blockFormat().headingLevel()
@@ -174,12 +204,29 @@ class MetricCard(QFrame):
                 fmt = fragment.charFormat()
                 if fmt.isImageFormat():
                     image = fmt.toImageFormat()
-                    picture = QImage(str(METRICS_DIR / image.name()))
+                    name = image.name()
+                    if name.startswith("scaled/"):          # fitted before: the file
+                        name = name.split("/", 2)[2]
+                    picture = QImage(str(self.directory / name))
                     if not picture.isNull():
-                        scaled = QTextImageFormat(image)
+                        # Scaled here, smoothly, at the screen's pixel density:
+                        # the document's own scaling skips pixels, and text in
+                        # a picture drawn at 2x turns to noise.
                         w = min(width, picture.width())
+                        h = picture.height() * w / picture.width()
+                        ratio = self.devicePixelRatioF() or 1.0
+                        fitted = picture.scaled(
+                            max(int(w * ratio), 1), max(int(h * ratio), 1),
+                            Qt.AspectRatioMode.IgnoreAspectRatio,
+                            Qt.TransformationMode.SmoothTransformation)
+                        fitted.setDevicePixelRatio(ratio)
+                        url = f"scaled/{int(w)}/{name}"
+                        document.addResource(QTextDocument.ResourceType.ImageResource.value,
+                                             QUrl(url), fitted)
+                        scaled = QTextImageFormat(image)
+                        scaled.setName(url)
                         scaled.setWidth(w)
-                        scaled.setHeight(picture.height() * w / picture.width())
+                        scaled.setHeight(h)
                         cursor = QTextCursor(document)
                         cursor.setPosition(fragment.position())
                         cursor.setPosition(fragment.position() + fragment.length(),
@@ -187,6 +234,14 @@ class MetricCard(QFrame):
                         cursor.setCharFormat(scaled)
                 it += 1
             block = block.next()
+
+    def eventFilter(self, watched, event) -> bool:
+        from PyQt6.QtCore import QEvent
+
+        if watched is self.text.viewport() and event.type() == QEvent.Type.Resize \
+                and self.text.viewport().width() != self._fitted_width:
+            self._fit_images()
+        return super().eventFilter(watched, event)
 
     # ── moving about ─────────────────────────────────────────────────────────
 
@@ -199,7 +254,7 @@ class MetricCard(QFrame):
     def go_back(self) -> None:
         if len(self.history) > 1:
             self.history.pop()
-            card = lookup(self.history[-1])
+            card = lookup(self.history[-1], self.directory)
             if card is not None:
                 self._fill(card)
 
@@ -212,7 +267,8 @@ class MetricCard(QFrame):
 
     def place(self, area: QRect | None = None) -> None:
         """Over the right of *area* (the parent's rectangle, by default)."""
-        area = area or self.parentWidget().rect()
+        if area is None:
+            area = self.area() if self.area is not None else self.parentWidget().rect()
         width = min(CARD_W, max(area.width() - 40, 280))
         self.setGeometry(area.right() - width - 12, area.top() + 12, width,
                          max(area.height() - 24, 200))
