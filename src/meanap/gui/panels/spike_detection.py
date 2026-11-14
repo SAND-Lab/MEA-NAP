@@ -22,11 +22,13 @@ from meanap.gui.panels.paths import PathRow
 from meanap.gui.tooltip import set_tooltip
 from meanap.gui.widgets import show_auto_or_value
 from meanap.params import Params
+from meanap.pipeline.spike_detection import WAVELETS
 from meanap.pipeline.spike_sorting import (
     SUPPORTED_SORTERS, installed_sorters, sorting_available,
 )
 
-WAVELET_METHODS = ["bior1.5", "bior1.3", "db2", "mea"]
+#: Every wavelet MATLAB MEA-NAP accepts; all of them run in Python too.
+WAVELET_METHODS = list(WAVELETS)
 SPIKE_METHODS = ["bior1p5", "bior1p3", "mergedAll", "mergedWavelet", "thr4p5", "thr5p0", "thr3p5"]
 TEMPLATE_METHODS = ["PCA", "spikeWidthAndAmplitude", "amplitudeAndWidthAndSymmetry"]
 
@@ -166,12 +168,15 @@ class SpikeDetectionPanel(QWidget):
 
         self.wname_list = QListWidget()
         self.wname_list.setSelectionMode(QListWidget.SelectionMode.MultiSelection)
-        self.wname_list.setMaximumHeight(90)
         for name in WAVELET_METHODS:
             item = QListWidgetItem(name)
             self.wname_list.addItem(item)
             if name == "bior1.5":
                 item.setSelected(True)
+        # Tall enough for every wavelet: a hidden one is easily never found.
+        self.wname_list.setMaximumHeight(
+            self.wname_list.sizeHintForRow(0) * self.wname_list.count()
+            + 2 * self.wname_list.frameWidth() + 2)
 
         self.cost_list = QDoubleSpinBox()
         self.cost_list.setRange(-10, 10)
@@ -247,12 +252,29 @@ class SpikeDetectionPanel(QWidget):
         self.n_spikes.setRange(10, 10000)
         self.n_spikes.setValue(100)
 
+        # What the mea wavelet's template is made from: the spikes a
+        # threshold detector finds at this many noise-sigmas, no two closer
+        # than this. MATLAB's "Wavelet multiplier" and "Template refractory
+        # period"; both reach the pipeline only for mea.
+        self.template_multiplier = QDoubleSpinBox()
+        self.template_multiplier.setRange(1, 20)
+        self.template_multiplier.setDecimals(1)
+        self.template_multiplier.setSingleStep(0.5)
+        self.template_multiplier.setValue(3.5)
+        self.template_ref_period = QDoubleSpinBox()
+        self.template_ref_period.setRange(0, 100)
+        self.template_ref_period.setDecimals(1)
+        self.template_ref_period.setSuffix(" ms")
+        self.template_ref_period.setValue(2.0)
+
         self.multiple_templates = QCheckBox()
         self.multi_template_method = QComboBox()
         self.multi_template_method.addItems(TEMPLATE_METHODS)
 
         form4.addRow("Refractory period (threshold detectors)", self.ref_period)
         form4.addRow("Refractory period (wavelet detectors)", self.wavelet_ref_period)
+        form4.addRow("Template threshold", self.template_multiplier)
+        form4.addRow("Template refractory period", self.template_ref_period)
         form4.addRow("Max spikes for template", self.n_spikes)
         form4.addRow("Multiple templates", self.multiple_templates)
         form4.addRow("Template method", self.multi_template_method)
@@ -559,6 +581,8 @@ class SpikeDetectionPanel(QWidget):
         self.ref_period.setValue(params.ref_period)
         self.wavelet_ref_period.setValue(params.wavelet_ref_period_ms or 0)
         self.n_spikes.setValue(params.n_spikes)
+        self.template_multiplier.setValue(params.template_multiplier)
+        self.template_ref_period.setValue(params.get_template_ref_period)
         self.multiple_templates.setChecked(params.multiple_templates)
         idx = self.multi_template_method.findText(params.multi_template_method)
         if idx >= 0:
@@ -619,6 +643,8 @@ class SpikeDetectionPanel(QWidget):
         params.ref_period = self.ref_period.value()
         params.wavelet_ref_period_ms = self.wavelet_ref_period.value() or None
         params.n_spikes = self.n_spikes.value()
+        params.template_multiplier = self.template_multiplier.value()
+        params.get_template_ref_period = self.template_ref_period.value()
         params.multiple_templates = self.multiple_templates.isChecked()
         params.multi_template_method = self.multi_template_method.currentText()
 

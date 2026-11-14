@@ -472,13 +472,14 @@ it applies.
 | **Relative thresholds** | MAD-multiplier thresholds below the median, comma-separated (e.g. `3, 4, 5`). |
 | **Absolute thresholds (µV)** ⚙ | Fixed voltage thresholds instead of relative ones — leave blank to use relative thresholds. |
 | **Min activity level (spikes/s)** | The firing rate an electrode must reach to count as active (default `0.01`, as in the MATLAB app). Applied after detection: it decides the number of active electrodes and which electrodes enter the firing rate statistics and the network, not which spikes are found. At `0` every electrode counts as active, even a silent one. Also on the Connectivity tab; the two fields are one setting. |
-| **Wavelet methods** | One or more of `bior1.5`, `bior1.3`, `db2`, `mea` (multi-select list). |
+| **Wavelet methods** | One or more of `bior1.5`, `bior1.3`, `db2`, `sym2`, `haar`, `mea` (multi-select list). `mea` is built on each electrode from its own median spike. |
 | **Wavelet cost** ⚙ | Cost parameter for the continuous wavelet transform (default `-0.12`). |
 | **Spike method for analysis** | Which detection method's output feeds steps 2–4: `bior1p5`, `bior1p3`, `mergedAll`, `mergedWavelet`, `thr4p5`, `thr5p0`, `thr3p5`. |
 | **Low-pass / high-pass cutoff** ⚙ | Bandpass filter applied before detection (default 600–8000 Hz). |
 | **Refractory period** ⚙ | Minimum inter-spike interval (ms) enforced during detection. |
+| **Template threshold** / **Template refractory period** ⚙ | The threshold (noise-sigma multiplier, default 3.5) and refractory period (default 2 ms) for the spikes the `mea` wavelet's template is the median of. |
 | **Max spikes for template** ⚙ | Cap on spikes used to build the spike-shape template. |
-| **Multiple templates** / **Template method** ⚙ | Whether to cluster spikes into multiple templates, and by which method (`PCA`, `spikeWidthAndAmplitude`, `amplitudeAndWidthAndSymmetry`). |
+| **Multiple templates** / **Template method** ⚙ | Whether to cluster spikes into multiple templates, and by which method (`PCA`, `spikeWidthAndAmplitude`, `amplitudeAndWidthAndSymmetry`). MATLAB only for now: the Python pipeline builds one template per electrode. |
 
 :::{dropdown} Which spike detection method should I use?
 `bior1.5` (a biorthogonal wavelet CWT) is MEA-NAP's flagship method and the
