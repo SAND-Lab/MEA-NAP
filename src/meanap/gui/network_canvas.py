@@ -14,6 +14,7 @@ from PyQt6.QtCore import QPointF, QSize, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QColor, QCursor, QPainter, QPixmap
 from PyQt6.QtWidgets import QCheckBox, QToolTip, QVBoxLayout, QWidget
 
+from meanap.gui.figure_canvas import InfoTargets
 from meanap.native import output
 from meanap.native.network_paint import (
     MANY_EDGES, MAX_LABELS, SMOOTH_ALWAYS, NetworkPainter,
@@ -89,6 +90,9 @@ class _Surface(QWidget):
                 self._canvas._moved()
             self._last = at
             return
+        if self._canvas.info.hover(self, figure, at.x(), at.y()):
+            self._canvas._point(None)
+            return
         self._canvas._point(figure.node_at(at.x(), at.y()))
 
     def mouseReleaseEvent(self, event) -> None:
@@ -99,6 +103,10 @@ class _Surface(QWidget):
         if dragged or figure is None:
             return
         at = event.position()
+        role = self._canvas.info.role_at(figure, at.x(), at.y())
+        if role is not None:
+            self._canvas.info_requested.emit(role)
+            return
         self._canvas.click(figure.node_at(at.x(), at.y()))
 
     def mouseDoubleClickEvent(self, _event) -> None:
@@ -122,10 +130,13 @@ class NetworkCanvas(QWidget):
     #: The name of the node selected by a click (None when let go), so other
     #: views of the same array can select it too (see :meth:`select_name`).
     node_selected = pyqtSignal(object)
+    #: A legend heading or the title was clicked: its role (see InfoTargets).
+    info_requested = pyqtSignal(str)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.painter: NetworkPainter | None = None
+        self.info = InfoTargets()
         self.surface = _Surface(self)
         #: What export() writes: the painted area, without the controls.
         self.card = self.surface

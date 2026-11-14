@@ -121,6 +121,8 @@ class NetworkPainter:
         self.key = True
         self._lit: list[_EdgeGroup] = []
         self._background: QImage | None = None
+        #: Legend headings as last painted, and what each is about.
+        self._info_boxes: list[tuple[QRectF, str]] = []
 
         widths = scene.edge_width
         count = len(widths)
@@ -283,6 +285,16 @@ class NetworkPainter:
                                      float(scene.edge_grey[members].mean()), thin))
         return groups
 
+    def info_at(self, x: float, y: float) -> str | None:
+        """What part of the figure (x, y) is on, for a card about it:
+        "title", or a legend heading's "size", "colour", "category", "edges"."""
+        if 4 <= y <= 4 + self.title_h and MARGIN <= x <= self.size[0] - MARGIN:
+            return "title"
+        for box, role in self._info_boxes:
+            if box.adjusted(-4, -3, 4, 3).contains(QPointF(x, y)):
+                return role
+        return None
+
     # ── painting ─────────────────────────────────────────────────────────────
 
     def paint(self, painter: QPainter) -> None:
@@ -432,13 +444,17 @@ class NetworkPainter:
         line = QFontMetricsF(text_font).height()
         y = self.title_h + MARGIN / 2 + 4
 
-        def heading(text: str) -> None:
+        self._info_boxes = []
+
+        def heading(text: str, role: str | None = None) -> None:
             nonlocal y
             painter.setFont(head_font)
             painter.setPen(INK)
             box = painter.boundingRect(
                 QRectF(left, y, right - left, 200),
                 int(Qt.AlignmentFlag.AlignLeft | Qt.TextFlag.TextWordWrap), text)
+            if role is not None:
+                self._info_boxes.append((QRectF(box), role))
             painter.drawText(box, int(Qt.AlignmentFlag.AlignLeft | Qt.TextFlag.TextWordWrap),
                              text)
             y += box.height() + 6
@@ -456,7 +472,7 @@ class NetworkPainter:
 
         # Where colour is a category, shown first: it is what the plot is of.
         if scene.category_key is not None:
-            heading(_title(f"Node colour: {scene.category_key['name']}"))
+            heading(_title(f"Node colour: {scene.category_key['name']}"), "category")
             for label, rgb in scene.category_key["items"]:
                 painter.setPen(Qt.PenStyle.NoPen)
                 painter.setBrush(_rgba(rgb))
@@ -471,7 +487,7 @@ class NetworkPainter:
         # Node size: samples at the size nodes are on screen now.
         sizes, to_scale = self.size_key()
         if scene.size_items:
-            heading(_title(f"Node size: {scene.size_name}"))
+            heading(_title(f"Node size: {scene.size_name}"), "size")
         column = max(max(sizes, default=0.0), 24.0)
         for (label, _), d in zip(scene.size_items, sizes):
             row = max(d, line)
@@ -494,7 +510,7 @@ class NetworkPainter:
         if scene.size_items:
             y += 8
 
-        heading("Edge weight")
+        heading("Edge weight", "edges")
         for label, width_pt, grey in scene.edge_items:
             painter.setPen(_pen(_grey(grey), max(width_pt * PX_PER_POINT, 1.0), round_cap=True))
             painter.drawLine(QPointF(left + 8, y + line / 2), QPointF(left + 52, y + line / 2))
@@ -511,7 +527,7 @@ class NetworkPainter:
         if key is not None:
             import matplotlib
 
-            heading(_title(f"Node colour: {key['name']}"))
+            heading(_title(f"Node colour: {key['name']}"), "colour")
             bar = QRectF(left + 8, y + 4, 22, 138)
             cmap = matplotlib.colormaps[key["colormap"]]
             gradient = QLinearGradient(bar.bottomLeft(), bar.topLeft())
@@ -630,6 +646,10 @@ class NetworkPairPainter:
 
     def describe(self, node: int) -> str:
         return self.panels[1].describe(node)
+
+    def info_at(self, x: float, y: float) -> str | None:
+        panel, local = self._local(x)
+        return panel.info_at(local, y)
 
     def paint(self, painter: QPainter) -> None:
         painter.save()

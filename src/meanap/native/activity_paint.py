@@ -53,6 +53,16 @@ class HeatmapPainter(FigurePainter):
 
     # ── geometry ─────────────────────────────────────────────────────────────
 
+    info_band = 46.0
+
+    def info_at(self, x: float, y: float) -> str | None:
+        """The title, or a colour bar with its ticks and label: "colour"."""
+        for index in range(len(self.scene.panels)):
+            _plot, bar, _scale, _centre = self._panel(index)
+            if bar.adjusted(-4, -4, 70, 4).contains(QPointF(x, y)):
+                return "colour"
+        return super().info_at(x, y)
+
     def _panel(self, index: int) -> tuple[QRectF, QRectF, float, tuple[float, float]]:
         """Panel *index*: its plot area, its colour bar, pixels per unit, data centre."""
         scene = self.scene
@@ -177,6 +187,13 @@ class RasterPainter(FigurePainter):
         self._per = 60.0 if scene.time_unit == "min" else 1.0
         self.axes: list[Axes] = []
         self._layout(keep=False)
+
+    def info_at(self, x: float, y: float) -> str | None:
+        """The title, or a colour bar with its ticks and label: "colour"."""
+        for bar in self.bars:
+            if bar.adjusted(-4, -4, 70, 4).contains(QPointF(x, y)):
+                return "colour"
+        return super().info_at(x, y)
 
     def _layout(self, *, keep: bool) -> None:
         old = (self.axes[0].xlim, self.axes[0].ylim) if keep and self.axes else None
