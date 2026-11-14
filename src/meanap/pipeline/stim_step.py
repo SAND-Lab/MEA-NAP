@@ -26,6 +26,7 @@ from meanap.pipeline.io import (
     find_raw_file,
     load_raw_recording,
     load_spike_times_npz,
+    require_spike_method,
 )
 from meanap.pipeline.channel_layout import get_coords_from_layout
 from meanap.pipeline.progress import RunProgress
@@ -124,6 +125,7 @@ def run_stim_analysis(
 
         # Python step-1 spikes for this recording, filtered to the analysis method
         spikes_full = load_spike_times_npz(npz_path)
+        require_spike_method(spikes_full, method, rec.filename)
         spikes = {c: {method: m[method]} for c, m in spikes_full.items() if method in m}
         spikes = clean_spikes_from_stim(spikes, stim_info, sp_params)
 
@@ -350,6 +352,7 @@ def _run_event_stim_analysis(params: Params, recordings: list[RecordingInfo],
         sp_params = {**base, "fs": fs, "numBaselinePSTHs": n_baseline}
 
         spikes_full = load_spike_times_npz(npz_path)
+        require_spike_method(spikes_full, method, rec.filename)
         spikes = {c: {method: m[method]} for c, m in spikes_full.items() if method in m}
         stim_info = stim_info_without_stim_nodes(channels, coords)
         info = {"FileName": rec.filename, "Grp": rec.group, "DIV": rec.div,

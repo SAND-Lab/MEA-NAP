@@ -20,7 +20,8 @@ import numpy as np
 from meanap.params import Params, active_spike_method
 from meanap.pipeline.cancellation import CancelCheck, check_cancel
 from meanap.pipeline.io import (
-    find_raw_file, load_spike_times_npz, resolve_duration_s, truncate_spike_times,
+    find_raw_file, load_spike_times_npz, require_spike_method, resolve_duration_s,
+    truncate_spike_times,
 )
 from meanap.pipeline.parallel import map_recordings
 from meanap.pipeline.progress import RunProgress
@@ -99,6 +100,7 @@ def _step3_one_recording(task: tuple[Params, RecordingInfo, str]) -> tuple[str, 
         return rec.filename, logs
 
     spike_times_full = load_spike_times_npz(npz_file)
+    require_spike_method(spike_times_full, method, rec.filename)
     spike_times_dict = {
         ch: spike_times_full.get(ch, {}).get(method, np.array([]))
         for ch in range(n_channels)

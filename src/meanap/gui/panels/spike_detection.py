@@ -22,13 +22,25 @@ from meanap.gui.panels.paths import PathRow
 from meanap.gui.tooltip import set_tooltip
 from meanap.gui.widgets import show_auto_or_value
 from meanap.params import Params
+from meanap.pipeline.spike_detection import WAVELETS, threshold_method_name
 from meanap.pipeline.spike_sorting import (
     SUPPORTED_SORTERS, installed_sorters, sorting_available,
 )
 
-WAVELET_METHODS = ["bior1.5", "bior1.3", "db2", "mea"]
-SPIKE_METHODS = ["bior1p5", "bior1p3", "mergedAll", "mergedWavelet", "thr4p5", "thr5p0", "thr3p5"]
+#: Every wavelet MATLAB MEA-NAP accepts; all of them run in Python too.
+WAVELET_METHODS = list(WAVELETS)
 TEMPLATE_METHODS = ["PCA", "spikeWidthAndAmplitude", "amplitudeAndWidthAndSymmetry"]
+
+
+def _threshold_alias(method: str) -> str:
+    """A threshold method under the name step 1 saves it by: ``thr5p0``,
+    which this list once offered (and MATLAB never made either), is ``thr5``."""
+    if method.startswith("thr"):
+        try:
+            return threshold_method_name(float(method[3:].replace("p", ".")))
+        except ValueError:
+            pass
+    return method
 
 
 class SpikeDetectionPanel(QWidget):
@@ -166,12 +178,15 @@ class SpikeDetectionPanel(QWidget):
 
         self.wname_list = QListWidget()
         self.wname_list.setSelectionMode(QListWidget.SelectionMode.MultiSelection)
-        self.wname_list.setMaximumHeight(90)
         for name in WAVELET_METHODS:
             item = QListWidgetItem(name)
             self.wname_list.addItem(item)
             if name == "bior1.5":
                 item.setSelected(True)
+        # Tall enough for every wavelet: a hidden one is easily never found.
+        self.wname_list.setMaximumHeight(
+            self.wname_list.sizeHintForRow(0) * self.wname_list.count()
+            + 2 * self.wname_list.frameWidth() + 2)
 
         self.cost_list = QDoubleSpinBox()
         self.cost_list.setRange(-10, 10)
@@ -179,8 +194,13 @@ class SpikeDetectionPanel(QWidget):
         self.cost_list.setSingleStep(0.01)
         self.cost_list.setValue(-0.12)
 
+        # The methods step 1 will save with these settings, named as it
+        # names them; kept in step with the wavelets and thresholds above.
         self.spikes_method = QComboBox()
-        self.spikes_method.addItems(SPIKE_METHODS)
+        self.spikes_method.addItem("bior1p5", "bior1p5")
+        self.wname_list.itemSelectionChanged.connect(self._refresh_spike_methods)
+        self.thresholds.textChanged.connect(lambda _text: self._refresh_spike_methods())
+        self._refresh_spike_methods("bior1p5")
 
         form2.addRow("Wavelet methods", self.wname_list)
         form2.addRow("Spike method for analysis", self.spikes_method)
@@ -247,12 +267,29 @@ class SpikeDetectionPanel(QWidget):
         self.n_spikes.setRange(10, 10000)
         self.n_spikes.setValue(100)
 
+        # What the mea wavelet's template is made from: the spikes a
+        # threshold detector finds at this many noise-sigmas, no two closer
+        # than this. MATLAB's "Wavelet multiplier" and "Template refractory
+        # period"; both reach the pipeline only for mea.
+        self.template_multiplier = QDoubleSpinBox()
+        self.template_multiplier.setRange(1, 20)
+        self.template_multiplier.setDecimals(1)
+        self.template_multiplier.setSingleStep(0.5)
+        self.template_multiplier.setValue(3.5)
+        self.template_ref_period = QDoubleSpinBox()
+        self.template_ref_period.setRange(0, 100)
+        self.template_ref_period.setDecimals(1)
+        self.template_ref_period.setSuffix(" ms")
+        self.template_ref_period.setValue(2.0)
+
         self.multiple_templates = QCheckBox()
         self.multi_template_method = QComboBox()
         self.multi_template_method.addItems(TEMPLATE_METHODS)
 
         form4.addRow("Refractory period (threshold detectors)", self.ref_period)
         form4.addRow("Refractory period (wavelet detectors)", self.wavelet_ref_period)
+        form4.addRow("Template threshold", self.template_multiplier)
+        form4.addRow("Template refractory period", self.template_ref_period)
         form4.addRow("Max spikes for template", self.n_spikes)
         form4.addRow("Multiple templates", self.multiple_templates)
         form4.addRow("Template method", self.multi_template_method)
@@ -519,6 +556,41 @@ class SpikeDetectionPanel(QWidget):
                 "The detector settings below are not used; every later step "
                 "reads the sorted units." if sorting else "")
 
+    #: How the spike-method list marks a method these settings will not detect.
+    NOT_DETECTED = "not detected by these settings"
+
+    def detected_methods(self) -> list[str]:
+        """The methods step 1 saves with the wavelets and thresholds as set:
+        ``bior1p5`` for bior1.5, ``thr4`` for 4, ``thr4p5`` for 4.5."""
+        wavelets = [self.wname_list.item(i).text().replace(".", "p")
+                    for i in range(self.wname_list.count())
+                    if self.wname_list.item(i).isSelected()]
+        thresholds = []
+        for part in self.thresholds.text().split(","):
+            try:
+                thresholds.append(threshold_method_name(float(part)))
+            except ValueError:
+                continue
+        return list(dict.fromkeys(wavelets + thresholds))
+
+    def _refresh_spike_methods(self, keep: str | None = None) -> None:
+        """Offer the methods step 1 will detect. *keep* (else the current
+        choice) stays chosen even when these settings will not detect it, as
+        a run from step 2 reads spike files an earlier step 1 made; it is
+        then marked, so the mismatch is seen before the run, not after."""
+        if not isinstance(keep, str):
+            keep = self.spikes_method.currentData() or self.spikes_method.currentText()
+        methods = self.detected_methods()
+        self.spikes_method.blockSignals(True)
+        self.spikes_method.clear()
+        for method in methods:
+            self.spikes_method.addItem(method, method)
+        if keep and keep not in methods:
+            self.spikes_method.addItem(f"{keep}  ({self.NOT_DETECTED})", keep)
+        index = self.spikes_method.findData(keep) if keep else -1
+        self.spikes_method.setCurrentIndex(max(index, 0))
+        self.spikes_method.blockSignals(False)
+
     def load(self, params: Params) -> None:
         self.min_activity_level.setValue(params.min_activity_level)
         self.detect_spikes.setChecked(params.detect_spikes)
@@ -551,14 +623,13 @@ class SpikeDetectionPanel(QWidget):
         self.thresholds.setText(", ".join(str(t) for t in params.thresholds))
         self.abs_thresholds.setText(", ".join(str(t) for t in params.abs_thresholds))
         self.cost_list.setValue(params.cost_list)
-        idx = self.spikes_method.findText(params.spikes_method)
-        if idx >= 0:
-            self.spikes_method.setCurrentIndex(idx)
         self.filter_low_pass.setValue(params.filter_low_pass)
         self.filter_high_pass.setValue(params.filter_high_pass)
         self.ref_period.setValue(params.ref_period)
         self.wavelet_ref_period.setValue(params.wavelet_ref_period_ms or 0)
         self.n_spikes.setValue(params.n_spikes)
+        self.template_multiplier.setValue(params.template_multiplier)
+        self.template_ref_period.setValue(params.get_template_ref_period)
         self.multiple_templates.setChecked(params.multiple_templates)
         idx = self.multi_template_method.findText(params.multi_template_method)
         if idx >= 0:
@@ -567,6 +638,7 @@ class SpikeDetectionPanel(QWidget):
         for i in range(self.wname_list.count()):
             item = self.wname_list.item(i)
             item.setSelected(item.text() in params.wname_list)
+        self._refresh_spike_methods(_threshold_alias(params.spikes_method))
 
         self.network_burst_min_spike.setValue(int(params.min_spike_network_burst))
         self.network_burst_min_channel.setValue(int(params.min_channel_network_burst))
@@ -613,12 +685,15 @@ class SpikeDetectionPanel(QWidget):
                              for i in range(self.wname_list.count())
                              if self.wname_list.item(i).isSelected()]
         params.cost_list = self.cost_list.value()
-        params.spikes_method = self.spikes_method.currentText()
+        params.spikes_method = self.spikes_method.currentData() or \
+            self.spikes_method.currentText()
         params.filter_low_pass = self.filter_low_pass.value()
         params.filter_high_pass = self.filter_high_pass.value()
         params.ref_period = self.ref_period.value()
         params.wavelet_ref_period_ms = self.wavelet_ref_period.value() or None
         params.n_spikes = self.n_spikes.value()
+        params.template_multiplier = self.template_multiplier.value()
+        params.get_template_ref_period = self.template_ref_period.value()
         params.multiple_templates = self.multiple_templates.isChecked()
         params.multi_template_method = self.multi_template_method.currentText()
 

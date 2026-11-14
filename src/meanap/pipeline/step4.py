@@ -25,7 +25,8 @@ from meanap.pipeline import network_metrics as nm
 from meanap.pipeline.cancellation import CancelCheck, check_cancel
 from meanap.pipeline.channel_layout import get_coords_from_layout, node_distances_in_pitches
 from meanap.pipeline.io import (
-    find_raw_file, load_spike_times_npz, resolve_duration_s, truncate_spike_times,
+    find_raw_file, load_spike_times_npz, require_spike_method, resolve_duration_s,
+    truncate_spike_times,
 )
 from meanap.pipeline.modularity import mod_consensus_cluster_iterate
 from meanap.pipeline.nmf import cal_nmf
@@ -682,6 +683,7 @@ def _load_recording_spikes(
         return None
     method = active_spike_method(params)
     spike_times_full = load_spike_times_npz(spike_path)
+    require_spike_method(spike_times_full, method, rec.filename)
     spike_times_dict = {
         ch: spike_times_full.get(ch, {}).get(method, np.array([]))
         for ch in range(n_channels)
