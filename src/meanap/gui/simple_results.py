@@ -3,13 +3,17 @@
 Opening MEA-NAP only to look at a run someone sent is common, so the simple
 view has a second page for it beside **Analyse recordings**: drop a ``.meanap``
 bundle or a results folder on it (or double-click a bundle in the file
-manager), and the results viewer opens in the browser. Below that are the other
-viewers the current pipeline has, each enabled only when the run in hand can
-feed it, and the runs opened recently.
+manager), and the results viewer opens in a window of this app. Below that are
+the other viewers the current pipeline has, each enabled only when the run in
+hand can feed it, and the runs opened recently.
+
+The web viewer is still a link away, for the few things only it has (the run's
+settings, exporting every figure of a bundle, cell-type decisions on tracked
+cells).
 
 The page opens nothing itself. It asks the window through signals, because the
-window owns the viewer server and the viewer windows; the window reports back
-with :meth:`ResultsPage.note_opened`.
+window owns the viewer windows and the web viewer's server; the window reports
+back with :meth:`ResultsPage.note_opened`.
 """
 
 from __future__ import annotations
@@ -46,18 +50,15 @@ class Viewer:
 
 
 _RESULTS = Viewer("results", "Results viewer",
-                  "Every figure and table from the run, in your browser.")
-_RESULTS_NATIVE = Viewer(
-    "results_native", "Results viewer, in this app (preview)",
-    "Each recording's figures in a window here: zoom and move them, and point "
-    "at a node or a point to read it. Comparisons are still in the browser.")
+                  "Every figure from the run: zoom and move them, point at a node "
+                  "or a point to read it, and compare recordings and DIVs.")
 _SPIKES = Viewer("spikes", "Spike and burst viewer",
                  "The detected spikes and bursts on one recording, from the "
                  "recordings folder set under Analyse recordings.", needs_run=False)
 _FR_DIFF = Viewer("fr_diff", "Stimulation response (ΔFR)",
                   "How each electrode's firing rate changes with stimulation.")
 _TRACKING = Viewer("tracking", "Cell tracking",
-                   "The same cells followed across recordings, in your browser.")
+                   "The same cells followed across recordings, in the results viewer.")
 _NETWORK = Viewer("network", "Network viewer",
                   "One recording's network, drawn with the node sizes, colours "
                   "and layout you choose, and saved as a figure.")
@@ -69,10 +70,10 @@ _STIM_PREVIEW = Viewer("stim_preview", "Stimulation preview",
 def viewers_for(mode: str) -> list[Viewer]:
     """The viewers that apply to *mode*'s pipeline, most used first."""
     if mode == "meastim":
-        return [_RESULTS, _RESULTS_NATIVE, _FR_DIFF, _NETWORK, _STIM_PREVIEW, _SPIKES]
+        return [_RESULTS, _FR_DIFF, _NETWORK, _STIM_PREVIEW, _SPIKES]
     if mode == "catnap":
-        return [_RESULTS, _RESULTS_NATIVE, _NETWORK, _TRACKING]
-    return [_RESULTS, _RESULTS_NATIVE, _NETWORK, _SPIKES]
+        return [_RESULTS, _NETWORK, _TRACKING]
+    return [_RESULTS, _NETWORK, _SPIKES]
 
 
 def is_results_source(path: Path) -> bool:
@@ -171,15 +172,16 @@ class _DropZone(QFrame):
 class ResultsPage(QWidget):
     """Open a finished run and choose how to look at it."""
 
-    #: (path, query): serve *path* in the results viewer, on the page *query* names.
+    #: (path, query): serve *path* in the web viewer, on the page *query* names.
     open_requested = pyqtSignal(str, str)
     spike_viewer_requested = pyqtSignal()
     #: path: open the firing-rate change viewer on that run.
     fr_diff_requested = pyqtSignal(str)
     #: path: open the network viewer on that run.
     network_viewer_requested = pyqtSignal(str)
-    #: path: open the in-app results viewer on that run.
-    native_viewer_requested = pyqtSignal(str)
+    #: (path, query): open the results viewer on that run; ``tab=tracking``
+    #: lands on its cell-tracking page.
+    native_viewer_requested = pyqtSignal(str, str)
     stim_preview_requested = pyqtSignal()
 
     def __init__(self, mode: str, parent: QWidget | None = None) -> None:
@@ -233,7 +235,20 @@ class ResultsPage(QWidget):
         self.serving.setWordWrap(True)
         self.serving.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
         self.serving.setOpenExternalLinks(True)
-        card.addWidget(self.source_title)
+        # The web viewer, for what only it has.
+        self.browser_button = QPushButton("Open in browser instead")
+        self.browser_button.setObjectName("linkButton")
+        self.browser_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.browser_button.setToolTip(
+            "The older web viewer. It also shows the settings the run used, exports "
+            "every figure of a bundle to a folder, and records cell-type decisions "
+            "on tracked cells.")
+        self.browser_button.clicked.connect(
+            lambda: self.source is not None and self.open_requested.emit(str(self.source), ""))
+        title_row = QHBoxLayout()
+        title_row.addWidget(self.source_title, 1)
+        title_row.addWidget(self.browser_button, 0, Qt.AlignmentFlag.AlignTop)
+        card.addLayout(title_row)
         card.addWidget(self.source_path)
         card.addSpacing(4)
         card.addWidget(self.serving)
@@ -347,18 +362,17 @@ class ResultsPage(QWidget):
         if self.source is None:
             return
         if key == "results":
-            self.open_requested.emit(str(self.source), "")
+            self.native_viewer_requested.emit(str(self.source), "")
         elif key == "tracking":
-            self.open_requested.emit(str(self.source), "tab=tracking")
+            self.native_viewer_requested.emit(str(self.source), "tab=tracking")
         elif key == "fr_diff":
             self.fr_diff_requested.emit(str(self.source))
         elif key == "network":
             self.network_viewer_requested.emit(str(self.source))
-        elif key == "results_native":
-            self.native_viewer_requested.emit(str(self.source))
 
-    def note_opened(self, path: str, url: str | None) -> None:
-        """The window opened *path* in the browser; remember it and say where."""
+    def note_opened(self, path: str, url: str | None = None) -> None:
+        """The window opened *path*: in the results window, or at *url* in the
+        browser. Remember it and say where."""
         self._remember(path)
         self.serving.setProperty("state", "ok")
         self.serving.style().polish(self.serving)
@@ -366,6 +380,8 @@ class ResultsPage(QWidget):
             self.serving.setText(
                 f'✓  Open in your browser at <a href="{url}">{url}</a>. '
                 "Keep MEA-NAP open while you look at it.")
+        else:
+            self.serving.setText("✓  Open in the results window.")
         self.refresh_recent()
 
     def _refresh_source(self) -> None:
@@ -389,8 +405,11 @@ class ResultsPage(QWidget):
                 enabled, tip = False, "This run stopped before the network step."
             button.setEnabled(enabled)
             row.setProperty("available", enabled)
-            row.style().unpolish(row)
-            row.style().polish(row)
+            # The labels are styled by the row's state too, and keep their old
+            # look unless they are polished again with it.
+            for widget in [row, *row.findChildren(QWidget)]:
+                widget.style().unpolish(widget)
+                widget.style().polish(widget)
             row.setToolTip(tip)
 
     def _browse_bundle(self) -> None:

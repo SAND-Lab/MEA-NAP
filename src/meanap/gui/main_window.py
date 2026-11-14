@@ -749,17 +749,17 @@ class MainWindow(QMainWindow):
         if not sources:
             return
         self._set_simple_view(True, remember=False)
-        # Every one is served, but the page holds one at a time: the last.
-        for source in sources:
-            self._simple_view.show_results(source)
+        # The page and the results window hold one run at a time: the last.
+        self._simple_view.show_results(sources[-1])
         if self.isMinimized():
             self.showNormal()
         self.raise_()
         self.activateWindow()
 
     def _on_results_page_open(self, path: str, query: str) -> None:
+        """The page's "Open in browser instead": the web viewer, for what only it has."""
         source = Path(path)
-        if self._open_in_viewer(source, query=query):
+        if self._open_in_browser(source, query=query):
             self._simple_view.results_page.note_opened(
                 path, self._viewers.url_for(source))
 
@@ -810,18 +810,9 @@ class MainWindow(QMainWindow):
             return
         QApplication.restoreOverrideCursor()
 
-    def _on_results_page_native(self, path: str) -> None:
-        from meanap.gui.results_viewer import ResultsViewer
-
-        panel = self._panel_window("results_native", "MEA-NAP · Results", ResultsViewer)
-        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
-        try:
-            panel.load_run(path)
-        except Exception as e:
-            QMessageBox.warning(self._panel_windows["results_native"],
-                                "Could not open the run", str(e))
-        finally:
-            QApplication.restoreOverrideCursor()
+    def _on_results_page_native(self, path: str, query: str = "") -> None:
+        if self._open_in_viewer(Path(path), query=query):
+            self._simple_view.results_page.note_opened(path, None)
 
     def _on_results_page_stim_preview(self) -> None:
         panel = self._panel_window("stim_preview", "MEA-Stim · Stimulation preview",
@@ -1240,8 +1231,8 @@ class MainWindow(QMainWindow):
                 self._tab_index(TAB_RUN), lambda: self._run_panel.run_btn),
             TutorialStep(
                 "Look at what came out", "The Results tab is the last stop. 'View report' "
-                "opens the run in your browser — an HTML gallery of every figure, or the "
-                "viewer if it was an express run — and the network viewer below explores "
+                "opens the run's figures — an HTML gallery of every figure, or the "
+                "results viewer if it was an express run — and the network viewer below explores "
                 "any recording's connectivity interactively.",
                 self._tab_index(TAB_RESULTS),
                 lambda: self._results_panel.view_report_btn),
@@ -2256,12 +2247,7 @@ class MainWindow(QMainWindow):
                           else None)
 
     def _on_open_tracking_viewer(self, chain: str) -> None:
-        """Serve the last run's folder and open the browser on its tracking tab.
-
-        The viewer is the same one a bundle gets, served from the output
-        folder; the page reads ``?tab=tracking&chain=…`` and lands on that
-        chain's cells rather than on the first recording's figure.
-        """
+        """Open the last run's folder in the results viewer, on *chain*'s cells."""
         from urllib.parse import urlencode
 
         root = self._last_output_root
@@ -2294,6 +2280,38 @@ class MainWindow(QMainWindow):
             self._open_in_viewer(Path(path))
 
     def _open_in_viewer(self, source: Path, *, query: str = "") -> bool:
+        """Open *source* in the results viewer, in a window of this app.
+
+        ``query`` is the web viewer's way of saying where to land:
+        ``tab=tracking`` (with ``chain=…``) opens on the cell-tracking page.
+        Returns whether it opened; a run that cannot be read is reported.
+        """
+        from urllib.parse import parse_qs
+
+        from meanap.gui.results_viewer import ResultsViewer
+
+        panel = self._panel_window("results_native", "MEA-NAP · Results", ResultsViewer)
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        try:
+            panel.load_run(source)
+        except Exception as e:
+            QApplication.restoreOverrideCursor()
+            QMessageBox.warning(self._panel_windows["results_native"],
+                                "Could not open the run", f"{source}\n\n{e}")
+            return False
+        QApplication.restoreOverrideCursor()
+        wanted = parse_qs(query)
+        if wanted.get("tab") == ["tracking"]:
+            panel.show_tracking()
+            chain = (wanted.get("chain") or [None])[0]
+            if chain:
+                try:
+                    panel.tracking.show_chain(chain)
+                except KeyError:        # not in this run: its first chain, then
+                    pass
+        return True
+
+    def _open_in_browser(self, source: Path, *, query: str = "") -> bool:
         """Serve *source* in the local viewer and open a browser on it.
 
         Reading a bundle means extracting and parsing it, which is quick but
@@ -2358,8 +2376,8 @@ class MainWindow(QMainWindow):
         if self.is_simple_view():
             self.open_results(bundles)
             return
-        for bundle in bundles:
-            self._open_in_viewer(bundle)
+        # One results window, so of several the last is the one shown.
+        self._open_in_viewer(bundles[-1])
 
     def closeEvent(self, event) -> None:
         # A running QThread destroyed with its parent crashes Qt; ask the
