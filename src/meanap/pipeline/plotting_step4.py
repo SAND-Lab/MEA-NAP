@@ -88,7 +88,7 @@ def plot_spatial_network(
     coords_override: np.ndarray | None = None,
     cell_types: tuple[np.ndarray, list[str]] | None = None,
     background: tuple | None = None,
-    node_size_scale: float | str = 1.0,
+    node_size_scale: float | str = "fit",
     style: "NetworkStyle | None" = None,
 ) -> None:
     """Spatial network plot, port of the base ``2_MEA_NetworkPlot.png`` from
@@ -169,7 +169,7 @@ def plot_network_beside_field(
     edge_thresh: float = 0.0,
     z_name: str = "node degree",
     coords_override: np.ndarray | None = None,
-    node_size_scale: float | str = 1.0,
+    node_size_scale: float | str = "fit",
 ) -> None:
     """The imaged field beside the network derived from it.
 
@@ -285,7 +285,7 @@ def plot_spatial_network_combined(
     z_name: str = "node degree",
     coords_override: np.ndarray | None = None,
     cell_types: tuple[np.ndarray, list[str]] | None = None,
-    node_size_scale: float | str = 1.0,
+    node_size_scale: float | str = "fit",
     style: "NetworkStyle | None" = None,
 ) -> None:
     """Side-by-side "combined" network plot, port of the

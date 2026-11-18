@@ -59,8 +59,8 @@ print("\nNetworkStyle.for_run")
 
 check("a CAT-NAP run sizes nodes automatically",
       NetworkStyle.for_run(catnap_params()).node_size_scale == "auto", "")
-check("an ephys run does not, whatever twop_auto_node_size says",
-      NetworkStyle.for_run(Params()).node_size_scale == 1.0
+check("an ephys run fits nodes to their packing instead, whatever twop_auto_node_size says",
+      NetworkStyle.for_run(Params()).node_size_scale == "fit"
       and Params().twop_auto_node_size is True,
       "twop_auto_node_size defaults True but applies only to suite2p runs")
 
@@ -79,16 +79,20 @@ schema = {c["key"]: c["default"] for c in control_schema(cat_style)}
 
 check("node sizing is shown as the mode it actually is",
       schema["node_size_mode"] == "Auto", str(schema.get("node_size_mode")))
-check("an ephys run shows Manual instead",
+check("an ephys run shows Auto too (its never-larger 'fit')",
       {c["key"]: c["default"] for c in
-       control_schema(NetworkStyle.for_run(Params()))}["node_size_mode"] == "Manual",
+       control_schema(NetworkStyle.for_run(Params()))}["node_size_mode"] == "Auto",
+      "")
+check("a run drawn at a fixed scale shows Manual",
+      {c["key"]: c["default"] for c in
+       control_schema(NetworkStyle(node_size_scale=1.0))}["node_size_mode"] == "Manual",
       "")
 check("'unlimited edges' is shown as the 0 the UI means by it",
       schema["max_edges"] == 0, str(schema["max_edges"]))
 check("a control with no run-specific value still has one",
       schema["colormap"] == NetworkStyle().colormap, str(schema["colormap"]))
 check("omitting the style falls back to the class defaults",
-      {c["key"]: c["default"] for c in control_schema()}["node_size_mode"] == "Manual",
+      {c["key"]: c["default"] for c in control_schema()}["node_size_mode"] == "Auto",
       "")
 
 
@@ -116,9 +120,11 @@ to_manual = parse_overrides(
 check("switching to Manual reaches the style as a number",
       to_manual == {"node_size_scale": 2.0}, str(to_manual))
 back_to_auto = parse_overrides({"node_size_mode": ["Auto"]},
-                               NetworkStyle.for_run(Params()))
-check("and an ephys run can be switched to Auto",
-      back_to_auto == {"node_size_scale": "auto"}, str(back_to_auto))
+                               NetworkStyle(node_size_scale=1.0))
+check("and a fixed-scale figure can be switched to Auto (MEA-NAP's 'fit')",
+      back_to_auto == {"node_size_scale": "fit"}, str(back_to_auto))
+check("asking for Auto on a run already drawn that way changes nothing",
+      parse_overrides({"node_size_mode": ["Auto"]}, NetworkStyle.for_run(Params())) == {}, "")
 
 check("0 edges still means unlimited rather than none",
       parse_overrides({"max_edges": ["0"]}, cat_style) == {}, "")
@@ -128,7 +134,7 @@ check("a real edge cap still comes through",
 # Without a baseline the old behaviour is still what you get, which is right
 # for a caller with no run in hand.
 check("no baseline given falls back to the class defaults",
-      style_from_overrides({"colormap": "plasma"}).node_size_scale == 1.0, "")
+      style_from_overrides({"colormap": "plasma"}).node_size_scale == "fit", "")
 
 
 # ── And the pixels agree ──────────────────────────────────────────────────────
@@ -264,7 +270,7 @@ _args = (_adj, _np.arange(1, _n + 1), "MCS60", _z, _rng.random(_n), "metric",
 _d = Path(tempfile.mkdtemp())
 plot_spatial_network_combined(*_args, _d / "none.png", **_common)
 plot_spatial_network_combined(*_args, _d / "explicit.png",
-                              style=_NS.pipeline_default(1.0), **_common)
+                              style=_NS.pipeline_default(), **_common)
 check("no style is the same as the pipeline's own style, byte for byte",
       (_d / "none.png").read_bytes() == (_d / "explicit.png").read_bytes(), "")
 
