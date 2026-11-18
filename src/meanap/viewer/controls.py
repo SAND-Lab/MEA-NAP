@@ -26,11 +26,12 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from meanap.network_plot import (
-    EDGE_THRESHOLD_METHODS, INACTIVE_ELECTRODE_OPTIONS, LAYOUT_OPTIONS, NetworkStyle,
+    BELOW_THRESHOLD_OPTIONS, EDGE_SCALING_METHODS, EDGE_THRESHOLD_METHODS,
+    INACTIVE_ELECTRODE_OPTIONS, LAYOUT_OPTIONS, NetworkStyle,
 )
 
 __all__ = [
-    "COMPARISON_CONTROLS", "CONTROLS", "Control", "comparison_control_schema",
+    "COMPARISON_CONTROLS", "CONTROLS", "EDGE_CONTROL_KEYS", "Control", "comparison_control_schema",
     "control_schema", "parse_comparison_overrides", "parse_overrides",
 ]
 
@@ -101,6 +102,15 @@ class Control:
 
 _defaults = NetworkStyle()
 
+#: The controls a circular network plot reads. It places its own nodes and
+#: sizes and colours them by what it shows (degree and module, or role), so
+#: only the edge controls apply; the panel hides the rest beside one.
+EDGE_CONTROL_KEYS = frozenset({
+    "edge_threshold_method", "edge_threshold", "below_threshold_edges",
+    "max_edges", "min_edge_width", "max_edge_width", "edge_scaling_method",
+    "edge_scaling_power",
+})
+
 CONTROLS: tuple[Control, ...] = (
     Control("layout", "Node layout", "select", _defaults.layout,
             options=list(LAYOUT_OPTIONS),
@@ -116,8 +126,13 @@ CONTROLS: tuple[Control, ...] = (
             _defaults.edge_threshold_method, options=list(EDGE_THRESHOLD_METHODS),
             help="How the threshold below is interpreted."),
     Control("edge_threshold", "Edge threshold", "number", 0.0,
-            minimum=0.0, maximum=100.0, step=0.01,
-            help="A weight for 'Absolute value', otherwise a percentile."),
+            minimum=0.0, maximum=100.0, step=0.001,
+            help="A weight for 'Absolute value', otherwise a percentile. "
+                 "Dragging the line on the edge-weight histogram sets it."),
+    Control("below_threshold_edges", "Edges below threshold", "select",
+            _defaults.below_threshold_edges, options=list(BELOW_THRESHOLD_OPTIONS),
+            help="Left out, or drawn as hairlines so the threshold thins the "
+                 "network without hiding where the weak edges are."),
     Control("max_edges", "Max edges drawn", "number", 0,
             minimum=0, maximum=100000, step=25,
             help="Keeps only the strongest N edges. 0 draws all of them."),
@@ -145,6 +160,14 @@ CONTROLS: tuple[Control, ...] = (
             minimum=0.0, maximum=10.0, step=0.001),
     Control("max_edge_width", "Max edge width", "number", _defaults.max_edge_width,
             minimum=0.1, maximum=30.0, step=0.1),
+    Control("edge_scaling_method", "Edge width scaling", "select",
+            _defaults.edge_scaling_method, options=list(EDGE_SCALING_METHODS),
+            help="How weight maps onto edge width and shade. Log2/Log10 make "
+                 "weaker edges more visible; Square/Cube leave only the "
+                 "strongest standing out."),
+    Control("edge_scaling_power", "Edge scaling power", "number",
+            _defaults.edge_scaling_power, minimum=0.1, maximum=6.0, step=0.1,
+            help="Exponent used when edge width scaling is 'Power'."),
 )
 
 
@@ -217,6 +240,8 @@ def _schema(controls, style: NetworkStyle | None = None) -> list[dict]:
             "default": c.default if style is None else control_default(c, style),
             "options": c.options, "min": c.minimum, "max": c.maximum,
             "step": c.step, "help": c.help,
+            # Whether a circular network plot reads it too.
+            "circular": c.key in EDGE_CONTROL_KEYS,
         }
         for c in controls
     ]
