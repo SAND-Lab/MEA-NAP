@@ -68,6 +68,8 @@ def _step3_one_recording(task: tuple[Params, RecordingInfo, str]) -> tuple[str, 
     lag_values = params.func_con_lag_val
     rep_num = params.prob_thresh_rep_num
     tail = params.prob_thresh_tail
+    null = params.prob_thresh_null
+    jitter_lags = params.prob_thresh_jitter_lags
     plot_checks = bool(getattr(params, "prob_thresh_plot_checks", False))
 
     logs: list[str] = []
@@ -111,7 +113,9 @@ def _step3_one_recording(task: tuple[Params, RecordingInfo, str]) -> tuple[str, 
     spike_times_dict, duration_s = truncate_spike_times(spike_times_dict, duration_s, params)
 
     vlog.debug(f"      [{rec.filename}] {n_channels} channels, {fs / 1000:g} kHz, "
-               f"{duration_s:.1f}s; {rep_num} surrogates, {tail} tail, "
+               f"{duration_s:.1f}s; {rep_num} {null} surrogates"
+               + (f" (window {jitter_lags:g} x lag)" if null == "jitter" else "")
+               + f", {tail} tail, "
                f"seed {params.random_seed if params.random_seed is not None else 'fresh'}")
 
     out_arrays: dict[str, np.ndarray] = {}
@@ -127,12 +131,13 @@ def _step3_one_recording(task: tuple[Params, RecordingInfo, str]) -> tuple[str, 
     check_dir = output_root / "3_EdgeThresholdingCheck"
     for lag_ms in lag_values:
         logs.append(f"  [{rec.filename}] computing adjacency matrix (lag={lag_ms}ms, "
-                    f"{rep_num} shuffles)...")
+                    f"{rep_num} {null} surrogates)...")
         lag_started = time.perf_counter()
         if plot_checks:
             adj_m, adj_m_ci, rep_val, dist1 = adjm_thr(
                 spike_times_dict, n_channels, lag_ms, tail, fs, duration_s, rep_num,
                 rng=rng, collect_check_snapshots=True,
+                null=null, jitter_ms=jitter_lags * lag_ms,
             )
             # Deferred import: plotting pulls in matplotlib, only needed when checks are on
             from meanap.pipeline.plotting_step3 import (
@@ -152,6 +157,7 @@ def _step3_one_recording(task: tuple[Params, RecordingInfo, str]) -> tuple[str, 
         else:
             adj_m, adj_m_ci = adjm_thr(
                 spike_times_dict, n_channels, lag_ms, tail, fs, duration_s, rep_num, rng=rng,
+                null=null, jitter_ms=jitter_lags * lag_ms,
             )
         out_arrays[f"adjM{lag_ms}mslag"] = adj_m_ci
         out_arrays[f"adjM{lag_ms}mslag_raw"] = adj_m

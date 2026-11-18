@@ -958,6 +958,8 @@ def _compute_recording(
             prob_thresh_rep_num=params.prob_thresh_rep_num,
             corr_prob_threshold=params.twop_corr_prob_thresh,
             rng=make_rng(params.random_seed, "catnap", rec.filename),
+            prob_thresh_null=params.prob_thresh_null,
+            prob_thresh_jitter_lags=params.prob_thresh_jitter_lags,
         )
         _log_bin_rounding(res, log, rec.filename)
         duration_s = res.F.shape[0] / res.fs

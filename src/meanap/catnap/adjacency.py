@@ -203,6 +203,8 @@ def suite2p_to_adjm(
     prob_thresh_rep_num: int = 200,
     corr_prob_threshold: bool = False,
     rng: np.random.Generator | None = None,
+    prob_thresh_null: str = "circular",
+    prob_thresh_jitter_lags: float = 5.0,
 ) -> Suite2pAdjmResult:
     """Port of ``suite2pToAdjm.m``.
 
@@ -229,6 +231,11 @@ def suite2p_to_adjm(
         call returns the plain correlation matrix; a pipeline run takes it
         from ``Params.twop_corr_prob_thresh``, which is on by default. The
         ``peaks`` path is always thresholded and ignores this.
+    prob_thresh_null, prob_thresh_jitter_lags
+        The surrogates the ``peaks`` path's STTC edges must beat
+        (:func:`meanap.pipeline.probabilistic_threshold.adjm_thr`): whole-train
+        circular shifts, or events jittered within windows that many lags
+        long. The correlation paths always use circular shifts.
     """
     fs = float(data.fs)
     cell_mask = data.cell_mask  # iscell[:, 0] as bool, shape (n_rois,)
@@ -350,6 +357,7 @@ def suite2p_to_adjm(
                 adj_raw, adj_ci = adjm_thr(
                     spike_times_dict, n_units, lag, prob_thresh_tail, fs,
                     duration_s, prob_thresh_rep_num, rng=rng,
+                    null=prob_thresh_null, jitter_ms=prob_thresh_jitter_lags * lag,
                 )
             else:
                 adj_raw = adj_ci = np.zeros((n_units, n_units))

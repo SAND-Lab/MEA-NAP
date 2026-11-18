@@ -1,7 +1,7 @@
 """Functional connectivity & thresholding settings panel."""
 
 from PyQt6.QtWidgets import (
-    QButtonGroup, QCheckBox, QDoubleSpinBox, QFormLayout, QGroupBox,
+    QButtonGroup, QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QGroupBox,
     QHBoxLayout, QLabel, QLineEdit, QRadioButton, QSpinBox, QVBoxLayout,
     QWidget,
 )
@@ -65,6 +65,37 @@ class ConnectivityPanel(QWidget):
         self.prob_thresh_tail.setSingleStep(0.005)
         self.prob_thresh_tail.setValue(0.05)
 
+        # What the surrogates keep decides what an edge means, so it sits in
+        # the open beside Iterations rather than under Advanced.
+        self.prob_thresh_null = QComboBox()
+        self.prob_thresh_null.addItem("Circular shift", "circular")
+        self.prob_thresh_null.addItem("Interval jitter", "jitter")
+        set_tooltip(self.prob_thresh_null,
+                    "Circular shift (MATLAB's): each train is shifted whole, "
+                    "so any shared activity counts — two channels that only "
+                    "fire in the same network bursts, or both fire more over "
+                    "the recording, come out connected.\n\n"
+                    "Interval jitter: each spike is moved within its own "
+                    "window (Jitter window × lag long). Every channel keeps its "
+                    "rate profile, bursts included, so an edge means timing "
+                    "finer than the window beyond what the two rate profiles "
+                    "explain. Less tied to firing rate; gives sparser "
+                    "networks.")
+        self.prob_thresh_jitter_lags = QDoubleSpinBox()
+        self.prob_thresh_jitter_lags.setRange(1.5, 1000.0)
+        self.prob_thresh_jitter_lags.setDecimals(1)
+        self.prob_thresh_jitter_lags.setSingleStep(1.0)
+        self.prob_thresh_jitter_lags.setSuffix(" × lag")
+        self.prob_thresh_jitter_lags.setValue(Params.prob_thresh_jitter_lags)
+        set_tooltip(self.prob_thresh_jitter_lags,
+                    "How far spikes may move, as a multiple of each lag: at a "
+                    "10 ms lag and 5 × lag, spikes move within fixed 50 ms "
+                    "windows. Coincidences finer than the window are what is "
+                    "tested; co-activation slower than it is kept in the null. "
+                    "Too close to 1 and the surrogates keep the very "
+                    "coincidences STTC counts, so almost nothing passes.")
+        self.prob_thresh_null.currentIndexChanged.connect(self._update_thr_enabled)
+
         self.prob_thresh_plot_checks = QCheckBox()
         self.prob_thresh_plot_checks_n = QSpinBox()
         self.prob_thresh_plot_checks_n.setRange(1, 100)
@@ -89,6 +120,8 @@ class ConnectivityPanel(QWidget):
         # Iterations stays in the open: it is the one here that visibly costs
         # time, so it is worth seeing before starting a run.
         form2.addRow("Iterations", self.prob_thresh_rep_num)
+        form2.addRow("Surrogates", self.prob_thresh_null)
+        form2.addRow("Jitter window", self.prob_thresh_jitter_lags)
 
         self.threshold_advanced = AdvancedSection()
         adv = self.threshold_advanced.form()
@@ -313,6 +346,11 @@ class ConnectivityPanel(QWidget):
         unused = self._binning and not self.corr_prob_thresh.isChecked()
         for w in (self.prob_thresh_rep_num, self.threshold_advanced):
             w.setEnabled(not unused)
+        # Correlation measures always use circular shifts; the choice is the
+        # STTC path's (spikes, and CAT-NAP's peaks).
+        self.prob_thresh_null.setEnabled(not self._binning)
+        self.prob_thresh_jitter_lags.setEnabled(
+            not self._binning and self.prob_thresh_null.currentData() == "jitter")
         self._thr_box.setTitle(
             "Probabilistic thresholding  ·  off for correlation" if unused
             else "Probabilistic thresholding")
@@ -406,6 +444,9 @@ class ConnectivityPanel(QWidget):
             self.weighted_btn.setChecked(True)
         self.prob_thresh_rep_num.setValue(params.prob_thresh_rep_num)
         self.prob_thresh_tail.setValue(params.prob_thresh_tail)
+        at = self.prob_thresh_null.findData(params.prob_thresh_null)
+        self.prob_thresh_null.setCurrentIndex(at if at >= 0 else 0)
+        self.prob_thresh_jitter_lags.setValue(params.prob_thresh_jitter_lags)
         self.prob_thresh_plot_checks.setChecked(params.prob_thresh_plot_checks)
         self.prob_thresh_plot_checks_n.setValue(params.prob_thresh_plot_checks_n)
         self.corr_prob_thresh.setChecked(params.twop_corr_prob_thresh)
@@ -425,6 +466,8 @@ class ConnectivityPanel(QWidget):
         params.adj_m_type = "binary" if self.binary_btn.isChecked() else "weighted"
         params.prob_thresh_rep_num = self.prob_thresh_rep_num.value()
         params.prob_thresh_tail = self.prob_thresh_tail.value()
+        params.prob_thresh_null = self.prob_thresh_null.currentData() or "circular"
+        params.prob_thresh_jitter_lags = self.prob_thresh_jitter_lags.value()
         params.prob_thresh_plot_checks = self.prob_thresh_plot_checks.isChecked()
         params.prob_thresh_plot_checks_n = self.prob_thresh_plot_checks_n.value()
         params.twop_corr_prob_thresh = self.corr_prob_thresh.isChecked()
