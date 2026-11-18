@@ -9,6 +9,9 @@ anything to MATLAB before running the pipeline:
   converters write for recordings under 2 GB; ``h5py`` cannot read these
 * ``.h5`` straight off a Multi Channel Systems recorder — converted on read by
   :func:`load_mcs_h5`, reproducing ``convertMCSh5toMat.m`` exactly
+* ``.raw.h5`` from a MaxWell Biosystems MaxOne/MaxTwo — the voltage of every
+  routed electrode, in µV, via :mod:`meanap.pipeline.maxwell` (needs MaxWell's
+  HDF5 compression plugin)
 """
 
 from __future__ import annotations
@@ -34,8 +37,11 @@ from meanap.pipeline.axion_raw import (
 
 #: Raw recording extensions the pipeline understands, in preference order.
 #: ``.mat`` comes first so a folder holding both a recording and its conversion
-#: keeps using the conversion — same data, cheaper to read.
-RAW_EXTENSIONS = (".mat", ".h5", ".raw")
+#: keeps using the conversion — same data, cheaper to read. ``.raw.h5`` is
+#: MaxWell's, listed whole so a sheet can name ``Trace_…`` without the
+#: ``.raw`` (a sheet built from the folder names it ``Trace_….raw``, which the
+#: plain ``.h5`` finds).
+RAW_EXTENSIONS = (".mat", ".h5", ".raw", ".raw.h5")
 
 
 @dataclass(frozen=True)
@@ -97,24 +103,38 @@ def is_mcs_h5(path: str | Path) -> bool:
         return False
 
 
-def load_raw_recording(path: str | Path) -> tuple[np.ndarray, np.ndarray, float]:
+def load_raw_recording(path: str | Path, *, compact: bool = False
+                       ) -> tuple[np.ndarray, np.ndarray, float]:
     """Load a raw MEA recording, dispatching on its actual format.
 
     Accepts a ``.mat`` (v7 or v7.3) holding ``dat``/``channels``/``fs``, a Multi
-    Channel Systems ``.h5``, or an Axion ``.raw`` — dispatch is by file content,
-    not extension, since recordings are sometimes renamed.
+    Channel Systems ``.h5``, a MaxWell ``.raw.h5``, or an Axion ``.raw`` —
+    dispatch is by file content, not extension, since recordings are sometimes
+    renamed.
 
     Pass a :class:`RawSource` (what :func:`find_raw_file` returns) for an Axion
     plate, so the well is known; a bare path works for single-recording formats.
 
+    ``compact=True`` lets a format whose float32 copy would be very large
+    hand back something smaller that reads like it: a MaxWell recording comes
+    back as a :class:`~meanap.pipeline.maxwell.MaxwellTraces`, its uint16
+    counts scaled to µV a channel at a time. It supports ``shape``,
+    ``dat[:, ch]``, ``dat[:, [chs]]`` and ``np.asarray`` — what step 1's
+    detection and checks use — and nothing else, so only callers that stick to
+    those should ask for it. Every other format ignores the flag.
+
     Returns
     -------
     dat : (n_samples, n_channels) float32 array — raw voltage traces. Units
-        follow the source: µV for MCS, volts for Axion, matching what each
-        format's converter wrote (set "Potential difference unit" to suit).
-    channels : (n_channels,) int array — channel IDs
+        follow the source: µV for MCS and MaxWell, volts for Axion, matching
+        what each format's converter wrote (set "Potential difference unit" to
+        suit).
+    channels : (n_channels,) int array — channel IDs; for MaxWell, the routed
+        electrodes' numbers (see :func:`meanap.pipeline.maxwell.node_ids`)
     fs : float — sampling frequency in Hz
     """
+    from meanap.pipeline import maxwell
+
     well = path.well if isinstance(path, RawSource) else None
     path = Path(path)
 
@@ -138,11 +158,18 @@ def load_raw_recording(path: str | Path) -> tuple[np.ndarray, np.ndarray, float]
         stream_name = _find_mcs_stream_name(f)
         if stream_name is not None:
             return _load_mcs_h5_open(f, stream_name)
-        if "dat" not in f:
+        is_maxwell = "dat" not in f and maxwell.is_maxwell_open(f)
+        if not is_maxwell and "dat" not in f:
             raise ValueError(
-                f"{path.name}: HDF5 file is neither a MEA-NAP .mat (no 'dat' variable) "
-                f"nor a Multi Channel Systems recording (no AnalogStream)."
+                f"{path.name}: HDF5 file is neither a MEA-NAP .mat (no 'dat' variable), "
+                f"a Multi Channel Systems recording (no AnalogStream), nor a "
+                f"MaxWell recording."
             )
+    if is_maxwell:
+        traces, meta = maxwell.load_maxwell_traces(path, compact=compact)
+        return traces, maxwell.node_ids(meta), meta.fs
+
+    with h5py.File(path, "r") as f:
         dat = _read_deflate_parallel(f["dat"], path)
         if dat is None:
             dat = f["dat"][()].astype(np.float32)
@@ -505,6 +532,23 @@ def save_spike_times_npz(
                 fh.write(f"{k}: {v}\n")
 
 
+def raw_electrode_table(path: str | Path) -> dict[str, np.ndarray] | None:
+    """Where a recording's channels sit, when the file itself says.
+
+    Only a MaxWell file does: each recording routes its own electrodes, so no
+    fixed layout can place them. Returns the table
+    :func:`save_spike_times_npz` writes as ``electrodes`` (what
+    ``channel_layout = "FromFile"`` reads back), or ``None`` for a format whose
+    positions come from a layout instead.
+    """
+    from meanap.pipeline.maxwell import electrode_table, is_maxwell_h5, read_maxwell_meta
+
+    path = Path(path)
+    if is_axion_raw(path) or not h5py.is_hdf5(path) or not is_maxwell_h5(path):
+        return None
+    return electrode_table(read_maxwell_meta(path))
+
+
 def count_raw_samples(path: str | Path, n_channels: int) -> int:
     """Number of samples in a raw recording, without reading the traces.
 
@@ -527,7 +571,11 @@ def count_raw_samples(path: str | Path, n_channels: int) -> int:
         stream_name = _find_mcs_stream_name(f)
         if stream_name is not None:
             return int(f[f"{stream_name}/ChannelData"].shape[1])
-        shape = f["dat"].shape
+        from meanap.pipeline.maxwell import is_maxwell_open
+        shape = f["dat"].shape if "dat" in f or not is_maxwell_open(f) else None
+    if shape is None:
+        from meanap.pipeline.maxwell import read_maxwell_meta
+        return read_maxwell_meta(path).n_frames
 
     n_samples = shape[0]
     if len(shape) > 1 and n_samples == n_channels:

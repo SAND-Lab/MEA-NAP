@@ -9,6 +9,7 @@ such, but the channels give it away:
 What the files show                    Layout
 =====================================  ==========================
 an MCS ``.h5``                         MCS60
+a MaxWell ``.raw.h5``                  FromFile (each routes its own)
 an Axion ``.raw``                      Axion64, or Axion16 at 16 per well
 a ``.mat`` with 16 channels            Axion16
 a ``.mat`` with 59 / 60 channels       MCS60
@@ -55,7 +56,7 @@ MAX_PROBED = 24
 @dataclass(frozen=True)
 class RecordingProbe:
     name: str
-    #: ``"mat"``, ``"mcs"`` or ``"axion"``.
+    #: ``"mat"``, ``"mcs"``, ``"axion"`` or ``"maxwell"``.
     format: str
     fs: float
     n_channels: int
@@ -118,10 +119,16 @@ def probe_recording(path: str | Path) -> RecordingProbe:
             info = f[stream]["InfoChannel"][()]
             return RecordingProbe(path.stem, "mcs", _mcs_sampling_rate(info),
                                   len({_mcs_label_to_channel(x) for x in info["Label"]}))
-        channels = f["channels"][()].ravel().astype(int)
-        fs = float(f["fs"][()].ravel()[0])
-        live = _corners_live(f["dat"], channels, fs) if len(channels) == 64 else None
-        return RecordingProbe(path.stem, "mat", fs, len(channels), live)
+        from meanap.pipeline.maxwell import is_maxwell_open
+        maxwell = "dat" not in f and is_maxwell_open(f)
+        if not maxwell:
+            channels = f["channels"][()].ravel().astype(int)
+            fs = float(f["fs"][()].ravel()[0])
+            live = _corners_live(f["dat"], channels, fs) if len(channels) == 64 else None
+            return RecordingProbe(path.stem, "mat", fs, len(channels), live)
+    from meanap.pipeline.maxwell import read_maxwell_meta
+    meta = read_maxwell_meta(path)
+    return RecordingProbe(path.stem, "maxwell", meta.fs, len(meta.channels))
 
 
 def channel_samples(path: str | Path) -> int | None:
@@ -178,6 +185,9 @@ def probe_folder(folder: str | Path, limit: int = MAX_PROBED) -> list[RecordingP
 def _layout_of(probe: RecordingProbe, corners: bool | None) -> tuple[str | None, bool, str]:
     """``(layout, sure, reason)`` for one kind of recording."""
     n = probe.n_channels
+    if probe.format == "maxwell":
+        return "FromFile", True, (f"MaxWell files ({n} routed electrodes), which "
+                                  "record where each electrode is")
     if probe.format == "mcs":
         return "MCS60", True, f"Multi Channel Systems files with {n} channels"
     if probe.format == "axion":
