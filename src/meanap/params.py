@@ -96,6 +96,14 @@ class Params:
     min_activity_level: float = 0.01
     remove_inactive_nodes: bool = False
     remove_artifacts: bool = False
+    # Before detecting, ask whether the voltage holds spikes at all: each
+    # electrode's tails against phase-randomised surrogates of itself (its own
+    # noise). Writes 1_SpikeDetection/1C_SignalQuality and warns when no
+    # electrode shows spikes. See pipeline/signal_quality.py.
+    signal_quality_check: bool = True
+    # Seconds of each recording the check reads (from 5 s in, past start-up
+    # transients). A minute is plenty to see whether spikes exist.
+    signal_quality_seconds: float = 60.0
 
     # ── Spike sorting ────────────────────────────────────────────────────────
     # Where step 1's spike trains come from. ``detect`` is what MEA-NAP has

@@ -231,6 +231,27 @@ class SpikeDetectionPanel(QWidget):
         form3.addRow("Low-pass cutoff", self.filter_low_pass)
         form3.addRow("High-pass cutoff", self.filter_high_pass)
 
+        # ── Signal quality ────────────────────────────────────────────────────
+        # Does the voltage hold spikes at all? On by default: it is what tells
+        # a user that a sort or detection is describing noise.
+        sq_box = AdvancedSection("Signal quality check")
+        form_sq = sq_box.form()
+        self.signal_quality_check = QCheckBox()
+        set_tooltip(self.signal_quality_check,
+                    "Compares each electrode's large deflections with its own noise "
+                    "(the same trace with its phases scrambled). Writes "
+                    "1_SpikeDetection/1C_SignalQuality and warns when no electrode "
+                    "shows spikes.")
+        self.signal_quality_seconds = QDoubleSpinBox()
+        self.signal_quality_seconds.setRange(1, 3600)
+        self.signal_quality_seconds.setDecimals(0)
+        self.signal_quality_seconds.setSuffix(" s")
+        self.signal_quality_seconds.setValue(60)
+        set_tooltip(self.signal_quality_seconds,
+                    "How much of each recording the check reads. A minute is plenty.")
+        form_sq.addRow("Check for spikes first", self.signal_quality_check)
+        form_sq.addRow("Seconds checked", self.signal_quality_seconds)
+
         # ── Template & refractory ─────────────────────────────────────────────
         tmpl_box = AdvancedSection("Spike templates and refractory period")
         form4 = tmpl_box.form()
@@ -535,6 +556,7 @@ class SpikeDetectionPanel(QWidget):
         layout.addWidget(active_box)
         layout.addWidget(wav_box)
         layout.addWidget(filt_box)
+        layout.addWidget(sq_box)
         layout.addWidget(tmpl_box)
         layout.addWidget(burst_box)
         layout.addStretch()
@@ -625,6 +647,8 @@ class SpikeDetectionPanel(QWidget):
         self.cost_list.setValue(params.cost_list)
         self.filter_low_pass.setValue(params.filter_low_pass)
         self.filter_high_pass.setValue(params.filter_high_pass)
+        self.signal_quality_check.setChecked(params.signal_quality_check)
+        self.signal_quality_seconds.setValue(params.signal_quality_seconds)
         self.ref_period.setValue(params.ref_period)
         self.wavelet_ref_period.setValue(params.wavelet_ref_period_ms or 0)
         self.n_spikes.setValue(params.n_spikes)
@@ -689,6 +713,8 @@ class SpikeDetectionPanel(QWidget):
             self.spikes_method.currentText()
         params.filter_low_pass = self.filter_low_pass.value()
         params.filter_high_pass = self.filter_high_pass.value()
+        params.signal_quality_check = self.signal_quality_check.isChecked()
+        params.signal_quality_seconds = self.signal_quality_seconds.value()
         params.ref_period = self.ref_period.value()
         params.wavelet_ref_period_ms = self.wavelet_ref_period.value() or None
         params.n_spikes = self.n_spikes.value()
