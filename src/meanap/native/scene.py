@@ -122,7 +122,7 @@ def network_scene(
     edge_bounds_override: tuple[float, float] | None = None,
     min_ew: float = 0.001,
     max_ew: float = 4.0,
-    node_size_scale: float | str = 1.0,
+    node_size_scale: float | str = "fit",
     node_scaling_method: str = "Linear",
     node_scaling_power: float = 1.0,
     colormap: str = "viridis",
@@ -135,15 +135,14 @@ def network_scene(
     import matplotlib
 
     from meanap.network_plot import (
-        _cell_type_styles, _get_node_size, auto_node_size_scale,
+        _cell_type_styles, _get_node_size, resolve_node_size_scale,
     )
 
     adj = np.asarray(adj, dtype=float)
     coords = np.asarray(coords, dtype=float).reshape(-1, 2)
     z = np.asarray(z, dtype=float)
     n = len(adj)
-    if isinstance(node_size_scale, str):
-        node_size_scale = auto_node_size_scale(coords) if node_size_scale == "auto" else 1.0
+    node_size_scale = resolve_node_size_scale(node_size_scale, coords)
 
     # ── node size ────────────────────────────────────────────────────────────
     z_max = float(np.nanmax(z)) if np.any(~np.isnan(z)) else 0.0

@@ -344,7 +344,7 @@ def _plot_recording_lag(
     cell_types: tuple[np.ndarray, list[str]] | None = None,
     sub_dir: str | None = None,
     background: tuple | None = None,
-    node_size_scale: float | str = 1.0,
+    node_size_scale: float | str = "fit",
     fmt: str = "png",
     only: str | None = None,
     style: "NetworkStyle | None" = None,

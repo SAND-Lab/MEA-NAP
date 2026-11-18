@@ -51,8 +51,16 @@ the underlying metrics, only the appearance:
     port MATLAB's `getNodeCoords.m` layout options and the `circular` plot
     type. Every derived layout is rescaled into the electrode bounding box so
     node, edge and legend sizing stay consistent.
+- **Node size** — **Auto** (the default) sizes nodes from how closely they
+  are packed, so they do not cover each other or the edges between them. On
+  the 60- and 64-electrode MEAs, and the 16-electrode Axion plate, it draws
+  exactly the size MEA-NAP always has. Nodes only get smaller where they sit
+  closer than an MEA's electrodes: spike-sorted units, MaxWell HD-MEA
+  routings, dense custom layouts. (CAT-NAP's Auto also enlarges nodes on a
+  sparse field.) **Manual** uses the scale below.
 - **Node size scale** — a multiplier applied to every node (MATLAB's
-  `maxNodeSize`); increase it to enlarge all nodes at once.
+  `maxNodeSize`) when node size is Manual; increase it to enlarge all nodes at
+  once.
 - **Node scaling** — how the size metric maps onto node radius: **Linear**,
   **Log2**, **Log10**, **Square**, or **Cube** (port of MATLAB's
   `nodeScalingMethod` in `getNodeSize.m`).

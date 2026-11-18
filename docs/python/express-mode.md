@@ -381,9 +381,10 @@ Python that drew the original.
 **Every control opens on the value the run itself used**, not on a generic
 default, so the panel doubles as a record of how these figures were drawn.
 Changes are opt-in on top of that, and **Reset** returns to it. This matters
-most for **Node size**, which CAT-NAP runs leave on `Auto` — nodes sized from
-how densely the cells are packed, which a calcium imaging field of a few hundred
-cells needs and an MEA's sixty electrodes do not. Switch it to `Manual` to set
+most for **Node size**, which runs leave on `Auto` — nodes sized from how
+densely they are packed, which a calcium imaging field of a few hundred cells or
+a few hundred sorted units needs, and which on an MEA's sixty electrodes draws
+the same size as `Manual` at 1. Switch it to `Manual` to set
 a multiplier by hand; the scale box beside it is greyed while `Auto` is on,
 because nothing reads it then.
 

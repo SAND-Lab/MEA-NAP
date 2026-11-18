@@ -52,8 +52,10 @@ COLORMAPS = [
 
 NODE_SCALING_METHODS = ["Linear", "Log2", "Log10", "Square", "Cube", "Power"]
 
-#: How ``NetworkStyle.node_size_scale`` is arrived at. "Auto" is the string
-#: ``"auto"`` in the style; "Manual" means take the number beside it.
+#: How ``NetworkStyle.node_size_scale`` is arrived at. "Auto" is one of the
+#: strings ``"auto"`` / ``"fit"`` in the style (which one is the run's: CAT-NAP
+#: sizes to the packing either way, MEA-NAP never above 1.0); "Manual" means
+#: take the number beside it.
 NODE_SIZE_MODES = ["Auto", "Manual"]
 
 
@@ -120,8 +122,10 @@ CONTROLS: tuple[Control, ...] = (
     # lets someone switch off a sizing they could not previously see.
     Control("node_size_mode", "Node size", "select", "Manual",
             options=list(NODE_SIZE_MODES),
-            help="'Auto' sizes nodes from how densely they are packed, which "
-                 "calcium imaging fields need. CAT-NAP runs use it by default."),
+            help="'Auto' sizes nodes from how densely they are packed, so "
+                 "they do not overlap where nodes sit close together (sorted "
+                 "units, HD-MEAs, calcium imaging). The default; on a 60- or "
+                 "64-electrode MEA it is the same as Manual at 1."),
     Control("node_size_scale", "Node size scale", "number", 1.0,
             minimum=0.05, maximum=20.0, step=0.05,
             help="Ignored while node size is on 'Auto'."),
@@ -171,11 +175,11 @@ def control_default(control: Control, style: NetworkStyle):
     if control.key == "max_edges":
         return style.max_edges or 0
     if control.key == "node_size_mode":
-        return "Auto" if style.node_size_scale == "auto" else "Manual"
+        return "Auto" if isinstance(style.node_size_scale, str) else "Manual"
     if control.key == "node_size_scale":
         # An auto run has no meaningful number to show, so the box keeps the
         # neutral 1.0 it would start from on switching to Manual.
-        return (1.0 if style.node_size_scale == "auto"
+        return (1.0 if isinstance(style.node_size_scale, str)
                 else float(style.node_size_scale))
     return getattr(style, control.key, control.default)
 
@@ -266,9 +270,11 @@ def parse_overrides(query: dict[str, list[str]],
     asked_mode = query.get("node_size_mode", [None])[0]
     asked_scale = query.get("node_size_scale", [None])[0]
     chosen.pop("node_size_mode", None)   # not a style field; it only picks one
-    if asked_mode == "Auto" or (asked_mode is None and not asked_scale
-                                and style.node_size_scale == "auto"):
-        chosen["node_size_scale"] = "auto"
+    run_auto = isinstance(style.node_size_scale, str)
+    if asked_mode == "Auto" or (asked_mode is None and not asked_scale and run_auto):
+        # The run's own automatic sizing when it had one; a run drawn at a
+        # fixed scale switched to Auto gets the MEA-NAP default.
+        chosen["node_size_scale"] = style.node_size_scale if run_auto else "fit"
     # 0 means "unlimited" in the UI; NetworkStyle spells that None.
     chosen["max_edges"] = chosen["max_edges"] or None
 

@@ -374,6 +374,17 @@ EDGE_THRESHOLD_METHODS = [
 ]
 
 
+#: ``node_size_scale`` values that are worked out from the node positions.
+#: ``"auto"`` scales nodes to their spacing, larger or smaller (CAT-NAP's
+#: default). ``"fit"`` does the same but never draws nodes larger than the
+#: fixed scale of 1.0: identical on the 60- and 64-electrode grids, where
+#: ``"auto"`` is exactly 1.0, and smaller wherever nodes sit closer than an
+#: MEA's electrodes (sorted units, MaxWell routings, dense custom layouts).
+#: Electrophysiology's default, so a 16-electrode grid keeps its old size too.
+NODE_SIZE_AUTO = "auto"
+NODE_SIZE_FIT = "fit"
+
+
 @dataclass(frozen=True)
 class NetworkStyle:
     """Styling knobs for a spatial network plot — the Network Viewer control set.
@@ -399,7 +410,8 @@ class NetworkStyle:
     edge_threshold: float = 0.0
     #: One of :data:`LAYOUT_OPTIONS`.
     layout: str = "Original (electrodes)"
-    node_size_scale: float | str = 1.0
+    #: A multiplier, ``"auto"`` or ``"fit"``: see :func:`resolve_node_size_scale`.
+    node_size_scale: float | str = NODE_SIZE_FIT
     #: One of :data:`NODE_SCALING_METHODS`.
     node_scaling_method: str = "Linear"
     node_scaling_power: float = 1.0
@@ -410,7 +422,7 @@ class NetworkStyle:
     colormap: str = "viridis"
 
     @classmethod
-    def pipeline_default(cls, node_size_scale: float | str = 1.0) -> "NetworkStyle":
+    def pipeline_default(cls, node_size_scale: float | str = NODE_SIZE_FIT) -> "NetworkStyle":
         """The styling the pipeline draws with — the identity transform."""
         return cls(node_size_scale=node_size_scale)
 
@@ -429,15 +441,17 @@ class NetworkStyle:
         moment any unrelated control, a colormap say, is touched.
 
         ``twop_auto_node_size`` is read only for a suite2p run: it defaults to
-        True, and an electrophysiology run draws at 1.0 regardless (see the
-        ``_plot_recording_lag`` calls in ``step4`` and ``catnap.pipeline``).
+        True (``"auto"``; off, 1.0 — see the ``_plot_recording_lag`` calls in
+        ``catnap.pipeline``). An electrophysiology run draws at ``"fit"``:
+        today's size on an MEA grid, smaller where nodes are packed closer.
         """
-        auto = (bool(getattr(params, "suite2p_mode", False))
-                and bool(getattr(params, "twop_auto_node_size", False)))
-        return cls.pipeline_default(node_size_scale="auto" if auto else 1.0)
+        if bool(getattr(params, "suite2p_mode", False)):
+            auto = bool(getattr(params, "twop_auto_node_size", False))
+            return cls.pipeline_default(node_size_scale="auto" if auto else 1.0)
+        return cls.pipeline_default(node_size_scale=NODE_SIZE_FIT)
 
     @classmethod
-    def from_params(cls, params, node_size_scale: float | str = 1.0) -> "NetworkStyle":
+    def from_params(cls, params, node_size_scale: float | str = NODE_SIZE_FIT) -> "NetworkStyle":
         """Build from a :class:`~meanap.params.Params`' network-plot fields.
 
         These fields drive the Network Viewer, not the pipeline's own figures,
@@ -602,6 +616,22 @@ def median_node_spacing(coords: np.ndarray) -> float:
     return float(np.median(nearest)) if nearest.size else 0.0
 
 
+
+
+def resolve_node_size_scale(node_size_scale: float | str, coords: np.ndarray) -> float:
+    """The multiplier a ``node_size_scale`` setting means for these *coords*."""
+    if not isinstance(node_size_scale, str):
+        return float(node_size_scale)
+    if node_size_scale == NODE_SIZE_AUTO:
+        return auto_node_size_scale(coords)
+    if node_size_scale == NODE_SIZE_FIT:
+        # Snapped, not just capped: the MCS grid's spacing comes out a few ulps
+        # under the Axion one's, and 0.9999999999999996 redraws its figures.
+        scale = auto_node_size_scale(coords)
+        return 1.0 if scale > 1.0 - 1e-9 else scale
+    return 1.0
+
+
 def auto_node_size_scale(coords: np.ndarray) -> float:
     """Node-size multiplier that keeps nodes from overlapping on dense fields.
 
@@ -685,7 +715,7 @@ def plot_network(
     edge_bounds_override: tuple[float, float] | None = None,
     min_ew: float = 0.001,
     max_ew: float = 4.0,
-    node_size_scale: float | str = 1.0,
+    node_size_scale: float | str = NODE_SIZE_FIT,
     node_scaling_method: str = "Linear",
     node_scaling_power: float = 1.0,
     colormap: str = "viridis",
@@ -761,9 +791,7 @@ def plot_network(
     xc = coords[:, 0]
     yc = coords[:, 1]
 
-    if isinstance(node_size_scale, str):
-        node_size_scale = (auto_node_size_scale(coords)
-                           if node_size_scale == "auto" else 1.0)
+    node_size_scale = resolve_node_size_scale(node_size_scale, coords)
 
     # ── Optional backdrop image ───────────────────────────────────────────────
     if background is not None:
