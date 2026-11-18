@@ -26,7 +26,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from meanap.network_plot import (
-    EDGE_THRESHOLD_METHODS, LAYOUT_OPTIONS, NetworkStyle,
+    EDGE_THRESHOLD_METHODS, INACTIVE_ELECTRODE_OPTIONS, LAYOUT_OPTIONS, NetworkStyle,
 )
 
 __all__ = [
@@ -105,6 +105,10 @@ CONTROLS: tuple[Control, ...] = (
     Control("layout", "Node layout", "select", _defaults.layout,
             options=list(LAYOUT_OPTIONS),
             help="Electrode/cell positions, or a layout derived from topology."),
+    Control("inactive_electrodes", "Inactive electrodes", "select",
+            _defaults.inactive_electrodes, options=list(INACTIVE_ELECTRODE_OPTIONS),
+            help="Electrodes with no node on them, drawn as faint dots to show "
+                 "the array. On the electrode layout only."),
     Control("colormap", "Node colour map", "select", _defaults.colormap,
             options=list(COLORMAPS),
             help="Applied to the node-colour metric."),

@@ -24,6 +24,7 @@ from meanap.params import Params, active_spike_method
 from meanap.pipeline import network_metrics as nm
 from meanap.pipeline.cancellation import CancelCheck, check_cancel
 from meanap.pipeline.channel_layout import (
+    FROM_FILE_LAYOUT,
     get_coords_from_layout, layout_of, node_distances_in_pitches,
 )
 from meanap.pipeline.io import (
@@ -331,6 +332,43 @@ def _graph_metric_names(channels_arr, metrics) -> list | None:
         return None
 
 
+def spatial_node_noun(params: Params, coords_all) -> str | None:
+    """What a spatial plot calls its nodes, when the positions alone would mislead.
+
+    Stored positions used to be read as cells, which is right for CAT-NAP. A
+    sorted run's nodes are units, and a detected MaxWell run (which stores its
+    electrode positions too) has electrodes. ``None`` leaves the plot's own
+    rule in place.
+    """
+    if coords_all is None or getattr(params, "suite2p_mode", False):
+        return None
+    return "electrode" if getattr(params, "spike_source", "detect") == "detect" else "unit"
+
+
+def recording_positions(params: Params, adj_data=None, spike_data=None
+                        ) -> tuple[np.ndarray | None, np.ndarray | None]:
+    """``(node_coords, electrode_coords)`` for one recording's spatial plots.
+
+    Read from the adjacency file (step 3 stores both when the spike file has
+    them). A run whose step 3 predates that — a detected MaxWell run made
+    before node positions were stored — falls back to the spike file, so its
+    spatial plots can still be drawn.
+    """
+    from meanap.pipeline.channel_layout import file_node_coords
+
+    files = getattr(adj_data, "files", ())
+    nodes = np.asarray(adj_data["coords"], dtype=float) if "coords" in files else None
+    electrodes = (np.asarray(adj_data["electrode_coords"], dtype=float)
+                  if "electrode_coords" in files else None)
+    spike_files = getattr(spike_data, "files", ())
+    if nodes is None and spike_data is not None:
+        channels = adj_data["channels"] if "channels" in files else None
+        nodes = file_node_coords(spike_data, channels)
+    if electrodes is None and "electrode_coords" in spike_files:
+        electrodes = np.asarray(spike_data["electrode_coords"], dtype=float)
+    return nodes, electrodes
+
+
 def _plot_recording_lag(
     rec: RecordingInfo,
     lag_ms,
@@ -349,6 +387,7 @@ def _plot_recording_lag(
     only: str | None = None,
     style: "NetworkStyle | None" = None,
     st_diag: dict | None = None,
+    electrode_coords: np.ndarray | None = None,
 ) -> list[Path]:
     """Draw every step-4A plot for one recording/lag.
 
@@ -394,6 +433,9 @@ def _plot_recording_lag(
     through ``activeChannelIndex`` here.
     Returns the paths actually written.
     """
+    # What every figure here calls a node: an electrode, a sorted unit, or a cell.
+    _node_noun = (spatial_node_noun(params, coords_all)
+                  or ("electrode" if coords_all is None else "cell"))
     if "adjMsub" not in metrics:
         return []
 
@@ -431,13 +473,15 @@ def _plot_recording_lag(
             rec.filename, p,
             exclude_edges_below_threshold=params.exclude_edges_below_threshold,
             node_names=node_names,
-            node_noun="electrode" if coords_all is None else "cell",
+            node_noun=_node_noun,
         )
 
     try:
         channels_active = channels_arr[metrics["activeChannelIndex"]]
         coords_active = (None if coords_all is None
                          else np.asarray(coords_all)[metrics["activeChannelIndex"]])
+        spatial_extra = dict(node_noun=_node_noun,
+                             electrode_coords=electrode_coords)
         ct_active = None
         if cell_types is not None:
             ct_matrix, ct_names = cell_types
@@ -461,7 +505,7 @@ def _plot_recording_lag(
                     z, z2, color_name, lag_ms, rec.filename,
                     p, z_name=size_name,
                     coords_override=coords_active, cell_types=ct_active,
-                    node_size_scale=node_size_scale, style=style,
+                    node_size_scale=node_size_scale, style=style, **spatial_extra,
                 )
 
             # Batch-scaled variant + side-by-side combined figure, if we have a
@@ -478,7 +522,7 @@ def _plot_recording_lag(
                         z2_bounds_override=color_bounds,
                         edge_bounds_override=_EDGE_BATCH_BOUNDS,
                         coords_override=coords_active, cell_types=ct_active,
-                        node_size_scale=node_size_scale, style=style,
+                        node_size_scale=node_size_scale, style=style, **spatial_extra,
                     )
                 # MATLAB names the combined figure "<n>_combined_MEA_NetworkPlot"
                 # plus "_<color legend name>" when there's a colour metric (e.g.
@@ -498,7 +542,7 @@ def _plot_recording_lag(
                         z2_bounds_override=color_bounds,
                         edge_bounds_override=_EDGE_BATCH_BOUNDS,
                         coords_override=coords_active, cell_types=ct_active,
-                        node_size_scale=node_size_scale, style=style,
+                        node_size_scale=node_size_scale, style=style, **spatial_extra,
                     )
     except ValueError as e:
         log(f"  [{rec.filename}] skipped spatial network plot: {e}")
@@ -523,7 +567,7 @@ def _plot_recording_lag(
                 boundaries=metrics.get("cartographyBoundaries"),
                 nd_cart_div=metrics.get("NdCartDiv"),
                 names=_graph_metric_names(channels_arr, metrics),
-                noun="electrode" if coords_all is None else "cell",
+                noun=_node_noun,
             )
 
     if "NdCartDiv" in metrics:
@@ -533,7 +577,7 @@ def _plot_recording_lag(
                 lag_ms, rec.filename, p,
                 edge_thresh=params.exclude_edges_below_threshold * 0.0001,
                 names=_graph_metric_names(channels_arr, metrics),
-                noun="electrode" if coords_all is None else "cell",
+                noun=_node_noun,
             )
 
     if "Ci" in metrics:
@@ -542,7 +586,7 @@ def _plot_recording_lag(
                 metrics["adjMsub"], metrics["Ci"], metrics["ND"],
                 lag_ms, rec.filename, p,
                 names=_graph_metric_names(channels_arr, metrics),
-                noun="electrode" if coords_all is None else "cell",
+                noun=_node_noun,
             )
 
     try:
@@ -559,7 +603,7 @@ def _plot_recording_lag(
                 recording_name=rec.filename,
                 out_path=p,
                 names=_graph_metric_names(channels_arr, metrics),
-                noun="electrode" if coords_all is None else "cell",
+                noun=_node_noun,
                 # The half-violin jitter is the only randomness in the 4A set.
                 # Left unseeded it made this one figure differ between two
                 # otherwise-identical seeded runs — and between the pipeline's
@@ -866,16 +910,26 @@ def _step4_plot_one(
     if params.express_mode:
         return rec.filename, logs
 
-    # Sorted runs store node positions with the adjacency (step 3 copies
-    # them from the spike file); detected runs draw from the channel layout.
+    # Sorted and MaxWell runs store node positions with the adjacency (step 3
+    # copies them from the spike file); other detected runs draw from the
+    # channel layout.
     coords_all = None
+    electrode_coords = None
     raw: dict[str, np.ndarray] = {}
     locator = build_input_locator(params, Path(output_root_str))
     adj_path = locator.adjm_file(rec.filename)
     if adj_path is not None:
         with np.load(adj_path) as adj_data:
-            if "coords" in adj_data.files:
-                coords_all = np.asarray(adj_data["coords"], dtype=float)
+            coords_all, electrode_coords = recording_positions(params, adj_data)
+            if electrode_coords is None and (coords_all is not None
+                                             or layout_of(params) == FROM_FILE_LAYOUT):
+                # Step 3 ran before it stored the file's positions: a MaxWell
+                # or sorted run, whose spike file still has them.
+                spike_path = locator.spike_file(rec.filename)
+                if spike_path is not None:
+                    with np.load(spike_path, allow_pickle=True) as spike_data:
+                        coords_all, electrode_coords = recording_positions(
+                            params, adj_data, spike_data)
             raw = {k[: -len("_raw")]: adj_data[k] for k in adj_data.files if k.endswith("_raw")}
 
     st_diag = None
@@ -901,7 +955,7 @@ def _step4_plot_one(
         _log(f"  [{rec.filename}] plotting network metrics (lag={lag_ms}ms)...")
         _plot_recording_lag(
             rec, lag_ms, metrics, channels_arr, params, out_dir, _log, batch_bounds,
-            coords_all=coords_all, st_diag=st_diag,
+            coords_all=coords_all, st_diag=st_diag, electrode_coords=electrode_coords,
         )
     return rec.filename, logs
 

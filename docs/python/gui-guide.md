@@ -500,8 +500,12 @@ Settings that must match:
 - **Channel layout** → `FromFile`. Which electrodes are recorded changes from
   one recording to the next, so no fixed layout can place them. Step 1 writes
   each recording's electrode positions into its spike file, as an import
-  does, and the spatial plots read them from there. MEA-NAP picks `FromFile`
-  itself when the raw data folder holds MaxWell files.
+  does; step 3 stores them, with every routed electrode, beside each
+  recording's adjacency, and the spatial plots read them from there. (Before
+  1.41.0, detected MaxWell runs drew no spatial network plots at all; their
+  bundles redraw with them now.) MEA-NAP picks `FromFile` itself when the raw
+  data folder holds MaxWell files. In the viewers, *Inactive electrodes: Faint
+  dots* shows the routed electrodes that no node sits on.
 - **Potential difference unit** → `uV`. Samples are the ADC counts × the
   file's `settings/lsb` × 10⁶, with no offset subtracted — exactly what
   SpikeInterface/neo return, so a trace sits at about +3 mV until step 1's

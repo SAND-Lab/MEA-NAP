@@ -375,8 +375,15 @@ was the only one that never read the download flag.)
 
 One figure at a time, with the full Network Viewer control set on the right —
 node layout, colour map, edge threshold and method, maximum edges drawn, node
-size and scaling, edge widths. Changing any of them re-renders through the same
-Python that drew the original.
+size and scaling, edge widths, inactive electrodes. Changing any of them
+re-renders through the same Python that drew the original.
+
+**Inactive electrodes** is *Hidden* by default. *Faint dots* draws every
+electrode no node sits on as a small pale dot beneath the network, so the array
+shows behind it: the empty electrodes of a 60-electrode MEA, the routed blocks
+of a MaxWell recording, the electrodes a sorter found no unit on. The legend
+counts them. It applies on the electrode layout only, and only where electrode
+positions are known (an MEA layout, or a file's own electrode table).
 
 **Every control opens on the value the run itself used**, not on a generic
 default, so the panel doubles as a record of how these figures were drawn.

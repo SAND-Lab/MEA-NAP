@@ -255,6 +255,9 @@ def filter_by_cell_types(
 # "Original (electrodes)" keeps the MEA electrode coordinates untouched; the rest
 # mirror MATLAB's getNodeCoords / plotType='circular' options, computed here with
 # networkx instead of MATLAB's graph plot layouts.
+#: How the electrodes with no node on them are drawn.
+INACTIVE_ELECTRODE_OPTIONS = ["Hidden", "Faint dots"]
+
 LAYOUT_OPTIONS = [
     "Original (electrodes)",
     "Circular",
@@ -420,6 +423,11 @@ class NetworkStyle:
     max_edge_width: float = 4.0
     #: Any matplotlib colormap name, applied to the node-colour metric.
     colormap: str = "viridis"
+    #: One of :data:`INACTIVE_ELECTRODE_OPTIONS`: whether the electrodes no
+    #: node sits on are drawn, as faint dots, to show the array behind the
+    #: network. Only on the electrode layout, and only where electrode
+    #: positions are known (an MEA layout, a MaxWell routing).
+    inactive_electrodes: str = "Hidden"
 
     @classmethod
     def pipeline_default(cls, node_size_scale: float | str = NODE_SIZE_FIT) -> "NetworkStyle":

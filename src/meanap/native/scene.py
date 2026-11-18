@@ -88,6 +88,11 @@ class NetworkScene:
     #: ``{"xy": (x, y), "shape": "star" | "cross", "colour": "#rrggbb",
     #: "size": points, "text": what pointing at it says}``.
     markers: list = field(default_factory=list)
+    #: (K, 2) electrodes no node sits on, drawn as faint dots beneath the
+    #: network to show the array; empty when they are not shown.
+    inactive_xy: np.ndarray = field(default_factory=lambda: np.empty((0, 2)))
+    #: Their diameter, in data units: a fraction of the electrode pitch.
+    inactive_diameter: float = 0.0
 
     @property
     def segments(self) -> np.ndarray:
@@ -126,8 +131,12 @@ def network_scene(
     node_scaling_method: str = "Linear",
     node_scaling_power: float = 1.0,
     colormap: str = "viridis",
+    inactive_xy: np.ndarray | None = None,
 ) -> NetworkScene:
     """Lay a network out for drawing. Parameters are ``plot_network``'s.
+
+    ``inactive_xy`` are electrodes with no node, drawn as faint dots beneath
+    the network and counted into its extent, so the array's shape shows.
 
     ``names`` are the nodes' names by row (electrode or cell numbers) and
     ``noun`` what one is called; both are only for reading the plot.
@@ -235,6 +244,24 @@ def network_scene(
     if has_types and cell_type_styles is None:
         cell_type_styles = _cell_type_styles(types.shape[1])
 
+    inactive = (np.empty((0, 2)) if inactive_xy is None
+                else np.asarray(inactive_xy, dtype=float).reshape(-1, 2))
+    inactive_d = 0.0
+    if len(inactive):
+        from meanap.network_plot import median_node_spacing
+
+        # A quarter of the electrode pitch: there, but plainly not a node.
+        everything = np.vstack([inactive, coords[drawn]]) if len(drawn) else inactive
+        inactive_d = 0.25 * (median_node_spacing(everything) or 1.0)
+    placed = np.vstack([coords[drawn], inactive]) if len(inactive) else coords
+    extent = ((float(placed[:, 0].min()), float(placed[:, 0].max()),
+               float(placed[:, 1].min()), float(placed[:, 1].max()))
+              if len(placed) and (n or len(inactive)) else (0, 1, 0, 1))
+    if not len(inactive):
+        # Unchanged from before inactive electrodes existed: the extent of
+        # every coordinate given, drawn or not.
+        extent = ((float(coords[:, 0].min()), float(coords[:, 0].max()),
+                   float(coords[:, 1].min()), float(coords[:, 1].max())) if n else (0, 1, 0, 1))
     return NetworkScene(
         title=title, xy=coords[drawn], diameter=diameter, colour=colour, index=drawn,
         names=[str(i) if names is None else str(names[i]) for i in drawn],
@@ -243,11 +270,11 @@ def network_scene(
         edge_weight=w, edge_width=edge_width, edge_grey=edge_grey,
         size_name=z_name, size_items=size_items, edge_items=edge_items,
         colour_key=colour_key,
-        extent=(float(coords[:, 0].min()), float(coords[:, 0].max()),
-                float(coords[:, 1].min()), float(coords[:, 1].max())) if n else (0, 1, 0, 1),
+        extent=extent,
         cell_types=types, cell_type_names=list(cell_type_names) if has_types else [],
         cell_type_styles=list(cell_type_styles) if has_types else [],
-        node_size_scale=float(node_size_scale), background=background)
+        node_size_scale=float(node_size_scale), background=background,
+        inactive_xy=inactive, inactive_diameter=float(inactive_d))
 
 
 @dataclass
