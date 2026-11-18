@@ -890,6 +890,25 @@ def _card_title(text: str) -> QLabel:
     return label
 
 
+#: The colour of a recording in which step 1 found no spikes at all.
+_WARN = "#c2410c"
+
+
+def _signal_quality_text(quality: dict, *, short: bool = False) -> str:
+    """Step 1's signal-quality verdict on one recording, in words."""
+    n, total = quality["n_spiking"], quality["n_electrodes"]
+    if n == 0:
+        head = (f"Signal quality: no electrode of {total} shows spikes beyond "
+                "its own noise")
+        return head if short else (
+            head + ". Spikes detected in this recording, and the networks built "
+            "from them, describe noise. See Spike detection checks → Signal quality.")
+    head = f"Signal quality: {n} of {total} electrodes show spikes"
+    pos = quality.get("n_positive_only") or 0
+    return head if short or not pos else (
+        head + f"; {pos} more have only positive-going excess (artifact-like).")
+
+
 def _muted(text: str = "") -> QLabel:
     label = QLabel(text)
     label.setObjectName("muted")
@@ -1054,6 +1073,12 @@ class ResultsViewer(QWidget):
         lag_row.addWidget(self.lag)
         fig_card, fig_box = _card()
         fig_box.addLayout(lag_row)
+        # Step 1's verdict on whether the recording holds spikes at all, above
+        # the figures it qualifies. Hidden when the check did not run.
+        self.signal_quality_note = QLabel("")
+        self.signal_quality_note.setWordWrap(True)
+        self.signal_quality_note.hide()
+        fig_box.addWidget(self.signal_quality_note)
         fig_box.addWidget(self.figures, 1)
 
         left = QSplitter(Qt.Orientation.Vertical)
@@ -1540,14 +1565,23 @@ class ResultsViewer(QWidget):
             others = [recs[j] for j in self._siblings.get(index, []) if j != index]
             if others:
                 detail.append("also " + ", ".join(self._div_text(r) or "?" for r in others))
+            quality = rec.get("signal_quality")
+            no_spikes = bool(quality) and quality["n_spiking"] == 0
+            if no_spikes:
+                detail.insert(0, "⚠ no spikes")
             item = QListWidgetItem(rec["name"] + ("\n" + " · ".join(map(str, detail))
                                                   if detail else ""))
             item.setData(_RECORDING_ROLE, index)
+            tips = []
+            if quality:
+                tips.append(_signal_quality_text(quality))
             if others:
-                item.setToolTip(
+                tips.append(
                     "This culture was also recorded at "
                     + ", ".join(self._div_text(r) or "?" for r in others)
                     + ". Turn on “Across DIVs” to see a figure at every age at once.")
+            if tips:
+                item.setToolTip("\n\n".join(tips))
             self.recordings.addItem(item)
             if index == wanted:
                 chosen = item
@@ -1634,6 +1668,18 @@ class ResultsViewer(QWidget):
         rec, lag = self._recording(), self.lag.currentData()
         if rec is None:
             return
+        quality = rec.get("signal_quality")
+        self.signal_quality_note.setVisible(bool(quality))
+        if quality:
+            # Said before any figure is opened: in a recording with no spikes,
+            # every figure below is a picture of noise.
+            warn = quality["n_spiking"] == 0
+            self.signal_quality_note.setText(("⚠ " if warn else "")
+                                             + _signal_quality_text(quality, short=True))
+            self.signal_quality_note.setToolTip(_signal_quality_text(quality))
+            self.signal_quality_note.setStyleSheet(
+                f"color: {_WARN if warn else _MUTED}; font-size: 12px;"
+                + (" font-weight: 600;" if warn else ""))
         if rec.get("spike_checks"):
             branch = self._branch(self.figures, "Spike detection checks")
             for figure in rec["spike_checks"]:

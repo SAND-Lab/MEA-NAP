@@ -1002,6 +1002,11 @@ def _run_step1_spike_detection(
         log.detail(f"      {len(channels)} channels, {fs / 1000:g} kHz, "
                    f"{dat.shape[0] / fs:.1f}s "
                    f"({dat.nbytes / 1e6:.0f} MB of samples)")
+        if params.signal_quality_check:
+            from meanap.pipeline.signal_quality import run_signal_quality_check
+
+            progress.item_progress(STEP1_LOADED, f"{rec.filename} · checking for spikes")
+            run_signal_quality_check(params, rec, dat, channels, fs, output_root, log)
 
         if params.spike_source == "sort":
             _sort_one_recording(params, rec, dat, channels, fs, output_root,

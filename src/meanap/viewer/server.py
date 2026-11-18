@@ -49,6 +49,7 @@ from meanap.pipeline.figure_output import DEFAULT_THUMBNAIL_DPI
 from meanap.pipeline.render import (
     available_activity_figures, available_comparison_families, available_figures,
     available_spike_check_figures, render_spike_check_figure, figure_variants,
+    signal_quality_summary,
     activity_figure_variants,
     available_sorting_check_figures, available_stim_check_figures,
     available_edge_check_lags, render_edge_check_figure,
@@ -470,6 +471,7 @@ class ViewerService:
 
     def manifest(self) -> dict:
         recordings = []
+        quality = signal_quality_summary(self.ctx)
         for name, rec in self.ctx.recordings.items():
             lags = self.ctx.lags(name)
             recordings.append({
@@ -496,6 +498,10 @@ class ViewerService:
                               # The raster and heatmaps carry a panel per scale.
                               "variants": activity_figure_variants(self.ctx, name, f.name)}
                              for f in available_activity_figures(self.ctx, name)],
+                # Step 1's verdict on whether the voltage holds spikes at
+                # all; None when the check did not run. The viewers warn on
+                # n_spiking == 0, since everything below it is then noise.
+                "signal_quality": quality.get(name),
                 # Step-1 checks are per recording too. Listed separately from
                 # the step-2 activity set because they answer a different
                 # question — did detection work — and a reader looking for that

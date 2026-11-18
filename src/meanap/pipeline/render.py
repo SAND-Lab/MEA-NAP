@@ -57,6 +57,8 @@ __all__ = [
     "available_activity_figures",
     "ACTIVITY_FIGURES",
     "SPIKE_CHECK_FIGURES",
+    "SIGNAL_QUALITY_FIGURE",
+    "signal_quality_summary",
     "available_spike_check_figures",
     "render_spike_check_figure",
     "available_edge_check_lags",
@@ -170,6 +172,11 @@ SPIKE_CHECK_FIGURES: tuple[FigureSpec, ...] = (
     FigureSpec("2_SpikeFrequencies", "Spike frequency over time"),
     FigureSpec("3_Waveforms", "Spike waveforms by method"),
 )
+
+#: Step 1's check of whether the voltage holds spikes at all, listed first
+#: among a recording's step-1 checks. Detected or sorted, the check runs on the
+#: voltage before either, so it is offered whichever produced the spikes.
+SIGNAL_QUALITY_FIGURE = FigureSpec("0_SignalQuality", "Signal quality")
 
 #: Step 1's checks when the spikes came from a spike sorter instead.
 SORTING_CHECK_FIGURES: tuple[FigureSpec, ...] = (
@@ -1554,9 +1561,46 @@ def available_spike_check_figures(
     skipped — in both cases there is nothing to draw from, and offering a button
     that produces nothing is worse than offering none.
     """
-    if _spike_check_file(ctx, recording) is None:
-        return []
-    return list(SPIKE_CHECK_FIGURES)
+    figures = [SIGNAL_QUALITY_FIGURE] if _signal_quality_file(ctx, recording) else []
+    if _spike_check_file(ctx, recording) is not None:
+        figures += SPIKE_CHECK_FIGURES
+    return figures
+
+
+def _signal_quality_file(ctx: RenderContext, recording: str) -> Path | None:
+    from meanap.pipeline.signal_quality import SIGNAL_QUALITY_DIR, SIGNAL_QUALITY_SUFFIX
+
+    path = ctx.root / SIGNAL_QUALITY_DIR / f"{recording}{SIGNAL_QUALITY_SUFFIX}"
+    return path if path.exists() else None
+
+
+def signal_quality_summary(ctx: RenderContext) -> dict[str, dict]:
+    """Step 1's signal-quality verdict per recording, from the batch summary CSV.
+
+    ``{recording: {"n_spiking", "n_electrodes", "n_positive_only", "verdict"}}``;
+    empty when the check did not run. ``n_spiking == 0`` is the warning case: no
+    electrode holds more large deflections than its own noise produces.
+    """
+    import csv
+
+    from meanap.pipeline.signal_quality import SIGNAL_QUALITY_DIR, SUMMARY_CSV
+
+    path = ctx.root / SIGNAL_QUALITY_DIR / SUMMARY_CSV
+    if not path.exists():
+        return {}
+    out: dict[str, dict] = {}
+    with path.open(newline="") as fh:
+        for row in csv.DictReader(fh):
+            try:
+                out[row["recording"]] = {
+                    "n_spiking": int(float(row["n_spiking"])),
+                    "n_electrodes": int(float(row["n_electrodes"])),
+                    "n_positive_only": int(float(row.get("n_positive_only") or 0)),
+                    "verdict": row.get("verdict", ""),
+                }
+            except (KeyError, ValueError):
+                continue
+    return out
 
 
 #: The per-recording cell-type subnetwork figures, per lag. Everything they
@@ -2018,6 +2062,18 @@ def render_spike_check_figure(
     from meanap.pipeline.plotting import (
         draw_spike_check_figures, load_spike_check_data,
     )
+
+    if Path(figure).stem == SIGNAL_QUALITY_FIGURE.name:
+        from meanap.pipeline.signal_quality import load_signal_quality, plot_signal_quality
+
+        sq = _signal_quality_file(ctx, recording)
+        if sq is None:
+            raise ValueError(f"No signal-quality check for {recording} in this bundle — "
+                             "step 1 ran without it, or predates it.")
+        out = Path(out_dir) / f"{SIGNAL_QUALITY_FIGURE.name}.{fmt}"
+        with figure_dpi(dpi):
+            plot_signal_quality(load_signal_quality(sq), out, title=recording)
+        return out
 
     path = _spike_check_file(ctx, recording)
     if path is None:

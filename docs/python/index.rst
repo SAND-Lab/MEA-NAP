@@ -177,6 +177,7 @@ figure.
    command-line
    spike-sorting
    sorted-import
+   signal-quality
    catnap
    network-viewer
    notebooks/network-plotting-tutorial
