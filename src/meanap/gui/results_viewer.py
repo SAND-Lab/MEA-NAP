@@ -31,7 +31,7 @@ from PyQt6.QtCore import (
 from PyQt6.QtGui import QColor, QCursor, QFontInfo, QPainter, QPen, QPixmap
 from PyQt6.QtWidgets import (
     QAbstractItemView, QButtonGroup, QComboBox, QDoubleSpinBox, QFileDialog,
-    QFormLayout, QFrame, QHBoxLayout, QLabel, QLineEdit, QMenu,
+    QFormLayout, QFrame, QHBoxLayout, QLabel, QLineEdit,
     QListWidget, QListWidgetItem, QPushButton, QScrollArea, QSizePolicy, QSpinBox,
     QSplitter, QStackedWidget, QToolTip, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget,
 )
@@ -654,9 +654,11 @@ class _Cancelled(Exception):
 class _Export(QRunnable):
     """Draw a bundle out into an ordinary output folder (``export_output_folder``)."""
 
-    def __init__(self, bundle: Path, dest: Path, fmt: str, signals: _ExportSignals):
+    def __init__(self, bundle: Path, dest: Path, fmt: str, signals: _ExportSignals,
+                 figures: set | None = None, recordings: set | None = None):
         super().__init__()
         self._bundle, self._dest, self._fmt, self._signals = bundle, dest, fmt, signals
+        self._figures, self._recordings = figures, recordings
         self.cancel = False
 
     def _progress(self, done: int, total: int) -> None:
@@ -669,7 +671,8 @@ class _Export(QRunnable):
 
         try:
             result = export_output_folder(self._bundle, self._dest, fmt=self._fmt,
-                                          log=lambda m: None, progress=self._progress)
+                                          log=lambda m: None, progress=self._progress,
+                                          figures=self._figures, recordings=self._recordings)
         except _Cancelled:
             self._signals.failed.emit("")
             return
@@ -918,7 +921,6 @@ class ResultsViewer(QWidget):
         self._restyle.setSingleShot(True)
         self._restyle.setInterval(RESTYLE_DELAY_MS)
         self._restyle.timeout.connect(self._draw)
-        self._drew_in = 0.0
         self._native_key = None
         self._styleable = False
         self._tracking_listed = False
@@ -958,14 +960,9 @@ class ResultsViewer(QWidget):
         self.export_button = QPushButton("Export figures…")
         self.export_button.setObjectName("ghost")
         self.export_button.setToolTip(
-            "Draw every figure in this bundle into an ordinary results folder beside "
-            "it, with a report.html to browse them — for someone without MEA-NAP.")
-        export_menu = QMenu(self.export_button)
-        for fmt, text in (("png", "As PNG images (300 dpi)"),
-                          ("svg", "As SVG (editable vector)"),
-                          ("pdf", "As PDF (editable vector)")):
-            export_menu.addAction(text, lambda f=fmt: self.export(f))
-        self.export_button.setMenu(export_menu)
+            "Choose figures from this bundle to draw into an ordinary results folder "
+            "beside it, with a report.html to browse them — for someone without MEA-NAP.")
+        self.export_button.clicked.connect(self.choose_export)
         self.export_button.hide()
         self.export_cancel = QPushButton("Cancel")
         self.export_cancel.setObjectName("ghost")
@@ -1170,9 +1167,20 @@ class ResultsViewer(QWidget):
         self._style_scroll = QScrollArea()
         self._style_scroll.setWidgetResizable(True)
         self._style_scroll.setWidget(self.style_panel)
+        # ...or, beside 5A4, what its effects are held fixed for.
+        from meanap.gui.adjust_panel import AdjustPanel
+
+        self.adjust_panel = AdjustPanel()
+        self.adjust_panel.changed.connect(self._restyle.start)
+        #: The lag whose choices the picker holds; refilled when it changes.
+        self._adjust_lag = None
         self._right, right_box = _card()
-        right_box.addWidget(_card_title("Network styling"))
-        right_box.addWidget(self._style_scroll, 1)
+        self._right_title = _card_title("Network styling")
+        right_box.addWidget(self._right_title)
+        self._right_pages = QStackedWidget()
+        self._right_pages.addWidget(self._style_scroll)
+        self._right_pages.addWidget(self.adjust_panel)
+        right_box.addWidget(self._right_pages, 1)
         self._right.setMinimumWidth(280)
         self._right.hide()
 
@@ -1345,12 +1353,39 @@ class ResultsViewer(QWidget):
 
     # ── exporting every figure ───────────────────────────────────────────────
 
-    def export(self, fmt: str = "png", dest: Path | None = None) -> bool:
-        """Draw every figure of the open bundle into a folder beside it.
+    def export_dialog(self):
+        """The page that chooses what to export, filled from the open bundle;
+        ``None`` if there is nothing to export or an export is running."""
+        from meanap.gui.export_dialog import ExportDialog
+        from meanap.pipeline.export import SECTIONS, default_export_dest, export_jobs
 
-        Runs in the background; the header says how far it has got and where
-        the folder is when done. ``False`` if there is nothing to export or an
-        export is already running.
+        if (self._service is None or self._export_job is not None
+                or not self._manifest.get("can_export")):
+            return None
+        ctx = self._service.ctx
+        order = {section: i for i, section in enumerate(SECTIONS)}
+        jobs = sorted(export_jobs(ctx, Path(".")), key=lambda j: order.get(j.section, len(order)))
+        return ExportDialog(jobs, list(ctx.recordings),
+                            default_export_dest(Path(self._service.source)), self)
+
+    def choose_export(self) -> None:
+        """Ask which figures, recordings and format, then export them."""
+        dialog = self.export_dialog()
+        if dialog is None or not dialog.exec():
+            return
+        everything = dialog.everything_chosen()
+        self.export(dialog.fmt(), dialog.dest,
+                    figures=None if everything else dialog.chosen_figures(),
+                    recordings=None if everything else dialog.chosen_recordings())
+
+    def export(self, fmt: str = "png", dest: Path | None = None, *,
+               figures: set | None = None, recordings: set | None = None) -> bool:
+        """Draw the open bundle's figures into a folder beside it.
+
+        *figures* (``(section, figure)`` kinds) and *recordings* narrow it;
+        ``None`` means all. Runs in the background; the header says how far it
+        has got and where the folder is when done. ``False`` if there is
+        nothing to export or an export is already running.
         """
         from meanap.pipeline.export import default_export_dest
 
@@ -1359,7 +1394,8 @@ class ResultsViewer(QWidget):
             return False
         source = Path(self._service.source)
         self._export_dest = Path(dest) if dest is not None else default_export_dest(source)
-        self._export_job = _Export(source, self._export_dest, fmt, self._export_signals)
+        self._export_job = _Export(source, self._export_dest, fmt, self._export_signals,
+                                   figures, recordings)
         self._export_job.setAutoDelete(False)
         self.export_button.setEnabled(False)
         self.export_cancel.show()
@@ -1869,7 +1905,27 @@ class ResultsViewer(QWidget):
                     "lag": self.lag.currentData() if chosen.get("lagged") else None}
         if kind == "lag_series":
             return {"kind": kind, "series": chosen["series"], "key": chosen["key"]}
-        return {"kind": kind, "lag": chosen["lag"], "key": chosen["key"]}
+        request = {"kind": kind, "lag": chosen["lag"], "key": chosen["key"]}
+        if self._adjusting(request):
+            self._load_adjust_choices(chosen["lag"])
+            request["overrides"] = {"adjust_for": self.adjust_panel.query(),
+                                    **self.adjust_panel.view()}
+        return request
+
+    @staticmethod
+    def _adjusting(request: dict | None) -> bool:
+        """Whether *request* is 5A4, the figure the covariate picker drives."""
+        return bool(request) and request.get("kind") == "stats" \
+            and request.get("key") == "adjusted_effects"
+
+    def _load_adjust_choices(self, lag) -> None:
+        """Fill the picker for *lag*'s run, once per lag."""
+        if self._adjust_lag == lag or self._service is None:
+            return
+        from meanap.pipeline.render import adjustment_choices
+
+        self.adjust_panel.load(adjustment_choices(self._service.ctx, lag))
+        self._adjust_lag = lag
 
     def _draw(self) -> None:
         """Draw what is selected. A request made while drawing waits its turn."""
@@ -1924,14 +1980,11 @@ class ResultsViewer(QWidget):
     def _on_drawn(self, generation: int, live) -> None:
         if isinstance(live, list):           # across DIVs: [(title, Live or message, current)]
             if generation == self._generation:
-                self._drew_in = sum(got.seconds for _t, got, _c in live
-                                    if isinstance(got, Live))
                 self.selection.setText("")
                 self._show_many(live)
             self._finish()
             return
         if generation == self._generation:
-            self._drew_in = live.seconds
             self.selection.setText("")
             self._show(live)
         elif hasattr(live.figure, "clear"):
@@ -1955,9 +2008,17 @@ class ResultsViewer(QWidget):
         self._on_painted(time.perf_counter() - started)
 
     def _place_styling(self) -> None:
-        """Offer the styling panel on network plots only; show it when asked."""
+        """Offer the styling panel on network plots only; show it when asked.
+
+        Beside 5A4 the same pane holds the covariate picker instead, shown
+        without asking: choosing what to hold fixed is what that figure is for.
+        """
         self.style_button.setVisible(self._styleable)
-        show = self._styleable and self.style_button.isChecked()
+        item = self.figures.currentItem()
+        adjusting = self._adjusting(item.data(0, _REQUEST_ROLE) if item is not None else None)
+        self._right_pages.setCurrentWidget(self.adjust_panel if adjusting else self._style_scroll)
+        self._right_title.setText(("Hold fixed" if adjusting else "Network styling").upper())
+        show = adjusting or (self._styleable and self.style_button.isChecked())
         if show and not self._right.isVisible():
             # A hidden splitter pane comes back at whatever is left over, which
             # is nothing; give it its width out of the figure's.
@@ -2018,10 +2079,11 @@ class ResultsViewer(QWidget):
             self.view.show_message(message)
         self._finish()
 
-    def _on_painted(self, seconds: float) -> None:
-        self.status.setText(f"Drawn in {self._drew_in + seconds:.2f} s")
-        self.status.setToolTip(f"{self._drew_in:.2f} s to make the figure, "
-                               f"{seconds:.2f} s to put it on screen.")
+    def _on_painted(self, _seconds: float) -> None:
+        # "Drawing…" says a figure is on its way; once it is on screen there
+        # is nothing to say (figures draw in a fraction of a second).
+        self.status.setText("")
+        self.status.setToolTip("")
 
     # ── what a metric means ──────────────────────────────────────────────────
 

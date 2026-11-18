@@ -177,7 +177,7 @@ def decide_section(folders: dict[str, Path]) -> None:
     check("Axion .raw: 16 or 64 electrodes per well",
           detect_layout([probe(16, "axion")]).layout == "Axion16"
           and detect_layout([probe(64, "axion")]).layout == "Axion64")
-    check("59 channels: MCS59", detect_layout([probe(59)]).layout == "MCS59")
+    check("59 channels: MCS60 (one grounded)", detect_layout([probe(59)]).layout == "MCS60")
     g = detect_layout([probe(60), probe(60), probe(16)])
     check("disagreeing recordings: the majority, flagged",
           (g.layout, g.sure) == ("MCS60", False) and "don't agree" in g.reason, str(g))

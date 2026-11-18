@@ -44,6 +44,7 @@ from typing import Any, Callable, NamedTuple
 import numpy as np
 
 from meanap.params import SORTED_METHOD
+from meanap.pipeline.channel_layout import layout_label, layout_of
 from meanap.pipeline.probes import build_probe, electrode_pitch_um, layout_grid_step
 
 #: The sorters MEA-NAP knows how to configure for a low-density array, in the
@@ -577,7 +578,7 @@ def _sort_spikes_recording(dat, channels, fs, params, work_dir, log, jobs) -> Sp
     recording, kept = build_recording(dat, channels, fs, params)
     dropped = len(channels) - len(kept)
     if dropped:
-        log(f"      {dropped} channel(s) not in layout {params.channel_layout} "
+        log(f"      {dropped} channel(s) not in layout {layout_label(params.channel_layout)} "
             f"left out of sorting")
 
     log(f"      preprocessing ({params.freq_min:g}–{params.freq_max:g} Hz, "
@@ -622,7 +623,7 @@ def _cleanup(work_dir: Path, params: SpikeSortingParams) -> None:
 def params_from_pipeline(params, fs: float | None = None) -> SpikeSortingParams:
     """The sorting settings out of a :class:`meanap.params.Params`."""
     return SpikeSortingParams(
-        channel_layout=params.channel_layout,
+        channel_layout=layout_of(params),
         sorter_name=params.sorter_name,
         sorter_params=dict(params.sorter_params or {}),
         freq_min=params.sort_freq_min,

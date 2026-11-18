@@ -174,6 +174,15 @@ active electrodes stop at the array's electrode count, and node degree and
 node strength at one less. A spike-sorted run has no such cap, since several
 units can share an electrode.
 
+**A second null for edge thresholding.** MATLAB keeps an edge when its STTC
+beats circular-shift surrogates, which shift each spike train whole. Python
+also offers **interval jitter** (Connectivity tab → Surrogates;
+`prob_thresh_null="jitter"`). Each spike moves within a fixed window, by
+default 5 × the lag. Every train keeps its rate profile, network bursts
+included, so an edge means timing finer than the window beyond what the two
+rate profiles explain. Circular shift stays the default, and with it the edges
+match earlier runs exactly.
+
 **Grounded electrodes are grey in every electrode heatmap.** MATLAB greys
 them out in the firing-rate heatmap only; its burst heatmaps are never passed
 the grounded list, so a grounded electrode shows there as a silent one. Python
@@ -187,10 +196,12 @@ range.
   — the Python port currently produces per-recording, per-lag results plus
   batch-scaled plot variants, not MATLAB's full `RecordingsByGroup`/
   `GraphMetricsByLag` group-comparison figures and CSVs.
-- **`Custom` channel layout is not supported.** MATLAB's user-drawn custom
-  electrode layout has no Python equivalent yet; the port supports
-  `MCS60old`, `MCS60`, `MCS59`, `Axion64`, and `Axion16`, all with confirmed
-  exact coordinate parity against MATLAB.
+- **`Custom` channel layouts come from a file, not a drawing.** MATLAB lets
+  you draw a custom electrode layout; the Python port reads one from a `.csv`
+  or `.xlsx` table instead (see the GUI guide's *Custom layouts*). The
+  built-in `MCS60`, `Axion64` and `Axion16` (and `MCS59`, `MCS60old`, still
+  accepted from old settings files) have confirmed exact coordinate parity
+  against MATLAB.
 - **No single combined output `.mat` file.** MATLAB writes one
   `<recording>_<output>.mat` per recording containing `Info`/`Params`/
   `spikeTimes`/`Ephys`/`adjMs` together. The Python port instead writes

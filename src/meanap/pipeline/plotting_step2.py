@@ -287,7 +287,9 @@ def plot_neuronal_activity_checks(
         written.append(path)
         return path
 
-    channel_layout = getattr(params, "channel_layout", "Axion64")
+    from meanap.pipeline.channel_layout import layout_of
+
+    channel_layout = layout_of(params) or "Axion64"
     bmax = batch_max or {}
 
     if (p := want("1_FiringRateByElectrode.png")) is not None:

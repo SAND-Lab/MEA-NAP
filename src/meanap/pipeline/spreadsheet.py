@@ -56,13 +56,36 @@ def _range_slice(n_rows: int, spreadsheet_range: str) -> tuple[int, int]:
     return max(start_line - 2, 0), min(end_line - 1, n_rows)
 
 
+#: Spreadsheet formats the pipeline reads, by extension.
+EXCEL_SUFFIXES = (".xlsx", ".xlsm")
+
+
+def _read_sheet(path: str | Path) -> pd.DataFrame:
+    """A recordings sheet as text, whether CSV or Excel (its first sheet).
+
+    Everything is read as text so a name stays as written: read as numbers,
+    a recording called ``001`` would become ``1`` and match no file. MATLAB
+    reads Excel sheets as well (``spreadsheet_file_type = 'excel'``).
+    """
+    path = Path(path)
+    suffix = path.suffix.lower()
+    if suffix == ".xls":
+        raise ValueError(
+            f"{path.name} is an old-style Excel file (.xls), which MEA-NAP cannot "
+            "read. Open it in Excel and save it as .xlsx or .csv.")
+    if suffix in EXCEL_SUFFIXES:
+        return pd.read_excel(path, sheet_name=0, dtype=str)
+    return pd.read_csv(path, dtype=str)
+
+
 def read_recording_csv(path: str | Path, spreadsheet_range: str) -> list[RecordingInfo]:
-    """Read the recording list CSV.
+    """Read the recording list: a CSV, or an Excel workbook's first sheet.
 
     Expects columns: Recording Filename, DIV group, Genotype, [Ground], and
-    optionally a ``StimConditions`` column anywhere after them.
+    optionally a ``StimConditions`` column anywhere after them. Rows with no
+    filename are skipped (Excel keeps formatted empty rows).
     """
-    df = pd.read_csv(path, header=0)
+    df = _read_sheet(path)
 
     start_idx, end_idx = _range_slice(len(df), spreadsheet_range)
     subset = df.iloc[start_idx:end_idx]
@@ -73,12 +96,20 @@ def read_recording_csv(path: str | Path, spreadsheet_range: str) -> list[Recordi
     # Ground is the fourth column by position, unless that column is StimConditions.
     has_ground = subset.shape[1] >= 4 and stim_col != 3
     recordings = []
-    for _, row in subset.iterrows():
+    for line, (_, row) in enumerate(subset.iterrows(), start=start_idx + 2):
+        name = row.iloc[0]
+        if pd.isna(name) or not str(name).strip():
+            continue
         stim = row.iloc[stim_col] if stim_col is not None else None
+        try:
+            div = float(row.iloc[1])
+        except (TypeError, ValueError):
+            raise ValueError(f"{Path(path).name}, row {line}: the DIV group of "
+                             f"{str(name).strip()!r} is {row.iloc[1]!r}, not a number") from None
         recordings.append(RecordingInfo(
-            filename=str(row.iloc[0]),
-            div=float(row.iloc[1]),
-            group=str(row.iloc[2]),
+            filename=str(name).strip(),
+            div=div,
+            group=str(row.iloc[2]).strip(),
             ground=str(row.iloc[3]) if has_ground else None,
             stim_conditions=None if stim is None or pd.isna(stim) else str(stim),
         ))
@@ -200,19 +231,14 @@ def read_recording_table(path: str | Path) -> pd.DataFrame:
     :func:`read_recording_csv`, which coerces to the types a run needs. An
     editor must be able to show a malformed file in order to fix it.
     """
-    path = Path(path)
-    if path.suffix.lower() in (".xlsx", ".xls"):
-        table = pd.read_excel(path, dtype=str)
-    else:
-        table = pd.read_csv(path, dtype=str)
-    return table.fillna("").astype(str)
+    return _read_sheet(path).fillna("").astype(str)
 
 
 def write_recording_table(path: str | Path, table: pd.DataFrame) -> Path:
     """Write *table* in whichever format *path*'s extension asks for."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    if path.suffix.lower() in (".xlsx", ".xls"):
+    if path.suffix.lower() in EXCEL_SUFFIXES:
         table.to_excel(path, index=False)
     else:
         table.to_csv(path, index=False)

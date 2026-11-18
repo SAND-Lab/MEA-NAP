@@ -203,6 +203,15 @@ installed.
 uv run meanap-viewer Run.meanap      # then press "Export output folder"
 ```
 
+In the app's own results viewer, **Export figures…** opens a page that chooses
+what to draw before anything is drawn. It lists the figure kinds by section
+(Neuronal activity, Network, Comparisons across recordings, …) and the
+recordings, each with **Select all** and **Deselect all**. It also sets the
+format (PNG, SVG or PDF) and the folder. Figures that compare recordings are
+drawn whichever recordings are ticked. From Python, `export_output_folder`
+takes the same choice as `figures={(section, figure), …}` and
+`recordings={…}`, and `export_choices` lists what a bundle offers.
+
 Or from Python:
 
 ```python

@@ -28,7 +28,7 @@ from meanap.pipeline.io import (
     load_spike_times_npz,
     require_spike_method,
 )
-from meanap.pipeline.channel_layout import get_coords_from_layout
+from meanap.pipeline.channel_layout import get_coords_from_layout, layout_of
 from meanap.pipeline.progress import RunProgress
 from meanap.pipeline.resume import build_input_locator
 from meanap.pipeline.rng import make_rng
@@ -106,7 +106,7 @@ def run_stim_analysis(
         log(f"  [{rec.filename}] detecting stimulation…")
         dat, channels, fs = load_raw_recording(raw_path)
         dat = dat.astype(np.float64)
-        coords = _coords_for_channels(params.channel_layout, channels)
+        coords = _coords_for_channels(layout_of(params), channels)
         sp_params = {**base, "fs": fs}
 
         stim_info = detect_stim_times(dat, sp_params, channels, coords)
@@ -330,7 +330,7 @@ def _run_event_stim_analysis(params: Params, recordings: list[RecordingInfo],
             else:
                 layout = recording_layout(params.channel_layout, data)
                 coords = (_coords_from(layout, channels) if layout is not None
-                          else _coords_for_channels(params.channel_layout, channels))
+                          else _coords_for_channels(layout_of(params), channels))
         if duration_s is None:
             duration_s = max((float(t.max()) for m in load_spike_times_npz(npz_path).values()
                               for t in m.values() if len(t)), default=0.0)

@@ -64,6 +64,7 @@ from meanap.params import Params
 from meanap.pipeline.burst_detection import (
     burst_detect_network, single_channel_burst_detection,
 )
+from meanap.gui.layout_preview import choose_layout_item
 from meanap.pipeline.channel_layout import get_coords_from_layout
 from meanap.pipeline.io import (
     SpikeFile, find_raw_file, load_raw_recording, load_spike_file,
@@ -79,7 +80,7 @@ __all__ = ["UNLABELLED_METHOD", "SpikeViewerWindow", "SweepPoint",
            "pack_bursts", "quality_summary", "refractory_violations",
            "sweep_points", "unpack_bursts"]
 
-_LAYOUTS = ["MCS60", "MCS60old", "MCS59", "Axion64", "Axion16"]
+_LAYOUTS = ["MCS60", "Axion64", "Axion16"]
 _WAVELETS = list(WAVELETS)
 #: Points drawn for one window of a matplotlib trace — the Filtering tab's
 #: before/after pair. Above this, a screen-width axes has more samples than
@@ -2829,9 +2830,7 @@ class SpikeViewerWindow(QDialog):
         show_auto_or_value(self._sc_auto_isi, self._sc_isi,
                            params.single_channel_isi_threshold)
 
-        index = self._layout_combo.findText(params.channel_layout)
-        if index >= 0:
-            self._layout_combo.setCurrentIndex(index)
+        choose_layout_item(self._layout_combo, params)
         self._default_raw_dir = str(params.raw_data or "")
         self._default_spike_dir = str(params.spike_detected_data
                                       or params.output_data_folder or "")
@@ -3570,7 +3569,8 @@ class SpikeViewerWindow(QDialog):
         if self._coords is not None and len(self._coords) == len(channels):
             return self._coords
         try:
-            ids, xy = get_coords_from_layout(self._layout_combo.currentText())
+            ids, xy = get_coords_from_layout(self._layout_combo.currentData()
+                                             or self._layout_combo.currentText())
         except ValueError:
             return None
         by_id = {int(c): p for c, p in zip(ids, xy)}

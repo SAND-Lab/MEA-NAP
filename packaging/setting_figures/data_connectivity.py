@@ -21,25 +21,32 @@ except ImportError:  # run as a script from this folder
 
 
 def channel_layouts():
-    """Electrode positions of every built-in layout, small multiples."""
-    from meanap.pipeline.channel_layout import get_coords_from_layout
-    from meanap.pipeline.probes import DEFAULT_PITCH_UM
+    """Electrode positions of every built-in layout, and a custom one, small multiples."""
+    from meanap.params import Params
+    from meanap.pipeline.channel_layout import get_coords_from_layout, layout_of
+    from meanap.pipeline.probes import DEFAULT_PITCH_UM, electrode_pitch_um
 
-    names = ["MCS60", "MCS59", "Axion64", "Axion16"]
+    # A custom layout: 19 electrodes on a hexagon, 100 µm apart, as a file
+    # would list them (channel, x µm, y µm, rows counted from the top).
+    hexagon, ch = [], 1
+    for r, n in enumerate([3, 4, 5, 4, 3]):
+        for k in range(n):
+            hexagon.append([ch, (k - (n - 1) / 2) * 100.0, r * 100.0 * np.sqrt(3) / 2])
+            ch += 1
+    custom = layout_of(Params(channel_layout="Custom", custom_layout=hexagon))
+
+    names = ["MCS60", "Axion64", "Axion16", "Custom"]
     fig, axes = figure((4.6, 1.75), ncols=len(names))
     for ax, name in zip(axes, names):
-        channels, coords = get_coords_from_layout(name)
+        layout = custom if name == "Custom" else name
+        channels, coords = get_coords_from_layout(layout)
         ax.scatter(coords[:, 0], coords[:, 1], s=9 if len(channels) > 20 else 30,
-                   color=ACCENT, edgecolor="none")
-        if name == "MCS59":
-            # The grounded electrode MCS59 drops, where it would sit.
-            _, full = get_coords_from_layout("MCS60")
-            chans60, _ = get_coords_from_layout("MCS60")
-            xy = full[list(chans60).index(82)]
-            ax.scatter([xy[0]], [xy[1]], s=14, facecolor="white",
-                       edgecolor=ACCENT_2, linewidth=1)
+                   color=ACCENT_2 if name == "Custom" else ACCENT, edgecolor="none")
         ax.set_title(name, fontsize=8.5, pad=3)
-        ax.text(0.5, -0.08, f"{len(channels)} electrodes\n{DEFAULT_PITCH_UM[name]:.0f} µm pitch",
+        pitch = electrode_pitch_um(layout) if name == "Custom" else DEFAULT_PITCH_UM[name]
+        caption = (f"from your file\n(here {len(channels)} at {pitch:.0f} µm)" if name == "Custom"
+                   else f"{len(channels)} electrodes\n{pitch:.0f} µm pitch")
+        ax.text(0.5, -0.08, caption,
                 transform=ax.transAxes, ha="center", va="top", fontsize=7, color=MUTED)
         ax.set_aspect("equal")
         ax.set_xlim(-0.8, 8.8)

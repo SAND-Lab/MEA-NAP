@@ -20,7 +20,7 @@ matrices, and a set of eigenvalues) for no gain.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import pandas as pd
@@ -81,6 +81,15 @@ class StatsResults:
     dataset: StatsDataset
     lag: object = None
     comparisons: ComparisonResults | None = None
+    #: The 5A effects refitted with covariates (:mod:`meanap.stats.adjustment`).
+    adjusted: pd.DataFrame | None = None
+    #: Whether 5A4 may be fitted on demand from :attr:`dataset` when the run
+    #: wrote no ``adjusted_effects.csv`` (a run from before the analysis
+    #: existed). The viewer sets it; the fits take about a second.
+    adjust_live: bool = False
+    #: How 5A4 is drawn: ``term``, ``show`` and ``sort`` for
+    #: :func:`meanap.stats.plots.plot_adjusted_effects` (the viewer's picker).
+    adjust_view: dict = field(default_factory=dict)
     correlation: object = None
     decoding: DecodingResults | None = None
     lda: dict | None = None
@@ -305,6 +314,18 @@ _PROSE: dict[str, tuple[str, str]] = {
         "that is partly about which recordings were big enough to keep, and "
         "should not be quoted from one subsample target alone.",
     ),
+    "adjusted_effects": (
+        "Effects holding firing rate (and more) fixed",
+        "Each metric's age effect and genotype contrasts from the 5A model, "
+        "unadjusted and again with each set of covariates added, joined by a "
+        "line. A dot that moves to zero was carried by the covariate; one that "
+        "stays put is an effect beyond it. Filled dots survive FDR correction. "
+        "Shown are the metrics with a significant unadjusted effect; "
+        "adjusted_effects.csv has them all. The legend gives how much of each "
+        "set's covariates age and genotype explain: when that is high, the "
+        "model cannot tell the two apart, and an effect that disappears is "
+        "undecided rather than absent.",
+    ),
     "control_effects": (
         "Age and genotype effects, before and after the controls",
         "Every swept metric's age effect and genotype contrasts, measured as "
@@ -430,6 +451,7 @@ _PROSE: dict[str, tuple[str, str]] = {
 #: DIV 14 rather than on the model over all of them.
 _FILENAMES: dict[str, str] = {
     "trajectories": "5A3_trajectories_top_metrics",
+    "adjusted_effects": "5A4_adjusted_effects",
     "correlation": "5B1_feature_correlation",
     "correlation_by_group_age": "5B2_feature_correlation_by_group_age",
     "dimensionality": "5B3_feature_dimensionality",
@@ -476,6 +498,7 @@ _EFFECTS_PER_AGE_STEM = "5A2_effects_group-at-age-{age}"
 #: Which analysis each figure belongs to, for grouping in a UI.
 _GROUPS: dict[str, str] = {
     "trajectories": "comparisons",
+    "adjusted_effects": "comparisons",
     "correlation": "correlation",
     "correlation_by_group_age": "correlation",
     "dimensionality": "correlation",
@@ -566,6 +589,12 @@ def stats_figures(results: StatsResults) -> list[StatsFigure]:
                                    filename=stem, caption=caption))
         if _trajectory_metrics(results):
             out.append(_fixed("trajectories"))
+    adjusted = results.adjusted
+    if (adjusted is not None and not adjusted.empty
+            and (adjusted["Adjustment"] != "none").any()) or (
+            results.adjust_live and comp is not None and not comp.table.empty
+            and _live_sets(results)):
+        out.append(_fixed("adjusted_effects"))
 
     if results.correlation is not None:
         out.append(_fixed("correlation"))
@@ -737,6 +766,19 @@ def draw_stats_figure(
     return _draw_stats_figure(results, key, out_path, scheme=scheme)
 
 
+def _live_sets(results: StatsResults) -> tuple[str, ...]:
+    """The presets a live 5A4 starts from: the defaults this run can resolve,
+    else every preset it can. Empty when nothing can be held fixed — a run
+    with no firing-rate, size or bursting columns, where 5A4 is not offered."""
+    from meanap.stats.adjustment import DEFAULT_SETS, PRESETS, resolve_sets
+
+    for specs in (DEFAULT_SETS, tuple(PRESETS)):
+        sets, _ = resolve_sets(results.dataset, specs)
+        if sets:
+            return tuple(s.name for s in sets)
+    return ()
+
+
 def _draw_stats_figure(
     results: StatsResults, key: str, out_path: Path | str, *, scheme=None,
 ) -> Path | None:
@@ -810,6 +852,13 @@ def _draw_stats_figure(
             group_col=sweep.group_col, age_col=sweep.age_col, scheme=scheme)
     if key == "selection_check":
         return plots.plot_selection_check(results.sweep_selection, out_path)
+    if key == "adjusted_effects":
+        table = results.adjusted
+        if (table is None or table.empty) and results.adjust_live:
+            from meanap.stats.adjustment import adjusted_effects
+
+            table = adjusted_effects(ds, _live_sets(results)).table
+        return plots.plot_adjusted_effects(table, out_path, **(results.adjust_view or {}))
     if key == "control_effects":
         return plots.plot_control_effects(results.control_effects, out_path)
     if key == "genotype_effect_by_age":
@@ -876,6 +925,7 @@ def load_results(folder: Path | str, dataset: StatsDataset, *, lag=None,
     comparisons = _read(folder, "comparisons.csv")
     if comparisons is not None:
         results.comparisons = ComparisonResults(table=comparisons)
+    results.adjusted = _read(folder, "adjusted_effects.csv")
 
     # Recomputed rather than read: deterministic, sub-second, and the only
     # alternative is inventing an on-disk format for a stack of matrices.

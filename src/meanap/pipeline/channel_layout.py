@@ -9,6 +9,9 @@ network plot.
 
 from __future__ import annotations
 
+from functools import lru_cache
+from pathlib import Path
+
 import numpy as np
 
 # Row-major 8x8 grid channel IDs, e.g. 11, 12, ..., 18, 21, ..., 88 —
@@ -91,11 +94,146 @@ def get_coords_from_layout(channel_layout: str) -> tuple[np.ndarray, np.ndarray]
         return _axion_layout(8)
     if channel_layout == "Axion16":
         return _axion_layout(4)
+    if isinstance(channel_layout, str) and channel_layout.startswith(_CUSTOM_PREFIX):
+        channels, coords_um = _parse_custom(channel_layout)
+        return channels.copy(), _custom_drawing_coords(coords_um)
+    if channel_layout == CUSTOM_LAYOUT:
+        raise ValueError(
+            "The channel layout is Custom, but no layout file has been read: choose "
+            "one under Channel layout on the Data tab (a CSV of channel, x, y).")
     raise ValueError(
         f"Unsupported channel layout: {channel_layout!r} "
-        "(supported: MCS60old, MCS60, MCS59, Axion64, Axion16; "
-        "MATLAB's 'Custom' layout uses random coordinates and isn't ported)"
+        "(supported: MCS60, Axion64, Axion16, Custom, FromFile)"
     )
+
+
+# ── Custom layouts ────────────────────────────────────────────────────────────
+#
+# MATLAB's 'Custom' layout is a stub to edit in getCoordsFromLayout.m. Here it
+# is a table — one row per electrode: channel ID, x and y in micrometres, as
+# the array's drawing gives them — that a person loads from a CSV and that is
+# saved with the run's settings (Params.custom_layout), so a run, its worker
+# processes and its bundle opened on another computer all have it.
+#
+# Everything that places electrodes takes a layout *name*. So that all of it
+# works on a custom layout unchanged, :func:`layout_of` writes the table into
+# the name itself — ``"Custom:11:0,0;12:200,0;…"`` — which survives pickling
+# into workers and being saved in a spike file as any name does.
+
+#: ``Params.channel_layout`` for a layout read from a file.
+CUSTOM_LAYOUT = "Custom"
+_CUSTOM_PREFIX = "Custom:"
+
+
+def encode_custom_layout(rows) -> str:
+    """The layout name that carries *rows* (``[channel, x_um, y_um]``)."""
+    parts = [f"{int(ch)}:{float(x):g},{float(y):g}" for ch, x, y in rows]
+    return _CUSTOM_PREFIX + ";".join(parts)
+
+
+@lru_cache(maxsize=16)
+def _parse_custom(name: str) -> tuple[np.ndarray, np.ndarray]:
+    """``(channels, coords_um)`` from an encoded custom layout name."""
+    channels, coords = [], []
+    for part in name[len(_CUSTOM_PREFIX):].split(";"):
+        ch, xy = part.split(":")
+        x, y = xy.split(",")
+        channels.append(int(ch))
+        coords.append((float(x), float(y)))
+    return np.array(channels, dtype=np.int64), np.array(coords, dtype=float)
+
+
+def _custom_drawing_coords(coords_um: np.ndarray) -> np.ndarray:
+    """Micrometres → the drawing units every layout uses: the array's longer
+    side spans [0, 8], and y counts *up* (the file's y counts down from the
+    top, as the rows of an array's drawing do)."""
+    xy = np.asarray(coords_um, dtype=float).copy()
+    xy[:, 1] = -xy[:, 1]
+    xy -= xy.min(axis=0)
+    extent = float(xy.max()) if xy.size else 0.0
+    return xy * (8.0 / extent) if extent > 0 else xy
+
+
+def custom_pitch_um(layout: str) -> float:
+    """The median distance from each electrode to its nearest, in µm."""
+    from scipy.spatial.distance import cdist
+
+    _, xy = _parse_custom(layout)
+    if len(xy) < 2:
+        raise ValueError("A custom layout with one electrode has no pitch")
+    d = cdist(xy, xy)
+    np.fill_diagonal(d, np.inf)
+    return float(np.median(d.min(axis=1)))
+
+
+def is_custom_layout(layout) -> bool:
+    return isinstance(layout, str) and (layout == CUSTOM_LAYOUT
+                                        or layout.startswith(_CUSTOM_PREFIX))
+
+
+def layout_of(params) -> str:
+    """The layout to place a run's electrodes with: ``params.channel_layout``,
+    or, for a custom one, the name that carries its table."""
+    layout = getattr(params, "channel_layout", "")
+    if layout == CUSTOM_LAYOUT and getattr(params, "custom_layout", None):
+        return encode_custom_layout(params.custom_layout)
+    return layout
+
+
+def layout_label(layout: str) -> str:
+    """A layout as a log line names it: a custom one by its size, not its table."""
+    if isinstance(layout, str) and layout.startswith(_CUSTOM_PREFIX):
+        return f"Custom ({len(_parse_custom(layout)[0])} electrodes)"
+    return str(layout)
+
+
+def read_layout_file(path: str | Path) -> list[list[float]]:
+    """``[channel, x_um, y_um]`` rows from a layout CSV (or .xlsx).
+
+    Columns are found by name — ``channel`` (or ``electrode``/``id``), ``x``
+    and ``y``, any case — or else taken as the first three. Raises a
+    ``ValueError`` that says what is wrong: a missing column, a value that is
+    not a number, a channel listed twice, two electrodes in one place.
+    """
+    import pandas as pd
+
+    path = Path(path)
+    if path.suffix.lower() in (".xlsx", ".xlsm"):
+        table = pd.read_excel(path)
+    else:
+        table = pd.read_csv(path)
+    table = table.dropna(how="all")
+    names = {str(c).strip().lower(): c for c in table.columns}
+
+    def column(options, position):
+        for option in options:
+            if option in names:
+                return table[names[option]]
+        if table.shape[1] <= position:
+            raise ValueError(f"{path.name} needs three columns: channel, x and y")
+        return table.iloc[:, position]
+
+    columns = [column(("channel", "channels", "electrode", "channel id", "id"), 0),
+               column(("x", "x (um)", "x_um", "x (µm)"), 1),
+               column(("y", "y (um)", "y_um", "y (µm)"), 2)]
+    numbers = [pd.to_numeric(c, errors="coerce") for c in columns]
+    bad = numbers[0].isna() | numbers[1].isna() | numbers[2].isna()
+    if bad.any():
+        row = int(np.flatnonzero(bad.to_numpy())[0]) + 2
+        raise ValueError(f"{path.name}, row {row}: channel, x and y must all be numbers")
+    channels = numbers[0].to_numpy()
+    if np.any(channels != np.round(channels)):
+        raise ValueError(f"{path.name}: channel IDs must be whole numbers")
+    if len(channels) < 2:
+        raise ValueError(f"{path.name} lists fewer than two electrodes")
+    unique, counts = np.unique(channels.astype(np.int64), return_counts=True)
+    if (counts > 1).any():
+        raise ValueError(f"{path.name} lists channel {int(unique[counts > 1][0])} "
+                         f"more than once")
+    xy = np.column_stack([numbers[1].to_numpy(), numbers[2].to_numpy()])
+    if len(np.unique(xy, axis=0)) < len(xy):
+        raise ValueError(f"{path.name} puts two electrodes in the same place")
+    return [[int(c), float(x), float(y)] for c, (x, y) in zip(channels, xy)]
 
 
 #: The layout of an array with no fixed one — a MaxWell HD-MEA routes its own
@@ -176,7 +314,7 @@ def fixed_electrode_count(params) -> int | None:
     if getattr(params, "suite2p_mode", False) or getattr(params, "spike_source", "detect") != "detect":
         return None
     try:
-        channels, _ = get_coords_from_layout(getattr(params, "channel_layout", ""))
+        channels, _ = get_coords_from_layout(layout_of(params))
     except ValueError:
         return None
     return len(channels)

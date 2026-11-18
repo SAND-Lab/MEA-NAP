@@ -32,14 +32,18 @@ from PyQt6.QtWidgets import (
 )
 
 from meanap.gui.advanced import AdvancedSection
+from meanap.gui.layout_preview import LayoutPreview
 from meanap.gui.panels.paths import PathRow
 from meanap.gui.widgets import pin_width
 from meanap.params import Params, is_remote_url
+from meanap.pipeline.channel_layout import CUSTOM_LAYOUT
 
 __all__ = ["DataPanel", "CHANNEL_LAYOUTS", "POTENTIAL_UNITS",
            "RAW_DATA_LABEL", "CATNAP_DATA_LABEL"]
 
-CHANNEL_LAYOUTS = ["MCS60", "Axion64", "Mea256", "Custom", "FromFile"]
+#: The layouts offered. MCS59 and MCS60old still load from old settings
+#: files; MCS60 places every electrode of both identically.
+CHANNEL_LAYOUTS = ["MCS60", "Axion64", "Axion16", "Custom", "FromFile"]
 
 #: Colours of the detection notes under the Recording settings.
 _NOTE_OK = "#15803d"
@@ -106,7 +110,7 @@ class DataPanel(QWidget):
         self.raw_data.setToolTip(RAW_DATA_TOOLTIP)
 
         self.spreadsheet = PathRow(
-            self, is_file=True, file_filter="Spreadsheets (*.csv *.xlsx *.xls)")
+            self, is_file=True, file_filter="Spreadsheets (*.csv *.xlsx)")
         # The spreadsheet is the one input whose mistakes are silent — a name
         # that matches no folder drops a recording from the batch without
         # complaint — so it gets an editor that checks as you type.
@@ -198,10 +202,35 @@ class DataPanel(QWidget):
         self.channel_layout.setToolTip(
             "Which electrode grid the recordings came off, which is what puts "
             "each channel in the right place in the spatial plots.\n\n"
+            "Custom: your own array, from a CSV of channel, x and y (µm).\n\n"
             "FromFile: each recording's own electrode positions, as an import "
             "of sorted units writes them — for arrays with no fixed layout, "
             "such as MaxWell HD-MEAs."
         )
+
+        # A custom layout: its file, what was read from it, and a picture.
+        self.custom_layout_file = PathRow(
+            self, is_file=True, file_filter="Layout tables (*.csv *.xlsx)")
+        self.custom_layout_file.setToolTip(
+            "A table with one row per electrode: channel (the ID in your "
+            "recordings), x and y in µm, with y counting down from the top as "
+            "the rows of the array's drawing do.")
+        self.custom_layout_note = QLabel()
+        self.custom_layout_note.setWordWrap(True)
+        self.custom_layout_preview = LayoutPreview()
+        self._custom_rows: list = []
+        self._custom_error = ""
+        custom_column = QVBoxLayout()
+        custom_column.setContentsMargins(0, 2, 0, 0)
+        custom_column.setSpacing(3)
+        custom_column.addWidget(self.custom_layout_file)
+        custom_column.addWidget(self.custom_layout_note)
+        custom_column.addWidget(self.custom_layout_preview)
+        self.custom_layout_box = QWidget()
+        self.custom_layout_box.setLayout(custom_column)
+        self.custom_layout_file.line_edit.textChanged.connect(
+            lambda _t: self._read_custom_layout())
+        self.channel_layout.currentTextChanged.connect(self._on_layout_chosen)
 
         self.d_samp_f = QDoubleSpinBox()
         self.d_samp_f.setRange(1, 100_000)
@@ -251,6 +280,11 @@ class DataPanel(QWidget):
 
         form.addRow("Sampling frequency", fs_field)
         form.addRow("Channel layout", layout_field)
+        # Its own row, so the label (and its card) shows only with Custom.
+        form.addRow("Layout file", self.custom_layout_box)
+        self._recording_form = form
+        form.setRowVisible(self.custom_layout_box,
+                           self.channel_layout.currentText() == CUSTOM_LAYOUT)
 
         advanced = AdvancedSection()
         advanced.form().addRow("Downsample frequency", self.d_samp_f)
@@ -290,8 +324,12 @@ class DataPanel(QWidget):
                 guess = None
             self._layout_guesses[key] = guess
             if guess is not None and guess.layout:
-                if self.channel_layout.currentText() != "FromFile":
+                if self.channel_layout.currentText() not in ("FromFile", CUSTOM_LAYOUT):
                     self.channel_layout.setCurrentText(guess.layout)
+                    # Each format's loader returns its own unit: volts for
+                    # Axion, µV for MCS. Only the plots' scale depends on it.
+                    self.potential_difference_unit.setCurrentText(
+                        "V" if guess.layout.startswith("Axion") else "uV")
                 if len(set(guess.rates)) == 1:
                     self.fs.setValue(guess.rates[0])
         return self._layout_guesses[key]
@@ -353,6 +391,9 @@ class DataPanel(QWidget):
         elif chosen == "FromFile":
             self._note(self.layout_note, "Electrode positions come from each "
                        "recording's own file.", _NOTE_MUTED)
+        elif chosen == CUSTOM_LAYOUT:
+            self._note(self.layout_note, "Electrode positions come from your layout "
+                       f"file. (The recordings look like {guess.layout}.)", _NOTE_MUTED)
         elif chosen != guess.layout:
             self._note(self.layout_note,
                        f"⚠ You chose {chosen}, but the recordings look like "
@@ -365,6 +406,70 @@ class DataPanel(QWidget):
         else:
             self._note(self.layout_note, f"Detected from the recordings, but check "
                        f"it: {guess.reason}", _NOTE_WARN)
+
+    def _show_custom_row(self, on: bool) -> None:
+        """The Layout file row, label and all, only for a Custom layout."""
+        form = getattr(self, "_recording_form", None)
+        if form is not None:
+            form.setRowVisible(self.custom_layout_box, on)
+
+    def _on_layout_chosen(self, text: str) -> None:
+        self._show_custom_row(text == CUSTOM_LAYOUT)
+        if text == CUSTOM_LAYOUT:
+            self._read_custom_layout()
+
+    def _read_custom_layout(self) -> None:
+        """Read the layout file now, so a mistake shows before the run."""
+        from meanap.pipeline.channel_layout import (
+            custom_pitch_um, encode_custom_layout, get_coords_from_layout,
+            read_layout_file,
+        )
+
+        path = self.custom_layout_file.value.strip()
+        self._custom_error = ""
+        kept = ""
+        if not path:
+            if self._custom_rows:
+                kept = (f"Using the {len(self._custom_rows)} electrodes saved with "
+                        "these settings.")
+            else:
+                self._custom_error = "Choose a layout file: a CSV of channel, x, y (µm)."
+        elif not Path(path).is_file():
+            if self._custom_rows:
+                # Settings from another computer carry their table.
+                kept = (f"{path} isn't here; using the {len(self._custom_rows)} "
+                        "electrodes saved with these settings.")
+            else:
+                self._custom_error = f"No such file: {path}"
+        else:
+            try:
+                self._custom_rows = read_layout_file(path)
+            except Exception as exc:  # noqa: BLE001 - shown to the person
+                self._custom_error = str(exc)
+        if self._custom_error:
+            self._note(self.custom_layout_note, "⚠ " + self._custom_error, _NOTE_WARN)
+        if self._custom_rows:
+            name = encode_custom_layout(self._custom_rows)
+            channels, xy = get_coords_from_layout(name)
+            self.custom_layout_preview.set_layout(channels, xy)
+            if kept:
+                self._note(self.custom_layout_note, kept, _NOTE_MUTED)
+            elif not self._custom_error:
+                self._note(self.custom_layout_note,
+                           f"✓ {len(channels)} electrodes, {custom_pitch_um(name):.0f} µm "
+                           "apart. Check the picture: it is how the figures will "
+                           "place them, seen from above.", _NOTE_OK)
+        else:
+            self.custom_layout_preview.clear()
+
+    def custom_layout_problem(self) -> str:
+        """Why a Custom layout cannot run as set ("" when it can)."""
+        if self.channel_layout.currentText() != CUSTOM_LAYOUT:
+            return ""
+        if self._custom_error:
+            return self._custom_error
+        return "" if self._custom_rows else (
+            "Choose a layout file: a CSV of channel, x, y (µm).")
 
     # ── Output ────────────────────────────────────────────────────────────────
 
@@ -505,11 +610,17 @@ class DataPanel(QWidget):
         idx = self.potential_difference_unit.findText(params.potential_difference_unit)
         if idx >= 0:
             self.potential_difference_unit.setCurrentIndex(idx)
+        # A table saved with the settings stands even when its file has gone
+        # (settings from another computer); a file that is there is re-read.
+        self._custom_rows = [list(r) for r in params.custom_layout]
+        self.custom_layout_file.set_value(params.custom_layout_file)
+        self._read_custom_layout()
         idx = self.channel_layout.findText(params.channel_layout)
         if idx >= 0:
             self.channel_layout.setCurrentIndex(idx)
         else:
             self.channel_layout.setCurrentText(params.channel_layout)
+        self._show_custom_row(params.channel_layout == CUSTOM_LAYOUT)
         self._detect_timer.start()
 
     def save(self, params: Params) -> None:
@@ -533,3 +644,5 @@ class DataPanel(QWidget):
         params.d_samp_f = self.d_samp_f.value()
         params.potential_difference_unit = self.potential_difference_unit.currentText()
         params.channel_layout = self.channel_layout.currentText()
+        params.custom_layout_file = self.custom_layout_file.value.strip()
+        params.custom_layout = [list(r) for r in self._custom_rows]
