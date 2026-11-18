@@ -533,8 +533,10 @@ class StylePanel(QWidget):
         self._form.setContentsMargins(8, 8, 8, 8)
         self._widgets: dict[str, QWidget] = {}
         self._defaults: dict[str, object] = {}
-        #: The controls a circular plot reads (see EDGE_CONTROL_KEYS).
+        #: The controls a circular plot reads, and a spatial one (see
+        #: EDGE_CONTROL_KEYS); each is shown beside the plots that read it.
         self._circular: set[str] = set()
+        self._spatial: set[str] = set()
 
     def set_schema(self, schema: list[dict]) -> None:
         while self._form.rowCount():
@@ -575,9 +577,12 @@ class StylePanel(QWidget):
             self._defaults[key] = default
             if control.get("circular"):
                 self._circular.add(key)
+            if control.get("spatial", True):
+                self._spatial.add(key)
         reset = QPushButton("Reset to the run's styling")
         reset.clicked.connect(self.reset)
         self._form.addRow(reset)
+        self.set_circular(False)
 
     def reset(self) -> None:
         for key, widget in self._widgets.items():
@@ -596,7 +601,8 @@ class StylePanel(QWidget):
             widget = field.widget() if field is not None else None
             key = next((k for k, w in self._widgets.items() if w is widget), None)
             if key is not None:
-                self._form.setRowVisible(row, not circular or key in self._circular)
+                self._form.setRowVisible(
+                    row, key in (self._circular if circular else self._spatial))
 
     def set_values(self, values: dict) -> None:
         """Set several controls at once, then say so once."""

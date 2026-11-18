@@ -383,6 +383,10 @@ EDGE_SCALING_METHODS = ["Linear", "Log2", "Log10", "Square", "Cube", "Power"]
 #: A circular plot's widest edge, relative to the spatial plots' maximum.
 CIRCULAR_WIDTH_FACTOR = 0.5
 
+#: Where a circular plot puts its nodes: group by group (modules, or
+#: cartography roles), or in the recording's own order as MATLAB does.
+CIRCULAR_NODE_ORDERS = ("By module / role", "Recording order")
+
 #: What happens to an edge below the threshold: left out, or drawn as a
 #: hairline so the threshold thins the picture without emptying it.
 BELOW_THRESHOLD_OPTIONS = ("Hidden", "Hairlines")
@@ -467,6 +471,12 @@ class NetworkStyle:
     edge_scaling_power: float = 1.0
     #: One of :data:`BELOW_THRESHOLD_OPTIONS`.
     below_threshold_edges: str = "Hidden"
+    #: One of :data:`CIRCULAR_NODE_ORDERS`; the circular plots only.
+    circular_node_order: str = CIRCULAR_NODE_ORDERS[0]
+
+    @property
+    def circular_grouped(self) -> bool:
+        return self.circular_node_order == CIRCULAR_NODE_ORDERS[0]
 
     def scene_kwargs(self) -> dict:
         """The styling :func:`meanap.native.scene.network_scene` takes from this."""

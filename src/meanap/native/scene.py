@@ -102,6 +102,18 @@ class NetworkScene:
     #: The weight at and above which edges are drawn (the threshold, or the
     #: weakest edge a cap on the edge count kept).
     edge_cutoff: float = 0.0
+    #: (E, 3) RGB for edges drawn in a colour (within one module of a grouped
+    #: circular plot), NaN for those drawn in grey; ``None`` when all are grey.
+    edge_colour: np.ndarray | None = None
+    #: Nodes drawn as radial ticks rather than circles (a grouped circular plot
+    #: with more nodes than circles can show): each tick's length, in data
+    #: units, starting just outside the unit circle; ``None`` for circles.
+    tick_length: np.ndarray | None = None
+    #: Coloured arcs round a grouped circular plot, one per group:
+    #: ``{"start", "end"`` (radians)``, "colour": (r, g, b), "label": str}``,
+    #: between the radii in ``band_radius``.
+    arc_bands: list = field(default_factory=list)
+    band_radius: tuple[float, float] = (0.0, 0.0)
 
     @property
     def segments(self) -> np.ndarray:
@@ -641,7 +653,14 @@ def circular_scene(adj: np.ndarray, colour: np.ndarray, diameter: np.ndarray,
                    max_ew: float = 2.0, edge_scaling_method: str = "Linear",
                    edge_scaling_power: float = 1.0,
                    below_threshold_edges: str = "Hidden",
-                   histogram_adj: np.ndarray | None = None) -> NetworkScene:
+                   histogram_adj: np.ndarray | None = None,
+                   group: np.ndarray | None = None,
+                   group_colour: dict | None = None,
+                   group_label: dict | None = None,
+                   rank: np.ndarray | None = None,
+                   colour_within: bool = False,
+                   tick_value: np.ndarray | None = None,
+                   size_values: list | None = None) -> NetworkScene:
     """A network with its nodes evenly round a circle, in row order.
 
     Port of the ``plotType='circular'`` branch of MATLAB's network plots:
@@ -649,6 +668,18 @@ def circular_scene(adj: np.ndarray, colour: np.ndarray, diameter: np.ndarray,
     weakest drawn first. *colour* (N, 3) and *diameter* (N,) are the caller's —
     by module and degree, or by cartography role — and a node with a diameter
     of zero is not drawn. The edge options are :func:`network_scene`'s.
+
+    Given *group* (N,) — a module, a cartography role — the drawn nodes are
+    placed group by group instead (:func:`grouped_angles`), in descending
+    *rank* within each, with a gap between groups and a coloured arc outside
+    each (*group_colour*, and *group_label* where a group has a short name).
+    *colour_within* draws an edge whose two ends share a group in the group's
+    colour. Past :data:`TICK_NODES` drawn nodes, a grouped plot draws each
+    node as a radial tick, since circles that small cannot be told apart. Its
+    length follows *tick_value* (the size metric: circle diameters are floored
+    and stop following it on a crowded circle), else the diameter; the size
+    key shows tick lengths then, for *size_values* (the metric at each of
+    ``size_items``) where given.
     """
     from meanap.network_plot import scale_edge_position
 
@@ -659,6 +690,16 @@ def circular_scene(adj: np.ndarray, colour: np.ndarray, diameter: np.ndarray,
     drawn = np.flatnonzero(diameter > 0)
     row = np.full(n, -1)
     row[drawn] = np.arange(len(drawn))
+    grouped = group is not None and len(drawn) > 0
+    if grouped:
+        group = np.asarray(group)
+        angle = np.full(n, np.nan)
+        rank_of = (np.zeros(n) if rank is None
+                   else np.nan_to_num(np.asarray(rank, dtype=float), nan=-np.inf))
+        angle[drawn], spans = grouped_angles(group[drawn], rank_of[drawn])
+        # The gaps take room from the nodes: shrink them to the slot they have.
+        slot = sum(end - start for start, end in spans.values()) / len(drawn)
+        diameter = diameter * min(slot / (2 * np.pi / n), 1.0)
 
     positive = adj[adj > 0]
     strongest = float(adj.max()) if n and adj.max() > 0 else 1.0
@@ -681,6 +722,47 @@ def circular_scene(adj: np.ndarray, colour: np.ndarray, diameter: np.ndarray,
         edge_items.append((f"{round(weight, 4)}", float(item_width), float(item_grey)))
 
     colour = np.asarray(colour, dtype=float)[drawn, :3]
+    extent = (-1.0, 1.0, -1.0, 1.0)
+    edge_colour, ticks, bands, band_radius = None, None, [], (0.0, 0.0)
+    if grouped:
+        group_colour = group_colour or {}
+        if colour_within and len(a):
+            same = group[a] == group[b]
+            edge_colour = np.full((len(a), 3), np.nan)
+            for k in np.flatnonzero(same):
+                rgb = group_colour.get(_group_key(group[a[k]]))
+                if rgb is not None:
+                    edge_colour[k] = rgb[:3]
+            if np.isnan(edge_colour).all():
+                edge_colour = None
+        spacing = 2 * np.pi / max(len(drawn), 1)
+        outer = 1.0 + float(diameter[drawn].max()) / 2 if len(drawn) else 1.0
+        if len(drawn) > TICK_NODES:
+            by_value = tick_value is not None
+            value = (np.nan_to_num(np.asarray(tick_value, dtype=float)) if by_value
+                     else diameter)[drawn]
+            top = float(value.max()) if len(value) and value.max() > 0 else 1.0
+
+            def tick(d):
+                return TICK_MIN + (TICK_MAX - TICK_MIN) * float(np.clip(d / top, 0, 1))
+
+            ticks = np.array([tick(d) for d in value])
+            items = list(size_items or [])
+            samples = (list(size_values) if by_value and size_values is not None
+                       else [d for _, d in items])
+            size_items = [(label, tick(v)) for (label, _), v in zip(items, samples)]
+            # Each node's circle is then only where it is pointed at: one slot wide.
+            diameter = np.full(n, 0.9 * spacing)
+            outer = 1.0 + TICK_GAP + TICK_MAX
+        inner = outer + BAND_GAP
+        band_radius = (inner, inner + BAND_WIDTH)
+        for key, (start, end) in spans.items():
+            label = (group_label or {}).get(key, "")
+            bands.append({"start": start, "end": end,
+                          "colour": tuple(group_colour.get(key, (0.6, 0.6, 0.6))[:3]),
+                          "label": str(label)})
+        reach = band_radius[1] + (LABEL_ROOM if any(b["label"] for b in bands) else 0.02)
+        extent = (-reach, reach, -reach, reach)
     return NetworkScene(
         title=title, xy=np.column_stack([np.cos(angle), np.sin(angle)])[drawn],
         diameter=diameter[drawn], colour=np.column_stack([colour, np.ones(len(drawn))]),
@@ -689,11 +771,68 @@ def circular_scene(adj: np.ndarray, colour: np.ndarray, diameter: np.ndarray,
         edge_nodes=np.column_stack([row[a], row[b]]).astype(int).reshape(-1, 2),
         edge_weight=w, edge_width=width, edge_grey=grey,
         size_name=size_name, size_items=list(size_items or []), edge_items=edge_items,
-        colour_key=None, extent=(-1.0, 1.0, -1.0, 1.0),
+        colour_key=None, extent=extent,
         edge_arcs=chord_arcs(angle[a], angle[b]) if len(a) else np.zeros((0, 33, 2)),
         category_key=category_key,
         edge_faint=faint if below_threshold_edges == "Hairlines" and faint.any() else None,
-        all_edge_weight=all_edge_weight, edge_cutoff=cutoff)
+        all_edge_weight=all_edge_weight, edge_cutoff=cutoff,
+        edge_colour=edge_colour, tick_length=ticks, arc_bands=bands,
+        band_radius=band_radius)
+
+
+#: Past this many nodes, a grouped circular plot draws nodes as radial ticks.
+TICK_NODES = 150
+#: Ticks run from just outside the unit circle, this long at the least and
+#: most (data units; the circle's radius is 1)...
+TICK_GAP, TICK_MIN, TICK_MAX = 0.015, 0.03, 0.16
+#: ...and the group arcs sit this far beyond the nodes, this wide, with room
+#: past them for their labels.
+BAND_GAP, BAND_WIDTH, LABEL_ROOM = 0.045, 0.035, 0.16
+#: The gap between groups round a grouped circular plot, in radians, at most;
+#: never more than a third of the circle in all.
+GROUP_GAP = 0.07
+
+
+def _group_key(value):
+    """A group as a dictionary key: modules and roles are whole numbers."""
+    try:
+        f = float(value)
+    except (TypeError, ValueError):
+        return value
+    return int(f) if np.isfinite(f) and f == int(f) else f
+
+
+def grouped_angles(group: np.ndarray, rank: np.ndarray) -> tuple[np.ndarray, dict]:
+    """Angles round the circle, group by group, for a grouped circular plot.
+
+    Groups go in ascending order from -π (where the row order starts too), a
+    node's place within its group by descending *rank* (node degree, say),
+    with a gap between groups. Returns the (N,) angles and ``{group: (start,
+    end)}``, each group's span, its outermost nodes half a slot in.
+    """
+    group = np.asarray(group)
+    keys = [_group_key(g) for g in group]
+    order_keys = sorted(set(keys), key=lambda k: (isinstance(k, str), k))
+    position = {k: i for i, k in enumerate(order_keys)}
+    gkey = np.array([position[k] for k in keys])
+    order = np.lexsort((np.arange(len(group)), -np.asarray(rank, dtype=float), gkey))
+    count = len(order_keys)
+    gap = min(GROUP_GAP, (2 * np.pi / 3) / count) if count > 1 else 0.0
+    step = (2 * np.pi - gap * count) / max(len(group), 1)
+    angle = np.empty(len(group))
+    spans: dict = {}
+    at = -np.pi + gap / 2
+    previous = None
+    for i in order:
+        if previous is not None and gkey[i] != previous:
+            at += gap
+        angle[i] = at + step / 2
+        k = order_keys[gkey[i]]
+        start, _end = spans.get(k, (at, at))
+        spans[k] = (start, at + step)
+        at += step
+        previous = gkey[i]
+    return angle, spans
 
 
 @dataclass

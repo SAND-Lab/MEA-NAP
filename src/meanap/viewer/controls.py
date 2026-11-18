@@ -26,12 +26,12 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from meanap.network_plot import (
-    BELOW_THRESHOLD_OPTIONS, EDGE_SCALING_METHODS, EDGE_THRESHOLD_METHODS,
+    BELOW_THRESHOLD_OPTIONS, CIRCULAR_NODE_ORDERS, EDGE_SCALING_METHODS, EDGE_THRESHOLD_METHODS,
     INACTIVE_ELECTRODE_OPTIONS, LAYOUT_OPTIONS, NetworkStyle,
 )
 
 __all__ = [
-    "COMPARISON_CONTROLS", "CONTROLS", "EDGE_CONTROL_KEYS", "Control", "comparison_control_schema",
+    "CIRCULAR_ONLY_KEYS", "COMPARISON_CONTROLS", "CONTROLS", "EDGE_CONTROL_KEYS", "Control", "comparison_control_schema",
     "control_schema", "parse_comparison_overrides", "parse_overrides",
 ]
 
@@ -102,16 +102,25 @@ class Control:
 
 _defaults = NetworkStyle()
 
+#: The controls only a circular network plot reads: hidden beside a spatial one.
+CIRCULAR_ONLY_KEYS = frozenset({"circular_node_order"})
+
 #: The controls a circular network plot reads. It places its own nodes and
 #: sizes and colours them by what it shows (degree and module, or role), so
-#: only the edge controls apply; the panel hides the rest beside one.
-EDGE_CONTROL_KEYS = frozenset({
+#: only the edge controls (and its node order) apply; the panel hides the
+#: rest beside one.
+EDGE_CONTROL_KEYS = CIRCULAR_ONLY_KEYS | frozenset({
     "edge_threshold_method", "edge_threshold", "below_threshold_edges",
     "max_edges", "min_edge_width", "max_edge_width", "edge_scaling_method",
     "edge_scaling_power",
 })
 
 CONTROLS: tuple[Control, ...] = (
+    Control("circular_node_order", "Node order", "select",
+            _defaults.circular_node_order, options=list(CIRCULAR_NODE_ORDERS),
+            help="Group the circle's nodes by module (or cartography role), "
+                 "busiest first, with an arc marking each group; or keep the "
+                 "recording's own order, as MATLAB draws it."),
     Control("layout", "Node layout", "select", _defaults.layout,
             options=list(LAYOUT_OPTIONS),
             help="Electrode/cell positions, or a layout derived from topology."),
@@ -159,7 +168,9 @@ CONTROLS: tuple[Control, ...] = (
     Control("min_edge_width", "Min edge width", "number", _defaults.min_edge_width,
             minimum=0.0, maximum=10.0, step=0.001),
     Control("max_edge_width", "Max edge width", "number", _defaults.max_edge_width,
-            minimum=0.1, maximum=30.0, step=0.1),
+            minimum=0.1, maximum=30.0, step=0.1,
+            help="The strongest edge's width, in points. Circular plots draw "
+                 "theirs at half this, as MATLAB does."),
     Control("edge_scaling_method", "Edge width scaling", "select",
             _defaults.edge_scaling_method, options=list(EDGE_SCALING_METHODS),
             help="How weight maps onto edge width and shade. Log2/Log10 make "
@@ -240,8 +251,9 @@ def _schema(controls, style: NetworkStyle | None = None) -> list[dict]:
             "default": c.default if style is None else control_default(c, style),
             "options": c.options, "min": c.minimum, "max": c.maximum,
             "step": c.step, "help": c.help,
-            # Whether a circular network plot reads it too.
+            # Whether a circular network plot reads it, and a spatial one.
             "circular": c.key in EDGE_CONTROL_KEYS,
+            "spatial": c.key not in CIRCULAR_ONLY_KEYS,
         }
         for c in controls
     ]

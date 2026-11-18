@@ -246,4 +246,90 @@ def test_style_panel_shows_only_edge_controls_beside_a_circular_plot():
     shown = {k for k, w in panel._widgets.items() if not w.isHidden()}
     assert shown == set(EDGE_CONTROL_KEYS)
     panel.set_circular(False)
-    assert all(not w.isHidden() for w in panel._widgets.values())
+    shown = {k for k, w in panel._widgets.items() if not w.isHidden()}
+    assert shown == set(panel._widgets) - {"circular_node_order"}
+
+
+# ── Grouped circular plots ────────────────────────────────────────────────────
+
+
+def _modular(n=120, k=5, seed=3):
+    rng = np.random.default_rng(seed)
+    ci = rng.integers(1, k + 1, n)
+    same = ci[:, None] == ci[None, :]
+    w = np.where(rng.uniform(size=(n, n)) < np.where(same, 0.3, 0.03),
+                 rng.uniform(0.05, 1, (n, n)), 0)
+    w = np.triu(w, 1)
+    return w + w.T, ci
+
+
+def _module_scene(w, ci, order):
+    from meanap.native import output
+    from meanap.pipeline import plotting_step4 as p4
+
+    got = []
+    real = output.save
+    output.save = lambda painter, path, capture=None: got.append(painter.scene)
+    try:
+        p4.plot_circular_module_network(
+            w, ci, (w > 0).sum(1), 10, "rec", Path("unused.png"),
+            style=NetworkStyle(circular_node_order=order))
+    finally:
+        output.save = real
+    return got[0]
+
+
+def test_grouped_angles_keep_each_group_together_busiest_first():
+    from meanap.native.scene import grouped_angles
+
+    group = np.array([2, 1, 2, 1, 3, 1])
+    rank = np.array([5, 1, 9, 7, 0, 3])
+    angle, spans = grouped_angles(group, rank)
+    order = np.argsort(angle)
+    assert list(group[order]) == [1, 1, 1, 2, 2, 3]
+    assert list(order[:3]) == [3, 5, 1] and list(order[3:5]) == [2, 0]
+    assert set(spans) == {1, 2, 3}
+    assert spans[1][1] < spans[2][0] < spans[2][1] < spans[3][0]
+
+
+def test_module_plot_groups_by_default_and_colours_edges_within_modules():
+    w, ci = _modular()
+    grouped = _module_scene(w, ci, "By module / role")
+    assert NetworkStyle().circular_node_order == "By module / role"
+    assert len(grouped.arc_bands) == 5 and grouped.extent[1] > 1.0
+    angle = np.arctan2(grouped.xy[:, 1], grouped.xy[:, 0])
+    modules = ci[grouped.index][np.argsort(angle)]
+    assert np.count_nonzero(np.diff(modules)) == 4          # five runs, one each
+    ends = grouped.edge_nodes
+    within = ci[grouped.index][ends[:, 0]] == ci[grouped.index][ends[:, 1]]
+    coloured = ~np.isnan(grouped.edge_colour).any(axis=1)
+    assert np.array_equal(coloured, within)
+    assert grouped.tick_length is None                       # 120 nodes: circles
+
+
+def test_recording_order_is_the_old_circular_plot():
+    w, ci = _modular()
+    plain = _module_scene(w, ci, "Recording order")
+    n = len(w)
+    expected = np.linspace(-np.pi, np.pi, n + 1)[:n][plain.index]
+    assert np.allclose(np.arctan2(plain.xy[:, 1], plain.xy[:, 0]),
+                       np.angle(np.exp(1j * expected)))
+    assert not plain.arc_bands and plain.edge_colour is None
+    assert plain.extent == (-1.0, 1.0, -1.0, 1.0)
+
+
+def test_crowded_grouped_plot_draws_ticks_by_degree_and_they_can_be_pointed_at():
+    from meanap.native.scene import TICK_NODES
+
+    w, ci = _modular(n=TICK_NODES + 100, seed=4)
+    scene = _module_scene(w, ci, "By module / role")
+    assert scene.tick_length is not None
+    degree = (w > 0).sum(1)[scene.index]
+    busiest, idlest = int(np.argmax(degree)), int(np.argmin(degree))
+    assert scene.tick_length[busiest] > scene.tick_length[idlest]
+    lengths = [d for _, d in scene.size_items]
+    assert lengths == sorted(lengths) and lengths[0] < lengths[-1]
+    painter = _painted(scene)
+    tip = scene.xy[busiest] * (1.0 + scene.tick_length[busiest])
+    x, y = painter.to_pixel(tip)[0]
+    assert painter.node_at(x, y) == busiest

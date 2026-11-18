@@ -534,6 +534,10 @@ def _style_checks() -> list[Check]:
                                      overrides={"edge_threshold": 0.3})
             checks.append(("edge threshold restyles the circular plot",
                            _digest(circ_base) != _digest(circ_cut), ""))
+            circ_rec = render_figure(ctx, "recA", LAG, circ, out / "circ_rec",
+                                     overrides={"circular_node_order": "Recording order"})
+            checks.append(("node order restyles the circular plot",
+                           _digest(circ_base) != _digest(circ_rec), ""))
 
             # Hairlines differ from the same threshold with the edges hidden.
             cut = render_figure(ctx, "recA", LAG, fig, out / "cut",
@@ -545,7 +549,8 @@ def _style_checks() -> list[Check]:
                            _digest(cut) != _digest(hair), ""))
             checks.append(("every style key is covered by a control",
                            STYLE_KEYS <= {k for ov in variants.values() for k in ov}
-                           | {"node_scaling_power", "inactive_electrodes"},
+                           | {"node_scaling_power", "inactive_electrodes",
+                              "circular_node_order"},
                            f"{sorted(STYLE_KEYS - {k for ov in variants.values() for k in ov})}"))
             checks.append(("layout options are the viewer's",
                            "Circular" in LAYOUT_OPTIONS

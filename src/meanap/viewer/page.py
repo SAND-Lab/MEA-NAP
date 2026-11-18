@@ -1466,7 +1466,8 @@ function scopeControls() {
   const circular = VIEW.kind === "figure" && /_circular_/.test(VIEW.name || "");
   for (const c of MANIFEST.controls) {
     const el = $("ctl-" + c.key);
-    if (el) el.parentElement.classList.toggle("hidden", circular && !c.circular);
+    const reads = circular ? c.circular : c.spatial !== false;
+    if (el) el.parentElement.classList.toggle("hidden", !reads);
   }
 }
 
