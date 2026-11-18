@@ -105,8 +105,22 @@ def _dashes(style, width_pt: float):
 class _EdgeGroup:
     """Edges that share a pen."""
 
-    def __init__(self, lines: list[QLineF], width_px: float, grey: float, thin: bool):
+    def __init__(self, lines: list[QLineF], width_px: float, grey: float, thin: bool,
+                 rgb=None):
         self.lines, self.width_px, self.grey, self.thin = lines, width_px, grey, thin
+        #: The group's colour, for edges within one module; ``None`` for grey.
+        self.rgb = rgb
+
+    def colour(self, alpha: float = 1.0) -> QColor:
+        if self.rgb is None:
+            return _grey(self.grey, alpha)
+        # As strong as the grey would be dark: the weakest edge mostly white.
+        from meanap.native.scene import EDGE_DARKEST, EDGE_FAINTEST
+
+        strength = float(np.clip((EDGE_FAINTEST - self.grey)
+                                 / (EDGE_FAINTEST - EDGE_DARKEST), 0, 1))
+        mix = 0.35 + 0.65 * strength
+        return _rgba([1 - mix + mix * c for c in self.rgb], alpha)
 
 
 class NetworkPainter:
@@ -142,6 +156,16 @@ class NetworkPainter:
             if high > low:
                 self._bins = np.minimum(
                     ((widths - low) / (high - low) * EDGE_GROUPS).astype(int), EDGE_GROUPS - 1)
+        # Edges in a colour (within a module) get pens of their own.
+        self._palette: list[tuple] = []
+        self._colour_id = np.full(count, -1, dtype=int)
+        if scene.edge_colour is not None and count:
+            coloured = ~np.isnan(scene.edge_colour).any(axis=1)
+            if coloured.any():
+                table, inverse = np.unique(scene.edge_colour[coloured], axis=0,
+                                           return_inverse=True)
+                self._palette = [tuple(map(float, c)) for c in table]
+                self._colour_id[coloured] = np.ravel(inverse)
         # Edges below the threshold, where they are drawn at all, are hairlines;
         # of the rest only the WIDE_EDGES strongest are drawn at their width.
         shown = scene.shown
@@ -282,6 +306,18 @@ class NetworkPainter:
         if not len(scene.xy) or not self.plot_rect.contains(QPointF(x, y)):
             return None
         at = np.asarray(self.to_data(x, y))
+        if scene.tick_length is not None:
+            # A tick is its slot of the circle, from the rim out to its tip.
+            from meanap.native.scene import TICK_GAP
+
+            r = float(np.hypot(*at))
+            node = int(np.argmin(np.abs(np.angle(
+                np.exp(1j * (np.arctan2(scene.xy[:, 1], scene.xy[:, 0])
+                             - np.arctan2(at[1], at[0])))))))
+            slack = 4.0 / self.scale
+            if 1.0 - slack <= r <= 1.0 + TICK_GAP + scene.tick_length[node] + slack:
+                return node
+            return None
         distance = np.hypot(*(scene.xy - at).T)
         reach = np.maximum(scene.diameter / 2, 4.0 / self.scale)
         inside = np.flatnonzero(distance <= reach)
@@ -314,8 +350,10 @@ class NetworkPainter:
         scene, groups = self.scene, []
         if not pick.any():
             return groups
-        for b in np.unique(self._bins[pick]):
-            members = pick & (self._bins == b)
+        keys = self._bins * (len(self._palette) + 1) + self._colour_id + 1
+        for key in np.unique(keys[pick]):
+            members = pick & (keys == key)
+            cid = int(key % (len(self._palette) + 1)) - 1
             if scene.edge_arcs is None:
                 lines = [QLineF(x0, y0, x1, y1)
                          for (x0, y0), (x1, y1) in self._segments[members].tolist()]
@@ -328,7 +366,8 @@ class NetworkPainter:
                 lines = [QLineF(x0, y0, x1, y1) for x0, y0, x1, y1 in joined.tolist()]
             width = max(float(scene.edge_width[members].mean()) * PX_PER_POINT, 0.6)
             groups.append(_EdgeGroup(lines, 1.0 if thin else width,
-                                     float(scene.edge_grey[members].mean()), thin))
+                                     float(scene.edge_grey[members].mean()), thin,
+                                     self._palette[cid] if cid >= 0 else None))
         return groups
 
     def info_at(self, x: float, y: float) -> str | None:
@@ -387,12 +426,12 @@ class NetworkPainter:
                 continue
             smooth = not ((self.moving and many) or (group.thin and hazy))
             painter.setRenderHint(QPainter.RenderHint.Antialiasing, smooth)
-            painter.setPen(_pen(_grey(group.grey, FADED if chosen is not None else 1.0),
+            painter.setPen(_pen(group.colour(FADED if chosen is not None else 1.0),
                                 group.width_px, round_cap=not group.thin))
             painter.drawLines(group.lines)
         for group in self._lit:
             painter.setRenderHint(QPainter.RenderHint.Antialiasing, not self.moving)
-            painter.setPen(_pen(_grey(group.grey), group.width_px, round_cap=True))
+            painter.setPen(_pen(group.colour(), group.width_px, round_cap=True))
             painter.drawLines(group.lines)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
 
@@ -401,13 +440,18 @@ class NetworkPainter:
             keep = np.zeros(len(scene.xy), dtype=bool)
             keep[scene.neighbours(chosen)] = True
             keep[chosen] = True
-        outline = _pen(GROUND, 1.0)
-        for i, ((x, y), d, colour) in enumerate(zip(scene.xy.tolist(), scene.diameter.tolist(),
-                                                    scene.colour)):
-            alpha = 1.0 if keep is None or keep[i] else FADED * 2
-            painter.setPen(outline)
-            painter.setBrush(_rgba(colour, alpha))
-            painter.drawEllipse(QPointF(x, y), d / 2, d / 2)
+        if scene.arc_bands:
+            self._paint_bands(painter)
+        if scene.tick_length is not None:
+            self._paint_ticks(painter, keep)
+        else:
+            outline = _pen(GROUND, 1.0)
+            for i, ((x, y), d, colour) in enumerate(zip(scene.xy.tolist(),
+                                                        scene.diameter.tolist(), scene.colour)):
+                alpha = 1.0 if keep is None or keep[i] else FADED * 2
+                painter.setPen(outline)
+                painter.setBrush(_rgba(colour, alpha))
+                painter.drawEllipse(QPointF(x, y), d / 2, d / 2)
         painter.setBrush(Qt.BrushStyle.NoBrush)
         if scene.cell_types is not None:
             self._paint_rings(painter, keep)
@@ -419,6 +463,8 @@ class NetworkPainter:
                 painter.drawEllipse(QPointF(float(x), float(y)), r, r)
         painter.restore()
 
+        if scene.arc_bands:
+            self._paint_band_labels(painter)
         if self.names and len(scene.xy) <= MAX_LABELS:
             painter.save()
             painter.setClipRect(plot)
@@ -433,6 +479,59 @@ class NetworkPainter:
                                  Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignBottom,
                                  name)
             painter.restore()
+
+    def _paint_ticks(self, painter: QPainter, keep) -> None:
+        """Nodes as radial ticks: one slot wide at most, as long as their size."""
+        from meanap.native.scene import TICK_GAP
+
+        scene = self.scene
+        angle = np.arctan2(scene.xy[:, 1], scene.xy[:, 0])
+        slot = 2 * np.pi / max(len(scene.xy), 1)
+        width = float(np.clip(slot * self.scale * 0.7, 1.0, 6.0))
+        start = 1.0 + TICK_GAP
+        for i, (t, length, colour) in enumerate(zip(angle.tolist(),
+                                                    scene.tick_length.tolist(), scene.colour)):
+            alpha = 1.0 if keep is None or keep[i] else FADED * 2
+            u = (np.cos(t), np.sin(t))
+            painter.setPen(_pen(_rgba(colour, alpha), width))
+            painter.drawLine(QPointF(u[0] * start, u[1] * start),
+                             QPointF(u[0] * (start + length), u[1] * (start + length)))
+
+    def _paint_bands(self, painter: QPainter) -> None:
+        """Each group's arc outside the circle, in its colour; labels after."""
+        r0, r1 = self.scene.band_radius
+        for band in self.scene.arc_bands:
+            theta = np.linspace(band["start"], band["end"],
+                                max(int((band["end"] - band["start"]) / 0.02), 2))
+            outer = [QPointF(r1 * np.cos(t), r1 * np.sin(t)) for t in theta]
+            inner = [QPointF(r0 * np.cos(t), r0 * np.sin(t)) for t in theta[::-1]]
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(_rgba(band["colour"]))
+            painter.drawPolygon(QPolygonF(outer + inner))
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+
+    def _paint_band_labels(self, painter: QPainter) -> None:
+        """Group names beside their arcs, in pixels so they keep their size."""
+        scene = self.scene
+        labelled = [b for b in scene.arc_bands if b["label"]]
+        if not labelled:
+            return
+        painter.save()
+        painter.setClipRect(self.plot_rect)
+        font = figure_font(11)
+        painter.setFont(font)
+        painter.setPen(INK)
+        line = QFontMetricsF(font).height()
+        reach = scene.band_radius[1] + 0.07
+        for band in labelled:
+            mid = 0.5 * (band["start"] + band["end"])
+            # Only where the arc is long enough on screen to carry its name.
+            if (band["end"] - band["start"]) * reach * self.scale < 14:
+                continue
+            x, y = self.to_pixel(np.array([reach * np.cos(mid), reach * np.sin(mid)]))[0]
+            painter.drawText(QRectF(x - 40, y - line / 2, 80, line),
+                             Qt.AlignmentFlag.AlignCenter, band["label"])
+        painter.restore()
 
     def _paint_inactive(self, painter: QPainter) -> None:
         """Electrodes no node sits on: faint dots under the edges, one path."""
@@ -553,13 +652,19 @@ class NetworkPainter:
             row = max(d, line)
             # Samples in the plain node colour — or, where colour means a
             # category, in outline, so that a sample is not read as one.
-            if scene.category_key is not None:
+            if scene.tick_length is not None:
+                # A tick of the length nodes of this size are drawn, on its side.
+                painter.setPen(_pen(INK, 3.0))
+                painter.drawLine(QPointF(left + 4, y + row / 2),
+                                 QPointF(left + 4 + d, y + row / 2))
+            elif scene.category_key is not None:
                 painter.setPen(QPen(INK, 1))
                 painter.setBrush(GROUND)
             else:
                 painter.setPen(Qt.PenStyle.NoPen)
                 painter.setBrush(_rgba(DEFAULT_NODE_COLOUR))
-            painter.drawEllipse(QPointF(left + 4 + column / 2, y + row / 2), d / 2, d / 2)
+            if scene.tick_length is None:
+                painter.drawEllipse(QPointF(left + 4 + column / 2, y + row / 2), d / 2, d / 2)
             painter.setBrush(Qt.BrushStyle.NoBrush)
             painter.setPen(INK)
             painter.drawText(QRectF(left + column + 14, y, right - left - column - 14, row),

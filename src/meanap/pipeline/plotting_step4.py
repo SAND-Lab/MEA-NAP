@@ -627,6 +627,16 @@ def plot_circular_module_network(
             + (f"\nmodule: {int(modules[i])}" if not np.isnan(modules[i]) else "")
             for i in range(n)]
     adj_m_sub, edge_extra = _circular_edges(style, adj_m_sub, edge_thresh)
+    if _grouped(style):
+        # Module by module, busiest first; edges inside a module in its colour.
+        valid = ~np.isnan(modules) & (modules > 0)
+        keys = np.where(valid, np.nan_to_num(modules), 0).astype(int)
+        edge_extra.update(
+            group=keys, rank=nd, colour_within=True, tick_value=nd,
+            size_values=samples,
+            group_colour={int(m): tuple(module_colour(m)) for m in present}
+            | {0: tuple(plasma[0])},
+            group_label={int(m): str(int(m)) for m in present})
     scene = circular_scene(
         adj_m_sub, colour, diameter, text, title=_std_title(recording_name, lag_ms),
         size_name="node degree", size_items=size_items,
@@ -668,6 +678,13 @@ def plot_circular_cartography_network(
     colour = np.array([_CARTOGRAPHY_COLORS.get(_role(r), (0.5, 0.5, 0.5)) for r in roles])
     text = [f"role: {_CARTOGRAPHY_LABELS.get(_role(r), 'not classified')}" for r in roles]
     adj_m_sub, edge_extra = _circular_edges(style, adj_m_sub, edge_thresh)
+    if _grouped(style):
+        # Role by role, in the legend's order; the arcs take the roles' colours.
+        keys = np.array([_role(r) if _role(r) in _CARTOGRAPHY_COLORS else 0 for r in roles])
+        degree = (np.fmax(adj_m_sub, adj_m_sub.T) > 0).sum(axis=1)
+        edge_extra.update(
+            group=keys, rank=degree,
+            group_colour=dict(_CARTOGRAPHY_COLORS) | {0: (0.5, 0.5, 0.5)})
     scene = circular_scene(
         adj_m_sub, colour, np.full(n, (2.0 / 3.0) * spacing), text,
         title=_std_title(recording_name, lag_ms),
@@ -677,6 +694,14 @@ def plot_circular_cartography_network(
         names=names, noun=noun, **edge_extra)
     painter = NetworkPainter(scene)
     output.save(painter, out_path, capture=output.NativeFigure("circular", scene, painter))
+
+
+def _grouped(style) -> bool:
+    """Whether a circular plot groups its nodes: the default, unless the
+    style asks for the recording's own order."""
+    from meanap.network_plot import NetworkStyle
+
+    return (style if style is not None else NetworkStyle()).circular_grouped
 
 
 def _circular_edges(style, adj: np.ndarray, edge_thresh: float):
