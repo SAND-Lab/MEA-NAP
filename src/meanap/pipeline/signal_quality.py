@@ -547,10 +547,10 @@ def plot_signal_quality(res: SignalQuality, out_path: str | Path | None = None,
                     max(np.max(obs), VERDICT_K) + 1.0)
         ax.set_yticks([])
         ax.set_xlabel("ms"); ax.set_ylabel(f"noise SDs (dotted: ±{VERDICT_K:g})")
-        ax.set_title(f"{title}\nclearest electrode (ch {res.example_channel}), "
-                     f"{len(obs) / res.fs * 1e3:.0f} ms. Blue: recorded, {n_hits[0]} below "
-                     f"−{VERDICT_K:g} SD (▲)\ngrey: same electrode, phases scrambled — "
-                     f"its own noise, no spikes: {n_hits[1]} below −{VERDICT_K:g} SD",
+        ax.set_title(f"{title} · clearest electrode (ch {res.example_channel}), "
+                     f"{len(obs) / res.fs * 1e3:.0f} ms\n"
+                     f"▲ below −{VERDICT_K:g} SD: recorded (blue) {n_hits[0]} · its own "
+                     f"noise, phases scrambled (grey) {n_hits[1]}",
                      fontsize=8.5, loc="left")
     ax = axes[1]
     centres = (HIST_EDGES[:-1] + HIST_EDGES[1:]) / 2
@@ -566,7 +566,8 @@ def plot_signal_quality(res: SignalQuality, out_path: str | Path | None = None,
     exc = np.sort(res.excess_hz())[::-1]
     ax.plot(np.arange(1, len(exc) + 1), exc, color="C0", lw=1)
     ax.axhline(MIN_EXCESS_HZ, color="C3", lw=0.5, ls=":")
-    ax.set_xscale("log")
+    if len(exc) > 30:   # a log rank axis only pays off with many electrodes
+        ax.set_xscale("log")
     ax.set_xlabel("electrodes, ranked"); ax.set_ylabel(f"excess negative events >{VERDICT_K:g} SD (Hz)")
     ax.set_title(f"{s['n_spiking']} of {s['n_electrodes']} electrodes show spikes"
                  + (f"\n+{s['n_positive_only']} with positive-only excess (artifact-like)"
@@ -575,6 +576,42 @@ def plot_signal_quality(res: SignalQuality, out_path: str | Path | None = None,
     if own:
         fig.tight_layout()
         if out_path is not None:
-            fig.savefig(out_path, dpi=120)
-            plt.close(fig)
+            # The shared savefig, so the results viewer can intercept it and
+            # show the figure live instead of reading a file back.
+            from meanap.pipeline.figure_output import savefig
+
+            savefig(fig, Path(out_path), default_dpi=120)
     return fig
+
+
+def recordings_without_spikes(output_root: str | Path) -> list[str]:
+    """The recordings in a finished run where no electrode showed spikes.
+
+    *output_root* is a run folder or a ``.meanap`` bundle. Empty when the
+    check did not run, so callers can warn on a non-empty answer alone.
+    """
+    import io
+    import zipfile
+
+    import pandas as pd
+
+    root = Path(output_root)
+    member = f"{SIGNAL_QUALITY_DIR}/{SUMMARY_CSV}"
+    try:
+        if root.is_dir():
+            path = root / member
+            if not path.exists():
+                return []
+            table = pd.read_csv(path)
+        elif zipfile.is_zipfile(root):
+            with zipfile.ZipFile(root) as zf:
+                if member not in zf.namelist():
+                    return []
+                table = pd.read_csv(io.BytesIO(zf.read(member)))
+        else:
+            return []
+    except Exception:  # noqa: BLE001 - a warning helper never breaks the caller
+        return []
+    if "n_spiking" not in table or "recording" not in table:
+        return []
+    return [str(r) for r in table.loc[table["n_spiking"] == 0, "recording"]]

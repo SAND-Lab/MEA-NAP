@@ -1297,8 +1297,22 @@ class SimpleView(QWidget):
         or for a helper's share of a shared run, which have no one folder."""
         self.clock.stop()
         self._output_root = Path(output_root) if output_root else None
-        self._show_run_state("done", "✓  Finished",
-                             str(self._output_root) if self._output_root else summary)
+        headline, detail = "✓  Finished", (str(self._output_root) if self._output_root
+                                             else summary)
+        silent = []
+        if self._output_root is not None:
+            from meanap.pipeline.signal_quality import recordings_without_spikes
+
+            silent = recordings_without_spikes(self._output_root)
+        if silent:
+            # The one thing worth saying before anyone opens a figure: these
+            # recordings' spikes and networks describe noise.
+            n = len(silent)
+            headline = f"✓  Finished  ·  ⚠ no spikes in {n} recording{'s' * (n != 1)}"
+            shown = ", ".join(silent[:3]) + (f" and {n - 3} more" if n > 3 else "")
+            detail = (f"Signal quality: no electrode in {shown} shows spikes beyond its "
+                      f"own noise, so what was detected there is noise.\n{detail}")
+        self._show_run_state("done", headline, detail)
         self.results_button.setVisible(self._output_root is not None)
         self.folder_button.setVisible(self._output_root is not None)
 

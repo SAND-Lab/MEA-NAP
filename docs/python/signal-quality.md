@@ -68,6 +68,10 @@ still return units.
   expectation, the excess rates, the p-value and the flags.
 - The run log prints the verdict for each recording, marked `!` when no
   electrode shows spikes.
+- The results viewer lists the figure first under each recording's *Spike
+  detection checks* as **Signal quality**, says above the figure list how many
+  electrodes show spikes, and marks a recording with none "⚠ no spikes" in the
+  recording list. The simple view says so when the run finishes.
 
 ## What it can and cannot tell you
 

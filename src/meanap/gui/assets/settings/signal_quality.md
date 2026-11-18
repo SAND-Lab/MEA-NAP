@@ -24,7 +24,7 @@ Keep it on. It reads at most a minute per recording, and the warning matters mos
 - **`<recording>_signal_quality.csv`**: one row per electrode.
 - **`signal_quality_summary.csv`**: one row per recording.
 
-The run log says how many electrodes show spikes and marks with `!` any recording where none does.
+The run log says how many electrodes show spikes and marks with `!` any recording where none does. In the results viewer the figure is **Signal quality**, first under each recording's spike detection checks, and a recording with no spikes is marked ⚠ in the recording list.
 
 ## Things to watch for
 - A recording where no electrode shows spikes is noise as far as threshold detection or sorting can tell. Spikes or units found in it, and the networks built from them, describe noise.

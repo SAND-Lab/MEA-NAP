@@ -643,7 +643,8 @@ function fillRecordings() {
   for (const r of MANIFEST.recordings) {
     const o = document.createElement("option");
     o.value = r.name;
-    o.textContent = r.group ? `${r.name}  (${r.group})` : r.name;
+    o.textContent = (r.group ? `${r.name}  (${r.group})` : r.name)
+      + (r.signal_quality && r.signal_quality.n_spiking === 0 ? "  ⚠ no spikes" : "");
     sel.appendChild(o);
   }
   fillLags();
@@ -718,9 +719,24 @@ function fillSpikeChecks() {
   const box = $("spikechecks");
   box.innerHTML = "";
   const figs = (rec && rec.spike_checks) || [];
+  const q = rec && rec.signal_quality;
+  if (q) {
+    // Step 1's verdict on whether the voltage holds spikes at all.
+    const note = document.createElement("div");
+    note.className = "sub";
+    if (q.n_spiking === 0) {
+      note.style.color = "#c2410c"; note.style.fontWeight = "600";
+      note.textContent = `⚠ No electrode of ${q.n_electrodes} shows spikes beyond its own `
+        + "noise: spikes and networks from this recording describe noise.";
+    } else {
+      note.textContent = `${q.n_spiking} of ${q.n_electrodes} electrodes show spikes`
+        + (q.n_positive_only ? ` (+${q.n_positive_only} positive-only, artifact-like)` : "");
+    }
+    box.appendChild(note);
+  }
   if (!figs.length) {
     // Either step 1 did not run, or the run predates the stored payload.
-    box.innerHTML = '<div class="sub">None in this bundle.</div>';
+    box.insertAdjacentHTML("beforeend", '<div class="sub">None in this bundle.</div>');
     return;
   }
   for (const f of figs) {

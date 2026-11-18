@@ -153,3 +153,94 @@ def test_long_recording_stays_fast():
     res = assess_signal_quality(x, FS, max_seconds=None, n_threads=1)
     assert time.perf_counter() - t < 30
     assert len(res.example_obs) == int(2.0 * FS)
+
+
+def _noise_and_spiky_run(tmp_path):
+    """An express run (steps 1-4: the viewer needs step 4) of one noise
+    recording and one with spikes on channel 3."""
+    import scipy.io as sio
+    from meanap.params import Params
+    from meanap.pipeline.runner import run_pipeline
+
+    fs = 12500.0
+    rng = np.random.default_rng(6)
+    raw = tmp_path / "raw"; raw.mkdir()
+    for name, spiky in (("rec_noise", False), ("rec_spiky", True)):
+        n = int(12 * fs)
+        x = rng.standard_normal((n, 8)).astype(np.float32) * 5.0
+        if spiky:
+            t = np.arange(-10, 20); w = -np.exp(-(t / 2.0) ** 2) * 80
+            for s in rng.choice(np.arange(100, n - 100), 100, replace=False):
+                x[s - 10:s + 20, 2] += w
+        sio.savemat(raw / f"{name}.mat", {"dat": x, "channels": np.arange(1, 9), "fs": fs})
+    sheet = tmp_path / "recs.csv"
+    sheet.write_text("Recording Filename,DIV group,Genotype\nrec_noise,14,WT\nrec_spiky,14,WT\n")
+    p = Params(output_data_folder=str(tmp_path), output_data_folder_name="Run",
+               spreadsheet_file_name=str(sheet), raw_data=str(raw),
+               thresholds=[5.0], wname_list=[], spikes_method="thr5",
+               start_analysis_step=1, stop_analysis_step=4, prior_analysis=False,
+               express_mode=True, signal_quality_seconds=10)
+    return run_pipeline(p, log=lambda _m: None)
+
+
+def test_viewers_offer_signal_quality(tmp_path):
+    """The bundle's viewers list the figure, carry the verdict, and the run end warns."""
+    import os
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    from meanap.pipeline.signal_quality import recordings_without_spikes
+    from meanap.viewer.server import ViewerService
+
+    out = _noise_and_spiky_run(tmp_path)
+    assert recordings_without_spikes(out) == ["rec_noise"]
+    assert recordings_without_spikes(tmp_path / "nowhere") == []
+
+    service = ViewerService(out)
+    recs = {r["name"]: r for r in service.manifest()["recordings"]}
+    assert recs["rec_noise"]["signal_quality"]["n_spiking"] == 0
+    assert recs["rec_spiky"]["signal_quality"]["n_spiking"] == 1
+    for rec in recs.values():
+        assert rec["spike_checks"][0] == {"name": "0_SignalQuality", "label": "Signal quality"}
+
+    from meanap.pipeline.render import render_spike_check_figure
+    png = render_spike_check_figure(service.ctx, "rec_spiky", "0_SignalQuality", tmp_path / "fig")
+    assert png.exists() and png.stat().st_size > 10_000
+
+    # The native viewer: the verdict above the figures, the warning in the list,
+    # and the figure drawn when chosen.
+    from PyQt6.QtWidgets import QApplication
+    from meanap.gui.results_viewer import ResultsViewer
+    app = QApplication.instance() or QApplication([])
+    viewer = ResultsViewer()
+    viewer.resize(1300, 850)
+    viewer.show()
+    viewer.load_run(out)
+
+    def settle():
+        import time
+        end = time.monotonic() + 20
+        while time.monotonic() < end:
+            app.processEvents()
+            time.sleep(0.02)
+            if not (viewer._drawing or viewer._queued or viewer._restyle.isActive()
+                    or viewer.status.text().startswith("Drawing")):
+                break
+        for _ in range(20):
+            app.processEvents(); time.sleep(0.02)
+
+    settle()
+    texts = [viewer.recordings.item(i).text() for i in range(viewer.recordings.count())]
+    assert any("rec_noise" in t and "⚠ no spikes" in t for t in texts), texts
+    assert not any("rec_spiky" in t and "⚠" in t for t in texts), texts
+    viewer.select_recording("rec_noise")
+    settle()
+    assert viewer.signal_quality_note.isVisibleTo(viewer)
+    assert "no electrode of 8" in viewer.signal_quality_note.text()
+    viewer.select_recording("rec_spiky")
+    settle()
+    assert "1 of 8 electrodes show spikes" in viewer.signal_quality_note.text()
+    assert viewer.select_figure("Signal quality")
+    settle()
+    assert "Signal quality" in viewer.figure_title.text() or viewer._stack.currentWidget() is not None
+    viewer.grab().save(str(tmp_path / "viewer.png"))
+    os.environ.get("SQ_KEEP_SHOT") and viewer.grab().save(os.environ["SQ_KEEP_SHOT"])
+    viewer.close()
