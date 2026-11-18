@@ -178,6 +178,9 @@ def main() -> None:
     print(f"MEA-NAP: window ready {time.perf_counter() - started:.1f} s after start",
           file=sys.stderr)
     window.report_app_update()
+    from meanap.gui import whats_new
+    # Kept on the window: a dialog nobody holds a reference to is collected.
+    window.whats_new_dialog = whats_new.show_if_due(window)
     if check_on_start():
         window.start_update_check()
     window.start_speed_check()
