@@ -51,6 +51,94 @@ Everything carries a Benjamini–Hochberg FDR-corrected p-value alongside the ra
 one — with ~50 metrics and several tests each, reading raw p-values guarantees
 false positives. Effect sizes are Hedges' *g*.
 
+### Adjusted effects — does an effect survive holding firing rate fixed?
+
+A significant age effect on network density says density rises with age. It
+does not say why. If firing rate rises with age too, part or all of the
+density effect may be rate passed on: more spikes give the STTC significance
+test more power, so more edges pass. To ask whether density rises *beyond*
+rate, step 5 refits the comparison model with rate added,
+
+```
+metric ~ age + genotype + rate + (1 | culture)
+```
+
+and reads the age coefficient again. That coefficient is the age effect at
+fixed rate. The same is done for every metric and for each **adjustment set**
+you choose. Each effect is then shown beside the unadjusted one, in
+`adjusted_effects.csv` and in figure **5A4**.
+
+| Set | Covariates |
+|---|---|
+| Firing rate (default) | `FRmean` (or `FRmedian`) |
+| Firing rate + active units (default) | rate and `numActiveElec` |
+| Network size + density | `aN` and `Dens` |
+| Network bursting | `NBurstRate` and `fracInNburst` (ephys only) |
+| Your own | any columns, joined by `+`. A column that is not a number, such as a plate or batch, enters as a factor. |
+
+Rates and counts that span orders of magnitude are logged before they enter
+the model.
+
+How to read it:
+
+- **A dot that moves to zero** was carried by the covariate. One that stays is
+  an effect beyond it. The `Retained` column gives the adjusted effect as a
+  fraction of the unadjusted one.
+- **"Carried by" is not "not real".** If age raises rate and rate raises
+  density, rate is a *mediator*. The adjusted effect is the part of the age
+  effect that does not pass through rate. Adjusting for something the network
+  itself causes, such as bursting or network size, can hide a real effect or
+  create a false one.
+- **Check the design R².** Each set reports how much of its covariates age and
+  genotype explain. When rate climbs in lockstep with age, the model cannot
+  tell the two apart, and an effect that disappears is undecided rather than
+  absent. The figure flags R² above 0.8 with ⚠.
+- **The same recordings throughout.** Every set is fitted on the recordings
+  that have every covariate, so a change between sets is the adjustment, not
+  the cohort.
+- **No self-adjustment.** A metric is not adjusted for itself or for a
+  near-copy (|Spearman ρ| ≥ 0.95). Its row says so.
+
+Example: in the published Mecp2 MEA timecourse (DIV 7–35), median firing rate
+rises about 100-fold. The age effect on network density falls from +1.39 SD to
++0.30 SD (not significant) with rate in the model. Mean STTC keeps a third of
+its effect (+0.58 SD, still significant). Design R² is 0.41, so rate and age
+are separable here, if not by much.
+
+From the command line: `meanap-stats RUN --adjust-for rate activity
+FRmean+numActiveElec`. Give `--adjust-for` with no sets to skip it.
+
+**Exploring in the results viewer.** Open 5A4 under *Statistics → Group and
+age comparisons* and a **Hold fixed** panel appears beside it. Tick or untick
+the preset sets, or build your own set by searching for and ticking columns
+(they are held fixed together). The figure is refitted and redrawn for each
+change, in about a second for a 50-metric run, so you do not need to rerun
+step 5 to try another covariate. A set this run cannot resolve is greyed out,
+and its tooltip says why. Sets tried before are kept in memory for the
+session. What step 5 wrote to `adjusted_effects.csv` is not changed.
+
+Each significant effect gets a verdict. Its row is tinted green if the effect
+stays significant, in the same direction, under every set ticked. It is tinted
+red if it loses significance under all of them. A count at the right of the
+row, such as `2/3`, says how many sets it survives. A set is left out of a
+row's count when the metric is, or nearly copies, one of that set's
+covariates. The **View** menus at the top of the panel narrow a crowded figure:
+
+- **Effect** shows one panel (Age, or a single genotype contrast).
+- **Show** keeps the rows that survive every set, are lost under some, or are
+  lost under all.
+- **Sort by** orders the rows by unadjusted effect size, by how much of the
+  effect is lost (most lost first), or by name.
+- **Sizes only** draws every effect at its size, |effect|, ignoring direction,
+  so rows sorted by size fall in a line. Direction is then off the axis, so an
+  adjusted effect whose sign is the opposite of the unadjusted one gets a
+  dark ring.
+
+The random-intercept model is fitted by exact REML. The fit profiles out the
+fixed effects and searches a single variance ratio, which is fast enough for
+the viewer. Its estimates match statsmodels' `MixedLM` to within 3 × 10⁻⁴ SD,
+and its z values to within about 1%.
+
 ### Feature structure — which metrics are the same measurement?
 
 Correlation matrices overall and per group × age, the redundant pairs, and the
@@ -214,7 +302,7 @@ The density sweep sits outside this and is the slowest thing by a wide margin.
 ```
 5_StatsAndML/
 └── <lag>/
-    ├── 5A…  comparisons — effect heatmaps, trajectories
+    ├── 5A…  comparisons — effect heatmaps, trajectories, adjusted effects (5A4)
     ├── 5B…  feature structure — correlation, dimensionality
     ├── 5C…  decoding — performance, confusion, importance, attributions
     ├── 5D…  variance attribution

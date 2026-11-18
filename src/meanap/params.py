@@ -52,6 +52,10 @@ class Params:
     d_samp_f: float = 1000.0
     potential_difference_unit: str = "uV"
     channel_layout: str = "MCS60"
+    # A "Custom" layout: the file it was read from, and its rows
+    # [channel, x_um, y_um] — kept here so a run and its bundle carry them.
+    custom_layout_file: str = ""
+    custom_layout: list = field(default_factory=list)
 
     # ── Spike detection ──────────────────────────────────────────────────────
     detect_spikes: bool = True

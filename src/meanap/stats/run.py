@@ -60,6 +60,15 @@ class StatsSettings:
     """
 
     comparisons: bool = True
+    #: Refit the 5A mixed models with covariates added — does an age or
+    #: genotype effect survive holding firing rate (or anything else) fixed?
+    #: (:mod:`meanap.stats.adjustment`). Cheap: one extra model per metric per
+    #: set.
+    adjustment: bool = True
+    #: The covariate sets: preset names from
+    #: :data:`meanap.stats.adjustment.PRESETS` ("rate", "activity", "size",
+    #: "bursting") or columns joined by "+" ("FRmean+numActiveElec").
+    adjust_for: tuple[str, ...] = ("rate", "activity")
     correlation: bool = True
     decoding: bool = True
     regression: bool = True
@@ -303,6 +312,7 @@ def run_stats(
                                     n_trajectory_metrics=settings.n_trajectory_metrics)
             for fn_name, fn in (
                 ("comparisons", _run_comparisons),
+                ("adjustment", _run_adjustment),
                 ("correlation", _run_correlation),
                 ("decoding", _run_decoding),
                 ("regression", _run_regression),
@@ -979,6 +989,32 @@ def _run_comparisons(ds: StatsDataset, folder: Path, settings,
         "n_significant_fdr": int(len(significant)),
     }
     log(f"    {len(significant)} of {len(res.table)} tests significant at FDR q < 0.05")
+
+
+def _run_adjustment(ds: StatsDataset, folder: Path, settings,
+                    result, lag, log, progress, computed,
+                    source_root: Path) -> None:
+    from meanap.stats.adjustment import adjusted_effects
+
+    res = adjusted_effects(ds, settings.adjust_for, progress=progress)
+    for why in res.skipped:
+        log(f"  ! adjustment set skipped — {why}")
+    if res.table.empty:
+        return
+    log("  adjustment: age and genotype effects holding "
+        + "; ".join(s.label for s in res.sets) + " fixed")
+    computed.adjusted = res.table
+    _write_table(res.table, folder / "adjusted_effects.csv", result)
+    age = res.table[(res.table["Term"] == "age") & (res.table["Adjustment"] != "none")]
+    for name, rows in age.groupby("Adjustment", sort=False):
+        base = res.table[(res.table["Term"] == "age") & (res.table["Adjustment"] == "none")]
+        lost = set(base.loc[base["PValueFDR"] < 0.05, "Metric"]) - set(
+            rows.loc[rows["PValueFDR"] < 0.05, "Metric"])
+        r2 = rows["CovariateR2"].dropna()
+        log(f"    {name}: {len(lost)} age effect(s) no longer significant"
+            + (f"; the design explains {r2.iloc[0]:.0%} of the covariate" if len(r2) else ""))
+    result.summary.setdefault("adjustment", {})[str(lag)] = {
+        "sets": [s.name for s in res.sets], "skipped": res.skipped}
 
 
 def _run_correlation(ds: StatsDataset, folder: Path, settings,

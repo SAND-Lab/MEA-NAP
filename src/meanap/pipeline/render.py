@@ -2301,7 +2301,66 @@ def stats_results(ctx: RenderContext, lag: str):
         folder,
         dataset if stem == "all" else dataset.for_lag(_stats_lag_value(dataset, stem)),
         lag=stem)
+    # A viewer can refit 5A4 with other covariates, or fit it for a run from
+    # before the analysis existed: the model is fast enough to do it on demand.
+    cache[lag].adjust_live = True
     return cache[lag]
+
+
+def adjustment_choices(ctx: RenderContext, lag: str) -> dict:
+    """What the viewer's covariate picker offers for one lag's 5A4.
+
+    ``{"presets": [(name, label, available, why)], "columns": [(column,
+    label)], "chosen": [set, ...]}`` — the presets this run can resolve, every
+    column that could be a covariate, and the sets the run's own step 5 used
+    (the defaults when it used none).
+    """
+    from meanap.stats.adjustment import DEFAULT_SETS, NONE, PRESETS, resolve_sets
+
+    results = stats_results(ctx, lag)
+    if results is None:
+        return {"presets": [], "columns": [], "chosen": []}
+    ds = results.dataset
+    presets = []
+    for name, (label, _roles) in PRESETS.items():
+        sets, skipped = resolve_sets(ds, [name])
+        presets.append((name, label, bool(sets),
+                        skipped[0].split(": ", 1)[-1] if skipped else
+                        "holds " + ", ".join(ds.label(c) for c in sets[0].columns) + " fixed"))
+    columns = [(c, ds.label(c)) for c in ds.metrics]
+    stored = results.adjusted
+    chosen = ([a for a in dict.fromkeys(stored["Adjustment"]) if a != NONE]
+              if stored is not None and not stored.empty else list(DEFAULT_SETS))
+    if not (any(ok and name in chosen for name, _l, ok, _w in presets)
+            or any(c not in PRESETS for c in chosen)):
+        # Nothing step 5 used (or the defaults) resolves here, so start the
+        # picker from what does, as the figure itself was first drawn.
+        from meanap.stats.figures import _live_sets
+
+        chosen = [c for c in chosen if c not in PRESETS] + list(_live_sets(results))
+    import pandas as pd
+
+    terms = []
+    source = stored if stored is not None and not stored.empty else (
+        results.comparisons.table if results.comparisons is not None else None)
+    if source is not None and "Term" in source.columns:
+        rows = source[source["Family"] == "mixed-model"] if "Family" in source.columns else source
+        found = [str(t) for t in pd.unique(rows["Term"]) if str(t) == "age" or " vs " in str(t)]
+        terms = [t for t in found if t == "age"] + sorted(t for t in found if t != "age")
+    return {"presets": presets, "columns": columns, "chosen": chosen, "terms": terms}
+
+
+def _adjusted_table(ctx: RenderContext, lag: str, sets: tuple[str, ...]):
+    """5A4's table for *sets*, fitted once per (lag, sets) and kept."""
+    from meanap.stats.adjustment import adjusted_effects
+
+    cache = getattr(ctx, "_adjust_cache", None)
+    if cache is None:
+        cache = {}
+        object.__setattr__(ctx, "_adjust_cache", cache)
+    if (lag, sets) not in cache:
+        cache[(lag, sets)] = adjusted_effects(stats_results(ctx, lag).dataset, sets)
+    return cache[(lag, sets)]
 
 
 def _stats_activity_subset(dataset, slug: str):
@@ -2328,12 +2387,21 @@ def _stats_lag_value(dataset, lag: str):
     return lag
 
 
-def available_stats_figures(ctx: RenderContext, lag: str) -> list:
-    """The catalogued figures this run's stored results can produce."""
+def available_stats_figures(ctx: RenderContext, lag: str, *, live: bool = True) -> list:
+    """The catalogued figures this run's stored results can produce.
+
+    *live* includes 5A4 fitted on demand when the run wrote no
+    ``adjusted_effects.csv``. An export passes ``False``: it puts back what
+    the run wrote, and a figure with no table beside it would not be that.
+    """
     from meanap.stats.figures import stats_figures
 
     results = stats_results(ctx, lag)
-    return stats_figures(results) if results is not None else []
+    if results is None:
+        return []
+    if not live:
+        results = dataclasses.replace(results, adjust_live=False)
+    return stats_figures(results)
 
 
 def render_stats_figure(
@@ -2359,6 +2427,23 @@ def render_stats_figure(
         raise ValueError(
             f"This run has no statistics results for {lag!r}. Run the "
             f"statistics step (meanap-stats, or the Stats & ML tab) over it first.")
+    overrides = dict(overrides or {})
+    # "adjust_for" is not a parameter: it refits 5A4 with the covariate sets
+    # named (comma-separated, as the viewer's picker sends them).
+    adjust_for = overrides.pop("adjust_for", None)
+    if adjust_for is not None and key == "adjusted_effects":
+        sets = tuple(s.strip() for s in str(adjust_for).split(",") if s.strip())
+        if not sets:
+            raise ValueError("Choose something to hold fixed: tick a set on the right.")
+        fitted = _adjusted_table(ctx, lag, sets)
+        if fitted.table.empty:
+            raise ValueError("None of those can be held fixed in this run: "
+                             + "; ".join(fitted.skipped))
+        results = dataclasses.replace(results, adjusted=fitted.table)
+    view = {name: str(overrides.pop(f"adjust_{name}"))
+            for name in ("term", "show", "sort", "unsigned") if f"adjust_{name}" in overrides}
+    if view and key == "adjusted_effects":
+        results = dataclasses.replace(results, adjust_view=view)
 
     figure = next((f for f in stats_figures(results) if f.key == key), None)
     if figure is None:

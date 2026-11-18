@@ -187,10 +187,12 @@ range.
   — the Python port currently produces per-recording, per-lag results plus
   batch-scaled plot variants, not MATLAB's full `RecordingsByGroup`/
   `GraphMetricsByLag` group-comparison figures and CSVs.
-- **`Custom` channel layout is not supported.** MATLAB's user-drawn custom
-  electrode layout has no Python equivalent yet; the port supports
-  `MCS60old`, `MCS60`, `MCS59`, `Axion64`, and `Axion16`, all with confirmed
-  exact coordinate parity against MATLAB.
+- **`Custom` channel layouts come from a file, not a drawing.** MATLAB lets
+  you draw a custom electrode layout; the Python port reads one from a `.csv`
+  or `.xlsx` table instead (see the GUI guide's *Custom layouts*). The
+  built-in `MCS60`, `Axion64` and `Axion16` (and `MCS59`, `MCS60old`, still
+  accepted from old settings files) have confirmed exact coordinate parity
+  against MATLAB.
 - **No single combined output `.mat` file.** MATLAB writes one
   `<recording>_<output>.mat` per recording containing `Info`/`Params`/
   `spikeTimes`/`Ephys`/`adjMs` together. The Python port instead writes

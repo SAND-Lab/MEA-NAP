@@ -21,7 +21,7 @@ from pathlib import Path
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import (
     QCheckBox, QComboBox, QFileDialog, QFormLayout, QGroupBox, QHBoxLayout,
-    QLabel, QPlainTextEdit, QPushButton, QSpinBox, QVBoxLayout, QWidget,
+    QLabel, QLineEdit, QPlainTextEdit, QPushButton, QSpinBox, QVBoxLayout, QWidget,
 )
 
 __all__ = ["StatsPanel"]
@@ -136,6 +136,48 @@ class StatsPanel(QWidget):
             "with a random intercept per culture, group contrasts within each "
             "age, and paired age-to-age contrasts. All p-values FDR-corrected.")
         outer.addWidget(self.comparisons_cb)
+
+        # Nested under the comparisons, because it refits their model.
+        adjust = QVBoxLayout()
+        adjust.setContentsMargins(24, 0, 0, 0)
+        adjust.setSpacing(2)
+        self.adjustment_cb = QCheckBox(
+            "Hold covariates fixed  (does an effect survive firing rate?)")
+        self.adjustment_cb.setChecked(True)
+        self.adjustment_cb.setToolTip(
+            "Refits each metric's age and genotype model with covariates added, "
+            "and shows every effect beside the unadjusted one. An age effect on "
+            "network density that vanishes once firing rate is in the model was "
+            "carried by firing rate; one that holds is an effect beyond it.\n\n"
+            "Read with care: when age and the covariate rise together, the model "
+            "cannot fully separate them, and the figure flags it.")
+        adjust.addWidget(self.adjustment_cb)
+        sets_row = QHBoxLayout()
+        sets_row.setContentsMargins(24, 0, 0, 0)
+        self.adjust_sets: dict[str, QCheckBox] = {}
+        from meanap.stats.adjustment import DEFAULT_SETS
+        from meanap.stats.adjustment import PRESETS as ADJUSTMENT_PRESETS
+        for key, (label, _roles) in ADJUSTMENT_PRESETS.items():
+            tick = QCheckBox(label)
+            tick.setChecked(key in DEFAULT_SETS)
+            self.adjust_sets[key] = tick
+            sets_row.addWidget(tick)
+        sets_row.addStretch(1)
+        adjust.addLayout(sets_row)
+        custom_row = QHBoxLayout()
+        custom_row.setContentsMargins(24, 0, 0, 0)
+        custom_row.addWidget(QLabel("Also:"))
+        self.adjust_custom = QLineEdit()
+        self.adjust_custom.setPlaceholderText(
+            "columns joined by +, sets by commas — e.g. FRmean+numActiveElec, ISImean")
+        self.adjust_custom.setToolTip(
+            "Any columns of the run's tables, as extra covariate sets. Columns "
+            "joined by + go into one model together; commas separate sets. A "
+            "column that is not a number (a plate, a batch) enters as a factor.")
+        custom_row.addWidget(self.adjust_custom, 1)
+        adjust.addLayout(custom_row)
+        self.adjustment_cb.toggled.connect(self._on_adjustment_toggled)
+        outer.addLayout(adjust)
 
         self.correlation_cb = QCheckBox(
             "Feature correlation structure  (clustered matrices, dimensionality)")
@@ -384,6 +426,18 @@ class StatsPanel(QWidget):
         self.design_label.setText(note)
         self._fill_targets(ds)
 
+    def _on_adjustment_toggled(self, checked: bool) -> None:
+        for tick in self.adjust_sets.values():
+            tick.setEnabled(checked)
+        self.adjust_custom.setEnabled(checked)
+
+    def adjustment_sets(self) -> tuple[str, ...]:
+        """The covariate sets ticked, then any typed in."""
+        chosen = [key for key, box in self.adjust_sets.items() if box.isChecked()]
+        chosen += [part.strip() for part in self.adjust_custom.text().split(",")
+                   if part.strip()]
+        return tuple(chosen)
+
     def _on_sweep_toggled(self, checked: bool) -> None:
         # Also gated on the checkbox itself being available: a run with no
         # adjacency matrices must not offer to configure a sweep it cannot run.
@@ -450,6 +504,8 @@ class StatsPanel(QWidget):
 
         settings = StatsSettings(
             comparisons=self.comparisons_cb.isChecked(),
+            adjustment=self.adjustment_cb.isChecked() and bool(self.adjustment_sets()),
+            adjust_for=self.adjustment_sets(),
             correlation=self.correlation_cb.isChecked(),
             decoding=self.decoding_cb.isChecked(),
             regression=self.regression_cb.isChecked(),

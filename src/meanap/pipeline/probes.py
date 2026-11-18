@@ -16,7 +16,9 @@ from __future__ import annotations
 
 import numpy as np
 
-from meanap.pipeline.channel_layout import get_coords_from_layout
+from meanap.pipeline.channel_layout import (
+    custom_pitch_um, get_coords_from_layout, is_custom_layout,
+)
 
 #: Centre-to-centre electrode spacing of each supported layout, in µm.
 #: MCS 60MEA200/30: 200 µm. Axion CytoView 48/12-well plates: 350 µm.
@@ -42,6 +44,14 @@ def layout_grid_step(channel_layout: str) -> float:
     still converts correctly.
     """
     _, coords = get_coords_from_layout(channel_layout)
+    if is_custom_layout(channel_layout):
+        # Not a grid, or not necessarily: the typical nearest-neighbour
+        # distance is its step, as custom_pitch_um measures it in µm.
+        from scipy.spatial.distance import cdist
+
+        d = cdist(coords, coords)
+        np.fill_diagonal(d, np.inf)
+        return float(np.median(d.min(axis=1)))
     xs = np.unique(np.round(coords[:, 0], 6))
     return float(np.min(np.diff(xs))) if len(xs) > 1 else 1.0
 
@@ -50,6 +60,8 @@ def electrode_pitch_um(channel_layout: str, override: float | None = None) -> fl
     """The pitch to use for *channel_layout*: the user's value if given."""
     if override is not None and override > 0:
         return float(override)
+    if is_custom_layout(channel_layout) and channel_layout != "Custom":
+        return custom_pitch_um(channel_layout)
     try:
         return DEFAULT_PITCH_UM[channel_layout]
     except KeyError:

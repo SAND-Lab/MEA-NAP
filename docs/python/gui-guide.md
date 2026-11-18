@@ -345,16 +345,16 @@ of the two settings says where its value came from:
     before the run.
 
   The detected layout fills the setting the first time a folder is read.
-  After that your choice is kept. `FromFile` is never replaced.
+  After that your choice is kept. `FromFile` and `Custom` are never replaced.
 
 The simple view's **Recording settings** step shows the same, and folds to a
 summary (`Axion64 · 12.5 kHz`):
 
 | What the files show | Layout |
 |---|---|
-| Multi Channel Systems `.h5` | MCS60 (MCS59 at 59 channels) |
+| Multi Channel Systems `.h5` | MCS60 |
 | Axion `.raw` | Axion64, or Axion16 at 16 electrodes per well |
-| `.mat` with 16 / 59 / 60 channels | Axion16 / MCS59 / MCS60 |
+| `.mat` with 16 / 59 or 60 channels | Axion16 / MCS60 (59 is the same array, ground left out) |
 | `.mat` with 64 channels | Axion64 if the corner electrodes (11, 18, 81, 88) carry signal, MCS60 if they are empty |
 
 An MCS 60-electrode array has no corner electrodes, which is what tells a
@@ -366,6 +366,32 @@ the recordings disagree, or if you pick a different layout from the one the
 files suggest. A batch recorded at several sampling rates is fine, since each
 recording is analysed at its own rate; the summary shows the range
 (`10–25 kHz`).
+
+### Custom layouts
+
+For an array none of the built-in layouts fits, choose **Custom** and give a
+**Layout file**: a `.csv` or `.xlsx` table, one row per electrode.
+
+```text
+channel,x,y
+11,0,0
+12,200,0
+21,0,200
+```
+
+- `x` and `y` are in µm, with `y` counted **down** from the top of the array,
+  as a picture of the array reads.
+- Columns named `channel` (or `electrode`, `id`), `x` and `y` are found by
+  name in any order. Without those names, the first three columns are used.
+- The file is refused, with the row named, if a position is not a number, a
+  channel is listed twice, or two electrodes share a place.
+
+The Data tab draws the layout as soon as it reads the file, so a swapped x and
+y shows before the run. The table is saved with the settings, so a settings
+file still runs on a computer without the layout file. Spatial figures use the
+positions as given. Step 4's SA distances use the median nearest-neighbour
+distance as the pitch. A channel in the recordings that the file leaves out is
+not drawn, and step 1's log names it.
 
 **🧪 Test pipeline** sets the layout the same way, so the example dataset runs
 as Axion64.
@@ -460,7 +486,7 @@ it applies.
 | **Sampling frequency** | Shown, not set: read from the recordings (see [Layout from the files](#layout-from-the-files)) and saved with the run's settings for the record. Every step reads each recording's own rate from its file, so a batch recorded at different rates is fine. |
 | **Downsample frequency** ⚙ | Rate used for some plots/metrics that don't need full resolution (e.g. `1000`). |
 | **Potential difference unit** ⚙ | `uV`, `mV`, or `V` — must match your raw data's units. |
-| **Channel layout** | Detected from the recordings, with a note saying so (see [Layout from the files](#layout-from-the-files)). Electrode grid layout: `MCS60`, `Axion64`, `Mea256`, `Custom`, or `FromFile` (each recording's own electrode positions, as written by an [import of sorted data](sorted-import.md) — use it for MaxWell HD-MEAs). See [MATLAB vs. Python](matlab-vs-python.md) for which layouts have confirmed coordinate parity. |
+| **Channel layout** | Detected from the recordings, with a note saying so (see [Layout from the files](#layout-from-the-files)). Electrode grid layout: `MCS60`, `Axion64`, `Axion16`, `Custom` (positions from a layout file, see [Custom layouts](#custom-layouts)), or `FromFile` (each recording's own electrode positions, as written by an [import of sorted data](sorted-import.md) — use it for MaxWell HD-MEAs). See [MATLAB vs. Python](matlab-vs-python.md) for which layouts have confirmed coordinate parity. |
 
 ## Spike detection
 

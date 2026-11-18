@@ -14,7 +14,10 @@ from meanap.params import (
     default_derived_dir, is_remote_url, mode_for_params, save_params,
 )
 from meanap.pipeline.cancellation import CancelCheck, check_cancel
-from meanap.pipeline.channel_layout import FROM_FILE_LAYOUT
+from meanap.pipeline.channel_layout import (
+    CUSTOM_LAYOUT, FROM_FILE_LAYOUT, get_coords_from_layout, layout_label, layout_of,
+    read_layout_file,
+)
 from meanap.pipeline.io import (
     RAW_EXTENSIONS,
     load_raw_recording,
@@ -152,6 +155,17 @@ def run_pipeline(
         raise ValueError(
             f"Channel layout {FROM_FILE_LAYOUT!r} is for imported spike-sorted data "
             "(Spike source: import). Pick the array's layout for this run.")
+    # A Custom layout is its table; a params file written by hand may name
+    # only the file it is in. Read it now, so every step has the table.
+    if params.channel_layout == CUSTOM_LAYOUT:
+        if not params.custom_layout and params.custom_layout_file:
+            params.custom_layout = read_layout_file(params.custom_layout_file)
+        if not params.custom_layout:
+            raise ValueError(
+                "Channel layout is Custom but no layout file was given: set "
+                "custom_layout_file to a CSV of channel, x, y (in µm).")
+        log(f"Electrode layout: {layout_label(layout_of(params))}"
+            + (f", from {params.custom_layout_file}" if params.custom_layout_file else ""))
 
     # Optional step, before anything reads the sheet: build it from the raw
     # data folder. Ported from MEApipeline.m's ``generateCSV`` block, except
@@ -972,6 +986,16 @@ def _run_step1_spike_detection(
             remove_artifacts=params.remove_artifacts,
         )
 
+        if params.channel_layout == CUSTOM_LAYOUT:
+            placed = set(get_coords_from_layout(layout_of(params))[0].tolist())
+            import numpy as np
+
+            unplaced = [int(c) for c in np.asarray(channels).ravel() if int(c) not in placed]
+            if unplaced:
+                log(f"  ! [{rec.filename}] {len(unplaced)} channel(s) are not in the "
+                    f"custom layout and are left out of spatial plots: "
+                    f"{', '.join(map(str, unplaced[:10]))}"
+                    + (" …" if len(unplaced) > 10 else ""))
         log(f"  [{rec.filename}] detecting spikes ({len(channels)} channels)…")
         log.debug(f"      thresholds {params.thresholds}, wavelets "
                   f"{params.wname_list}, costs {cost_list}, "
@@ -1055,7 +1079,7 @@ def _drop_stim_artifacts(params: Params, rec, dat, channels, fs: float, result, 
     try:
         sp = {**params.to_stim_params_dict(), "fs": fs}
         stim_info = detect_stim_times(np.asarray(dat, np.float64), sp, channels,
-                                      _coords_for_channels(params.channel_layout, channels))
+                                      _coords_for_channels(layout_of(params), channels))
         starts, ends, own = artifact_windows(stim_info, sp)
     except Exception as e:                                  # noqa: BLE001
         log(f"  [{rec.filename}] Warning: could not find the stimuli ({e}); "
@@ -1112,7 +1136,7 @@ def _sort_one_recording(
     duration_s = dat.shape[0] / fs
     log(f"  [{rec.filename}] sorting spikes with {sort_params.sorter_name} "
         f"({len(channels)} channels)…")
-    log.debug(f"      layout {sort_params.channel_layout}, band "
+    log.debug(f"      layout {layout_label(sort_params.channel_layout)}, band "
               f"{sort_params.freq_min:g}–{sort_params.freq_max:g} Hz, curation: SNR ≥ "
               f"{sort_params.curation_min_snr:g}, refractory violations ≤ "
               f"{sort_params.curation_max_rp_violation_frac:.0%} within "

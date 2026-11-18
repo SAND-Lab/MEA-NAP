@@ -31,7 +31,7 @@ sys.path.insert(0, str(REPO_ROOT / "src"))
 sys.path.insert(0, str(REPO_ROOT / "python"))
 
 import numpy as np  # noqa: E402
-from PyQt6.QtCore import QEventLoop, QTimer  # noqa: E402
+from PyQt6.QtCore import QEventLoop, Qt, QTimer  # noqa: E402
 from PyQt6.QtWidgets import QApplication  # noqa: E402
 
 from test_bundle_render import BUNDLE_SUFFIX, _run  # noqa: E402
@@ -1300,8 +1300,8 @@ def _window_checks(bundle: Path) -> list[Check]:
     checks.append(("the first figure is drawn without being asked",
                    viewer._stack.currentWidget() is not viewer.view or viewer.view.figure is not None,
                    viewer.status.text()))
-    checks.append(("and the time it took is shown",
-                   viewer.status.text().startswith("Drawn in"), viewer.status.text()))
+    checks.append(("and once it is, the status line is quiet (no timing)",
+                   viewer.status.text() == "", viewer.status.text()))
 
     row = "Network / Spatial network / Node degree"
     checks.append(("the node-degree network is among them", row in labels, str(labels)))
@@ -1554,7 +1554,7 @@ def _window_checks(bundle: Path) -> list[Check]:
         from meanap.native.group_paint import ComparisonPainter
 
         checks.append(("the first of them is drawn, by Qt",
-                       viewer.status.text().startswith("Drawn in")
+                       viewer.status.text() == ""
                        and viewer._stack.currentWidget() is viewer.canvas
                        and isinstance(viewer.canvas.painter, ComparisonPainter),
                        viewer.status.text()))
@@ -1828,6 +1828,50 @@ def _params_and_export_checks(bundle: Path, tmp: Path) -> list[Check]:
     checks.append(("an export can be stopped",
                    not viewer.exporting and "stopped" in viewer.export_status.text().lower()
                    and viewer.export_button.isEnabled(), viewer.export_status.text()))
+
+    # The page that chooses what to export, before anything is drawn.
+    dialog = viewer.export_dialog()
+    sections = [dialog.figures.topLevelItem(i).text(0)
+                for i in range(dialog.figures.topLevelItemCount())]
+    checks.append(("the export page lists figure kinds by section, and the recordings, all ticked",
+                   len(sections) >= 2 and dialog.everything_chosen()
+                   and dialog.recordings.count() == len(viewer._service.ctx.recordings)
+                   and dialog.export_button.isEnabled(), str(sections)))
+    dialog._set_figures(False)
+    checks.append(("Deselect all leaves nothing to export, and Export greys out",
+                   not dialog.chosen_figures() and not dialog.export_button.isEnabled()
+                   and "Nothing" in dialog.summary.text(), dialog.summary.text()))
+    dialog._set_figures(True)
+    dialog._set_recordings(False)
+    across = [job for job in dialog.chosen_jobs()]
+    checks.append(("with no recordings, only figures across recordings remain",
+                   all(job.recording is None for job in across), str(len(across))))
+    dialog._set_figures(False)
+    section = dialog.figures.topLevelItem(0)
+    one = section.child(0)
+    one.setCheckState(0, Qt.CheckState.Checked)
+    first = dialog.recordings.item(0)
+    first.setCheckState(Qt.CheckState.Checked)
+    kind = one.data(0, Qt.ItemDataRole.UserRole)
+    checks.append(("ticking one figure kind and one recording narrows it to those",
+                   dialog.chosen_figures() == {kind} and dialog.chosen_recordings() == {first.text()}
+                   and not dialog.everything_chosen() and dialog.export_button.isEnabled()
+                   and section.checkState(0) == Qt.CheckState.PartiallyChecked,
+                   dialog.summary.text()))
+    wanted = dialog.chosen_jobs()
+    narrow = tmp / "narrow"
+    viewer.export("png", narrow, figures=dialog.chosen_figures(),
+                  recordings=dialog.chosen_recordings())
+    for _ in range(3000):
+        _wait(100)
+        if not viewer.exporting:
+            break
+    narrowed = getattr(viewer, "last_export", None)
+    checks.append(("and the export draws only those",
+                   narrowed is not None and 0 < narrowed.figures < result.figures
+                   and all(job.recording in (None, first.text()) for job in wanted),
+                   f"{narrowed and narrowed.figures} of {result and result.figures}"))
+    dialog.close()
     viewer.close()
     return checks
 

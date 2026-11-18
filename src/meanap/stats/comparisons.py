@@ -175,6 +175,104 @@ def _fit_mixedlm(data: pd.DataFrame, formula: str, groups: pd.Series, *, reml: b
     return None
 
 
+class RandomInterceptFit:
+    """A fitted ``y ~ X + (1|group)`` model, with the attributes the rows read.
+
+    ``params``/``bse``/``tvalues``/``pvalues`` are Series by term name, as a
+    statsmodels result's are, and :meth:`wald_test` answers the same joint
+    question. Wald z-tests, as statsmodels' MixedLM reports them.
+    """
+
+    def __init__(self, names, beta, cov, group_var, resid_var):
+        from scipy import stats as _stats
+
+        self.params = pd.Series(beta, index=names)
+        self._cov = cov
+        self.bse = pd.Series(np.sqrt(np.clip(np.diag(cov), 0, None)), index=names)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            self.tvalues = self.params / self.bse
+        self.pvalues = pd.Series(2 * _stats.norm.sf(np.abs(self.tvalues)), index=names)
+        #: The culture and residual variances (REML).
+        self.group_var, self.resid_var = float(group_var), float(resid_var)
+
+    def wald_test(self, constraint, scalar=True):
+        from types import SimpleNamespace
+
+        from scipy import stats as _stats
+
+        R = np.atleast_2d(np.asarray(constraint, dtype=float))
+        Rb = R @ self.params.to_numpy()
+        stat = float(Rb @ np.linalg.solve(R @ self._cov @ R.T, Rb))
+        return SimpleNamespace(statistic=stat, pvalue=float(_stats.chi2.sf(stat, R.shape[0])))
+
+
+def _fit_random_intercept(data: pd.DataFrame, formula: str, groups: pd.Series):
+    """REML fit of a model with one random intercept per group — exactly, and fast.
+
+    The same model ``smf.mixedlm(formula, data, groups)`` fits, but solved the
+    way a single random intercept allows: with the variance ratio
+    λ = σ²_culture / σ²_residual fixed, transforming each culture's rows by
+    ``y − θ·mean(y)``, ``θ = 1 − 1/√(1 + nλ)``, whitens them, so the fixed
+    effects are ordinary least squares on the transformed rows and the REML
+    likelihood is closed-form. What is left is a one-dimensional search over λ.
+    statsmodels' general optimiser walks every culture in Python at every step
+    and took ~0.16 s a fit on the Yin timecourse; this takes about a
+    millisecond, which is what lets the viewer refit as covariates change.
+    Agrees with statsmodels to within its optimiser's tolerance.
+
+    ``None`` when the design is rank-deficient.
+    """
+    import patsy
+    from scipy.optimize import minimize_scalar
+
+    try:
+        y, X = patsy.dmatrices(formula, data, return_type="dataframe", NA_action="drop")
+    except Exception:
+        return None
+    names = list(X.columns)
+    yv, Xv = y.to_numpy(float).ravel(), X.to_numpy(float)
+    codes, _ = pd.factorize(pd.Series(np.asarray(groups), index=data.index).loc[y.index])
+    n_obs, n_par = Xv.shape
+    if n_obs <= n_par + 1 or np.linalg.matrix_rank(Xv) < n_par:
+        return None
+    n_i = np.bincount(codes).astype(float)
+    ybar = np.bincount(codes, weights=yv) / n_i
+    Xbar = np.stack([np.bincount(codes, weights=Xv[:, j]) / n_i for j in range(n_par)], axis=1)
+
+    def solve(lam):
+        theta = (1.0 - 1.0 / np.sqrt(1.0 + n_i * lam))[codes]
+        ys = yv - theta * ybar[codes]
+        Xs = Xv - theta[:, None] * Xbar[codes]
+        XtX = Xs.T @ Xs
+        beta = np.linalg.solve(XtX, Xs.T @ ys)
+        rss = float(np.sum((ys - Xs @ beta) ** 2))
+        return beta, rss, XtX
+
+    def criterion(log_lam):
+        lam = np.exp(log_lam)
+        _, rss, XtX = solve(lam)
+        sign, logdet = np.linalg.slogdet(XtX)
+        if sign <= 0 or rss <= 0:
+            return np.inf
+        return ((n_obs - n_par) * np.log(rss) + np.sum(np.log1p(n_i * lam)) + logdet)
+
+    try:
+        best = minimize_scalar(criterion, bounds=(-14.0, 8.0), method="bounded",
+                               options={"xatol": 1e-7})
+        lam = float(np.exp(best.x))
+        # The boundary — no culture variance — is a candidate in its own right.
+        if criterion(-40.0) <= best.fun:
+            lam = 0.0
+        beta, rss, XtX = solve(lam)
+    except (np.linalg.LinAlgError, ValueError):
+        return None
+    resid_var = rss / (n_obs - n_par)
+    cov = resid_var * np.linalg.inv(XtX)
+    if not np.all(np.isfinite(cov)):
+        return None
+    return RandomInterceptFit(names, beta, cov, lam * resid_var, resid_var)
+
+
 def _fit_cluster_ols(data: pd.DataFrame, formula: str, groups: pd.Series):
     """Ordinary least squares with standard errors clustered by culture.
 
@@ -198,7 +296,14 @@ def _fit_cluster_ols(data: pd.DataFrame, formula: str, groups: pd.Series):
 
 
 def _fit_with_fallback(data: pd.DataFrame, formula: str, groups: pd.Series):
-    """``(fit, test_name, note)`` — a mixed model if possible, clustered OLS if not."""
+    """``(fit, test_name, note)`` — a mixed model if possible, clustered OLS if not.
+
+    The exact random-intercept solver first (:func:`_fit_random_intercept`),
+    statsmodels' general one if the design defeats it, clustered OLS last.
+    """
+    fit = _fit_random_intercept(data, formula, groups)
+    if fit is not None:
+        return fit, "LME", ""
     fit = _fit_mixedlm(data, formula, groups)
     if fit is not None:
         return fit, "LME", ""
@@ -233,16 +338,25 @@ def _wald_joint(result, terms: list[str]) -> tuple[float, float]:
 
 # ── the analyses ─────────────────────────────────────────────────────────────
 
-def _model_rows(ds: StatsDataset, metric: str, lag, rows: list[dict], models: dict) -> None:
+def _model_rows(ds: StatsDataset, metric: str, lag, rows: list[dict], models: dict,
+                covariates: dict[str, str] | None = None) -> None:
     """Mixed-effects age and genotype effects for one metric.
 
     Fits ``metric ~ age + genotype + (1|culture)`` and, when both factors vary,
     the interaction model as well, reporting: the age slope, each genotype
     contrast against the reference level, the joint genotype effect, and the
     interaction LRT.
+
+    *covariates* (``{column: name}``, columns already in ``ds.table`` and
+    already transformed) are added to the model, which then estimates the age
+    and genotype effects holding them fixed (:mod:`meanap.stats.adjustment`).
+    Each covariate's own coefficient is reported as a ``"covariate <name>"``
+    row in family ``"covariate"``, so it does not join the effects' FDR
+    family. The interaction is not fitted under adjustment.
     """
+    covariates = covariates or {}
     label = ds.label(metric)
-    cols = [metric, ds.age_col, ds.group_col, ds.culture_col]
+    cols = [metric, ds.age_col, ds.group_col, ds.culture_col, *covariates]
     data = ds.table[cols].copy()
     data[metric] = pd.to_numeric(data[metric], errors="coerce")
     data = data.replace([np.inf, -np.inf], np.nan).dropna()
@@ -277,6 +391,9 @@ def _model_rows(ds: StatsDataset, metric: str, lag, rows: list[dict], models: di
     if not terms:
         blank("LME", "age", "only one age and one group present")
         return
+    # A covariate that is not numeric (a batch, a plate) enters as a factor.
+    terms += [c if pd.api.types.is_numeric_dtype(data[c]) else f"C({c})"
+              for c in covariates]
 
     formula = "_y ~ " + " + ".join(terms)
     fit, test_name, note = _fit_with_fallback(data, formula, data[ds.culture_col])
@@ -316,7 +433,17 @@ def _model_rows(ds: StatsDataset, metric: str, lag, rows: list[dict], models: di
                      "Statistic": stat, "PValue": pval,
                      "EffectSizeName": "chi-square"})
 
-    if n_ages > 1 and n_groups > 1:
+    for column, name in covariates.items():
+        if column in fit.params.index:
+            rows.append({**base, "Family": "covariate", "Test": test_name,
+                         "Term": f"covariate {name}",
+                         "Estimate": float(fit.params[column]),
+                         "Statistic": float(fit.tvalues[column]),
+                         "PValue": float(fit.pvalues[column]),
+                         "EffectSize": float(fit.params[column]),
+                         "EffectSizeName": "standardised beta"})
+
+    if n_ages > 1 and n_groups > 1 and not covariates:
         # Whether the groups age *differently* is a joint test that every
         # age x genotype coefficient is zero. A joint Wald test rather than a
         # likelihood-ratio test so the same test can be reported whether the
