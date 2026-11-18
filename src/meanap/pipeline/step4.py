@@ -577,7 +577,7 @@ def _plot_recording_lag(
                 lag_ms, rec.filename, p,
                 edge_thresh=params.exclude_edges_below_threshold * 0.0001,
                 names=_graph_metric_names(channels_arr, metrics),
-                noun=_node_noun,
+                noun=_node_noun, style=style,
             )
 
     if "Ci" in metrics:
@@ -586,7 +586,7 @@ def _plot_recording_lag(
                 metrics["adjMsub"], metrics["Ci"], metrics["ND"],
                 lag_ms, rec.filename, p,
                 names=_graph_metric_names(channels_arr, metrics),
-                noun=_node_noun,
+                noun=_node_noun, style=style,
             )
 
     try:

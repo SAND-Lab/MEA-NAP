@@ -533,6 +533,8 @@ class StylePanel(QWidget):
         self._form.setContentsMargins(8, 8, 8, 8)
         self._widgets: dict[str, QWidget] = {}
         self._defaults: dict[str, object] = {}
+        #: The controls a circular plot reads (see EDGE_CONTROL_KEYS).
+        self._circular: set[str] = set()
 
     def set_schema(self, schema: list[dict]) -> None:
         while self._form.rowCount():
@@ -571,6 +573,8 @@ class StylePanel(QWidget):
             self._form.addRow(label, widget)
             self._widgets[key] = widget
             self._defaults[key] = default
+            if control.get("circular"):
+                self._circular.add(key)
         reset = QPushButton("Reset to the run's styling")
         reset.clicked.connect(self.reset)
         self._form.addRow(reset)
@@ -582,6 +586,29 @@ class StylePanel(QWidget):
                 widget.setCurrentText(str(self._defaults[key]))
             else:
                 widget.setValue(self._defaults[key])
+            widget.blockSignals(False)
+        self.changed.emit()
+
+    def set_circular(self, circular: bool) -> None:
+        """Show only the controls a circular plot reads, or all of them."""
+        for row in range(self._form.rowCount()):
+            field = self._form.itemAt(row, QFormLayout.ItemRole.FieldRole)
+            widget = field.widget() if field is not None else None
+            key = next((k for k, w in self._widgets.items() if w is widget), None)
+            if key is not None:
+                self._form.setRowVisible(row, not circular or key in self._circular)
+
+    def set_values(self, values: dict) -> None:
+        """Set several controls at once, then say so once."""
+        for key, value in values.items():
+            widget = self._widgets.get(key)
+            if widget is None:
+                continue
+            widget.blockSignals(True)
+            if isinstance(widget, QComboBox):
+                widget.setCurrentText(str(value))
+            else:
+                widget.setValue(value)
             widget.blockSignals(False)
         self.changed.emit()
 
@@ -1099,6 +1126,7 @@ class ResultsViewer(QWidget):
         # The network plot has controls of its own; every other Qt-drawn
         # figure is shown by the one generic canvas.
         self.native = NetworkCanvas()
+        self.native.threshold_picked.connect(self._on_threshold_picked)
         self.canvas = FigureCanvas()
         from meanap.gui.div_montage import DivMontage
 
@@ -2053,6 +2081,11 @@ class ResultsViewer(QWidget):
         self.montage.repaint()
         self._on_painted(time.perf_counter() - started)
 
+    def _on_threshold_picked(self, weight: float) -> None:
+        """The histogram's line was dragged: that weight is the threshold now."""
+        self.style_panel.set_values({"edge_threshold_method": "Absolute value",
+                                     "edge_threshold": float(weight)})
+
     def _place_styling(self) -> None:
         """Offer the styling panel on network plots only; show it when asked.
 
@@ -2089,11 +2122,13 @@ class ResultsViewer(QWidget):
         if isinstance(live.figure, NativeFigure):
             import time
 
-            # Networks, spatial or circular, share a canvas; only the spatial
-            # ones have styling to offer.
+            # Networks, spatial or circular, share a canvas; the circular ones
+            # offer only the edge styling (they place, size and colour their
+            # nodes by what they show).
             network = hasattr(live.figure.painter, "node_at")
             canvas = self.native if network else self.canvas
-            self._styleable = live.figure.kind == "network"
+            self._styleable = live.figure.kind in ("network", "circular")
+            self.style_panel.set_circular(live.figure.kind == "circular")
             self._place_styling()
             item = self.figures.currentItem()
             key = (self.recordings.currentRow(), self._identity(item.data(0, _REQUEST_ROLE)),

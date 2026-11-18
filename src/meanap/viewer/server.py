@@ -709,6 +709,37 @@ class ViewerService:
         )
         return path
 
+    def edge_histogram(self, recording: str, lag: int, name: str, *,
+                       overrides: dict, variant: str = "plain") -> dict:
+        """Where a network figure's edge-weight histogram sits, for dragging.
+
+        ``{"histogram": None}`` when the figure has none (every edge drawn at
+        its width, or a figure of two panels). Otherwise the bars' box as
+        fractions of the figure ``[x0, y0, x1, y1]`` and the weights at its two
+        ends: the page maps a drag along it onto a weight with these alone.
+        """
+        from meanap.native import output
+        from meanap.viewer.live import live_figure
+
+        live = live_figure(self, "network", recording, name, lag=lag,
+                           overrides=overrides or None, variant=variant)
+        painter = getattr(live.figure, "painter", None)
+        if painter is None or not getattr(painter, "has_histogram", False):
+            return {"histogram": None}
+        output.render_image(painter)          # lays the key out, placing the bars
+        box = painter.histogram_rect
+        if box is None:
+            return {"histogram": None}
+        width, height = painter.size
+        low, high = painter.histogram_range
+        return {"histogram": {
+            "rect": [box.left() / width, box.top() / height,
+                     box.right() / width, box.bottom() / height],
+            "low": float(low), "high": float(high),
+            "cutoff": float(painter.scene.edge_cutoff),
+            "weights": len(painter.scene.all_edge_weight),
+        }}
+
     def activity_figure(self, recording: str, name: str, *,
                         fmt: str, overrides: dict) -> Path:
         """One step-2 activity figure. Cached like the network ones."""
@@ -865,6 +896,11 @@ class _Handler(BaseHTTPRequestHandler):
                 self._json(self.service.manifest())
             elif parsed.path == "/api/figure":
                 self._figure(query)
+            elif parsed.path == "/api/edgehistogram":
+                self._json(self.service.edge_histogram(
+                    _one(query, "rec"), int(_one(query, "lag")), _one(query, "name"),
+                    overrides=parse_overrides(query, self.service.run_style()),
+                    variant=query.get("variant", ["plain"])[0]))
             elif parsed.path == "/api/activity":
                 self._activity(query)
             elif parsed.path == "/api/spikecheck":

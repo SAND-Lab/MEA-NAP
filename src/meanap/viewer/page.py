@@ -175,6 +175,14 @@ PAGE_HTML = r"""<!doctype html>
     flex-direction: column; }
   #single img, #pair img { flex: 0 1 auto; min-height: 0;
     align-self: flex-start; object-fit: contain; }
+  #single { position: relative; }
+  #single img.cuttable { touch-action: none; }
+  /* The threshold being dragged on a network's edge-weight histogram. */
+  #cut-line { position: absolute; width: 2px; background: #d62728;
+    pointer-events: none; }
+  #cut-label { position: absolute; font-size: 12px; background: var(--panel);
+    color: var(--fg); padding: 1px 4px; border: 1px solid #d62728;
+    border-radius: 3px; pointer-events: none; white-space: nowrap; }
   .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
          margin-bottom: 14px; }
   .row button { width: auto; }
@@ -348,6 +356,7 @@ does not have MEA-NAP installed.">Export output folder</button>
   </div>
   <div class="err" id="error"></div>
   <figure id="single"><img id="figure-img" alt="">
+    <div id="cut-line" class="hidden"></div><div id="cut-label" class="hidden"></div>
     <figcaption id="figure-caption" class="sub hidden"></figcaption>
   </figure>
   <div id="pair" class="hidden"></div>
@@ -1357,14 +1366,118 @@ function setMode(kind) {
     for (const id of ["dl-svg", "dl-pdf"]) $(id).classList.add("hidden");
 }
 
+/* ── Dragging the edge threshold ───────────────────────────────────────────
+   A network plot whose key shows the edge-weight histogram can have its
+   threshold dragged there. The server says where the bars are, as fractions
+   of the figure, and the weights at their ends; the line follows the pointer
+   and letting go sets the threshold (as an absolute weight) and redraws. */
+let EDGE_HIST = null;          // {rect, low, high, cutoff} for the figure shown
+let CUTTING = false;
+
+function loadEdgeHistogram() {
+  EDGE_HIST = null;
+  $("figure-img").classList.remove("cuttable");
+  if (VIEW.kind !== "figure") return;
+  const url = figureURL().replace("/api/figure?", "/api/edgehistogram?");
+  const asked = url;
+  getJSON(url).then(j => {
+    if (figureURL().replace("/api/figure?", "/api/edgehistogram?") !== asked) return;
+    EDGE_HIST = j.histogram;
+    $("figure-img").classList.toggle("cuttable", !!EDGE_HIST);
+  }).catch(() => { EDGE_HIST = null; });
+}
+
+/** The drawn picture's box inside the <img> (object-fit: contain letterboxes). */
+function pictureBox(img) {
+  const r = img.getBoundingClientRect();
+  const nw = img.naturalWidth || 1, nh = img.naturalHeight || 1;
+  const k = Math.min(r.width / nw, r.height / nh);
+  const w = nw * k, h = nh * k;
+  return {left: r.left + (r.width - w) / 2, top: r.top + (r.height - h) / 2, width: w, height: h};
+}
+
+/** The histogram's bars in client pixels, or null. */
+function histBox() {
+  if (!EDGE_HIST) return null;
+  const b = pictureBox($("figure-img")), [x0, y0, x1, y1] = EDGE_HIST.rect;
+  return {left: b.left + x0 * b.width, right: b.left + x1 * b.width,
+          top: b.top + y0 * b.height, bottom: b.top + y1 * b.height};
+}
+
+function onHist(e, slop = 6) {
+  const h = histBox();
+  return h && e.clientX >= h.left - slop && e.clientX <= h.right + slop
+           && e.clientY >= h.top - slop && e.clientY <= h.bottom + slop;
+}
+
+function weightAt(clientX) {
+  const h = histBox();
+  const t = Math.min(1, Math.max(0, (clientX - h.left) / (h.right - h.left)));
+  return EDGE_HIST.low + t * (EDGE_HIST.high - EDGE_HIST.low);
+}
+
+function showCut(clientX) {
+  const h = histBox(), host = $("single").getBoundingClientRect();
+  const x = Math.min(h.right, Math.max(h.left, clientX));
+  const line = $("cut-line"), label = $("cut-label");
+  line.style.left = (x - host.left - 1) + "px";
+  line.style.top = (h.top - host.top - 6) + "px";
+  line.style.height = (h.bottom - h.top + 10) + "px";
+  label.textContent = "≥ " + weightAt(clientX).toPrecision(3);
+  label.style.left = (x - host.left + 4) + "px";
+  label.style.top = (h.bottom - host.top + 4) + "px";
+  line.classList.remove("hidden"); label.classList.remove("hidden");
+}
+
+function hideCut() {
+  $("cut-line").classList.add("hidden"); $("cut-label").classList.add("hidden");
+}
+
+function setupThresholdDrag() {
+  const img = $("figure-img");
+  img.addEventListener("pointermove", e => {
+    if (CUTTING) { showCut(e.clientX); return; }
+    const on = VIEW.kind === "figure" && onHist(e);
+    img.style.cursor = on ? "ew-resize" : "";
+    img.title = on ? "Drag to set the edge threshold" : "";
+  });
+  img.addEventListener("pointerdown", e => {
+    if (VIEW.kind !== "figure" || !onHist(e)) return;
+    e.preventDefault();
+    CUTTING = true;
+    img.setPointerCapture(e.pointerId);
+    showCut(e.clientX);
+  });
+  const finish = e => {
+    if (!CUTTING) return;
+    CUTTING = false;
+    const weight = weightAt(e.clientX);
+    $("ctl-edge_threshold_method").value = "Absolute value";
+    $("ctl-edge_threshold").value = weight.toFixed(3);
+    showFigure();
+  };
+  img.addEventListener("pointerup", finish);
+  img.addEventListener("pointercancel", () => { CUTTING = false; hideCut(); });
+}
+
+/** A circular plot places, sizes and colours its own nodes: only the edge
+ *  controls apply to it, so only they are shown beside one. */
+function scopeControls() {
+  const circular = VIEW.kind === "figure" && /_circular_/.test(VIEW.name || "");
+  for (const c of MANIFEST.controls) {
+    const el = $("ctl-" + c.key);
+    if (el) el.parentElement.classList.toggle("hidden", circular && !c.circular);
+  }
+}
+
 function showFigure() {
   if (!["activity", "spikecheck", "edgecheck", "subnetwork", "trace", "stim"].includes(VIEW.kind))
     VIEW.kind = "figure";
-  setMode(VIEW.kind); markCurrent();
+  setMode(VIEW.kind); markCurrent(); scopeControls();
   $("error").textContent = "";
   $("status").textContent = "rendering…";
   const img = $("figure-img");
-  img.onload = () => { $("status").textContent = VIEW.name; };
+  img.onload = () => { $("status").textContent = VIEW.name; hideCut(); loadEdgeHistogram(); };
   img.onerror = () => {
     $("status").textContent = "";
     $("error").textContent = "Could not render this figure.";
@@ -3087,6 +3200,7 @@ function download(fmt) {
   // A viewer opened on a folder has nothing to export: it is already one.
   $("export").classList.toggle("hidden", !MANIFEST.can_export);
   buildControls();
+  setupThresholdDrag();
   buildComparisonControls();
   fillRecordings();
   fillComparisonFamilies();

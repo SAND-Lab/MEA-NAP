@@ -93,16 +93,71 @@ class NetworkScene:
     inactive_xy: np.ndarray = field(default_factory=lambda: np.empty((0, 2)))
     #: Their diameter, in data units: a fraction of the electrode pitch.
     inactive_diameter: float = 0.0
+    #: (E,) edges below the threshold, drawn as hairlines only to show the
+    #: threshold's effect ("Hairlines"); ``None`` when there are none.
+    edge_faint: np.ndarray | None = None
+    #: Every edge weight between two drawn nodes, threshold or not, ascending:
+    #: what the edge-weight histogram counts. Empty where there is none.
+    all_edge_weight: np.ndarray = field(default_factory=lambda: np.empty(0))
+    #: The weight at and above which edges are drawn (the threshold, or the
+    #: weakest edge a cap on the edge count kept).
+    edge_cutoff: float = 0.0
 
     @property
     def segments(self) -> np.ndarray:
         """(E, 2, 2) the two end points of each edge."""
         return self.xy[self.edge_nodes] if len(self.edge_nodes) else np.zeros((0, 2, 2))
 
+    @property
+    def shown(self) -> np.ndarray:
+        """(E,) the edges that are part of the network shown: not the hairlines
+        standing in for edges below the threshold."""
+        if self.edge_faint is None:
+            return np.ones(len(self.edge_nodes), dtype=bool)
+        return ~self.edge_faint
+
     def neighbours(self, node: int) -> np.ndarray:
         """The nodes joined to *node* by an edge."""
-        touching = (self.edge_nodes == node).any(axis=1)
+        touching = (self.edge_nodes == node).any(axis=1) & self.shown
         return np.setdiff1d(np.unique(self.edge_nodes[touching]), [node])
+
+
+def _edge_selection(adj: np.ndarray, row: np.ndarray, edge_thresh: float,
+                    histogram_adj: np.ndarray | None, below_threshold_edges: str):
+    """Which edges a network scene draws, weakest first.
+
+    One edge per pair (the stronger direction, should the two differ), between
+    two drawn nodes (``row >= 0``). Returns ``(a, b, w, faint, all_weights,
+    cutoff)``: the edges' end rows and weights; which of them are below the
+    threshold and drawn only as hairlines; every weight the edge-weight
+    histogram counts, ascending (from *histogram_adj* where a cap on the edge
+    count has thinned *adj*); and the weight at and above which edges are drawn.
+    """
+    n = len(adj)
+    pair = np.fmax(adj, adj.T)
+    a, b = np.triu_indices(n, k=1)
+    w = pair[a, b]
+    between = (row[a] >= 0) & (row[b] >= 0)
+    hist_pair = pair if histogram_adj is None else np.fmax(
+        np.asarray(histogram_adj, dtype=float), np.asarray(histogram_adj, dtype=float).T)
+    every = hist_pair[a, b][between]
+    all_weights = np.sort(every[np.isfinite(every) & (every > 0)])
+    above = (w > 0) & (w >= edge_thresh) & between
+    cutoff = float(edge_thresh)
+    if above.any() and int((all_weights >= cutoff).sum()) > int(above.sum()):
+        # A cap on the edge count removed edges the threshold would keep: that
+        # is a threshold too, at the weakest edge kept.
+        cutoff = max(cutoff, float(w[above].min()))
+    if below_threshold_edges == "Hairlines":
+        below = np.isfinite(hist_pair[a, b]) & (hist_pair[a, b] > 0) & between & ~above
+        keep = above | below
+        w = np.where(above, w, hist_pair[a, b])
+    else:
+        keep = above
+    faint = ~above[keep]
+    a, b, w = a[keep], b[keep], w[keep]
+    order = np.argsort(w, kind="stable")            # weakest first: drawn underneath
+    return a[order], b[order], w[order], faint[order], all_weights, cutoff
 
 
 def network_scene(
@@ -132,8 +187,20 @@ def network_scene(
     node_scaling_power: float = 1.0,
     colormap: str = "viridis",
     inactive_xy: np.ndarray | None = None,
+    edge_scaling_method: str = "Linear",
+    edge_scaling_power: float = 1.0,
+    below_threshold_edges: str = "Hidden",
+    histogram_adj: np.ndarray | None = None,
 ) -> NetworkScene:
     """Lay a network out for drawing. Parameters are ``plot_network``'s.
+
+    ``edge_scaling_method`` / ``edge_scaling_power`` reshape how weight maps
+    onto edge width and shade (:func:`meanap.network_plot.scale_edge_position`).
+    ``below_threshold_edges`` is ``"Hidden"`` or ``"Hairlines"``: whether edges
+    under ``edge_thresh`` are left out or drawn as hairlines.
+    ``histogram_adj`` is the matrix whose weights the edge-weight histogram
+    counts, when *adj* has already had edges removed (a cap on how many are
+    drawn); by default *adj* itself.
 
     ``inactive_xy`` are electrodes with no node, drawn as faint dots beneath
     the network and counted into its extent, so the array's shape shows.
@@ -144,7 +211,7 @@ def network_scene(
     import matplotlib
 
     from meanap.network_plot import (
-        _cell_type_styles, _get_node_size, resolve_node_size_scale,
+        _cell_type_styles, _get_node_size, resolve_node_size_scale, scale_edge_position,
     )
 
     adj = np.asarray(adj, dtype=float)
@@ -203,18 +270,14 @@ def network_scene(
 
     def edge_style(weights):
         t = np.clip((np.asarray(weights, dtype=float) - weakest) / edge_range, 0.0, 1.0)
+        t = scale_edge_position(t, edge_scaling_method, edge_scaling_power)
         return min_ew + (max_ew - min_ew) * t, edge_shade(t)
 
     row = np.full(n, -1)
     row[drawn] = np.arange(len(drawn))
-    # One edge per pair: the stronger direction, should the two differ.
-    pair = np.fmax(adj, adj.T)
-    a, b = np.triu_indices(n, k=1)
-    w = pair[a, b]
-    keep = (w > 0) & (w >= edge_thresh) & (row[a] >= 0) & (row[b] >= 0)
-    a, b, w = a[keep], b[keep], w[keep]
-    order = np.argsort(w, kind="stable")            # weakest first: drawn underneath
-    a, b, w = a[order], b[order], w[order]
+    a, b, w, faint, all_edge_weight, cutoff = _edge_selection(
+        adj, row, edge_thresh, histogram_adj, below_threshold_edges)
+    faint_mode = below_threshold_edges == "Hairlines"
     edge_width, edge_grey = edge_style(w)
 
     # ── legends ──────────────────────────────────────────────────────────────
@@ -274,7 +337,9 @@ def network_scene(
         cell_types=types, cell_type_names=list(cell_type_names) if has_types else [],
         cell_type_styles=list(cell_type_styles) if has_types else [],
         node_size_scale=float(node_size_scale), background=background,
-        inactive_xy=inactive, inactive_diameter=float(inactive_d))
+        inactive_xy=inactive, inactive_diameter=float(inactive_d),
+        edge_faint=faint if faint_mode and faint.any() else None,
+        all_edge_weight=all_edge_weight, edge_cutoff=cutoff)
 
 
 @dataclass
@@ -573,15 +638,20 @@ def circular_scene(adj: np.ndarray, colour: np.ndarray, diameter: np.ndarray,
                    size_name: str = "", size_items: list | None = None,
                    category_key: dict | None = None, names: list | None = None,
                    noun: str = "node", min_ew: float = 0.001,
-                   max_ew: float = 2.0) -> NetworkScene:
+                   max_ew: float = 2.0, edge_scaling_method: str = "Linear",
+                   edge_scaling_power: float = 1.0,
+                   below_threshold_edges: str = "Hidden",
+                   histogram_adj: np.ndarray | None = None) -> NetworkScene:
     """A network with its nodes evenly round a circle, in row order.
 
     Port of the ``plotType='circular'`` branch of MATLAB's network plots:
     node ``i`` of ``N`` sits at angle ``-π + 2πi/N``, edges are curved chords,
     weakest drawn first. *colour* (N, 3) and *diameter* (N,) are the caller's —
     by module and degree, or by cartography role — and a node with a diameter
-    of zero is not drawn.
+    of zero is not drawn. The edge options are :func:`network_scene`'s.
     """
+    from meanap.network_plot import scale_edge_position
+
     adj = np.asarray(adj, dtype=float)
     n = len(adj)
     angle = np.linspace(-np.pi, np.pi, n + 1)[:n]
@@ -597,15 +667,12 @@ def circular_scene(adj: np.ndarray, colour: np.ndarray, diameter: np.ndarray,
 
     def edge_style(weights):
         t = (np.asarray(weights, dtype=float) - weakest) / span
+        if edge_scaling_method != "Linear":
+            t = scale_edge_position(t, edge_scaling_method, edge_scaling_power)
         return np.maximum(min_ew + (max_ew - min_ew) * t, min_ew), edge_shade(t)
 
-    pair = np.fmax(adj, adj.T)
-    a, b = np.triu_indices(n, k=1)
-    w = pair[a, b]
-    keep = (w > 0) & (w >= edge_thresh) & (row[a] >= 0) & (row[b] >= 0)
-    a, b, w = a[keep], b[keep], w[keep]
-    order = np.argsort(w, kind="stable")
-    a, b, w = a[order], b[order], w[order]
+    a, b, w, faint, all_edge_weight, cutoff = _edge_selection(
+        adj, row, edge_thresh, histogram_adj, below_threshold_edges)
     width, grey = edge_style(w)
     edge_items = []
     for fraction in (1 / 3, 2 / 3, 1.0):
@@ -624,7 +691,9 @@ def circular_scene(adj: np.ndarray, colour: np.ndarray, diameter: np.ndarray,
         size_name=size_name, size_items=list(size_items or []), edge_items=edge_items,
         colour_key=None, extent=(-1.0, 1.0, -1.0, 1.0),
         edge_arcs=chord_arcs(angle[a], angle[b]) if len(a) else np.zeros((0, 33, 2)),
-        category_key=category_key)
+        category_key=category_key,
+        edge_faint=faint if below_threshold_edges == "Hairlines" and faint.any() else None,
+        all_edge_weight=all_edge_weight, edge_cutoff=cutoff)
 
 
 @dataclass

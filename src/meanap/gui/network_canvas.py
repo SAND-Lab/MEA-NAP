@@ -46,6 +46,8 @@ class _Surface(QWidget):
         self._press: QPointF | None = None
         self._last: QPointF | None = None
         self._dragged = False
+        #: A press on the edge-weight histogram drags the threshold, not the view.
+        self._cutting = False
 
     def sizeHint(self) -> QSize:
         return QSize(960, 760)
@@ -72,15 +74,39 @@ class _Surface(QWidget):
         figure.zoom(WHEEL_STEP ** (event.angleDelta().y() / 120), at.x(), at.y())
         self._canvas._moved()
 
+    @staticmethod
+    def _cutoff_at(figure, at: QPointF) -> float | None:
+        cutoff_at = getattr(figure, "cutoff_at", None)
+        if cutoff_at is None or not getattr(figure, "has_histogram", False):
+            return None
+        return cutoff_at(at.x(), at.y())
+
     def mousePressEvent(self, event) -> None:
         if event.button() == Qt.MouseButton.LeftButton:
             self._press = self._last = event.position()
             self._dragged = False
+            figure = self._canvas.painter
+            value = self._cutoff_at(figure, event.position())
+            self._cutting = value is not None
+            if self._cutting:
+                figure.cutoff_preview = value
+                self.update()
 
     def mouseMoveEvent(self, event) -> None:
         figure, at = self._canvas.painter, event.position()
         if figure is None:
             return
+        if self._cutting:
+            figure.cutoff_preview = figure.weight_at(at.x())
+            self.update()
+            return
+        if self._press is None:
+            on = self._cutoff_at(figure, at) is not None
+            self.setCursor(Qt.CursorShape.SizeHorCursor if on else Qt.CursorShape.ArrowCursor)
+            if on:
+                self._canvas._point(None)
+                QToolTip.showText(QCursor.pos(), "Drag to set the edge threshold", self)
+                return
         if self._press is not None:
             if (at - self._press).manhattanLength() > CLICK_SLOP:
                 self._dragged = True
@@ -100,6 +126,13 @@ class _Surface(QWidget):
             return
         dragged, self._press = self._dragged, None
         figure = self._canvas.painter
+        if self._cutting:
+            self._cutting = False
+            if figure is not None and figure.cutoff_preview is not None:
+                # The line stays where it was let go until the restyled
+                # figure, drawn at that threshold, replaces this one.
+                self._canvas.threshold_picked.emit(float(figure.cutoff_preview))
+            return
         if dragged or figure is None:
             return
         at = event.position()
@@ -132,6 +165,8 @@ class NetworkCanvas(QWidget):
     node_selected = pyqtSignal(object)
     #: A legend heading or the title was clicked: its role (see InfoTargets).
     info_requested = pyqtSignal(str)
+    #: The threshold line on the edge-weight histogram was dragged to a weight.
+    threshold_picked = pyqtSignal(float)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)

@@ -509,6 +509,11 @@ def _style_checks() -> list[Check]:
                 "node scaling method": {"node_scaling_method": "Square"},
                 "min node size": {"min_node_size": 2.0},
                 "edge widths": {"min_edge_width": 2.0, "max_edge_width": 12.0},
+                "edge scaling": {"edge_scaling_method": "Cube"},
+                "edge scaling power": {"edge_scaling_method": "Power",
+                                       "edge_scaling_power": 4.0},
+                "edges below threshold": {"edge_threshold": 0.3,
+                                          "below_threshold_edges": "Hairlines"},
             }
             for label, ov in variants.items():
                 got = render_figure(ctx, "recA", LAG, fig, out / label, overrides=ov)
@@ -522,6 +527,22 @@ def _style_checks() -> list[Check]:
                                    overrides={"inactive_electrodes": "Faint dots"})
             checks.append(("inactive electrodes draw no grid behind cells",
                            _digest(base) == _digest(dotted), ""))
+            # The circular plots read the edge controls, and only those.
+            circ = "6_circular_NetworkPlotNodedegreeModule"
+            circ_base = render_figure(ctx, "recA", LAG, circ, out / "circ")
+            circ_cut = render_figure(ctx, "recA", LAG, circ, out / "circ_cut",
+                                     overrides={"edge_threshold": 0.3})
+            checks.append(("edge threshold restyles the circular plot",
+                           _digest(circ_base) != _digest(circ_cut), ""))
+
+            # Hairlines differ from the same threshold with the edges hidden.
+            cut = render_figure(ctx, "recA", LAG, fig, out / "cut",
+                                overrides={"edge_threshold": 0.3})
+            hair = render_figure(ctx, "recA", LAG, fig, out / "hair",
+                                 overrides={"edge_threshold": 0.3,
+                                            "below_threshold_edges": "Hairlines"})
+            checks.append(("hairlines draw the edges a threshold hides",
+                           _digest(cut) != _digest(hair), ""))
             checks.append(("every style key is covered by a control",
                            STYLE_KEYS <= {k for ov in variants.values() for k in ov}
                            | {"node_scaling_power", "inactive_electrodes"},

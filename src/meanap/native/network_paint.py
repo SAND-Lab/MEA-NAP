@@ -63,6 +63,13 @@ FADED = 0.13
 KEY_SAMPLE_PX = 112
 #: Above this many nodes, names are not drawn — they would be a smear.
 MAX_LABELS = 400
+#: The edge-weight histogram in the key: its bins, bar height, and the shades
+#: of edges drawn at their width, drawn as hairlines, and not drawn.
+HIST_BINS = 40
+HIST_H = 54
+HIST_WIDE = QColor("#3b4049")
+HIST_THIN = QColor("#a3a9b3")
+HIST_HIDDEN = QColor("#dfe2e7")
 
 
 def _grey(value: float, alpha: float = 1.0) -> QColor:
@@ -135,13 +142,49 @@ class NetworkPainter:
             if high > low:
                 self._bins = np.minimum(
                     ((widths - low) / (high - low) * EDGE_GROUPS).astype(int), EDGE_GROUPS - 1)
-        wide = np.ones(count, dtype=bool)
-        if count > WIDE_EDGES:
-            wide[np.argsort(scene.edge_weight, kind="stable")[:-WIDE_EDGES]] = False
+        # Edges below the threshold, where they are drawn at all, are hairlines;
+        # of the rest only the WIDE_EDGES strongest are drawn at their width.
+        shown = scene.shown
+        wide = shown.copy()
+        if int(shown.sum()) > WIDE_EDGES:
+            ranked = np.flatnonzero(shown)[np.argsort(scene.edge_weight[shown], kind="stable")]
+            wide[ranked[:-WIDE_EDGES]] = False
         self._segments = scene.segments
-        self.thin_count = int((~wide).sum())
+        self.thin_count = int((shown & ~wide).sum())
+        #: Edges drawn at their width, and the weakest weight among them.
+        self.wide_count = int(wide.sum())
+        self.wide_from = (float(scene.edge_weight[wide].min()) if wide.any()
+                          else float("inf"))
         self._groups = self._edge_groups(~wide, thin=True) + self._edge_groups(wide)
+        #: The edge-weight histogram's bars as last painted, in pixels, and the
+        #: weights at its two ends: where a drag on it moves the threshold.
+        self.histogram_rect: QRectF | None = None
+        self.histogram_range: tuple[float, float] = (0.0, 1.0)
+        #: A threshold being dragged to, drawn on the histogram in place of the
+        #: one the scene was drawn at; ``None`` when nothing is being dragged.
+        self.cutoff_preview: float | None = None
         self.fit()
+
+    @property
+    def has_histogram(self) -> bool:
+        """Whether the key shows the edge-weight histogram: only when some edge
+        is not drawn at its width — hidden by the threshold or a hairline."""
+        return len(self.scene.all_edge_weight) > self.wide_count
+
+    def cutoff_at(self, x: float, y: float, *, slop: float = 6.0) -> float | None:
+        """The weight a press at (x, y) on the histogram means, or ``None``."""
+        box = self.histogram_rect
+        if box is None or not box.adjusted(-slop, -slop, slop, slop).contains(QPointF(x, y)):
+            return None
+        return self.weight_at(x)
+
+    def weight_at(self, x: float) -> float:
+        """The weight at pixel column *x* of the histogram, clamped to its ends."""
+        box, (low, high) = self.histogram_rect, self.histogram_range
+        if box is None or box.width() <= 0:
+            return low
+        t = float(np.clip((x - box.left()) / box.width(), 0.0, 1.0))
+        return low + t * (high - low)
 
     # ── geometry ─────────────────────────────────────────────────────────────
 
@@ -248,7 +291,7 @@ class NetworkPainter:
         self.selected = node
         self._lit = []
         if node is not None:
-            touching = (self.scene.edge_nodes == node).any(axis=1)
+            touching = (self.scene.edge_nodes == node).any(axis=1) & self.scene.shown
             self._lit = self._edge_groups(touching)
 
     def describe(self, node: int) -> str:
@@ -528,6 +571,9 @@ class NetworkPainter:
             y += 8
 
         heading("Edge weight", "edges")
+        self.histogram_rect = None
+        if self.has_histogram:
+            y = self._paint_histogram(painter, left, right, y, line)
         for label, width_pt, grey in scene.edge_items:
             painter.setPen(_pen(_grey(grey), max(width_pt * PX_PER_POINT, 1.0), round_cap=True))
             painter.drawLine(QPointF(left + 8, y + line / 2), QPointF(left + 52, y + line / 2))
@@ -535,7 +581,7 @@ class NetworkPainter:
             painter.drawText(QRectF(left + 66, y, right - left - 66, line),
                              Qt.AlignmentFlag.AlignVCenter, label)
             y += line + 6
-        if self.thin_count:
+        if self.thin_count and not self.has_histogram:
             note(f"{len(scene.edge_nodes):,} edges. The {WIDE_EDGES:,} strongest are "
                  "drawn at their width, the rest as hairlines.")
         y += 8
@@ -595,6 +641,92 @@ class NetworkPainter:
                                  Qt.AlignmentFlag.AlignVCenter, str(name))
                 y += line + 6
             note("bright ring = positive, faint = negative")
+
+
+    def _paint_histogram(self, painter: QPainter, left: float, right: float, y: float,
+                         line: float) -> float:
+        """The edge-weight histogram, shaded by how each weight is drawn, with
+        the threshold on it. Returns the height reached."""
+        scene = self.scene
+        weights = scene.all_edge_weight
+        low, high = float(weights[0]), float(weights[-1])
+        if high <= low:
+            high = low + 1e-9
+        cutoff = scene.edge_cutoff if self.cutoff_preview is None else self.cutoff_preview
+        faint = scene.edge_faint is not None
+        drawn_from = scene.edge_cutoff
+        wide_from = max(self.wide_from, drawn_from)
+        if self.cutoff_preview is not None:
+            # Shade as the figure will be drawn at the line being dragged.
+            drawn_from = cutoff
+            above = weights[np.searchsorted(weights, cutoff, side="left"):]
+            wide_from = max(float(above[-WIDE_EDGES]) if len(above) > WIDE_EDGES
+                            else cutoff, cutoff)
+
+        bars = QRectF(left + 4, y + 26, right - left - 10, HIST_H)
+        self.histogram_rect, self.histogram_range = QRectF(bars), (low, high)
+        counts, edges = np.histogram(weights, bins=HIST_BINS, range=(low, high))
+        peak = np.log10(1.0 + max(int(counts.max()), 1))
+        step = bars.width() / HIST_BINS
+        for k, c in enumerate(counts.tolist()):
+            if not c:
+                continue
+            centre = 0.5 * (edges[k] + edges[k + 1])
+            if centre < drawn_from:
+                colour = HIST_THIN if faint else HIST_HIDDEN
+            elif centre < wide_from:
+                colour = HIST_THIN
+            else:
+                colour = HIST_WIDE
+            h = max(bars.height() * np.log10(1.0 + c) / peak, 1.0)
+            painter.fillRect(QRectF(bars.left() + k * step, bars.bottom() - h,
+                                    max(step - 0.6, 0.6), h), colour)
+        painter.setPen(_pen(MUTED, 1.0))
+        painter.drawLine(bars.bottomLeft(), bars.bottomRight())
+
+        # The threshold: a line to drag, and what it leaves drawn.
+        at = bars.left() + float(np.clip((cutoff - low) / (high - low), 0, 1)) * bars.width()
+        painter.setPen(_pen(SELECTED, 2.0))
+        painter.drawLine(QPointF(at, bars.top() - 4), QPointF(at, bars.bottom() + 3))
+        painter.setBrush(SELECTED)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.drawPolygon(QPolygonF([QPointF(at - 5, bars.top() - 10),
+                                       QPointF(at + 5, bars.top() - 10),
+                                       QPointF(at, bars.top() - 3)]))
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        kept = int(len(weights) - np.searchsorted(weights, cutoff, side="left"))
+        small = figure_font(10)
+        painter.setFont(small)
+        painter.setPen(INK)
+        painter.drawText(QRectF(left, y, right - left, 14),
+                         Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
+                         f"All {kept:,} edges drawn" if kept == len(weights)
+                         else f"≥ {cutoff:.3g}: {kept:,} of {len(weights):,} drawn")
+        painter.setPen(MUTED)
+        below = QRectF(bars.left(), bars.bottom() + 2, bars.width(), 14)
+        painter.drawText(below, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop,
+                         f"{low:.3g}")
+        painter.drawText(below, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignTop,
+                         f"{high:.3g}")
+        painter.drawText(below, Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop,
+                         "count (log)")
+        y = below.bottom() + 4
+
+        # What the shades mean, only those that occur.
+        chips = [(HIST_WIDE, "full width")]
+        if self.thin_count or faint:
+            chips.append((HIST_THIN, "hairline"))
+        if not faint and drawn_from > low:
+            chips.append((HIST_HIDDEN, "hidden"))
+        x = left + 4
+        metrics = QFontMetricsF(small)
+        for colour, text in chips:
+            painter.fillRect(QRectF(x, y + 3, 9, 9), colour)
+            painter.setPen(INK)
+            painter.drawText(QRectF(x + 12, y, 80, 14), Qt.AlignmentFlag.AlignVCenter, text)
+            x += 12 + metrics.horizontalAdvance(text) + 10
+        painter.setFont(figure_font(12))
+        return y + 14 + 8
 
 
 class NetworkPairPainter:

@@ -124,10 +124,13 @@ def plot_spatial_network(
     # NetworkStyle.pipeline_default, which the renderer relies on for parity.
     from meanap.network_plot import NetworkStyle
 
+    histogram_adj = None
     if style is None:
         # No restyling: keep the caller's edge_thresh and coordinates exactly.
         style = NetworkStyle.pipeline_default(node_size_scale)
     else:
+        # The histogram counts every edge, including those a cap removed.
+        histogram_adj = sub
         sub, coords, edge_thresh = style.prepare(sub, coords)
 
     # Drawn by Qt, not matplotlib: the file written here, the figure the
@@ -150,13 +153,8 @@ def plot_spatial_network(
         z2_bounds_override=z2_bounds_override,
         edge_bounds_override=edge_bounds_override,
         cell_type_matrix=ct_matrix, cell_type_names=ct_names,
-        background=background,
-        node_size_scale=style.node_size_scale,
-        node_scaling_method=style.node_scaling_method,
-        node_scaling_power=style.node_scaling_power,
-        min_node_size=style.min_node_size,
-        min_ew=style.min_edge_width, max_ew=style.max_edge_width,
-        colormap=style.colormap,
+        background=background, histogram_adj=histogram_adj,
+        **style.scene_kwargs(),
     )
     painter = NetworkPainter(scene)
     output.save(painter, out_path, capture=output.NativeFigure("network", scene, painter))
@@ -351,19 +349,16 @@ def plot_spatial_network_combined(
 
     from meanap.network_plot import NetworkStyle
 
+    histogram_adj = None
     if style is None:
         style = NetworkStyle.pipeline_default(node_size_scale)
     else:
+        histogram_adj = sub
         sub, coords, edge_thresh = style.prepare(sub, coords)
 
     styling = dict(
         cell_type_matrix=ct_matrix, cell_type_names=ct_names,
-        node_size_scale=style.node_size_scale,
-        node_scaling_method=style.node_scaling_method,
-        node_scaling_power=style.node_scaling_power,
-        min_node_size=style.min_node_size,
-        min_ew=style.min_edge_width, max_ew=style.max_edge_width,
-        colormap=style.colormap,
+        histogram_adj=histogram_adj, **style.scene_kwargs(),
     )
 
     # No titles: MATLAB builds this figure with copyobj, which drops them.
@@ -569,6 +564,7 @@ def plot_circular_module_network(
     edge_thresh: float = 0.0,
     names: list | None = None,
     noun: str = "node",
+    style: "NetworkStyle | None" = None,
 ) -> None:
     """Circular network plot with nodes colored by module (Ci) and sized by
     node degree (ND).
@@ -630,12 +626,13 @@ def plot_circular_module_network(
     text = [f"node degree: {nd[i]:.4g}"
             + (f"\nmodule: {int(modules[i])}" if not np.isnan(modules[i]) else "")
             for i in range(n)]
+    adj_m_sub, edge_extra = _circular_edges(style, adj_m_sub, edge_thresh)
     scene = circular_scene(
         adj_m_sub, colour, diameter, text, title=_std_title(recording_name, lag_ms),
-        edge_thresh=edge_thresh, size_name="node degree", size_items=size_items,
+        size_name="node degree", size_items=size_items,
         category_key={"name": "module",
                       "items": [(str(int(m)), tuple(module_colour(m))) for m in present]},
-        names=names, noun=noun)
+        names=names, noun=noun, **edge_extra)
     painter = NetworkPainter(scene)
     output.save(painter, out_path, capture=output.NativeFigure("circular", scene, painter))
 
@@ -649,6 +646,7 @@ def plot_circular_cartography_network(
     edge_thresh: float = 0.0,
     names: list | None = None,
     noun: str = "node",
+    style: "NetworkStyle | None" = None,
 ) -> None:
     """Circular network plot with nodes colored by cartography role.
 
@@ -669,15 +667,31 @@ def plot_circular_cartography_network(
     roles = np.asarray(nd_cart_div)
     colour = np.array([_CARTOGRAPHY_COLORS.get(_role(r), (0.5, 0.5, 0.5)) for r in roles])
     text = [f"role: {_CARTOGRAPHY_LABELS.get(_role(r), 'not classified')}" for r in roles]
+    adj_m_sub, edge_extra = _circular_edges(style, adj_m_sub, edge_thresh)
     scene = circular_scene(
         adj_m_sub, colour, np.full(n, (2.0 / 3.0) * spacing), text,
-        title=_std_title(recording_name, lag_ms), edge_thresh=edge_thresh,
+        title=_std_title(recording_name, lag_ms),
         category_key={"name": "cartography role",
                       "items": [(_CARTOGRAPHY_LABELS[r], _CARTOGRAPHY_COLORS[r])
                                 for r in range(1, 7)]},
-        names=names, noun=noun)
+        names=names, noun=noun, **edge_extra)
     painter = NetworkPainter(scene)
     output.save(painter, out_path, capture=output.NativeFigure("circular", scene, painter))
+
+
+def _circular_edges(style, adj: np.ndarray, edge_thresh: float):
+    """``(adj, circular_scene keywords)`` for a circular plot's edges.
+
+    With no style, the plot's own threshold and widths, as the pipeline has
+    always drawn it. With one, its edge cap, threshold and edge styling — never
+    less strict than the plot's own threshold (the cartography plot drops
+    edges below 1e-4 when the run excludes weak edges).
+    """
+    if style is None:
+        return adj, {"edge_thresh": edge_thresh}
+    capped, thresh = style.prepare_edges(adj)
+    return capped, {"edge_thresh": max(float(thresh), float(edge_thresh)),
+                    "histogram_adj": adj, **style.circular_edge_kwargs()}
 
 
 def _role(value):

@@ -376,6 +376,39 @@ EDGE_THRESHOLD_METHODS = [
     "Percentile (nonzero edges)",
 ]
 
+#: How edge weight maps onto edge width and shade: the node-size methods,
+#: applied to where an edge sits between the weakest and strongest weight.
+EDGE_SCALING_METHODS = ["Linear", "Log2", "Log10", "Square", "Cube", "Power"]
+
+#: A circular plot's widest edge, relative to the spatial plots' maximum.
+CIRCULAR_WIDTH_FACTOR = 0.5
+
+#: What happens to an edge below the threshold: left out, or drawn as a
+#: hairline so the threshold thins the picture without emptying it.
+BELOW_THRESHOLD_OPTIONS = ("Hidden", "Hairlines")
+
+
+def scale_edge_position(t, method: str = "Linear", power: float = 1.0) -> np.ndarray:
+    """Reshape *t* (0 weakest – 1 strongest edge) by an edge scaling *method*.
+
+    Every method keeps 0 at 0 and 1 at 1, so the strongest edge is still drawn
+    at the maximum width and the weakest at the minimum. The logs lift the weak
+    end (more of a long-tailed weight distribution is visible); Square, Cube
+    and a power above 1 push it down (only the strong edges stand out).
+    """
+    t = np.clip(np.asarray(t, dtype=float), 0.0, 1.0)
+    if method == "Log2":
+        return np.log2(1.0 + t)
+    if method == "Log10":
+        return np.log10(1.0 + 9.0 * t)
+    if method == "Square":
+        return t ** 2
+    if method == "Cube":
+        return t ** 3
+    if method == "Power":
+        return t ** max(float(power), 1e-6)
+    return t
+
 
 #: ``node_size_scale`` values that are worked out from the node positions.
 #: ``"auto"`` scales nodes to their spacing, larger or smaller (CAT-NAP's
@@ -428,6 +461,26 @@ class NetworkStyle:
     #: network. Only on the electrode layout, and only where electrode
     #: positions are known (an MEA layout, a MaxWell routing).
     inactive_electrodes: str = "Hidden"
+    #: One of :data:`EDGE_SCALING_METHODS`: how weight maps onto edge width.
+    edge_scaling_method: str = "Linear"
+    #: Exponent used when edge scaling is "Power".
+    edge_scaling_power: float = 1.0
+    #: One of :data:`BELOW_THRESHOLD_OPTIONS`.
+    below_threshold_edges: str = "Hidden"
+
+    def scene_kwargs(self) -> dict:
+        """The styling :func:`meanap.native.scene.network_scene` takes from this."""
+        return dict(
+            node_size_scale=self.node_size_scale,
+            node_scaling_method=self.node_scaling_method,
+            node_scaling_power=self.node_scaling_power,
+            min_node_size=self.min_node_size,
+            min_ew=self.min_edge_width, max_ew=self.max_edge_width,
+            colormap=self.colormap,
+            edge_scaling_method=self.edge_scaling_method,
+            edge_scaling_power=self.edge_scaling_power,
+            below_threshold_edges=self.below_threshold_edges,
+        )
 
     @classmethod
     def pipeline_default(cls, node_size_scale: float | str = NODE_SIZE_FIT) -> "NetworkStyle":
@@ -485,6 +538,12 @@ class NetworkStyle:
         the threshold derived *on the subsampled matrix*, then the layout, in
         the order ``PlotIndvNetMet.m`` uses and the viewer panel mirrors.
         """
+        adj, edge_thresh = self.prepare_edges(adj_m)
+        return adj, compute_node_coords(adj, coords, self.layout), edge_thresh
+
+    def prepare_edges(self, adj_m: np.ndarray):
+        """The edge knobs alone: ``(adjM, edge_thresh)``, for a plot that
+        places its nodes itself (the circular plots)."""
         adj = limit_edges_for_plotting(adj_m, self.max_edges)
         percentile_like = self.edge_threshold_method.startswith("Percentile")
         edge_thresh = get_edge_threshold(
@@ -493,7 +552,22 @@ class NetworkStyle:
             threshold=0.0 if percentile_like else self.edge_threshold,
             percentile=self.edge_threshold if percentile_like else 90.0,
         )
-        return adj, compute_node_coords(adj, coords, self.layout), edge_thresh
+        return adj, edge_thresh
+
+    def circular_edge_kwargs(self) -> dict:
+        """The edge styling :func:`meanap.native.scene.circular_scene` takes.
+
+        Circular plots draw their strongest edge at half the spatial plots'
+        width (MATLAB: 2 points, not 4), so the maximum width is halved here:
+        at the defaults the circular plot is as it always was.
+        """
+        return dict(
+            min_ew=self.min_edge_width,
+            max_ew=self.max_edge_width * CIRCULAR_WIDTH_FACTOR,
+            edge_scaling_method=self.edge_scaling_method,
+            edge_scaling_power=self.edge_scaling_power,
+            below_threshold_edges=self.below_threshold_edges,
+        )
 
 
 def limit_edges_for_plotting(

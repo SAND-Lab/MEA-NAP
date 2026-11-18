@@ -494,7 +494,8 @@ STYLE_KEYS = frozenset({
     "max_edges", "edge_threshold_method", "edge_threshold", "layout",
     "node_size_scale", "node_scaling_method", "node_scaling_power",
     "min_node_size", "min_edge_width", "max_edge_width", "colormap",
-    "inactive_electrodes",
+    "inactive_electrodes", "edge_scaling_method", "edge_scaling_power",
+    "below_threshold_edges",
 })
 
 
