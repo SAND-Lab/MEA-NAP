@@ -1,7 +1,8 @@
 """Synthetic spike-sorted recording with light stimulation, for the import tests.
 
 Writes, for one recording, everything a real MaxWell + SpyKING CIRCUS/phy
-dataset has that the import reads — and nothing it does not (no voltage):
+dataset has that the import reads — and nothing it does not (no voltage;
+:func:`write_maxwell_raw` adds some for ``test_maxwell_voltage.py``):
 
 * ``<name>.raw.h5`` — MaxWell legacy layout: routed channels, frame numbers,
   electrode mapping, sampling rate, and a TTL ``bits`` log with a 60 Hz frame
@@ -80,10 +81,22 @@ def _trains(rng: np.random.Generator) -> list[np.ndarray]:
     return trains
 
 
-def _write_raw(path: Path) -> None:
+#: Volts per ADC count the synthetic files record — a real MaxOne's ``lsb``.
+LSB_V = 6.29e-6
+
+
+def write_maxwell_raw(path: Path, fs: float = FS, duration_s: float = DURATION_S,
+                      voltage: np.ndarray | None = None, ttl: bool = True) -> None:
+    """A MaxWell legacy-layout file: metadata, TTLs, and optionally voltage.
+
+    *voltage* is ``(n_routed, n_frames)`` uint16 counts in routed-row order.
+    Real files compress it with MaxWell's filter 401, which needs MaxWell's
+    plugin to write as well as read, so here it is gzip — same chunking
+    (every channel × 200 frames), same dtype, same reader path.
+    """
     import h5py
 
-    n_frames = int(DURATION_S * FS)
+    n_frames = int(duration_s * fs)
     with h5py.File(path, "w") as f:
         f["mxw_version"] = np.array([b"24.1.3"])
         f["version"] = np.array([b"20190530"])
@@ -98,10 +111,20 @@ def _write_raw(path: Path) -> None:
         mapping["channel"], mapping["electrode"] = CHANNELS[order], ELECTRODES[order]
         mapping["x"], mapping["y"] = xy[order, 0], xy[order, 1]
         g["settings/mapping"] = mapping
-        g["settings/sampling"] = np.array([FS])
-        g["settings/lsb"] = np.array([6.29e-6])
+        g["settings/sampling"] = np.array([fs])
+        g["settings/lsb"] = np.array([LSB_V])
         g["settings/gain"] = np.array([512.0])
-        f["bits/0000"] = _ttl_log()
+        if voltage is not None:
+            if voltage.shape != (len(CHANNELS), n_frames):
+                raise ValueError(f"voltage must be {(len(CHANNELS), n_frames)}, got {voltage.shape}")
+            g.create_dataset("groups/routed/raw", data=voltage.astype(np.uint16),
+                             chunks=(len(CHANNELS), 200), compression="gzip")
+        if ttl:
+            f["bits/0000"] = _ttl_log()
+
+
+def _write_raw(path: Path) -> None:
+    write_maxwell_raw(path)
 
 
 def _ttl_log() -> np.ndarray:

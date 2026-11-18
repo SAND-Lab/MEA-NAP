@@ -212,7 +212,9 @@ def test_a_recording_with_no_units_is_skipped_not_fatal(monkeypatch):
                     / f"{fx.NAME}_spikes.npz").exists()
 
 
-def test_from_file_layout_is_refused_up_front_without_an_import():
+def test_from_file_layout_is_refused_up_front_for_the_in_pipeline_sorter():
+    # Detection on a MaxWell file writes the electrode table now
+    # (test_maxwell_voltage.py); the in-pipeline sorter still does not.
     import pytest
 
     from meanap.pipeline.runner import run_pipeline
@@ -222,7 +224,8 @@ def test_from_file_layout_is_refused_up_front_without_an_import():
         pd.DataFrame([{"Recording filename": fx.NAME, "DIV": 10, "Group": "Synth"}]).to_csv(
             sheet, index=False)
         p = Params(raw_data=str(fixture().folder), output_data_folder=d,
-                   spreadsheet_file_name=str(sheet), channel_layout="FromFile")
+                   spreadsheet_file_name=str(sheet), channel_layout="FromFile",
+                   spike_source="sort")
         with pytest.raises(ValueError, match="FromFile"):
             run_pipeline(p, log=lambda m: None)
         # Refused before the run made anything.

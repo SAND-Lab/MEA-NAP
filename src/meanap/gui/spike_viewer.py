@@ -306,8 +306,13 @@ class _LoadRawWorker(_Worker):
         self._source = source
 
     def work(self):
-        dat, channels, fs = load_raw_recording(self._source)
-        return dat.astype(np.float64, copy=False), channels, float(fs)
+        # compact: a MaxWell recording stays as its uint16 counts (a 1012-
+        # channel minute is 2.4 GB that way, 9.7 GB as float64). The viewer
+        # only ever reads columns of it, which those support.
+        dat, channels, fs = load_raw_recording(self._source, compact=True)
+        if isinstance(dat, np.ndarray):
+            dat = dat.astype(np.float64, copy=False)
+        return dat, channels, float(fs)
 
 
 class _LoadSpikesWorker(_Worker):

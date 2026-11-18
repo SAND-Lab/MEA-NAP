@@ -21,6 +21,7 @@ from meanap.pipeline.channel_layout import (
 from meanap.pipeline.io import (
     RAW_EXTENSIONS,
     load_raw_recording,
+    raw_electrode_table,
     save_spike_times_npz,
 )
 from meanap.pipeline.step2 import _run_step2_neuronal_activity
@@ -149,12 +150,14 @@ def run_pipeline(
         raise ValueError("Spreadsheet file must be set")
     if not params.output_data_folder:
         raise ValueError("Output data folder must be set")
-    # FromFile reads the electrode table only an import writes into each spike
-    # file; any other run would get as far as step 2 before finding none.
-    if params.channel_layout == FROM_FILE_LAYOUT and params.spike_source != "import":
+    # FromFile reads the electrode table an import, or step 1 on a MaxWell
+    # recording, writes into each spike file; the in-pipeline sorter writes
+    # none, so that run would get as far as step 2 before finding out.
+    if params.channel_layout == FROM_FILE_LAYOUT and params.spike_source == "sort":
         raise ValueError(
             f"Channel layout {FROM_FILE_LAYOUT!r} is for imported spike-sorted data "
-            "(Spike source: import). Pick the array's layout for this run.")
+            "and for spikes detected on MaxWell recordings, not for the "
+            "in-pipeline sorter. Pick the array's layout for this run.")
     # A Custom layout is its table; a params file written by hand may name
     # only the file it is in. Read it now, so every step has the table.
     if params.channel_layout == CUSTOM_LAYOUT:
@@ -176,6 +179,7 @@ def run_pipeline(
     recordings = read_recording_csv(params.spreadsheet_file_name, params.spreadsheet_range)
     if not recordings:
         raise ValueError("No recordings found in the given spreadsheet range")
+    _check_from_file_layout(params, recordings)
     group_names = sorted({r.group for r in recordings})
 
     from meanap.pipeline.step_times import for_this_computer
@@ -562,6 +566,34 @@ def _describe_environment(params: Params, output_root: Path) -> list[str]:
             versions.append(f"{name} —")
     lines.append(f"  Libraries: {', '.join(versions)}")
     return lines
+
+
+def _check_from_file_layout(params: Params, recordings) -> None:
+    """Refuse FromFile up front for raw files that record no positions.
+
+    Step 1 writes an electrode table only for a format that has one (MaxWell);
+    on anything else FromFile would fail in step 2, after all of step 1. Only
+    local files are looked at — a remote one is checked when step 1 reads it.
+    """
+    if (params.channel_layout != FROM_FILE_LAYOUT or params.spike_source != "detect"
+            or params.start_analysis_step > 1 or not params.raw_data
+            or is_remote_url(params.raw_data)):
+        return
+    from meanap.pipeline.io import find_raw_file
+    from meanap.pipeline.maxwell import is_maxwell_h5
+
+    no_positions = []
+    for rec in recordings:
+        raw = find_raw_file(params.raw_data, rec.filename)
+        if raw is not None and not is_maxwell_h5(raw.path):
+            no_positions.append(raw.path.name)
+    if no_positions:
+        raise ValueError(
+            f"Channel layout {FROM_FILE_LAYOUT!r} takes electrode positions from "
+            "each recording's own file, which only MaxWell recordings (and "
+            "spike-sorted imports) have. These files have none: "
+            f"{', '.join(no_positions[:5])}" + (" …" if len(no_positions) > 5 else "")
+            + ". Pick the array's layout for this run.")
 
 
 def _build_raw_source(params: Params, log):
@@ -953,7 +985,19 @@ def _run_step1_spike_detection(
         # channel, then the checks — rather than only when the whole recording
         # is done, which on a small batch left it on 0% for minutes.
         progress.item_progress(0.0, f"{rec.filename} · loading raw data")
-        dat, channels, fs = load_raw_recording(raw_path)
+        # Detection reads one channel at a time, so it can take a MaxWell
+        # recording as its uint16 counts — half the float32 copy, which on a
+        # 1012-channel file is 2.4 GB a minute saved. The sorter wants a real
+        # array, so it gets one.
+        dat, channels, fs = load_raw_recording(
+            raw_path, compact=params.spike_source == "detect")
+        electrodes = raw_electrode_table(raw_path)
+        if (params.channel_layout == FROM_FILE_LAYOUT and electrodes is None
+                and params.spike_source == "detect"):
+            raise ValueError(
+                f"{rec.filename}: channel layout {FROM_FILE_LAYOUT!r} needs "
+                "electrode positions from the recording's file, and this format "
+                "has none (only MaxWell's records them). Pick the array's layout.")
         progress.item_progress(STEP1_LOADED, f"{rec.filename} · detecting spikes")
         log.detail(f"      {len(channels)} channels, {fs / 1000:g} kHz, "
                    f"{dat.shape[0] / fs:.1f}s "
@@ -1015,7 +1059,7 @@ def _run_step1_spike_detection(
         out_path = spike_dir / f"{rec.filename}_spikes.npz"
         save_spike_times_npz(
             out_path, result.spike_times, channels, fs,
-            duration_s=dat.shape[0] / fs,
+            duration_s=dat.shape[0] / fs, electrodes=electrodes,
         )
         log(f"  [{rec.filename}] saved → {out_path.relative_to(output_root)}")
 

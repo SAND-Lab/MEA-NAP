@@ -325,7 +325,7 @@ to bottom.
 | Field | Description |
 |---|---|
 | **MEA-NAP folder** | Location of your MEA-NAP clone. |
-| **Raw data folder** | Folder containing your recordings, either as `.mat` (v7 or v7.3, holding `dat`/`channels`/`fs`) or as Multi Channel Systems `.h5` straight off the recorder — see [Raw data formats](#raw-data-formats). All recordings for one batch analysis should live in the same folder. |
+| **Raw data folder** | Folder containing your recordings, either as `.mat` (v7 or v7.3, holding `dat`/`channels`/`fs`) as Multi Channel Systems `.h5` straight off the recorder, as Axion `.raw` plates, or as MaxWell `.raw.h5` — see [Raw data formats](#raw-data-formats). All recordings for one batch analysis should live in the same folder. |
 | **Spreadsheet file** | `.csv` or `.xlsx` listing each recording's filename, group, and age/DIV — see [Setting up MEA-NAP](../setting-up-meanap.rst) for the required columns (that guide applies equally to the Python port). |
 | **Spreadsheet range** ⚙ | Which rows of the spreadsheet to read, e.g. `A2:A100000` (1-indexed file lines, header = line 1). |
 | **Custom group order** ⚙ | Optional comma-separated group names (e.g. `WT,KO`) to control display/plot order instead of alphabetical. |
@@ -362,6 +362,7 @@ summary (`Axion64 · 12.5 kHz`):
 |---|---|
 | Multi Channel Systems `.h5` | MCS60 |
 | Axion `.raw` | Axion64, or Axion16 at 16 electrodes per well |
+| MaxWell `.raw.h5` | FromFile (each recording routes its own electrodes) |
 | `.mat` with 16 / 59 or 60 channels | Axion16 / MCS60 (59 is the same array, ground left out) |
 | `.mat` with 64 channels | Axion64 if the corner electrodes (11, 18, 81, 88) carry signal, MCS60 if they are empty |
 
@@ -445,6 +446,7 @@ file, so nothing needs renaming:
 |---|---|
 | **Multi Channel Systems `.h5`** | Read directly, exactly as exported by Multi Channel DataManager. ADC counts are scaled to µV using each channel's `ConversionFactor`/`ADZero`/`Exponent`, the sampling rate comes from `Tick`, and the electrode number is the last part of the channel label (`Ref` becomes electrode 15) — the same arithmetic as `Functions/convertMCSh5toMat.m`, so results are identical to running on the converted `.mat`. |
 | **Axion `.raw`** | Read directly, as exported by AxIS. See [Axion plates](#axion-plates) below — one file holds every well. Samples are scaled to **volts** by the file's own `VoltageScale`, and electrodes are numbered `column * 10 + row`, matching `rawConvertFunc.m`. |
+| **MaxWell `.raw.h5`** | MaxOne (and MaxTwo, untested) recordings, read directly — every routed electrode becomes a channel. Needs MaxWell's HDF5 compression plugin; see [MaxWell recordings](#maxwell-recordings) below. Samples are in **µV**, and channels are named by **electrode number** (0–26399). Python only. |
 | **`.mat` (v7.3)** | HDF5-based MATLAB file holding `dat`, `channels`, `fs`. What the MEA-NAP converters write for recordings over 2 GB. |
 | **`.mat` (v7)** | The older MATLAB format, holding the same variables. What the converters write for smaller recordings. |
 
@@ -483,6 +485,59 @@ for a 5-minute 24-well recording, against roughly 11 GB for MATLAB's
 whole-plate `LoadData`. Naming a `.raw` without a well suffix is an error that
 lists the wells the file actually contains.
 
+(maxwell-recordings)=
+#### MaxWell recordings
+
+A MaxWell `.raw.h5` goes through MEA-NAP's own spike detection like any other
+recording: each routed electrode (typically ~1000 of the 26,400) is a channel,
+and a node in the network steps. Name the recording in the spreadsheet without
+its extension — `Trace_20240101_12_00_00_plate1_baseline` and
+`Trace_…_baseline.raw` both find `Trace_…_baseline.raw.h5`. (To analyse
+units a sorter found instead, see [Importing spike-sorted data](sorted-import.md).)
+
+Settings that must match:
+
+- **Channel layout** → `FromFile`. Which electrodes are recorded changes from
+  one recording to the next, so no fixed layout can place them. Step 1 writes
+  each recording's electrode positions into its spike file, as an import
+  does, and the spatial plots read them from there. MEA-NAP picks `FromFile`
+  itself when the raw data folder holds MaxWell files.
+- **Potential difference unit** → `uV`. Samples are the ADC counts × the
+  file's `settings/lsb` × 10⁶, with no offset subtracted — exactly what
+  SpikeInterface/neo return, so a trace sits at about +3 mV until step 1's
+  band-pass removes that.
+
+**The compression plugin.** MaxWell compresses the voltage with its own HDF5
+filter, so reading it needs MaxWell's plugin (`libcompression.so` on Linux,
+`libcompression.dylib` on macOS, `compression.dll` on Windows). MEA-NAP looks
+in the folders named by `HDF5_PLUGIN_PATH`, then in `~/hdf5_plugin_path_maxwell`.
+It never downloads anything; if the plugin is missing, the run stops with
+instructions. The plugin ships with MaxLab Live, and the `neo` package will
+fetch it into `~/hdf5_plugin_path_maxwell` for you:
+
+```bash
+python -c "from neo.rawio.maxwellrawio import auto_install_maxwell_hdf5_compression_plugin as f; f()"
+```
+
+**Memory.** MEA-NAP holds a whole recording in memory during spike detection,
+and HD-MEA recordings are big. A 1012-electrode MaxOne recording takes 2.4 GB
+per minute: a 5-minute one needs about 12 GB, plus about 0.5 GB per detection
+thread. The file on disk is about 7× smaller than that, because it is
+compressed, so its size does not tell you how much memory it needs. To keep
+memory down:
+
+- the voltage is kept as the file's 16-bit counts and converted to µV one
+  channel at a time, which halves what a float32 copy would take;
+- step 1 runs fewer detection threads when free memory can't hold one per core;
+- a recording that won't fit in free memory is refused before it is read,
+  with how much it needs and how much is free, instead of running the
+  computer into swap.
+
+Recordings are detected one at a time, so a batch never holds more than one.
+On a 4.6-minute, 1012-electrode recording step 1 took about 2 minutes with 8
+detection threads (**Channel workers**). Allow 32 GB or more for recordings
+that long.
+
 ### Recording
 
 Sampling and hardware settings, used during spike detection and for mapping
@@ -494,7 +549,7 @@ it applies.
 | **Sampling frequency** | Shown, not set: read from the recordings (see [Layout from the files](#layout-from-the-files)) and saved with the run's settings for the record. Every step reads each recording's own rate from its file, so a batch recorded at different rates is fine. |
 | **Downsample frequency** ⚙ | Rate used for some plots/metrics that don't need full resolution (e.g. `1000`). |
 | **Potential difference unit** ⚙ | `uV`, `mV`, or `V` — must match your raw data's units. |
-| **Channel layout** | Detected from the recordings, with a note saying so (see [Layout from the files](#layout-from-the-files)). Electrode grid layout: `MCS60`, `Axion64`, `Axion16`, `Custom` (positions from a layout file, see [Custom layouts](#custom-layouts)), or `FromFile` (each recording's own electrode positions, as written by an [import of sorted data](sorted-import.md) — use it for MaxWell HD-MEAs). See [MATLAB vs. Python](matlab-vs-python.md) for which layouts have confirmed coordinate parity. |
+| **Channel layout** | Detected from the recordings, with a note saying so (see [Layout from the files](#layout-from-the-files)). Electrode grid layout: `MCS60`, `Axion64`, `Axion16`, `Custom` (positions from a layout file, see [Custom layouts](#custom-layouts)), or `FromFile` (each recording's own electrode positions, as written by an [import of sorted data](sorted-import.md) or by step 1 on a [MaxWell recording](#maxwell-recordings) — use it for MaxWell HD-MEAs). See [MATLAB vs. Python](matlab-vs-python.md) for which layouts have confirmed coordinate parity. |
 
 ## Spike detection
 

@@ -30,8 +30,9 @@ units exported to a `_spikes.mat` file by hand.
 
 MEA-NAP only reads the **metadata and TTL bits** from a MaxWell `.raw.h5`:
 sampling rate, exact recording length, which electrodes were routed and where
-they sit, and the TTL word. The voltage is never loaded, so it does not matter
-that MaxWell compresses it with a plugin MEA-NAP does not have. Both the
+they sit, and the TTL word. The voltage is never loaded, so an import does not
+need MaxWell's compression plugin. (Running MEA-NAP's own spike detection on
+the voltage does; see [MaxWell recordings](gui-guide.md#maxwell-recordings).) Both the
 classic MaxOne layout (`data_store/data0000`) and the newer
 `recordings/rec0000/well000` layout are read for metadata. TTL events are read
 from the classic layout only for now.

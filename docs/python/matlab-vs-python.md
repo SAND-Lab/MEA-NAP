@@ -120,6 +120,7 @@ extension:
 | Multi Channel Systems `.h5` | `matlab/Functions/convertMCSh5toMat.m` | the `.mat` that converter produces — traces bit-exact |
 | Axion `.raw` | `matlab/Functions/convertRawToMat/rawConvertFunc.m` | Axion's own `AxisFile` MATLAB toolbox — traces bit-exact |
 | `.mat` v7 and v7.3 | — | both read; MATLAB's own loaders |
+| MaxWell `.raw.h5` | none — Python only | SpikeInterface's `read_maxwell` — µV bit-exact, same electrode IDs and positions |
 
 Beyond skipping a slow step, this avoids the storage duplication (a converted
 `.mat` is often larger than the recording it came from) and, for Axion, the
@@ -132,8 +133,8 @@ Two consequences worth knowing:
   them `<file stem>_<well>` in your spreadsheet — the same names
   `rawConvertFunc.m` gives the files it writes, so existing spreadsheets work
   unchanged. See [Axion plates](axion-plates).
-- Units follow the source, as they do after conversion: µV for MCS, volts for
-  Axion. Set **Potential difference unit** accordingly.
+- Units follow the source, as they do after conversion: µV for MCS and
+  MaxWell, volts for Axion. Set **Potential difference unit** accordingly.
 
 MC_Rack `.raw` and `.mcd` still need the MATLAB File Conversion tab.
 

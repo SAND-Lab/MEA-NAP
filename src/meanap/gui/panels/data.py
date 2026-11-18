@@ -204,8 +204,9 @@ class DataPanel(QWidget):
             "each channel in the right place in the spatial plots.\n\n"
             "Custom: your own array, from a CSV of channel, x and y (µm).\n\n"
             "FromFile: each recording's own electrode positions, as an import "
-            "of sorted units writes them — for arrays with no fixed layout, "
-            "such as MaxWell HD-MEAs."
+            "of sorted units, or spike detection on a MaxWell recording, "
+            "writes them — for arrays with no fixed layout, such as MaxWell "
+            "HD-MEAs."
         )
 
         # A custom layout: its file, what was read from it, and a picture.
@@ -302,7 +303,7 @@ class DataPanel(QWidget):
         time a folder is read, its layout goes into the setting, so a run uses
         it without anyone pressing anything; after that a layout the person
         picks is left alone (and flagged if it disagrees). ``FromFile`` is
-        never replaced: it is a deliberate choice for imported sorted units.
+        never replaced: it is a deliberate choice (imported sorted units, or MaxWell).
         """
         from meanap.pipeline.io import RAW_EXTENSIONS
         from meanap.pipeline.recording_probe import detect_layout, probe_folder

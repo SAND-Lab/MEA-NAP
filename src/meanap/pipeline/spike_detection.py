@@ -897,6 +897,32 @@ class SpikeDetectionResult(NamedTuple):
     fs: float
 
 
+#: Peak working memory of one channel's detection, in bytes per sample: the
+#: float64 trace, its filtered copy, and filtfilt's and the CWT's temporaries.
+#: Measured at 90 with the default methods (bior1.5, thr4, thr5) on a 276 s,
+#: 20 kHz MaxOne channel — 0.5 GB a thread — and rounded up.
+_DETECTION_BYTES_PER_SAMPLE = 100
+
+
+def _memory_thread_cap(n_samples: int, max_workers: int | None) -> int | None:
+    """At most as many channel threads as free memory can hold at once.
+
+    Threads share the recording, but each holds its own channel's working
+    copies, and those grow with the recording: harmless for a ten-minute
+    60-channel file, but on a long HD-MEA recording one per core can need
+    more than is left once the recording itself is in memory. Unmeasurable
+    without psutil, in which case nothing is capped.
+    """
+    from meanap.pipeline.parallel import _HAVE_PSUTIL, available_ram_gb
+
+    if not _HAVE_PSUTIL:
+        return max_workers
+    per_thread = max(1, n_samples * _DETECTION_BYTES_PER_SAMPLE)
+    spare = available_ram_gb() * 1e9 - 1e9
+    cap = max(1, int(spare // per_thread))
+    return cap if max_workers is None else min(cap, max_workers)
+
+
 def detect_spikes_recording(
     dat: np.ndarray,
     channels: np.ndarray,
@@ -1064,7 +1090,8 @@ def detect_spikes_recording(
             so_far = done
         progress(so_far, n_channels)
 
-    n_threads = suggest_thread_count(n_channels, max_workers=max_workers)
+    n_threads = suggest_thread_count(
+        n_channels, max_workers=_memory_thread_cap(dat.shape[0], max_workers))
     if n_threads <= 1:
         results = (_process_channel(ch) for ch in range(n_channels))
     else:
