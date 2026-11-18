@@ -262,6 +262,75 @@ def recording_layout(channel_layout: str, spike_data=None
             np.asarray(spike_data["electrode_coords"], dtype=float))
 
 
+def file_node_coords(spike_data, channels=None) -> np.ndarray | None:
+    """Node positions a spike file carries itself, one row per node, or ``None``.
+
+    A sorted file has ``unit_coords`` (units on a ring round their electrode).
+    A detected MaxWell file has only its electrode table, whose rows are the
+    nodes in the file's channel order; *channels*, when given, picks and orders
+    them (a channel the table lacks gets NaN). Any other file has neither, and
+    its nodes are placed by a fixed layout instead.
+    """
+    files = getattr(spike_data, "files", ())
+    if "unit_coords" in files:
+        return np.asarray(spike_data["unit_coords"], dtype=float)
+    if "electrode_ids" not in files or "electrode_coords" not in files:
+        return None
+    ids = np.asarray(spike_data["electrode_ids"]).astype(np.int64)
+    coords = np.asarray(spike_data["electrode_coords"], dtype=float)
+    if channels is None:
+        return coords
+    by_id = {int(c): xy for c, xy in zip(ids, coords)}
+    return np.array([by_id.get(int(c), (np.nan, np.nan))
+                     for c in np.asarray(channels).ravel()], dtype=float).reshape(-1, 2)
+
+
+def all_electrode_coords(channel_layout: str, electrode_coords=None) -> np.ndarray | None:
+    """Every electrode's position, active or not, in drawing units, or ``None``.
+
+    The file's own table (*electrode_coords*) when it has one — a MaxWell
+    routing, a sorted import — otherwise the fixed layout's. ``None`` when
+    neither is known, so callers simply draw no inactive electrodes.
+    """
+    if electrode_coords is not None:
+        xy = np.asarray(electrode_coords, dtype=float).reshape(-1, 2)
+    else:
+        try:
+            _, xy = get_coords_from_layout(channel_layout)
+        except ValueError:
+            return None
+        xy = np.asarray(xy, dtype=float).reshape(-1, 2)
+    return xy[np.all(np.isfinite(xy), axis=1)]
+
+
+def inactive_electrode_coords(electrodes: np.ndarray | None,
+                              node_coords: np.ndarray) -> np.ndarray:
+    """The *electrodes* no drawn node sits on.
+
+    An electrode counts as occupied when a node lies within half an electrode
+    pitch of it, which is exact for detected electrodes (a node *is* its
+    electrode) and holds for sorted units, whose ring round their electrode is
+    smaller than that.
+    """
+    if electrodes is None or len(electrodes) == 0:
+        return np.empty((0, 2))
+    from scipy.spatial import cKDTree
+
+    electrodes = np.asarray(electrodes, dtype=float)
+    nodes = np.asarray(node_coords, dtype=float).reshape(-1, 2)
+    nodes = nodes[np.all(np.isfinite(nodes), axis=1)]
+    if len(electrodes) < 2:
+        pitch = 1.0
+    else:
+        d, _ = cKDTree(electrodes).query(electrodes, k=2)
+        nn = d[:, 1][d[:, 1] > 0]
+        pitch = float(np.median(nn)) if nn.size else 1.0
+    if len(nodes) == 0:
+        return electrodes
+    gap, _ = cKDTree(nodes).query(electrodes, k=1)
+    return electrodes[gap > 0.5 * pitch]
+
+
 def node_distances_in_pitches(
     channel_layout: str,
     channels: np.ndarray,

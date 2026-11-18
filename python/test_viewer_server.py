@@ -91,7 +91,7 @@ def _all_checks() -> list[Check]:
             checks.append(("manifest advertises comparison families",
                            len(man["families"]) >= 2, f"{man['families']}"))
             checks.append(("manifest carries the control schema",
-                           len(man["controls"]) == 12,
+                           len(man["controls"]) == 13,
                            f"{len(man['controls'])}"))
             checks.append(("controls declare kind, default and options",
                            all({"key", "kind", "default", "options"} <= set(c)

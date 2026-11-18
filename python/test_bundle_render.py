@@ -515,9 +515,16 @@ def _style_checks() -> list[Check]:
                 checks.append((f"control changes the figure: {label}",
                                _digest(base) != _digest(got), f"{ov}"))
 
+            # This run is CAT-NAP: cells, not an electrode array, so there is
+            # no grid to show and the option must leave the figure alone.
+            # (Its MEA side is python/test_inactive_electrodes.py.)
+            dotted = render_figure(ctx, "recA", LAG, fig, out / "inactive",
+                                   overrides={"inactive_electrodes": "Faint dots"})
+            checks.append(("inactive electrodes draw no grid behind cells",
+                           _digest(base) == _digest(dotted), ""))
             checks.append(("every style key is covered by a control",
                            STYLE_KEYS <= {k for ov in variants.values() for k in ov}
-                           | {"node_scaling_power"},
+                           | {"node_scaling_power", "inactive_electrodes"},
                            f"{sorted(STYLE_KEYS - {k for ov in variants.values() for k in ov})}"))
             checks.append(("layout options are the viewer's",
                            "Circular" in LAYOUT_OPTIONS

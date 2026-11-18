@@ -90,6 +90,8 @@ def plot_spatial_network(
     background: tuple | None = None,
     node_size_scale: float | str = "fit",
     style: "NetworkStyle | None" = None,
+    node_noun: str | None = None,
+    electrode_coords: np.ndarray | None = None,
 ) -> None:
     """Spatial network plot, port of the base ``2_MEA_NetworkPlot.png`` from
     ``StandardisedNetworkPlot.m`` (reuses ``network_plot.py``'s
@@ -137,10 +139,13 @@ def plot_spatial_network(
     from meanap.native.scene import network_scene
 
     names, noun = _node_names(channels_active, channel_layout, coords_override)
+    noun = node_noun or noun
     scene = network_scene(
         sub, coords, edge_thresh, z_sub, z2_sub, z2_name,
         title=_std_title(recording_name, lag_ms), z_name=z_name,
         names=names, noun=noun,
+        inactive_xy=_inactive_dots(style, channel_layout, electrode_coords,
+                                   coords, coords_override),
         z_scale_override=z_scale_override,
         z2_bounds_override=z2_bounds_override,
         edge_bounds_override=edge_bounds_override,
@@ -206,6 +211,30 @@ def plot_network_beside_field(
     scene = NetworkPairScene(left=field, right=network, left_is_field=True)
     painter = NetworkPairPainter(scene)
     output.save(painter, out_path, capture=output.NativeFigure("field", scene, painter))
+
+
+def _inactive_dots(style, channel_layout: str, electrode_coords, node_coords,
+                   coords_override) -> np.ndarray | None:
+    """The electrodes to draw as faint dots behind the network, or ``None``.
+
+    Only when the style asks for them and nodes sit on the electrode layout. A
+    plot placed from its own positions (``coords_override``) needs the file's
+    electrode table: without it the nodes are cells, not electrodes, and an
+    MEA grid behind them would be invented.
+    """
+    from meanap.network_plot import LAYOUT_OPTIONS
+    from meanap.pipeline.channel_layout import (
+        all_electrode_coords, inactive_electrode_coords,
+    )
+
+    if getattr(style, "inactive_electrodes", "Hidden") != "Faint dots":
+        return None
+    if style.layout != LAYOUT_OPTIONS[0]:
+        return None
+    if coords_override is not None and electrode_coords is None:
+        return None
+    return inactive_electrode_coords(
+        all_electrode_coords(channel_layout, electrode_coords), node_coords)
 
 
 def _node_names(channels_active, channel_layout: str,
@@ -287,6 +316,8 @@ def plot_spatial_network_combined(
     cell_types: tuple[np.ndarray, list[str]] | None = None,
     node_size_scale: float | str = "fit",
     style: "NetworkStyle | None" = None,
+    node_noun: str | None = None,
+    electrode_coords: np.ndarray | None = None,
 ) -> None:
     """Side-by-side "combined" network plot, port of the
     ``N_combined_MEA_NetworkPlot`` figure from ``PlotIndvNetMet.m``.
@@ -341,6 +372,9 @@ def plot_spatial_network_combined(
     from meanap.native.scene import NetworkPairScene, network_scene
 
     names, noun = _node_names(channels_active, channel_layout, coords_override)
+    noun = node_noun or noun
+    styling["inactive_xy"] = _inactive_dots(style, channel_layout, electrode_coords,
+                                            coords, coords_override)
     title = _std_title(recording_name, lag_ms)
     own = network_scene(
         sub, coords, edge_thresh, z_sub, z2_sub, z2_name, z_name=z_name,

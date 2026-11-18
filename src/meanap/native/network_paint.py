@@ -18,7 +18,8 @@ from dataclasses import dataclass, field
 import numpy as np
 from PyQt6.QtCore import QLineF, QPointF, QRectF, Qt
 from PyQt6.QtGui import (
-    QColor, QFontMetricsF, QImage, QLinearGradient, QPainter, QPen, QPolygonF, QTransform,
+    QColor, QFontMetricsF, QImage, QLinearGradient, QPainter, QPainterPath, QPen, QPolygonF,
+    QTransform,
 )
 
 from meanap.native.output import figure_font
@@ -34,6 +35,8 @@ GROUND = QColor("#ffffff")
 INK = QColor("#16181d")
 MUTED = QColor("#6b7280")
 SELECTED = QColor("#d62728")
+#: Electrodes no node sits on, when they are shown.
+INACTIVE = QColor("#c9ced6")
 
 MARGIN = 14
 TITLE_H = 34
@@ -330,6 +333,8 @@ class NetworkPainter:
         if not self.show_network:
             painter.restore()
             return
+        if len(scene.inactive_xy):
+            self._paint_inactive(painter)
 
         chosen = self.selected
         many = len(scene.edge_nodes) > SMOOTH_ALWAYS
@@ -385,6 +390,18 @@ class NetworkPainter:
                                  Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignBottom,
                                  name)
             painter.restore()
+
+    def _paint_inactive(self, painter: QPainter) -> None:
+        """Electrodes no node sits on: faint dots under the edges, one path."""
+        r = self.scene.inactive_diameter / 2
+        path = QPainterPath()
+        for x, y in self.scene.inactive_xy:
+            path.addEllipse(QPointF(float(x), float(y)), r, r)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, not self.moving)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(INACTIVE)
+        painter.drawPath(path)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
 
     def _paint_background(self, painter: QPainter) -> None:
         image, (x0, x1, y0, y1) = self.scene.background
@@ -522,6 +539,20 @@ class NetworkPainter:
             note(f"{len(scene.edge_nodes):,} edges. The {WIDE_EDGES:,} strongest are "
                  "drawn at their width, the rest as hairlines.")
         y += 8
+
+        if len(scene.inactive_xy):
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(INACTIVE)
+            painter.drawEllipse(QPointF(left + 8 + 4, y + line / 2), 4, 4)
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.setPen(INK)
+            flags = int(Qt.AlignmentFlag.AlignLeft | Qt.TextFlag.TextWordWrap)
+            k = len(scene.inactive_xy)
+            text = (f"{k:,} inactive electrode{'s' * (k != 1)}" if scene.noun == "electrode"
+                    else f"{k:,} electrode{'s' * (k != 1)} with no {scene.noun}")
+            box = painter.boundingRect(QRectF(left + 26, y, right - left - 26, 200), flags, text)
+            painter.drawText(box, flags, text)
+            y += max(box.height(), line) + 14
 
         key = scene.colour_key
         if key is not None:

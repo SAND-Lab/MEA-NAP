@@ -165,12 +165,19 @@ def _step3_one_recording(task: tuple[Params, RecordingInfo, str]) -> tuple[str, 
                     f"in {format_elapsed(time.perf_counter() - lag_started)}")
 
     out_path = mat_files_dir / f"{rec.filename}_adjM.npz"
-    # A sorted spike file places its nodes itself (units sit on a ring round
-    # their electrode); carried along so step 4 and the re-renderer can draw
-    # them without going back to the spike file. Detected files have no
-    # ``unit_coords`` and keep drawing from the channel layout.
-    if "unit_coords" in data.files:
-        out_arrays["coords"] = data["unit_coords"]
+    # A file that places its nodes itself — a sorted one (units on a ring round
+    # their electrode) or a detected MaxWell one (its electrode table) — has
+    # those positions carried along, with every electrode it routed, so step 4
+    # and the re-renderer can draw nodes and inactive electrodes without going
+    # back to the spike file. Other detected files keep drawing from the
+    # channel layout.
+    from meanap.pipeline.channel_layout import file_node_coords
+
+    node_coords = file_node_coords(data, data["channels"])
+    if node_coords is not None:
+        out_arrays["coords"] = node_coords
+    if "electrode_coords" in data.files:
+        out_arrays["electrode_coords"] = np.asarray(data["electrode_coords"], dtype=float)
     atomic_savez(out_path, channels=data["channels"], **out_arrays)
     if edge_checks:
         from meanap.pipeline.plotting_step3 import (

@@ -428,6 +428,9 @@ def render_figure(
     params, style = _apply_overrides(ctx.params, overrides)
 
     channels, coords, markers = _recording_arrays(ctx, recording)
+    electrode_coords = None
+    if not getattr(params, "suite2p_mode", False):
+        coords, electrode_coords = _recording_positions(ctx, recording, params, coords)
     background = None
     bg_path = _background_path(ctx, recording)
     if bg_path is not None:
@@ -451,7 +454,7 @@ def render_figure(
             # reading it here sized an *ephys* re-render "auto" when the
             # pipeline had drawn it at 1.0.
             node_size_scale=NetworkStyle.for_run(params).node_size_scale,
-            fmt=fmt, only=wanted, style=style,
+            fmt=fmt, only=wanted, style=style, electrode_coords=electrode_coords,
         )
     if not written:
         raise ValueError(
@@ -491,6 +494,7 @@ STYLE_KEYS = frozenset({
     "max_edges", "edge_threshold_method", "edge_threshold", "layout",
     "node_size_scale", "node_scaling_method", "node_scaling_power",
     "min_node_size", "min_edge_width", "max_edge_width", "colormap",
+    "inactive_electrodes",
 })
 
 
@@ -2265,6 +2269,29 @@ def _render_catnap_raster(
             colormap=params.raster_colormap,
         )
     return out_path
+
+
+def _recording_positions(ctx: RenderContext, recording: str, params, coords):
+    """``(node_coords, electrode_coords)`` for an electrophysiology recording.
+
+    What step 4 draws with (:func:`meanap.pipeline.step4.recording_positions`):
+    the adjacency file's, or, for a MaxWell run whose step 3 stored none, the
+    spike file's — so bundles made before positions were stored redraw too.
+    """
+    from meanap.pipeline.channel_layout import FROM_FILE_LAYOUT, layout_of
+    from meanap.pipeline.step4 import recording_positions
+
+    path = _state_file(ctx.root, recording)
+    if path is None:
+        return coords, None
+    with np.load(path) as adj_data:
+        nodes, electrodes = recording_positions(params, adj_data)
+        if electrodes is None and (nodes is not None or layout_of(params) == FROM_FILE_LAYOUT):
+            spike_path = _spike_file(ctx, recording)
+            if spike_path is not None:
+                with np.load(spike_path, allow_pickle=True) as spike_data:
+                    nodes, electrodes = recording_positions(params, adj_data, spike_data)
+    return (coords if nodes is None else nodes), electrodes
 
 
 def _recording_arrays(ctx: RenderContext, recording: str):
