@@ -126,8 +126,12 @@ def plot_heatmap(
     aggregate: str = "mean",
     layout: tuple[np.ndarray, np.ndarray] | None = None,
     grounded: set[int] | None = None,
+    inactive: bool = False,
 ):
     """Electrode heatmap, port of ``electrodeHeatMaps.m`` / ``plotNodeHeatmap.m``.
+
+    ``inactive`` draws the layout's electrodes that have no value (no unit on
+    them) as faint dots: the viewer's "Inactive electrodes" option.
 
     ``grounded`` is the recording's grounded electrode IDs. They are drawn
     grey, as ``electrodeHeatMaps.m`` draws them, and kept out of the colour
@@ -162,7 +166,8 @@ def plot_heatmap(
 
     scene = heatmap_scene(metric, chs, title, clabel, cmap=cmap,
                           channel_layout=channel_layout, batch_max=batch_max,
-                          aggregate=aggregate, layout=layout, grounded=grounded)
+                          aggregate=aggregate, layout=layout, grounded=grounded,
+                          inactive=inactive)
     if scene is None:
         return
     painter = HeatmapPainter(scene)
@@ -177,8 +182,12 @@ def plot_raster(
     raster_upper_percentile: float = 99.0,
     rec_name: str = "",
     names: list | None = None,
+    order: str = "Recording order",
 ):
     """Two-panel raster, port of ``rasterPlot.m``.
+
+    ``order`` sorts the rows (:mod:`meanap.pipeline.raster_order`); the
+    pipeline draws them in recording order, as MATLAB does.
 
     The time axis is in minutes, as MATLAB's is. Only the axis is rescaled:
     the bins stay one second wide, so each cell is still a count per second
@@ -195,12 +204,14 @@ def plot_raster(
     """
     from meanap.native import output
     from meanap.native.activity_paint import RasterPainter
-    from meanap.native.scene import raster_scene
+    from meanap.native.scene import raster_scene, reorder_raster
 
     scene = raster_scene(spike_times_dict, duration_s, title=_fnt(rec_name),
                          spike_freq_max=spike_freq_max,
                          upper_percentile=raster_upper_percentile,
                          names=names, cmap=parula_85)
+    if order != "Recording order":
+        scene = reorder_raster(scene, order)
     painter = RasterPainter(scene)
     output.save(painter, out_path, capture=output.NativeFigure("raster", scene, painter))
 
@@ -264,8 +275,12 @@ def plot_neuronal_activity_checks(
     fmt: str = "png",
     only: str | None = None,
     layout: tuple[np.ndarray, np.ndarray] | None = None,
+    view: dict | None = None,
 ) -> list[Path]:
     """Draw one recording's step-2 activity figures.
+
+    ``view`` is the viewer's activity options (``inactive_electrodes``,
+    ``raster_order``); absent, the figures are drawn as the pipeline draws them.
 
     ``fmt`` selects the image format (``svg``/``pdf`` give vector output) and
     ``only`` restricts the call to the single figure with that base name — the
@@ -291,6 +306,8 @@ def plot_neuronal_activity_checks(
 
     channel_layout = layout_of(params) or "Axion64"
     bmax = batch_max or {}
+    view = view or {}
+    show_inactive = view.get("inactive_electrodes", "Hidden") == "Faint dots"
 
     if (p := want("1_FiringRateByElectrode.png")) is not None:
         plot_firing_rate_distribution(
@@ -308,7 +325,8 @@ def plot_neuronal_activity_checks(
             plot_heatmap(ephys[key], chs, _fnt(rec.filename), cbar, p, cmap=cmap,
                          channel_layout=channel_layout, batch_max=bmax.get(key), layout=layout,
                          aggregate=_POOL_BY_SUM.get(key, "mean"),
-                         grounded=parse_ground_electrodes(rec.ground))
+                         grounded=parse_ground_electrodes(rec.ground),
+                         inactive=show_inactive)
 
     if (p := want("3_Raster.png")) is not None:
         plot_raster(
@@ -318,6 +336,7 @@ def plot_neuronal_activity_checks(
             rec_name=rec.filename,
             # Row i is channel i; its electrode is named for whoever points at it.
             names=(np.asarray(chs).tolist() if len(chs) == len(spike_times_dict) else None),
+            order=view.get("raster_order", "Recording order"),
         )
 
     if (p := want("8_BurstDetectionInfo.png")) is not None:

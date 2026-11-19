@@ -2195,9 +2195,10 @@ def render_activity_figure(
     from meanap.pipeline.plotting_step2 import plot_neuronal_activity_checks
     from meanap.pipeline.spreadsheet import ground_spike_times_dict, parse_ground_electrodes
 
+    overrides, view = split_activity_view(overrides)
     if ctx.mode == "catnap":
         return _render_catnap_raster(ctx, recording, figure, out_dir,
-                                     fmt=fmt, dpi=dpi, overrides=overrides)
+                                     fmt=fmt, dpi=dpi, overrides=overrides, view=view)
 
     ephys = _ephys_stats(ctx).get(recording)
     spike_path = _spike_file(ctx, recording)
@@ -2240,7 +2241,7 @@ def render_activity_figure(
             n_channels=n_channels, chs=channels, fs=fs, duration_s=duration_s,
             ephys=ephys, output_root=Path(out_dir),
             spike_freq_max=batch_max.get("FR"), batch_max=batch_max,
-            fmt=fmt, only=figure, layout=layout,
+            fmt=fmt, only=figure, layout=layout, view=view,
         )
     if not written:
         raise ValueError(
@@ -2249,9 +2250,21 @@ def render_activity_figure(
     return written[0]
 
 
+#: Activity-figure options a viewer sets that are not run settings: drawn
+#: differently, from the same data (see meanap.viewer.controls).
+ACTIVITY_VIEW_KEYS = frozenset({"inactive_electrodes", "raster_order"})
+
+
+def split_activity_view(overrides: dict | None) -> tuple[dict | None, dict]:
+    """``(Params overrides, view options)`` of an activity-figure request."""
+    overrides = dict(overrides or {})
+    view = {k: overrides.pop(k) for k in list(overrides) if k in ACTIVITY_VIEW_KEYS}
+    return (overrides or None), view
+
+
 def _render_catnap_raster(
     ctx: RenderContext, recording: str, figure: str, out_dir: Path | str, *,
-    fmt: str, dpi: int | None, overrides: dict | None,
+    fmt: str, dpi: int | None, overrides: dict | None, view: dict | None = None,
 ) -> Path:
     """One CAT-NAP raster, from the binned matrix in the recording's state.
 
@@ -2283,6 +2296,7 @@ def _render_catnap_raster(
                   + (" (z-scored per cell)" if zscored else ""),
             upper_percentile=params.raster_plot_upper_percentile,
             colormap=params.raster_colormap,
+            order=(view or {}).get("raster_order", "Recording order"),
         )
     return out_path
 

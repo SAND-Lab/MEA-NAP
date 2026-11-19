@@ -385,6 +385,22 @@ of a MaxWell recording, the electrodes a sorter found no unit on. The legend
 counts them. It applies on the electrode layout only, and only where electrode
 positions are known (an MEA layout, or a file's own electrode table).
 
+The activity heatmaps (firing rate, burst rate, burst duration and the rest)
+take the same **Inactive electrodes** option, beside them in the panel. On a
+sorted or MaxWell run a heatmap draws only the electrodes a unit sits on;
+*Faint dots* adds the rest of the array behind them. On a 60- or
+64-electrode MEA every electrode already has a value, so it changes nothing.
+
+The **Raster** has **Row order**: *Recording order* (the run's figure),
+*Firing rate* (busiest first), *Correlation* (rows that fire alike sit
+together: hierarchical clustering on correlation distance, leaves ordered so
+neighbouring rows are as alike as possible) or *Rastermap* (Stringer et al.
+2024), offered when the `rastermap` package is installed. Silent rows go last.
+A sorted raster says so on its row axis, and pointing at a row still names its
+electrode or cell. CAT-NAP's rasters take it too.
+
+Each figure's panel shows only the controls that change it.
+
 **Every control opens on the value the run itself used**, not on a generic
 default, so the panel doubles as a record of how these figures were drawn.
 Changes are opt-in on top of that, and **Reset** returns to it. This matters

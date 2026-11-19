@@ -31,7 +31,8 @@ from meanap.network_plot import (
 )
 
 __all__ = [
-    "CIRCULAR_ONLY_KEYS", "COMPARISON_CONTROLS", "CONTROLS", "EDGE_CONTROL_KEYS", "Control", "comparison_control_schema",
+    "ACTIVITY_ONLY_KEYS", "CIRCULAR_ONLY_KEYS", "COMPARISON_CONTROLS", "CONTROLS",
+    "EDGE_CONTROL_KEYS", "activity_controls", "control_scopes", "parse_activity_overrides", "Control", "comparison_control_schema",
     "control_schema", "parse_comparison_overrides", "parse_overrides",
 ]
 
@@ -101,6 +102,9 @@ class Control:
 
 
 _defaults = NetworkStyle()
+
+#: How a raster's rows are ordered; a viewer option, not a run setting.
+RASTER_ORDER_DEFAULT = "Recording order"
 
 #: The controls only a circular network plot reads: hidden beside a spatial one.
 CIRCULAR_ONLY_KEYS = frozenset({"circular_node_order"})
@@ -203,6 +207,60 @@ COMPARISON_CONTROLS: tuple[Control, ...] = (
 )
 
 
+def control_scopes(key: str) -> tuple[str, ...]:
+    """The kinds of figure a control changes."""
+    if key in CIRCULAR_ONLY_KEYS:
+        return ("circular",)
+    if key in ACTIVITY_ONLY_KEYS:
+        return ("raster",)
+    scopes = ["spatial"]
+    if key in EDGE_CONTROL_KEYS:
+        scopes.append("circular")
+    if key == "inactive_electrodes":
+        scopes.append("heatmap")
+    return tuple(scopes)
+
+
+def activity_controls() -> tuple[Control, ...]:
+    """The controls only the activity figures read. Built when asked, because
+    the raster orders on offer depend on what is installed."""
+    from meanap.pipeline.raster_order import available_orders
+
+    return (
+        Control("raster_order", "Row order", "select", RASTER_ORDER_DEFAULT,
+                options=available_orders(),
+                help="Sort the raster's rows: busiest first, or so that rows "
+                     "that fire alike sit together (correlation clustering, or "
+                     "Rastermap when installed). The pipeline's figure keeps "
+                     "the recording's order."),
+    )
+
+
+#: Keys of :func:`activity_controls`.
+ACTIVITY_ONLY_KEYS = frozenset({"raster_order"})
+
+
+def parse_activity_overrides(query: dict[str, list[str]]) -> dict:
+    """The activity-figure options a request asks for that differ from how
+    the pipeline drew them: an empty dict draws the run's own figure."""
+    from meanap.network_plot import INACTIVE_ELECTRODE_OPTIONS
+    from meanap.pipeline.raster_order import RASTER_ORDERS
+
+    out: dict = {}
+    inactive = query.get("inactive_electrodes", [None])[0]
+    if inactive not in (None, "", "Hidden"):
+        if inactive not in INACTIVE_ELECTRODE_OPTIONS:
+            raise ValueError(f"inactive_electrodes: {inactive!r} is not one of "
+                             f"{list(INACTIVE_ELECTRODE_OPTIONS)}")
+        out["inactive_electrodes"] = inactive
+    order = query.get("raster_order", [None])[0]
+    if order not in (None, "", RASTER_ORDER_DEFAULT):
+        if order not in RASTER_ORDERS:
+            raise ValueError(f"raster_order: {order!r} is not one of {list(RASTER_ORDERS)}")
+        out["raster_order"] = order
+    return out
+
+
 def control_default(control: Control, style: NetworkStyle):
     """What *control* reads when a figure was drawn with *style*.
 
@@ -231,7 +289,7 @@ def control_schema(style: NetworkStyle | None = None) -> list[dict]:
     when there is no run to speak of.
     """
     style = style if style is not None else NetworkStyle()
-    return _schema(CONTROLS, style)
+    return _schema(CONTROLS, style) + _schema(activity_controls())
 
 
 def comparison_control_schema() -> list[dict]:
@@ -251,9 +309,12 @@ def _schema(controls, style: NetworkStyle | None = None) -> list[dict]:
             "default": c.default if style is None else control_default(c, style),
             "options": c.options, "min": c.minimum, "max": c.maximum,
             "step": c.step, "help": c.help,
-            # Whether a circular network plot reads it, and a spatial one.
-            "circular": c.key in EDGE_CONTROL_KEYS,
-            "spatial": c.key not in CIRCULAR_ONLY_KEYS,
+            # The figures that read it: "spatial" and "circular" network
+            # plots, activity "heatmap"s, the "raster". A panel shows a control
+            # beside the figures it changes, and nowhere else.
+            "scopes": list(control_scopes(c.key)),
+            "circular": "circular" in control_scopes(c.key),
+            "spatial": "spatial" in control_scopes(c.key),
         }
         for c in controls
     ]

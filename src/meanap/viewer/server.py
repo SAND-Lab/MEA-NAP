@@ -64,7 +64,7 @@ from meanap.pipeline.render import (
 from meanap.pipeline.render_cache import RenderCache
 from meanap.viewer.controls import (
     comparison_control_schema, control_schema, parse_comparison_overrides,
-    parse_overrides,
+    parse_activity_overrides, parse_overrides,
 )
 from meanap.viewer.page import PAGE_HTML
 
@@ -1023,7 +1023,7 @@ class _Handler(BaseHTTPRequestHandler):
         fmt = _fmt(query)
         path = self.service.activity_figure(
             _one(query, "rec"), _one(query, "name"),
-            fmt=fmt, overrides=parse_overrides(query, self.service.run_style()))
+            fmt=fmt, overrides=parse_activity_overrides(query))
         download = query.get("download", ["0"])[0] == "1"
         self._file(path, download_as=path.name if download else None)
 
