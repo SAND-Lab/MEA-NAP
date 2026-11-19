@@ -29,6 +29,8 @@ from meanap.native.scene import BurstScene, HeatmapScene, RasterScene
 __all__ = ["HeatmapPainter", "RasterPainter", "BurstPainter"]
 
 NO_VALUE = QColor("#d3d3d3")
+#: Electrodes with no node, when they are shown: the network plots' grey.
+INACTIVE = QColor("#c9ced6")
 
 
 class HeatmapPainter(FigurePainter):
@@ -70,8 +72,10 @@ class HeatmapPainter(FigurePainter):
         each = width / max(len(scene.panels), 1)
         area = QRectF(index * each + 24, 58, each - 24 - 128, height - 58 - 26)
         pad = scene.diameter * 0.75
-        x0, x1 = float(scene.xy[:, 0].min()) - pad, float(scene.xy[:, 0].max()) + pad
-        y0, y1 = float(scene.xy[:, 1].min()) - pad, float(scene.xy[:, 1].max()) + pad
+        placed = (np.vstack([scene.xy, scene.inactive_xy]) if len(scene.inactive_xy)
+                  else scene.xy)
+        x0, x1 = float(placed[:, 0].min()) - pad, float(placed[:, 0].max()) + pad
+        y0, y1 = float(placed[:, 1].min()) - pad, float(placed[:, 1].max()) + pad
         scale = min(area.width() / max(x1 - x0, 1e-9), area.height() / max(y1 - y0, 1e-9))
         used_h = (y1 - y0) * scale
         used_w = (x1 - x0) * scale
@@ -121,6 +125,16 @@ class HeatmapPainter(FigurePainter):
             painter.drawText(QRectF(index * each + 8, 10, each - 16, 36),
                              Qt.AlignmentFlag.AlignCenter, title)
             radius = scene.diameter * scale / 2
+            if len(scene.inactive_xy):
+                # Electrodes with no node: small and faint, under the nodes.
+                _p, _b, _s, (cx, cy) = self._panel(index)
+                at = np.column_stack([plot.center().x() + (scene.inactive_xy[:, 0] - cx) * scale,
+                                      plot.center().y() - (scene.inactive_xy[:, 1] - cy) * scale])
+                dot = max(radius * 0.3, 1.2)
+                painter.setPen(Qt.PenStyle.NoPen)
+                painter.setBrush(INACTIVE)
+                for x, y in at.tolist():
+                    painter.drawEllipse(QPointF(x, y), dot, dot)
             outline = QPen(GROUND, 1) if radius >= 5 else Qt.PenStyle.NoPen
             for (x, y), value, colour in zip(self._pixels(index).tolist(),
                                              scene.values.tolist(), self._colours[index]):
@@ -208,7 +222,8 @@ class RasterPainter(FigurePainter):
             rect = QRectF(72, top + index * (panel_h + gap), width - 72 - 132, panel_h)
             self.axes.append(Axes(rect, (0.0, scene.duration_s / self._per), (0.0, float(rows)),
                                   xlabel=f"Time ({scene.time_unit})",
-                                  ylabel=scene.noun.capitalize(),
+                                  ylabel=scene.noun.capitalize()
+                                  + (f" ({scene.order_label})" if scene.order_label else ""),
                                   title=title, y_down=True))
             self.bars.append(QRectF(rect.right() + 14, rect.top(), 16, panel_h))
         if old is not None:

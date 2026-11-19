@@ -90,10 +90,10 @@ def _all_checks() -> list[Check]:
                            f"{rec['lags']}"))
             checks.append(("manifest advertises comparison families",
                            len(man["families"]) >= 2, f"{man['families']}"))
-            from meanap.viewer.controls import CONTROLS
+            from meanap.viewer.controls import control_schema
 
             checks.append(("manifest carries the control schema",
-                           len(man["controls"]) == len(CONTROLS),
+                           len(man["controls"]) == len(control_schema()),
                            f"{len(man['controls'])}"))
             checks.append(("controls declare kind, default and options",
                            all({"key", "kind", "default", "options"} <= set(c)

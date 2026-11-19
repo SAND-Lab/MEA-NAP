@@ -247,7 +247,7 @@ def test_style_panel_shows_only_edge_controls_beside_a_circular_plot():
     assert shown == set(EDGE_CONTROL_KEYS)
     panel.set_circular(False)
     shown = {k for k, w in panel._widgets.items() if not w.isHidden()}
-    assert shown == set(panel._widgets) - {"circular_node_order"}
+    assert shown == set(panel._widgets) - {"circular_node_order", "raster_order"}
 
 
 # ── Grouped circular plots ────────────────────────────────────────────────────

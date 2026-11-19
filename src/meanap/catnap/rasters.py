@@ -151,8 +151,12 @@ def plot_activity_raster(
     bin_s: float = RASTER_BIN_S,
     upper_percentile: float = 99.0,
     colormap: str = "parula",
+    order: str = "Recording order",
 ) -> Path:
     """Draw one raster — plain, or per-cell z-scored — and save it.
+
+    *order* sorts the rows (:mod:`meanap.pipeline.raster_order`); the
+    pipeline's figures keep the stored order.
 
     *binned* is ``(n_bins, n_units)`` from :func:`binned_activity`; it is
     transposed for display so cells run down the y axis in stored order (the
@@ -167,7 +171,7 @@ def plot_activity_raster(
     """
     from meanap.native import output
     from meanap.native.activity_paint import RasterPainter
-    from meanap.native.scene import RasterScene
+    from meanap.native.scene import RasterScene, reorder_raster
     from meanap.pipeline.plotting_step2 import parula_85
 
     out_path = Path(out_path)
@@ -200,6 +204,8 @@ def plot_activity_raster(
         names=[str(i + 1) for i in range(n_units)], noun="cell", cmap=cmap,
         bin_s=float(bin_s), time_unit="s", label=cbar_label, unit=unit,
         symmetric=zscored)
+    if order != "Recording order":
+        scene = reorder_raster(scene, order)
     painter = RasterPainter(scene)
     output.save(painter, out_path, capture=output.NativeFigure("raster", scene, painter))
     return out_path

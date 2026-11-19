@@ -467,6 +467,7 @@ function overrideParams() {
 function figureURL(extra = {}) {
   if (VIEW.kind === "activity" || VIEW.kind === "spikecheck") {
     const p = new URLSearchParams({rec: VIEW.rec, name: VIEW.name});
+    if (VIEW.kind === "activity") activityParams(p);
     for (const [k, v] of Object.entries(extra)) p.set(k, v);
     const route = VIEW.kind === "activity" ? "/api/activity" : "/api/spikecheck";
     return route + "?" + p.toString();
@@ -549,7 +550,7 @@ function buildControls() {
     el.value = c.default;
     el.addEventListener("change", () => {
       syncNodeSizeMode();
-      if (VIEW.kind === "figure") showFigure();
+      if (VIEW.kind === "figure" || VIEW.kind === "activity") showFigure();
     });
     label.appendChild(el);
     if (c.help) { const s = document.createElement("small"); s.textContent = c.help;
@@ -639,7 +640,7 @@ function resetControls() {
     if (el) el.value = c.default;
   }
   syncNodeSizeMode();
-  if (VIEW.kind === "figure") showFigure();
+  if (VIEW.kind === "figure" || VIEW.kind === "activity") showFigure();
 }
 
 function currentRecording() {
@@ -1462,13 +1463,36 @@ function setupThresholdDrag() {
 
 /** A circular plot places, sizes and colours its own nodes: only the edge
  *  controls apply to it, so only they are shown beside one. */
+function styleScope() {
+  const name = VIEW.name || "";
+  if (VIEW.kind === "figure") return /_circular_/.test(name) ? "circular" : "spatial";
+  if (VIEW.kind === "activity") {
+    if (/Raster/i.test(name)) return "raster";
+    if (/heatmap/i.test(name)) return "heatmap";
+  }
+  return null;
+}
+
 function scopeControls() {
-  const circular = VIEW.kind === "figure" && /_circular_/.test(VIEW.name || "");
+  const scope = styleScope();
+  $("controls-panel").classList.toggle("hidden", scope === null);
   for (const c of MANIFEST.controls) {
     const el = $("ctl-" + c.key);
-    const reads = circular ? c.circular : c.spatial !== false;
+    const reads = (c.scopes || ["spatial"]).includes(scope);
     if (el) el.parentElement.classList.toggle("hidden", !reads);
   }
+}
+
+/** The activity-figure options that differ from how the pipeline drew it. */
+function activityParams(p) {
+  for (const c of MANIFEST.controls) {
+    if (!(c.scopes || []).some(s => s === "raster" || s === "heatmap")) continue;
+    const el = $("ctl-" + c.key);
+    if (!el) continue;
+    const plain = c.key === "inactive_electrodes" ? "Hidden" : c.default;
+    if (String(el.value) !== String(plain)) p.set(c.key, el.value);
+  }
+  return p;
 }
 
 function showFigure() {

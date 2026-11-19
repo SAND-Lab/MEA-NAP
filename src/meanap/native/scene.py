@@ -411,16 +411,22 @@ class HeatmapScene:
     noun: str = "electrode"
     #: Marker diameter, in the units of ``xy``.
     diameter: float = 1.0
+    #: (K, 2) electrodes of the layout with no node, drawn as faint dots to
+    #: show the array; empty when they are not shown.
+    inactive_xy: np.ndarray = field(default_factory=lambda: np.empty((0, 2)))
 
 
 def heatmap_scene(metric, chs, title: str, label: str, *, cmap="viridis",
                   channel_layout: str = "Axion64", batch_max: float | None = None,
                   aggregate: str = "mean", layout=None,
-                  grounded: set[int] | None = None) -> HeatmapScene | None:
+                  grounded: set[int] | None = None,
+                  inactive: bool = False) -> HeatmapScene | None:
     """Port of ``electrodeHeatMaps.m`` / ``plotNodeHeatmap.m``, without the drawing.
 
     The arguments are ``plot_heatmap``'s. ``None`` when there is nothing to
-    place: no values, or no channel the layout knows.
+    place: no values, or no channel the layout knows. *inactive* adds the
+    layout's electrodes that have no value at all (on a sorted or MaxWell run,
+    those no unit sits on) as faint dots, so the array's shape shows.
     """
     from scipy.spatial import cKDTree
 
@@ -466,8 +472,14 @@ def heatmap_scene(metric, chs, title: str, label: str, *, cmap="viridis",
     unique = np.unique(xy, axis=0)
     spacing = (float(np.median(cKDTree(unique).query(unique, k=2)[0][:, 1]))
                if len(unique) > 1 else 1.0)
+    inactive_xy = np.empty((0, 2))
+    if inactive:
+        drawn = {int(c) for c in chs[keep]}
+        inactive_xy = np.array([xy_ for c, xy_ in where.items() if int(c) not in drawn],
+                               dtype=float).reshape(-1, 2)
     return HeatmapScene(xy=xy, values=metric, names=[str(int(c)) for c in chs[keep]],
-                        panels=panels, label=label, cmap=cmap, diameter=0.82 * spacing)
+                        panels=panels, label=label, cmap=cmap, diameter=0.82 * spacing,
+                        inactive_xy=inactive_xy)
 
 
 @dataclass
@@ -493,6 +505,26 @@ class RasterScene:
     unit: str = "Hz"
     #: The scale runs from ``-high`` to ``high`` rather than from zero.
     symmetric: bool = False
+    #: How the rows are ordered, when not as recorded: "sorted by firing rate".
+    order_label: str = ""
+
+
+def reorder_raster(scene: "RasterScene", order: str) -> "RasterScene":
+    """*scene* with its rows sorted by *order* (see :mod:`meanap.pipeline.raster_order`).
+
+    The rows keep their names, so pointing at one still says which electrode
+    or cell it is.
+    """
+    import dataclasses
+
+    from meanap.pipeline.raster_order import order_description, order_rows
+
+    rows = order_rows(scene.counts, order)
+    if np.array_equal(rows, np.arange(len(rows))) and not order_description(order):
+        return scene
+    names = [scene.names[i] for i in rows] if len(scene.names) == len(rows) else scene.names
+    return dataclasses.replace(scene, counts=scene.counts[rows], names=names,
+                               order_label=order_description(order))
 
 
 def raster_scene(spike_times: dict, duration_s: float, *, title: str = "",

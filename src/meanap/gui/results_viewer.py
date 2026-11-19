@@ -522,6 +522,11 @@ class FigureView(QWidget):
 # ── styling controls ──────────────────────────────────────────────────────────
 
 
+#: The styling scope of each kind of native figure that has styling to offer.
+_STYLE_SCOPES = {"network": "spatial", "circular": "circular",
+                 "heatmap": "heatmap", "raster": "raster"}
+
+
 class StylePanel(QWidget):
     """The Network Viewer controls, built from the viewer's control schema."""
 
@@ -533,10 +538,9 @@ class StylePanel(QWidget):
         self._form.setContentsMargins(8, 8, 8, 8)
         self._widgets: dict[str, QWidget] = {}
         self._defaults: dict[str, object] = {}
-        #: The controls a circular plot reads, and a spatial one (see
-        #: EDGE_CONTROL_KEYS); each is shown beside the plots that read it.
-        self._circular: set[str] = set()
-        self._spatial: set[str] = set()
+        #: The kinds of figure each control changes ("spatial", "circular",
+        #: "heatmap", "raster"); a control is shown beside those only.
+        self._scopes: dict[str, set[str]] = {}
 
     def set_schema(self, schema: list[dict]) -> None:
         while self._form.rowCount():
@@ -575,14 +579,11 @@ class StylePanel(QWidget):
             self._form.addRow(label, widget)
             self._widgets[key] = widget
             self._defaults[key] = default
-            if control.get("circular"):
-                self._circular.add(key)
-            if control.get("spatial", True):
-                self._spatial.add(key)
+            self._scopes[key] = set(control.get("scopes") or ["spatial"])
         reset = QPushButton("Reset to the run's styling")
         reset.clicked.connect(self.reset)
         self._form.addRow(reset)
-        self.set_circular(False)
+        self.set_scope("spatial")
 
     def reset(self) -> None:
         for key, widget in self._widgets.items():
@@ -594,15 +595,19 @@ class StylePanel(QWidget):
             widget.blockSignals(False)
         self.changed.emit()
 
-    def set_circular(self, circular: bool) -> None:
-        """Show only the controls a circular plot reads, or all of them."""
+    def set_scope(self, scope: str) -> None:
+        """Show only the controls a *scope* of figure reads: "spatial",
+        "circular", "heatmap" or "raster"."""
         for row in range(self._form.rowCount()):
             field = self._form.itemAt(row, QFormLayout.ItemRole.FieldRole)
             widget = field.widget() if field is not None else None
             key = next((k for k, w in self._widgets.items() if w is widget), None)
             if key is not None:
-                self._form.setRowVisible(
-                    row, key in (self._circular if circular else self._spatial))
+                self._form.setRowVisible(row, scope in self._scopes.get(key, set()))
+
+    def set_circular(self, circular: bool) -> None:
+        """Show only the controls a circular plot reads, or a spatial one's."""
+        self.set_scope("circular" if circular else "spatial")
 
     def set_values(self, values: dict) -> None:
         """Set several controls at once, then say so once."""
@@ -975,6 +980,8 @@ class ResultsViewer(QWidget):
         self._restyle.timeout.connect(self._draw)
         self._native_key = None
         self._styleable = False
+        #: Which figures' controls the styling pane shows (see _STYLE_SCOPES).
+        self._style_scope = "spatial"
         self._tracking_listed = False
         #: What was open in each scope, to come back to.
         self._remembered: dict[str, tuple] = {}
@@ -1188,7 +1195,8 @@ class ResultsViewer(QWidget):
         self.style_button.setObjectName("ghost")
         self.style_button.setCheckable(True)
         self.style_button.setToolTip(
-            "Node sizes, edge thresholds, layout and colour map for this network plot.")
+            "Styling for this figure: node sizes, edges and layout on a network plot; "
+            "the electrode layout on a heatmap; the row order on a raster.")
         self.style_button.toggled.connect(lambda _on: self._place_styling())
         self.style_button.hide()
         reset = QPushButton("Reset view")
@@ -1969,7 +1977,10 @@ class ResultsViewer(QWidget):
             if kind == "edge_check":
                 request["lag"] = self.lag.currentData()
             if kind == "activity":
+                from meanap.viewer.controls import parse_activity_overrides
+
                 request["variant"] = self.variant.currentData() or "plain"
+                request["overrides"] = parse_activity_overrides(self.style_panel.query())
             if kind == "network":
                 from meanap.viewer.controls import parse_overrides
 
@@ -2102,7 +2113,9 @@ class ResultsViewer(QWidget):
         item = self.figures.currentItem()
         adjusting = self._adjusting(item.data(0, _REQUEST_ROLE) if item is not None else None)
         self._right_pages.setCurrentWidget(self.adjust_panel if adjusting else self._style_scroll)
-        self._right_title.setText(("Hold fixed" if adjusting else "Network styling").upper())
+        title = {"heatmap": "Heatmap styling", "raster": "Raster styling"}.get(
+            self._style_scope, "Network styling")
+        self._right_title.setText(("Hold fixed" if adjusting else title).upper())
         show = adjusting or (self._styleable and self.style_button.isChecked())
         if show and not self._right.isVisible():
             # A hidden splitter pane comes back at whatever is left over, which
@@ -2133,8 +2146,11 @@ class ResultsViewer(QWidget):
             # nodes by what they show).
             network = hasattr(live.figure.painter, "node_at")
             canvas = self.native if network else self.canvas
-            self._styleable = live.figure.kind in ("network", "circular")
-            self.style_panel.set_circular(live.figure.kind == "circular")
+            scope = _STYLE_SCOPES.get(live.figure.kind)
+            self._styleable = scope is not None
+            if scope is not None:
+                self.style_panel.set_scope(scope)
+                self._style_scope = scope
             self._place_styling()
             item = self.figures.currentItem()
             key = (self.recordings.currentRow(), self._identity(item.data(0, _REQUEST_ROLE)),
