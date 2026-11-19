@@ -124,6 +124,12 @@ def run_sorted_import(
                 "drop_labels": list(drop), "fs": imp.fs, "duration": imp.duration_s,
             })
         log(f"  [{rec.filename}] saved → {out_path.relative_to(output_root)}")
+        # Report only: which units are nodes is still the sorter's labels.
+        from meanap.pipeline.unit_quality import run_unit_quality
+
+        run_unit_quality(rec.filename, imp, output_root,
+                         analyzer_path=path if fmt == "spikeinterface" else None,
+                         drop_labels=drop, log=log)
         progress.item_done(rec.filename)
 
     progress.phase_done()

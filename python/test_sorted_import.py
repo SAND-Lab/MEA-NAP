@@ -279,3 +279,29 @@ def test_light_responses_found_and_only_there():
 if __name__ == "__main__":
     import pytest
     raise SystemExit(pytest.main([__file__, "-q"]))
+
+
+def test_import_scores_every_unit_and_the_viewer_offers_the_figure():
+    import os
+
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    from meanap.pipeline.render import (
+        UNIT_QUALITY_FIGURE, RenderContext, available_sorting_check_figures,
+        render_sorting_check_figure,
+    )
+    from meanap.pipeline.unit_quality import UNIT_QUALITY_CSV, UNIT_QUALITY_DIR
+
+    with tempfile.TemporaryDirectory() as d:
+        out = _run(Path(d), stop_analysis_step=1)
+        table = pd.read_csv(out / UNIT_QUALITY_DIR / f"{fx.NAME}{UNIT_QUALITY_CSV}")
+        assert len(table) == fx.N_UNITS
+        assert set(table["label"]) <= {"good", "mua", "noise"}
+        assert table["kept"].all()                     # report only: every unit a node
+        # SpyKING CIRCUS templates are normalised: no µV, so no SNR or amplitude test.
+        assert not table["fails"].fillna("").str.contains("SNR|amplitude").any()
+        ctx = RenderContext(params=Params(), recordings={}, results={}, batch_bounds={},
+                            root=out, mode="ephys")
+        assert UNIT_QUALITY_FIGURE in available_sorting_check_figures(ctx, fx.NAME)
+        drawn = render_sorting_check_figure(ctx, fx.NAME, UNIT_QUALITY_FIGURE.name,
+                                            Path(d) / "fig")
+        assert drawn.exists()

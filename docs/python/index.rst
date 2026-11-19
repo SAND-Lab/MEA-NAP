@@ -178,6 +178,7 @@ figure.
    spike-sorting
    sorted-import
    signal-quality
+   unit-quality
    catnap
    network-viewer
    notebooks/network-plotting-tutorial
