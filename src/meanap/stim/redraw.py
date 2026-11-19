@@ -184,6 +184,10 @@ def network_figure_names(meta: dict) -> list[str]:
             out.append(f"13_StimNetwork_{c['name']}_{lg['lag']}mslag")
             if lg.get("split_rows"):
                 out.append(f"15_StimNetworkSplitHalf_{c['name']}_{lg['lag']}mslag")
+            if meta.get("node_metrics"):
+                out.append(f"17_StimNodeMetrics_{c['name']}_{lg['lag']}mslag")
+                if meta.get("has_coords"):
+                    out.append(f"18_StimNodeChangeMap_{c['name']}_{lg['lag']}mslag")
     out += [f"16_StimNetworkGraph_{lag}mslag" for lag in _graph_lags(meta)]
     return out
 
@@ -272,6 +276,18 @@ def draw_network_figures(arrays: Mapping, fig_dir: Path, only: str | None = None
                 _plot_stim_network(nets, nc, path, f"{title} — {cond}, lag {lag} ms",
                                    names=channels)
                 written.append(path)
+            stem = f"17_StimNodeMetrics_{cond}_{lag}mslag"
+            if meta.get("node_metrics") and want(stem):
+                path = fig_dir / f"{stem}.png"
+                plot_node_metrics(arrays, meta, cond, lag, path,
+                                  f"{title} — {cond}, lag {lag} ms")
+                written.append(path)
+            stem = f"18_StimNodeChangeMap_{cond}_{lag}mslag"
+            if meta.get("node_metrics") and meta.get("has_coords") and want(stem):
+                path = fig_dir / f"{stem}.png"
+                plot_node_change_map(arrays, meta, c, lag, path,
+                                     f"{title} — {cond}, lag {lag} ms")
+                written.append(path)
             if lg.get("split_rows") and want(f"15_StimNetworkSplitHalf_{cond}_{lag}mslag"):
                 halves = {}
                 for r in lg["split_rows"]:
@@ -293,6 +309,155 @@ def draw_network_figures(arrays: Mapping, fig_dir: Path, only: str | None = None
         plot_epoch_graphs(arrays, meta, lag, path)
         written.append(path)
     return written
+
+
+def plot_node_metrics(arrays: Mapping, meta: dict, cond: str, lag, path: Path,
+                      title: str) -> None:
+    """Figure 17: each node's metric before (x) and during (y) stimulation, a row
+    per edge weighting, coloured by its firing-rate change."""
+    from meanap.native.chart import (
+        Chart, ColourBar, Line, Panel, Points, Text, rgba,
+    )
+    from meanap.native.chart_paint import save_chart
+    from meanap.stim.node_metrics import FIGURE_METRICS, NODE_METRICS, WEIGHTINGS
+    import matplotlib
+
+    names = list(meta["node_metrics"])
+    weightings = [w for w in meta.get("weightings", []) if w in WEIGHTINGS]
+    channels = np.asarray(arrays["channels"])
+
+    def vals(epoch, w, metric):
+        a = np.asarray(arrays.get(f"{cond}__{epoch}__{lag}ms__nodes__{w}",
+                                  np.full((len(names), channels.size), np.nan)), float)
+        return a[names.index(metric)]
+
+    w0 = weightings[0] if weightings else "significant"
+    rb, re = vals("baseline", w0, "rate_hz"), vals("evoked", w0, "rate_hz")
+    dfr = re - rb
+    lim = max(float(np.nanmax(np.abs(dfr))) if np.isfinite(dfr).any() else 1.0, 1e-6)
+    cmap = matplotlib.colormaps["RdBu_r"]
+    colour = [rgba(cmap(0.5 + 0.5 * np.clip(v / lim, -1, 1))) if np.isfinite(v)
+              else rgba("#bbbbbb") for v in dfr]
+    metrics = [m for m in FIGURE_METRICS if m in names]
+    cols = 1 + len(metrics)
+
+    def scatter(x, y, label, cell, xlabel="", ylabel="", show_title=True, span=(1, 1)):
+        ok = np.isfinite(x) & np.isfinite(y)
+        marks = []
+        if ok.any():
+            lo = float(min(x[ok].min(), y[ok].min()))
+            hi = float(max(x[ok].max(), y[ok].max()))
+            pad = 0.05 * (hi - lo or 1.0)
+            marks.append(Line(np.array([lo - pad, hi + pad]), np.array([lo - pad, hi + pad]),
+                              colour=rgba("#999999"), width=1.0, dash="--"))
+            marks.append(Points(x[ok], y[ok], fill=[colour[i] for i in np.nonzero(ok)[0]],
+                                edge=rgba("#333333"), edge_width=0.4, size=6.5,
+                                hover=[f"electrode {channels[i]}\nbefore {x[i]:.3g}, "
+                                       f"during {y[i]:.3g}\nΔ rate {dfr[i]:+.2f} Hz"
+                                       for i in np.nonzero(ok)[0]]))
+            if ok.sum() > 3:
+                from scipy.stats import spearmanr
+
+                rho = spearmanr(x[ok], y[ok]).statistic
+                med = float(np.median(y[ok] - x[ok]))
+                marks.append(Text(0.03, 0.97, f"ρ {rho:+.2f}\nmedian Δ {med:+.3g}",
+                                  coords="axes", ha="left", va="top", size=7.5,
+                                  colour=rgba("#444444")))
+        return Panel(cell=cell, span=span, marks=marks, title=label if show_title else "",
+                     title_size=9, xlabel=xlabel, ylabel=ylabel, label_size=8, grid="")
+
+    panels = [scatter(rb, re, NODE_METRICS["rate_hz"], (0, 0), "before", "during",
+                      span=(len(weightings), 1))]
+    for r, w in enumerate(weightings):
+        for c, m in enumerate(metrics, start=1):
+            panels.append(scatter(
+                vals("baseline", w, m), vals("evoked", w, m),
+                NODE_METRICS[m] if r == 0 else "", (r, c),
+                xlabel="before" if r == len(weightings) - 1 else "",
+                ylabel=f"{WEIGHTINGS[w]}\nduring" if c == 1 else ""))
+    chart = Chart(panels=panels, grid=(max(len(weightings), 1), cols),
+                  size=(2.35 * cols + 1.2, 2.3 * max(len(weightings), 1) + 1.0),
+                  title=title, title_size=10,
+                  colour_bar=ColourBar("RdBu_r", -lim, lim, "Δ firing rate (Hz)"),
+                  note="Each point is a node (stimulating electrodes left out): its metric in "
+                       "the pre-stimulus (x) and evoked (y) windows. Dashed: no change. "
+                       "Colour: its firing-rate change — a metric change that follows the "
+                       "colour may be a rate effect.")
+    save_chart(chart, path)
+
+
+def plot_node_change_map(arrays: Mapping, meta: dict, cmeta: dict, lag, path: Path,
+                         title: str) -> None:
+    """Figure 18: each node's evoked − baseline change drawn where its electrode
+    is, a row per edge weighting; this condition's stimulating electrodes ringed."""
+    import matplotlib
+
+    from meanap.native.chart import Chart, ColourBar, Panel, Points, rgba
+    from meanap.native.chart_paint import save_chart
+    from meanap.stim.node_metrics import FIGURE_METRICS, NODE_METRICS, WEIGHTINGS
+
+    cond = cmeta["name"]
+    names = list(meta["node_metrics"])
+    weightings = [w for w in meta.get("weightings", []) if w in WEIGHTINGS]
+    channels = np.asarray(arrays["channels"])
+    coords = np.asarray(arrays["coords"], float)
+    placed = np.isfinite(coords).all(axis=1)
+    stim = np.asarray(arrays["stim_electrode"], bool)
+    own = np.isin(channels, np.asarray(cmeta.get("electrodes") or [], int))
+    cmap = matplotlib.colormaps["RdBu_r"]
+
+    def change(w, metric):
+        def get(ep):
+            a = np.asarray(arrays.get(f"{cond}__{ep}__{lag}ms__nodes__{w}",
+                                      np.full((len(names), channels.size), np.nan)), float)
+            return a[names.index(metric)]
+        return get("evoked") - get("baseline")
+
+    columns = [m for m in ("rate_hz",) + FIGURE_METRICS if m in names]
+    rows = max(len(weightings), 1)
+    panels = []
+    for c, m in enumerate(columns):
+        per_row = [change(weightings[0] if m == "rate_hz" else w, m)
+                   for w in (weightings[:1] if m == "rate_hz" else weightings)]
+        allv = np.concatenate([v[np.isfinite(v)] for v in per_row]) if per_row else np.empty(0)
+        lim = max(float(np.max(np.abs(allv))) if allv.size else 1.0, 1e-9)
+        for r, v in enumerate(per_row):
+            ok = placed & np.isfinite(v)
+            grey = placed & ~np.isfinite(v) & ~stim
+            marks = []
+            if grey.any():
+                marks.append(Points(coords[grey, 0], coords[grey, 1], fill=rgba("#d9d9d9"),
+                                    size=6.0, hover=[f"electrode {channels[i]}: no value"
+                                                     for i in np.nonzero(grey)[0]]))
+            if ok.any():
+                marks.append(Points(
+                    coords[ok, 0], coords[ok, 1],
+                    fill=[rgba(cmap(0.5 + 0.5 * np.clip(x / lim, -1, 1))) for x in v[ok]],
+                    edge=rgba("#555555"), edge_width=0.3, size=9.0,
+                    hover=[f"electrode {channels[i]}\nΔ {v[i]:+.3g}" for i in np.nonzero(ok)[0]]))
+            for mask, colour, size in ((stim & placed & ~own, "#8a8f98", 11.0),
+                                       (own & placed, STIM_MARK, 14.0)):
+                if mask.any():
+                    marks.append(Points(coords[mask, 0], coords[mask, 1], fill=rgba("none"),
+                                        edge=rgba(colour), edge_width=2.0, size=size,
+                                        hover=[f"electrode {channels[i]}: stimulating"
+                                               for i in np.nonzero(mask)[0]]))
+            label = NODE_METRICS[m] if r == 0 else ""
+            if m != "rate_hz" and c == 1 and weightings:   # bare panels draw no y label
+                label = (label + "\n" if label else "") + f"▸ {WEIGHTINGS[weightings[r]]}"
+            panels.append(Panel(
+                cell=(r, c), span=(rows, 1) if m == "rate_hz" else (1, 1), marks=marks,
+                title=label, title_size=9, bare=True, equal=True,
+                zoom=(False, False),
+                colour_bar=(ColourBar("RdBu_r", -lim, lim, "Δ", shrink=0.8)
+                            if r == len(per_row) - 1 else None)))
+    chart = Chart(panels=panels, grid=(rows, len(columns)),
+                  size=(2.4 * len(columns) + 1.0, 2.4 * rows + 1.0), title=title, title_size=10,
+                  note="Each node's change from the pre-stimulus to the evoked window, where "
+                       "its electrode sits (red up, blue down; each column on its own scale). "
+                       "Ringed: this condition's stimulating electrodes (orange) and other "
+                       "stimulating electrodes (grey); light grey: no value.")
+    save_chart(chart, path)
 
 
 #: The three epochs of figure 16, in column order.
@@ -394,6 +559,7 @@ STIM_FIGURE_PATTERN = re.compile(
     r"^(9_FR_before_after_stimulation|10_stimulation_raster_and_psth|"
     r"stimPattern_\d+_heatmap|spikeLatency_pattern_\d+_heatmap|12_shuffle_test_|"
     r"13_StimNetwork_|14_StimConsistency_|15_StimNetworkSplitHalf_|16_StimNetworkGraph_|"
+    r"17_StimNodeMetrics_|18_StimNodeChangeMap_|"
     r"Individual_PSTH_and_Raster_Pattern_\d+/)")
 
 
@@ -418,6 +584,8 @@ _LABELS = (
     (r"^14_StimConsistency_(.+)$", "Trial-by-trial consistency, {0}"),
     (r"^15_StimNetworkSplitHalf_(.+)_(\d+)mslag$", "Split-half networks, {0}, {1} ms lag"),
     (r"^16_StimNetworkGraph_(\d+)mslag$", "Networks before, during, after: {0} ms lag"),
+    (r"^17_StimNodeMetrics_(.+)_(\d+)mslag$", "Node metrics before vs during, {0}, {1} ms lag"),
+    (r"^18_StimNodeChangeMap_(.+)_(\d+)mslag$", "Node metric changes on the array, {0}, {1} ms lag"),
 )
 
 

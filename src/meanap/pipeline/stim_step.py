@@ -418,6 +418,8 @@ def _write_events_table(events, path: Path, conditions=None) -> None:
 
 #: The CSVs the stimulus-network analysis writes, in the order they are logged.
 NETWORK_TABLES = ("StimNetwork_RecordingLevel.csv", "StimNetwork_NodeLevel.csv",
+                  "StimNetwork_NodeMetrics.csv", "StimNodeMetrics_RecordingSummary.csv",
+                  "StimNodeMetrics_PairedTests.csv",
                   "StimNetworkSplitHalf_RecordingLevel.csv",
                   "StimConsistency_RecordingLevel.csv", "StimConsistency_NodeLevel.csv")
 
@@ -484,6 +486,13 @@ def _extend_tables(tables: dict[str, list[dict]], new: dict[str, list[dict]]) ->
 def _write_network_tables(tables: dict[str, list[dict]], output_root: Path, log) -> None:
     import pandas as pd
 
+    if tables.get("StimNetwork_NodeMetrics.csv"):
+        from meanap.stim.node_metrics import paired_tests, summarise_recordings
+
+        summary = summarise_recordings(tables["StimNetwork_NodeMetrics.csv"])
+        tables["StimNodeMetrics_RecordingSummary.csv"] = summary
+        tables["StimNodeMetrics_PairedTests.csv"] = paired_tests(summary)
+
     for name in NETWORK_TABLES:
         rows = tables.get(name)
         if rows:
@@ -528,7 +537,8 @@ def _embed_net(net, keep: np.ndarray):
         return net
     return replace(net, sttc=_embed(net.sttc, keep), sttc_thr=_embed(net.sttc_thr, keep),
                    null_mean=_embed(net.null_mean, keep), p=_embed(net.p, keep),
-                   spike_counts=_embed(net.spike_counts, keep))
+                   spike_counts=_embed(net.spike_counts, keep),
+                   null_sd=None if net.null_sd is None else _embed(net.null_sd, keep))
 
 
 def _stim_networks(params: Params, rec: RecordingInfo, info: dict, trains: list[np.ndarray],
@@ -592,6 +602,11 @@ def _stim_networks(params: Params, rec: RecordingInfo, info: dict, trains: list[
     # The post epoch's surrogates come from their own stream, so adding it
     # left every baseline/evoked/split-half result exactly as it was.
     post_rng = make_rng(params.random_seed or 1, "stim-network-post", rec.filename)
+    # Node metrics draw from a stream of their own too (modularity and the
+    # participation null are random), for the same reason.
+    node_rng = make_rng(params.random_seed or 1, "stim-network-nodes", rec.filename)
+    if params.stim_node_metrics:
+        from meanap.stim.node_metrics import NODE_METRICS, WEIGHTINGS, epoch_node_metrics, weights
     base = {"FileName": rec.filename, "Grp": rec.group, "DIV": rec.div}
     tables: dict[str, list[dict]] = {name: [] for name in NETWORK_TABLES}
     arrays = {}
@@ -696,6 +711,19 @@ def _stim_networks(params: Params, rec: RecordingInfo, info: dict, trains: list[
                     row[f"{epoch}_strength"] = float(np.nansum(net.sttc_thr[i])) if keep[i] else np.nan
                     row[f"{epoch}_rate_hz"] = net.spike_counts[i] / net.duration_s
                 tables["StimNetwork_NodeLevel.csv"].append(row)
+            if params.stim_node_metrics:
+                for epoch, net in nets.items():
+                    for wname in WEIGHTINGS:
+                        w = weights(net.sttc, net.sttc_thr, net.null_mean, wname,
+                                    null_sd=net.null_sd)
+                        vals = epoch_node_metrics(w, net.spike_counts, net.duration_s, keep,
+                                                  params, node_rng)
+                        arrays[f"{cond}__{epoch}__{lag}ms__nodes__{wname}"] = vals
+                        for i in range(n_all):
+                            tables["StimNetwork_NodeMetrics.csv"].append(
+                                {**node_base(i), "condition": cond, "lag_ms": lag,
+                                 "epoch": epoch, "weighting": wname,
+                                 **{k: vals[r, i] for r, k in enumerate(NODE_METRICS)}})
             b, e = nets["baseline"], nets["evoked"]
             log(f"    {cond}, {lag} ms: significant edges baseline "
                 f"{np.count_nonzero(np.triu(np.nan_to_num(b.sttc_thr), 1))}, evoked "
@@ -721,6 +749,9 @@ def _stim_networks(params: Params, rec: RecordingInfo, info: dict, trains: list[
                             f"{r['r_excess']:.2f} (p = {r['mantel_p_excess']:.3g})")
     mat_dir.mkdir(parents=True, exist_ok=True)
     meta["has_coords"] = coords is not None
+    if params.stim_node_metrics:
+        meta["node_metrics"] = list(NODE_METRICS)
+        meta["weightings"] = list(WEIGHTINGS)
     arrays.update(channels=channels, node_ids=np.asarray(node_ids).astype(str),
                   stim_electrode=~keep, conditions=np.array(events.condition_names),
                   window_s=np.array(window), figure_meta=_dumps(meta))

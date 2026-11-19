@@ -1829,7 +1829,7 @@ def render_stim_figure(ctx: RenderContext, recording: str, name: str,
     fig, net = _stim_payloads(ctx, recording)
     written: list[Path] = []
     if name in _redrawable_stim_names(ctx, recording):
-        if net is not None and name.split("_")[0] in ("13", "14", "15", "16"):
+        if net is not None and name.split("_")[0] in ("13", "14", "15", "16", "17", "18"):
             with np.load(net) as d:
                 written = draw_network_figures({k: d[k] for k in d.files}, out_dir, only=name)
         elif fig is not None:

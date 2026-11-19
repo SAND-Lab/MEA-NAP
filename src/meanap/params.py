@@ -566,6 +566,11 @@ class Params:
     # event-driven runs alike.
     stim_trial_consistency: bool = True
     stim_split_half: bool = True
+    # Step 4's node metrics (strength, controllability, participation, …) of
+    # every baseline / evoked / post-stimulus network, for each edge
+    # weighting (stim/node_metrics.py): StimNetwork_NodeMetrics.csv and
+    # figure 17.
+    stim_node_metrics: bool = True
     # Group pulses, not electrodes, into conditions (stim/sequences.py): pulses
     # on any electrodes that follow each other within stim_sequence_gap (ms)
     # are one stimulus, identified by which electrodes were pulsed in what
