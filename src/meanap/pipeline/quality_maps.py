@@ -79,16 +79,55 @@ def signal_quality_map_chart(res, units=None, title: str = ""):
     sigma = np.asarray(res.sigma, dtype=float)
     unit_label = res.units or ""
 
+    # Units by electrode, and each electrode's best label, first: every mark of
+    # an electrode carries the same key and tooltip, so pointing at it lights
+    # it on both maps, and picking a label in the legend keeps the electrodes
+    # under those units lit.
+    pos = {int(e): i for i, e in enumerate(ids)}
+    by_elec: dict[int, list] = {}
+    if units is not None and len(units) and "electrode" in units:
+        for _, u in units.iterrows():
+            e = int(u["electrode"]) if np.isfinite(u["electrode"]) else -1
+            if e in pos and placed[pos[e]]:
+                by_elec.setdefault(e, []).append(u)
+    best = {e: LABEL_ORDER[min(LABEL_ORDER.index(str(x["label"])) for x in us)]
+            for e, us in by_elec.items()}
+
+    def key(i: int):
+        e = int(ids[i])
+        return (f"electrode {e}", best[e]) if e in best else (f"electrode {e}",)
+
+    def tip(i: int) -> str:
+        e = int(ids[i])
+        lines = [f"electrode {e}"]
+        if not placed[i]:
+            return lines[0]
+        if spiking[i]:
+            lines.append(f"spike activity: {excess[i]:.2f} Hz more deflections beyond "
+                         f"−{VERDICT_K:g} SD than its noise makes")
+        else:
+            lines.append("spike activity: none beyond its noise")
+        lines.append(f"noise SD: {sigma[i]:.3g} {unit_label}".rstrip() if sigma[i] > 0
+                     else "noise: flat (no signal)")
+        for x in by_elec.get(e, []):
+            nf = x.get("noise_fraction", np.nan)
+            if not np.isfinite(nf):
+                note = ""
+            elif nf == 0:
+                note = " (the noise never reaches its spike size)"
+            else:
+                note = f" (the noise makes {float(nf):.2g}× as many events its size)"
+            lines.append(f"unit {x.get('unit_id', '?')}: {x['label']}{note}")
+        return "\n".join(lines)
+
     # Spike activity, log scale from the check's own floor.
     act = spiking & placed
     hi_act = float(np.log10(max(excess[act].max(), ACTIVITY_FLOOR_HZ * 10))) if act.any() \
         else np.log10(ACTIVITY_FLOOR_HZ * 10)
     lo_act = np.log10(ACTIVITY_FLOOR_HZ)
-    quiet = placed & ~spiking
-    marks = [Points(xy[quiet, 0], xy[quiet, 1], fill=rgba("#c8c8c8"), size=size * 0.55,
-                    key="no excess",
-                    hover=[f"electrode {ids[i]}: no more large deflections than its noise"
-                           for i in np.flatnonzero(quiet)])]
+    iq = np.flatnonzero(placed & ~spiking)
+    marks = [Points(xy[iq, 0], xy[iq, 1], fill=rgba("#c8c8c8"), size=size * 0.55,
+                    key=[key(i) for i in iq], hover=[tip(i) for i in iq])]
     if act.any():
         ia = np.flatnonzero(act)
         ia = ia[np.argsort(excess[ia])]           # the most active drawn on top
@@ -96,40 +135,24 @@ def signal_quality_map_chart(res, units=None, title: str = ""):
             xy[ia, 0], xy[ia, 1],
             fill=_colours(np.log10(np.maximum(excess[ia], ACTIVITY_FLOOR_HZ)),
                           "viridis", lo_act, hi_act),
-            size=size, key="spiking",
-            hover=[f"electrode {ids[i]}: {excess[i]:.2f} Hz excess beyond "
-                   f"−{VERDICT_K:g} SD" for i in ia]))
+            size=size, key=[key(i) for i in ia], hover=[tip(i) for i in ia]))
 
     legend = None
     n_units = 0
-    if units is not None and len(units) and "electrode" in units:
-        pos = {int(e): i for i, e in enumerate(ids)}
-        by_elec: dict[int, list] = {}
-        for _, u in units.iterrows():
-            e = int(u["electrode"]) if np.isfinite(u["electrode"]) else -1
-            if e in pos and placed[pos[e]]:
-                by_elec.setdefault(e, []).append(u)
+    if by_elec:
         for lab in reversed(LABEL_ORDER):          # good drawn last, on top
-            es = [e for e, us in by_elec.items()
-                  if min(LABEL_ORDER.index(str(x["label"])) for x in us) == LABEL_ORDER.index(lab)]
+            es = [pos[e] for e in by_elec if best[e] == lab]
             if not es:
                 continue
-            hover = []
-            for e in es:
-                parts = []
-                for x in by_elec[e]:
-                    nf = x.get("noise_fraction", np.nan)
-                    parts.append(f"unit {x.get('unit_id', '?')} {x['label']}"
-                                 + (f", noise {float(nf):.2g}×" if np.isfinite(nf) else ""))
-                hover.append(f"electrode {e}: " + "; ".join(parts))
             # Rings just round the dot, so a dense sort does not bury the
             # activity under it; noise units the quietest of the three.
-            marks.append(Points([xy[pos[e], 0] for e in es], [xy[pos[e], 1] for e in es],
+            marks.append(Points(xy[es, 0], xy[es, 1],
                                 fill=rgba("#ffffff", 0.0),
                                 edge=rgba(LABEL_COLOURS[lab], 0.6 if lab == "noise" else 1.0),
                                 edge_width=0.8 if lab == "noise" else 1.3,
-                                size=size * 1.45, key=lab, hover=hover, z=4))
-            n_units += sum(len(by_elec[e]) for e in es)
+                                size=size * 1.45, key=[key(i) for i in es],
+                                hover=[tip(i) for i in es], z=4))
+            n_units += sum(len(by_elec[int(ids[i])]) for i in es)
         counts = {lab: sum(1 for us in by_elec.values() for x in us if x["label"] == lab)
                   for lab in LABEL_ORDER}
         legend = Legend([LegendItem(f"{lab} units ({counts[lab]})", rgba(LABEL_COLOURS[lab]),
@@ -151,14 +174,12 @@ def signal_quality_map_chart(res, units=None, title: str = ""):
     lo_s, hi_s = (np.percentile(sigma[good], [2, 98]) if good.any() else (0.0, 1.0))
     ig = np.flatnonzero(good)
     noise_marks = [Points(xy[ig, 0], xy[ig, 1], fill=_colours(sigma[ig], "cividis", lo_s, hi_s),
-                          size=size, key="noise",
-                          hover=[f"electrode {ids[i]}: noise SD {sigma[i]:.3g} {unit_label}"
-                                 for i in ig])]
+                          size=size, key=[key(i) for i in ig], hover=[tip(i) for i in ig])]
     flat = placed & ~(sigma > 0)
     if flat.any():
+        i_f = np.flatnonzero(flat)
         noise_marks.append(Points(xy[flat, 0], xy[flat, 1], fill=rgba("#d62728"), size=size,
-                                  key="flat", hover=[f"electrode {ids[i]}: flat (no signal)"
-                                                     for i in np.flatnonzero(flat)]))
+                                  key=[key(i) for i in i_f], hover=[tip(i) for i in i_f]))
     right = Panel(cell=(0, 1), marks=noise_marks,
                   title="Noise level" + (f" — {int(flat.sum())} flat electrode(s) in red"
                                          if flat.any() else ""),

@@ -225,7 +225,7 @@ def _inactive_dots(style, channel_layout: str, electrode_coords, node_coords,
         all_electrode_coords, inactive_electrode_coords,
     )
 
-    if getattr(style, "inactive_electrodes", "Hidden") != "Faint dots":
+    if getattr(style, "inactive_electrodes", "Faint dots") != "Faint dots":
         return None
     if style.layout != LAYOUT_OPTIONS[0]:
         return None

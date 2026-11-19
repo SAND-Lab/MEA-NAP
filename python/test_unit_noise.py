@@ -268,3 +268,19 @@ def test_map_draws_activity_noise_and_units(tmp_path):
     assert "1 of 6 electrodes" in chart.panels[0].title
     assert {item.label.split(" (")[0] for item in chart.legend.items} == {"good units", "noise units"}
     assert save_chart(chart, tmp_path / "m.png").stat().st_size > 10_000
+
+    # Pointing at an electrode lights that electrode on both maps, and picking
+    # a label in the legend keeps the electrodes under those units lit.
+    from meanap.native.chart_paint import FADED, ChartPainter
+
+    painter = ChartPainter(chart)
+
+    def lit(chosen):
+        return {(pi, float(m.x[k]), float(m.y[k]))
+                for pi, panel in enumerate(chart.panels) for m in panel.marks
+                for k in range(len(m.x)) if painter._fade(m, chosen, k) != FADED}
+
+    assert lit("electrode 12") == {(0, 2.0, 0.0), (1, 2.0, 0.0)}
+    assert {(pi, x, y) for pi, x, y in lit("good")} == {(0, 2.0, 0.0), (1, 2.0, 0.0)}
+    ring = next(m for m in chart.panels[0].marks if m.key[0] == ("electrode 12", "good"))
+    assert "noise SD" in ring.hover[0] and "unit a: good" in ring.hover[0]
