@@ -618,6 +618,13 @@ class SimpleView(QWidget):
             action.setChecked(key == self._mode)
             action.setToolTip(mode.blurb)
             action.triggered.connect(lambda _=False, k=key: self.mode_requested.emit(k))
+        # Not a pipeline — it reads no recordings and opens its own window, so
+        # it sits apart from the three, unchecked, rather than as a fourth mode.
+        menu.addSeparator()
+        sim = menu.addAction("MEA-Sim · simulated cultures…")
+        sim.setToolTip(self.simulate_button.toolTip())
+        sim.triggered.connect(lambda _=False: self.simulate_requested.emit())
+        menu.setToolTipsVisible(True)
         menu.exec(self.mode_caption.mapToGlobal(self.mode_caption.rect().bottomLeft()))
 
     def _build_run_area(self) -> None:
@@ -1009,6 +1016,10 @@ class SimpleView(QWidget):
                     f"Switch to {mode.label}", f"{here} › Pipeline", VIEW, None,
                     lambda k=key: self.mode_requested.emit(k),
                     f"mode pipeline {mode.blurb}"))
+        entries.append(SearchEntry(
+            "Open MEA-Sim", f"{here} › Pipeline", VIEW, None,
+            lambda: self.simulate_requested.emit(),
+            "simulate simulation simulated culture MEA-Sim measim validate metric"))
         for entry in entries:
             entry.rank = 0
         return entries
