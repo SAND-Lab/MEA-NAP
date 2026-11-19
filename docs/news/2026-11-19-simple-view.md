@@ -1,11 +1,10 @@
 ---
 date: 2026-11-19
 summary: A redesigned interface for running MEA-NAP and viewing its results, with a step-by-step setup, a search bar and a new results viewer.
-headline: MEA-NAP gets a new look!
 teaser: MEA-NAP (python version) is redesigned to have a much more user-friendly interface. Enjoy!
 ---
 
-# A simpler MEA-NAP: the new default view
+# MEA-NAP gets a new look!
 
 *19 November 2026 · MEA-NAP 1.50.0*
 

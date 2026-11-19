@@ -10,7 +10,7 @@ Welcome to the MEA network analysis pipeline (MEA-NAP) documentation!
 
 .. tip::
 
-   **News, 19 November 2026:** :doc:`A simpler MEA-NAP: the new default view <news/2026-11-19-simple-view>`. A redesigned interface for running MEA-NAP and viewing its results, with a step-by-step setup, a search bar and a new results viewer. :doc:`All news <news/index>`
+   **News, 19 November 2026:** :doc:`MEA-NAP gets a new look! <news/2026-11-19-simple-view>`. A redesigned interface for running MEA-NAP and viewing its results, with a step-by-step setup, a search bar and a new results viewer. :doc:`All news <news/index>`
 
 .. news:end
 
