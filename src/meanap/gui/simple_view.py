@@ -30,7 +30,8 @@ from PyQt6.QtGui import QDesktopServices, QIcon
 from PyQt6.QtWidgets import (
     QComboBox, QDoubleSpinBox, QFileDialog, QFormLayout, QFrame,
     QGraphicsOpacityEffect, QHBoxLayout, QLabel, QLineEdit, QMenu, QProgressBar,
-    QPushButton, QScrollArea, QSizePolicy, QToolButton, QVBoxLayout, QWidget,
+    QApplication, QPushButton, QScrollArea, QSizePolicy, QToolButton, QVBoxLayout,
+    QWidget,
 )
 
 from meanap.gui.branding import logo_pixmap
@@ -40,6 +41,7 @@ from meanap.pipeline.channel_layout import CUSTOM_LAYOUT
 from meanap.gui.simple_results import (
     RESULTS_DESCRIPTION, RESULTS_TITLE, ResultsPage, viewers_for,
 )
+from meanap.gui.simple_continue import ContinueFlow
 from meanap.gui.simple_settings import SETTINGS_QSS, Section, SectionDrawer, SettingsCard
 from meanap.gui.settings_search import (
     SETTING, VIEW, Flash, SearchBox, SearchEntry, reveal_widget,
@@ -159,6 +161,14 @@ QLabel {{ color: {_INK}; }}
 #simpleProgress::chunk {{ border-radius: 3px; background: {_ACCENT}; }}
 #runHeadline {{ font-size: 14px; font-weight: 600; }}
 #runDetail {{ color: {_MUTED}; font-size: 12px; }}
+#planLabel {{
+    color: {_INK};
+    font-size: 12px;
+    background: #ffffff;
+    border: 1px solid {_LINE};
+    border-radius: 10px;
+    padding: 10px 12px;
+}}
 #pageSwitch {{ background: #eceef2; border-radius: 10px; }}
 #pageButton {{
     border: none;
@@ -477,6 +487,8 @@ class SimpleView(QWidget):
     #: The version line under the logo was clicked: show versions and updates.
     versions_requested = pyqtSignal()
     simulate_requested = pyqtSignal()
+    #: "Try it on the example data" was clicked: download it and fill in.
+    example_requested = pyqtSignal()
 
     def __init__(self, data_panel, stim_panel, catnap_panel, mode: str,
                  parent: QWidget | None = None) -> None:
@@ -495,6 +507,17 @@ class SimpleView(QWidget):
         #: Steps with defaults that have been confirmed in this mode.
         self._confirmed: set[str] = set()
         self._output_root: Path | None = None
+        #: "new" (Analyse recordings) or "continue" (Continue a run): which
+        #: questions the analyse page asks.
+        self._flow = "new"
+        self.continue_flow = ContinueFlow(self)
+        #: Loads a run's settings into the window: set by the window, which owns
+        #: every tab they go to. Without one, only the Data tab's are loaded.
+        self.run_loader = None
+        #: The results folder and run name a new analysis had, put back on
+        #: leaving Continue a run so the next new run is not written into the
+        #: run that was being continued.
+        self._new_output: tuple[str, str] | None = None
         #: Connections from the tabbed window's widgets to this page's fields.
         self._links: list = []
         #: (folder, its raw files) → what they said about layout and rate.
@@ -676,7 +699,19 @@ class SimpleView(QWidget):
         run_on.addWidget(self.run_on)
         run_on.addWidget(self.run_on_setup)
         run_on.addStretch(1)
-        layout.addLayout(run_on)
+        self.run_on_row = QWidget()
+        self.run_on_row.setObjectName("stepRow")
+        run_on.setContentsMargins(0, 0, 0, 0)
+        self.run_on_row.setLayout(run_on)
+        layout.addWidget(self.run_on_row)
+
+        # Continue a run: what pressing Run will do, said before it is done.
+        self.plan_label = QLabel()
+        self.plan_label.setObjectName("planLabel")
+        self.plan_label.setWordWrap(True)
+        self.plan_label.setTextFormat(Qt.TextFormat.RichText)
+        self.plan_label.hide()
+        layout.addWidget(self.plan_label)
 
         self.run_button = QPushButton()
         self.run_button.setObjectName("runButton")
@@ -732,7 +767,8 @@ class SimpleView(QWidget):
         row.setContentsMargins(3, 3, 3, 3)
         row.setSpacing(0)
         self._page_buttons: dict[str, QPushButton] = {}
-        for key, label in (("analyse", "Analyse recordings"), ("results", "View results")):
+        for key, label in (("analyse", "Analyse recordings"),
+                           ("continue", "Continue a run"), ("results", "View results")):
             button = QPushButton(label)
             button.setObjectName("pageButton")
             button.setCheckable(True)
@@ -744,21 +780,56 @@ class SimpleView(QWidget):
         self._column_layout.addSpacing(6)
 
     def page(self) -> str:
-        return "results" if self.results_page.isVisibleTo(self) else "analyse"
+        if self.results_page.isVisibleTo(self):
+            return "results"
+        return "continue" if self._flow == "continue" else "analyse"
 
     def show_page(self, key: str) -> None:
-        """Show **Analyse recordings** (``"analyse"``) or **View results** (``"results"``)."""
-        self.analyse_page.setVisible(key == "analyse")
+        """Show **Analyse recordings** (``"analyse"``), **Continue a run**
+        (``"continue"``) or **View results** (``"results"``)."""
+        if key in ("analyse", "continue"):
+            self._set_flow("continue" if key == "continue" else "new")
+        self.analyse_page.setVisible(key in ("analyse", "continue"))
         self.results_page.setVisible(key == "results")
         for name, button in self._page_buttons.items():
             button.setChecked(name == key)
         if key == "results":
             self.results_page.refresh_recent()
 
+    def _analyse_key(self) -> str:
+        """The page of questions now in use: a new analysis's, or a continued run's."""
+        return "continue" if self._flow == "continue" else "analyse"
+
     def show_results(self, source: str | Path) -> None:
         """Go to **View results** and open *source* in the results viewer."""
         self.show_page("results")
         self.results_page.set_source(source)
+
+    def _set_flow(self, flow: str) -> None:
+        """Ask a new analysis's questions (``"new"``) or a continued run's."""
+        if flow == self._flow:
+            return
+        if self._run_state == "running":
+            return  # the run reads the questions' answers; leave them be
+        data = self._data
+        if flow == "continue":
+            self._new_output = (data.output_data_folder.value,
+                                data.output_data_folder_name.text())
+            # One run, on this computer: a queue or a shared run has its own
+            # way of picking up where it stopped.
+            if self.run_panel is not None and self._run_on_key() != THIS_RUN:
+                self.run_panel.set_mode(THIS_RUN)
+        elif self._new_output is not None:
+            folder, name = self._new_output
+            data.output_data_folder.set_value(folder)
+            data.output_data_folder_name.setText(name)
+        self._flow = flow
+        self.close_section()
+        self.rebuild_steps()
+        self.run_on_row.setVisible(flow == "new")
+        if self._run_state in ("done", "failed", "cancelled"):
+            self._show_run_state("idle")
+        self.evaluate(animate=False)
 
     # ── Steps per pipeline ────────────────────────────────────────────────────
 
@@ -768,27 +839,7 @@ class SimpleView(QWidget):
         # same settings in every pipeline that has it.
         self.close_section()
         self._mode = mode
-        self._reopened = None
-        for signal, slot in self._links:
-            try:
-                signal.disconnect(slot)
-            except TypeError:  # already gone with its widget
-                pass
-        self._links = []
-        for step in self._steps:
-            step.card.setParent(None)
-            step.card.deleteLater()
-        self._steps = self._build_steps(mode)
-        for index, step in enumerate(self._steps):
-            self._steps_box.addWidget(step.card)
-            step.card.reopen_requested.connect(lambda i=index: self._reopen(i))
-            for widget in step.watch:
-                if isinstance(widget, QLineEdit):
-                    widget.textChanged.connect(self.schedule_check)
-                elif isinstance(widget, QComboBox):
-                    widget.currentTextChanged.connect(self.schedule_check)
-                elif isinstance(widget, QDoubleSpinBox):
-                    widget.valueChanged.connect(self.schedule_check)
+        self.rebuild_steps()
 
         pixmap = logo_pixmap(LOGO_HEIGHT, self.devicePixelRatioF(), mode)
         if pixmap is not None:
@@ -806,6 +857,35 @@ class SimpleView(QWidget):
             self._show_run_state("idle")
         self.evaluate(animate=False)
 
+    def rebuild_steps(self) -> None:
+        """Build the questions afresh for the pipeline and the page showing.
+
+        Their answers live in the tabbed window (and, for **Continue a run**,
+        in :class:`ContinueFlow`), so nothing typed is lost; the cards' states
+        follow from the answers at the next :meth:`evaluate`.
+        """
+        self._reopened = None
+        for signal, slot in self._links:
+            try:
+                signal.disconnect(slot)
+            except TypeError:  # already gone with its widget
+                pass
+        self._links = []
+        for step in self._steps:
+            step.card.setParent(None)
+            step.card.deleteLater()
+        self._steps = self._build_steps(self._mode)
+        for index, step in enumerate(self._steps):
+            self._steps_box.addWidget(step.card)
+            step.card.reopen_requested.connect(lambda i=index: self._reopen(i))
+            for widget in step.watch:
+                if isinstance(widget, QLineEdit):
+                    widget.textChanged.connect(self.schedule_check)
+                elif isinstance(widget, QComboBox):
+                    widget.currentTextChanged.connect(self.schedule_check)
+                elif isinstance(widget, QDoubleSpinBox):
+                    widget.valueChanged.connect(self.schedule_check)
+
     def _build_steps(self, mode: str) -> list[_Step]:
         steps: list[_Step] = []
 
@@ -813,7 +893,26 @@ class SimpleView(QWidget):
             card = StepCard(len(steps) + 1, title, hint, body)
             steps.append(_Step(key, card, check, focus, confirm, list(watch)))
 
-        # Recordings
+        if self._flow == "continue":
+            self.continue_flow.build(
+                add, lambda check: self._add_recordings_step(add, mode, check),
+                lambda: self._add_spreadsheet_step(
+                    add, mode, self.continue_flow.spreadsheet_folder))
+            return steps
+
+        self._add_recordings_step(add, mode)
+        self._add_spreadsheet_step(add, mode)
+        self._add_setting_steps(add, mode)
+
+        # Output
+        output = self._path_field(self._data.output_data_folder.line_edit, folder=True,
+                                  placeholder="Choose where to save the results")
+        add("output", "Results folder", "Where to save the results.",
+            output, lambda: check_output_folder(self._data.output_data_folder.value),
+            focus=output.edit, watch=[output.edit])
+        return steps
+
+    def _add_recordings_step(self, add, mode: str, check=None) -> None:
         folder = self._path_field(self._data.raw_data.line_edit, folder=True,
                                   placeholder="Choose a folder, or paste a Dropbox link",
                                   file_filter="" if mode == "catnap" else
@@ -823,10 +922,52 @@ class SimpleView(QWidget):
             ("The folder holding one sub-folder per recording, each with "
              "suite2p/plane0 inside." if mode == "catnap" else
              "The folder with your recordings (.mat, .h5 or .raw files)."),
-            folder, lambda: check_recordings_folder(self._folder_text(), mode),
+            self._with_example_link(folder, mode),
+            check or (lambda: check_recordings_folder(self._folder_text(), mode)),
             focus=folder.edit, watch=[folder.edit])
 
-        # Spreadsheet
+    def _with_example_link(self, folder: QWidget, mode: str) -> QWidget:
+        """The recordings field, with a way to try MEA-NAP on its example data.
+
+        A new analysis in MEA-NAP only: the example is two ephys recordings.
+        """
+        if mode != "meanap" or self._flow != "new":
+            return folder
+        body = QWidget()
+        body.setObjectName("stepRow")
+        rows = QVBoxLayout(body)
+        rows.setContentsMargins(0, 0, 0, 0)
+        rows.setSpacing(2)
+        rows.addWidget(folder)
+        link = QPushButton("Or try it on the example data")
+        link.setObjectName("linkButton")
+        link.setCursor(Qt.CursorShape.PointingHandCursor)
+        link.setToolTip("Downloads two example recordings (about 1.8 GB, once: "
+                        "later uses find them in the results folder) and a "
+                        "spreadsheet for them, and fills in the questions. Run "
+                        "then analyses them.")
+        link.clicked.connect(self.example_requested)
+        self._example_link = link
+        rows.addWidget(link, 0, Qt.AlignmentFlag.AlignLeft)
+        body.edit = folder.edit
+        return body
+
+    def show_example_status(self, text: str) -> None:
+        """Say the example data is on its way (or nothing, once it is)."""
+        link = getattr(self, "_example_link", None)
+        if link is None:
+            return
+        try:
+            link.setEnabled(not text)
+            link.setText(text or "Or try it on the example data")
+        except RuntimeError:  # rebuilt meanwhile
+            pass
+        QApplication.processEvents()
+
+    def _add_spreadsheet_step(self, add, mode: str, recordings_folder=None) -> None:
+        """*recordings_folder*, if given, says which folder to match the names
+        against (``""``: none, check the spreadsheet on its own)."""
+        folder = recordings_folder or self._folder_text
         sheet = self._path_field(self._data.spreadsheet.line_edit, folder=False,
                                  placeholder="Choose a .csv or .xlsx file",
                                  file_filter="Spreadsheets (*.csv *.xlsx)")
@@ -849,11 +990,14 @@ class SimpleView(QWidget):
         add("spreadsheet", "Spreadsheet",
             "Lists each recording with its age (DIV) and group.",
             sheet_body,
-            lambda: check_spreadsheet(self._data.spreadsheet.value, self._folder_text(),
+            lambda: check_spreadsheet(self._data.spreadsheet.value, folder(),
                                       mode, self._data.spreadsheet_range.text()),
             focus=sheet.edit, watch=[sheet.edit])
 
-        # What the data is, or how to read it
+    def _add_setting_steps(self, add, mode: str) -> None:
+        """What the data is, or how to read it: asked of a new analysis only.
+
+        A continued run keeps its own; they are under Other settings."""
         if mode == "catnap":
             activity = QComboBox()
             self._links += mirror_combo(activity, self._catnap._activity_combo)
@@ -900,14 +1044,6 @@ class SimpleView(QWidget):
                 body,
                 lambda: self._confirmed_check("stimulation", method.currentText()),
                 focus=method, confirm=True, watch=[method, value])
-
-        # Output
-        output = self._path_field(self._data.output_data_folder.line_edit, folder=True,
-                                  placeholder="Choose where to save the results")
-        add("output", "Results folder", "Where to save the results.",
-            output, lambda: check_output_folder(self._data.output_data_folder.value),
-            focus=output.edit, watch=[output.edit])
-        return steps
 
     # ── Field builders ────────────────────────────────────────────────────────
 
@@ -1031,6 +1167,9 @@ class SimpleView(QWidget):
                 f"{viewer.description} viewer results"))
         for key, title, words in (
                 ("analyse", "Analyse recordings", "run steps start"),
+                ("continue", "Continue a run",
+                 "continue resume interrupted add remove recordings re-run rerun "
+                 "later steps existing previous run"),
                 ("results", "View results", "results viewer bundle open report")):
             entries.append(SearchEntry(title, here, VIEW, None,
                                        lambda k=key: self.show_page(k), words))
@@ -1050,7 +1189,7 @@ class SimpleView(QWidget):
 
     def go_to_step(self, index: int) -> None:
         """Open question *index* (reopening it if answered) and mark it."""
-        self.show_page("analyse")
+        self.show_page(self._analyse_key())
         step = self._steps[index]
         if step.card.state == "done":
             self._reopen(index)
@@ -1124,6 +1263,7 @@ class SimpleView(QWidget):
         self._show_settings_badge()
         self.run_area.setVisible(ready or self._run_state != "idle")
         self._show_settings_card()
+        self.refresh_plan()
         self._refresh_run_button()
         # Only while the page is on screen: from behind the tabs, taking focus
         # would leave the classic window opening with a field focused.
@@ -1131,6 +1271,30 @@ class SimpleView(QWidget):
             # After the previous card has had its moment, so focus does not
             # jump before the tick is seen.
             QTimer.singleShot(TICK_HOLD_MS if animate else 0, newly_active.setFocus)
+
+    def refresh_plan(self) -> None:
+        """Say what Run will do to the run being continued."""
+        lines = (self.continue_flow.plan()
+                 if self._flow == "continue" and self._ready else [])
+        self.plan_label.setVisible(bool(lines) and self._run_state == "idle")
+        if lines:
+            from html import escape
+
+            self.plan_label.setText(
+                "<b>What this run will do</b><ul style='margin:4px 0 0 -24px'>"
+                + "".join(f"<li>{escape(line)}</li>" for line in lines) + "</ul>")
+        self._refresh_run_button()
+
+    def run_overrides(self) -> dict | None:
+        """Settings a Run from this page puts on top of the window's, or ``None``.
+
+        Only **Continue a run** has any: they point the run at the run being
+        continued and say what to do with it. See
+        :func:`meanap.pipeline.continuation.run_overrides`.
+        """
+        if self._flow != "continue" or not self._ready:
+            return None
+        return self.continue_flow.overrides()
 
     def _refresh_sheet_button(self) -> None:
         """Offer to build a spreadsheet when there is a folder of recordings and no sheet."""
@@ -1198,7 +1362,7 @@ class SimpleView(QWidget):
         area = next((a for a in self.settings_card.areas() if a.key == area_key), None)
         if area is None or not 0 <= index < len(area.sections):
             return
-        self.show_page("analyse")
+        self.show_page(self._analyse_key())
         self._settings_asked = True
         self._show_settings_card()
         self.drawer.open_section(area.title, area.sections[index])
@@ -1244,6 +1408,8 @@ class SimpleView(QWidget):
         self.settings_card.setEnabled(not running)
         self.run_on.setEnabled(not running)
         self.run_on_setup.setEnabled(not running)
+        if hasattr(self, "plan_label") and state != "idle":
+            self.plan_label.hide()
 
     # ── Where the run happens ─────────────────────────────────────────────────
 
@@ -1304,7 +1470,10 @@ class SimpleView(QWidget):
         """
         key = self._run_on_key()
         extra_ok = True
-        if key == THIS_RUN or self.run_panel is None:
+        if self._flow == "continue":
+            self.run_button.setText(self.continue_flow.run_label())
+            self.run_button.setToolTip("")
+        elif key == THIS_RUN or self.run_panel is None:
             self.run_button.setText(f"Run {MODES[self._mode].label.split('·')[0].strip()}")
             self.run_button.setToolTip("")
         else:
@@ -1354,6 +1523,8 @@ class SimpleView(QWidget):
         or for a helper's share of a shared run, which have no one folder."""
         self.clock.stop()
         self._output_root = Path(output_root) if output_root else None
+        # What the run has finished has just changed.
+        self.continue_flow.forget_cache()
         headline, detail = "✓  Finished", (str(self._output_root) if self._output_root
                                              else summary)
         silent = []

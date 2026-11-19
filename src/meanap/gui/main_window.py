@@ -67,8 +67,12 @@ SIMPLE_VIEW_KEY = "gui/simple_view"
 
 
 def load_simple_view_preference() -> bool:
-    """Whether to open in the simple view. The classic view is the default."""
-    value = QSettings("SAND Lab", "MEA-NAP").value(SIMPLE_VIEW_KEY, False)
+    """Whether to open in the simple view, which is the default since 1.50.0.
+
+    Saved only when someone switches view, so a person who chose the classic
+    view keeps it; everyone else, new or updating, opens in the simple view.
+    """
+    value = QSettings("SAND Lab", "MEA-NAP").value(SIMPLE_VIEW_KEY, True)
     # QSettings hands back the string "false" on some platforms.
     return value if isinstance(value, bool) else str(value).lower() == "true"
 
@@ -560,7 +564,9 @@ class MainWindow(QMainWindow):
         self._simple_view.show_log_requested.connect(self._on_show_run_log)
         self._simple_view.versions_requested.connect(self._on_show_versions)
         self._simple_view.simulate_requested.connect(self._on_show_sim)
+        self._simple_view.example_requested.connect(self._on_simple_example)
         self._refresh_version_label()
+        self._simple_view.run_loader = self._load_run_settings
         self._simple_view.search_provider = self._search_entries
         self._simple_view.settings_provider = self._settings_areas
         # Express mode is the simple view's default (see _apply_simple_defaults)
@@ -1384,6 +1390,15 @@ class MainWindow(QMainWindow):
         if hasattr(self, "_simple_view"):
             self._simple_view.refresh_settings()
 
+    def _load_run_settings(self, params: Params) -> None:
+        """An earlier run's settings, loaded to continue it from the simple view.
+
+        Its express-mode choice stands, as a loaded settings file's does: a run
+        kept as a folder stays a folder.
+        """
+        self._load_params(params)
+        self._express_chosen = True
+
     def _collect_params(self) -> Params:
         params = Params()
         self._data_panel.save(params)
@@ -1446,14 +1461,41 @@ class MainWindow(QMainWindow):
     # ── Pipeline run / stop ───────────────────────────────────────────────────
 
     def _on_test_pipeline(self) -> None:
-        # The test run needs somewhere to put the example data and its output.
+        self._tabs.setCurrentIndex(self._tab_index(TAB_RUN))
+        if not self._use_example_data():
+            return
+        # The test run verifies that the full pipeline (steps 1-4) works.
+        self._pipeline_panel.start_step.setValue(1)
+        self._pipeline_panel.stop_step.setValue(4)
+
+        self._run_panel.append_log("Example data ready — running full pipeline (steps 1-4).")
+        self._on_run()
+
+    def _on_simple_example(self) -> None:
+        """The simple view's "Try it on the example data": fill in, don't run.
+
+        The questions then show what the example is (two Axion recordings, a
+        spreadsheet, the layout read from the files) and Run is one click
+        away, which says more about how the page works than a run that
+        starts by itself.
+        """
+        view = self._simple_view
+        view.show_example_status("Downloading the example data…")
+        if self._use_example_data():
+            view.show_example_status("")
+            view.evaluate(animate=True, commit=True)
+        else:
+            view.show_example_status("")
+
+    def _use_example_data(self) -> bool:
+        """Download the example data and point the settings at it; False on failure."""
+        # The run needs somewhere to put the example data and its output.
         # Default the output folder to ~/MEA-NAP when it hasn't been set.
         out_folder = self._data_panel.output_data_folder.value
         if not out_folder:
             out_folder = str(Path.home() / "MEA-NAP")
             self._data_panel.output_data_folder.set_value(out_folder)
 
-        self._tabs.setCurrentIndex(self._tab_index(TAB_RUN))
         self._run_panel.append_log("Downloading example data for pipeline test…")
         QApplication.processEvents()
 
@@ -1465,7 +1507,7 @@ class MainWindow(QMainWindow):
             example_dir = download_example_data(Path(out_folder), log=log)
         except Exception as e:
             QMessageBox.critical(self, "Download failed", str(e))
-            return
+            return False
 
         # Point the paths panel at the example dataset, mirroring the MATLAB
         # TestPipelineButton behaviour (downloadExampleData + settings override).
@@ -1494,13 +1536,7 @@ class MainWindow(QMainWindow):
             self._data_panel.custom_grp_order.setText(",".join(unique_grps))
         except Exception as e:
             log(f"Warning: could not parse custom group order from exampleData.csv: {e}")
-
-        # The test run verifies that the full pipeline (steps 1-4) works.
-        self._pipeline_panel.start_step.setValue(1)
-        self._pipeline_panel.stop_step.setValue(4)
-
-        self._run_panel.append_log("Example data ready — running full pipeline (steps 1-4).")
-        self._on_run()
+        return True
 
     def _on_run_clicked(self) -> None:
         """One button, so what it starts is whatever the Run tab's switch says.
@@ -1531,6 +1567,12 @@ class MainWindow(QMainWindow):
 
         params = self._collect_params()
         self._params = params
+        # Continue a run (simple view): pointed at that run and told what to
+        # do with it. A copy, so none of it becomes a setting for later runs.
+        overrides = (self._simple_view.run_overrides()
+                     if self.is_simple_view() else None)
+        if overrides:
+            params = replace(params, **overrides)
 
         missing = []
         # Only step 1 reads the raw recordings; later steps work from the spike
@@ -1574,7 +1616,9 @@ class MainWindow(QMainWindow):
             f"Starting MEA-NAP: steps {params.start_analysis_step}-{params.stop_analysis_step}…"
         )
 
-        params = self._confirm_output_folder(params)
+        # Continuing a run writes into it on purpose: nothing to ask.
+        if not overrides:
+            params = self._confirm_output_folder(params)
         if params is None:
             # Called off at the overwrite prompt. Buttons are set *after* this
             # rather than before, so the tab cannot be left with Run greyed out

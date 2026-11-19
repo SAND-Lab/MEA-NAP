@@ -1,7 +1,10 @@
 # GUI guide
 
-The `meanap-gui` desktop app (PyQt6) mirrors the MATLAB App Designer
-interface: one tab per section of the pipeline. Parameters round-trip to and
+The `meanap-gui` desktop app (PyQt6) opens in the [simple view](#simple-view):
+one page that asks only for what a run needs. **Classic view**, at the top
+right, switches to the tabs, which mirror the MATLAB App Designer interface:
+one tab per section of the pipeline. Whichever you last chose is what opens
+next time. Parameters round-trip to and
 from a `Params` dataclass (`meanap.params.Params`, see the
 [API reference](api/index.rst)) via each panel's `load()`/`save()` methods, and
 can be saved/reloaded as JSON from the toolbar (**New**, **Open params…**,
@@ -20,8 +23,10 @@ automatically.
 (simple-view)=
 ## Simple view
 
-**✦ Simple view**, at the right-hand end of the status bar, swaps the tabs for
-one page that asks only for what a run needs, one question at a time:
+The simple view is what MEA-NAP opens in (since 1.50.0). It is one page that
+asks only for what a run needs, one question at a time. From the tabs,
+**✦ Simple view** at the right-hand end of the status bar brings it back.
+Its **Analyse recordings** page asks:
 
 1. **Recordings**: the folder with your recordings (for CAT-NAP, the folder
    holding one suite2p folder per recording), or a Dropbox folder link.
@@ -42,6 +47,44 @@ When an answer checks out, a green tick appears beside it and it folds into a
 one-line summary; a warning (an amber **!**) still lets you move on. Click a
 folded answer to change it. Clicking the logo switches pipeline, **Run** starts
 the run, and the page shows its progress and then **View results**.
+
+(simple-view-continue)=
+### Continue a run
+
+**Continue a run**, the middle of the three buttons at the top of the page,
+picks up an earlier run instead of starting a new one. It asks:
+
+1. **Run to continue**: the run's results folder (`OutputData…`) or its
+   `.meanap` file. Its settings are loaded, so the questions after this one
+   start answered, and the card says how many recordings it has, how many it
+   finished, and which version made it;
+2. **What do you want to do?**
+   - **Finish an interrupted run**: analyse the recordings it didn't get to;
+     the finished ones are kept;
+   - **Add recordings**: the next question lists the recordings in the folder
+     that the run doesn't have, and **Add them to a copy of the spreadsheet…**
+     opens the spreadsheet editor with the run's rows plus one per new
+     recording, for you to give each a DIV and a group;
+   - **Remove recordings**: untick the ones to leave out. **Delete the figures
+     of the recordings left out** is on by default; their data files are kept
+     either way, so putting one back is quick;
+   - **Re-run later steps with new settings**: choose the step to start from,
+     change settings under **Other settings**, and every recording is redone
+     from that step. The earlier steps are read from the run;
+3. **Recordings** and **Spreadsheet**: the run's own, already filled in. They
+   are asked again because data moves between disks. When nothing needs spike
+   detection (a removal, a re-run), the recordings are marked *Not needed*.
+
+The run's spreadsheet is never edited. Adding or removing writes a copy beside
+it, `<name>_continued.csv`, and the run uses that (continuing again reuses the
+same copy). Above **Run**, the page lists what the run will do: how many
+recordings it will analyse, keep and leave out, and that the group comparisons
+are redone over the new set. The results go into the same run folder.
+
+This is the **Continue previous run** and **…and drop removed recordings'
+figures** tick boxes on the Run tab, plus **Start at step**, set for you. It
+sets them for that one run only, not for later ones. See
+[Changing which recordings a run covers](changing-a-batch.md).
 
 While a run is going, the elapsed time and time left update every second, not
 only when a recording finishes. If the estimate runs out first, the page says

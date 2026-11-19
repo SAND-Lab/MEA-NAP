@@ -8,7 +8,7 @@ The simple view asks one question at a time and shows a tick when an answer
 checks out. These checks hold four things in place:
 
   A. the checks behind the ticks, on folders and spreadsheets built here;
-  B. the classic view stays the default, and the choice is remembered;
+  B. the simple view is the default, and the choice is remembered;
   C. the flow: each answer folds once it checks out, the settings it writes
      are the ones a run reads, and switching pipeline rebuilds the questions
      without leaving stale connections behind;
@@ -143,24 +143,33 @@ def checks_section(d: dict[str, Path]) -> None:
 # ── B. The toggle ────────────────────────────────────────────────────────────
 
 def toggle_section() -> None:
-    print("B. Classic by default, choice remembered")
+    print("B. Simple by default, choice remembered")
     settings = QSettings("SAND Lab", "MEA-NAP")
     settings.setValue("tutorial/seen", True)
     settings.remove(SIMPLE_VIEW_KEY)
     w = MainWindow()
-    check("classic view opens by default", not w.is_simple_view())
+    check("the simple view opens by default", w.is_simple_view())
     toolbars = w.findChildren(QToolBar)
-    check("toolbar shown in the classic view", all(tb.isVisibleTo(w) for tb in toolbars))
-    w._set_simple_view(True)
-    check("switching to the simple view hides the toolbar",
-          not any(tb.isVisibleTo(w) for tb in toolbars))
+    check("with no toolbar", not any(tb.isVisibleTo(w) for tb in toolbars))
+    check("and nothing saved until someone chooses", settings.value(SIMPLE_VIEW_KEY) is None)
+    w._simple_view.classic_requested.emit()
+    check("Classic view switches to the tabs", not w.is_simple_view())
+    check("and shows the toolbar", all(tb.isVisibleTo(w) for tb in toolbars))
     w.close()
     w2 = MainWindow()
-    check("next window opens in the simple view", w2.is_simple_view())
-    w2._simple_view.classic_requested.emit()
-    check("Classic view button switches back", not w2.is_simple_view())
+    check("someone who chose the classic view keeps it", not w2.is_simple_view())
+    w2._set_simple_view(True)
     w2.close()
-    check("and that is remembered too", not MainWindow().is_simple_view())
+    check("and switching back is remembered too", MainWindow().is_simple_view())
+
+    # A first launch in the classic view still offers the tutorial (it walks
+    # the tabs); in the simple view it waits, since there is nothing to point at.
+    settings.remove("tutorial/seen")
+    w4 = MainWindow()
+    check("the tutorial does not open over the simple view",
+          w4._tutorial is None or not w4._tutorial.isVisible())
+    w4.close()
+    settings.setValue("tutorial/seen", True)
 
     # MEA-Sim from the pipeline menu under the logo. QMenu.exec is swapped for
     # a stand-in that records the menu and returns, so nothing blocks.
@@ -467,6 +476,48 @@ def picker_section(d: dict[str, Path]) -> None:
     w.close()
 
 
+def example_section() -> None:
+    print("F. Try it on the example data")
+    from meanap.gui import main_window as mw
+
+    example = Path(__file__).resolve().parents[1] / "ExampleData"
+    fetched: list = []
+    real = mw.download_example_data
+    mw.download_example_data = lambda dest, log=None: fetched.append(dest) or example
+    try:
+        w = MainWindow()
+        w._set_simple_view(True)
+        w._data_panel.output_data_folder.set_value("")
+        w._data_panel.raw_data.set_value("")
+        w._data_panel.spreadsheet.set_value("")
+        sv = w._simple_view
+        pump(100)
+        link = getattr(sv, "_example_link", None)
+        check("MEA-NAP's first question offers the example data",
+              link is not None and link.text() == "Or try it on the example data")
+        check("its tooltip says how big the download is", "1.8 GB" in link.toolTip())
+        started: list = []
+        real_run = w._on_run
+        w._on_run = lambda: started.append(True)
+        link.click()
+        pump(1500)
+        check("it is fetched into a results folder of its own",
+              fetched and str(fetched[0]).endswith("MEA-NAP"), str(fetched))
+        check("and fills in the recordings and the spreadsheet",
+              w._data_panel.raw_data.value == str(example)
+              and w._data_panel.spreadsheet.value.endswith("exampleData.csv"))
+        check("without starting a run: Run is the person's to press", not started)
+        w._on_run = real_run
+        w._on_mode_requested("catnap")
+        pump(200)
+        check("CAT-NAP has no example data link",
+              not any(b.text() == "Or try it on the example data"
+                      for b in sv._steps[0].card.findChildren(type(link))))
+        w.close()
+    finally:
+        mw.download_example_data = real
+
+
 def main() -> int:
     shots = Path(sys.argv[1]) if len(sys.argv) > 1 else None
     with tempfile.TemporaryDirectory() as tmp:
@@ -477,6 +528,7 @@ def main() -> int:
         picker_section(data)
         run_section(shots)
         version_section(shots)
+        example_section()
     if ERRORS:
         FAILURES.append("uncaught exceptions: " + "; ".join(ERRORS[:3]))
     print(f"\n{'ALL PASSED' if not FAILURES else f'{len(FAILURES)} FAILED'}")

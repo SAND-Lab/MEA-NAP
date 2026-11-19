@@ -6,6 +6,14 @@
 Welcome to the MEA network analysis pipeline (MEA-NAP) documentation!
 ======================================================================
 
+.. news:start
+
+.. tip::
+
+   **News, 19 November 2026:** :doc:`A simpler MEA-NAP: the new default view <news/2026-11-19-simple-view>`. A redesigned interface for running MEA-NAP and viewing its results, with a step-by-step setup, a search bar and a new results viewer. :doc:`All news <news/index>`
+
+.. news:end
+
 MEA-NAP is a diagnostic tool for studying microscale functional connectivity, topology, and network dynamics
 ----------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -59,6 +67,13 @@ Citing MEA-NAP
 ----------------------------------------------------------------------------
 
 Timothy PH Sit, Rachael C Feord, Alexander WE Dunn, Jeremi Chabros, David Oluigbo, Hugo H Smith, Lance Burn, Elise Chang, Alessio Boschi, Yin Yuan, George M Gibbons, Mahsa Khayat-Khoei, Francesco De Angelis, Erik Hemberg, Martin Hemberg, Madeline A Lancaster, Andras Lakatos, Stephen J Eglen, Ole Paulsen, Susanna B Mierau. **MEA-NAP: A flexible network analysis pipeline for neuronal 2D and 3D organoid multielectrode recordings.** `Cell Reports Methods`, 4, 100901, November 18, 2024. doi:[https://doi.org/10.1016/j.crmeth.2024.100901]
+
+.. toctree::
+   :maxdepth: 1
+   :caption: News:
+   :hidden:
+
+   news/index
 
 .. toctree::
    :maxdepth: 2

@@ -212,7 +212,10 @@ def run_pipeline(
     log(f"Output folder ready: {output_root}")
     # Before anything asks what is already finished: an express run left its
     # results in the bundle beside this folder, not in it.
-    if params.continue_interrupted:
+    # Re-running later steps in place reads the earlier steps' files from this
+    # folder, so it needs them back out of the bundle just the same.
+    if params.continue_interrupted or resumes_in_place(params) or (
+            params.start_analysis_step > 1 and params.overwrite_existing_output):
         _restore_bundle_for_continue(output_root, log)
     _log_run_header(params, recordings, output_root, log)
 

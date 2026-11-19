@@ -3,10 +3,18 @@
 
 # MEA Network Analysis Pipeline (MEA-NAP)
 
-> [!IMPORTANT]
-> **MEA-NAP is now available in Python (beta).** It is much faster and introduces a lot of new features. The MATLAB version is still supported.
+<!-- news:start -->
+
+> [!NOTE]
+> **Latest news** · [all news](https://analysis-pipeline.readthedocs.io/en/latest/news/index.html)
 >
-> [**Read the release note**](release_notes/python-beta.md) · [**Download the app**](https://analysis-pipeline.readthedocs.io/en/latest/python/installation.html#the-desktop-app-easiest) (Windows, Mac) · [**Install from source**](https://analysis-pipeline.readthedocs.io/en/latest/python/installation.html#from-the-source-code) · [**Quickstart**](https://analysis-pipeline.readthedocs.io/en/latest/python/quickstart.html) · [**MATLAB vs Python**](https://analysis-pipeline.readthedocs.io/en/latest/python/matlab-vs-python.html) · [**Send us feedback**](https://github.com/SAND-Lab/MEA-NAP/discussions)
+> - **[MEA-NAP gets a new look!](https://analysis-pipeline.readthedocs.io/en/latest/news/2026-11-19-simple-view.html)** (19 Nov 2026): MEA-NAP (python version) is redesigned to have a much more user-friendly interface. Enjoy!
+> - **[MEA-NAP now runs faster](https://analysis-pipeline.readthedocs.io/en/latest/news/2026-11-19-express-mode.html)** (19 Nov 2026): MEA-NAP will now use express mode by default.
+> - **[MEA-NAP in Python: beta release](https://analysis-pipeline.readthedocs.io/en/latest/news/2026-10-20-python-beta.html)** (20 Oct 2026): MEA-NAP is now available in Python (beta). It is much faster and adds a lot of new features; the MATLAB version is still supported.
+>
+> [**Download the app**](https://analysis-pipeline.readthedocs.io/en/latest/python/installation.html#the-desktop-app-easiest) (Windows, Mac) · [**Install from source**](https://analysis-pipeline.readthedocs.io/en/latest/python/installation.html#from-the-source-code) · [**Quickstart**](https://analysis-pipeline.readthedocs.io/en/latest/python/quickstart.html) · [**MATLAB vs Python**](https://analysis-pipeline.readthedocs.io/en/latest/python/matlab-vs-python.html) · [**Send us feedback**](https://github.com/SAND-Lab/MEA-NAP/discussions)
+
+<!-- news:end -->
 
 ![Visitors](https://api.visitorbadge.io/api/visitors?path=https%3A%2F%2Fgithub.com%2FSAND-Lab%2FAnalysisPipeline&label=Visitors&countColor=%23263759)
 [![Documentation Status](https://readthedocs.org/projects/analysis-pipeline/badge/?version=latest)](https://analysis-pipeline.readthedocs.io/en/latest/?badge=latest)
@@ -30,8 +38,14 @@ Alterations in synaptic function, and other cellular processes that affect neuro
 
 MEA-NAP is a streamlined diagnostic and analytic tool for microscale network activity data obtained using microelectrode arrays. MEA-NAP provides a straight forward way for new and experienced MATLAB users to quickly compare spike detection methods, neuronal activity (including firing rate and burst detection), functional connectivity, network topology (including network metrics from graph theory), and network dynamics. MEA-NAP performs batch analysis of an experimental dataset (e.g., MEA recordings from wild-type and knock-out cultures at multiple developmental time points). MEA-NAP produces summary plots and performs statistics on these features and organizes the output figures in a convenient file structure. The user can then identify network-level developmental or genotypic differences in their MEA dataset. The pipeline is written in `MATLAB` and was designed for experimentalists with little or no experience with network analysis.  Experienced users will find the batch analysis and automatic figure generation convenient for examining both individual network and group comparisons. 
 
-![image](https://github.com/user-attachments/assets/2c9703c9-308f-4a9a-a7fe-e6c974e8b1c7)
-Here is an example screenshot of MEA-NAP, on the left, you have the interface to set your parmeters for performing analysis, and on the right, you have a viewer that allows you to browse through the outputs of MEA-NAP.
+<table>
+  <tr>
+    <td width="50%"><img src="docs/news/imgs/simple-view/analyse.png" alt="Setting up a run in the MEA-NAP Python app"></td>
+    <td width="50%"><img src="docs/news/imgs/simple-view/viewer.png" alt="The MEA-NAP results viewer"></td>
+  </tr>
+</table>
+
+The MEA-NAP Python app. On the left, setting up a run: one question at a time, each checked as you answer it. On the right, the results viewer, where you browse every figure of a run, read values off them and compare recordings.
 
 ## Documentation
 
