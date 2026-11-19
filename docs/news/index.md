@@ -4,7 +4,7 @@ What's new in MEA-NAP, newest first.
 
 <!-- news:start -->
 
-## [A simpler MEA-NAP: the new default view](2026-11-19-simple-view.md)
+## [MEA-NAP gets a new look!](2026-11-19-simple-view.md)
 
 *19 November 2026*
 
