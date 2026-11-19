@@ -162,6 +162,33 @@ def toggle_section() -> None:
     w2.close()
     check("and that is remembered too", not MainWindow().is_simple_view())
 
+    # MEA-Sim from the pipeline menu under the logo. QMenu.exec is swapped for
+    # a stand-in that records the menu and returns, so nothing blocks.
+    from PyQt6.QtWidgets import QMenu
+    w3 = MainWindow()
+    w3._set_simple_view(True)
+    shown: list[QMenu] = []
+    real_exec = QMenu.exec
+    QMenu.exec = lambda self, *a, **k: shown.append(self)
+    try:
+        w3._simple_view.mode_caption.click()
+    finally:
+        QMenu.exec = real_exec
+    actions = [a for a in shown[0].actions() if a.text().startswith("MEA-Sim")] if shown else []
+    check("the pipeline menu offers MEA-Sim, apart from the pipelines",
+          len(actions) == 1 and not actions[0].isCheckable(), str([a.text() for a in
+                                                                   shown[0].actions()] if shown else shown))
+    if actions:
+        actions[0].trigger()
+    sim = getattr(w3, "_sim_window", None)
+    check("choosing it opens the MEA-Sim window", sim is not None and sim.isVisible())
+    hits = [e for e in w3._search_entries() if e.title == "Open MEA-Sim"]
+    check("searching 'simulate' finds it", bool(hits))
+    if sim is not None:
+        sim.close()
+    w3._set_simple_view(False)
+    w3.close()
+
 
 # ── C. The flow ──────────────────────────────────────────────────────────────
 
