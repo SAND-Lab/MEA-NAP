@@ -284,6 +284,15 @@ class MainWindow(QMainWindow):
             "working out why one of them is slow.")
         act_system.triggered.connect(self._on_show_system_report)
 
+        # Not a mode: it analyses no recordings, so it gets its own window
+        # beside whatever pipeline is open, rather than replacing its tabs.
+        act_sim = QAction("🧪  Simulate", self)
+        act_sim.setToolTip(
+            "MEA-Sim: simulate cultures with a known network and see how each "
+            "edge method and network metric responds to firing rate, recording "
+            "length, bursts and slow states — and to the network itself.")
+        act_sim.triggered.connect(self._on_show_sim)
+
         # One switch for every folded section in the window, for someone who
         # would rather see all of it than open sections one at a time. It only
         # changes what is shown: see meanap.gui.advanced.
@@ -330,6 +339,7 @@ class MainWindow(QMainWindow):
         tb.addAction(self._act_advanced)
         tb.addAction(act_tutorial)
         tb.addAction(act_system)
+        tb.addAction(act_sim)
         tb.addSeparator()
 
 
@@ -549,6 +559,7 @@ class MainWindow(QMainWindow):
         self._simple_view.view_results_requested.connect(self._on_simple_view_results)
         self._simple_view.show_log_requested.connect(self._on_show_run_log)
         self._simple_view.versions_requested.connect(self._on_show_versions)
+        self._simple_view.simulate_requested.connect(self._on_show_sim)
         self._refresh_version_label()
         self._simple_view.search_provider = self._search_entries
         self._simple_view.settings_provider = self._settings_areas
@@ -2205,6 +2216,16 @@ class MainWindow(QMainWindow):
         QMessageBox.critical(self, "Could not pack the bundle", message)
 
     # ── The spike and burst viewer ────────────────────────────────────────────
+
+    def _on_show_sim(self) -> None:
+        """Open MEA-Sim, reusing its window if it is already up."""
+        from meanap.gui.sim_window import SimWindow
+
+        if getattr(self, "_sim_window", None) is None:
+            self._sim_window = SimWindow()
+        self._sim_window.show()
+        self._sim_window.raise_()
+        self._sim_window.activateWindow()
 
     def _on_show_system_report(self) -> None:
         """Open the machine report, reusing the window if it is already up."""
