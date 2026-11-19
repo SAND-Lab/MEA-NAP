@@ -21,12 +21,15 @@ sys.path.insert(0, os.path.abspath('../src'))
 
 # -- Project information -----------------------------------------------------
 
-project = 'MEA pipeline'
+project = 'MEA-NAP'
 copyright = '2022, Timothy Sit, Rachael Feord, Alexander Dunn, Jeremy Chabros, Susanna Mierau, and SAND group members'
 author = 'Timothy Sit, Rachael Feord, Alexander Dunn, Jeremy Chabros, Susanna Mierau, and SAND group members'
 
-# The full version, including alpha/beta/rc tags
-release = '1.10.2'
+# The version, from the file the app and its update check read, so the docs
+# never fall behind it.
+with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'version.txt')) as _f:
+    release = _f.read().strip()
+version = release
 
 
 # -- General configuration ---------------------------------------------------
@@ -100,6 +103,12 @@ copybutton_prompt_is_regexp = True
 # a list of builtin themes.
 #
 html_theme = 'furo'
+
+# No version in the sidebar title: the docs cover the app, the MATLAB version
+# and pipelines with versions of their own; Read the Docs' version menu says
+# which build this is.
+html_title = 'MEA-NAP documentation'
+html_logo = '../src/meanap/gui/assets/mea-nap-logo.png'
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
