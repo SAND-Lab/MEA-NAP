@@ -410,7 +410,7 @@ class ChartPainter(FigurePainter):
         extra_l, extra_r = getattr(self, "_pad_lr", (0.0, 0.0))
         outer_l, outer_r, outer_t, outer_b = EDGE + extra_l, EDGE + extra_r, EDGE, EDGE
         if chart.title:
-            outer_t += text_size(chart.title, chart.title_size)[1] + 6
+            outer_t += text_size(chart.title, chart.title_size)[1] + chart.title_gap * PX
         if chart.colour_bar is not None:
             outer_r += self._bar_width(chart.colour_bar)
         if chart.legend is not None:
@@ -683,6 +683,12 @@ class ChartPainter(FigurePainter):
             painter.setBrush(Qt.BrushStyle.NoBrush)
             painter.drawRect(r)
             painter.restore()
+        if panel.spines and not panel.bare:
+            painter.save()
+            painter.setPen(_pen(INK, 0.8, cap=Qt.PenCapStyle.SquareCap))
+            painter.drawLine(r.bottomLeft(), r.bottomRight())
+            painter.drawLine(r.topLeft(), r.bottomLeft())
+            painter.restore()
         for mark in texts:
             fade = self._fade(mark, chosen)
             rect = self._text_box(panel, axes, mark)
@@ -702,6 +708,18 @@ class ChartPainter(FigurePainter):
     def _paint_ticks(self, painter, panel, axes, xt, yt) -> None:
         r = axes.rect
         pad = 4 * PX
+        if panel.spines and not panel.twin:
+            tick = 3.5 * PX
+            painter.save()
+            painter.setPen(_pen(INK, 0.8, cap=Qt.PenCapStyle.FlatCap))
+            for value, _label, _colour in yt:
+                y = float(axes.y_pixel(value))
+                painter.drawLine(QPointF(r.left() - tick, y), QPointF(r.left(), y))
+            for value, _label, _colour in xt:
+                x = float(axes.x_pixel(value))
+                painter.drawLine(QPointF(x, r.bottom()), QPointF(x, r.bottom() + tick))
+            painter.restore()
+            pad += tick
         if panel.twin:
             widest = 0.0
             for value, label, colour in yt:

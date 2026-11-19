@@ -29,8 +29,8 @@ from pathlib import Path
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from PyQt6.QtCore import QObject, QSettings, pyqtSignal  # noqa: E402
-from PyQt6.QtWidgets import QApplication, QToolBar  # noqa: E402
+from PyQt6.QtCore import QObject, QSettings, QTimer, pyqtSignal  # noqa: E402
+from PyQt6.QtWidgets import QApplication, QFileDialog, QToolBar  # noqa: E402
 
 _SETTINGS_DIR = tempfile.mkdtemp(prefix="meanap-settings-")
 QSettings.setPath(QSettings.Format.NativeFormat, QSettings.Scope.UserScope, _SETTINGS_DIR)
@@ -45,7 +45,7 @@ from meanap.gui.main_window import MainWindow, SIMPLE_VIEW_KEY  # noqa: E402
 from meanap.gui.simple_checks import (  # noqa: E402
     check_output_folder, check_recordings_folder, check_spreadsheet,
 )
-from meanap.gui.simple_view import TICK_HOLD_MS  # noqa: E402
+from meanap.gui.simple_view import TICK_HOLD_MS, _pick_folder  # noqa: E402
 from meanap.pipeline.progress import Progress  # noqa: E402
 
 FAILURES: list[str] = []
@@ -207,6 +207,9 @@ def flow_section(d: dict[str, Path], shots: Path | None) -> None:
     check("starts on the recordings folder alone", states()[0] == "active"
           and all(s == "hidden" for s in states()[1:]), str(states()))
     check("Run is not offered yet", not sv.run_area.isVisible())
+    check("nor Other settings", not sv.settings_card.isVisible())
+    check("and no Simulate button in the top bar: MEA-Sim is on the pipeline menu",
+          not hasattr(sv, "simulate_button"))
 
     folder = sv._steps[0].card.body.edit
     folder.setText(str(d["raw"] / "missing"))
@@ -251,6 +254,7 @@ def flow_section(d: dict[str, Path], shots: Path | None) -> None:
     check("all answered: every question folded and Run offered",
           states() == ["done"] * 4 and sv.run_area.isVisible() and sv.run_button.isEnabled(),
           str(states()))
+    check("and Other settings with it", sv.settings_card.isVisible())
     if shots:
         w.grab().save(str(shots / "simple_ready.png"))
 
@@ -417,6 +421,52 @@ def version_section(shots: Path | None) -> None:
     w.close()
 
 
+# ── C2. Choosing the recordings folder ──────────────────────────────────────
+
+def picker_section(d: dict[str, Path]) -> None:
+    print("C2. Choosing the recordings folder")
+    seen: dict[str, object] = {}
+
+    def answer(select: str | None) -> None:
+        dialog = next(w for w in QApplication.topLevelWidgets()
+                      if isinstance(w, QFileDialog) and w.isVisible())
+        seen["native"] = dialog.testOption(QFileDialog.Option.DontUseNativeDialog)
+        seen["dirs_only"] = dialog.testOption(QFileDialog.Option.ShowDirsOnly)
+        seen["filters"] = dialog.nameFilters()
+        if select:
+            dialog.selectFile(select)
+        dialog.accept()
+
+    def pick(select: str | None) -> str:
+        QTimer.singleShot(300, lambda: answer(select))
+        return _pick_folder(None, "Select folder", str(d["raw"]),
+                            "Recordings (*.mat *.h5 *.raw)")
+
+    chosen = pick(None)
+    check("it is Qt's own dialog, showing files as well as folders",
+          seen.get("native") is True and seen.get("dirs_only") is False, str(seen))
+    check("the recordings filter first, all files a choice away",
+          seen.get("filters") == ["Recordings (*.mat *.h5 *.raw)", "All files (*)"],
+          str(seen.get("filters")))
+    check("accepting returns the folder it is in", Path(chosen) == d["raw"], chosen)
+    chosen = pick(str(d["raw"] / "rec_DIV14_A.mat"))
+    check("a recording picked by mistake stands for its folder",
+          Path(chosen) == d["raw"], chosen)
+
+    w = MainWindow()
+    w.show()
+    w._set_simple_view(True)
+    sv = w._simple_view
+    pump(100)
+    check("Other settings wait for the questions", not sv.settings_card.isVisible())
+    sv.open_section(sv.settings_card.areas()[0].key, 0)
+    pump(100)
+    check("but a setting looked up early shows them", sv.settings_card.isVisible())
+    sv.evaluate()
+    check("and they stay shown", sv.settings_card.isVisible())
+    w.close()
+
+
 def main() -> int:
     shots = Path(sys.argv[1]) if len(sys.argv) > 1 else None
     with tempfile.TemporaryDirectory() as tmp:
@@ -424,6 +474,7 @@ def main() -> int:
         checks_section(data)
         toggle_section()
         flow_section(data, shots)
+        picker_section(data)
         run_section(shots)
         version_section(shots)
     if ERRORS:

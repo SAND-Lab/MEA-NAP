@@ -37,7 +37,9 @@ from meanap.gui.branding import logo_pixmap
 from meanap.gui.modes import MODES
 from meanap.params import is_remote_url
 from meanap.pipeline.channel_layout import CUSTOM_LAYOUT
-from meanap.gui.simple_results import ResultsPage, viewers_for
+from meanap.gui.simple_results import (
+    RESULTS_DESCRIPTION, RESULTS_TITLE, ResultsPage, viewers_for,
+)
 from meanap.gui.simple_settings import SETTINGS_QSS, Section, SectionDrawer, SettingsCard
 from meanap.gui.settings_search import (
     SETTING, VIEW, Flash, SearchBox, SearchEntry, reveal_widget,
@@ -176,6 +178,7 @@ QLabel {{ color: {_INK}; }}
 }}
 #dropZone[hover="true"] {{ border-color: {_ACCENT}; background: #f2f6fe; }}
 #dropPrompt {{ color: {_MUTED}; font-size: 13px; }}
+#dropTitle {{ font-size: 15px; font-weight: 600; }}
 #sectionLabel {{
     color: {_MUTED};
     font-size: 11px;
@@ -275,6 +278,27 @@ def mirror_spin(simple: QDoubleSpinBox, classic: QDoubleSpinBox) -> list:
 
 
 # ── One question ─────────────────────────────────────────────────────────────
+
+def _pick_folder(parent: QWidget, title: str, start: str, name_filter: str = "") -> str:
+    """Ask for a folder, showing the files in each folder as well.
+
+    The system folder pickers list folders only, which leaves no way to see
+    that a folder holds the recordings until it is chosen. Qt's own dialog
+    can list the files beside the folders: only those *name_filter* names,
+    with all files a choice away. ``""`` if cancelled.
+    """
+    dialog = QFileDialog(parent, title, start or str(Path.home()))
+    dialog.setOption(QFileDialog.Option.DontUseNativeDialog, True)
+    dialog.setFileMode(QFileDialog.FileMode.Directory)
+    dialog.setOption(QFileDialog.Option.ShowDirsOnly, False)
+    if name_filter:
+        dialog.setNameFilters([name_filter, "All files (*)"])
+    if not dialog.exec() or not dialog.selectedFiles():
+        return ""
+    chosen = Path(dialog.selectedFiles()[0])
+    # A recording picked by mistake stands for the folder it is in.
+    return str(chosen.parent if chosen.is_file() else chosen)
+
 
 class StepCard(QFrame):
     """One question on the page: a title, a field, and the result of checking it.
@@ -551,15 +575,6 @@ class SimpleView(QWidget):
         self.search_box.install_shortcut(self)
         bar.addWidget(self.search_box)
         bar.addStretch(1)
-        self.simulate_button = QPushButton("Simulate")
-        self.simulate_button.setObjectName("linkButton")
-        self.simulate_button.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.simulate_button.setToolTip(
-            "MEA-Sim: simulated cultures with a known network, to see how each "
-            "metric responds to firing rate, recording length, bursts and slow "
-            "states. Opens its own window; reads and writes no recordings.")
-        self.simulate_button.clicked.connect(self.simulate_requested)
-        bar.addWidget(self.simulate_button)
         self.classic_button = QPushButton("Classic view")
         self.classic_button.setObjectName("linkButton")
         self.classic_button.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -622,7 +637,10 @@ class SimpleView(QWidget):
         # it sits apart from the three, unchecked, rather than as a fourth mode.
         menu.addSeparator()
         sim = menu.addAction("MEA-Sim · simulated cultures…")
-        sim.setToolTip(self.simulate_button.toolTip())
+        sim.setToolTip(
+            "MEA-Sim: simulated cultures with a known network, to see how each "
+            "metric responds to firing rate, recording length, bursts and slow "
+            "states. Opens its own window; reads and writes no recordings.")
         sim.triggered.connect(lambda _=False: self.simulate_requested.emit())
         menu.setToolTipsVisible(True)
         menu.exec(self.mode_caption.mapToGlobal(self.mode_caption.rect().bottomLeft()))
@@ -797,7 +815,9 @@ class SimpleView(QWidget):
 
         # Recordings
         folder = self._path_field(self._data.raw_data.line_edit, folder=True,
-                                  placeholder="Choose a folder, or paste a Dropbox link")
+                                  placeholder="Choose a folder, or paste a Dropbox link",
+                                  file_filter="" if mode == "catnap" else
+                                  "Recordings (*.mat *.h5 *.raw)")
         add("recordings",
             "Recordings" if mode != "catnap" else "Recordings (suite2p)",
             ("The folder holding one sub-folder per recording, each with "
@@ -907,7 +927,7 @@ class SimpleView(QWidget):
         def pick() -> None:
             start = edit.text().strip()
             if folder:
-                path = QFileDialog.getExistingDirectory(self, "Select folder", start)
+                path = _pick_folder(self, "Select folder", start, file_filter)
             else:
                 path, _ = QFileDialog.getOpenFileName(self, "Select file", start,
                                                       file_filter)
@@ -1000,6 +1020,10 @@ class SimpleView(QWidget):
                 card.title.text(), f"{here} › Analyse recordings", SETTING, card,
                 lambda i=index: self.go_to_step(i),
                 f"{card.hint.text()} {words} {card.body.toolTip()}"))
+        entries.append(SearchEntry(
+            RESULTS_TITLE, f"{here} › View results", VIEW, None,
+            lambda: self.go_to_viewer("results"),
+            f"{RESULTS_DESCRIPTION} viewer results bundle open"))
         for viewer in viewers_for(self._mode):
             entries.append(SearchEntry(
                 viewer.title, f"{here} › View results", VIEW, None,
@@ -1099,6 +1123,7 @@ class SimpleView(QWidget):
         self._ready = ready
         self._show_settings_badge()
         self.run_area.setVisible(ready or self._run_state != "idle")
+        self._show_settings_card()
         self._refresh_run_button()
         # Only while the page is on screen: from behind the tabs, taking focus
         # would leave the classic window opening with a field focused.
@@ -1138,6 +1163,15 @@ class SimpleView(QWidget):
         self._show_settings_badge()
 
     _ready = False
+    #: Set once a setting was asked for (from search) before the questions
+    #: were all answered, so the card it lives on stays on the page.
+    _settings_asked = False
+
+    def _show_settings_card(self) -> None:
+        """Other settings wait until every question is answered, so the page
+        asks one thing at a time; a setting looked up early shows it sooner."""
+        self.settings_card.setVisible(
+            self._ready or self._settings_asked or self._run_state != "idle")
 
     def _show_settings_badge(self) -> None:
         """A tick once every question is answered: the run has all it needs.
@@ -1165,6 +1199,8 @@ class SimpleView(QWidget):
         if area is None or not 0 <= index < len(area.sections):
             return
         self.show_page("analyse")
+        self._settings_asked = True
+        self._show_settings_card()
         self.drawer.open_section(area.title, area.sections[index])
 
     def close_section(self) -> None:

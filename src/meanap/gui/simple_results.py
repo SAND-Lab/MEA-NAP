@@ -3,8 +3,9 @@
 Opening MEA-NAP only to look at a run someone sent is common, so the simple
 view has a second page for it beside **Analyse recordings**: drop a ``.meanap``
 bundle or a results folder on it (or double-click a bundle in the file
-manager), and the results viewer opens in a window of this app. Below that are
-the other viewers the current pipeline has, each enabled only when the run in
+manager), and the results viewer opens in a window of this app. That box is
+the results viewer's way in, so it carries the name. Below it are the
+other viewers the current pipeline has, each enabled only when the run in
 hand can feed it, and the runs opened recently.
 
 The web viewer is still a link away, for the few things only it has (the run's
@@ -49,9 +50,12 @@ class Viewer:
     needs_run: bool = True
 
 
-_RESULTS = Viewer("results", "Results viewer",
-                  "Every figure from the run: zoom and move them, point at a node "
-                  "or a point to read it, and compare recordings and DIVs.")
+#: The drop zone at the top of the page; the other viewers are listed under it.
+#: The description is not shown, only searched.
+RESULTS_TITLE = "Results viewer"
+RESULTS_DESCRIPTION = ("Every figure from the run: zoom and move them, point at a node "
+                       "or a point to read it, and compare recordings and DIVs.")
+
 _SPIKES = Viewer("spikes", "Spike and burst viewer",
                  "The detected spikes and bursts on one recording, from the "
                  "recordings folder set under Analyse recordings.", needs_run=False)
@@ -68,12 +72,13 @@ _STIM_PREVIEW = Viewer("stim_preview", "Stimulation preview",
 
 
 def viewers_for(mode: str) -> list[Viewer]:
-    """The viewers that apply to *mode*'s pipeline, most used first."""
+    """The viewers besides the results viewer that apply to *mode*'s pipeline,
+    most used first. The results viewer is the drop zone above them."""
     if mode == "meastim":
-        return [_RESULTS, _FR_DIFF, _NETWORK, _STIM_PREVIEW, _SPIKES]
+        return [_FR_DIFF, _NETWORK, _STIM_PREVIEW, _SPIKES]
     if mode == "catnap":
-        return [_RESULTS, _NETWORK, _TRACKING]
-    return [_RESULTS, _NETWORK, _SPIKES]
+        return [_NETWORK, _TRACKING]
+    return [_NETWORK, _SPIKES]
 
 
 def is_results_source(path: Path) -> bool:
@@ -200,6 +205,9 @@ class ResultsPage(QWidget):
         drop = QVBoxLayout(self.drop_zone)
         drop.setContentsMargins(24, 26, 24, 22)
         drop.setSpacing(10)
+        heading = QLabel(RESULTS_TITLE)
+        heading.setObjectName("dropTitle")
+        heading.setAlignment(Qt.AlignmentFlag.AlignCenter)
         prompt = QLabel("Drop a .meanap bundle or a results folder here")
         prompt.setObjectName("dropPrompt")
         prompt.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -214,6 +222,7 @@ class ResultsPage(QWidget):
             button.setCursor(Qt.CursorShape.PointingHandCursor)
             buttons.addWidget(button)
         buttons.addStretch(1)
+        drop.addWidget(heading)
         drop.addWidget(prompt)
         drop.addLayout(buttons)
         layout.addWidget(self.drop_zone)
@@ -245,9 +254,15 @@ class ResultsPage(QWidget):
             "on tracked cells.")
         self.browser_button.clicked.connect(
             lambda: self.source is not None and self.open_requested.emit(str(self.source), ""))
+        # Opening a run opens the results viewer; this reopens it once closed.
+        self.reopen_button = QPushButton("Open")
+        self.reopen_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.reopen_button.setToolTip("Open this run in the results viewer again.")
+        self.reopen_button.clicked.connect(lambda: self.open_viewer("results"))
         title_row = QHBoxLayout()
         title_row.addWidget(self.source_title, 1)
         title_row.addWidget(self.browser_button, 0, Qt.AlignmentFlag.AlignTop)
+        title_row.addWidget(self.reopen_button, 0, Qt.AlignmentFlag.AlignTop)
         card.addLayout(title_row)
         card.addWidget(self.source_path)
         card.addSpacing(4)
@@ -255,7 +270,7 @@ class ResultsPage(QWidget):
         layout.addWidget(self.source_card)
 
         # Viewers
-        self._viewer_label = QLabel("Viewers")
+        self._viewer_label = QLabel("Other viewers")
         self._viewer_label.setObjectName("sectionLabel")
         layout.addWidget(self._viewer_label)
         self._viewer_box = QVBoxLayout()
@@ -327,7 +342,10 @@ class ResultsPage(QWidget):
         return list(self._viewer_rows)
 
     def viewer_row(self, key: str) -> QFrame | None:
-        """The row for viewer *key*, or ``None`` if this mode has no such viewer."""
+        """The row for viewer *key* (the drop zone for the results viewer), or
+        ``None`` if this mode has no such viewer."""
+        if key == "results":
+            return self.drop_zone
         row = self._viewer_rows.get(key)
         return row[0] if row else None
 

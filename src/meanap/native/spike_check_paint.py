@@ -340,16 +340,52 @@ class WaveformsPainter(FigurePainter):
             pieces = pieces[np.isfinite(pieces).all(axis=1)]
             self._clouds.append([QLineF(a, b, c, d) for a, b, c, d in pieces.tolist()])
             self._means.append(np.nanmean(waves, axis=0))
+        self._extent = self._voltage_extent()
         self.axes: list[Axes] = []
         self._layout(keep=False)
+
+    #: Room around the waveforms, as fractions of their voltage span: a little
+    #: above, and below a strip that holds the scale bar clear of the troughs.
+    PAD_TOP, PAD_BOTTOM = 0.06, 0.22
+    #: Room either side of the snippet, as a fraction of its length.
+    PAD_X = 0.06
+
+    def _voltage_extent(self) -> tuple[float, float]:
+        """The voltages the waveforms reach, across every method.
+
+        Every spike's trough and peak, so none is cut off, unless a few
+        reach far past the rest (an artifact): then the range stops at 1.5x
+        what 99% of the spikes reach. Falls back to −6 to +5 noise SDs when
+        there are no spikes to go by.
+        """
+        lows, highs = [], []
+        for method in self.scene.methods:
+            waves = np.asarray(self.scene.waveforms.get(method, np.zeros((0, 0))), dtype=float)
+            if waves.size:
+                with np.errstate(all="ignore"):
+                    lows.append(np.nanmin(waves, axis=1))
+                    highs.append(np.nanmax(waves, axis=1))
+        lows = np.concatenate(lows) if lows else np.zeros(0)
+        highs = np.concatenate(highs) if highs else np.zeros(0)
+        lows, highs = lows[np.isfinite(lows)], highs[np.isfinite(highs)]
+        if lows.size and highs.size:
+            low = max(float(lows.min()), 1.5 * float(np.percentile(lows, 1)))
+            high = min(float(highs.max()), 1.5 * float(np.percentile(highs, 99)))
+        else:
+            std = float(self.scene.wave_std)
+            low, high = -6 * std, 5 * std
+        if not high > low:
+            low, high = low - 1.0, high + 1.0
+        return float(low), float(high)
 
     def _layout(self, *, keep: bool) -> None:
         old = [a.ylim for a in self.axes] if keep else None
         data = self.scene
         width, height = self.size
-        low, high = -6 * float(data.wave_std), 5 * float(data.wave_std)
-        if low == high:
-            low, high = -1.0, 1.0
+        low, high = self._extent
+        span = high - low
+        low, high = low - self.PAD_BOTTOM * span, high + self.PAD_TOP * span
+        pad_x = self.PAD_X * max(self._length - 1, 1)
         top, bottom, gap = 96.0, 20.0, 34.0
         cell_w = (width - 16) / self._columns
         cell_h = (height - top - bottom - gap) / 2
@@ -358,7 +394,8 @@ class WaveformsPainter(FigurePainter):
             row, column = divmod(index, self._columns)
             rect = QRectF(8 + column * cell_w + 74, top + row * (cell_h + gap) + 22,
                           cell_w - 88, cell_h - 22)
-            self.axes.append(Axes(rect, (0.0, float(max(self._length - 1, 1))), (low, high),
+            self.axes.append(Axes(rect, (-pad_x, float(max(self._length - 1, 1)) + pad_x),
+                                  (low, high),
                                   ylabel="Voltage [µV]", title=method_label(method),
                                   x_ticks=False, x_spine=False))
         if old is not None and len(old) == len(self.axes):
@@ -400,12 +437,12 @@ class WaveformsPainter(FigurePainter):
         return False                    # nothing here to keep marked
 
     def _scale_bar(self) -> float | None:
-        """A round duration, in ms, no longer than 60% of the window."""
+        """A round duration, in ms, no longer than a third of the window."""
         data = self.scene
         if not self._length or data.fs <= 0:
             return None
         window_ms = self._length / data.fs * 1000.0
-        return next((c for c in (2.0, 1.0, 0.5, 0.2, 0.1) if c <= window_ms * 0.6), None)
+        return next((c for c in (2.0, 1.0, 0.5, 0.2, 0.1) if c <= window_ms / 3), None)
 
     def paint(self, painter: QPainter) -> None:
         data = self.scene
@@ -436,18 +473,19 @@ class WaveformsPainter(FigurePainter):
                 painter.drawPolyline(QPolygonF([QPointF(x, y)
                                                 for x, y in zip(xs.tolist(), ys.tolist())]))
             if bar_ms is not None:
-                low, high = axes.ylim
-                x0 = float(axes.x_pixel(self._length * 0.05))
-                x1 = float(axes.x_pixel(self._length * 0.05 + bar_ms / 1000.0 * data.fs))
-                y = float(axes.y_pixel(low + 0.09 * (high - low)))
+                # In the strip under the lowest waveform, from the snippet's start.
+                low, high = self._extent
+                x0 = float(axes.x_pixel(0.0))
+                x1 = float(axes.x_pixel(bar_ms / 1000.0 * data.fs))
+                y = float(axes.y_pixel(low - 0.07 * (high - low)))
                 pen = QPen(INK, 2.5)
                 pen.setCapStyle(Qt.PenCapStyle.FlatCap)
                 painter.setPen(pen)
                 painter.drawLine(QPointF(x0, y), QPointF(x1, y))
                 painter.setFont(figure_font(11))
                 label = f"{bar_ms:g} ms" if bar_ms >= 1 else f"{bar_ms * 1000:g} µs"
-                painter.drawText(QRectF(x0 - 40, y + 3, x1 - x0 + 80, 16),
-                                 Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop, label)
+                painter.drawText(QRectF(x0, y + 3, max(x1 - x0, 60.0), 16),
+                                 Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop, label)
             painter.restore()
             axes.paint_frame(painter)
         painter.restore()
