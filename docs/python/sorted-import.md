@@ -185,6 +185,11 @@ nothing downstream needs to know where the units came from:
 and a `<name>_spikes_params.txt` that records which file each recording was
 imported from.
 
+Every unit the sorter returned is also scored on Bombcell-style quality
+metrics and labelled good, multi-unit or noise, in
+`1_SpikeDetection/1D_UnitQuality/`. This is a report: it does not change which
+units become nodes. See [Unit quality](unit-quality.md).
+
 ## Light and other event-driven stimulation
 
 MEA-Stim was written for **electrical** stimulation. It finds stimulus times

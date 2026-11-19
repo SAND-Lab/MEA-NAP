@@ -184,6 +184,8 @@ SORTING_CHECK_FIGURES: tuple[FigureSpec, ...] = (
     FigureSpec("2_UnitTemplates", "Unit templates"),
     FigureSpec("3_UnitQuality", "Unit quality against the curation floors"),
 )
+#: Bombcell-style metrics, for any sorting: MEA-NAP's own or an imported one.
+UNIT_QUALITY_FIGURE = FigureSpec("4_UnitQualityMetrics", "Unit quality metrics")
 
 #: Per-channel metrics whose heatmap colour ceiling is pooled across the batch
 #: (MATLAB's ``maxValStruct``). Must match step 2's own list, or a rebuilt
@@ -1475,10 +1477,14 @@ def available_sorting_check_figures(
     ctx: RenderContext, recording: str,
 ) -> list[FigureSpec]:
     """The spike-sorting check figures this recording can be redrawn with:
-    none unless its spikes came from a sorter."""
-    if _sorting_check_file(ctx, recording) is None:
-        return []
-    return list(SORTING_CHECK_FIGURES)
+    none unless its spikes came from a sorter. An imported sorting has only
+    the unit-quality metrics; MEA-NAP's own sorter writes the other three."""
+    from meanap.pipeline.unit_quality import UNIT_QUALITY_CSV, UNIT_QUALITY_DIR
+
+    figures = list(SORTING_CHECK_FIGURES) if _sorting_check_file(ctx, recording) else []
+    if (ctx.root / UNIT_QUALITY_DIR / f"{recording}{UNIT_QUALITY_CSV}").exists():
+        figures.append(UNIT_QUALITY_FIGURE)
+    return figures
 
 
 def render_sorting_check_figure(
@@ -1492,6 +1498,15 @@ def render_sorting_check_figure(
         draw_sorting_check_figures, load_sorting_check_data,
     )
 
+    if Path(figure).stem == UNIT_QUALITY_FIGURE.name:
+        from meanap.pipeline.unit_quality import draw_saved_unit_quality
+
+        with figure_dpi(dpi):
+            drawn = draw_saved_unit_quality(
+                ctx.root, recording, Path(out_dir) / f"{UNIT_QUALITY_FIGURE.name}.{fmt}")
+        if drawn is None:
+            raise ValueError(f"No unit-quality table for {recording} in this run.")
+        return drawn
     path = _sorting_check_file(ctx, recording)
     if path is None:
         raise ValueError(f"No spike-sorting check data for {recording} in this bundle — "

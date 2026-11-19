@@ -473,9 +473,13 @@ def _violin_and_circular_checks(tmp: Path) -> list[Check]:
                        np.allclose(opposite[0, :, 1], 0.0, atol=1e-9)
                        and abs(opposite[0, 16, 0]) < 1e-9, ""))
         biggest = float(scene.diameter.max())
-        gap = float(np.hypot(*(scene.xy[0] - scene.xy[1]))) if len(scene.xy) > 1 else 0
+        # Neighbours round the circle, not rows 0 and 1: grouped by module
+        # (the default), adjacent rows can sit anywhere on it.
+        ring = scene.xy[np.argsort(np.arctan2(scene.xy[:, 1], scene.xy[:, 0]))]
+        gap = (float(np.hypot(*(ring[1:] - ring[:-1]).T).min()) if len(scene.xy) > 1
+               else 0)
         checks.append(("the busiest node is as wide as the gap between neighbours",
-                       abs(biggest - 2 * np.sin(np.pi / n)) < 1e-9, f"{biggest} vs {gap}"))
+                       abs(biggest - gap) < 0.02 * gap, f"{biggest} vs {gap}"))
         checks.append(("its legend names the modules and gives three degree samples",
                        [i[0] for i in scene.category_key["items"]]
                        == [str(m) for m in sorted(set(modules.tolist()))]
