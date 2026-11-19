@@ -72,11 +72,14 @@ def compute_network_metrics(
     exclude_edges_below_threshold: bool = True,
     params: Params | None = None,
     rng: np.random.Generator | None = None,
+    small_world: bool = True,
 ) -> dict:
     """Compute deterministic network metrics for one (recording, lag) adjacency matrix.
 
     Mirrors the active-node subsetting + metric calls in ``ExtractNetMet.m``
-    (weighted adjM path).
+    (weighted adjM path). ``small_world=False`` skips small-worldness (and
+    the normalised CC/PL it brings), the slowest part on a dense network and
+    not a node metric — for callers that want the node metrics only.
     """
     adj_m = adj_m.copy()
     adj_m[adj_m < 0] = 0.0
@@ -136,7 +139,7 @@ def compute_network_metrics(
     # MATLAB's own gate here is strictly "> minNumberOfNodesToCalNetMet"
     # (ExtractNetMet.m), unlike every other block's "aN >= ..." — faithfully
     # replicated, not a typo.
-    if a_n > min_nodes:
+    if a_n > min_nodes and small_world:
         if rng is None:
             rng = np.random.default_rng()
         dist_profile = squareform(pdist(sub))

@@ -34,7 +34,7 @@ MIN_VALID_TRIALS = 5
 
 
 def _pair_impl(flat, starts, tiled, n_trials, dt, a, b, perms, min_valid, out_obs,
-               out_null, out_ge, out_valid):
+               out_null, out_ge, out_valid, out_null_sq):
     """Observed and surrogate trial-mean STTC of nodes *a* and *b*."""
     table = np.full((n_trials, n_trials), np.nan)
     for i in range(n_trials):
@@ -69,7 +69,7 @@ def _pair_impl(flat, starts, tiled, n_trials, dt, a, b, perms, min_valid, out_ob
     out_obs[a, b] = obs
 
     reps = perms.shape[0]
-    null_total, ge = 0.0, 0
+    null_total, null_sq, ge = 0.0, 0.0, 0
     for r in range(reps):
         s, c = 0.0, 0
         for k in range(n_trials):
@@ -82,18 +82,20 @@ def _pair_impl(flat, starts, tiled, n_trials, dt, a, b, perms, min_valid, out_ob
             continue
         s /= c
         null_total += s
+        null_sq += s * s
         if s >= obs:
             ge += 1
     out_null[a, b] = null_total / reps
+    out_null_sq[a, b] = null_sq / reps
     out_ge[a, b] = ge
 
 
 def _all_pairs_impl(flat, starts, tiled, n_nodes, n_trials, dt, perms, min_valid,
-                    out_obs, out_null, out_ge, out_valid):
+                    out_obs, out_null, out_ge, out_valid, out_null_sq):
     for a in _prange(n_nodes):
         for b in range(a + 1, n_nodes):
             _pair(flat, starts, tiled, n_trials, dt, a, b, perms, min_valid,
-                  out_obs, out_null, out_ge, out_valid)
+                  out_obs, out_null, out_ge, out_valid, out_null_sq)
 
 
 if _HAVE_NUMBA:
@@ -109,7 +111,7 @@ else:  # pragma: no cover - numba optional
 
 def trial_mean_sttc(segments: list[list[np.ndarray]], length: float, lag_ms: float,
                     rep_num: int, rng: np.random.Generator,
-                    min_valid: int = MIN_VALID_TRIALS):
+                    min_valid: int = MIN_VALID_TRIALS, with_sd: bool = False):
     """Trial-averaged STTC of every pair, and its trial-shuffle surrogates.
 
     *segments* is ``[node][trial]`` spike times relative to the window start,
@@ -117,6 +119,7 @@ def trial_mean_sttc(segments: list[list[np.ndarray]], length: float, lag_ms: flo
     all ``(n, n)`` and symmetric: ``sttc`` NaN where fewer than *min_valid*
     trials had both nodes firing; ``p`` the permutation p-value
     ``(1 + #{surrogate ≥ observed}) / (1 + rep_num)``, 1 where undefined.
+    With *with_sd*, the surrogates' SD comes fifth.
     """
     n = len(segments)
     n_trials = len(segments[0]) if n else 0
@@ -134,13 +137,19 @@ def trial_mean_sttc(segments: list[list[np.ndarray]], length: float, lag_ms: flo
     null = np.zeros((n, n))
     ge = np.zeros((n, n), np.int64)
     valid = np.zeros((n, n), np.int64)
+    null_sq = np.zeros((n, n))
     _all_pairs(flat, starts, tiled, n, n_trials, dt, perms, int(min_valid),
-               obs, null, ge, valid)
+               obs, null, ge, valid, null_sq)
     iu = np.triu_indices(n, 1)
-    for m in (obs, null, ge, valid):
+    for m in (obs, null, ge, valid, null_sq):
         m[(iu[1], iu[0])] = m[iu]
     p = (1 + ge) / (1 + rep_num)
     p[~np.isfinite(obs)] = 1.0
     np.fill_diagonal(p, 1.0)
     np.fill_diagonal(obs, 0.0)
+    if with_sd:
+        sd = np.sqrt(np.maximum(null_sq - null * null, 0.0))
+        sd[~np.isfinite(obs)] = np.nan
+        np.fill_diagonal(sd, 0.0)
+        return obs, null, p, valid, sd
     return obs, null, p, valid

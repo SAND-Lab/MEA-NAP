@@ -18,6 +18,11 @@ one recording (one recording × condition, when it has several).
 * ``5_ResponseByGroup``, ``6_ResponseByAge``: per-condition summaries with no
   epoch — split-half agreement (per lag), noise correlations, and the
   trial-consistency measures.
+* ``7_NodeChangeByGroup``, ``8_NodeChangeByAge``: node metrics' evoked −
+  baseline change, one sub-folder per edge weighting (significant,
+  co-activation, beyond the response); each point is one recording's median
+  node change (``StimNodeMetrics_RecordingSummary.csv``), violins split by
+  condition. The paired test behind it is ``StimNodeMetrics_PairedTests.csv``.
 
 Conditions are matched across recordings by name: their electrodes
 (``12+13``, ``12>13>14``) or their ``StimConditions`` label
@@ -216,6 +221,26 @@ def plot_stim_group_comparisons(tables: dict[str, list[dict]], out_dir: Path, *,
                  "DIV": root / "6_ResponseByAge" / folder},
                 series_col="condition", series_order=conditions, series_colors=cond_colors,
                 limits=_LIMITS, numbering=SPLIT_METRICS, **common)
+
+    node_rows = tables.get("StimNodeMetrics_RecordingSummary.csv")
+    if node_rows:
+        from meanap.stim.node_metrics import FIGURE_METRICS, NODE_METRICS, WEIGHTINGS
+
+        nodes = _ordered(pd.DataFrame(node_rows), group_order)
+        shown = {f"{m}_change": NODE_METRICS[m] for m in ("rate_hz",) + FIGURE_METRICS
+                 if f"{m}_change" in nodes.columns}
+        numbering = {f"{m}_change": label for m, label in NODE_METRICS.items()}
+        for (lag, wname), sub in nodes.groupby(["lag_ms", "weighting"], sort=True):
+            if wname not in WEIGHTINGS:
+                continue
+            folder = comparison_timescale_folder(lag)
+            written += _violins(
+                sub, shown,
+                {"group": root / "7_NodeChangeByGroup" / wname / folder,
+                 "DIV": root / "8_NodeChangeByAge" / wname / folder},
+                series_col="condition", series_order=conditions, series_colors=cond_colors,
+                label_suffix=" change (median node)", metric_kde_limits=False,
+                numbering=numbering, **common)
 
     cons_rows = tables.get("StimConsistency_RecordingLevel.csv")
     resp = _ordered(response_frame(pd.DataFrame(net_rows),

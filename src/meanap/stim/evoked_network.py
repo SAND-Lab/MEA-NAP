@@ -63,6 +63,9 @@ class EpochNetwork:
     sttc_mode: str = "pooled"
     #: trial_mean only: trials in which both nodes of a pair fired
     n_valid_trials: np.ndarray | None = None
+    #: (n, n) SD of the surrogate STTC: the null's own noise, for weights that
+    #: subtract it (meanap.stim.node_metrics, "beyond").
+    null_sd: np.ndarray | None = None
 
 
 def post_window(window: tuple[float, float], post: list | tuple | None = None
@@ -172,7 +175,8 @@ def epoch_network(trains: list[np.ndarray], events: np.ndarray,
                              "only; the circular shift has no trials to keep apart")
         from meanap.stim.trial_sttc import trial_mean_sttc
 
-        obs, null_mean, p, valid = trial_mean_sttc(segs, length, lag_ms, rep_num, rng)
+        obs, null_mean, p, valid, null_sd = trial_mean_sttc(segs, length, lag_ms, rep_num,
+                                                            rng, with_sd=True)
         # Pairs with too few shared trials stay NaN in sttc and null_mean, so
         # means and split-half agreement skip them rather than count a zero;
         # they are never edges.
@@ -186,7 +190,7 @@ def epoch_network(trains: list[np.ndarray], events: np.ndarray,
             condition=condition, epoch=epoch, window_s=tuple(window), lag_ms=lag_ms,
             null=null, n_trials=n_trials, duration_s=duration, sttc=sttc,
             sttc_thr=sttc_thr, null_mean=null_mean, p=p, spike_counts=counts,
-            sttc_mode=sttc_mode, n_valid_trials=valid)
+            sttc_mode=sttc_mode, n_valid_trials=valid, null_sd=null_sd)
     sttc = get_sttc(observed, n, lag_ms, duration)
     np.fill_diagonal(sttc, 0.0)
 
@@ -210,7 +214,7 @@ def epoch_network(trains: list[np.ndarray], events: np.ndarray,
         condition=condition, epoch=epoch, window_s=tuple(window), lag_ms=lag_ms,
         null=null, n_trials=n_trials, duration_s=duration, sttc=sttc,
         sttc_thr=sttc_thr, null_mean=surrogate.mean(axis=2), p=p,
-        spike_counts=counts,
+        spike_counts=counts, null_sd=surrogate.std(axis=2),
     )
 
 

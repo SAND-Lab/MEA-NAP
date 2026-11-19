@@ -184,6 +184,13 @@ class StimPanel(QWidget):
             "Networks from half the trials each. Odd vs even trials: how reliable "
             "the network is. First vs second half: whether it changed over the "
             "recording. Agreement is the edge-weight correlation, with a Mantel test.")
+        self.node_metrics = QCheckBox("Node metrics before, during and after stimulation")
+        self.node_metrics.setToolTip(
+            "Step 4's node metrics (strength, average controllability, participation, "
+            "betweenness, …) for the baseline, evoked and post-stimulus networks, with three "
+            "edge weightings: significant STTC, all trial-averaged STTC (co-activation), and "
+            "STTC above the trial-shuffle expectation (beyond the response). Figure 17 and "
+            "StimNetwork_NodeMetrics.csv.")
         self.net_win_start = _dspin(-10.0, 10.0, 3, 0.0, " s")
         self.net_win_end = _dspin(0.001, 60.0, 3, 0.5, " s")
         self.post_auto = QCheckBox("Post-stimulus window: as long as the evoked one, right after it")
@@ -226,6 +233,7 @@ class StimPanel(QWidget):
         nform.addRow("Alpha", self.net_alpha)
         nform.addRow("", self.trial_consistency)
         nform.addRow("", self.split_half)
+        nform.addRow("", self.node_metrics)
         self.stim_group_plots = QCheckBox("Group comparisons by condition (half violins)")
         self.stim_group_plots.setToolTip(
             "The step-4 half violins of the stimulus networks, by group and DIV, "
@@ -293,6 +301,7 @@ class StimPanel(QWidget):
         self.net_alpha.setValue(params.stim_network_alpha)
         self.trial_consistency.setChecked(params.stim_trial_consistency)
         self.split_half.setChecked(params.stim_split_half)
+        self.node_metrics.setChecked(params.stim_node_metrics)
         self.stim_group_plots.setChecked(params.stim_group_plots)
         self.group_sequences.setChecked(params.stim_group_sequences)
         self.sequence_gap.setValue(params.stim_sequence_gap)
@@ -332,6 +341,7 @@ class StimPanel(QWidget):
         params.stim_network_alpha = self.net_alpha.value()
         params.stim_trial_consistency = self.trial_consistency.isChecked()
         params.stim_split_half = self.split_half.isChecked()
+        params.stim_node_metrics = self.node_metrics.isChecked()
         params.stim_group_plots = self.stim_group_plots.isChecked()
         params.stim_group_sequences = self.group_sequences.isChecked()
         params.stim_sequence_gap = self.sequence_gap.value()
