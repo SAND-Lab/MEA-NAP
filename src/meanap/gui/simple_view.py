@@ -452,6 +452,7 @@ class SimpleView(QWidget):
     show_log_requested = pyqtSignal()
     #: The version line under the logo was clicked: show versions and updates.
     versions_requested = pyqtSignal()
+    simulate_requested = pyqtSignal()
 
     def __init__(self, data_panel, stim_panel, catnap_panel, mode: str,
                  parent: QWidget | None = None) -> None:
@@ -550,6 +551,15 @@ class SimpleView(QWidget):
         self.search_box.install_shortcut(self)
         bar.addWidget(self.search_box)
         bar.addStretch(1)
+        self.simulate_button = QPushButton("Simulate")
+        self.simulate_button.setObjectName("linkButton")
+        self.simulate_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.simulate_button.setToolTip(
+            "MEA-Sim: simulated cultures with a known network, to see how each "
+            "metric responds to firing rate, recording length, bursts and slow "
+            "states. Opens its own window; reads and writes no recordings.")
+        self.simulate_button.clicked.connect(self.simulate_requested)
+        bar.addWidget(self.simulate_button)
         self.classic_button = QPushButton("Classic view")
         self.classic_button.setObjectName("linkButton")
         self.classic_button.setCursor(Qt.CursorShape.PointingHandCursor)
