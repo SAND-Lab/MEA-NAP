@@ -37,7 +37,10 @@ params = Params(
 )
 ```
 
-In the GUI it is the **Continue previous run** tick box on the **Run** tab. It
+In the simple view it is the **Continue a run** page, which asks what you
+want to change and writes the edited spreadsheet for you (see
+[Continue a run](gui-guide.md#continue-a-run)). In the classic view it is
+the **Continue previous run** tick box on the **Run** tab. It
 is also offered as **Continue it** on the dialog that appears when a run would
 land on a folder that already exists.
 

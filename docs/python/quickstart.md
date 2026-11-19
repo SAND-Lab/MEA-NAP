@@ -16,50 +16,55 @@ meanap-gui` launches the desktop app.
 uv run meanap-gui
 ```
 
-A tabbed desktop window opens. Each tab configures one part of the pipeline —
-see the [GUI guide](gui-guide.md) for what every field does. For this
-quickstart you don't need to touch any of them.
+MEA-NAP opens in the [simple view](gui-guide.md#simple-view): one page that
+asks only for what a run needs, one question at a time. (Using the desktop
+app? Open it the way you open any other app.)
 
-## 2. Run the test pipeline
+## 2. Run it on the example data
 
-Go to the **Pipeline** tab and click **🧪 Test pipeline**.
+Under the first question, **Recordings**, click **Or try it on the example
+data**. This:
 
-This single button:
+1. Downloads the example dataset (two Axion recordings, about 1.8 GB) into
+   `MEA-NAP/ExampleData` in your home folder, unless it is already there.
+2. Fills in the questions: the recordings folder, its spreadsheet, and the
+   electrode layout, read from the recordings themselves.
 
-1. Downloads the bundled example dataset (two short recordings) if it isn't
-   already cached locally.
-2. Points the **Data** tab at it automatically.
-3. Runs all four pipeline steps — spike detection, neuronal activity,
-   functional connectivity, and network metrics — end to end.
+Each answer gets a green tick and folds into a one-line summary. Press
+**Run MEA-NAP**. The page shows the run's progress and how long is left,
+and **Show log** opens the status log beside it. On a typical laptop the
+run takes a few minutes; functional connectivity thresholding (step 3) and
+the network-metrics null models (step 4) are the slowest parts, by design.
+See [MATLAB vs. Python](matlab-vs-python.md) if you're curious why.
 
-Progress streams into the **Status log** at the bottom of the Run tab.
-On a typical laptop this takes a few minutes; functional connectivity
-thresholding (step 3) and the network-metrics null models (step 4) are the
-slowest parts, by design — see [MATLAB vs. Python](matlab-vs-python.md) if
-you're curious why.
-
-```{admonition} Just want to see it work as fast as possible?
+```{admonition} Prefer the tabs?
 :class: note
-Set **Start at step** / **Stop at step** to `1`–`2` on the Run tab before
-clicking **Test pipeline** — spike detection and firing-rate analysis alone
-finish in well under a minute, and already produce plots worth looking at.
+**Classic view**, at the top right, switches to one tab per part of the
+pipeline. There, **🧪 Test pipeline** on the **Pipeline** tab downloads the
+same data and runs all four steps in one go. To see it work as fast as
+possible, set **Start at step** / **Stop at step** to `1`–`2` on the Run tab
+first: spike detection and firing-rate analysis alone finish in well under a
+minute.
 ```
 
 ## 3. Browse the results
 
-Once the run finishes, go to the **Results** tab and click **🌐 View report**. This generates `report.html`
-inside the output folder and opens it in your default browser — no server, no
-extra install, works entirely offline.
+When the run finishes, click **View results**. The results viewer opens on
+the run: every figure, which you can zoom and move, point at a node or a
+point to read its value, and compare across recordings and DIVs. The
+**View results** page also lists the other viewers (spikes and bursts,
+networks) and the runs you opened recently, and takes a `.meanap` file
+dropped onto it.
 
-You'll see:
-
-- A **folder tree** on the left, matching the same output structure MATLAB's
-  pipeline produces (`1_SpikeDetection`, `2_NeuronalActivity`, ...).
-- A **captioned image gallery** on the right for whichever folder is
-  selected — every plot the pipeline produced, with a plain-language caption.
-
-See [Output report](output-report.md) for more on how this viewer works,
-including deep links you can share to a specific plot.
+The simple view runs in [express mode](express-mode.md): instead of writing
+every figure as a PNG, it saves the whole run as one `.meanap` file beside the
+results folder, and the viewer draws any figure from it on demand. To share a
+run, send that file; anyone with MEA-NAP opens it by double-clicking it or
+dropping it on **View results**. For a folder of figures with a
+self-contained `report.html` that opens in any browser, see
+[Exporting a full output folder](express-mode.md#exporting-a-full-output-folder),
+or untick **Express mode** under **Other settings › Pipeline steps and
+output** before the run.
 
 ## 4. Where to go next
 
