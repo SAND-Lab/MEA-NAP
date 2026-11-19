@@ -241,7 +241,11 @@ class SpikeDetectionPanel(QWidget):
                     "Compares each electrode's large deflections with its own noise "
                     "(the same trace with its phases scrambled). Writes "
                     "1_SpikeDetection/1C_SignalQuality and warns when no electrode "
-                    "shows spikes.")
+                    "shows spikes. For an imported sorting of a MaxWell recording "
+                    "whose raw file is found, also tests each unit against its "
+                    "electrode's noise (first 2 minutes) and labels units that "
+                    "cannot be told from noise 'noise-like' in the unit-quality "
+                    "report.")
         self.signal_quality_seconds = QDoubleSpinBox()
         self.signal_quality_seconds.setRange(1, 3600)
         self.signal_quality_seconds.setDecimals(0)

@@ -139,6 +139,60 @@ units.to_csv("units.csv", index=False)
 plot_unit_quality(units, "units.png", thresholds="mea", amplitude_in_uv=inputs.in_uv)
 ```
 
+## Against the electrode's own noise (raw voltage)
+
+A sorter run on noise still returns units. It picks the times the noise
+peaked and clusters them, and the result can pass every criterion above: the
+sorter enforces a refractory gap, and an average of noise troughs *is* a
+trough. When the raw recording the sorting was made from is next to it (a
+MaxWell `.raw.h5`, found in the raw or sorted data folder or beside the sorter
+output), MEA-NAP also asks the question only the voltage can answer: **could
+this electrode's noise alone have made spikes this large this often?**
+
+For each unit, on its peak electrode, over the first 2 minutes:
+
+1. The trace is band-passed at 300–6000 Hz (the band sorters use) and scaled
+   by its noise level (MAD / 0.6745).
+2. Each spike's size is the extreme value, in the direction of the unit's mean
+   waveform, within ±0.5 ms of its time. The median is the unit's **raw SNR**
+   (`raw_snr`; `raw_amp_uv` in µV).
+3. The same filtered trace, with its Fourier phases scrambled (the same noise
+   level and spectrum, with nothing time-locked), is searched for events at
+   least that large, 1 ms apart: how many per second noise alone makes
+   (`noise_rate_hz`).
+4. **`noise_fraction`** = that rate ÷ the unit's own rate of spikes at least
+   that large (`unit_rate_hz`). Roughly: the share of the unit's large spikes
+   the noise could account for. `noise_p` is the Poisson chance of the unit's
+   count if noise were all there was.
+
+A unit with `noise_fraction` ≥ 0.5 fails **noise-like** and is labelled
+**noise**. The comparison is against noise *peaks*, not noise at random
+times, because the sorter chose the spike times for being peaks. A
+random-time comparison would pass a pure-noise unit. The surrogate keeps the
+power of any real spikes on the electrode, so it errs towards calling a unit
+noise-like, never towards passing it.
+
+It runs when **Check for spikes first** (`signal_quality_check`, on by
+default) is on, and needs MaxWell's decompression plugin (see
+[MaxWell recordings](gui-guide.md#maxwell-recordings)). A unit whose electrode is
+not in the raw file, or with fewer than 10 spikes in the window, is left
+blank. The raw file must be the recording that was sorted. A sort of another
+recording on the same routing would be scored against the wrong voltage.
+
+**Figure: Units against their electrode's noise.** Three example units, one
+per column: the clearest (highest raw SNR), the one closest to the cutoff, and
+a typical noise-like one. On top are 60 of each unit's raw spikes and their
+mean, in noise SDs. Below are two curves: how often the unit's spikes reach
+each size, and how often its electrode's noise alone does (dashed). Where the
+dashed curve is above the unit's at the red line (the unit's median spike
+size), noise alone could make the unit's spikes. A unit whose curve stays
+above the noise's only in its tail has a few spikes too large for noise among
+many that are not.
+
+Because it compares a unit with the noise on its own electrode, the verdict
+follows the unit's SNR: on a single electrode, units below an SNR of about
+3–4 usually fail it, and units above 5 almost never do.
+
 ## What it can and cannot tell you
 
 - **A good label is not proof of one neuron.** On a sparse array a unit is

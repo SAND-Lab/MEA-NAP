@@ -14,8 +14,10 @@ every other format:
 * The voltage is compressed with MaxWell's own HDF5 filter (ID 401), which
   h5py cannot decode without MaxWell's plugin library.
   :func:`ensure_maxwell_plugin` finds it (``HDF5_PLUGIN_PATH``, then
-  ``~/hdf5_plugin_path_maxwell``) and says how to install it when it cannot;
-  nothing here downloads anything.
+  ``~/hdf5_plugin_path_maxwell``) and says how to install it when it cannot.
+  Nothing downloads it unasked: :func:`install_maxwell_plugin` fetches it
+  from MaxWell when the user says to (``meanap maxwell-plugin``, or yes to
+  the app's offer before a run).
 * It is big: 1012 channels at 20 kHz are 4.9 GB a minute as float32, and the
   file on disk is ~4x smaller than that, so the size of the file says little.
   :class:`MaxwellTraces` keeps the file's uint16 counts (half the float32
@@ -218,14 +220,110 @@ def ensure_maxwell_plugin() -> None:
         "This MaxWell recording's voltage is compressed with MaxWell's own HDF5 "
         f"filter ({MAXWELL_FILTER_ID}), and its decoder was not found (looked in "
         f"{', '.join(str(d) for d in tried)}). To read the voltage:\n"
-        f"  1. Get MaxWell's plugin, {lib}. It ships with MaxLab Live, and "
-        "MaxWell Biosystems provide it for download; the Python package neo "
-        "can fetch it for you with\n"
-        "       python -c \"from neo.rawio.maxwellrawio import "
-        "auto_install_maxwell_hdf5_compression_plugin as f; f()\"\n"
-        f"  2. Put it in {DEFAULT_PLUGIN_DIR} (where that command puts it), or in "
-        "a folder named by the HDF5_PLUGIN_PATH environment variable.\n"
-        "Spike-sorted imports do not need it: they read no voltage.")
+        "  • run   meanap maxwell-plugin   (or say yes when the app offers), "
+        f"which downloads MaxWell's {lib} from MaxWell Biosystems into "
+        f"{DEFAULT_PLUGIN_DIR}; or\n"
+        f"  • get {lib} yourself (it ships with MaxLab Live) and put it in "
+        f"{DEFAULT_PLUGIN_DIR} or a folder named by HDF5_PLUGIN_PATH.\n"
+        "A spike-sorted import needs it only for the unit-vs-noise test, "
+        "which is skipped without it.")
+
+
+#: MaxWell Biosystems' own downloads of the plugin — the links their
+#: installation guide (https://mxw.bio/MxW_Doc_Installing_Decompression_Library_to_load_MaxLab_Live_Recordings)
+#: and neo use. Keyed by ``(platform.system(), platform.machine())``; ``None``
+#: as the machine matches any. MEA-NAP does not ship the library: it is
+#: MaxWell's, closed source, and we have no licence to redistribute it.
+PLUGIN_URLS = {
+    ("Linux", "x86_64"): "https://share.mxwbio.com/d/7f2d1e98a1724a1b8b35/files/?p=%2FLinux%2Flibcompression.so&dl=1",
+    ("Darwin", "arm64"): "https://share.mxwbio.com/d/7f2d1e98a1724a1b8b35/files/?p=%2FMacOS%2FMac_arm64%2Flibcompression.dylib&dl=1",
+    ("Darwin", "x86_64"): "https://share.mxwbio.com/d/7f2d1e98a1724a1b8b35/files/?p=%2FMacOS%2FMac_x86_64%2Flibcompression.dylib&dl=1",
+    ("Windows", None): "https://share.mxwbio.com/d/7f2d1e98a1724a1b8b35/files/?p=%2FWindows%2Fcompression.dll&dl=1",
+}
+
+#: The first bytes of a shared library — ELF, Mach-O (both byte orders, and
+#: universal), PE — so an HTML error page is never saved as one.
+_LIBRARY_MAGIC = (b"\x7fELF", b"\xcf\xfa\xed\xfe", b"\xfe\xed\xfa\xcf",
+                  b"\xca\xfe\xba\xbe", b"MZ")
+
+
+def plugin_file_name(system: str | None = None) -> str:
+    import platform
+
+    system = system or platform.system()
+    return {"Windows": "compression.dll", "Darwin": "libcompression.dylib"}.get(
+        system, "libcompression.so")
+
+
+def plugin_download_url(system: str | None = None, machine: str | None = None) -> str | None:
+    """MaxWell's download for this computer, or ``None`` when they publish none."""
+    import platform
+
+    system = system or platform.system()
+    machine = (machine or platform.machine()).lower()
+    machine = {"amd64": "x86_64", "aarch64": "arm64"}.get(machine, machine)
+    return PLUGIN_URLS.get((system, machine)) or PLUGIN_URLS.get((system, None))
+
+
+def maxwell_plugin_available() -> bool:
+    """Whether h5py can decode MaxWell's compressed voltage on this computer."""
+    try:
+        ensure_maxwell_plugin()
+    except MaxwellPluginMissing:
+        return False
+    return True
+
+
+def install_maxwell_plugin(dest: str | Path | None = None, *, timeout_s: float = 60.0,
+                           opener=None) -> Path:
+    """Download MaxWell's plugin from MaxWell into *dest* and load it.
+
+    *dest* defaults to :data:`DEFAULT_PLUGIN_DIR`, the first place
+    :func:`ensure_maxwell_plugin` looks after ``HDF5_PLUGIN_PATH`` (and where
+    neo puts it). The download is checked to be a shared library before it
+    replaces anything, and is written beside its final name and renamed, so an
+    interrupted download never leaves a broken plugin behind. Returns the
+    library's path; raises ``OSError`` saying what went wrong.
+    """
+    import urllib.request
+
+    url = plugin_download_url()
+    if url is None:
+        import platform
+
+        raise OSError(f"MaxWell publish no decompression plugin for "
+                      f"{platform.system()} {platform.machine()}.")
+    dest = Path(dest) if dest is not None else DEFAULT_PLUGIN_DIR
+    dest.mkdir(parents=True, exist_ok=True)
+    target = dest / plugin_file_name()
+    if opener is None:
+        from meanap.updates import _ssl_context
+
+        def opener(u):
+            req = urllib.request.Request(u, headers={"User-Agent": "MEA-NAP"})
+            return urllib.request.urlopen(req, timeout=timeout_s, context=_ssl_context())
+    try:
+        with opener(url) as resp:
+            data = resp.read()
+    except OSError as e:
+        raise OSError(f"Could not download MaxWell's plugin ({e}). Download it by "
+                      f"hand from {url} and put it in {dest}.") from e
+    if not data.startswith(_LIBRARY_MAGIC):
+        raise OSError("MaxWell's server did not send a library (the link may have "
+                      f"moved). Download it by hand: {url}, into {dest}.")
+    part = target.with_name(target.name + ".part")
+    part.write_bytes(data)
+    os.replace(part, target)
+    try:
+        import h5py
+
+        h5py.h5pl.prepend(str(dest).encode())
+        if not h5py.h5z.filter_avail(MAXWELL_FILTER_ID):
+            raise OSError(f"Downloaded {target}, but HDF5 does not load it as "
+                          f"filter {MAXWELL_FILTER_ID}.")
+    except ImportError:
+        pass
+    return target
 
 
 def _uses_filter(dset, filter_id: int) -> bool:
@@ -408,3 +506,83 @@ def load_maxwell_traces(path: str | Path, well: int = 0, rec: int = 0, *,
             out[:, a:b] = dset[:, a:b]
             out[:, a:b] *= scale
         return out.T, meta
+
+
+def read_maxwell_rows(path: str | Path, rows, *, start_frame: int = 0,
+                      n_frames: int | None = None, well: int = 0, rec: int = 0,
+                      meta: MaxwellMeta | None = None, common_median: bool = False,
+                      block_frames: int = 100_000) -> tuple[np.ndarray, MaxwellMeta]:
+    """A few routed rows' voltage in µV: ``((len(rows), n) float32, meta)``.
+
+    For checks that need some electrodes, not all of them: the file is still
+    decompressed across every channel, chunk by chunk (it is stored that way),
+    but only *rows* are kept, so memory is ``len(rows) × n_frames`` rather than
+    the whole recording's.
+
+    ``common_median`` subtracts, sample by sample, the median over *all*
+    routed channels (each first offset by its own median over the block, so
+    channels' DC levels do not set the reference) — SpikeInterface's global
+    median ``common_reference``, which sorters are usually run after. It
+    costs little, since every block is decompressed across all channels anyway.
+    """
+    import h5py
+
+    path = Path(path)
+    meta = meta or read_maxwell_meta(path, well, rec)
+    rows = np.asarray(rows, dtype=np.int64)
+    start = max(0, int(start_frame))
+    stop = meta.n_frames if n_frames is None else min(meta.n_frames, start + int(n_frames))
+    n = max(0, stop - start)
+    with h5py.File(path, "r") as f:
+        g, _ = _recording_group(f, well, rec)
+        if "raw" not in g["groups/routed"]:
+            raise ValueError(f"{path.name}: this MaxWell file holds no voltage "
+                             "(groups/routed/raw), only metadata.")
+        dset = g["groups/routed/raw"]
+        if _uses_filter(dset, MAXWELL_FILTER_ID):
+            ensure_maxwell_plugin()
+        _require_memory(len(rows) * n * 4, path)
+        chunk = dset.chunks[1] if dset.chunks else 1
+        block = max(chunk, (block_frames // chunk) * chunk)
+        out = np.empty((len(rows), n), dtype=np.float32)
+        for a in range(start, stop, block):
+            b = min(stop, a + block)
+            blk = dset[:, a:b]
+            if common_median:
+                f = blk.astype(np.float32)
+                f -= np.median(f, axis=1, keepdims=True)
+                out[:, a - start:b - start] = f[rows] - np.median(f, axis=0)
+            else:
+                out[:, a - start:b - start] = blk[rows]
+    out *= np.float32(uv_per_bit(meta))
+    return out, meta
+
+
+def folder_has_compressed_maxwell(folder: str | Path, max_files: int = 40) -> bool:
+    """Whether *folder* (or a subfolder) holds a MaxWell recording whose voltage
+    is compressed with filter 401 — one this computer needs the plugin for.
+
+    Looks at no more than *max_files* ``.h5`` files, opening each only to read
+    its layout, so it is quick enough to ask before a run starts.
+    """
+    import h5py
+
+    folder = Path(folder)
+    if not folder.is_dir():
+        return False
+    seen = 0
+    for path in sorted(folder.rglob("*.h5")):
+        if seen >= max_files:
+            break
+        seen += 1
+        try:
+            with h5py.File(path, "r") as f:
+                if not is_maxwell_open(f):
+                    continue
+                g, _ = _recording_group(f, 0, 0)
+                raw = g["groups/routed"].get("raw")
+                if raw is not None and _uses_filter(raw, MAXWELL_FILTER_ID):
+                    return True
+        except (OSError, ValueError, KeyError):
+            continue
+    return False

@@ -3,7 +3,10 @@
 For each recording: find its sorter output, take the sampling rate, exact
 duration and electrode positions from the raw recording's metadata where there
 is one, and write the sorted ``_spikes.npz`` the rest of the pipeline reads.
-Nothing here loads voltage. See :mod:`meanap.pipeline.sorted_import`.
+The import itself loads no voltage; when the raw file is there and
+``signal_quality_check`` is on, the unit-quality report reads each unit's
+electrode to test it against that electrode's noise
+(:mod:`meanap.pipeline.unit_noise`). See :mod:`meanap.pipeline.sorted_import`.
 """
 
 from __future__ import annotations
@@ -38,6 +41,31 @@ def find_maxwell_raw(folders: list[Path], recording: str) -> Path | None:
             if candidate.is_file() and is_maxwell_h5(candidate):
                 return candidate
     return None
+
+
+def _signal_quality_from_raw(params: Params, rec: RecordingInfo, raw: Path,
+                             output_root: Path, log) -> None:
+    """Step 1's electrode-level check, on the raw file a sorting came from.
+
+    The same check spike detection runs, so an imported sorting gets the same
+    signal-quality figure, summary and map. Reads only the window the check
+    uses (its seconds after the settling time), as compact counts. Never
+    stops the import.
+    """
+    from meanap.pipeline.maxwell import electrode_table, load_maxwell_traces, node_ids, read_maxwell_meta
+    from meanap.pipeline.signal_quality import SKIP_START_S, run_signal_quality_check
+
+    try:
+        meta = read_maxwell_meta(raw)
+        secs = float(params.signal_quality_seconds or 60.0)
+        frames = int((SKIP_START_S + secs + 1.0) * meta.fs)
+        log(f"  [{rec.filename}] checking {raw.name} for spikes…")
+        dat, _ = load_maxwell_traces(raw, meta=meta, compact=True, max_frames=frames)
+    except Exception as exc:  # noqa: BLE001 — a check, not a step
+        log(f"  ! [{rec.filename}] signal-quality check skipped ({exc})")
+        return
+    run_signal_quality_check(params, rec, dat, node_ids(meta), meta.fs, output_root, log,
+                             xy=electrode_table(meta)["coords"])
 
 
 def run_sorted_import(
@@ -82,7 +110,11 @@ def run_sorted_import(
             continue
         fmt, path = found
 
-        raw = find_maxwell_raw(raw_dirs, rec.filename)
+        # Beside the sorter output too: a raw file is usually kept next to its
+        # sort (``Plate/<rec>.raw.h5`` and ``Plate/<rec>/``), and the sorted
+        # folder is searched recursively where the raw folder is not.
+        raw = find_maxwell_raw(list(dict.fromkeys(
+            raw_dirs + [path.parent, path.parent.parent])), rec.filename)
         electrodes = fs = duration_s = None
         if raw is not None:
             meta = read_maxwell_meta(raw)
@@ -127,9 +159,16 @@ def run_sorted_import(
         # Report only: which units are nodes is still the sorter's labels.
         from meanap.pipeline.unit_quality import run_unit_quality
 
+        check_raw = raw if params.signal_quality_check else None
+        if check_raw is not None:
+            _signal_quality_from_raw(params, rec, check_raw, output_root, log)
         run_unit_quality(rec.filename, imp, output_root,
                          analyzer_path=path if fmt == "spikeinterface" else None,
-                         drop_labels=drop, log=log)
+                         drop_labels=drop, raw_path=check_raw, log=log)
+        if check_raw is not None:
+            from meanap.pipeline.signal_quality import draw_signal_quality_map
+
+            draw_signal_quality_map(output_root, rec.filename, log=log)   # now with units
         progress.item_done(rec.filename)
 
     progress.phase_done()

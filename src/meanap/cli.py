@@ -517,6 +517,27 @@ def cmd_version(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+def cmd_maxwell_plugin(args: argparse.Namespace) -> int:
+    from meanap.pipeline import maxwell
+
+    if maxwell.maxwell_plugin_available() and not args.force:
+        _log("MaxWell's decompression plugin is installed: MaxWell voltage can be read.")
+        return EXIT_OK
+    if args.check:
+        _log("MaxWell's decompression plugin is not installed. "
+             "Run `meanap maxwell-plugin` to download it from MaxWell Biosystems.")
+        return EXIT_FAILED
+    url = maxwell.plugin_download_url()
+    _log(f"Downloading MaxWell's decompression plugin from MaxWell Biosystems\n  {url}")
+    try:
+        path = maxwell.install_maxwell_plugin()
+    except OSError as e:
+        _log(f"error: {e}")
+        return EXIT_FAILED
+    _log(f"Installed {path} — MaxWell voltage can now be read.")
+    return EXIT_OK
+
+
 # ── Parser ───────────────────────────────────────────────────────────────────
 
 
@@ -598,6 +619,16 @@ def build_parser() -> argparse.ArgumentParser:
     q.set_defaults(fn=cmd_params_show)
 
     sub.add_parser("version", help="print the versions").set_defaults(fn=cmd_version)
+
+    p = sub.add_parser("maxwell-plugin", help="get MaxWell's decoder for .raw.h5 voltage",
+                       description="MaxWell compress a recording's voltage with their "
+                                   "own HDF5 filter. This downloads MaxWell's decoder "
+                                   "from MaxWell Biosystems into "
+                                   "~/hdf5_plugin_path_maxwell, where MEA-NAP finds it.")
+    p.add_argument("--check", action="store_true",
+                   help="only say whether it is installed (exit 1 if not)")
+    p.add_argument("--force", action="store_true", help="download it even if installed")
+    p.set_defaults(fn=cmd_maxwell_plugin)
 
     for name, (_, help_text) in FORWARDED.items():
         # Parsed by the tool itself; listed here so `meanap -h` shows them.

@@ -565,13 +565,23 @@ Settings that must match:
 filter, so reading it needs MaxWell's plugin (`libcompression.so` on Linux,
 `libcompression.dylib` on macOS, `compression.dll` on Windows). MEA-NAP looks
 in the folders named by `HDF5_PLUGIN_PATH`, then in `~/hdf5_plugin_path_maxwell`.
-It never downloads anything; if the plugin is missing, the run stops with
-instructions. The plugin ships with MaxLab Live, and the `neo` package will
-fetch it into `~/hdf5_plugin_path_maxwell` for you:
+MEA-NAP cannot ship the plugin, because it is MaxWell's closed-source library.
+What it does instead:
 
-```bash
-python -c "from neo.rawio.maxwellrawio import auto_install_maxwell_hdf5_compression_plugin as f; f()"
-```
+- **In the app:** when you press Run on MaxWell recordings and the plugin is
+  missing, MEA-NAP asks whether to download it from MaxWell Biosystems into
+  `~/hdf5_plugin_path_maxwell`. It is a small file (about 36 KB), fetched once
+  per computer.
+- **From the command line:**
+
+  ```bash
+  meanap maxwell-plugin          # download it (if it is not installed)
+  meanap maxwell-plugin --check  # only say whether it is installed
+  ```
+
+MaxWell publish builds for Linux (x86-64), macOS (Apple silicon and Intel)
+and Windows. Nothing is downloaded without you saying so. The plugin also
+ships with MaxLab Live, if you would rather copy it from there.
 
 **Memory.** MEA-NAP holds a whole recording in memory during spike detection,
 and HD-MEA recordings are big. A 1012-electrode MaxOne recording takes 2.4 GB

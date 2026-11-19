@@ -58,6 +58,8 @@ __all__ = [
     "ACTIVITY_FIGURES",
     "SPIKE_CHECK_FIGURES",
     "SIGNAL_QUALITY_FIGURE",
+    "SIGNAL_QUALITY_MAP_FIGURE",
+    "UNIT_NOISE_FIGURE",
     "signal_quality_summary",
     "available_spike_check_figures",
     "render_spike_check_figure",
@@ -177,6 +179,8 @@ SPIKE_CHECK_FIGURES: tuple[FigureSpec, ...] = (
 #: among a recording's step-1 checks. Detected or sorted, the check runs on the
 #: voltage before either, so it is offered whichever produced the spikes.
 SIGNAL_QUALITY_FIGURE = FigureSpec("0_SignalQuality", "Signal quality")
+#: The same check drawn on the array, with any sorted units on top.
+SIGNAL_QUALITY_MAP_FIGURE = FigureSpec("0_SignalQualityMap", "Signal quality map")
 
 #: Step 1's checks when the spikes came from a spike sorter instead.
 SORTING_CHECK_FIGURES: tuple[FigureSpec, ...] = (
@@ -186,6 +190,8 @@ SORTING_CHECK_FIGURES: tuple[FigureSpec, ...] = (
 )
 #: Bombcell-style metrics, for any sorting: MEA-NAP's own or an imported one.
 UNIT_QUALITY_FIGURE = FigureSpec("4_UnitQualityMetrics", "Unit quality metrics")
+#: A few units against their electrode's noise, when the raw voltage was read.
+UNIT_NOISE_FIGURE = FigureSpec("5_UnitNoiseExamples", "Units against their electrode's noise")
 
 #: Per-channel metrics whose heatmap colour ceiling is pooled across the batch
 #: (MATLAB's ``maxValStruct``). Must match step 2's own list, or a rebuilt
@@ -1482,8 +1488,12 @@ def available_sorting_check_figures(
     from meanap.pipeline.unit_quality import UNIT_QUALITY_CSV, UNIT_QUALITY_DIR
 
     figures = list(SORTING_CHECK_FIGURES) if _sorting_check_file(ctx, recording) else []
+    from meanap.pipeline.unit_noise import EXAMPLES_SUFFIX
+
     if (ctx.root / UNIT_QUALITY_DIR / f"{recording}{UNIT_QUALITY_CSV}").exists():
         figures.append(UNIT_QUALITY_FIGURE)
+    if (ctx.root / UNIT_QUALITY_DIR / f"{recording}{EXAMPLES_SUFFIX}").exists():
+        figures.append(UNIT_NOISE_FIGURE)
     return figures
 
 
@@ -1498,6 +1508,15 @@ def render_sorting_check_figure(
         draw_sorting_check_figures, load_sorting_check_data,
     )
 
+    if Path(figure).stem == UNIT_NOISE_FIGURE.name:
+        from meanap.pipeline.unit_noise import draw_saved_unit_examples
+
+        with figure_dpi(dpi):
+            drawn = draw_saved_unit_examples(
+                ctx.root, recording, Path(out_dir) / f"{UNIT_NOISE_FIGURE.name}.{fmt}")
+        if drawn is None:
+            raise ValueError(f"No unit-vs-noise examples for {recording} in this run.")
+        return drawn
     if Path(figure).stem == UNIT_QUALITY_FIGURE.name:
         from meanap.pipeline.unit_quality import draw_saved_unit_quality
 
@@ -1582,6 +1601,11 @@ def available_spike_check_figures(
     that produces nothing is worse than offering none.
     """
     figures = [SIGNAL_QUALITY_FIGURE] if _signal_quality_file(ctx, recording) else []
+    if figures:
+        from meanap.pipeline.quality_maps import has_map
+
+        if has_map(ctx.root, recording):
+            figures.append(SIGNAL_QUALITY_MAP_FIGURE)
     if _spike_check_file(ctx, recording) is not None:
         figures += SPIKE_CHECK_FIGURES
     return figures
@@ -2083,6 +2107,16 @@ def render_spike_check_figure(
         draw_spike_check_figures, load_spike_check_data,
     )
 
+    if Path(figure).stem == SIGNAL_QUALITY_MAP_FIGURE.name:
+        from meanap.pipeline.quality_maps import draw_saved_signal_quality_map
+
+        with figure_dpi(dpi):
+            drawn = draw_saved_signal_quality_map(
+                ctx.root, recording, Path(out_dir) / f"{SIGNAL_QUALITY_MAP_FIGURE.name}.{fmt}")
+        if drawn is None:
+            raise ValueError(f"No signal-quality map for {recording}: the check did not run, "
+                             "or its electrodes have no positions.")
+        return drawn
     if Path(figure).stem == SIGNAL_QUALITY_FIGURE.name:
         from meanap.pipeline.signal_quality import load_signal_quality, plot_signal_quality
 
