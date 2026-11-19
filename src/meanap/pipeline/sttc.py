@@ -197,12 +197,16 @@ def get_sttc(
     n_channels: int,
     lag_ms: float,
     duration_s: float,
+    *,
+    clip: bool = True,
 ) -> np.ndarray:
     """Pairwise STTC adjacency matrix, port of ``get_sttc.m``.
 
     Negative values and NaNs (including the diagonal, which is never
     computed) are zeroed, matching MATLAB's
-    ``adjM(adjM<0)=0; adjM(isnan(adjM))=0;``.
+    ``adjM(adjM<0)=0; adjM(isnan(adjM))=0;``. ``clip=False`` keeps the signed
+    values (NaN where a train is empty, and on the diagonal): what the
+    pipeline throws away, for looking at anti-correlation.
     """
     dt = lag_ms / 1000.0
     adj_m = np.full((n_channels, n_channels), np.nan)
@@ -249,6 +253,8 @@ def get_sttc(
         _sttc_upper_serial(*args)
     lower = np.tril_indices(n_channels, -1)
     adj_m[lower] = adj_m.T[lower]
+    if not clip:
+        return adj_m
 
     adj_m[adj_m < 0] = 0.0
     adj_m[np.isnan(adj_m)] = 0.0

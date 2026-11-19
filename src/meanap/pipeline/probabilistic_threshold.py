@@ -9,7 +9,7 @@ across ``rep_num`` repetitions. Two nulls make the synthetic trains:
     each train's own pattern and breaks all timing between channels, slow
     included — so two channels that only share network bursts, or a rise in
     rate across the recording, pass as connected.
-``"jitter"`` (interval jitter, Amarasingham et al. 2012, *Neural Comput*)
+``"jitter"`` (interval jitter, Amarasingham et al. 2012, *J Neurophysiol*)
     Time is cut into windows ``jitter_ms`` long and each spike moved to a
     uniformly random time within its own window. Every channel keeps its
     spike count in every window, so shared bursts and slow co-modulation are
