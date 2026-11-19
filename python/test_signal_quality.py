@@ -244,3 +244,35 @@ def test_viewers_offer_signal_quality(tmp_path):
     viewer.grab().save(str(tmp_path / "viewer.png"))
     os.environ.get("SQ_KEEP_SHOT") and viewer.grab().save(os.environ["SQ_KEEP_SHOT"])
     viewer.close()
+
+
+def test_figure_is_native_in_the_pipeline_style(tmp_path):
+    """Drawn as a native chart with spines, like the rasters and networks, and
+    written as PNG and SVG; a check with no example trace still draws."""
+    from meanap.native.chart import Chart
+    from meanap.pipeline.signal_quality import plot_signal_quality
+
+    rng = np.random.default_rng(9)
+    res = assess_signal_quality(coloured_noise(10, 4, rng), FS, max_seconds=None)
+    chart = plot_signal_quality(res, tmp_path / "sq.png", title="rec")
+    assert isinstance(chart, Chart) and len(chart.panels) == 3
+    assert all(p.spines and p.grid == "" for p in chart.panels)
+    assert chart.panels[1].ylog
+    assert (tmp_path / "sq.png").stat().st_size > 1000
+    plot_signal_quality(res, tmp_path / "sq.svg")
+    assert (tmp_path / "sq.svg").read_text().lstrip().startswith("<?xml")
+    res.example_obs = res.example_surr = np.zeros(0)
+    plot_signal_quality(res, tmp_path / "empty.png")
+    assert (tmp_path / "empty.png").is_file()
+
+
+def test_figure_has_a_card_explaining_it():
+    from meanap.metric_info import lookup, metrics_for, render_markdown
+    from meanap.params import Params
+
+    roles = metrics_for({"kind": "spike_check", "name": "0_SignalQuality"})
+    assert roles == {"title": "signalquality"}
+    text = render_markdown(lookup("signalquality"), Params(signal_quality_seconds=30))
+    assert "phase" in text.lower() and "``30``" in text and "{{" not in text
+    for panel in ("Left:", "Middle:", "Right:"):
+        assert panel in text

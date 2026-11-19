@@ -456,6 +456,9 @@ class Panel:
     twin: bool = False
     #: A thin box around the plot area in this colour (``None``: none).
     frame: tuple | None = None
+    #: Ink spines on the left and bottom, with tick marks: the look of the
+    #: pipeline's own figures (rasters, networks) rather than step 5's.
+    spines: bool = False
 
 
 @dataclass
@@ -470,6 +473,8 @@ class Chart:
     title: str = ""
     title_size: float = 11.0
     title_colour: tuple = INK
+    #: Space under the title, in points.
+    title_gap: float = 6.0
     legend: Legend | None = None
     colour_bar: ColourBar | None = None
     #: Small print at the foot of the figure; lines are wrapped to fit.

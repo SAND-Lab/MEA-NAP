@@ -250,6 +250,8 @@ def metrics_for(request: dict | None) -> dict[str, str]:
         roles = _network_figure(name)
     elif kind == "edge_check":
         roles = {"title": "edges"}
+    elif kind == "spike_check" and name == "0_SignalQuality":
+        roles = {"title": "signalquality"}
     elif kind == "activity":
         roles = _activity_figure(name)
     elif kind == "comparison":

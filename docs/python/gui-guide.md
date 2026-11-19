@@ -24,7 +24,9 @@ automatically.
 one page that asks only for what a run needs, one question at a time:
 
 1. **Recordings**: the folder with your recordings (for CAT-NAP, the folder
-   holding one suite2p folder per recording), or a Dropbox folder link;
+   holding one suite2p folder per recording), or a Dropbox folder link.
+   **Browse…** lists the `.mat`, `.h5` and `.raw` files beside the folders, so
+   you can see a folder holds the recordings before choosing it;
 2. **Spreadsheet**: checked against that folder, so a recording it names but
    the folder doesn't have is flagged before the run. No spreadsheet yet?
    **Build one from the N recordings in this folder** starts one for you (see
@@ -96,8 +98,10 @@ window remembers which view you used last; the tabs are the default.
 
 ### Other settings
 
-Below the questions, an **Other settings** card is always on the page. It gets
-a green tick once every question above it is answered, changed settings or not. It has
+Once every question above is answered, an **Other settings** card appears
+below them, with a green tick, changed settings or not. It stays out of the way
+until then so the page asks one thing at a time; looking a setting up with the
+search box shows it sooner. It has
 one row for each settings tab the pipeline uses: Recordings and output, Spike
 detection (or Calcium imaging), Connectivity and networks, Stimulation (MEA-Stim
 only), and Pipeline steps and output. Each row shows:
@@ -128,15 +132,18 @@ the network viewer's, opens in the classic view instead.
 
 The switch under the logo goes from **Analyse recordings** to **View results**,
 for looking at a run that has already finished, yours or one someone sent you.
-Drop a `.meanap` bundle or a results folder on the dashed box (or use **Open
-bundle…** / **Open results folder…**), and the results viewer opens in your
-browser. Under it are the other viewers the current pipeline has:
+The dashed box at the top is the **Results viewer**: drop a `.meanap` bundle or
+a results folder on it (or use **Open bundle…** / **Open results folder…**), and
+the run opens in the results viewer, in a window of the app. The run's card
+then has an **Open** button to bring the viewer back if you close it, and
+**Open in browser instead** for the older web viewer. Under it, **Other
+viewers** lists what else the current pipeline has:
 
-| Pipeline | Viewers |
+| Pipeline | Other viewers |
 |---|---|
-| MEA-NAP | Results viewer; network viewer; spike and burst viewer |
-| MEA-Stim | Results viewer; stimulation response (ΔFR); network viewer; stimulation preview; spike and burst viewer |
-| CAT-NAP | Results viewer; network viewer; cell tracking (only for a run with tracking results) |
+| MEA-NAP | Network viewer; spike and burst viewer |
+| MEA-Stim | Stimulation response (ΔFR); network viewer; stimulation preview; spike and burst viewer |
+| CAT-NAP | Network viewer; cell tracking (only for a run with tracking results) |
 
 The [network viewer](network-viewer.md) opens in a window of its own on the run
 you have open, with a list to pick the recording from; it is enabled once a run

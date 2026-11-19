@@ -39,16 +39,20 @@ electrode's own surrogate avoids that.
 
 ## The figure
 
-One figure per recording, three panels:
+One figure per recording, three panels, drawn in the same style as the
+rasters and networks:
 
-- **Left:** 250 ms of the electrode with the clearest spikes (blue) above the same 250 ms
-  of its surrogate (grey), both in noise SDs, with ±5 SD dotted and every
-  event beyond −5 SD marked ▲. The grey trace is what
-  the electrode would look like if it held only noise.
+- **Left:** 250 ms of the electrode with the clearest spikes (ink) above the
+  same 250 ms of its surrogate (grey), both in noise SDs, with ±5 SD dotted and
+  every event beyond −5 SD marked with a red dot. The grey trace is what the
+  electrode would look like if it held only noise.
 - **Middle:** how often each size of deflection occurs per electrode per
-  minute, recorded against surrogate. Spikes are the blue tail that the grey
+  minute, recorded against surrogate. Spikes are the ink tail that the grey
   curve lacks.
 - **Right:** the negative excess beyond 5 SD on every electrode, ranked.
+
+In the results viewer, **ⓘ About** (or clicking the figure's title) opens a
+card that explains phase scrambling and each panel.
 
 ![Signal quality on a recording with spikes and one without](imgs/signal_quality_example.png)
 

@@ -511,77 +511,137 @@ def _zoom(res: SignalQuality, show_ms: float):
     return obs[i0:i0 + w], surr[i0:i0 + w], i0
 
 
-def plot_signal_quality(res: SignalQuality, out_path: str | Path | None = None,
-                        title: str = "", axes=None, show_ms: float = 250.0):
-    """Three panels: example trace vs its surrogate, tail histogram, excess per electrode.
+#: The figure's colours, in the style of the other native figures: the
+#: recording in ink, its scrambled-phase copy in grey, the 5 SD line and the
+#: events it counts in one accent.
+_RECORDED = (0x22 / 255, 0x22 / 255, 0x22 / 255, 1.0)
+_SCRAMBLED = (0.62, 0.62, 0.62, 1.0)
+_ACCENT = (0xc4 / 255, 0x4e / 255, 0x52 / 255, 1.0)
 
-    The trace panel shows *show_ms* of the stored 2 s example — the stretch
-    with the most events — with every extremum beyond 5 SD marked, so the
-    count the verdict rests on is visible rather than inferred.
+
+def signal_quality_panels(res: SignalQuality, row: int = 0, title: str = "",
+                          show_ms: float = 250.0) -> list:
+    """The three panels of one recording's check, on *row* of a chart's grid.
+
+    Example trace against its scrambled-phase copy, how often each size of
+    deflection occurs, and the excess on every electrode. The trace panel
+    shows *show_ms* of the stored 2 s example (the stretch with the most
+    events), with every extremum beyond −5 SD marked, so the count the
+    verdict rests on is visible rather than inferred.
     """
-    import matplotlib.pyplot as plt
+    from meanap.native.chart import Legend, LegendItem, Line, Panel, Points, Rule, Text
 
-    own = axes is None
-    if own:
-        fig, axes = plt.subplots(1, 3, figsize=(13, 3.4),
-                                 gridspec_kw={"width_ratios": [2.2, 1.2, 1.2]})
-    else:
-        fig = axes[0].figure
     s = res.summary()
-    ax = axes[0]
+    k = VERDICT_K
+    panels = []
+
+    # 1. The clearest electrode, recorded above scrambled.
+    marks: list = []
+    trace_title = "No example trace"
     if len(res.example_obs):
         obs, surr, i0 = _zoom(res, show_ms)
         t = (i0 + np.arange(len(obs))) / res.fs * 1e3
         dead = max(1, int(round(DEAD_TIME_MS * 1e-3 * res.fs)))
-        # the surrogate goes below, clear of the recorded trace's spikes
-        off = min(np.min(obs), -VERDICT_K) - max(np.max(surr), VERDICT_K) - 4.0
-        n_hits = []
-        for y0, trace, colour in ((0.0, obs, "C0"), (off, surr, "0.5")):
-            ax.plot(t, trace + y0, color=colour, lw=0.7)
-            for y in (-VERDICT_K, VERDICT_K):
-                ax.axhline(y0 + y, color="C3", lw=0.5, ls=":")
-            hits = _extrema(-trace, VERDICT_K, dead)
-            ax.plot(t[hits], trace[hits] + y0 - 1.2, "^", color="C3", ms=4, mec="none")
-            n_hits.append(len(hits))
-        ax.set_ylim(off + min(np.min(surr), -VERDICT_K) - 2.5,
-                    max(np.max(obs), VERDICT_K) + 1.0)
-        ax.set_yticks([])
-        ax.set_xlabel("ms"); ax.set_ylabel(f"noise SDs (dotted: ±{VERDICT_K:g})")
-        ax.set_title(f"{title} · clearest electrode (ch {res.example_channel}), "
-                     f"{len(obs) / res.fs * 1e3:.0f} ms\n"
-                     f"▲ below −{VERDICT_K:g} SD: recorded (blue) {n_hits[0]} · its own "
-                     f"noise, phases scrambled (grey) {n_hits[1]}",
-                     fontsize=8.5, loc="left")
-    ax = axes[1]
-    centres = (HIST_EDGES[:-1] + HIST_EDGES[1:]) / 2
-    per_min = 60.0 / res.duration_s
-    ax.semilogy(centres, np.maximum(res.hist_obs * per_min, 1e-4), color="C0", label="recorded")
-    ax.semilogy(centres, np.maximum(res.hist_surr * per_min, 1e-4), color="0.55", label="own noise")
-    ax.axvline(VERDICT_K, color="C3", lw=0.5, ls=":")
-    ax.set_ylim(1e-3, None)
-    ax.set_xlabel("|extremum| (noise SDs)"); ax.set_ylabel("per electrode per min")
-    ax.set_title("how often each size of deflection occurs", fontsize=9, loc="left")
-    ax.legend(fontsize=7, frameon=False)
-    ax = axes[2]
-    exc = np.sort(res.excess_hz())[::-1]
-    ax.plot(np.arange(1, len(exc) + 1), exc, color="C0", lw=1)
-    ax.axhline(MIN_EXCESS_HZ, color="C3", lw=0.5, ls=":")
-    if len(exc) > 30:   # a log rank axis only pays off with many electrodes
-        ax.set_xscale("log")
-    ax.set_xlabel("electrodes, ranked"); ax.set_ylabel(f"excess negative events >{VERDICT_K:g} SD (Hz)")
-    ax.set_title(f"{s['n_spiking']} of {s['n_electrodes']} electrodes show spikes"
-                 + (f"\n+{s['n_positive_only']} with positive-only excess (artifact-like)"
-                    if s["n_positive_only"] else ""),
-                 fontsize=9, loc="left")
-    if own:
-        fig.tight_layout()
-        if out_path is not None:
-            # The shared savefig, so the results viewer can intercept it and
-            # show the figure live instead of reading a file back.
-            from meanap.pipeline.figure_output import savefig
+        # The scrambled copy goes below, clear of the recorded trace's spikes.
+        off = min(np.min(obs), -k) - max(np.max(surr), k) - 4.0
+        counts = []
+        for y0, trace, colour, name in ((0.0, obs, _RECORDED, "recorded"),
+                                        (off, surr, _SCRAMBLED, "phases scrambled")):
+            marks.append(Line(t, trace + y0, colour, width=0.7))
+            for y in (-k, k):
+                marks.append(Rule(y0 + y, colour=_ACCENT, width=0.6, dash=":"))
+            hits = _extrema(-trace, k, dead)
+            if len(hits):
+                marks.append(Points(t[hits], trace[hits] + y0 - 1.2, fill=_ACCENT, size=3.5,
+                                    hover=[f"{name}: {v:.1f} SD at {x:.1f} ms"
+                                           for x, v in zip(t[hits], trace[hits])]))
+            marks.append(Text(0.01, y0 + max(np.max(trace), k) + 0.6,
+                              f"{name}: {len(hits)} below −{k:g} SD", colour, size=7.5,
+                              ha="left", va="bottom", coords="blend"))
+            counts.append(len(hits))
+        trace_title = (f"Electrode {res.example_channel}, the clearest · "
+                       f"{len(obs) / res.fs * 1e3:.0f} ms")
+        ylim = (off + min(np.min(surr), -k) - 2.5, max(np.max(obs), k) + 3.0)
+    else:
+        ylim = None
+    panels.append(Panel(
+        cell=(row, 0), marks=marks, title=trace_title, xlabel="Time (ms)",
+        ylabel=f"Noise SDs (dotted: ±{k:g})", yticks=[], ylim=ylim, grid="", spines=True,
+        empty="" if marks else "No example trace stored"))
 
-            savefig(fig, Path(out_path), default_dpi=120)
-    return fig
+    # 2. How often each size of deflection occurs.
+    centres = (HIST_EDGES[:-1] + HIST_EDGES[1:]) / 2
+    per_min = 60.0 / res.duration_s if res.duration_s > 0 else 0.0
+
+    rates = [np.asarray(h, dtype=float) * per_min for h in (res.hist_obs, res.hist_surr)]
+    seen = np.concatenate([r[r > 0] for r in rates] + [np.zeros(0)])
+    # A size that never occurs drops the curve off the bottom of the axis,
+    # as a rate falling to nothing should, rather than breaking it.
+    if seen.size:
+        hist_ylim = (seen.min() / 2, seen.max() * 2)
+    else:
+        hist_ylim = (1e-3, 1.0)
+    floor = hist_ylim[0] / 100
+
+    def rate(r):
+        return np.where(r > 0, r, floor)
+
+    panels.append(Panel(
+        cell=(row, 1),
+        marks=[Line(centres, rate(rates[0]), _RECORDED, width=1.4, label="recorded"),
+               Line(centres, rate(rates[1]), _SCRAMBLED, width=1.4,
+                    label="phases scrambled"),
+               Rule(k, axis="x", colour=_ACCENT, width=0.6, dash=":")],
+        title="How often each size of deflection occurs",
+        xlabel="Size of deflection (noise SDs)", ylabel="Per electrode per minute",
+        ylog=True, ylim=hist_ylim, grid="", spines=True,
+        legend=Legend([LegendItem("recorded", _RECORDED),
+                       LegendItem("phases scrambled", _SCRAMBLED)], loc="upper right")))
+
+    # 3. The excess on every electrode, ranked.
+    exc = np.sort(res.excess_hz())[::-1]
+    ranks = np.arange(1, len(exc) + 1)
+    order = np.argsort(res.excess_hz())[::-1]
+    shows = f"{s['n_spiking']} of {s['n_electrodes']} electrodes show spikes"
+    if s["n_positive_only"]:
+        shows += f" · {s['n_positive_only']} positive only"
+    panels.append(Panel(
+        cell=(row, 2),
+        marks=[Line(ranks, exc, _RECORDED, width=1.4,
+                    hover=[f"electrode {res.channels[i]}: {v:+.2f} Hz"
+                           for i, v in zip(order, exc)]),
+               Rule(MIN_EXCESS_HZ, colour=_ACCENT, width=0.6, dash=":"),
+               Rule(0.0, colour=_SCRAMBLED, width=0.6)],
+        title=shows, xlabel="Electrodes, ranked",
+        ylabel=f"Excess events below −{k:g} SD (Hz)", grid="", spines=True,
+        empty="" if len(exc) else "No electrodes"))
+    if title:
+        panels[0].title = f"{title}\n{panels[0].title}"
+    return panels
+
+
+def signal_quality_chart(res: SignalQuality, title: str = "", show_ms: float = 250.0):
+    """One recording's check as a native chart."""
+    from meanap.native.chart import Chart
+
+    return Chart(signal_quality_panels(res, 0, show_ms=show_ms), size=(13, 3.6),
+                 grid=(1, 3), widths=[2.2, 1.2, 1.2], title=title, title_size=13.0,
+                 title_gap=16.0, gap=(30.0, 14.0))
+
+
+def plot_signal_quality(res: SignalQuality, out_path: str | Path | None = None,
+                        title: str = "", show_ms: float = 250.0):
+    """Draw one recording's check; written to *out_path* if given.
+
+    Drawn natively like the other figures, so the results viewer shows it
+    live (it can be zoomed, and its points read). Returns the chart.
+    """
+    chart = signal_quality_chart(res, title, show_ms)
+    if out_path is not None:
+        from meanap.native.chart_paint import save_chart
+
+        save_chart(chart, Path(out_path))
+    return chart
 
 
 def recordings_without_spikes(output_root: str | Path) -> list[str]:

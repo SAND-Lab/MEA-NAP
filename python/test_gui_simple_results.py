@@ -29,7 +29,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from PyQt6.QtCore import QEvent, QSettings  # noqa: E402
-from PyQt6.QtWidgets import QApplication  # noqa: E402
+from PyQt6.QtWidgets import QApplication, QLabel  # noqa: E402
 
 _SETTINGS_DIR = tempfile.mkdtemp(prefix="meanap-settings-")
 QSettings.setPath(QSettings.Format.NativeFormat, QSettings.Scope.UserScope, _SETTINGS_DIR)
@@ -187,11 +187,16 @@ def page_section(runs: dict[str, Path], shots: Path | None) -> None:
     sv.show_page("results")
     check("View results hides the questions", not sv.analyse_page.isVisible()
           and page.isVisible())
-    check("MEA-NAP offers the results, network and spike viewers",
-          page.viewer_keys() == ["results", "network", "spikes"], str(page.viewer_keys()))
+    check("the drop zone is the results viewer, not a row under it",
+          any(l.text() == "Results viewer" for l in page.drop_zone.findChildren(QLabel))
+          and "results" not in page.viewer_keys())
+    check("MEA-NAP lists the network and spike viewers under it",
+          page.viewer_keys() == ["network", "spikes"], str(page.viewer_keys()))
+    hits = [e for e in sv.search_entries() if e.title == "Results viewer"]
+    check("searching for the results viewer still finds it, at the drop zone",
+          len(hits) == 1 and page.viewer_row("results") is page.drop_zone, str(hits))
     check("before a run is open, only the spike viewer can open",
-          not page.viewer_enabled("results") and not page.viewer_enabled("network")
-          and page.viewer_enabled("spikes"))
+          not page.viewer_enabled("network") and page.viewer_enabled("spikes"))
 
     page.set_source(runs["bundle"])
     check("choosing a bundle opens it in the results viewer",
@@ -205,7 +210,9 @@ def page_section(runs: dict[str, Path], shots: Path | None) -> None:
           and "settings" in page.browser_button.toolTip(), str(w._browsed))
     check("and then says where, with a reminder to keep MEA-NAP open",
           "127.0.0.1:8765" in page.serving.text() and "Keep MEA-NAP open" in page.serving.text())
-    check("the results viewer is now enabled", page.viewer_enabled("results"))
+    page.reopen_button.click()
+    check("the run's Open button reopens the results viewer",
+          opened[-1:] == [(runs["bundle"].resolve(), "")] and len(opened) == 2, str(opened))
     check("the network viewer is not, for a run with no networks",
           not page.viewer_enabled("network"))
     if shots:
@@ -215,11 +222,11 @@ def page_section(runs: dict[str, Path], shots: Path | None) -> None:
     page.set_source(runs["other"])
     check("a file that is not a run is refused, and the run in hand kept",
           page.source == runs["bundle"].resolve()
-          and "not a .meanap" in page.serving.text() and len(opened) == 1)
+          and "not a .meanap" in page.serving.text() and len(opened) == 2)
 
     w._apply_mode("meastim")
     check("MEA-Stim adds the ΔFR viewer and stimulation preview",
-          page.viewer_keys() == ["results", "fr_diff", "network", "stim_preview", "spikes"],
+          page.viewer_keys() == ["fr_diff", "network", "stim_preview", "spikes"],
           str(page.viewer_keys()))
     check("stimulation preview needs no run", page.viewer_enabled("stim_preview"))
     w._data_panel.raw_data.line_edit.setText(str(runs["plain"]))
@@ -237,8 +244,8 @@ def page_section(runs: dict[str, Path], shots: Path | None) -> None:
           fr_sources == [str(runs["bundle"].resolve())], str(fr_sources))
 
     w._apply_mode("catnap")
-    check("CAT-NAP offers results, networks and cell tracking",
-          page.viewer_keys() == ["results", "network", "tracking"], str(page.viewer_keys()))
+    check("CAT-NAP offers networks and cell tracking",
+          page.viewer_keys() == ["network", "tracking"], str(page.viewer_keys()))
     check("cell tracking disabled for a run without it", not page.viewer_enabled("tracking"))
     page.set_source(runs["tracked"])
     check("enabled for a run with it", page.viewer_enabled("tracking"))
