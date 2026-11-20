@@ -1310,14 +1310,22 @@ class ResultsViewer(QWidget):
 
     # ── the run ──────────────────────────────────────────────────────────────
 
-    def load_run(self, source: str | Path) -> None:
-        """Open a bundle or results folder. Raises ``ValueError`` if unreadable."""
+    def load_run(self, source: str | Path, *, service=None, manifest: dict | None = None) -> None:
+        """Open a bundle or results folder. Raises ``ValueError`` if unreadable.
+
+        *service* and *manifest*, when given, are the run already read (by
+        :func:`meanap.gui.run_loading.read_run`, off the GUI thread): reading a
+        large bundle is the slow part, and this then only fills the window.
+        """
         from meanap.viewer.server import ViewerService
 
-        service = ViewerService(source)
+        if service is None:
+            service = ViewerService(source)
+        if manifest is None:
+            manifest = service.manifest()
         self.close_run()
         self._service = service
-        self._manifest = service.manifest()
+        self._manifest = manifest
         self._remembered = {}
         self._tracking_listed = False
         self.run_name.setText(Path(str(source)).name)

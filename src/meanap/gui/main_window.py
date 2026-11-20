@@ -2429,16 +2429,22 @@ class MainWindow(QMainWindow):
 
         from meanap.gui.results_viewer import ResultsViewer
 
+        from meanap.gui.run_loading import read_run
+
         panel = self._panel_window("results_native", "MEA-NAP · Results", ResultsViewer)
-        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        window = self._panel_windows["results_native"]
         try:
-            panel.load_run(source)
+            # Read on a worker thread, behind a busy dialog: a large bundle
+            # takes seconds, and the window must not look hung meanwhile.
+            service, manifest = read_run(Path(source), window)
+            QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+            try:
+                panel.load_run(source, service=service, manifest=manifest)
+            finally:
+                QApplication.restoreOverrideCursor()
         except Exception as e:
-            QApplication.restoreOverrideCursor()
-            QMessageBox.warning(self._panel_windows["results_native"],
-                                "Could not open the run", f"{source}\n\n{e}")
+            QMessageBox.warning(window, "Could not open the run", f"{source}\n\n{e}")
             return False
-        QApplication.restoreOverrideCursor()
         wanted = parse_qs(query)
         if wanted.get("tab") == ["tracking"]:
             panel.show_tracking()

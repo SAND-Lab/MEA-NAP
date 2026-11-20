@@ -582,8 +582,19 @@ def _ephys_stats(ctx: RenderContext) -> dict:
     path = ctx.root / "2_NeuronalActivity" / "ephys_results.json"
     if not path.exists():
         return {}
+    # Read once per file version: listing a bundle's figures asks for it a few
+    # times per recording, and a large batch's file is tens of MB of JSON (a
+    # 2-minute wait to open one before this). Keyed on the file, so a folder a
+    # run rewrites is read again. Callers only read the dicts.
+    stat = path.stat()
+    stamp = (stat.st_mtime_ns, stat.st_size)
+    cached = getattr(ctx, "_ephys_stats_cache", None)
+    if cached is not None and cached[0] == stamp:
+        return cached[1]
     with open(path) as fh:
-        return _to_arrays(json.load(fh))
+        stats = _to_arrays(json.load(fh))
+    object.__setattr__(ctx, "_ephys_stats_cache", (stamp, stats))
+    return stats
 
 
 def available_group_families(ctx: RenderContext) -> list[GroupFamily]:
@@ -2153,6 +2164,11 @@ def _activity_batch_max(ctx: RenderContext) -> dict:
     rebuilt heatmap identical to the pipeline's.
     """
     stats = _ephys_stats(ctx)
+    # One answer per batch, asked once per recording and figure: cached
+    # against the stats it came from, so a re-read file is recomputed.
+    cached = getattr(ctx, "_activity_batch_max_cache", None)
+    if cached is not None and cached[0] is stats:
+        return dict(cached[1])
     out: dict = {}
     for metric in _ACTIVITY_BATCH_METRICS:
         maxes = [
@@ -2162,7 +2178,8 @@ def _activity_batch_max(ctx: RenderContext) -> dict:
             and np.any(np.isfinite(e[metric]))
         ]
         out[metric] = max(maxes) if maxes else None
-    return out
+    object.__setattr__(ctx, "_activity_batch_max_cache", (stats, out))
+    return dict(out)
 
 
 def activity_figure_variants(ctx: RenderContext, recording: str, figure: str) -> list[str]:
