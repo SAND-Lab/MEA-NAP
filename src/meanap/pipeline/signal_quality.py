@@ -82,6 +82,9 @@ class SignalQuality:
     example_obs: np.ndarray = field(default_factory=lambda: np.zeros(0))
     example_surr: np.ndarray = field(default_factory=lambda: np.zeros(0))
     units: str = ""
+    #: (n, 2) where each channel sits, in plot coordinates (y up); empty when
+    #: the recording's layout is unknown. Only the map figure uses it.
+    xy: np.ndarray = field(default_factory=lambda: np.zeros((0, 2)))
 
     # ── derived ──────────────────────────────────────────────────────────────
 
@@ -430,7 +433,8 @@ def save_signal_quality(path: str | Path, res: SignalQuality) -> Path:
         obs_neg=res.obs_neg, obs_pos=res.obs_pos, surr_neg=res.surr_neg, surr_pos=res.surr_pos,
         kurtosis=res.kurtosis, surr_kurtosis=res.surr_kurtosis, n_surrogates=res.n_surrogates,
         hist_obs=res.hist_obs, hist_surr=res.hist_surr, example_channel=res.example_channel,
-        example_obs=res.example_obs, example_surr=res.example_surr, units=np.array(res.units))
+        example_obs=res.example_obs, example_surr=res.example_surr, units=np.array(res.units),
+        xy=np.asarray(res.xy, dtype=float).reshape(-1, 2))
     return path
 
 
@@ -443,7 +447,8 @@ def load_signal_quality(path: str | Path) -> SignalQuality:
             surr_pos=z["surr_pos"], kurtosis=z["kurtosis"], surr_kurtosis=z["surr_kurtosis"],
             n_surrogates=int(z["n_surrogates"]), hist_obs=z["hist_obs"], hist_surr=z["hist_surr"],
             example_channel=int(z["example_channel"]), example_obs=z["example_obs"],
-            example_surr=z["example_surr"], units=str(z["units"]))
+            example_surr=z["example_surr"], units=str(z["units"]),
+            xy=z["xy"] if "xy" in z.files else np.zeros((0, 2)))
 
 
 # ── step 1 ───────────────────────────────────────────────────────────────────
@@ -454,11 +459,13 @@ SUMMARY_CSV = "signal_quality_summary.csv"
 SKIP_START_S = 5.0
 
 
-def run_signal_quality_check(params, rec, dat, channels, fs, output_root, log) -> SignalQuality | None:
+def run_signal_quality_check(params, rec, dat, channels, fs, output_root, log,
+                             xy=None) -> SignalQuality | None:
     """Step 1's check: assess, write the CSV/figure/payload, log the verdict.
 
     Never stops the run: a recording the check cannot read is logged and
-    detection goes ahead as before.
+    detection goes ahead as before. *xy* (one row per channel, plot
+    coordinates) is kept for the map figure, which is drawn when it is given.
     """
     import pandas as pd
 
@@ -475,6 +482,8 @@ def run_signal_quality_check(params, rec, dat, channels, fs, output_root, log) -
     except Exception as exc:  # noqa: BLE001 — a check, not a step
         log(f"  ! [{name}] signal-quality check failed ({exc}); detection goes ahead")
         return None
+    if xy is not None and len(xy) == len(res.channels):
+        res.xy = np.asarray(xy, dtype=float).reshape(-1, 2)
     out_dir.mkdir(parents=True, exist_ok=True)
     save_signal_quality(out_dir / f"{name}{SIGNAL_QUALITY_SUFFIX}", res)
     res.to_frame().to_csv(out_dir / f"{name}_signal_quality.csv", index=False)
@@ -482,6 +491,7 @@ def run_signal_quality_check(params, rec, dat, channels, fs, output_root, log) -
         plot_signal_quality(res, out_dir / f"{name}_signal_quality.png", title=name)
     except Exception as exc:  # noqa: BLE001
         log(f"  ! [{name}] signal-quality figure failed ({exc})")
+    draw_signal_quality_map(output_root, name, log=log)
     s = res.summary()
     row = {"recording": name, "group": getattr(rec, "group", ""),
            "DIV": getattr(rec, "div", ""), **s}
@@ -675,3 +685,19 @@ def recordings_without_spikes(output_root: str | Path) -> list[str]:
     if "n_spiking" not in table or "recording" not in table:
         return []
     return [str(r) for r in table.loc[table["n_spiking"] == 0, "recording"]]
+
+
+def draw_signal_quality_map(output_root: str | Path, name: str, log=print) -> Path | None:
+    """(Re)draw *name*'s signal-quality map beside its check, if it has positions.
+
+    Called after the check and again once the unit-quality table exists, so the
+    map shows the units too. Never stops the run.
+    """
+    from meanap.pipeline.quality_maps import MAP_SUFFIX, draw_saved_signal_quality_map
+
+    out = Path(output_root) / SIGNAL_QUALITY_DIR / f"{name}{MAP_SUFFIX}.png"
+    try:
+        return draw_saved_signal_quality_map(output_root, name, out)
+    except Exception as exc:  # noqa: BLE001 — a figure, not a step
+        log(f"  ! [{name}] signal-quality map failed ({exc})")
+        return None

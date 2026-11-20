@@ -62,6 +62,27 @@ bottom one is noise with the same spectrum. A detector run on it at a low
 threshold would still report spikes on every electrode, and a sorter would
 still return units.
 
+### The map
+
+When the recording says where its electrodes are (MaxWell files), or the
+channel layout does, a second figure, **Signal quality map**, draws the same
+check on the array:
+
+- **Spike activity** colours each electrode by its excess rate of
+  negative-going events beyond 5 SDs. Electrodes the check does not call
+  spiking are small and grey.
+- **Noise level** colours each electrode by its noise SD, so dead, noisy or
+  badly routed electrodes stand out. Flat electrodes are red.
+
+For a spike-sorted import whose raw file is found, each sorted unit is ringed
+on its peak electrode in its [unit-quality](unit-quality.md) label's colour.
+Real units sit where the activity is. Units spread evenly over electrodes with
+no excess activity are what a sorter makes of noise.
+
+The check also runs on an imported sorting when its MaxWell raw file is
+found (reading the window it checks, about 2.5 GB of memory for a minute of a
+1012-electrode routing). Before, it ran only with MEA-NAP's own detection.
+
 ## Reading the output
 
 - `signal_quality_summary.csv`: one row per recording, with the number of

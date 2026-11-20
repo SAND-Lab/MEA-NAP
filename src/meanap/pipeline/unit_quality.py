@@ -94,6 +94,11 @@ class QualityThresholds:
     #: exponential decay constant of amplitude with distance, per µm
     min_spatial_decay: float = 0.01
     max_spatial_decay: float = 0.1
+    #: Raw-voltage test (:mod:`meanap.pipeline.unit_noise`): at or above this,
+    #: the electrode's own noise makes at least half as many events as large
+    #: as the unit's typical spike as the unit has — the unit cannot be told
+    #: from noise. Not one of Bombcell's; scored only when the raw file is read.
+    max_noise_fraction: float = 0.5
     # non-somatic
     max_main_peak_to_trough_nonsomatic: float = 0.8
     min_trough_to_peak2_nonsomatic: float = 5.0
@@ -488,6 +493,8 @@ def classify_units(df, t: QualityThresholds | None = None, *, amplitude_in_uv: b
         ("second peak", _gt(col("second_peak_to_trough"), t.max_second_peak_to_trough)),
         ("spatial decay", _lt(col("spatial_decay"), t.min_spatial_decay)
          | _gt(col("spatial_decay"), t.max_spatial_decay)),
+        ("noise-like", ~_lt(col("noise_fraction"), t.max_noise_fraction)
+         & np.isfinite(np.asarray(col("noise_fraction"), dtype=float))),
     ]
     mua_tests = [
         ("refractory", _refractory_fails(col("rpv_contamination"), col("rpv_status"), t)),
@@ -576,7 +583,12 @@ _FIGURE_METRICS = (
     ("presence_ratio", "presence ratio", "min_presence_ratio", None, False),
     ("amplitude", "amplitude (µV)", "min_amplitude_uv", None, True),
     ("snr", "SNR", "min_snr", None, True),
+    ("noise_fraction", "noise events / unit's large spikes", None, "max_noise_fraction", True),
 )
+
+#: A log axis cannot show 0, and "noise makes none" is the commonest value for
+#: a clean unit; such units are drawn at this floor instead of being dropped.
+_LOG_FLOOR = {"noise_fraction": 1e-3}
 
 
 def plot_unit_quality(df, path: str | Path, *, title: str = "",
@@ -600,6 +612,8 @@ def plot_unit_quality(df, path: str | Path, *, title: str = "",
     cols = 5
     for k, (metric, label, lo_key, hi_key, logx) in enumerate(shown):
         values = np.asarray(df[metric], dtype=float)
+        if metric in _LOG_FLOOR:
+            values = np.where(np.isfinite(values), np.maximum(values, _LOG_FLOOR[metric]), values)
         ok = np.isfinite(values) & ((values > 0) if logx else True)
         if not ok.any():
             continue
@@ -642,8 +656,7 @@ def plot_unit_quality(df, path: str | Path, *, title: str = "",
         if categories is not None:
             ticks = categories
         elif logx:
-            span = range(int(np.floor(lo)), int(np.ceil(hi)) + 1)
-            ticks = [(p, f"{10 ** p:g}") for p in span]
+            ticks = _log_ticks(lo - pad, hi + pad)
         panels.append(Panel(cell=(k // cols, k % cols), marks=marks, xlabel=label,
                             ylabel="units" if k % cols == 0 else "", xticks=ticks,
                             xlim=(lo - pad, hi + pad), ylim=(0, max(bottom.max(), 1) * 1.08),
@@ -663,6 +676,19 @@ def plot_unit_quality(df, path: str | Path, *, title: str = "",
     path.parent.mkdir(parents=True, exist_ok=True)
     save_chart(chart, path)
     return path
+
+
+def _log_ticks(lo: float, hi: float) -> list[tuple[float, str]]:
+    """Ticks for a log10 axis from *lo* to *hi* (in log10 units): the powers of
+    ten, plus 2× and 5× when fewer than two powers fall inside — so an axis
+    spanning less than a decade (11–21 µV) is still labelled."""
+    for mults in ((1,), (1, 2, 5), (1, 2, 3, 5, 7)):
+        ticks = [(np.log10(m * 10.0 ** e), f"{m * 10.0 ** e:g}")
+                 for e in range(int(np.floor(lo)) - 1, int(np.ceil(hi)) + 1) for m in mults]
+        ticks = [t for t in ticks if lo <= t[0] <= hi]
+        if len(ticks) >= 2:
+            return ticks
+    return ticks
 
 
 def thresholds_table(t: QualityThresholds | None = None) -> dict:
@@ -706,12 +732,16 @@ def inputs_from_imported(imp, analyzer_path: str | Path | None = None) -> UnitQu
 
 
 def run_unit_quality(rec_name: str, imp, output_root: Path, *, analyzer_path=None,
-                     drop_labels=(), preset: str | None = None, log=print):
+                     drop_labels=(), preset: str | None = None, raw_path=None,
+                     log=print):
     """Step 1's unit quality for one imported recording: score, save, draw, log.
 
     Report only: which units become nodes is still the sorter's labels and
     ``sorted_drop_labels``; the table's ``kept`` column says which those were.
-    Never stops the run.
+    With *raw_path* (a MaxWell recording the sorting was made from), each unit
+    is also tested against its electrode's own noise
+    (:mod:`meanap.pipeline.unit_noise`) and a noise-like unit is labelled
+    noise. Never stops the run.
     """
     import json
 
@@ -723,8 +753,13 @@ def run_unit_quality(rec_name: str, imp, output_root: Path, *, analyzer_path=Non
     except Exception as exc:  # noqa: BLE001 — a check, not a step
         log(f"  ! [{rec_name}] unit quality metrics failed ({exc})")
         return None
-    df.insert(1, "kept", [int(lab not in set(drop_labels)) for lab in imp.labels])
     out_dir = Path(output_root) / UNIT_QUALITY_DIR
+    if raw_path is not None:
+        df = _add_noise_test(df, rec_name, imp, raw_path, preset, inputs.in_uv, log,
+                             out_dir=out_dir)
+    df.insert(1, "kept", [int(lab not in set(drop_labels)) for lab in imp.labels])
+    # The peak electrode, as the array names it, so the map can place the unit.
+    df.insert(2, "electrode", np.asarray(imp.electrodes.ids)[np.asarray(imp.peak_index, int)])
     out_dir.mkdir(parents=True, exist_ok=True)
     df.to_csv(out_dir / f"{rec_name}{UNIT_QUALITY_CSV}", index=False)
     name = preset or DEFAULT_PRESET
@@ -736,10 +771,47 @@ def run_unit_quality(rec_name: str, imp, output_root: Path, *, analyzer_path=Non
                           thresholds=preset, amplitude_in_uv=inputs.in_uv)
     except Exception as exc:  # noqa: BLE001
         log(f"  ! [{rec_name}] unit quality figure failed ({exc})")
+    if raw_path is not None:
+        from meanap.pipeline.unit_noise import FIGURE_NAME as NOISE_FIGURE, draw_saved_unit_examples
+
+        try:
+            draw_saved_unit_examples(output_root, rec_name,
+                                     out_dir / f"{rec_name}_{NOISE_FIGURE}.png")
+        except Exception as exc:  # noqa: BLE001
+            log(f"  ! [{rec_name}] unit-vs-noise example figure failed ({exc})")
     counts = df["label"].value_counts()
     log(f"  [{rec_name}] unit quality ({name} thresholds, after Bombcell): "
         f"{int(counts.get('good', 0))} good, {int(counts.get('mua', 0))} multi-unit, "
         f"{int(counts.get('noise', 0))} noise of {len(df)}")
+    return df
+
+
+def _add_noise_test(df, rec_name, imp, raw_path, preset, in_uv, log, out_dir=None):
+    """*df* with the raw-voltage noise test's columns and the labels redone.
+
+    With *out_dir*, also saves a few example units' raw spikes and rate curves
+    there (:func:`meanap.pipeline.unit_noise.save_examples`) for the figure.
+    """
+    from meanap.pipeline.unit_noise import EXAMPLES_SUFFIX, maxwell_unit_noise, save_examples
+
+    t = thresholds_for(preset)
+    try:
+        noise, examples = maxwell_unit_noise(
+            raw_path, imp, examples=True,
+            log=log.detail if hasattr(log, "detail") else log)
+    except Exception as exc:  # noqa: BLE001 — a check, not a step
+        log(f"  ! [{rec_name}] unit-vs-noise test failed ({exc})")
+        return df
+    if out_dir is not None and examples:
+        save_examples(Path(out_dir) / f"{rec_name}{EXAMPLES_SUFFIX}", examples)
+    for c in noise.columns:
+        df[c] = noise[c].to_numpy()
+    df["label"], df["fails"], df["non_somatic"] = classify_units(df, t, amplitude_in_uv=in_uv)
+    nf = np.asarray(df["noise_fraction"], dtype=float)
+    scored = np.isfinite(nf)
+    log(f"  [{rec_name}] unit-vs-noise test on the raw voltage: "
+        f"{int((nf[scored] >= t.max_noise_fraction).sum())} of "
+        f"{int(scored.sum())} unit(s) cannot be told from their electrode's noise")
     return df
 
 

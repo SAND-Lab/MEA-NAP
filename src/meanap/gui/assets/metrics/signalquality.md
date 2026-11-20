@@ -1,10 +1,10 @@
 ---
 key: signalquality
 name: Signal quality
-also: 0_SignalQuality
+also: 0_SignalQuality, 0_SignalQualityMap
 level: concept
 family: activity
-related: FR
+related: FR, unitquality, unitnoise
 ---
 Whether a recording holds spikes at all, judged from the voltage alone, before any spike is detected. A detector or spike sorter always finds *something*: with the threshold low enough, noise crosses it tens of times a second. This check says when noise is all there is.
 
@@ -23,6 +23,13 @@ The figure has three panels.
 - **Left: one electrode, recorded and scrambled.** 250 ms of the electrode with the clearest spikes (ink, top) above the same stretch of its scrambled copy (grey, below). Both are in units of that electrode's noise SD, with ±5 SD dotted. Each red dot marks a deflection below −5 SD, and the count is written above each trace. A good recording has dots on the top trace and few or none on the grey one.
 - **Middle: how often each size of deflection occurs.** Every local peak or trough on every electrode, by its size in noise SDs, as a rate per electrode per minute (log scale). Noise falls off steeply, and the scrambled copy (grey) shows how steeply for this recording. Spikes are the ink tail that carries on to the right after the grey curve has dropped away. With no spikes, the two curves lie on top of each other.
 - **Right: the excess on every electrode, ranked.** For each electrode, how many more deflections below −5 SD per second the recording has than its scrambled copy, sorted from most to least. The dotted line is the 0.1 Hz an electrode needs to count as showing spikes; the title says how many do. A long shoulder above the line means spikes on many electrodes; a curve along 0 means none.
+
+**The signal-quality map** draws the same check on the array, each electrode where it sits.
+
+- **Left: spike activity.** Electrodes that show spikes, coloured by how many more deflections beyond −5 SD per second they have than their scrambled copy (log scale, from the 0.1 Hz floor). Electrodes that do not are small grey dots. When the spikes came from a sorter, each unit is ringed on its peak electrode in its unit-quality label's colour (good, mua, noise). Real units sit where the activity is; units spread evenly over electrodes with no activity are what a sorter makes of noise.
+- **Right: noise level.** Each electrode's noise SD. It picks out dead or noisy electrodes, and shows whether a quiet region is quiet or only noisier. Flat electrodes are red.
+
+Point at an electrode for its activity, noise level and units; it is picked out on both maps. Pick a label in the legend to keep only the electrodes with units of that label lit.
 
 A recording where **no electrode shows spikes** is noise as far as threshold detection or sorting can tell. Spikes found in it, and the networks built from them, describe noise. Lowering the threshold does not change that.
 

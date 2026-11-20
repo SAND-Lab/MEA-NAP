@@ -378,7 +378,7 @@ node layout, colour map, edge threshold and method, maximum edges drawn, node
 size and scaling, edge widths, inactive electrodes. Changing any of them
 re-renders through the same Python that drew the original.
 
-**Inactive electrodes** is *Hidden* by default. *Faint dots* draws every
+**Inactive electrodes** is *Faint dots* by default (*Hidden* before 1.51.0). It draws every
 electrode no node sits on as a small pale dot beneath the network, so the array
 shows behind it: the empty electrodes of a 60-electrode MEA, the routed blocks
 of a MaxWell recording, the electrodes a sorter found no unit on. The legend

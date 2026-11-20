@@ -464,7 +464,7 @@ class NetworkStyle:
     #: node sits on are drawn, as faint dots, to show the array behind the
     #: network. Only on the electrode layout, and only where electrode
     #: positions are known (an MEA layout, a MaxWell routing).
-    inactive_electrodes: str = "Hidden"
+    inactive_electrodes: str = "Faint dots"
     #: One of :data:`EDGE_SCALING_METHODS`: how weight maps onto edge width.
     edge_scaling_method: str = "Linear"
     #: Exponent used when edge scaling is "Power".

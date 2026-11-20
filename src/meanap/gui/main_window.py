@@ -1612,6 +1612,8 @@ class MainWindow(QMainWindow):
             self._tabs.setCurrentIndex(0)
             return
 
+        self._offer_maxwell_plugin(params)
+
         self._run_panel.append_log(
             f"Starting MEA-NAP: steps {params.start_analysis_step}-{params.stop_analysis_step}…"
         )
@@ -1638,6 +1640,52 @@ class MainWindow(QMainWindow):
         self._simple_view.track_run(worker)
         self._worker = worker
         worker.start()
+
+    def _offer_maxwell_plugin(self, params: Params) -> None:
+        """Before a run that will read MaxWell voltage, offer MaxWell's decoder.
+
+        The voltage of a MaxWell ``.raw.h5`` is compressed with MaxWell's own
+        HDF5 filter, and MEA-NAP cannot ship the decoder (it is MaxWell's). So
+        on a computer without it, ask once before the run instead of letting
+        step 1 fail on every recording. Saying no runs anyway: a sorted import
+        then just skips its unit-vs-noise test.
+        """
+        if params.start_analysis_step != 1 or not params.raw_data:
+            return
+        if params.spike_source == "import" and not params.signal_quality_check:
+            return              # an import reads no voltage unless it checks it
+        from meanap.pipeline import maxwell
+
+        try:
+            if maxwell.maxwell_plugin_available() or \
+                    not maxwell.folder_has_compressed_maxwell(params.raw_data):
+                return
+        except Exception:  # noqa: BLE001 — an offer, never a reason not to run
+            return
+        if maxwell.plugin_download_url() is None:
+            self._run_panel.append_log(
+                "MaxWell publish no decoder for this computer, so MaxWell voltage "
+                "cannot be read here.")
+            return
+        if not ask_yes_no(
+                self, "MaxWell decoder needed",
+                "These MaxWell recordings store their voltage compressed with "
+                "MaxWell's own format, and this computer does not have the decoder "
+                "yet.\n\nDownload it now from MaxWell Biosystems (a small file, "
+                f"saved in {maxwell.DEFAULT_PLUGIN_DIR})?"):
+            self._run_panel.append_log(
+                "MaxWell decoder not installed: MaxWell voltage will not be read "
+                "(run `meanap maxwell-plugin` to get it later).")
+            return
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        try:
+            path = maxwell.install_maxwell_plugin()
+        except OSError as e:
+            QApplication.restoreOverrideCursor()
+            QMessageBox.warning(self, "MaxWell decoder", str(e))
+            return
+        QApplication.restoreOverrideCursor()
+        self._run_panel.append_log(f"Installed MaxWell's decoder: {path}")
 
     def _confirm_output_folder(self, params: Params) -> Params | None:
         """Ask before a run lands on an existing one. ``None`` = don't run.
@@ -2381,16 +2429,22 @@ class MainWindow(QMainWindow):
 
         from meanap.gui.results_viewer import ResultsViewer
 
+        from meanap.gui.run_loading import read_run
+
         panel = self._panel_window("results_native", "MEA-NAP · Results", ResultsViewer)
-        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        window = self._panel_windows["results_native"]
         try:
-            panel.load_run(source)
+            # Read on a worker thread, behind a busy dialog: a large bundle
+            # takes seconds, and the window must not look hung meanwhile.
+            service, manifest = read_run(Path(source), window)
+            QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+            try:
+                panel.load_run(source, service=service, manifest=manifest)
+            finally:
+                QApplication.restoreOverrideCursor()
         except Exception as e:
-            QApplication.restoreOverrideCursor()
-            QMessageBox.warning(self._panel_windows["results_native"],
-                                "Could not open the run", f"{source}\n\n{e}")
+            QMessageBox.warning(window, "Could not open the run", f"{source}\n\n{e}")
             return False
-        QApplication.restoreOverrideCursor()
         wanted = parse_qs(query)
         if wanted.get("tab") == ["tracking"]:
             panel.show_tracking()

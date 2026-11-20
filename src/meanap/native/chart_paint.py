@@ -590,7 +590,9 @@ class ChartPainter(FigurePainter):
             return marked[1]
         mark = self.scene.panels[marked[0]].marks[marked[1]]
         if isinstance(mark, Points):
-            return mark.key_of(marked[2])
+            key = mark.key_of(marked[2])
+            # An item in several series is picked out as its first, its own.
+            return key[0] if isinstance(key, tuple) else key
         if isinstance(mark, Bars):
             return mark.key[marked[2]] if isinstance(mark.key, list) else mark.key
         return getattr(mark, "key", None) if not isinstance(mark, Cells) else None
@@ -783,6 +785,8 @@ class ChartPainter(FigurePainter):
             key = mark.key[k] if k is not None else None
         else:
             key = getattr(mark, "key", None)
+        if isinstance(key, tuple):
+            return 1.0 if chosen in key else FADED
         return 1.0 if key is None or key == chosen else FADED
 
     def _text_box(self, panel, axes, mark: Text) -> QRectF:

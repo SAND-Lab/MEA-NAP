@@ -750,6 +750,25 @@ def _report_working_dirs(params: Params, log) -> None:
                 "denoising entirely. Deleting it only costs that work.")
 
 
+def _map_positions(params, channels, electrodes):
+    """Plot positions of *channels* for the signal-quality map, or ``None``.
+
+    From the file where it records them (MaxWell), else from the channel
+    layout; a layout that cannot place them just means no map.
+    """
+    import numpy as np
+
+    if electrodes is not None and "coords" in electrodes:
+        return np.asarray(electrodes["coords"], dtype=float)
+    try:
+        from meanap.pipeline.probes import layout_coords_for_channels
+
+        coords, known = layout_coords_for_channels(params.channel_layout, channels)
+    except Exception:  # noqa: BLE001 — no map, nothing else lost
+        return None
+    return coords if known.any() else None
+
+
 def _restore_bundle_for_continue(output_root: Path, log) -> None:
     """Unpack an express run's bundle so this run can skip what it finished.
 
@@ -1009,7 +1028,8 @@ def _run_step1_spike_detection(
             from meanap.pipeline.signal_quality import run_signal_quality_check
 
             progress.item_progress(STEP1_LOADED, f"{rec.filename} · checking for spikes")
-            run_signal_quality_check(params, rec, dat, channels, fs, output_root, log)
+            run_signal_quality_check(params, rec, dat, channels, fs, output_root, log,
+                                     xy=_map_positions(params, channels, electrodes))
 
         if params.spike_source == "sort":
             _sort_one_recording(params, rec, dat, channels, fs, output_root,

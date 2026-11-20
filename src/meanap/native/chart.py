@@ -117,7 +117,9 @@ class Points:
     size: object = 5.0                  # diameter in points, or a list
     marker: str = "o"                   # "o", "|", "_"
     label: str = ""
-    key: object = None                  # a str for all, or a list of str
+    #: A str for all, or one per item: a str, or a tuple of the series the
+    #: item is in (pointing at it picks out the first; it stays lit for any).
+    key: object = None
     hover: list[str] | None = None
     z: float = 3.0
 

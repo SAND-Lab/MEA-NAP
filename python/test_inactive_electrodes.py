@@ -77,11 +77,13 @@ def test_older_adjacency_files_fall_back_to_the_spike_file():
     assert np.allclose(nodes, [[0.0, 0.0], [1.0, 0.0]]) and len(electrodes) == 3
 
 
-def test_dots_only_when_asked_and_on_the_electrode_layout():
+def test_dots_by_default_on_the_electrode_layout_only():
     _, mcs = get_coords_from_layout("MCS60")
     active = np.asarray(mcs)[:40]
-    assert _inactive_dots(NetworkStyle(), "MCS60", None, active, None) is None
-    got = _inactive_dots(DOTS, "MCS60", None, active, None)
+    hidden = NetworkStyle(inactive_electrodes="Hidden")
+    assert _inactive_dots(hidden, "MCS60", None, active, None) is None
+    assert NetworkStyle().inactive_electrodes == "Faint dots"
+    got = _inactive_dots(NetworkStyle(), "MCS60", None, active, None)
     assert len(got) == len(all_electrode_coords("MCS60")) - 40
     circular = NetworkStyle(inactive_electrodes="Faint dots", layout="Circular")
     assert _inactive_dots(circular, "MCS60", None, active, None) is None
