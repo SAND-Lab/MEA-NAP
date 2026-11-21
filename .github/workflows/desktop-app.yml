@@ -45,7 +45,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: macos-14          # Apple silicon
+          - os: macos-15          # Apple silicon (macos-14 was retired Nov 2026)
             platform: macOS-AppleSilicon
           - os: macos-15-intel    # Intel
             platform: macOS-Intel
