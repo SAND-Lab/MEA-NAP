@@ -40,6 +40,11 @@ hiddenimports = (
     # numba loads its parallel threading layer (omppool / workqueue / tbbpool)
     # by name the first time a ``parallel=True`` function runs.
     + collect_submodules("numba.np.ufunc")
+    # matplotlib imports a vector backend by name only when a figure is saved
+    # in that format (savefig("x.svg")), so the analysis never sees it and
+    # SVG/PDF/EPS export fails with ModuleNotFoundError in the frozen app.
+    + ["matplotlib.backends.backend_svg", "matplotlib.backends.backend_pdf",
+       "matplotlib.backends.backend_ps"]
 )
 
 excludes = [

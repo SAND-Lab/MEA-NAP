@@ -133,6 +133,28 @@ def check_pipeline() -> str:
         return f"{pngs} figures"
 
 
+#: Every format the viewer's Export and the run settings offer. Each non-raster
+#: one loads its matplotlib backend by name, which a frozen build can leave out.
+FIGURE_FORMATS = ("png", "svg", "pdf", "eps")
+
+
+def check_figure_export() -> str:
+    import io
+
+    from matplotlib.figure import Figure
+
+    fig = Figure(figsize=(2, 2))
+    fig.add_subplot().plot([0, 1], [0, 1])
+    sizes = []
+    for fmt in FIGURE_FORMATS:
+        buf = io.BytesIO()
+        fig.savefig(buf, format=fmt)
+        if not buf.tell():
+            raise RuntimeError(f"saving as {fmt} wrote nothing")
+        sizes.append(fmt)
+    return ", ".join(sizes)
+
+
 def check_gui() -> str:
     import os
 
@@ -157,6 +179,7 @@ CHECKS: list[tuple[str, Callable[[], str]]] = [
     ("imports and optional extras", check_imports),
     ("numba JIT", check_numba),
     ("steps 1-4 on synthetic recordings, with worker processes", check_pipeline),
+    ("figure export (vector backends)", check_figure_export),
     ("GUI window (offscreen)", check_gui),
 ]
 
