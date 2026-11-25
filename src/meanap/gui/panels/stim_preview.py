@@ -9,6 +9,12 @@ heatmap coloured by stimulation pattern, and an all-channel stim raster.
 Raw loading (large ``.mat``) and detection (seconds on a full recording) run on
 background threads so the UI stays responsive; switching the previewed channel
 only re-plots from cached results (no re-detection).
+
+``axionStimEvents`` detects nothing: it shows the stimulation the plate's Axion
+``.raw`` records for the previewed well — its stimulated electrodes and their
+event times — assembled exactly as the pipeline does (:mod:`meanap.stim.axion`).
+Preview either the ``.raw`` itself (pick the well) or a converted
+``<file>_<well>.mat`` with the ``.raw`` beside it.
 """
 
 from __future__ import annotations
@@ -25,13 +31,14 @@ from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
 from matplotlib.patches import Circle
 
-from meanap.pipeline.io import load_raw_recording
+from meanap.pipeline.io import RawSource, load_raw_recording
 from meanap.gui.layout_preview import choose_layout_item
 from meanap.pipeline.channel_layout import get_coords_from_layout
 from meanap.stim.detection import detect_stim_times, get_stim_patterns
 
 _DETECTION_METHODS = [
     "longblank", "blanking", "absPosThreshold", "absNegThreshold", "stdNeg",
+    "axionStimEvents",
 ]
 _LAYOUTS = ["MCS60", "Axion64", "Axion16"]
 # Pattern colours (0 = no stim → white); mirrors MATLAB's stimPatternColors head.
@@ -54,9 +61,9 @@ class _LoadRawWorker(QThread):
     finished_ok = pyqtSignal(object)   # (dat, channels, fs)
     failed = pyqtSignal(str)
 
-    def __init__(self, path: str) -> None:
+    def __init__(self, path) -> None:
         super().__init__()
-        self._path = path
+        self._path = path                  # a path, or a RawSource for an Axion well
 
     def run(self) -> None:
         try:
@@ -70,20 +77,51 @@ class _DetectWorker(QThread):
     finished_ok = pyqtSignal(object)   # (stim_info, patterns)
     failed = pyqtSignal(str)
 
-    def __init__(self, dat, channels, coords, params: dict) -> None:
+    def __init__(self, dat, channels, coords, params: dict, recording: str = "",
+                 folders=()) -> None:
         super().__init__()
         self._dat, self._channels, self._coords, self._params = dat, channels, coords, params
+        self._recording, self._folders = recording, list(folders)
 
     def run(self) -> None:
         try:
+            if self._params.get("stimDetectionMethod") == "axionStimEvents":
+                self.finished_ok.emit(axion_preview(self._recording, self._folders,
+                                                    self._channels, self._coords,
+                                                    self._params))
+                return
             dat = self._dat
             if self._params.get("stimRawDataProcessing") == "medianAbs":
                 dat = np.abs(dat - np.median(dat, axis=0))
             info = detect_stim_times(dat, self._params, self._channels, self._coords)
             info, patterns = get_stim_patterns(info, self._params)
-            self.finished_ok.emit((info, patterns))
+            self.finished_ok.emit((info, patterns, None, ""))
         except Exception as exc:
             self.failed.emit(str(exc))
+
+
+def axion_preview(recording: str, folders, channels, coords, params: dict):
+    """``(stim_info, patterns, event_times, note)`` for a well's Axion events.
+
+    ``event_times`` is set when the file's events name no electrode (LED
+    stimulation, missing channel tags): there is no stimulating electrode to
+    show, and the pipeline analyses those times as event-driven stimulation.
+    """
+    from meanap.stim.axion import NO_ELECTRODE, AxionStimSource, stim_info_for_well
+    from meanap.stim.events import stim_info_without_stim_nodes
+
+    notes: list[str] = []
+    ws = AxionStimSource(folders, notes.append).for_recording(recording)
+    if ws is None:
+        raise ValueError(" ".join(n.strip(" !") for n in notes))
+    if ws.kind == NO_ELECTRODE:
+        info = stim_info_without_stim_nodes(channels, coords)
+        note = (f"{ws.summary}. The pipeline analyses these {len(ws.event_times)} event "
+                "time(s) as event-driven stimulation (no stimulating electrode).")
+        return info, [ws.event_times], ws.event_times, " ".join(notes + [note])
+    info = stim_info_for_well(ws, channels, coords, params, notes.append)
+    info, patterns = get_stim_patterns(info, params)
+    return info, patterns, None, " ".join([ws.summary] + [n.strip(" !") for n in notes])
 
 
 # ── canvas ────────────────────────────────────────────────────────────────────
@@ -194,6 +232,8 @@ class StimPreviewPanel(QWidget):
         self._coords = None
         self._stim_info = None
         self._patterns = None
+        self._event_times = None           # Axion events naming no electrode
+        self._stim_duration = 0.00012      # s; the run's stim_duration via load_defaults
         self._raw_worker = None
         self._detect_worker = None
         #: Where Browse… starts; the recordings folder, when a caller knows it.
@@ -220,7 +260,12 @@ class StimPreviewPanel(QWidget):
         self._layout_combo = QComboBox(); self._layout_combo.addItems(_LAYOUTS)
         self._channel_combo = QComboBox()
         self._channel_combo.currentTextChanged.connect(self._on_channel_changed)
+        # An Axion .raw holds a plate; the well picks the recording.
+        self._well_combo = QComboBox()
+        self._well_combo.setEnabled(False)
+        self._well_combo.currentTextChanged.connect(self._on_well_changed)
         fform.addRow("File", prow)
+        fform.addRow("Well (Axion .raw)", self._well_combo)
         fform.addRow("Channel layout", self._layout_combo)
         fform.addRow("Preview channel", self._channel_combo)
 
@@ -266,21 +311,59 @@ class StimPreviewPanel(QWidget):
             self._min_blank.setValue(params.min_blanking_duration)
             self._pattern_thresh.setValue(params.stim_time_diff_threshold)
             self._stim_dur_plot.setValue(params.stim_duration_for_plotting)
+            self._stim_duration = float(params.stim_duration)
             choose_layout_item(self._layout_combo, params)
         except Exception:
             pass
 
     # --- raw loading ------------------------------------------------------------
     def _on_browse(self) -> None:
-        path, _ = QFileDialog.getOpenFileName(self, "Select raw recording", self.start_dir,
-                                              "Raw recordings (*.mat *.h5);;MAT files (*.mat);;"
-                                              "MCS HDF5 files (*.h5);;All files (*)")
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Select raw recording", self.start_dir,
+            "Raw recordings (*.mat *.h5 *.raw);;MAT files (*.mat);;"
+            "MCS HDF5 files (*.h5);;Axion plates (*.raw);;All files (*)")
         if not path:
             return
         self._path.setText(path)
+        self._well_combo.blockSignals(True)
+        self._well_combo.clear()
+        self._well_combo.setEnabled(False)
+        from meanap.pipeline.axion_raw import is_axion_raw, read_axion_metadata
+
+        if is_axion_raw(path):
+            try:
+                wells = read_axion_metadata(path).wells()
+            except Exception as exc:
+                self._well_combo.blockSignals(False)
+                self._status.setText(f"Load failed: {exc}")
+                return
+            self._well_combo.addItems(wells)
+            self._well_combo.setEnabled(True)
+        self._well_combo.blockSignals(False)
+        self._load_current()
+
+    def _on_well_changed(self, _well: str) -> None:
+        if self._well_combo.isEnabled() and self._well_combo.currentText():
+            self._load_current()
+
+    def _source(self):
+        """What to load: the file, or the chosen well of an Axion plate."""
+        path = self._path.text()
+        well = self._well_combo.currentText() if self._well_combo.isEnabled() else ""
+        return RawSource(Path(path), well) if well else path
+
+    def recording_name(self) -> str:
+        """The previewed recording as the pipeline names it: ``<file>_<well>``
+        for a well of an Axion plate, else the file's stem."""
+        path = Path(self._path.text())
+        stem = path.name[:-len(".raw.h5")] if path.name.endswith(".raw.h5") else path.stem
+        well = self._well_combo.currentText() if self._well_combo.isEnabled() else ""
+        return f"{stem}_{well}" if well else stem
+
+    def _load_current(self) -> None:
         self._status.setText("Loading raw recording…")
         self._detect_btn.setEnabled(False)
-        self._raw_worker = _LoadRawWorker(path)
+        self._raw_worker = _LoadRawWorker(self._source())
         self._raw_worker.finished_ok.connect(self._on_raw_loaded)
         self._raw_worker.failed.connect(lambda m: self._status.setText(f"Load failed: {m}"))
         self._raw_worker.start()
@@ -288,7 +371,7 @@ class StimPreviewPanel(QWidget):
     def _on_raw_loaded(self, payload) -> None:
         dat, channels, fs = payload
         self._dat, self._channels, self._fs = dat, channels, fs
-        self._stim_info = self._patterns = None
+        self._stim_info = self._patterns = self._event_times = None
         self._channel_combo.blockSignals(True)
         self._channel_combo.clear()
         self._channel_combo.addItems([str(int(c)) for c in np.sort(channels)])
@@ -307,7 +390,7 @@ class StimPreviewPanel(QWidget):
             "stimRefractoryPeriod": self._refractory.value(),
             "minBlankingDuration": self._min_blank.value(),
             "stimTimeDiffThreshold": self._pattern_thresh.value(),
-            "stimDuration": 0.00012,
+            "stimDuration": self._stim_duration,
             "fs": self._fs,
         }
 
@@ -322,10 +405,15 @@ class StimPreviewPanel(QWidget):
             by_id = {}
         self._coords = np.array([by_id.get(int(c), (np.nan, np.nan)) for c in self._channels],
                                 dtype=float)
-        self._status.setText("Running detection…")
+        axion = self._method.currentText() == "axionStimEvents"
+        self._status.setText("Reading the Axion stimulation events…" if axion
+                             else "Running detection…")
         self._detect_btn.setEnabled(False)
+        # The .raw is looked for beside the previewed file, then in the raw data folder.
+        folders = [Path(self._path.text()).parent, self.start_dir]
         self._detect_worker = _DetectWorker(self._dat, self._channels, self._coords,
-                                            self._params_dict())
+                                            self._params_dict(), self.recording_name(),
+                                            [f for f in folders if f])
         self._detect_worker.finished_ok.connect(self._on_detected)
         self._detect_worker.failed.connect(self._on_detect_failed)
         self._detect_worker.start()
@@ -335,11 +423,14 @@ class StimPreviewPanel(QWidget):
         self._status.setText(f"Detection failed: {msg}")
 
     def _on_detected(self, payload) -> None:
-        self._stim_info, self._patterns = payload
+        self._stim_info, self._patterns, self._event_times, note = payload
         n_elec = sum(1 for s in self._stim_info if s.pattern and s.pattern > 0)
-        self._status.setText(
-            f"Detection complete: {len(self._patterns)} pattern(s), "
-            f"{n_elec} stimulating electrode(s).")
+        if self._event_times is not None:
+            self._status.setText(note)
+        else:
+            self._status.setText(
+                f"Detection complete: {len(self._patterns)} pattern(s), "
+                f"{n_elec} stimulating electrode(s)." + (f" {note}" if note else ""))
         self._detect_btn.setEnabled(True)
         self._canvas.draw_heatmap(self._stim_info)
         self._canvas.draw_all_raster(self._stim_info, self._fs, self._dat.shape[0],
@@ -360,7 +451,10 @@ class StimPreviewPanel(QWidget):
         ch_name = int(txt)
         ch_idx = int(np.flatnonzero(self._channels == ch_name)[0])
         stim_times = np.array([])
-        if self._stim_info is not None:
+        if self._event_times is not None:
+            # No stimulating electrode: the events apply to every channel.
+            stim_times = self._event_times
+        elif self._stim_info is not None:
             stim_times = self._stim_info[ch_idx].elec_stim_times
         self._canvas.draw_channel_trace(self._dat, self._fs, ch_idx, ch_name,
                                         stim_times, self._method.currentText(),

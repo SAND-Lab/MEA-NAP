@@ -15,6 +15,7 @@ See ``src/meanap/stim/`` and ``python/MEASTIM_PORT_PLAN.md``.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
@@ -90,8 +91,35 @@ def run_stim_analysis(
     all_rows: list[dict] = []
     tables: dict[str, list[dict]] = {}
     n_done = 0
+    # axionStimEvents: stimulation read from the plates' .raw files, each once.
+    axion = None
+    if params.stim_detection_method == "axionStimEvents":
+        from meanap.stim.axion import AxionStimSource
+
+        axion = AxionStimSource([params.raw_data, params.stim_events_folder], log)
+        event_ctx = _EventContext.make(params, output_root)
     for rec in recordings:
         check_cancel(should_cancel)
+        well_stim = None
+        if axion is not None:
+            from meanap.stim.axion import NO_ELECTRODE
+
+            try:
+                well_stim = axion.for_recording(rec.filename)
+            except (ValueError, OSError) as e:   # not an Axion file, or a damaged one
+                log(f"  ! [{rec.filename}] could not read stimulation events: {e}. Skipping.")
+                continue
+            if well_stim is None:
+                continue
+            log(f"  [{rec.filename}] axionStimEvents: {well_stim.summary}")
+            if well_stim.kind == NO_ELECTRODE:
+                rows = _axion_without_electrodes(params, rec, well_stim, event_ctx,
+                                                 tables, log, should_cancel)
+                if rows is not None:
+                    all_rows.extend(rows)
+                    n_done += 1
+                    progress.item_done(rec.filename)
+                continue
         raw_path = find_raw_file(raw_dir, rec.filename)
         npz_path = locator.spike_file(rec.filename)
         if raw_path is None:
@@ -103,13 +131,19 @@ def run_stim_analysis(
                 f"run step 1 first. Skipping.")
             continue
 
-        log(f"  [{rec.filename}] detecting stimulation…")
+        log(f"  [{rec.filename}] " + ("reading stimulation from the .raw events…"
+                                       if well_stim is not None else "detecting stimulation…"))
         dat, channels, fs = load_raw_recording(raw_path)
         dat = dat.astype(np.float64)
         coords = _coords_for_channels(layout_of(params), channels)
         sp_params = {**base, "fs": fs}
 
-        stim_info = detect_stim_times(dat, sp_params, channels, coords)
+        if well_stim is not None:
+            from meanap.stim.axion import stim_info_for_well
+
+            stim_info = stim_info_for_well(well_stim, channels, coords, sp_params, log)
+        else:
+            stim_info = detect_stim_times(dat, sp_params, channels, coords)
         stim_info, patterns = get_stim_patterns(stim_info, sp_params)
         _stim_detection_checks(params, rec, dat, stim_info, sp_params, output_root, log)
         conditions, patterns = _recording_conditions(params, rec, stim_info, patterns, log)
@@ -180,6 +214,25 @@ def run_stim_analysis(
         log("  No stim rows produced (no stimulation detected in any recording).")
     _write_network_tables(tables, output_root, log)
     _stim_group_figures(params, tables, output_root, log)
+
+
+def _axion_without_electrodes(params: Params, rec: RecordingInfo, well_stim,
+                              ctx: "_EventContext", tables: dict[str, list[dict]],
+                              log, should_cancel) -> list[dict] | None:
+    """axionStimEvents for a file whose events name no electrode (LED
+    stimulation, missing channel tags): the event times as one condition with
+    no stimulating electrode, as the maxwellTTL / eventsCSV methods analyse
+    them."""
+    from meanap.stim.events import StimEvents
+
+    times = np.asarray(well_stim.event_times, dtype=float)
+    log(f"  [{rec.filename}] axionStimEvents: no event in {well_stim.raw.name} records its "
+        f"electrode, so there is no stimulating electrode to analyse from. Analysing the "
+        f"{len(times)} event time(s) as event-driven stimulation instead (one condition, "
+        "no stimulating electrode, as the maxwellTTL / eventsCSV methods do).")
+    events = StimEvents(times, np.full(len(times), "stim"),
+                        f"{well_stim.raw.name} StimulationEvents (no electrode recorded)")
+    return _event_recording(params, rec, events, ctx, tables, log, should_cancel)
 
 
 def _stim_figures(params: Params, rec: RecordingInfo, dest: Path, output_root: Path,
@@ -297,92 +350,23 @@ def _baseline_windows_that_fit(events, window: tuple[float, float], default: int
 def _run_event_stim_analysis(params: Params, recordings: list[RecordingInfo],
                              output_root: Path, log, should_cancel, progress) -> None:
     """Stim analysis with events as the patterns and no stimulating node."""
-    from meanap.pipeline.channel_layout import recording_layout
-    from meanap.stim.events import stim_info_without_stim_nodes
-
-    locator = build_input_locator(params, output_root)
-    indiv_dir = output_root / "2_NeuronalActivity" / "2A_IndividualNeuronalAnalysis"
-    method = active_spike_method(params)
-    base = params.to_stim_params_dict()
-    window = tuple(float(x) for x in params.stim_analysis_window)
-
+    ctx = _EventContext.make(params, output_root)
     all_rows: list[dict] = []
     tables: dict[str, list[dict]] = {}
     n_done = 0
     for rec in recordings:
         check_cancel(should_cancel)
-        npz_path = locator.spike_file(rec.filename)
-        if npz_path is None:
+        if ctx.locator.spike_file(rec.filename) is None:
             log(f"  ! [{rec.filename}] spike times not found ({rec.filename}_spikes.npz); "
                 f"run step 1 first. Skipping.")
             continue
         events = load_recording_events(params, rec.filename, log)
         if events is None:
             continue
-
-        with np.load(npz_path) as data:
-            channels = np.asarray(data["channels"])
-            fs = float(data["fs"][0])
-            duration_s = float(data["duration_s"][0]) if "duration_s" in data.files else None
-            unit_ids = np.asarray(data["unit_id"]).astype(str) if "unit_id" in data.files else None
-            if "unit_coords" in data.files:
-                coords = np.asarray(data["unit_coords"], float)
-            else:
-                layout = recording_layout(params.channel_layout, data)
-                coords = (_coords_from(layout, channels) if layout is not None
-                          else _coords_for_channels(layout_of(params), channels))
-        if duration_s is None:
-            duration_s = max((float(t.max()) for m in load_spike_times_npz(npz_path).values()
-                              for t in m.values() if len(t)), default=0.0)
-
-        # A trial whose window runs off either end of the recording would be
-        # counted as silence there.
-        events = events.within(-window[0], duration_s - window[1])
-        names, patterns = events.condition_names, events.patterns()
-        log(f"  [{rec.filename}] {len(events.times_s)} event(s) from {events.description}; "
-            f"condition(s) {', '.join(f'{n} ({len(p)})' for n, p in zip(names, patterns))}")
-        if not len(events.times_s):
-            log(f"    no events inside the recording — skipping analysis.")
+        rows = _event_recording(params, rec, events, ctx, tables, log, should_cancel)
+        if rows is None:
             continue
-
-        n_baseline = _baseline_windows_that_fit(events, window, 30)
-        if n_baseline < 30:
-            log(f"    baseline AUC from {n_baseline} window(s) — as many as fit "
-                f"between consecutive events")
-        sp_params = {**base, "fs": fs, "numBaselinePSTHs": n_baseline}
-
-        spikes_full = load_spike_times_npz(npz_path)
-        require_spike_method(spikes_full, method, rec.filename)
-        spikes = {c: {method: m[method]} for c, m in spikes_full.items() if method in m}
-        stim_info = stim_info_without_stim_nodes(channels, coords)
-        info = {"FileName": rec.filename, "Grp": rec.group, "DIV": rec.div,
-                "FN": [rec.filename], "duration_s": duration_s}
-
-        log(f"  [{rec.filename}] computing stim response metrics…")
-        rows = stim_activity_analysis(spikes, stim_info, patterns, sp_params, info)
-        for r in rows:
-            r["condition"] = names[r["pattern_id"] - 1]
-            if unit_ids is not None:
-                r["unit_id"] = unit_ids[r["file_index"] - 1]
         all_rows.extend(rows)
-        log(f"    {len(rows)} node rows")
-
-        dest = indiv_dir / rec.group / rec.filename
-        dest.mkdir(parents=True, exist_ok=True)
-        _write_events_table(events, dest / "stim_events.csv")
-
-        if params.stim_network:
-            check_cancel(should_cancel)
-            trains = [np.asarray(spikes.get(c, {}).get(method, []), float)
-                      for c in range(len(channels))]
-            _extend_tables(tables, _stim_networks(
-                params, rec, info, trains, events, channels, unit_ids,
-                dest, output_root / "ExperimentMatFiles", log,
-                coords=np.array([s.coords for s in stim_info], float)))
-        check_cancel(should_cancel)
-        artifact_dur = get_stim_artifact_duration({**sp_params, "blankDurMode": 0.0})
-        _stim_figures(params, rec, dest, output_root, stim_info, patterns, spikes,
-                      sp_params, artifact_dur, info, method, log)
         n_done += 1
         progress.item_done(rec.filename)
 
@@ -395,6 +379,108 @@ def _run_event_stim_analysis(params: Params, recordings: list[RecordingInfo],
         log("  No stim rows produced.")
     _write_network_tables(tables, output_root, log)
     _stim_group_figures(params, tables, output_root, log)
+
+
+@dataclass
+class _EventContext:
+    """What every recording of an event-driven analysis shares."""
+
+    output_root: Path
+    locator: object
+    indiv_dir: Path
+    method: str
+    base: dict
+    window: tuple[float, float]
+
+    @classmethod
+    def make(cls, params: Params, output_root: Path) -> "_EventContext":
+        return cls(output_root=output_root,
+                   locator=build_input_locator(params, output_root),
+                   indiv_dir=output_root / "2_NeuronalActivity" / "2A_IndividualNeuronalAnalysis",
+                   method=active_spike_method(params),
+                   base=params.to_stim_params_dict(),
+                   window=tuple(float(x) for x in params.stim_analysis_window))
+
+
+def _event_recording(params: Params, rec: RecordingInfo, events, ctx: _EventContext,
+                     tables: dict[str, list[dict]], log, should_cancel) -> list[dict] | None:
+    """One recording's event-driven analysis: *events* as the patterns, no
+    stimulating node. Its node rows, or ``None`` (logged) when it is skipped.
+    Shared by the event methods and by axionStimEvents for a file whose events
+    name no electrode."""
+    from meanap.pipeline.channel_layout import recording_layout
+    from meanap.stim.events import stim_info_without_stim_nodes
+
+    output_root, method, window = ctx.output_root, ctx.method, ctx.window
+    npz_path = ctx.locator.spike_file(rec.filename)
+    if npz_path is None:
+        log(f"  ! [{rec.filename}] spike times not found ({rec.filename}_spikes.npz); "
+            f"run step 1 first. Skipping.")
+        return None
+
+    with np.load(npz_path) as data:
+        channels = np.asarray(data["channels"])
+        fs = float(data["fs"][0])
+        duration_s = float(data["duration_s"][0]) if "duration_s" in data.files else None
+        unit_ids = np.asarray(data["unit_id"]).astype(str) if "unit_id" in data.files else None
+        if "unit_coords" in data.files:
+            coords = np.asarray(data["unit_coords"], float)
+        else:
+            layout = recording_layout(params.channel_layout, data)
+            coords = (_coords_from(layout, channels) if layout is not None
+                      else _coords_for_channels(layout_of(params), channels))
+    if duration_s is None:
+        duration_s = max((float(t.max()) for m in load_spike_times_npz(npz_path).values()
+                          for t in m.values() if len(t)), default=0.0)
+
+    # A trial whose window runs off either end of the recording would be
+    # counted as silence there.
+    events = events.within(-window[0], duration_s - window[1])
+    names, patterns = events.condition_names, events.patterns()
+    log(f"  [{rec.filename}] {len(events.times_s)} event(s) from {events.description}; "
+        f"condition(s) {', '.join(f'{n} ({len(p)})' for n, p in zip(names, patterns))}")
+    if not len(events.times_s):
+        log("    no events inside the recording — skipping analysis.")
+        return None
+
+    n_baseline = _baseline_windows_that_fit(events, window, 30)
+    if n_baseline < 30:
+        log(f"    baseline AUC from {n_baseline} window(s) — as many as fit "
+            f"between consecutive events")
+    sp_params = {**ctx.base, "fs": fs, "numBaselinePSTHs": n_baseline}
+
+    spikes_full = load_spike_times_npz(npz_path)
+    require_spike_method(spikes_full, method, rec.filename)
+    spikes = {c: {method: m[method]} for c, m in spikes_full.items() if method in m}
+    stim_info = stim_info_without_stim_nodes(channels, coords)
+    info = {"FileName": rec.filename, "Grp": rec.group, "DIV": rec.div,
+            "FN": [rec.filename], "duration_s": duration_s}
+
+    log(f"  [{rec.filename}] computing stim response metrics…")
+    rows = stim_activity_analysis(spikes, stim_info, patterns, sp_params, info)
+    for r in rows:
+        r["condition"] = names[r["pattern_id"] - 1]
+        if unit_ids is not None:
+            r["unit_id"] = unit_ids[r["file_index"] - 1]
+    log(f"    {len(rows)} node rows")
+
+    dest = ctx.indiv_dir / rec.group / rec.filename
+    dest.mkdir(parents=True, exist_ok=True)
+    _write_events_table(events, dest / "stim_events.csv")
+
+    if params.stim_network:
+        check_cancel(should_cancel)
+        trains = [np.asarray(spikes.get(c, {}).get(method, []), float)
+                  for c in range(len(channels))]
+        _extend_tables(tables, _stim_networks(
+            params, rec, info, trains, events, channels, unit_ids,
+            dest, output_root / "ExperimentMatFiles", log,
+            coords=np.array([s.coords for s in stim_info], float)))
+    check_cancel(should_cancel)
+    artifact_dur = get_stim_artifact_duration({**sp_params, "blankDurMode": 0.0})
+    _stim_figures(params, rec, dest, output_root, stim_info, patterns, spikes,
+                  sp_params, artifact_dur, info, method, log)
+    return rows
 
 
 def _coords_from(layout: tuple[np.ndarray, np.ndarray], channels: np.ndarray) -> np.ndarray:

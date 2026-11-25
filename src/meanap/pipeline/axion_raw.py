@@ -245,6 +245,53 @@ def _read_combined_block_vector_header(r: _Reader) -> dict:
     }
 
 
+def _walk_entries(r: _Reader, name: str):
+    """Yield ``(entry type, start offset, length)`` for every header entry.
+
+    Port of the entry loop of ``AxisFile.m``. The caller may read from
+    ``start`` when it is handed an entry; the walk seeks past the entry itself
+    before moving on. A "read to end" entry (length ``-1``) is always the last.
+    """
+    if r.bytes(len(MAGIC)) != MAGIC:
+        raise ValueError(f"{name}: not an Axion file (missing 'AxionBio' magic word)")
+
+    r.u16()                              # PrimaryDataType
+    version_major = r.u16()
+    version_minor = r.u16()
+    r.i64()                              # legacy notes start
+    notes_length = r.u32()
+    if version_major != 1:
+        raise ValueError(
+            f"{name}: Axis file header version {version_major}.{version_minor} "
+            "is not supported (only version 1.x); convert this file with the "
+            "MATLAB File Conversion tab instead."
+        )
+    if notes_length != _EXPECTED_NOTES_LENGTH:
+        raise ValueError(f"{name}: bad legacy notes length field ({notes_length})")
+
+    entries_start = r.i64()
+    records = _entry_records(r.array("<u8", _PRIMARY_HEADER_MAX_ENTRIES))
+
+    r.seek(entries_start)
+    while True:
+        for entry_type, length in records:
+            if entry_type == _ENTRY_TERMINATE:
+                return
+            start = r.tell()
+            yield entry_type, start, length
+            if length < 0:
+                # "Read to end" — only ever the final entry, and only for the
+                # sample region, which is located from its header instead.
+                return
+            r.seek(start + length)
+
+        # Next page of entry records: magic, 126 slots, CRC, 4 reserved bytes.
+        if r.bytes(len(MAGIC)) != MAGIC:
+            raise ValueError(f"{name}: bad sub-header magic word")
+        records = _entry_records(r.array("<u8", _SUBHEADER_MAX_ENTRIES))
+        r.skip(8)
+
+
 def read_axion_metadata(path: str | Path) -> AxionMetadata:
     """Read an Axion ``.raw`` header without touching the sample data.
 
@@ -260,61 +307,17 @@ def read_axion_metadata(path: str | Path) -> AxionMetadata:
 
     with open(path, "rb") as fh:
         r = _Reader(fh)
-        if r.bytes(len(MAGIC)) != MAGIC:
-            raise ValueError(f"{path.name}: not an Axion file (missing 'AxionBio' magic word)")
-
-        r.u16()                              # PrimaryDataType
-        version_major = r.u16()
-        version_minor = r.u16()
-        r.i64()                              # legacy notes start
-        notes_length = r.u32()
-        if version_major != 1:
-            raise ValueError(
-                f"{path.name}: Axis file header version {version_major}.{version_minor} "
-                "is not supported (only version 1.x); convert this file with the "
-                "MATLAB File Conversion tab instead."
-            )
-        if notes_length != _EXPECTED_NOTES_LENGTH:
-            raise ValueError(f"{path.name}: bad legacy notes length field ({notes_length})")
-
-        entries_start = r.i64()
-        records = _entry_records(r.array("<u8", _PRIMARY_HEADER_MAX_ENTRIES))
-
-        r.seek(entries_start)
-        terminated = False
-        while not terminated:
-            for entry_type, length in records:
-                if entry_type == _ENTRY_TERMINATE:
-                    terminated = True
-                    break
-
-                start = r.tell()
-                if entry_type == _ENTRY_CHANNEL_ARRAY:
-                    plate_type, channels = _read_channel_array(r)
-                elif entry_type == _ENTRY_COMBINED_BLOCK_VECTOR_HEADER:
-                    block = _read_combined_block_vector_header(r)
-                elif entry_type == _ENTRY_BLOCK_VECTOR_HEADER:
-                    raise ValueError(
-                        f"{path.name}: this file uses the older split block-vector "
-                        "header/data layout, which this reader doesn't cover. Convert it "
-                        "with the MATLAB File Conversion tab instead."
-                    )
-
-                if length < 0:
-                    # "Read to end" — only ever the final entry, and only for the
-                    # sample region, which we locate from the header instead.
-                    terminated = True
-                    break
-                r.seek(start + length)
-
-            if terminated:
-                break
-
-            # Next page of entry records: magic, 126 slots, CRC, 4 reserved bytes.
-            if r.bytes(len(MAGIC)) != MAGIC:
-                raise ValueError(f"{path.name}: bad sub-header magic word")
-            records = _entry_records(r.array("<u8", _SUBHEADER_MAX_ENTRIES))
-            r.skip(8)
+        for entry_type, _start, _length in _walk_entries(r, path.name):
+            if entry_type == _ENTRY_CHANNEL_ARRAY:
+                plate_type, channels = _read_channel_array(r)
+            elif entry_type == _ENTRY_COMBINED_BLOCK_VECTOR_HEADER:
+                block = _read_combined_block_vector_header(r)
+            elif entry_type == _ENTRY_BLOCK_VECTOR_HEADER:
+                raise ValueError(
+                    f"{path.name}: this file uses the older split block-vector "
+                    "header/data layout, which this reader doesn't cover. Convert it "
+                    "with the MATLAB File Conversion tab instead."
+                )
 
     if channels is None:
         raise ValueError(f"{path.name}: no channel array found in header")
@@ -413,3 +416,319 @@ def load_axion_well(
 
     channels = np.array([meta.channels[c].meanap_channel for c in cols], dtype=int)
     return dat, channels, float(meta.sampling_frequency)
+
+
+# ── Stimulation events (tags) ─────────────────────────────────────────────────
+#
+# Port of the stimulation part of the toolbox's tag handling: ``TagEntry.m``,
+# ``Tag.m`` (head revision), ``EventTag.m``, ``StimulationEvent.m`` (+ its
+# ``Link``), ``StimulationWaveform.m`` / ``StimulationEventData.m``,
+# ``StimulationChannels.m`` / ``ChannelMapping.m`` and ``StimulationLeds.m`` /
+# ``LedPosition.m``. AxIS writes one tag per stimulation it delivers; each
+# names a waveform tag (whose blocks say which channel groups each block
+# drives) and a channel-group tag (whose groups list the electrodes). A tag is
+# revised by writing a new entry with the same GUID and a higher revision.
+
+_ENTRY_TAG = 0x06
+
+# TagType values
+_TAG_STIM_EVENT = 5
+_TAG_STIM_CHANNEL_GROUP = 6
+_TAG_STIM_WAVEFORM = 7
+_TAG_STIM_LED_GROUP = 9
+
+#: Type (uint16) + CreationDate (7 x uint16) + GUID (16) + revision (uint32):
+#: the head of every tag entry, before its type's own fields.
+_TAG_BASE_SIZE = 2 + 14 + 16 + 4
+#: Smallest channel / LED group: ID, plate type and count (uint32 each), plus
+#: one 8-byte mapping (``MinArraySize`` in the toolbox).
+_MIN_GROUP_SIZE = 20
+_ZERO_GUID = "00000000-0000-0000-0000-000000000000"
+
+
+def _guid(raw: bytes) -> str:
+    """A Microsoft-encoded GUID as text, as ``parseGuid.m`` writes it."""
+    import uuid
+
+    return str(uuid.UUID(bytes_le=raw))
+
+
+def _well_name(well_row: int, well_col: int) -> str:
+    if not 1 <= well_row <= len(_WELL_ROW_NAMES):
+        return f"R{well_row}C{well_col}"
+    return f"{_WELL_ROW_NAMES[well_row - 1]}{well_col}"
+
+
+def _read_string(r: _Reader) -> str:
+    """``freadstring.m``: an int32 byte count, then that many bytes of text.
+
+    UTF-8, as the toolbox reads it — except that AxIS writes a waveform's
+    stimulation program as UTF-16 XML (``encoding="utf-16"``), which the
+    toolbox's UTF-8 decode turns to mojibake; that is recognised by its
+    byte-order mark or interleaved zero bytes.
+    """
+    n = r.i32()
+    if n <= 0:
+        return ""
+    raw = r.bytes(n)
+    if raw[:2] in (b"\xff\xfe", b"\xfe\xff") or (len(raw) >= 4 and raw[1:4:2] == b"\0\0"):
+        return raw.decode("utf-16", errors="replace")
+    return raw.decode("utf-8", errors="replace")
+
+
+#: A channel array a stimulation program arms, in its ``achkset`` operations.
+_PROGRAM_CHANNEL_ARRAY = re.compile(r'channelarrayid\s*=\s*"(\d+)"')
+
+
+@dataclass(frozen=True)
+class AxionStimEvent:
+    """One stimulation AxIS delivered, as recorded in the ``.raw``.
+
+    ``electrodes`` are the ``(well, electrode ID)`` pairs it drove, the
+    electrode ID being ``column * 10 + row`` (as :attr:`AxionChannel.meanap_channel`).
+    Empty when the event names no electrode: an LED (optical) stimulation,
+    whose lit wells are in ``led_wells`` instead.
+    """
+
+    time_s: float
+    block_id: int
+    electrodes: tuple[tuple[str, int], ...] = ()
+    led_wells: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class AxionStimEvents:
+    """The stimulation events of an Axion ``.raw``.
+
+    ``events`` are the linked events, sorted by time. ``unlinked_times`` are the
+    times of events whose waveform or channel tags are missing (all-zero GUIDs,
+    or GUIDs, blocks or groups the file doesn't hold): AxisFile's
+    ``UnlinkedStimulationEvents``, which it leaves out.
+    """
+
+    path: Path
+    events: tuple[AxionStimEvent, ...]
+    unlinked_times: tuple[float, ...] = ()
+
+    @property
+    def n_unlinked(self) -> int:
+        return len(self.unlinked_times)
+
+    @property
+    def times(self) -> np.ndarray:
+        """Every linked event's time (s), sorted."""
+        return np.array([e.time_s for e in self.events], dtype=float)
+
+    def stimulated_wells(self) -> list[str]:
+        """Wells any event drove an electrode in, in plate order."""
+        wells = {w for e in self.events for w, _ in e.electrodes}
+        return sorted(wells, key=_well_sort_key)
+
+    def names_electrodes(self) -> bool:
+        """Whether any event records the electrode it was delivered to."""
+        return any(e.electrodes for e in self.events)
+
+
+def _well_sort_key(well: str):
+    match = re.match(r"^([A-Z])(\d+)$", well)
+    return (match.group(1), int(match.group(2))) if match else (well, 0)
+
+
+@dataclass
+class _TagHead:
+    tag_type: int
+    guid: str
+    revision: int
+    start: int
+    length: int
+
+
+def _read_tag_head(r: _Reader, start: int, length: int) -> _TagHead:
+    tag_type = r.u16()
+    r.skip(14)                                   # CreationDate
+    guid = _guid(r.bytes(16))
+    revision = r.u32()
+    return _TagHead(tag_type, guid, revision, start, length)
+
+
+def _read_stim_event(r: _Reader, head: _TagHead) -> dict | None:
+    """``EventTag`` + ``StimulationEvent``: time, its waveform / channel tags, block."""
+    r.seek(head.start + _TAG_BASE_SIZE)
+    fs = r.f64()
+    sample = r.i64()
+    r.i64()                                      # EventDurationSamples
+    if r.u16() != 0:                             # version
+        return {"time_s": sample / fs if fs else float("nan"), "waveform": _ZERO_GUID,
+                "channels": _ZERO_GUID, "block_id": 0xFFFF}
+    r.u16()                                      # reserved
+    waveform = _guid(r.bytes(16))
+    channels = _guid(r.bytes(16))
+    block_id = r.u16()                           # "EventData": the waveform block's ID
+    r.u16()                                      # SequenceNumber
+    return {"time_s": sample / fs, "waveform": waveform, "channels": channels,
+            "block_id": block_id}
+
+
+@dataclass
+class _Waveform:
+    #: Each block's ID → the channel-group IDs it lists (zeros, placeholders, dropped).
+    blocks: dict[int, tuple[int, ...]]
+    #: The channel arrays the waveform's stimulation program ("MicroOps") arms.
+    program_groups: tuple[int, ...] = ()
+
+
+def _read_stim_waveform(r: _Reader, head: _TagHead) -> _Waveform | None:
+    """``StimulationWaveform``: its blocks, and the channel arrays its program arms."""
+    r.seek(head.start + _TAG_BASE_SIZE)
+    if r.u16() != 0:
+        return None
+    blocks: dict[int, tuple[int, ...]] = {}
+    for _ in range(r.u16()):
+        block_id = r.u16()
+        r.u16()                                  # type, unused
+        r.f64()                                  # StimDuration
+        r.f64()                                  # ArtifactEliminationDuration
+        groups = tuple(g for g in r.array("<u2", 2).tolist() if g != 0)   # 0 = placeholder
+        _read_string(r)                          # description
+        blocks.setdefault(block_id, groups)      # first match wins, as in Link
+    program = _read_string(r)                    # MicroOps
+    armed = tuple(dict.fromkeys(int(g) for g in _PROGRAM_CHANNEL_ARRAY.findall(program)))
+    return _Waveform(blocks, armed)
+
+
+def _read_groups(r: _Reader, head: _TagHead, record: int, parse,
+                 counted: bool = False) -> dict[int, list] | None:
+    """The groups of a ``StimulationChannels`` / ``StimulationLeds`` tag: ID → items.
+
+    Channel groups are read while a whole group still fits (``MinArraySize``).
+    An LED tag says how many groups it holds (``counted``), and exactly that
+    many are read: a one-LED group is 16 bytes, under the 20 the toolbox's
+    loop needs, so there it would stop early and reject the tag.
+    """
+    r.seek(head.start + _TAG_BASE_SIZE)
+    if r.u16() != 0:
+        return None
+    expected = r.u16()                           # reserved (channels) / group count (LEDs)
+    end = head.start + head.length
+    groups: dict[int, list] = {}
+    if counted:
+        for _ in range(expected):
+            group_id = r.u32()
+            r.u32()                              # plate type
+            n = r.u32()
+            groups.setdefault(group_id, [parse(r.array("<u1", record)) for _ in range(n)])
+        return groups
+    while end - r.tell() >= _MIN_GROUP_SIZE:
+        group_id = r.u32()
+        r.u32()                                  # plate type
+        n = r.u32()
+        items = [parse(r.array("<u1", record)) for _ in range(n)]
+        groups.setdefault(group_id, items)
+    return groups
+
+
+def _channel_mapping(b: np.ndarray) -> tuple[str, int]:
+    """``ChannelMapping``: well column, well row, electrode column, electrode row, …"""
+    well_col, well_row, elec_col, elec_row = (int(v) for v in b[:4])
+    return _well_name(well_row, well_col), elec_col * 10 + elec_row
+
+
+def _led_position(b: np.ndarray) -> str:
+    """``LedPosition``: well column, well row, colour (uint16)."""
+    return _well_name(int(b[1]), int(b[0]))
+
+
+def read_axion_stim_events(path: str | Path) -> AxionStimEvents:
+    """The stimulation events recorded in an Axion ``.raw``.
+
+    Port of what ``AxisFile`` does with a file's tags: collect every tag entry,
+    keep each GUID's highest revision, decode the stimulation events and the
+    waveform, channel-group and LED-group tags they refer to, and link them as
+    ``StimulationEvent.Link`` does — event → its waveform's block with the
+    event's block ID → that block's (up to two) channel groups → their
+    electrodes. An event's time is ``EventTimeSample / SamplingFrequency``.
+
+    Events that can't be linked are counted in ``unlinked_times`` rather than
+    returned. The voltage data is never read, so this is quick on any file,
+    and works on files whose voltage layout :func:`read_axion_metadata` refuses.
+    """
+    path = Path(path)
+    heads: dict[str, _TagHead] = {}
+    events: list[AxionStimEvent] = []
+    unlinked: list[float] = []
+
+    with open(path, "rb") as fh:
+        r = _Reader(fh)
+        for entry_type, start, length in _walk_entries(r, path.name):
+            if entry_type != _ENTRY_TAG or length < _TAG_BASE_SIZE:
+                continue
+            head = _read_tag_head(r, start, length)
+            if head.guid not in heads or head.revision > heads[head.guid].revision:
+                heads[head.guid] = head
+
+        def decode(kind: int, read):
+            out = {}
+            for guid, head in heads.items():
+                if head.tag_type != kind:
+                    continue
+                try:
+                    value = read(r, head)
+                except ValueError:               # a tag cut short: treat as missing
+                    value = None
+                if value is not None:
+                    out[guid] = value
+            return out
+
+        raw_events = decode(_TAG_STIM_EVENT, _read_stim_event)
+        waveforms = decode(_TAG_STIM_WAVEFORM, _read_stim_waveform)
+        channel_groups = decode(_TAG_STIM_CHANNEL_GROUP,
+                                lambda r_, h: _read_groups(r_, h, 8, _channel_mapping))
+        led_groups = decode(_TAG_STIM_LED_GROUP,
+                            lambda r_, h: _read_groups(r_, h, 4, _led_position, counted=True))
+
+    for ev in raw_events.values():
+        linked = _link(ev, waveforms, channel_groups, led_groups)
+        if linked is None:
+            unlinked.append(float(ev["time_s"]))
+        else:
+            events.append(linked)
+
+    events.sort(key=lambda e: e.time_s)
+    return AxionStimEvents(path=path, events=tuple(events),
+                           unlinked_times=tuple(sorted(unlinked)))
+
+
+def _link(ev: dict, waveforms: dict, channel_groups: dict, led_groups: dict
+          ) -> AxionStimEvent | None:
+    """``StimulationEvent.Link``; ``None`` when a tag it needs can't be found."""
+    if ev["waveform"] == _ZERO_GUID or ev["channels"] == _ZERO_GUID:
+        return None
+    waveform = waveforms.get(ev["waveform"])
+    if waveform is None:
+        return None
+    time_s, block_id = float(ev["time_s"]), int(ev["block_id"])
+    group_ids = waveform.blocks.get(block_id)
+
+    if ev["channels"] in channel_groups:
+        groups = channel_groups[ev["channels"]]
+        if group_ids is None:
+            return None
+        if not group_ids:
+            # The block lists no group (both slots placeholders), as AxIS writes
+            # some files: the stimulation program says which channel arrays it
+            # drove instead (``<achkset channelarrayid="1" …/>``). The
+            # toolbox's Link stops here and finds no electrode.
+            group_ids = tuple(g for g in waveform.program_groups if g in groups)
+        if any(g not in groups for g in group_ids):
+            return None
+        pairs = [p for g in group_ids for p in groups[g]]
+        return AxionStimEvent(time_s, block_id, tuple(dict.fromkeys(pairs)))
+
+    if ev["channels"] in led_groups:
+        groups = led_groups[ev["channels"]]
+        # With no matching block, Link takes every LED group of the tag.
+        chosen = (list(groups.values()) if group_ids is None
+                  else [groups[g] for g in group_ids if g in groups])
+        wells = [w for group in chosen for w in group]
+        return AxionStimEvent(time_s, block_id, (), tuple(dict.fromkeys(wells)))
+    return None

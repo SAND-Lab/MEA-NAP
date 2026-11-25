@@ -1306,7 +1306,8 @@ class MainWindow(QMainWindow):
             TutorialStep(
                 "Detection method", "Choose how stimulation artefacts are found. "
                 "'longblank' and 'blanking' suit blanked recordings; the threshold "
-                "methods detect by amplitude; 'axionStimEvents' reads an Axion CSV.",
+                "methods detect by amplitude; 'axionStimEvents' reads the stimulation "
+                "events (times and electrodes) recorded in an Axion .raw.",
                 self._tab_index(TAB_STIM), lambda: stim.method),
             TutorialStep(
                 "Analysis window", "Set the window around each stimulus (seconds) over "

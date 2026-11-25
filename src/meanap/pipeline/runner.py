@@ -1150,8 +1150,22 @@ def _drop_stim_artifacts(params: Params, rec, dat, channels, fs: float, result, 
         return result
     try:
         sp = {**params.to_stim_params_dict(), "fs": fs}
-        stim_info = detect_stim_times(np.asarray(dat, np.float64), sp, channels,
-                                      _coords_for_channels(layout_of(params), channels))
+        coords = _coords_for_channels(layout_of(params), channels)
+        if params.stim_detection_method == "axionStimEvents":
+            # The stimuli are the .raw file's events, as the stim step reads
+            # them. A well they did not reach, or a file whose events name no
+            # electrode (analysed as event-driven stimulation), has no blank.
+            from meanap.stim.axion import ELECTRODES, AxionStimSource, stim_info_for_well
+
+            ws = AxionStimSource([params.raw_data, params.stim_events_folder],
+                                 lambda *_: None).for_recording(rec.filename)
+            if ws is None or ws.kind != ELECTRODES:
+                log(f"  [{rec.filename}] no electrical stimulation recorded for this well "
+                    "in the .raw; keeping every detection.")
+                return result
+            stim_info = stim_info_for_well(ws, channels, coords, sp, lambda *_: None)
+        else:
+            stim_info = detect_stim_times(np.asarray(dat, np.float64), sp, channels, coords)
         starts, ends, own = artifact_windows(stim_info, sp)
     except Exception as e:                                  # noqa: BLE001
         log(f"  [{rec.filename}] Warning: could not find the stimuli ({e}); "

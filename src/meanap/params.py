@@ -500,7 +500,7 @@ class Params:
     # the end of step 2 — not after step 4.
     stimulation_mode: bool = False
     automatic_stim_detection: bool = False
-    stim_detection_method: str = "longblank"   # absPosThreshold|absNegThreshold|stdNeg|blanking|longblank|axionStimEvents
+    stim_detection_method: str = "longblank"   # absPosThreshold|absNegThreshold|stdNeg|blanking|longblank|axionStimEvents (from the Axion .raw)|maxwellTTL|eventsCSV
     stim_detection_val: float = 150.0
     stim_refractory_period: float = 2.9        # s
     stim_duration: float = 0.00012             # s
@@ -513,7 +513,6 @@ class Params:
     stim_raster_bin_width: float = 0.1         # s
     stim_n_shuffles: int = 500
     stim_shuffle_alpha: float = 0.05
-    axion_stim_csv: str = ""                   # for the axionStimEvents method
     # Event-driven stimulation (light, sound…): stim_detection_method
     # "maxwellTTL" reads the raw MaxWell file's TTL log, "eventsCSV" reads
     # <recording>_events.csv (time_s[,condition]) from stim_events_folder
@@ -604,7 +603,6 @@ class Params:
             "SpikesMethod": active_spike_method(self),
             "Nshuffles": self.stim_n_shuffles,
             "shuffleAlpha": self.stim_shuffle_alpha,
-            "axionStimCSV": self.axion_stim_csv,
             "fs": self.fs,
         }
 
@@ -746,8 +744,15 @@ def load_params(path: Path | str) -> tuple[Params, list[str]]:
     # (the version stamp), not settings that failed to load — reporting them as
     # unknown would tell users their file was written by a newer version every
     # single time.
-    unknown = sorted(k for k in set(raw) - known if not k.startswith("_"))
+    unknown = sorted(k for k in set(raw) - known - RETIRED_PARAMS if not k.startswith("_"))
     return Params(**{k: v for k, v in raw.items() if k in known}), unknown
+
+
+#: Settings this version no longer has, which a saved file may still carry.
+#: They load as if absent and are not reported as unknown (they are not from a
+#: newer version). ``axion_stim_csv``: the axionStimEvents method reads the
+#: stimulated electrodes from the Axion ``.raw`` itself now.
+RETIRED_PARAMS = frozenset({"axion_stim_csv"})
 
 
 def params_version_stamp(path: Path | str) -> dict:
