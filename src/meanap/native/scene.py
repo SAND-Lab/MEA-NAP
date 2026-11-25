@@ -414,19 +414,28 @@ class HeatmapScene:
     #: (K, 2) electrodes of the layout with no node, drawn as faint dots to
     #: show the array; empty when they are not shown.
     inactive_xy: np.ndarray = field(default_factory=lambda: np.empty((0, 2)))
+    #: (N,) the electrodes stimulated on, drawn white with a black edge as
+    #: MATLAB draws them; empty when none are marked.
+    stimulated: np.ndarray = field(default_factory=lambda: np.zeros(0, dtype=bool))
+
+    def is_stimulated(self, i: int) -> bool:
+        return bool(len(self.stimulated) and self.stimulated[i])
 
 
 def heatmap_scene(metric, chs, title: str, label: str, *, cmap="viridis",
                   channel_layout: str = "Axion64", batch_max: float | None = None,
                   aggregate: str = "mean", layout=None,
                   grounded: set[int] | None = None,
-                  inactive: bool = False) -> HeatmapScene | None:
+                  inactive: bool = False,
+                  stimulated: set[int] | None = None) -> HeatmapScene | None:
     """Port of ``electrodeHeatMaps.m`` / ``plotNodeHeatmap.m``, without the drawing.
 
     The arguments are ``plot_heatmap``'s. ``None`` when there is nothing to
     place: no values, or no channel the layout knows. *inactive* adds the
     layout's electrodes that have no value at all (on a sorted or MaxWell run,
     those no unit sits on) as faint dots, so the array's shape shows.
+    *stimulated* are the channel IDs stimulated on: marked, and kept out of the
+    colour range like grounded ones.
     """
     from scipy.spatial import cKDTree
 
@@ -458,6 +467,14 @@ def heatmap_scene(metric, chs, title: str, label: str, *, cmap="viridis",
         # Grounding empties a spike train; left in, it would read as a silent
         # electrode and set the bottom of the scale.
         metric = np.where(np.isin(chs[keep].astype(int), list(grounded)), np.nan, metric)
+    stim = (np.isin(chs[keep].astype(int), list(stimulated)) if stimulated
+            else np.zeros(0, dtype=bool))
+    if stim.any():
+        # MATLAB's step 2 reads spikes cleaned of the stimulus, which empties a
+        # stimulating electrode's train. Python's step 2 reads step 1's, so
+        # whatever was detected around the stimulus artifact would otherwise set
+        # the scale. The electrode is painted white whatever its value.
+        metric = np.where(stim, np.nan, metric)
     valid = metric[~np.isnan(metric)]
     low, high = (float(valid.min()), float(np.percentile(valid, 99))) if valid.size else (0.0, 1.0)
     if low == high:
@@ -479,7 +496,7 @@ def heatmap_scene(metric, chs, title: str, label: str, *, cmap="viridis",
                                dtype=float).reshape(-1, 2)
     return HeatmapScene(xy=xy, values=metric, names=[str(int(c)) for c in chs[keep]],
                         panels=panels, label=label, cmap=cmap, diameter=0.82 * spacing,
-                        inactive_xy=inactive_xy)
+                        inactive_xy=inactive_xy, stimulated=stim)
 
 
 @dataclass

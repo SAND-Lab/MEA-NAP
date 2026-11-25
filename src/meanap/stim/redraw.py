@@ -134,6 +134,21 @@ def load_figure_payload(path: Path) -> dict:
             "info": meta["info"], "seed": meta["seed"], "recording": meta["recording"]}
 
 
+def stimulating_electrodes(path: Path | None) -> set[int]:
+    """Channel IDs of the electrodes a recording stimulated on, from its figure
+    payload: those in a pattern (``pattern > 0``), the test MATLAB's
+    ``electrodeHeatMaps.m`` / ``plotNodeHeatmap.m`` apply to ``stimInfo``.
+    Empty when there is no payload, or no electrode stimulated (an
+    event-driven run's light or TTL stimuli have none)."""
+    if path is None or not Path(path).is_file():
+        return set()
+    with np.load(path) as d:
+        if "pattern" not in d.files or "channel_name" not in d.files:
+            return set()
+        names, pattern = np.asarray(d["channel_name"]), np.asarray(d["pattern"])
+    return {int(c) for c in names[pattern > 0]}
+
+
 def draw_activity_figures(payload: dict, dest: Path, only: str | None = None,
                           shuffles: dict | None = None) -> list[Path]:
     """Figures 9, 10, the heatmaps, PSTHs and shuffle tests, from a loaded payload

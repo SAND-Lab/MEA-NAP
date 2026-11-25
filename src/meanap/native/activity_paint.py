@@ -31,6 +31,9 @@ __all__ = ["HeatmapPainter", "RasterPainter", "BurstPainter"]
 NO_VALUE = QColor("#d3d3d3")
 #: Electrodes with no node, when they are shown: the network plots' grey.
 INACTIVE = QColor("#c9ced6")
+#: A stimulating electrode on a heatmap, as ``electrodeHeatMaps.m`` draws it.
+STIMULATED = QColor("#ffffff")
+STIMULATED_EDGE = QColor("#000000")
 
 
 class HeatmapPainter(FigurePainter):
@@ -104,6 +107,8 @@ class HeatmapPainter(FigurePainter):
     def describe(self, what) -> str:
         scene = self.scene
         value = float(scene.values[what])
+        if scene.is_stimulated(what):
+            return f"{scene.noun.capitalize()} {scene.names[what]}\nstimulating electrode"
         said = "no value" if np.isnan(value) else f"{value:.4g}"
         return f"{scene.noun.capitalize()} {scene.names[what]}\n{scene.label}: {said}"
 
@@ -136,11 +141,16 @@ class HeatmapPainter(FigurePainter):
                 for x, y in at.tolist():
                     painter.drawEllipse(QPointF(x, y), dot, dot)
             outline = QPen(GROUND, 1) if radius >= 5 else Qt.PenStyle.NoPen
-            for (x, y), value, colour in zip(self._pixels(index).tolist(),
-                                             scene.values.tolist(), self._colours[index]):
-                painter.setPen(outline)
-                painter.setBrush(NO_VALUE if np.isnan(value)
-                                 else QColor.fromRgbF(*(float(c) for c in colour[:3])))
+            for i, ((x, y), value, colour) in enumerate(zip(
+                    self._pixels(index).tolist(), scene.values.tolist(), self._colours[index])):
+                if scene.is_stimulated(i):
+                    # MATLAB's mark for a stimulating electrode: white, black edge.
+                    painter.setPen(QPen(STIMULATED_EDGE, 1.5 if radius >= 5 else 1))
+                    painter.setBrush(STIMULATED)
+                else:
+                    painter.setPen(outline)
+                    painter.setBrush(NO_VALUE if np.isnan(value)
+                                     else QColor.fromRgbF(*(float(c) for c in colour[:3])))
                 painter.drawEllipse(QPointF(x, y), radius, radius)
             painter.setBrush(Qt.BrushStyle.NoBrush)
             mark = None
