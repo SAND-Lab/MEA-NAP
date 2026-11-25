@@ -535,6 +535,39 @@ for a 5-minute 24-well recording, against roughly 11 GB for MATLAB's
 whole-plate `LoadData`. Naming a `.raw` without a well suffix is an error that
 lists the wells the file actually contains.
 
+(axion-stimulation)=
+#### Axion stimulation
+
+When AxIS stimulates electrodes during a recording, it writes each stimulation
+into the `.raw`: when it happened and which electrodes of which wells it drove.
+With the **Detection method** `axionStimEvents` on the Stimulation tab, MEA-Stim
+reads those records instead of looking for stimulation in the voltage, so no
+detection value or threshold applies and no stimulation list is needed:
+
+- each recording `<file stem>_<well>` reads `<file stem>.raw` from the raw data
+  folder (a converted `<file stem>_<well>.mat` works too, with the `.raw` kept
+  beside it);
+- every electrode of that well that a stimulation drove is a stimulating
+  electrode, with its own stimulation times. Electrodes driven together share
+  their times and so form one stimulation pattern, and patterns are numbered
+  by first stimulation: pattern 1 is the electrode (or electrodes) stimulated
+  first;
+- a well no stimulation reached is analysed as unstimulated, and the log says
+  which wells of the plate were stimulated;
+- stimulations whose records are incomplete (AxIS's "unlinked" events) are
+  counted in the log and left out.
+
+If none of a file's stimulations records an electrode — LED (optical)
+stimulation, or files without the channel records — there is no stimulating
+electrode to analyse from. The times are then analysed the way the
+`maxwellTTL` and `eventsCSV` methods analyse light flashes (one condition, no
+stimulating electrode; for LEDs, only the flashes that lit that well), and the
+log says so.
+
+Try it on the **Stim Preview** tab first: choose `axionStimEvents`, open the
+`.raw` (pick the well) or a converted well's `.mat`, and **Detect** shows the
+well's stimulated electrodes and their times.
+
 (maxwell-recordings)=
 #### MaxWell recordings
 

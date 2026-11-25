@@ -35,7 +35,7 @@ from .plotting import (
     compute_median_spike_latency,
 )
 from .decoding import build_stim_activity_store, decode_patterns
-from .axion import build_stim_info_from_events, read_axion_stim_csv
+from .axion import AxionStimSource, build_stim_info_from_events, stim_info_for_well
 from .pipeline import run_stim_analysis, run_stim_analysis_for_recording
 
 __all__ = [

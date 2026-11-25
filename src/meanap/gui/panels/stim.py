@@ -60,11 +60,8 @@ class StimPanel(QWidget):
         self.min_blank = _dspin(0.0, 10.0, 5, 0.004, " s")
         self.stim_duration = _dspin(0.0, 10.0, 6, 0.00012, " s")
         self.pattern_thresh = _dspin(0.0, 10.0, 5, 0.005, " s")
-        self.axion_csv = QLineEdit()
-        self.axion_csv.setPlaceholderText("CSV for the axionStimEvents method (rawName, well, electrode)")
         # The detection value is the one that changes per experiment; the
-        # durations below it describe the stimulator, and the CSV only applies
-        # to one of the six methods.
+        # durations below it describe the stimulator.
         dform.addRow("Detection value", self.detection_val)
         dform.addRow("Refractory period", self.refractory)
 
@@ -72,7 +69,6 @@ class StimPanel(QWidget):
         det_advanced.form().addRow("Min blanking duration", self.min_blank)
         det_advanced.form().addRow("Stim duration", self.stim_duration)
         det_advanced.form().addRow("Pattern time-diff threshold", self.pattern_thresh)
-        det_advanced.form().addRow("Axion stim CSV", self.axion_csv)
         dform.addRow(det_advanced)
         self.group_sequences = QCheckBox("Group pulses into sequences")
         self.group_sequences.setToolTip(
@@ -252,10 +248,13 @@ class StimPanel(QWidget):
         self._on_method_changed(self.method.currentText())
 
     def _on_method_changed(self, method: str) -> None:
-        """Only the Axion method uses the CSV field; event methods have no
-        voltage to detect in and show their own settings instead."""
-        self.axion_csv.setEnabled(method == "axionStimEvents")
+        """Event methods have no voltage to detect in and show their own
+        settings instead. axionStimEvents reads the stimulation from the Axion
+        .raw, so the voltage-detection values do not apply to it."""
         events = method in EVENT_METHODS
+        axion = method == "axionStimEvents"
+        for w in (self.detection_val, self.refractory, self.min_blank):
+            w.setEnabled(not axion)
         self._det_box.setVisible(not events)
         self.event_box.setVisible(events)
 
@@ -268,7 +267,6 @@ class StimPanel(QWidget):
         self.min_blank.setValue(params.min_blanking_duration)
         self.stim_duration.setValue(params.stim_duration)
         self.pattern_thresh.setValue(params.stim_time_diff_threshold)
-        self.axion_csv.setText(params.axion_stim_csv)
         win = params.stim_analysis_window or [-0.03, 0.03]
         self.win_start.setValue(float(win[0]))
         self.win_end.setValue(float(win[1]))
@@ -316,7 +314,6 @@ class StimPanel(QWidget):
         params.min_blanking_duration = self.min_blank.value()
         params.stim_duration = self.stim_duration.value()
         params.stim_time_diff_threshold = self.pattern_thresh.value()
-        params.axion_stim_csv = self.axion_csv.text().strip()
         params.stim_analysis_window = [self.win_start.value(), self.win_end.value()]
         params.post_stim_window_dur = self.post_ignore.value()
         params.stim_drop_artifact_spikes = self.drop_artifacts.isChecked()
