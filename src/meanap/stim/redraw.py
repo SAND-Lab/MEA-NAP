@@ -139,14 +139,34 @@ def draw_activity_figures(payload: dict, dest: Path, only: str | None = None,
     """Figures 9, 10, the heatmaps, PSTHs and shuffle tests, from a loaded payload
     — or just the one named *only* (its path under *dest*, no suffix). *shuffles*
     keeps the shuffle tests between calls (see ``write_stim_figures``)."""
-    from meanap.pipeline.rng import make_rng
     from meanap.stim.pipeline import write_stim_figures
 
     return write_stim_figures(
         dest, payload["stim_info"], payload["patterns"], payload["spike_times"],
         payload["params"], None, payload["artifact_s"], payload["info"],
-        rng=make_rng(payload["seed"], "stim-figures", payload["recording"]), only=only,
-        shuffles=shuffles)
+        rng=_shuffle_rng(payload), only=only, shuffles=shuffles)
+
+
+def _shuffle_rng(payload: dict):
+    from meanap.pipeline.rng import make_rng
+
+    return make_rng(payload["seed"], "stim-figures", payload["recording"])
+
+
+def shuffle_tests_from_payload(payload: dict) -> dict:
+    """Every pattern's shuffle test for a figure payload (as
+    :func:`load_figure_payload` returns it), by 1-based pattern number.
+
+    Seeded as :func:`draw_activity_figures` seeds the ``12_shuffle_test_*``
+    figures, so the results are the ones those figures show — for a run from
+    before the results were saved, too.
+    """
+    from meanap.stim.shuffle import run_pattern_shuffle_tests
+
+    return run_pattern_shuffle_tests(
+        payload["spike_times"], payload["patterns"], payload["params"],
+        payload["artifact_s"], payload["info"], len(payload["stim_info"]),
+        _shuffle_rng(payload))
 
 
 def record_figure_names(path: Path, written: list[Path], dest: Path) -> None:

@@ -53,11 +53,13 @@ def write_stim_figures(
     order whichever figure is asked for, so a redrawn null matches the run's.
     ``shuffles``, a dict kept by the caller, holds the shuffle tests once run
     (by pattern) — they are most of the cost — for the next figure to reuse.
+    The stim step fills it before drawing, so the figures show exactly the
+    results it saved.
     """
     from pathlib import Path as _Path
 
     from .psth import get_fr_aligned_to_stim
-    from .shuffle import stim_shuffle_test
+    from .shuffle import run_pattern_shuffle_tests
     from .decoding import build_stim_activity_store
     from . import plotting as PL
 
@@ -126,18 +128,18 @@ def write_stim_figures(
 
     # 12_shuffle_test_* (seeded for reproducibility; null is RNG-divergent)
     if wanted("12_shuffle_test_"):
-        shuffle_rng = rng if rng is not None else np.random.default_rng(1)
         # All patterns or none: each test continues the RNG where the last left it.
-        reuse = shuffles is not None and len(shuffles) == len(stim_patterns)
-        for pidx, st in enumerate(stim_patterns, 1):
-            if reuse:
-                sr = shuffles[pidx]
-            else:
-                sr = stim_shuffle_test(spike_times, st,
-                                       {**params, "artifactDuration_s": artifact_duration_s},
-                                       info, n_ch, rng=shuffle_rng)
-                if shuffles is not None:
-                    shuffles[pidx] = sr
+        if shuffles is not None and len(shuffles) == len(stim_patterns):
+            results = shuffles
+        else:
+            results = run_pattern_shuffle_tests(
+                spike_times, stim_patterns, params, artifact_duration_s, info, n_ch,
+                rng if rng is not None else np.random.default_rng(1))
+            if shuffles is not None:
+                shuffles.clear()
+                shuffles.update(results)
+        for pidx in range(1, len(stim_patterns) + 1):
+            sr = results[pidx]
             if want(f"12_shuffle_test_null_dist_pattern_{pidx}",
                     f"12_shuffle_test_sig_heatmap_pattern_{pidx}"):
                 written += PL.plot_stim_shuffle_results(sr, stim_info, info, params, dest, pidx)

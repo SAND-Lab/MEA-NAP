@@ -197,10 +197,14 @@ def run_stim_analysis(
                 condition_electrodes={cd.display_name: sorted(cd.channel_ids)
                                       for cd in conditions}))
 
+        check_cancel(should_cancel)
+        shuffles = _stim_shuffle(params, rec, dest, stim_info, patterns, spikes,
+                                 sp_params, artifact_dur, info, rows, log)
+
         # per-recording figures
         check_cancel(should_cancel)
         _stim_figures(params, rec, dest, output_root, stim_info, patterns, spikes,
-                      sp_params, artifact_dur, info, method, log)
+                      sp_params, artifact_dur, info, method, log, shuffles=shuffles)
         n_done += 1
         progress.item_done(rec.filename)
 
@@ -235,11 +239,44 @@ def _axion_without_electrodes(params: Params, rec: RecordingInfo, well_stim,
     return _event_recording(params, rec, events, ctx, tables, log, should_cancel)
 
 
+def _stim_shuffle(params: Params, rec: RecordingInfo, dest: Path, stim_info, patterns,
+                  spikes, sp_params, artifact_dur, info, rows: list[dict], log) -> dict:
+    """Run the shuffle test for every pattern, save it — the ``trial_prop_obs``
+    and ``is_sig_hi`` columns of *rows*, and MATLAB's
+    ``shuffleResults_pattern_{k}.mat`` in *dest* — and return it by pattern
+    for the figures to reuse. Kept apart from the figures so a plotting
+    failure cannot lose the results."""
+    from meanap.stim.redraw import shuffle_tests_from_payload
+    from meanap.stim.shuffle import add_shuffle_columns, save_shuffle_results_mat
+
+    shuffles: dict = {}
+    try:
+        # The payload the figures are drawn from, in memory: same inputs, same
+        # seed, so the same null as the 12_shuffle_test_* figures and a rebuild.
+        shuffles = shuffle_tests_from_payload({
+            "stim_info": stim_info, "patterns": patterns, "spike_times": spikes,
+            "params": sp_params, "artifact_s": artifact_dur, "info": info,
+            "seed": params.random_seed or 1, "recording": rec.filename})
+    except Exception as e:
+        log(f"  [{rec.filename}] Warning: stim shuffle test failed: {e}")
+    add_shuffle_columns(rows, shuffles)
+    if not shuffles:
+        return {}
+    n_sig = sum(int(r["is_sig_hi"]) for r in rows if r["is_sig_hi"] is not None)
+    log(f"    shuffle test: {n_sig} of {len(rows)} electrode rows respond above chance")
+    try:
+        save_shuffle_results_mat(dest, shuffles, patterns)
+    except Exception as e:
+        log(f"  [{rec.filename}] Warning: could not save shuffle results: {e}")
+    return shuffles
+
+
 def _stim_figures(params: Params, rec: RecordingInfo, dest: Path, output_root: Path,
                   stim_info, patterns, spikes, sp_params, artifact_dur, info,
-                  method: str, log) -> None:
+                  method: str, log, shuffles: dict | None = None) -> None:
     """Save what the per-recording stim figures are drawn from, then draw them
-    from that saved copy, the way the viewer will (meanap.stim.redraw)."""
+    from that saved copy, the way the viewer will (meanap.stim.redraw).
+    *shuffles*, from :func:`_stim_shuffle`, is drawn rather than rerun."""
     from meanap.stim.redraw import (
         FIGURES_SUFFIX, draw_activity_figures, load_figure_payload, record_figure_names,
         save_figure_payload,
@@ -251,7 +288,8 @@ def _stim_figures(params: Params, rec: RecordingInfo, dest: Path, output_root: P
             stim_info=stim_info, patterns=patterns, spike_times=spikes, method=method,
             params=sp_params, artifact_s=artifact_dur, info=info,
             seed=params.random_seed or 1, recording=rec.filename)
-        figs = draw_activity_figures(load_figure_payload(path), dest)
+        figs = draw_activity_figures(load_figure_payload(path), dest,
+                                     shuffles=dict(shuffles) if shuffles else None)
         record_figure_names(path, figs, dest)
         log(f"  [{rec.filename}] wrote {len(figs)} stim figures")
     except Exception as e:   # plotting must never sink the numeric results
@@ -478,8 +516,11 @@ def _event_recording(params: Params, rec: RecordingInfo, events, ctx: _EventCont
             coords=np.array([s.coords for s in stim_info], float)))
     check_cancel(should_cancel)
     artifact_dur = get_stim_artifact_duration({**sp_params, "blankDurMode": 0.0})
+    shuffles = _stim_shuffle(params, rec, dest, stim_info, patterns, spikes,
+                             sp_params, artifact_dur, info, rows, log)
+    check_cancel(should_cancel)
     _stim_figures(params, rec, dest, output_root, stim_info, patterns, spikes,
-                  sp_params, artifact_dur, info, method, log)
+                  sp_params, artifact_dur, info, method, log, shuffles=shuffles)
     return rows
 
 
