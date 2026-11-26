@@ -26,7 +26,7 @@ A chain counts as tracked when its median match rate between days is at least **
 
 ## How MEA-NAP uses it
 
-Results go to `CellTracking/` in the output folder: per-chain results, a manifest and a quality-control page per chain. Choose a chain and **Open in viewer** to see every tracked cell's footprint and trace on each day, worst match first. The cell-type labels are read from the same places as *Cell-type file*.
+Results go to `CellTracking/` in the output folder: per-chain results, a manifest and a quality-control page per chain. Choose a chain and **Open in viewer** to see every tracked cell's footprint and trace on each day, worst match first. The viewer lists each cell's suite2p ROI number on the days it was found. On the days it was missed, it marks where the cell should be, in that day's own suite2p pixels, so it can be found again by re-running suite2p or drawing the ROI. Filter the list to the cells missing on a given day, or to cell-type conflicts (labels that change across days), and make the call for each conflict there. The cell-type labels are read from the same places as *Cell-type file*.
 
 ## Things to watch for
 
