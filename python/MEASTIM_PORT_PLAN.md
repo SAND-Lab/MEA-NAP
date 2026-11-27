@@ -57,9 +57,10 @@ So detection ground-truth must be **regenerated** by calling MATLAB's
 ## Determinism map (what can hit exact parity)
 
 **Deterministic (target exact parity):**
-- `detectStimTimes` — pure signal processing on raw voltage (all 6 methods:
-  `absPosThreshold`, `absNegThreshold`, `stdNeg`, `blanking`, `longblank`,
-  `axionStimEvents`). Refractory pruning. Run-length/blank template logic.
+- `detectStimTimes` — pure signal processing on raw voltage (the 5 voltage
+  methods: `absPosThreshold`, `absNegThreshold`, `stdNeg`, `blanking`,
+  `longblank`). Refractory pruning. Run-length/blank template logic.
+  (`axionStimEvents` reads the `.raw` file's events instead; see below.)
 - `getStimPatterns` / `checkStimPattern` — pattern grouping.
 - `calculate_psth_metrics` **with `gaussian` smoothing** — this is what the
   **individual-electrode analysis (the CSV metrics) uses** (`psth_bin_width_s=0.001`,
@@ -102,7 +103,7 @@ So detection ground-truth must be **regenerated** by calling MATLAB's
 | `ssvkernel.py` | `ssvkernel.m` (adaptive KDE) | P3 (plots only) |
 | `plotting.py` | `plotPrePostStimFR`, `plotMetricAlignedToStim`, `plotStimHeatmap[Wmetric]`, `plotStimDetectionChecks`, `plotStimShuffleResults`, individual-electrode figs | P3 |
 | `decoding.py` | pattern decoding (sklearn SVM) | P3 |
-| `axion.py` | `axionStimEventsTool.m` (CSV-driven event times) | P4 (not exercised by test data — `longblank` only) |
+| `axion.py` (+ `pipeline/axion_raw.py`) | `axionStimEventsTool.m` + the toolbox's stimulation tags (`AxisFile`, `StimulationEvent`, …): times and electrodes from the `.raw` | P4 (see "Axion stimulation from the `.raw`") |
 
 ## Phased ordering (each phase independently validatable)
 
@@ -173,9 +174,9 @@ So detection ground-truth must be **regenerated** by calling MATLAB's
     `decode_patterns` (sklearn `OneVsOneClassifier(SVC)` for MATLAB's `fitcecoc`).
     Stochastic + degenerate on the single-pattern test data (accuracy all-NaN,
     no crash). Faithfully keeps the off-by-one window→raster-bin mapping.
-  - [x] **Axion** (`stim/axion.py`) — `build_stim_info_from_events` +
-    `read_axion_stim_csv`. The `.raw` `StimulationEvents` *reader* is out of scope
-    (needs an Axion binary loader; not exercised by the `longblank` test data).
+  - [x] **Axion** (`stim/axion.py`, `pipeline/axion_raw.py`) — stimulation
+    times and electrodes read from the `.raw` file's `StimulationEvents`; no
+    CSV (see "Axion stimulation from the `.raw`" below).
   - [x] **end-to-end orchestrator** (`stim/pipeline.py`) — `run_stim_analysis`
     ties detect→patterns→clean→activity→reservoir→shuffle→CSV. Smoke-validated:
     83/83 CSV rows, auc_corrected exact (5.3e-15).
@@ -193,8 +194,71 @@ So detection ground-truth must be **regenerated** by calling MATLAB's
 
 ### Result: Phases 1–4 complete. Entire deterministic numeric core has exact
 MATLAB parity; stochastic pieces (shuffle null, decoding) are structural; plots
-match in content. The Axion `.raw` event reader and the amplitude figure are the
-only deliberately-scoped-out items.
+match in content. The Axion `.raw` event reader was ported later (see "Axion
+stimulation from the `.raw`"); the amplitude figure is the one
+deliberately-scoped-out item.
+
+### Axion stimulation from the `.raw` (2026-11-25)
+
+`axionStimEvents` reads the stimulation, times **and** electrodes, from the
+`StimulationEvents` tags of the plate's `.raw`, as the MATLAB of
+`MEASTIM_Axion` (commit `f08adc6`, `axionStimEventsTool.m`) does. The stim CSV
+(`axion_stim_csv` / `axionStimCSV`, `read_axion_stim_csv`) is gone; a saved
+params file that still has the key loads without complaint
+(`params.RETIRED_PARAMS`).
+
+- **Reader** (`pipeline/axion_raw.py: read_axion_stim_events`): port of the
+  toolbox's tag path (`AxisFile` → `TagEntry` → `Tag.Promote` →
+  `StimulationEvent.Link`). Tag entries (type `0x06`) are collected while
+  walking the entry records (`_walk_entries`, now shared with
+  `read_axion_metadata`), the highest revision per GUID kept, and
+  StimulationEvent (5), StimulationChannelGroup (6), StimulationWaveform (7)
+  and StimulationLedGroup (9) decoded. An event links to its waveform's block
+  (by the event's block ID), the block's up to two channel groups, and their
+  `ChannelMapping`s; time = `EventTimeSample / SamplingFrequency`, electrode =
+  `ElectrodeColumn*10 + ElectrodeRow`. Events with all-zero GUIDs or tags that
+  don't resolve are counted as unlinked (`unlinked_times`). Checked against
+  `axionbio/AxionFileLoader` v1.4.0.0 on GitHub: the stimulation-tag code is
+  the same as the bundled copy. Departures: (1) a block that lists no channel
+  group (both slots `0`) takes the channel arrays its waveform's stimulation
+  program arms (`<achkset channelarrayid="1" …/>` in the UTF-16 MicroOps
+  XML) — `AK_HCNT24.4_DIV60_HL_5uA.raw` is written this way, and the
+  toolbox's `Link` finds no electrode in it; (2) where MATLAB would error, a
+  missing block or channel group makes the event unlinked, and an LED tag's
+  groups are read by its stored count (a one-LED group is under the 20-byte
+  `MinArraySize`).
+- **On `AK_HCNT24.4_DIV60_HL_5uA.raw`** (48-well, 300 s): 60 events 5 s apart,
+  none unlinked, each driving one electrode in every well but E5 (A1 → 33,
+  as MATLAB's CSV-driven run had). End to end on A1: one pattern, 60 trials,
+  first-spike latencies within ~1 ms of MATLAB's (`auc_corrected` differs
+  with the step-1 spike trains).
+- **Tags live after the voltage data** in AxIS files (seen on
+  `AK_HCNT24.4_DIV60_HL_5uA.raw`), so reading them walks the whole header but
+  never reads samples.
+- **Per well** (`stim/axion.py`): a recording `<file>_<well>` reads
+  `<file>.raw` from the raw data folder (or `stim_events_folder`), once per
+  run (`AxionStimSource`). Each electrode of the well an event names becomes a
+  stimulating electrode with its own times; `build_stim_info_from_events`
+  keeps zero-length blanks (ignored window = `postStimWindowDur`). Electrodes
+  driven by one block share their times and so one pattern.
+  `get_stim_patterns` numbers axionStimEvents patterns by **first stimulation
+  time** (MATLAB `getStimPatterns` on `MEASTIM_Axion`).
+- **Pipeline** (`stim_step.run_stim_analysis`): builds `stim_info` from the
+  events instead of `detect_stim_times` (which now raises for this method);
+  everything downstream is unchanged. **Departure from MATLAB:** when no
+  event in the file names an electrode (LED stimulation, missing channel
+  tags), MATLAB gives the wells no stimulation; here the event times are
+  analysed as event-driven stimulation (`_axion_without_electrodes` →
+  `_event_recording`, split out of `_run_event_stim_analysis`), restricted to
+  the events lighting the well when LED tags say which wells they lit.
+- **Step 1** drops artifact detections around the `.raw` stimuli of a
+  stimulated well (`runner._drop_stim_artifacts`), the same windows the stim
+  step cleans with; it used to find no stimuli for this method.
+- **GUI**: the CSV field is gone; the Stim Preview tab takes `axionStimEvents`,
+  opens a `.raw` with a well picker (or a converted `<file>_<well>.mat` with
+  the `.raw` beside it) and shows the well's stimulated electrodes and times.
+- Tests: `python/test_axion_stim.py` (synthetic tag-only `.raw` files written
+  byte for byte, plus the real recording when present).
 
 ### GUI integration (2026-07-22)
 

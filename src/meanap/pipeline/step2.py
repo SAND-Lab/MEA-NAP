@@ -16,7 +16,9 @@ from meanap.pipeline.io import (
     truncate_spike_times,
 )
 from meanap.pipeline.firing_rates import firing_rates_bursts
-from meanap.pipeline.plotting_step2 import plot_neuronal_activity_checks
+from meanap.pipeline.plotting_step2 import (
+    plot_neuronal_activity_checks, step2_stimulated_electrodes,
+)
 from meanap.pipeline.verbosity import as_run_log
 
 
@@ -285,6 +287,7 @@ def _run_step2_neuronal_activity(
             spike_freq_max=spike_freq_max,
             batch_max=batch_max,
             layout=ctx["layout"],
+            stimulated=step2_stimulated_electrodes(params, output_root, ctx["rec"].filename),
         )
 
     if not params.express_mode:

@@ -164,6 +164,16 @@ event CSV, including evoked-vs-baseline networks and noise correlations — see
 [Importing spike-sorted data](sorted-import.md). Not available in the MATLAB
 pipeline.
 
+**Axion stimulation (`axionStimEvents`).** Both pipelines read the stimulated
+electrodes and times from the `.raw` file's stimulation records, with no CSV
+(see [Axion stimulation](gui-guide.md#axion-stimulation)). Two differences.
+Some AxIS files leave a stimulation's electrode list empty and name the driven
+channel array only in the stimulation program stored beside it; Python reads
+the electrodes from there, where Axion's MATLAB loader, and so MATLAB, finds
+none. And when no record in a file names an electrode (LED stimulation),
+MATLAB gives the wells no stimulation, while Python analyses the times as
+event-driven stimulation.
+
 **Half-violins stop at the metric's limits.** Both pipelines evaluate a
 violin's density three bandwidths past the data on either side, so it tails
 off smoothly. MATLAB lets those tails run wherever the Gaussian kernel takes

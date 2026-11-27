@@ -21,8 +21,9 @@ The six detection methods mirror the MATLAB exactly:
     long run of identical samples (the amplifier blanking); the run *start* is
     the stim time. Runs are found by run-length encoding of ``diff == 0``.
 ``axionStimEvents``
-    Handled elsewhere (event times come from the Axion CSV, not the trace);
-    :func:`detect_stim_times` returns empty stim times for these channels.
+    Handled elsewhere: times and electrodes come from the Axion ``.raw``
+    file's ``StimulationEvents`` (:mod:`meanap.stim.axion`), not the trace.
+    :func:`detect_stim_times` raises rather than return no stimulation.
 
 **1-based indexing gotcha** (see PIPELINE_PORT_STATUS.md for the analogous
 spike-time case): MATLAB reports a run starting at sample index ``i`` as
@@ -184,7 +185,11 @@ def detect_stim_times(
             valid = run_len >= lb["min_duration"]
             stim_times = (start_pos[valid] + 1) / fs
         elif method == "axionStimEvents":
-            stim_times = np.array([])
+            raise ValueError(
+                "axionStimEvents reads stimulation from the Axion .raw file's "
+                "StimulationEvents, not from the voltage, so detect_stim_times can't "
+                "provide it; build the stimulation with meanap.stim.axion "
+                "(AxionStimSource / stim_info_for_well) instead.")
         else:
             raise ValueError(f"No valid stimulus detection method: {method!r}")
 
@@ -340,14 +345,22 @@ def get_stim_patterns(
 ) -> tuple[list[StimChannelInfo], list[np.ndarray]]:
     """Group electrodes into stimulation patterns (port of ``getStimPatterns.m``).
 
-    Iterates electrodes in ascending order of stim count. Electrodes with no
-    stimulation get pattern 0; the rest are matched via :func:`check_stim_pattern`
-    using ``params['stimTimeDiffThreshold']``. Mutates and returns ``stim_info``.
+    Iterates electrodes in ascending order of stim count — or, for
+    ``axionStimEvents``, of first stimulation time, so that pattern 1 is the
+    electrode stimulated first in every well (as the MATLAB ``getStimPatterns``
+    of ``MEASTIM_Axion`` does). Electrodes with no stimulation get pattern 0;
+    the rest are matched via :func:`check_stim_pattern` using
+    ``params['stimTimeDiffThreshold']``. Mutates and returns ``stim_info``.
     """
     threshold = float(params["stimTimeDiffThreshold"])
     num_stim = np.array([info.elec_stim_times.shape[0] for info in stim_info])
     # MATLAB sort is stable ascending; np.argsort with kind='stable' matches.
-    order = np.argsort(num_stim, kind="stable")
+    if params.get("stimDetectionMethod") == "axionStimEvents":
+        first = np.array([info.elec_stim_times.min() if info.elec_stim_times.size else np.inf
+                          for info in stim_info])
+        order = np.argsort(first, kind="stable")
+    else:
+        order = np.argsort(num_stim, kind="stable")
 
     stim_patterns: list[np.ndarray] = []
     for elec_idx in order:

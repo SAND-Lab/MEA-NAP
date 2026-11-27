@@ -127,8 +127,13 @@ def plot_heatmap(
     layout: tuple[np.ndarray, np.ndarray] | None = None,
     grounded: set[int] | None = None,
     inactive: bool = False,
+    stimulated: set[int] | None = None,
 ):
     """Electrode heatmap, port of ``electrodeHeatMaps.m`` / ``plotNodeHeatmap.m``.
+
+    ``stimulated`` is the recording's stimulating electrode IDs (a stimulation
+    run). As in MATLAB they are drawn white with a black edge over their
+    colour; they are also kept out of the colour range, like grounded ones.
 
     ``inactive`` draws the layout's electrodes that have no value (no unit on
     them) as faint dots: the viewer's "Inactive electrodes" option.
@@ -167,7 +172,7 @@ def plot_heatmap(
     scene = heatmap_scene(metric, chs, title, clabel, cmap=cmap,
                           channel_layout=channel_layout, batch_max=batch_max,
                           aggregate=aggregate, layout=layout, grounded=grounded,
-                          inactive=inactive)
+                          inactive=inactive, stimulated=stimulated)
     if scene is None:
         return
     painter = HeatmapPainter(scene)
@@ -260,6 +265,26 @@ ACTIVITY_HEATMAPS = (
 )
 
 
+def step2_stimulated_electrodes(params, root: Path, recording: str) -> set[int]:
+    """The electrodes the step-2 heatmaps mark as stimulating, for *recording*
+    of the run in *root*.
+
+    Only in a stimulation run, as in MATLAB (``Params.stimulationMode``). The
+    stim step runs before step 2 and saves which electrodes stimulated in the
+    recording's figure payload (``ExperimentMatFiles/<rec>_stimFigures.npz``);
+    a bundle carries the same file, so the viewer marks the same ones.
+    """
+    if not getattr(params, "stimulation_mode", False):
+        return set()
+    from meanap.stim.redraw import FIGURES_SUFFIX, stimulating_electrodes
+
+    try:
+        return stimulating_electrodes(
+            Path(root) / "ExperimentMatFiles" / f"{recording}{FIGURES_SUFFIX}")
+    except Exception:       # an unreadable payload must not cost the figures
+        return set()
+
+
 def plot_neuronal_activity_checks(
     rec,
     params,
@@ -276,11 +301,15 @@ def plot_neuronal_activity_checks(
     only: str | None = None,
     layout: tuple[np.ndarray, np.ndarray] | None = None,
     view: dict | None = None,
+    stimulated: set[int] | None = None,
 ) -> list[Path]:
     """Draw one recording's step-2 activity figures.
 
     ``view`` is the viewer's activity options (``inactive_electrodes``,
     ``raster_order``); absent, the figures are drawn as the pipeline draws them.
+
+    ``stimulated`` is the recording's stimulating electrode IDs, marked on
+    every heatmap (see :func:`step2_stimulated_electrodes`).
 
     ``fmt`` selects the image format (``svg``/``pdf`` give vector output) and
     ``only`` restricts the call to the single figure with that base name — the
@@ -326,7 +355,7 @@ def plot_neuronal_activity_checks(
                          channel_layout=channel_layout, batch_max=bmax.get(key), layout=layout,
                          aggregate=_POOL_BY_SUM.get(key, "mean"),
                          grounded=parse_ground_electrodes(rec.ground),
-                         inactive=show_inactive)
+                         inactive=show_inactive, stimulated=stimulated)
 
     if (p := want("3_Raster.png")) is not None:
         plot_raster(

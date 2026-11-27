@@ -142,3 +142,92 @@ def stim_shuffle_test(
 
     return ShuffleResults(obs, null, pctile_lo, pctile_hi, is_sig_lo, is_sig_hi,
                           is_sig_hi.copy(), n_shuffles, alpha, poststim, baseline, artifact_dur)
+
+
+def run_pattern_shuffle_tests(
+    spike_times: dict[int, dict[str, np.ndarray]],
+    stim_patterns: list,
+    params: dict,
+    artifact_duration_s: float,
+    info: dict,
+    n_channels: int,
+    rng: np.random.Generator,
+) -> dict[int, ShuffleResults]:
+    """Every pattern's shuffle test, keyed by 1-based pattern number.
+
+    One RNG stream, used in pattern order: each test continues it where the
+    last left off, so the results are only reproducible when all patterns run
+    together, in this order. The stim step, the figures and the rebuild script
+    all go through here so they get the same null from the same seed.
+    """
+    p = {**params, "artifactDuration_s": artifact_duration_s}
+    return {pidx: stim_shuffle_test(spike_times, st, p, info, n_channels, rng=rng)
+            for pidx, st in enumerate(stim_patterns, 1)}
+
+
+#: Columns the shuffle test adds to ``StimActivity_NodeLevel.csv``.
+SHUFFLE_CSV_COLUMNS = ("trial_prop_obs", "is_sig_hi")
+
+
+def add_shuffle_columns(rows: list[dict], shuffles: dict[int, ShuffleResults]) -> None:
+    """Give each ``StimActivity_NodeLevel.csv`` row its electrode's shuffle result.
+
+    Rows are matched by ``pattern_id`` and ``file_index`` (1-based electrode
+    position). A row whose pattern has no result gets blanks, so the columns
+    are always there and a failed test shows up as missing, not as "not
+    significant".
+    """
+    for r in rows:
+        sr = shuffles.get(r["pattern_id"])
+        c = int(r["file_index"]) - 1
+        if sr is None or not 0 <= c < len(sr.trial_prop_obs):
+            r["trial_prop_obs"], r["is_sig_hi"] = np.nan, None
+        else:
+            r["trial_prop_obs"] = float(sr.trial_prop_obs[c])
+            r["is_sig_hi"] = bool(sr.is_sig_hi[c])
+
+
+#: MATLAB's per-pattern file name (``stimActivityAnalysis.m``).
+SHUFFLE_MAT_NAME = "shuffleResults_pattern_{}.mat"
+
+
+def save_shuffle_results_mat(dest, shuffles: dict[int, ShuffleResults],
+                             stim_patterns: list) -> list:
+    """Write ``shuffleResults_pattern_{k}.mat`` into the recording folder *dest*.
+
+    Same file name, variable (``patternShuffleResults``) and field names as
+    MATLAB's ``stimShuffleTest``, so scripts written for MATLAB's output read
+    these unchanged. Per-electrode fields are ``[numChannels x 1]`` columns in
+    electrode order, and the ``isSig*`` fields are MATLAB logicals. Like
+    MATLAB, a pattern with no stimulus times gets no file.
+    """
+    from pathlib import Path
+
+    import scipy.io as sio
+
+    from meanap.pipeline.atomic import atomic_path
+
+    dest = Path(dest)
+    written = []
+    for pidx, sr in sorted(shuffles.items()):
+        if np.asarray(stim_patterns[pidx - 1]).size == 0:
+            continue
+        struct = {
+            "trialProp_obs": np.asarray(sr.trial_prop_obs, float),
+            "trialProp_null": np.asarray(sr.trial_prop_null, float),
+            "pctile_lo": np.asarray(sr.pctile_lo, float),
+            "pctile_hi": np.asarray(sr.pctile_hi, float),
+            "isSigLo": np.asarray(sr.is_sig_lo, bool),
+            "isSigHi": np.asarray(sr.is_sig_hi, bool),
+            "isSignificant": np.asarray(sr.is_significant, bool),
+            "Nshuffles": float(sr.n_shuffles),
+            "alpha": float(sr.alpha),
+            "postStimWindow": np.asarray(sr.poststim_window, float).reshape(1, 2),
+            "baselineWindow": np.asarray(sr.baseline_window, float).reshape(1, 2),
+            "artifactDuration": float(sr.artifact_duration),
+        }
+        path = dest / SHUFFLE_MAT_NAME.format(pidx)
+        with atomic_path(path, suffix=".mat") as tmp:
+            sio.savemat(tmp, {"patternShuffleResults": struct}, oned_as="column")
+        written.append(path)
+    return written

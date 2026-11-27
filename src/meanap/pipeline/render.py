@@ -2243,7 +2243,9 @@ def render_activity_figure(
     from meanap.pipeline.figure_output import figure_dpi
     from meanap.pipeline.io import load_spike_times_npz, truncate_spike_times
     from meanap.pipeline.channel_layout import recording_layout
-    from meanap.pipeline.plotting_step2 import plot_neuronal_activity_checks
+    from meanap.pipeline.plotting_step2 import (
+        plot_neuronal_activity_checks, step2_stimulated_electrodes,
+    )
     from meanap.pipeline.spreadsheet import ground_spike_times_dict, parse_ground_electrodes
 
     overrides, view = split_activity_view(overrides)
@@ -2293,6 +2295,7 @@ def render_activity_figure(
             ephys=ephys, output_root=Path(out_dir),
             spike_freq_max=batch_max.get("FR"), batch_max=batch_max,
             fmt=fmt, only=figure, layout=layout, view=view,
+            stimulated=step2_stimulated_electrodes(params, ctx.root, recording),
         )
     if not written:
         raise ValueError(

@@ -197,10 +197,17 @@ def _half_rmax_time(psth_smooth: np.ndarray, time_vector_s: np.ndarray) -> float
 def write_stim_activity_csv(rows: list[dict], path) -> None:
     """Write ``StimActivity_NodeLevel.csv`` (port of ``saveEphysStatsStim.m``).
 
-    Columns beyond MATLAB's (a sorted run's ``unit_id``, an event run's
-    ``condition``) follow them, so the MATLAB columns keep their positions.
+    Columns beyond MATLAB's (the shuffle test's ``trial_prop_obs`` and
+    ``is_sig_hi``, a sorted run's ``unit_id``, an event run's ``condition``)
+    follow them, so the MATLAB columns keep their positions.
     """
     import pandas as pd
-    extra = list(dict.fromkeys(k for r in rows for k in r if k not in CSV_COLUMNS))
+    from .shuffle import SHUFFLE_CSV_COLUMNS
+
+    # The shuffle columns sit right after MATLAB's whenever any row has them.
+    first = [k for k in SHUFFLE_CSV_COLUMNS if any(k in r for r in rows)]
+    extra = list(dict.fromkeys(k for r in rows for k in r
+                               if k not in CSV_COLUMNS and k not in first))
+    extra = first + extra
     df = pd.DataFrame(rows, columns=CSV_COLUMNS + extra)
     df.to_csv(path, index=False)
