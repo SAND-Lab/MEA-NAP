@@ -160,8 +160,11 @@ class _Service:
 
     def tracking(self):
         return {"available": True, "chains": [
-            {"chain": "chainA", "divs": DIVS, "genotype": "Het"},
-            {"chain": "chainB", "divs": DIVS, "genotype": "WT"}]}
+            {"chain": "chainA", "divs": DIVS, "genotype": "Het",
+             "cellTypes": {"markers": ["Mecp2", "NeuN"]}},
+            {"chain": "chainB", "divs": DIVS, "genotype": "WT"},
+            {"chain": "chainC", "divs": DIVS, "genotype": "KO",
+             "cellTypes": {"markers": ["NeuN"]}}]}
 
     def tracking_payload(self, chain):
         from meanap.catnap.tracking.celltypes import load_overrides
@@ -212,7 +215,31 @@ def test_search_hides_other_chains(app, tmp_path):
     view = _view(app, tmp_path)
     view.search.setText("chainb")
     hidden = [view.chains.item(i).isHidden() for i in range(view.chains.count())]
-    assert hidden == [True, False]
+    assert hidden == [True, False, True]
+
+
+def test_fields_of_view_filtered_by_cell_types(app, tmp_path):
+    view = _view(app, tmp_path)
+    labels = [view.labels_filter.itemText(i) for i in range(view.labels_filter.count())]
+    assert labels == ["All fields of view (3)", "With cell types (2)",
+                      "With Mecp2 (1)", "With NeuN (2)"]
+    assert "Cell types: Mecp2, NeuN" in view.chains.item(0).text()
+    assert "Cell types" not in view.chains.item(1).text()
+
+    def shown():
+        return [view.chains.item(i).data(0x0100) for i in range(view.chains.count())
+                if not view.chains.item(i).isHidden()]
+
+    view.labels_filter.setCurrentIndex(1)
+    assert shown() == ["chainA", "chainC"]
+    view.chains.setCurrentRow(2)               # chainC; the next filter hides it
+    view.labels_filter.setCurrentIndex(2)
+    assert shown() == ["chainA"]
+    assert view.chains.currentItem().data(0x0100) == "chainA"
+    view.search.setText("chainc")              # both filters must hold
+    assert shown() == []
+    view.labels_filter.setCurrentIndex(0)
+    assert shown() == ["chainC"]
 
 
 def test_missing_filter_and_the_expected_ring(app, tmp_path):

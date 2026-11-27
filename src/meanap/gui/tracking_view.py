@@ -176,6 +176,14 @@ class TrackingView(QWidget):
         self.search.setPlaceholderText("Filter, e.g. pup4A")
         self.search.setClearButtonEnabled(True)
         self.search.textChanged.connect(self._filter_chains)
+        # which fields of view carry immunostain labels: most do not, and the
+        # cell-type review is only possible on those that do
+        self.labels_filter = QComboBox()
+        self.labels_filter.setToolTip(
+            "Only the fields of view with immunostaining labels, or with one "
+            "marker. The Cell type filter and calls only appear on these.")
+        self.labels_filter.currentIndexChanged.connect(
+            lambda _i: self._filter_chains(self.search.text()))
         self.chains = QListWidget()
         self.chains.currentItemChanged.connect(lambda *_: self._on_chain())
         # Names differ at both ends (prep at the start, genotype at the end):
@@ -185,6 +193,7 @@ class TrackingView(QWidget):
         left, left_box = _card()
         left_box.addWidget(_heading("Fields of view"))
         left_box.addWidget(self.search)
+        left_box.addWidget(self.labels_filter)
         left_box.addWidget(self.chains, 1)
         left.setMinimumWidth(270)
 
@@ -216,7 +225,8 @@ class TrackingView(QWidget):
         bar.addSpacing(12)
         bar.addWidget(_muted("Background"))
         bar.addWidget(self.background)
-        bar.addWidget(_muted("Colour"))
+        self._colour_label = _muted("Colour")
+        bar.addWidget(self._colour_label)
         bar.addWidget(self.colour_by)
         bar.addWidget(self.untracked)
         bar.addStretch(1)
@@ -336,6 +346,8 @@ class TrackingView(QWidget):
         listing = service.tracking()
         if not listing.get("available"):
             return False
+        counts: dict[str, int] = {}
+        labelled = 0
         for chain in listing["chains"]:
             days = ", ".join(str(d) for d in chain.get("divs", []))
             sep = chain.get("separability")
@@ -343,9 +355,26 @@ class TrackingView(QWidget):
                 chain.get("genotype"), f"DIV {days}" if days else "",
                 f"{chain.get('networkCells', 0)} cells",
                 f"separability {sep:.2f}" if sep is not None else "") if v)
-            item = QListWidgetItem(f"{chain['chain']}\n{detail}")
+            markers = list((chain.get("cellTypes") or {}).get("markers") or [])
+            text = f"{chain['chain']}\n{detail}"
+            if markers:
+                text += "\nCell types: " + ", ".join(markers)
+                labelled += 1
+                for m in markers:
+                    counts[m] = counts.get(m, 0) + 1
+            item = QListWidgetItem(text)
             item.setData(Qt.ItemDataRole.UserRole, chain["chain"])
+            item.setData(Qt.ItemDataRole.UserRole + 1, markers)
             self.chains.addItem(item)
+        self.labels_filter.blockSignals(True)
+        self.labels_filter.clear()
+        self.labels_filter.addItem(f"All fields of view ({len(listing['chains'])})", None)
+        if labelled:
+            self.labels_filter.addItem(f"With cell types ({labelled})", "")
+            for m in sorted(counts):
+                self.labels_filter.addItem(f"With {m} ({counts[m]})", m)
+        self.labels_filter.blockSignals(False)
+        self.labels_filter.setVisible(bool(labelled))
         self._filter_chains(self.search.text())
         if self.chains.count():
             self.chains.setCurrentRow(0)
@@ -365,10 +394,21 @@ class TrackingView(QWidget):
 
     def _filter_chains(self, text: str) -> None:
         words = text.lower().split()
+        # None: every chain; "": any marker; otherwise that marker
+        want = self.labels_filter.currentData()
         for row in range(self.chains.count()):
             item = self.chains.item(row)
             name = item.text().lower()
-            item.setHidden(not all(w in name for w in words))
+            markers = item.data(Qt.ItemDataRole.UserRole + 1) or []
+            labels_ok = want is None or (bool(markers) if want == "" else want in markers)
+            item.setHidden(not (labels_ok and all(w in name for w in words)))
+        # the page must not go on showing a chain the list no longer has
+        current = self.chains.currentItem()
+        if current is not None and current.isHidden():
+            visible = [r for r in range(self.chains.count())
+                       if not self.chains.item(r).isHidden()]
+            if visible:
+                self.chains.setCurrentRow(visible[0])
 
     def _on_chain(self) -> None:
         item = self.chains.currentItem()
@@ -436,6 +476,7 @@ class TrackingView(QWidget):
         for marker in self.markers:
             self.colour_by.addItem(marker, marker)
         self.colour_by.setVisible(bool(self.markers))
+        self._colour_label.setVisible(bool(self.markers))
         self.colour_by.blockSignals(False)
         self._colour()
         self._fill_cells()
